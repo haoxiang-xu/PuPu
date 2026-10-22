@@ -129,6 +129,34 @@ describe("test-api integration", () => {
     expect(r2.body).toEqual({ chat_id: "test-chat" });
   });
 
+  test("debug logs retain IPC and main writes and reset for a new service", async () => {
+    const ipcMain = new EventEmitter();
+    svc = createTestApiService({
+      env: { NODE_ENV: "development" }, ipcMain, portFilePath: portFile,
+    });
+    await svc.start({ webContents: makeFakeWebContents(ipcMain) });
+    ipcMain.emit(CHANNELS.TEST_BRIDGE.READY, {});
+    const entry = { ts: 200, level: "info", source: "renderer", msg: "ticket-370-renderer-probe" };
+    ipcMain.emit(CHANNELS.TEST_BRIDGE.LOG, {}, entry);
+    process.stdout.write("ticket-370-main-probe\n");
+    const renderer = await httpRequest(svc.getPort(), { path: "/v1/debug/logs?source=renderer&since=199" });
+    expect(renderer.status).toBe(200);
+    expect(renderer.body).toEqual({ entries: [entry] });
+    const filtered = await httpRequest(svc.getPort(), { path: "/v1/debug/logs?source=renderer&since=200" });
+    expect(filtered.body).toEqual({ entries: [] });
+    const main = await httpRequest(svc.getPort(), { path: "/v1/debug/logs?source=main" });
+    expect(main.body.entries.some((row) => row.msg === "ticket-370-main-probe\n")).toBe(true);
+    await svc.stop();
+    const nextIpc = new EventEmitter();
+    svc = createTestApiService({
+      env: { NODE_ENV: "development" }, ipcMain: nextIpc, portFilePath: portFile,
+    });
+    await svc.start({ webContents: makeFakeWebContents(nextIpc) });
+    nextIpc.emit(CHANNELS.TEST_BRIDGE.READY, {});
+    const after = await httpRequest(svc.getPort(), { path: "/v1/debug/logs?source=renderer" });
+    expect(after.body).toEqual({ entries: [] });
+  });
+
   test("does not start when NODE_ENV=production", async () => {
     const ipcMain = new EventEmitter();
     svc = createTestApiService({

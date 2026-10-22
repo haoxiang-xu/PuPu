@@ -1,0 +1,10 @@
+src/COMPONENTs/ui-testing/runners/trace_chain_runner.js:13:import TraceChain from "../../chat-bubble/trace_chain";
+src/COMPONENTs/ui-testing/runners/trace_chain_runner.js:17:import { adaptActivityTreeToTraceChain } from "../../../SERVICEs/runtime_events/trace_chain_adapter";
+src/COMPONENTs/ui-testing/runners/trace_chain_runner.js:239:            <TraceChain
+src/COMPONENTs/ui-testing/runners/interject_runner.js:4:import TraceChain from "../../chat-bubble/trace_chain";
+src/COMPONENTs/ui-testing/runners/interject_runner.js:301:          <TraceChain
+src/COMPONENTs/chat-bubble/lazy_trace_chain.js:2:import TraceChain, { DISPLAY_FRAME_TYPES } from "./trace_chain";
+src/COMPONENTs/chat-bubble/lazy_trace_chain.js:163:      <TraceChain {...props} />
+src/COMPONENTs/chat-bubble/character_chat_bubble.js:3:import TraceChain from "./trace_chain";
+src/COMPONENTs/chat-bubble/character_chat_bubble.js:167:        <TraceChain
+src/COMPONENTs/chat-bubble/character_chat_bubble.js:191:        <TraceChain

@@ -33,8 +33,9 @@ on:
       unchain_ref:
         description: "Unchain source ref selected once for the immutable release artifact (release-candidate requires a full 40-character revision)"
         type: string
-        # Memory V3 final-audit repair pair (Unchain PR #40).
-        default: 93e97c0a9239488ea0dc9379335aa8cb73d95815
+        # Paired #411 runtime: Gemini 4 Argon catalog and request limits,
+        # including the earlier #389 journal/interaction fixes.
+        default: 4e9d8c3bb228874bd81e4d80ea1905d4aa71110c
 
 permissions:
   contents: read
@@ -49,7 +50,7 @@ jobs:
     uses: ./.github/workflows/_shared-release-deterministic.yml
     with:
       qa_mode: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_scope == 'windows-playwright' && 'release' || (github.event_name == 'workflow_dispatch' && inputs.qa_mode) || (startsWith(github.ref, 'refs/tags/v') && 'release') || 'lite' }}
-      unchain_ref: ${{ github.event.inputs.unchain_ref || '93e97c0a9239488ea0dc9379335aa8cb73d95815' }}
+      unchain_ref: ${{ github.event.inputs.unchain_ref || '4e9d8c3bb228874bd81e4d80ea1905d4aa71110c' }}
       source_ref: ${{ github.ref }}
       source_sha: ${{ github.sha }}
       release_tag: ${{ github.ref_name }}
@@ -77,7 +78,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh api "repos/$GITHUB_REPOSITORY/environments/release-signing" \
+          node scripts/release-qa/external-network-retry.mjs --profile github-read -- \
+            gh api "repos/$GITHUB_REPOSITORY/environments/release-signing" \
             | node scripts/release-qa/verify-github-environment.mjs --environment release-signing
 
   playwright-electron:
@@ -123,7 +125,7 @@ jobs:
       target_id: ${{ matrix.target_id }}
       platform_name: ${{ matrix.name }}
       signing_platform: ${{ matrix.signing_platform }}
-      unchain_ref: ${{ github.event.inputs.unchain_ref || '93e97c0a9239488ea0dc9379335aa8cb73d95815' }}
+      unchain_ref: ${{ github.event.inputs.unchain_ref || '4e9d8c3bb228874bd81e4d80ea1905d4aa71110c' }}
       source_ref: ${{ github.ref }}
       source_sha: ${{ github.sha }}
       release_tag: ${{ github.ref_name }}
@@ -144,7 +146,7 @@ jobs:
       target_id: linux-x64
       platform_name: linux
       signing_platform: linux
-      unchain_ref: ${{ github.event.inputs.unchain_ref || '93e97c0a9239488ea0dc9379335aa8cb73d95815' }}
+      unchain_ref: ${{ github.event.inputs.unchain_ref || '4e9d8c3bb228874bd81e4d80ea1905d4aa71110c' }}
       source_ref: ${{ github.ref }}
       source_sha: ${{ github.sha }}
       release_tag: ${{ github.ref_name }}
@@ -165,7 +167,7 @@ jobs:
       target_id: windows-x64
       platform_name: windows
       signing_platform: windows
-      unchain_ref: ${{ github.event.inputs.unchain_ref || '93e97c0a9239488ea0dc9379335aa8cb73d95815' }}
+      unchain_ref: ${{ github.event.inputs.unchain_ref || '4e9d8c3bb228874bd81e4d80ea1905d4aa71110c' }}
       source_ref: ${{ github.ref }}
       source_sha: ${{ github.sha }}
       release_tag: ${{ github.ref_name }}

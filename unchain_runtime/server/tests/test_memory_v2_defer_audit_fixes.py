@@ -184,9 +184,11 @@ def test_real_candidate_proposal_uri_is_lossless_and_replayable(tmp_path):
         run_id="attempt-a", completion_authority=True)
     attachment = host.normal_attachment_factory.attach(request)
     toolkit = host.memory_host.build_normal_toolkit(attachment.binding, attachment.capabilities)
-    event = host.attempt(execution_id="execution-a", attempt_id="attempt-a").bundle.journal.capture_snapshot().events[0]
-    args = dict(path="/test/marker.md", description="Synthetic marker", content="violet lighthouse",
-        source_refs=[host.reference_codec.encode(ResourceRef("context_event", event.event_id, 1))])
+    args = dict(
+        path="/test/marker.md",
+        description="Synthetic marker",
+        content="violet lighthouse",
+    )
     first = toolkit.tools["memory_propose"].func(**args)
     second = toolkit.tools["memory_propose"].func(**args)
     assert first["content_ref"] == second["content_ref"]

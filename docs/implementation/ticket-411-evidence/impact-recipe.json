@@ -1,0 +1,73 @@
+{
+  "target": {
+    "id": "File:src/COMPONENTs/agents/pages/recipes_page/detail_panel/agent_panel.js",
+    "name": "agent_panel.js",
+    "type": "File",
+    "filePath": "src/COMPONENTs/agents/pages/recipes_page/detail_panel/agent_panel.js"
+  },
+  "direction": "upstream",
+  "impactedCount": 3,
+  "risk": "LOW",
+  "riskSharedAxes": "LOW",
+  "riskScale": {
+    "comparableAcrossKinds": false,
+    "unusedAxes": [
+      {
+        "axis": "processes",
+        "reason": "file-nodes-have-no-process-or-community-membership"
+      },
+      {
+        "axis": "modules",
+        "reason": "file-nodes-have-no-process-or-community-membership"
+      }
+    ]
+  },
+  "epistemic": "exact",
+  "summary": {
+    "direct": 1,
+    "processes_affected": 0,
+    "modules_affected": 0
+  },
+  "byDepthCounts": {
+    "1": 1,
+    "2": 1,
+    "3": 1
+  },
+  "affected_processes": [],
+  "affected_modules": [],
+  "byDepth": {
+    "1": [
+      {
+        "depth": 1,
+        "id": "File:src/COMPONENTs/agents/pages/recipes_page/detail_panel/detail_panel.js",
+        "name": "detail_panel.js",
+        "filePath": "src/COMPONENTs/agents/pages/recipes_page/detail_panel/detail_panel.js",
+        "relationType": "IMPORTS",
+        "confidence": 1,
+        "processes": []
+      }
+    ],
+    "2": [
+      {
+        "depth": 2,
+        "id": "File:src/COMPONENTs/agents/pages/recipes_page.js",
+        "name": "recipes_page.js",
+        "filePath": "src/COMPONENTs/agents/pages/recipes_page.js",
+        "relationType": "IMPORTS",
+        "confidence": 1,
+        "processes": []
+      }
+    ],
+    "3": [
+      {
+        "depth": 3,
+        "id": "File:src/COMPONENTs/agents/agents_modal_content.js",
+        "name": "agents_modal_content.js",
+        "filePath": "src/COMPONENTs/agents/agents_modal_content.js",
+        "relationType": "IMPORTS",
+        "confidence": 1,
+        "processes": []
+      }
+    ]
+  }
+}

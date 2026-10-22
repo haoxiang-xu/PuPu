@@ -2,6 +2,7 @@
 
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 
 import pytest
 
@@ -20,7 +21,18 @@ def test_durable_cancel_wins_over_preflighted_answer(tmp_path, monkeypatch, pend
         release_answer = threading.Event()
         original_validate = host._validated_durable_interaction_guard_owner_attempt
         original_reconcile = host._reconcile_cancelled_interaction_to_context
+        original_commit_lock = host._interaction_commit_lock
+        answer_waiting_for_commit = threading.Event()
         observed = {}
+
+        @contextmanager
+        def observe_commit_lock(session_id):
+            if threading.current_thread().name.startswith("accept-review"):
+                answer_waiting_for_commit.set()
+            with original_commit_lock(session_id):
+                yield
+
+        monkeypatch.setattr(host, "_interaction_commit_lock", observe_commit_lock)
 
         def read_canonical():
             return pupu_unchain_cold_accepted_interaction_resolution(
@@ -45,24 +57,35 @@ def test_durable_cancel_wins_over_preflighted_answer(tmp_path, monkeypatch, pend
             answer_future = pool.submit(submit, pending, "vue")
 
             def continue_answer_after_durable_cancel(**kwargs):
+                if observed.get("cancellation_projected"):
+                    return original_reconcile(**kwargs)
                 snapshot = host._interaction_runtime().load(
                     fixture.EXECUTION_ID,
                     interaction_id=pending["interaction_id"],
                     require_active=False,
                 )
                 assert snapshot.application is not None
+                # The host cancellation already won the commit lock, but the
+                # live kernel must not see cancellation before projection.
                 assert host._load_execution_cancellation(
                     fixture.EXECUTION_ID, pending["source_run_id"],
-                ) is not None
+                ) is None
+                assert host._execution_control_status(
+                    fixture.EXECUTION_ID, pending["source_run_id"],
+                ) != "cancelled"
                 assert read_canonical() is None
                 observed["cancelled_host_response"] = snapshot.receipt.response
                 release_answer.set()
-                try:
-                    observed["answer_result"] = answer_future.result(timeout=30)
-                except host.DurableInteractionHostError as exc:
-                    observed["answer_error"] = exc.code
-                observed["canonical_after_answer"] = read_canonical()
-                return original_reconcile(**kwargs)
+                assert answer_waiting_for_commit.wait(5)
+                assert not answer_future.done(), "Late answer bypassed the cancellation commit lock"
+                assert read_canonical() is None
+                projected = original_reconcile(**kwargs)
+                observed["cancellation_projected"] = True
+                assert read_canonical().response == snapshot.receipt.response
+                assert host._load_execution_cancellation(
+                    fixture.EXECUTION_ID, pending["source_run_id"],
+                ) is None
+                return projected
 
             monkeypatch.setattr(
                 host, "_reconcile_cancelled_interaction_to_context",
@@ -79,7 +102,10 @@ def test_durable_cancel_wins_over_preflighted_answer(tmp_path, monkeypatch, pend
                 )
             finally:
                 release_answer.set()
+            with pytest.raises(host.DurableInteractionHostError):
+                answer_future.result(timeout=5)
 
+        assert observed["cancellation_projected"] is True
         assert result["status"] == "ok"
         assert result["context_interaction_reconciled"] is True
         canonical = read_canonical()

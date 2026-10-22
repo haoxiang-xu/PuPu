@@ -55,7 +55,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     const result = createWindowsDiagnosticIdentity({
       toolsCommit: env.GITHUB_SHA, toolsRef: env.GITHUB_REF, runId: env.GITHUB_RUN_ID,
       candidateRunId: env.CANDIDATE_RUN_ID, candidateTag: env.RELEASE_TAG, candidateCommit: env.TAG_COMMIT,
-      manifest: JSON.parse(fs.readFileSync("../candidate/release-assets.v1.json", "utf8")),
+      manifest: JSON.parse(fs.readFileSync(".release-qa/candidate/release-assets.v1.json", "utf8")),
       fromTag: env.FROM_TAG, fromVersion: env.FROM_VERSION, fromCommit: env.FROM_COMMIT,
     });
     fs.writeFileSync("windows-upgrade-diagnostic-identity.json", `${JSON.stringify(result, null, 2)}\n`, { flag: "wx" });

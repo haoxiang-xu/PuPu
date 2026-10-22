@@ -10,6 +10,7 @@ import { RUN_BUNDLE_V1_SCHEMA } from "../../../SERVICEs/run_bundle_v1";
 import { RUN_BUNDLE_V2_SCHEMA } from "../../../SERVICEs/run_bundle_v2";
 import { buildContextCompositionHintV2 } from "../../../SERVICEs/context_composition_hint_v2";
 import { createLogger } from "../../../SERVICEs/console_logger";
+import { projectTestApiToolCalls } from "../../../SERVICEs/test_bridge/tool_call_evidence";
 import { createThinkTagParser } from "../think_tag_parser";
 import {
   collectTurnMessageIds,
@@ -18,6 +19,7 @@ import {
 import { createAttachmentPrompt } from "../utils/chat_attachment_utils";
 import { FINALITY } from "../utils/message_finality";
 import { createRuntimeEventStore } from "../../../SERVICEs/runtime_events/event_store";
+import { resolveToolCallOwnerForRequest } from "../../../SERVICEs/runtime_events/tool_call_projection";
 import {
   createIncrementalActivityTreeProjector,
   removeReasoningPreviewFrames,
@@ -45,9 +47,12 @@ import {
 import { createStreamFlushScheduler } from "./stream_flush_scheduler";
 import { finalizeStreamPersist } from "./finalize_stream_persist";
 import { createRuntimeEventBatcher } from "./runtime_event_batcher";
+import { waitForContextV2Settlement } from "./context_v2_settlement_wait";
+import { CONTEXT_V2_SETTLEMENT_MESSAGES } from "./context_v2_settlement_messages";
 import {
   buildInterjectionRecord,
   createQueuedTurnBuffer,
+  dispatchInterjectWithStartupRetry,
 } from "./interject_controller";
 import {
   buildDurableResumePayload,
@@ -651,11 +656,40 @@ const buildToolConfirmationRequest = ({
   callId,
   chatId,
   sessionId,
+  ...(Object.prototype.hasOwnProperty.call(frame || {}, "session_id")
+    ? { session_id: frame.session_id }
+    : {}),
+  ...(Object.prototype.hasOwnProperty.call(frame || {}, "run_id")
+    ? { runId: frame.run_id, run_id: frame.run_id }
+    : {}),
+  ...(Object.prototype.hasOwnProperty.call(frame || {}, "execution_id")
+    ? { executionId: frame.execution_id, execution_id: frame.execution_id }
+    : {}),
+  ...(Object.prototype.hasOwnProperty.call(frame || {}, "event_cursor")
+    ? { eventCursor: frame.event_cursor, event_cursor: frame.event_cursor }
+    : {}),
+  ...(Object.prototype.hasOwnProperty.call(frame || {}, "event_id")
+    ? { eventId: frame.event_id, event_id: frame.event_id }
+    : {}),
+  ...(Object.prototype.hasOwnProperty.call(frame || {}, "iteration")
+    ? { iteration: frame.iteration }
+    : {}),
+  ...(Object.prototype.hasOwnProperty.call(frame || {}, "links")
+    ? { links: frame.links }
+    : {}),
   toolName,
-  toolkitId:
-    typeof frame.payload?.toolkit_id === "string"
-      ? frame.payload.toolkit_id
-      : "",
+  ...(Object.prototype.hasOwnProperty.call(frame.payload || {}, "toolkit_id")
+    ? { toolkitId: frame.payload.toolkit_id }
+    : {}),
+  ...(Object.prototype.hasOwnProperty.call(frame.payload || {}, "call_ref")
+    ? { callRef: frame.payload.call_ref }
+    : {}),
+  ...(Object.prototype.hasOwnProperty.call(frame.payload || {}, "call_ref_metadata")
+    ? { callRefMetadata: frame.payload.call_ref_metadata }
+    : {}),
+  ...(Object.prototype.hasOwnProperty.call(frame.payload || {}, "timeline_merge_policy")
+    ? { timelineMergePolicy: frame.payload.timeline_merge_policy }
+    : {}),
   toolDisplayName:
     typeof frame.payload?.tool_display_name === "string"
       ? frame.payload.tool_display_name
@@ -921,6 +955,9 @@ const requestExecutionCancellationAndDisconnect = ({
       );
       if (!pending || pending.status === "none" || ![
         pending.activeAttemptId, pending.sourceRunId,
+        ...(pending.resumeKind === "graph_step"
+          ? [pending.graphCoordinatorAttemptId]
+          : []),
       ].includes(normalizedIdentity.attemptId)) {
         throw Object.assign(new Error("The pending interaction changed. Try Stop again."), {
           code: "interaction_cancel_target_mismatch", retryable: false,
@@ -1175,6 +1212,10 @@ export const useChatStream = ({
      make one fresh check after the server-side live guard has cleared. */
   const turnMutationInProgressSeenRef = useRef(new Set());
   const turnMutationStalledAttemptSeenRef = useRef(new Set());
+  const settlementWaitByChatIdRef = useRef(new Map());
+  const trackedExecutionCancellationsRef = useRef(new Map());
+  const lastStoppedExecutionByChatIdRef = useRef(new Map());
+  const [settlementWaitingChatIds, setSettlementWaitingChatIds] = useState(new Set());
   /* Legacy V1 rows predate the durable Context V2 retry contract. Keep their
      existing bounded recovery cadence so this V2 rollout does not change
      replaceSessionMemory conflict behavior. */
@@ -1795,6 +1836,7 @@ export const useChatStream = ({
   );
   const canStop =
     isStreaming ||
+    settlementWaitByChatIdRef.current.has(chatId) ||
     [
       "awaiting",
       "awaiting_response",
@@ -3115,10 +3157,50 @@ export const useChatStream = ({
     ],
   );
 
+  const requestTrackedExecutionCancellation = useCallback((options) => {
+    const identity = normalizedExecutionIdentity(options.identity);
+    if (!identity) return requestExecutionCancellationAndDisconnect(options);
+    const key = JSON.stringify([identity.ownerChatId, identity.sessionId, identity.attemptId, identity.interactionId]);
+    const existing = trackedExecutionCancellationsRef.current.get(key);
+    if (existing?.pending) {
+      // Stop still tears down its own transport when joining an outbox request.
+      if (options.handle) disconnectStreamTransport(options.handle);
+      return existing.promise;
+    }
+    const tracked = { identity, pending: true, promise: null };
+    tracked.promise = requestExecutionCancellationAndDisconnect(options).then((result) => {
+      tracked.pending = false;
+      if (result?.terminal) {
+        if (trackedExecutionCancellationsRef.current.get(key) === tracked) {
+          trackedExecutionCancellationsRef.current.delete(key);
+        }
+        removeExecutionCancel(identity.sessionId, identity.attemptId, identity.interactionId);
+      }
+      return result;
+    });
+    trackedExecutionCancellationsRef.current.set(key, tracked);
+    return tracked.promise;
+  }, []);
+
   const cancelCurrentStreamAndSettleMessages = useCallback(() => {
     const currentChatId = activeChatIdRef.current;
     if (!currentChatId) {
       return Array.isArray(messagesRef.current) ? messagesRef.current : [];
+    }
+    const settlementWait = settlementWaitByChatIdRef.current.get(currentChatId);
+    if (settlementWait) {
+      settlementWaitByChatIdRef.current.delete(currentChatId);
+      recordTurnMutationRetryOutcome(settlementWait.operationId, {
+        action: TURN_MUTATION_RETRY_ACTIONS.QUARANTINE,
+        code: "context_v2_settlement_cancelled",
+      });
+      setStreamErrorForChat(currentChatId, CONTEXT_V2_SETTLEMENT_MESSAGES.CANCELLED);
+      setTurnMutationVersion((version) => version + 1);
+      return Array.isArray(messagesRef.current) ? messagesRef.current : [];
+    }
+    const handle = streamHandlesRef.current.get(currentChatId);
+    if (typeof handle?.flushPendingEventsForStop === "function") {
+      handle.flushPendingEventsForStop();
     }
     const executionIdentity =
       executionIdentityByChatIdRef.current.get(currentChatId) ||
@@ -3133,9 +3215,16 @@ export const useChatStream = ({
       toolConfirmationUiStateByChatIdRef.current[currentChatId]?.[id]?.resolved !== true,
     )?.[0] || "";
 
-    // Invalidate first. Any lookup, retry, receipt, or queue callback that was
-    // already in flight must observe the tombstone before transport teardown.
+    // First drain only events already admitted to this V4 run, so cancellation
+    // can settle the latest visible frames and approval identity. Then
+    // invalidate before any asynchronous cancellation or transport teardown;
+    // late callbacks must observe the tombstone and cannot append more events.
     invalidateRunGeneration(currentChatId);
+    setSettlementWaitingChatIds((previous) => {
+      const next = new Set(previous);
+      next.delete(currentChatId);
+      return next;
+    });
     const durableRetryTimer =
       durableResumeRetryTimersRef.current.get(currentChatId);
     if (durableRetryTimer != null) {
@@ -3153,7 +3242,6 @@ export const useChatStream = ({
     updatePendingContinuationRequestForChat(currentChatId, null);
 
     clearActiveTokenFlushController(currentChatId, "flush");
-    const handle = streamHandlesRef.current.get(currentChatId);
     executionIdentityByChatIdRef.current.delete(currentChatId);
     const queuedCancellation = enqueueExecutionCancel({
       ...(executionIdentity || {}),
@@ -3165,14 +3253,15 @@ export const useChatStream = ({
       reason: "user_stop",
       createdAt: Date.now(),
     });
-    void requestExecutionCancellationAndDisconnect({
+    const stoppedIdentity = normalizedExecutionIdentity(queuedCancellation);
+    if (stoppedIdentity) lastStoppedExecutionByChatIdRef.current.set(currentChatId, stoppedIdentity);
+    void requestTrackedExecutionCancellation({
       identity: queuedCancellation,
       handle,
       reason: "user_stop",
     }).then((result) => {
-      if (result?.retryBlocked) {
-        setStreamErrorForChat(currentChatId, result.error);
-      }
+      // The acknowledgement only settles this exact background outbox entry.
+      // It cannot change ready/waiting/error presentation for a later attempt.
       if (result?.terminal && queuedCancellation) {
         removeExecutionCancel(
           queuedCancellation.sessionId,
@@ -3226,6 +3315,7 @@ export const useChatStream = ({
     materializeStreamingMessages,
     messagesRef,
     setMessages,
+    requestTrackedExecutionCancellation,
     setStreamErrorForChat,
     storageApi,
     updateDurableInteractionForChat,
@@ -3252,17 +3342,15 @@ export const useChatStream = ({
           continue;
         }
         if (entry.retryBlocked) {
-          if (!reported.has(key)) {
-            setStreamErrorForChat(entry.ownerChatId, entry.lastError);
-            reported.add(key);
-          }
+          reported.add(key);
           continue;
         }
-        const result = await requestExecutionCancellationAndDisconnect({
+        const result = await requestTrackedExecutionCancellation({
           identity: entry,
           handle: null,
           reason: entry.reason || "user_stop",
         });
+        if (disposed) return;
         if (result?.terminal) {
           removeExecutionCancel(
             entry.sessionId,
@@ -3270,7 +3358,6 @@ export const useChatStream = ({
             entry.interactionId,
           );
         } else if (result?.retryBlocked && !reported.has(key)) {
-          setStreamErrorForChat(entry.ownerChatId, result.error);
           reported.add(key);
         }
       }
@@ -3289,169 +3376,277 @@ export const useChatStream = ({
         clearTimeout(retryTimer);
       }
     };
-  }, [setStreamErrorForChat]);
+  }, [requestTrackedExecutionCancellation]);
 
   const appendSyntheticToolConfirmationDecision = useCallback(
-    ({ targetChatId, confirmationId, approved, userResponse }) => {
+    ({
+      targetChatId,
+      confirmationId,
+      approved,
+      userResponse,
+      feedbackAcknowledged = false,
+    }) => {
       const normalizedTargetChatId =
         typeof targetChatId === "string" && targetChatId.trim()
           ? targetChatId.trim()
           : activeChatIdRef.current;
       const normalizedConfirmationId =
-        typeof confirmationId === "string" ? confirmationId.trim() : "";
-      if (!normalizedTargetChatId || !normalizedConfirmationId) {
+        typeof confirmationId === "string" ? confirmationId : "";
+      if (
+        !normalizedTargetChatId ||
+        !normalizedConfirmationId.trim()
+      ) {
         return false;
       }
 
-      const runtime = getConfirmationRuntimeForChat(normalizedTargetChatId, {
-        create: false,
-      });
-      const callId =
-        runtime?.confirmationCallIdById.get(normalizedConfirmationId) || "";
-      const hasAuthoritativeConfirmationRequest = Boolean(
-        pendingToolConfirmationRequestsByChatIdRef.current[
-          normalizedTargetChatId
-        ]?.[normalizedConfirmationId],
-      );
       const streamState = activeStreamsRef.current.get(normalizedTargetChatId);
       const hasActiveStreamMessages = Array.isArray(streamState?.messages);
-      const streamMessages = hasActiveStreamMessages
+      let streamMessages = hasActiveStreamMessages
         ? streamState.messages
         : activeChatIdRef.current === normalizedTargetChatId &&
             Array.isArray(messagesRef.current)
           ? messagesRef.current
-          : typeof storageApi.getChatMessages === "function"
-            ? storageApi.getChatMessages(normalizedTargetChatId)
-            : [];
-      if (!callId || streamMessages.length === 0) {
+            : typeof storageApi.getChatMessages === "function"
+              ? storageApi.getChatMessages(normalizedTargetChatId)
+              : [];
+      const messagesContainRequestBinding = (messages) =>
+        (Array.isArray(messages) ? messages : []).some((message) => {
+          const frames = [
+            ...(Array.isArray(message?.traceFrames) ? message.traceFrames : []),
+            ...Object.values(message?.subagentFrames || {}).flatMap((branch) =>
+              Array.isArray(branch) ? branch : [],
+            ),
+          ];
+          return frames.some((frame) =>
+            ["confirmation_id", "interaction_id", "request_id"].some(
+              (key) => frame?.payload &&
+                Object.prototype.hasOwnProperty.call(frame.payload, key) &&
+                frame.payload[key] === normalizedConfirmationId,
+            ),
+          );
+        });
+      if (
+        hasActiveStreamMessages &&
+        !messagesContainRequestBinding(streamMessages) &&
+        activeChatIdRef.current === normalizedTargetChatId &&
+        messagesContainRequestBinding(messagesRef.current)
+      ) {
+        streamMessages = messagesRef.current;
+      }
+      if (streamMessages.length === 0) {
         return false;
       }
 
       const decisionFrameType = approved ? "tool_confirmed" : "tool_denied";
       const patchTime = Date.now();
-      let changed = false;
-      const containsExactRequest = (frames) =>
-        (Array.isArray(frames) ? frames : []).some(
-          (frame) =>
-            frame?.type === "tool_call" &&
-            frame?.payload?.confirmation_id === normalizedConfirmationId,
+      const frameLocations = [];
+      streamMessages.forEach((message, messageIndex) => {
+        (Array.isArray(message?.traceFrames) ? message.traceFrames : []).forEach(
+          (frame, frameIndex) =>
+            frameLocations.push({
+              frame,
+              messageIndex,
+              frameIndex,
+              container: "traceFrames",
+            }),
         );
-      const hasExactRequestFrame = streamMessages.some((message) => {
-        if (containsExactRequest(message?.traceFrames)) return true;
-        return Object.values(message?.subagentFrames || {}).some((frames) =>
-          containsExactRequest(frames),
+        Object.entries(message?.subagentFrames || {}).forEach(
+          ([branchId, frames]) => {
+            (Array.isArray(frames) ? frames : []).forEach((frame, frameIndex) =>
+              frameLocations.push({
+                frame,
+                messageIndex,
+                frameIndex,
+                container: "subagentFrames",
+                branchId,
+              }),
+            );
+          },
         );
       });
-      const allowCallIdFallback =
-        !hasAuthoritativeConfirmationRequest && !hasExactRequestFrame;
-
-      const appendDecisionFrame = (frames) => {
-        const list = Array.isArray(frames) ? frames : [];
-        const requestFrame = list.find(
-          (frame) =>
-            frame?.type === "tool_call" &&
-            (frame?.payload?.confirmation_id === normalizedConfirmationId ||
-              (allowCallIdFallback && frame?.payload?.call_id === callId)),
+      const ownerResult = resolveToolCallOwnerForRequest(
+        frameLocations.map(({ frame }) => frame),
+        normalizedConfirmationId,
+      );
+      if (
+        ownerResult.status !== "qualified" &&
+        ownerResult.status !== "legacy"
+      ) {
+        return false;
+      }
+      const owner = ownerResult.call;
+      if (!owner || !Array.isArray(owner.frameIndexes)) {
+        return false;
+      }
+      const legacyOwner =
+        ownerResult.status === "legacy" ||
+        owner.identity?.status === "legacy";
+      if (
+        !legacyOwner &&
+        owner.identity?.status &&
+        owner.identity.status !== "qualified"
+      ) {
+        return false;
+      }
+      const ownerFrameIndexes = new Set(owner.frameIndexes);
+      const requestLocation = frameLocations.find(
+        ({ frame }, frameIndex) =>
+          ownerFrameIndexes.has(frameIndex) &&
+          frame?.type === "tool_call" &&
+          ["confirmation_id", "interaction_id", "request_id"].some(
+            (key) => frame?.payload &&
+              Object.prototype.hasOwnProperty.call(frame.payload, key) &&
+              frame.payload[key] === normalizedConfirmationId,
+          ),
+      );
+      if (!requestLocation) {
+        return false;
+      }
+      const alreadyRecorded = [...ownerFrameIndexes].some((frameIndex) => {
+        const frame = frameLocations[frameIndex]?.frame;
+        return (
+          (frame?.type === "tool_confirmed" || frame?.type === "tool_denied") &&
+          ["confirmation_id", "interaction_id", "request_id"].some(
+            (key) => frame?.payload &&
+              Object.prototype.hasOwnProperty.call(frame.payload, key) &&
+              frame.payload[key] === normalizedConfirmationId,
+          )
         );
-        if (!requestFrame) {
-          return { frames: list, changed: false };
-        }
+      });
+      if (alreadyRecorded) {
+        return false;
+      }
 
-        const alreadyRecorded = list.some(
-          (frame) =>
-            frame?.type === decisionFrameType &&
-            (frame?.payload?.confirmation_id === normalizedConfirmationId ||
-              (allowCallIdFallback && frame?.payload?.call_id === callId)),
-        );
-        if (alreadyRecorded) {
-          return { frames: list, changed: false };
-        }
-
-        const maxSeq = list.reduce((highest, frame) => {
-          const seq = Number(frame?.seq);
-          return Number.isFinite(seq) && seq > highest ? seq : highest;
-        }, 0);
-        const toolName =
-          typeof requestFrame.payload?.tool_name === "string"
-            ? requestFrame.payload.tool_name
-            : "";
-        const toolDisplayName =
-          typeof requestFrame.payload?.tool_display_name === "string"
-            ? requestFrame.payload.tool_display_name
-            : "";
-
-        return {
-          frames: [
-            ...list,
-            {
-              seq: maxSeq + 0.1,
-              ts: patchTime,
-              type: decisionFrameType,
-              stage: "client",
-              ...(requestFrame.run_id ? { run_id: requestFrame.run_id } : {}),
-              payload: {
-                tool_name: toolName,
-                ...(toolDisplayName
-                  ? { tool_display_name: toolDisplayName }
-                  : {}),
-                call_id: callId,
-                confirmation_id: normalizedConfirmationId,
-                synthetic: true,
-                ...(userResponse !== undefined
-                  ? { user_response: userResponse }
-                  : {}),
-              },
-            },
-          ],
-          changed: true,
-        };
+      const parentFrames = requestLocation.container === "traceFrames"
+        ? streamMessages[requestLocation.messageIndex]?.traceFrames || []
+        : streamMessages[requestLocation.messageIndex]?.subagentFrames?.[
+            requestLocation.branchId
+          ] || [];
+      const maxSeq = parentFrames.reduce((highest, frame) => {
+        const seq = Number(frame?.seq);
+        return Number.isFinite(seq) && seq > highest ? seq : highest;
+      }, 0);
+      const requestFrame = requestLocation.frame;
+      const ownerScope = owner.scope || {};
+      const observedScope = {
+        ...(Object.prototype.hasOwnProperty.call(ownerScope, "runId")
+          ? { run_id: ownerScope.runId }
+          : {}),
+        ...(Object.prototype.hasOwnProperty.call(ownerScope, "executionId")
+          ? { execution_id: ownerScope.executionId }
+          : {}),
+        ...(Object.prototype.hasOwnProperty.call(ownerScope, "sessionId")
+          ? { session_id: ownerScope.sessionId }
+          : {}),
+        ...(Object.prototype.hasOwnProperty.call(ownerScope, "iteration")
+          ? { iteration: ownerScope.iteration }
+          : {}),
       };
+      let decisionFrame;
+      if (legacyOwner) {
+        // Legacy history has exact request ownership, but no v1 descriptor.
+        // Keep the old acknowledgement shape and copy only identity/scope
+        // observed on that owner; never synthesize a cursor or call_ref.
+        const identity = owner.identity || {};
+        decisionFrame = {
+          seq: maxSeq + 0.1,
+          ts: patchTime,
+          type: decisionFrameType,
+          stage: "client",
+          ...observedScope,
+          ...(Object.prototype.hasOwnProperty.call(requestFrame, "links")
+            ? { links: requestFrame.links }
+            : {}),
+          payload: {
+            ...(typeof identity.toolName === "string"
+              ? { tool_name: identity.toolName }
+              : {}),
+            ...(typeof requestFrame.payload?.tool_display_name === "string"
+              ? { tool_display_name: requestFrame.payload.tool_display_name }
+              : {}),
+            ...(typeof identity.callId === "string"
+              ? { call_id: identity.callId }
+              : {}),
+            confirmation_id: normalizedConfirmationId,
+            ...(typeof identity.toolkitId === "string"
+              ? { toolkit_id: identity.toolkitId }
+              : {}),
+            synthetic: true,
+            ...(feedbackAcknowledged === true
+              ? { feedback_acknowledged: true }
+              : {}),
+            ...(userResponse !== undefined
+              ? { user_response: userResponse }
+              : {}),
+          },
+        };
+      } else {
+        const descriptor = owner.descriptor;
+        if (!descriptor) {
+          return false;
+        }
+        decisionFrame = {
+          seq: maxSeq + 0.1,
+          ts: patchTime,
+          type: decisionFrameType,
+          stage: "client",
+          ...observedScope,
+          ...(Object.prototype.hasOwnProperty.call(requestFrame, "links")
+            ? { links: requestFrame.links }
+            : {}),
+          payload: {
+            tool_name: descriptor.tool_name,
+            ...(typeof requestFrame.payload?.tool_display_name === "string"
+              ? { tool_display_name: requestFrame.payload.tool_display_name }
+              : {}),
+            call_id: descriptor.call_id,
+            confirmation_id: normalizedConfirmationId,
+            call_ref: descriptor,
+            ...(owner.callRefMetadata
+              ? { call_ref_metadata: owner.callRefMetadata }
+              : {}),
+            ...(owner.policy.present
+              ? { timeline_merge_policy: owner.policy.value }
+              : {}),
+            ...(Object.prototype.hasOwnProperty.call(ownerScope, "toolkitId")
+              ? { toolkit_id: ownerScope.toolkitId }
+              : {}),
+            synthetic: true,
+            ...(feedbackAcknowledged === true
+              ? { feedback_acknowledged: true }
+              : {}),
+            ...(userResponse !== undefined
+              ? { user_response: userResponse }
+              : {}),
+          },
+        };
+      }
 
-      const nextStreamMessages = streamMessages.map((message) => {
-        const traceFrames = Array.isArray(message?.traceFrames)
-          ? message.traceFrames
-          : [];
-        const rootResult = appendDecisionFrame(traceFrames);
-        if (rootResult.changed) {
-          changed = true;
+      const nextStreamMessages = streamMessages.map((message, messageIndex) => {
+        if (messageIndex !== requestLocation.messageIndex) return message;
+        if (requestLocation.container === "traceFrames") {
+          const traceFrames = Array.isArray(message?.traceFrames)
+            ? message.traceFrames
+            : [];
           return {
             ...message,
             updatedAt: patchTime,
-            traceFrames: rootResult.frames,
+            traceFrames: [...traceFrames, decisionFrame],
           };
         }
-
-        const subagentFrames =
-          message?.subagentFrames && typeof message.subagentFrames === "object"
-            ? message.subagentFrames
-            : {};
-        let nextSubagentFrames = null;
-        for (const [runId, frames] of Object.entries(subagentFrames)) {
-          const branchResult = appendDecisionFrame(frames);
-          if (!branchResult.changed) {
-            continue;
-          }
-          nextSubagentFrames = {
-            ...subagentFrames,
-            [runId]: branchResult.frames,
-          };
-          break;
-        }
-
-        if (!nextSubagentFrames) {
-          return message;
-        }
-        changed = true;
+        const subagentFrames = message?.subagentFrames || {};
+        const branchFrames = Array.isArray(subagentFrames[requestLocation.branchId])
+          ? subagentFrames[requestLocation.branchId]
+          : [];
         return {
           ...message,
           updatedAt: patchTime,
-          subagentFrames: nextSubagentFrames,
+          subagentFrames: {
+            ...subagentFrames,
+            [requestLocation.branchId]: [...branchFrames, decisionFrame],
+          },
         };
       });
-
-      if (!changed) {
-        return false;
-      }
 
       if (hasActiveStreamMessages) {
         activeStreamsRef.current.set(normalizedTargetChatId, {
@@ -3480,7 +3675,6 @@ export const useChatStream = ({
     [
       activeChatIdRef,
       activeStreamsRef,
-      getConfirmationRuntimeForChat,
       messagesRef,
       setMessages,
       storageApi,
@@ -3747,8 +3941,8 @@ export const useChatStream = ({
     async ({ confirmationId, approved, userResponse, scope }) => {
       const targetChatId = activeChatIdRef.current;
       const normalizedConfirmationId =
-        typeof confirmationId === "string" ? confirmationId.trim() : "";
-      if (!targetChatId || !normalizedConfirmationId) {
+        typeof confirmationId === "string" ? confirmationId : "";
+      if (!targetChatId || !normalizedConfirmationId.trim()) {
         return;
       }
       const runGeneration = getRunGeneration(targetChatId);
@@ -3904,6 +4098,7 @@ export const useChatStream = ({
           confirmationId: normalizedConfirmationId,
           approved: Boolean(approved),
           userResponse,
+          feedbackAcknowledged: true,
         });
         updateToolConfirmationUiState(targetChatId, (previous) => ({
           ...previous,
@@ -4138,6 +4333,7 @@ export const useChatStream = ({
               targetChatId,
               confirmationId,
               approved: true,
+              feedbackAcknowledged: true,
             });
             continueFromRecordedReceipt(
               targetChatId,
@@ -4411,10 +4607,16 @@ export const useChatStream = ({
          stream error, and overwriting it here in the same continuation is what
          keeps server text off the screen. */
       const fail = (errorCode, staticMessage = "") => {
-        const decision = resolveContextV2TurnMutationFailure({
-          errorCode,
-          replayAttempts: reservedEntry.replayAttempts,
-        });
+        const settlementStopped = [
+          "context_v2_settlement_timeout",
+          "context_v2_settlement_cancelled",
+        ].includes(errorCode);
+        const decision = settlementStopped
+          ? { action: TURN_MUTATION_RETRY_ACTIONS.QUARANTINE, delayMs: 0 }
+          : resolveContextV2TurnMutationFailure({
+              errorCode,
+              replayAttempts: reservedEntry.replayAttempts,
+            });
         const retryAt =
           decision.action === TURN_MUTATION_RETRY_ACTIONS.RETRY
             ? Date.now() + decision.delayMs
@@ -4450,9 +4652,13 @@ export const useChatStream = ({
         }
         const quarantined =
           decision.action === TURN_MUTATION_RETRY_ACTIONS.QUARANTINE;
-        const message = quarantined
-          ? CONTEXT_V2_TURN_MUTATION_MESSAGES.QUARANTINED
-          : staticMessage || contextV2TurnMutationMessage(errorCode);
+        const message = errorCode === "context_v2_settlement_cancelled"
+          ? CONTEXT_V2_SETTLEMENT_MESSAGES.CANCELLED
+          : errorCode === "context_v2_settlement_timeout"
+            ? CONTEXT_V2_SETTLEMENT_MESSAGES.TIMEOUT
+            : quarantined
+              ? CONTEXT_V2_TURN_MUTATION_MESSAGES.QUARANTINED
+              : staticMessage || contextV2TurnMutationMessage(errorCode);
         if (activeChatIdRef.current === targetChatId) {
           setStreamError(message);
         }
@@ -4482,12 +4688,31 @@ export const useChatStream = ({
         }
 
         let ack = null;
+        const waitToken = { operationId: reservedEntry.operationId };
+        let waiting = false;
         try {
-          ack = await contextV2Bridge.rebaseSession(payload);
+          ack = await waitForContextV2Settlement({
+            request: (frozenPayload) => contextV2Bridge.rebaseSession(frozenPayload),
+            payload,
+            isCancelled: () =>
+              !hookMountedRef.current ||
+              (waiting && settlementWaitByChatIdRef.current.get(targetChatId) !== waitToken),
+            onWaiting: () => {
+              waiting = true;
+              settlementWaitByChatIdRef.current.set(targetChatId, waitToken);
+              setTurnMutationVersion((version) => version + 1);
+            },
+          });
+          if (waiting) setStreamErrorForChat(targetChatId, "");
         } catch (error) {
           const errorCode =
             parseContextV2ErrorCode(error) || "context_v2_failed";
           return fail(errorCode);
+        } finally {
+          if (settlementWaitByChatIdRef.current.get(targetChatId) === waitToken) {
+            settlementWaitByChatIdRef.current.delete(targetChatId);
+            setTurnMutationVersion((version) => version + 1);
+          }
         }
         /* Server ack or nothing: a local fingerprint match is NOT evidence the
            journal was rebased. An ack that fails verification is treated as
@@ -4587,7 +4812,7 @@ export const useChatStream = ({
         retryAt: 0,
       };
     },
-    [activeChatIdRef, replaceSessionMemoryForMessages, setStreamError],
+    [activeChatIdRef, replaceSessionMemoryForMessages, setStreamError, setStreamErrorForChat],
   );
 
   const runTurnRequest = useCallback(
@@ -4650,6 +4875,15 @@ export const useChatStream = ({
          are mutually exclusive. */
       let requestConsumed = false;
       let requestRejected = false;
+      const followsStoppedRun = stoppedRunChatIdsRef.current.has(targetChatId);
+      const clearSettlementPresentation = () => {
+        setSettlementWaitingChatIds((previous) => {
+          if (!previous.has(targetChatId)) return previous;
+          const next = new Set(previous);
+          next.delete(targetChatId);
+          return next;
+        });
+      };
       let queueRelayAcceptanceTimer = null;
       let queueRelayAcceptanceReattachCount = 0;
       let streamHandle = null;
@@ -4689,12 +4923,14 @@ export const useChatStream = ({
       const markRequestConsumed = () => {
         if (requestConsumed || requestRejected) return;
         requestConsumed = true;
+        clearSettlementPresentation();
         clearQueueRelayAcceptanceTimer();
         if (typeof onConsumed === "function") onConsumed();
       };
       const rejectRequestBeforeAcceptance = () => {
         if (requestConsumed || requestRejected) return;
         requestRejected = true;
+        clearSettlementPresentation();
         clearQueueRelayAcceptanceTimer();
         if (typeof onReject === "function") onReject();
       };
@@ -4858,6 +5094,12 @@ export const useChatStream = ({
           previousDraftAttachments,
         );
 
+      setSettlementWaitingChatIds((previous) => {
+        const next = new Set(previous);
+        if (followsStoppedRun) next.add(targetChatId);
+        else next.delete(targetChatId);
+        return next;
+      });
       const activeRunGeneration =
         Number.isInteger(requestedRunGeneration) && requestedRunGeneration > 0
           ? requestedRunGeneration
@@ -4902,6 +5144,38 @@ export const useChatStream = ({
           }
         }
       };
+
+      // Character UI thread ids (for example "main") are not execution ids.
+      // The stopped run's captured identity is the authoritative prior binding.
+      const stoppedExecution = lastStoppedExecutionByChatIdRef.current.get(targetChatId) ||
+        executionIdentityFromMessages(targetChatId, baseMessages);
+      const cancellationSessionId = String(
+        stoppedExecution?.sessionId || requestedRunContext?.threadId ||
+        runContextByChatIdRef.current.get(targetChatId)?.threadId ||
+        threadIdRef?.current || targetChatId,
+      ).trim();
+      const priorCancellations = new Map();
+      const rememberCancellation = (identity) => {
+        if (identity?.ownerChatId !== targetChatId || identity.sessionId !== cancellationSessionId) return;
+        priorCancellations.set(identity.attemptId, identity);
+      };
+      for (const tracked of trackedExecutionCancellationsRef.current.values()) {
+        rememberCancellation(tracked.identity);
+      }
+      readExecutionCancelOutbox().forEach(rememberCancellation);
+      if (followsStoppedRun) rememberCancellation(stoppedExecution);
+      if (!isDurableResume && priorCancellations.size > 0) {
+        setSettlementWaitingChatIds((previous) => new Set(previous).add(targetChatId));
+      }
+      // Sending is independent of cancellation response delivery. The backend
+      // consumes these exact Stop intents before guarded model/tool admission.
+      // A fresh explicit send may also retry background bookkeeping, but never
+      // awaits it or lets it overwrite this new attempt's UI.
+      if (!isDurableResume) {
+        for (const identity of priorCancellations.values()) {
+          void requestTrackedExecutionCancellation({ identity, handle: null, reason: identity.reason || "user_stop" });
+        }
+      }
 
       if (
         clearComposer &&
@@ -6348,6 +6622,13 @@ export const useChatStream = ({
         const wrapRuntimeEventStreamHandle = (rawHandle) => {
           if (!rawHandle) return rawHandle;
           const wrappedHandle = { ...rawHandle };
+          wrappedHandle.flushPendingEventsForStop = () => {
+            if (!isCurrentRun()) return false;
+            runtimeEventBatcher?.flushNow();
+            flushSubagentState(Date.now());
+            activeFlushScheduler.flushSync();
+            return true;
+          };
           wrappedHandle.quarantineQueueRelayAcceptance = () => {
             runtimeEventBatcher?.cancel();
             runtimeEventStreamFailed = true;
@@ -7052,6 +7333,15 @@ export const useChatStream = ({
           : {
               threadId: effectiveThreadId,
               owner_chat_id: targetChatId,
+              ...(priorCancellations.size > 0
+                ? { stopped_attempts: Array.from(priorCancellations.values())
+                    .filter((identity) => identity.sessionId === effectiveThreadId)
+                    .map((identity) => ({
+                      attempt_id: identity.attemptId,
+                      ...(identity.sourceAttemptId ? { source_attempt_id: identity.sourceAttemptId } : {}),
+                      ...(identity.interactionId ? { interaction_id: identity.interactionId } : {}),
+                    })) }
+                : {}),
               ...(continuedFromRunId
                 ? { continued_from_run_id: continuedFromRunId }
                 : {}),
@@ -8008,32 +8298,9 @@ export const useChatStream = ({
                         },
                       ];
 
-                  /* If this tool_call has a confirmation_id and an older
-                     frame with the same call_id already exists (emitted by
-                     on_event before the confirm callback), replace it so the
-                     confirmation UI renders correctly. */
-                  const frameCallId =
-                    typeof frame.payload?.call_id === "string"
-                      ? frame.payload.call_id
-                      : "";
-                  const frameHasConfirmation =
-                    typeof frame.payload?.confirmation_id === "string" &&
-                    frame.payload.confirmation_id;
-                  let mergedFrames = [...existingFrames, ...syntheticFrame];
-                  if (frameCallId && frameHasConfirmation) {
-                    const dupIdx = mergedFrames.findIndex(
-                      (f) =>
-                        f.type === "tool_call" &&
-                        f.payload?.call_id === frameCallId,
-                    );
-                    if (dupIdx >= 0) {
-                      mergedFrames[dupIdx] = frame;  // replace old frame
-                    } else {
-                      mergedFrames.push(frame);
-                    }
-                  } else {
-                    mergedFrames.push(frame);
-                  }
+                  // Keep every source frame. Logical-call deduplication and
+                  // ownership belong to the shared runtime projection.
+                  const mergedFrames = [...existingFrames, ...syntheticFrame, frame];
 
                   return {
                     ...clearStreamingMessageText(message),
@@ -9038,6 +9305,7 @@ export const useChatStream = ({
       setAgentOrchestration,
       setSelectedModelId,
       setStreamError,
+      requestTrackedExecutionCancellation,
       setStreamErrorForChat,
       storageApi,
       submitAutoApprovedToolConfirmation,
@@ -9570,6 +9838,25 @@ export const useChatStream = ({
           throw error;
         }
 
+        const pendingAttemptIds = new Set(
+          [pending.activeAttemptId, pending.sourceRunId]
+            .filter((value) => typeof value === "string")
+            .map((value) => value.trim())
+            .filter(Boolean),
+        );
+        const activeExecutionIdentity =
+          executionIdentityByChatIdRef.current.get(normalizedChatId) || null;
+        const pendingOwnedByLiveExecution = Boolean(
+          streamingChatIdsRef.current.has(normalizedChatId) &&
+            activeExecutionIdentity &&
+            activeExecutionIdentity.runGeneration === activeRunGeneration &&
+            activeExecutionIdentity.sessionId === pending.sessionId &&
+            [
+              activeExecutionIdentity.attemptId,
+              activeExecutionIdentity.sourceAttemptId,
+            ].some((attemptId) => pendingAttemptIds.has(attemptId)),
+        );
+
         // A passive lookup may race the POST that is recording this answer.
         // Leave the current submission in charge until its receipt starts resume.
         const activeSubmission = humanInputSubmissionByChatIdRef.current.get(normalizedChatId);
@@ -9580,11 +9867,28 @@ export const useChatStream = ({
           return pending;
         }
 
+        // A recovery lookup can be stale even when it belongs to the current
+        // generation. Never let another attempt replace a live run's Stop
+        // identity, clear its interaction cards, or project its old history.
+        // An explicit receipt continues below only when its attempt is owned
+        // by this live execution.
+        const hasCurrentExecutionIdentity = Boolean(
+          activeExecutionIdentity &&
+            activeExecutionIdentity.runGeneration === activeRunGeneration &&
+            streamHandlesRef.current.has(normalizedChatId),
+        );
+        if (
+          hasCurrentExecutionIdentity &&
+          !pendingOwnedByLiveExecution
+        ) {
+          return null;
+        }
+
         const liveRequest = pendingToolConfirmationRequestsByChatIdRef.current[
           normalizedChatId
         ]?.[pending.interactionId];
         if (!hasAuthoritativeRecordedReceipt && liveRequest &&
-            streamingChatIdsRef.current.has(normalizedChatId)) {
+            pendingOwnedByLiveExecution) {
           updateDurableInteractionForChat(normalizedChatId, {
             ...pending, ownerMessageId: liveRequest.ownerMessageId,
           });
@@ -9693,26 +9997,9 @@ export const useChatStream = ({
           });
         }
 
-        const runtime = getConfirmationRuntimeForChat(normalizedChatId);
-        runtime.confirmationIdByCallId.set(
-          pending.callId,
-          pending.interactionId,
-        );
-        runtime.confirmationCallIdById.set(
-          pending.interactionId,
-          pending.callId,
-        );
-        runtime.sessionIdByConfirmationId.set(
-          pending.interactionId,
-          pending.sessionId,
-        );
-        runtime.followupSignalById.set(pending.interactionId, false);
-
-        const confirmationRequest = buildRecoveredConfirmationRequest({
-          pending,
-          chatId: normalizedChatId,
-          ownerMessageId: ensured.ownerMessageId,
-        });
+        const keepPendingActionable =
+          pending.status !== "receipt_recorded" &&
+          pendingOwnedByLiveExecution;
         const resolutionOutcome = pending.resolution?.outcome;
         const recoveredDecision =
           resolutionOutcome === "approved" ||
@@ -9721,24 +10008,45 @@ export const useChatStream = ({
             : resolutionOutcome === "denied"
               ? "denied"
               : "";
-        updatePendingToolConfirmationRequests(normalizedChatId, {
-          [pending.interactionId]: confirmationRequest,
-        });
-        updateToolConfirmationUiState(normalizedChatId, {
-          [pending.interactionId]: {
-            status:
-              pending.status === "receipt_recorded" ? "submitted" : "idle",
-            error: "",
-            resolved: pending.status === "receipt_recorded",
-            decision: recoveredDecision,
-          },
-        });
-
         const pendingWithOwner = {
           ...pending,
           ownerMessageId: ensured.ownerMessageId,
         };
-        updateDurableInteractionForChat(normalizedChatId, pendingWithOwner);
+        if (pending.status === "receipt_recorded" || keepPendingActionable) {
+          const runtime = getConfirmationRuntimeForChat(normalizedChatId);
+          runtime.confirmationIdByCallId.set(
+            pending.callId,
+            pending.interactionId,
+          );
+          runtime.confirmationCallIdById.set(
+            pending.interactionId,
+            pending.callId,
+          );
+          runtime.sessionIdByConfirmationId.set(
+            pending.interactionId,
+            pending.sessionId,
+          );
+          runtime.followupSignalById.set(pending.interactionId, false);
+
+          const confirmationRequest = buildRecoveredConfirmationRequest({
+            pending,
+            chatId: normalizedChatId,
+            ownerMessageId: ensured.ownerMessageId,
+          });
+          updatePendingToolConfirmationRequests(normalizedChatId, {
+            [pending.interactionId]: confirmationRequest,
+          });
+          updateToolConfirmationUiState(normalizedChatId, {
+            [pending.interactionId]: {
+              status:
+                pending.status === "receipt_recorded" ? "submitted" : "idle",
+              error: "",
+              resolved: pending.status === "receipt_recorded",
+              decision: recoveredDecision,
+            },
+          });
+          updateDurableInteractionForChat(normalizedChatId, pendingWithOwner);
+        }
 
         /* A live stream may still consume the receipt in-process.  Do not
            disturb that path: live_continues, provider retries, and transport
@@ -9746,37 +10054,17 @@ export const useChatStream = ({
            live, observing a durable receipt alone must not resume it. Only
            an identity-matched explicit human-input submission may do so. */
         if (
-          (!hasAuthoritativeRecordedReceipt &&
-            streamingChatIdsRef.current.has(normalizedChatId)) ||
-          runPreflightGenerationByChatIdRef.current.has(normalizedChatId) ||
-          turnMutationByChatIdRef.current.has(normalizedChatId)
+          !hasAuthoritativeRecordedReceipt && pendingOwnedByLiveExecution
         ) {
           return pendingWithOwner;
         }
 
-        /* An unanswered interaction remains actionable after reload. Keep the
-           exact paused tool UI and durable ownership intact; lookup is
-           observational here and must neither resume nor cancel it. */
-        if (pending.status !== "receipt_recorded") {
+        /* A live or otherwise explicitly owned lookup keeps the existing
+           interaction available. A cold lookup falls through to the shared
+           cancellation path without publishing a restored approval card. */
+        if (pending.status !== "receipt_recorded" && keepPendingActionable) {
           return pendingWithOwner;
         }
-
-        const resolutionResponse = pending.resolution?.response;
-        const approved =
-          recoveredDecision === "approved" ||
-          resolutionResponse?.approved === true;
-        const recoveredUserResponse =
-          resolutionResponse?.user_response ??
-          resolutionResponse?.modified_arguments?.user_response ??
-          (Array.isArray(resolutionResponse?.selected_values)
-            ? resolutionResponse
-            : undefined);
-        appendSyntheticToolConfirmationDecision({
-          targetChatId: normalizedChatId,
-          confirmationId: pending.interactionId,
-          approved,
-          userResponse: recoveredUserResponse,
-        });
 
         if (!pendingAttemptId) {
           const error = new Error(
@@ -9786,57 +10074,77 @@ export const useChatStream = ({
           throw error;
         }
 
-        if (submittedHumanInputId) {
-          if (
-            !hasAuthoritativeRecordedReceipt ||
-            submittedHumanInputId !== pending.interactionId ||
-            pending.kind !== "human_input" ||
-            pending.resolution?.outcome !== "submitted"
-          ) {
-            const error = new Error("The submitted answer does not match the suspended interaction.");
-            error.code = "durable_interaction_receipt_identity_mismatch";
-            throw error;
-          }
-          if (!pending.resumeAvailable) {
-            const error = new Error(pending.resumeUnavailableReason || "The submitted interaction cannot be resumed.");
-            error.code = "durable_interaction_resume_unavailable";
-            throw error;
-          }
-          const resumeKey = JSON.stringify([
-            normalizedChatId, pending.sessionId, pending.interactionId,
-            pending.receiptId, activeRunGeneration,
-          ]);
-          if (durableResumeStartedKeysRef.current.has(resumeKey)) {
+        if (pending.status === "receipt_recorded") {
+          const resolutionResponse = pending.resolution?.response;
+          const approved =
+            recoveredDecision === "approved" ||
+            resolutionResponse?.approved === true;
+          const recoveredUserResponse =
+            resolutionResponse?.user_response ??
+            resolutionResponse?.modified_arguments?.user_response ??
+            (Array.isArray(resolutionResponse?.selected_values)
+              ? resolutionResponse
+              : undefined);
+          appendSyntheticToolConfirmationDecision({
+            targetChatId: normalizedChatId,
+            confirmationId: pending.interactionId,
+            approved,
+            userResponse: recoveredUserResponse,
+            feedbackAcknowledged: true,
+          });
+
+          if (submittedHumanInputId) {
+            if (
+              !hasAuthoritativeRecordedReceipt ||
+              submittedHumanInputId !== pending.interactionId ||
+              pending.kind !== "human_input" ||
+              pending.resolution?.outcome !== "submitted"
+            ) {
+              const error = new Error("The submitted answer does not match the suspended interaction.");
+              error.code = "durable_interaction_receipt_identity_mismatch";
+              throw error;
+            }
+            if (!pending.resumeAvailable) {
+              const error = new Error(pending.resumeUnavailableReason || "The submitted interaction cannot be resumed.");
+              error.code = "durable_interaction_resume_unavailable";
+              throw error;
+            }
+            const resumeKey = JSON.stringify([
+              normalizedChatId, pending.sessionId, pending.interactionId,
+              pending.receiptId, activeRunGeneration,
+            ]);
+            if (durableResumeStartedKeysRef.current.has(resumeKey)) {
+              return pendingWithOwner;
+            }
+            durableResumeStartedKeysRef.current.add(resumeKey);
+            let chatKeys = durableResumeStartedKeysByChatIdRef.current.get(normalizedChatId);
+            if (!chatKeys) {
+              chatKeys = new Set();
+              durableResumeStartedKeysByChatIdRef.current.set(normalizedChatId, chatKeys);
+            }
+            chatKeys.add(resumeKey);
+            let started = false;
+            try {
+              started = await runTurnRequestRef.current({
+                mode: "resume_interaction",
+                chatId: normalizedChatId,
+                text: "",
+                attachments: [],
+                baseMessages: ensured.messages,
+                clearComposer: false,
+                durableInteraction: pendingWithOwner,
+                durableOwnerMessageId: ensured.ownerMessageId,
+                runGeneration: activeRunGeneration,
+              });
+            } finally {
+              if (!started) {
+                durableResumeStartedKeysRef.current.delete(resumeKey);
+                chatKeys.delete(resumeKey);
+              }
+            }
+            if (!started) return null;
             return pendingWithOwner;
           }
-          durableResumeStartedKeysRef.current.add(resumeKey);
-          let chatKeys = durableResumeStartedKeysByChatIdRef.current.get(normalizedChatId);
-          if (!chatKeys) {
-            chatKeys = new Set();
-            durableResumeStartedKeysByChatIdRef.current.set(normalizedChatId, chatKeys);
-          }
-          chatKeys.add(resumeKey);
-          let started = false;
-          try {
-            started = await runTurnRequestRef.current({
-              mode: "resume_interaction",
-              chatId: normalizedChatId,
-              text: "",
-              attachments: [],
-              baseMessages: ensured.messages,
-              clearComposer: false,
-              durableInteraction: pendingWithOwner,
-              durableOwnerMessageId: ensured.ownerMessageId,
-              runGeneration: activeRunGeneration,
-            });
-          } finally {
-            if (!started) {
-              durableResumeStartedKeysRef.current.delete(resumeKey);
-              chatKeys.delete(resumeKey);
-            }
-          }
-          if (!started) return null;
-          return pendingWithOwner;
         }
 
         const cancellationReason = "interaction_suspended";
@@ -10015,6 +10323,7 @@ export const useChatStream = ({
       getConfirmationRuntimeForChat,
       isRunGenerationCurrent,
       messagesRef,
+      streamHandlesRef,
       setStreamError,
       setStreamErrorForChat,
       storageApi,
@@ -11622,7 +11931,7 @@ export const useChatStream = ({
         status,
         message_id: assistantMessage?.id || null,
         content,
-        tool_calls: assistantMessage?.tool_calls || null,
+        tool_calls: projectTestApiToolCalls(assistantMessage),
         finish_reason: assistantMessage?.finish_reason || null,
         started_at: assistantMessage?.createdAt || null,
         updated_at: assistantMessage?.updatedAt || null,
@@ -12076,7 +12385,7 @@ export const useChatStream = ({
                   typeof last.content === "string"
                     ? last.content
                     : JSON.stringify(last.content),
-                tool_calls: last.tool_calls || null,
+                tool_calls: projectTestApiToolCalls(last),
                 finish_reason: last.finish_reason || "stop",
                 latency_ms: Date.now() - startedAt,
                 chat_id: targetChatId,
@@ -12679,19 +12988,20 @@ export const useChatStream = ({
             }, CLARIFY_BTW_SETTLEMENT_TIMEOUT_MS);
           })
         : null;
-      let interjectRequest;
-      try {
-        interjectRequest = Promise.resolve(
-          api.unchain.interject({
-          threadId,
-          text: body,
-          channel,
-          ...(messageId ? { messageId } : {}),
-          }),
-        );
-      } catch (error) {
-        interjectRequest = Promise.reject(error);
-      }
+      const interjectPayload = {
+        threadId,
+        text: body,
+        channel,
+        ...(messageId ? { messageId } : {}),
+      };
+      const interjectRequest = dispatchInterjectWithStartupRetry({
+        request: interjectPayload,
+        send: api.unchain.interject,
+        isRunActive: () =>
+          isCurrentDispatch() &&
+          streamingChatIdsRef.current.has(targetChatId) &&
+          streamHandlesRef.current.has(targetChatId),
+      });
       const dispatchPromise = (timeoutPromise
         ? Promise.race([interjectRequest, timeoutPromise])
         : interjectRequest)
@@ -12734,7 +13044,7 @@ export const useChatStream = ({
                   })
                 : true;
             }
-            toast.success("Queued — will be injected next step", {
+            toast.success("Accepted — will be injected at the next step", {
               dedupeKey: "interject-fyi-queued",
             });
             return clarifyBtwBarrier
@@ -12966,16 +13276,27 @@ export const useChatStream = ({
               : true;
           }
 
-          // resolved_channel === "new_run": graph-recipe runs never register
-          // an interject channel, so the server can (and will) report
-          // new_run even while the stream is still active — that must be
-          // treated as a queued turn, never a concurrent send. Only fall back
-          // to an actual new send once the stream is genuinely no longer
-          // active.
+          // resolved_channel === "new_run": some active run modes may not
+          // expose a live interject channel. Treat that final refusal as a
+          // queued turn, never a concurrent send. Only fall back to an actual
+          // new send once the stream is genuinely no longer active.
           const stillActive = Boolean(
             streamingChatIdsRef.current.has(targetChatId) &&
               streamHandlesRef.current.has(targetChatId),
           );
+          const announceLiveQueueFallback = () => {
+            if (!stillActive) return;
+            const fallbackSubject =
+              channel === "fyi" || channel === "btw"
+                ? `/${channel}`
+                : "This message";
+            toast.info(
+              `${fallbackSubject} could not reach the active run, so it was queued for the next turn.`,
+              {
+                dedupeKey: `interject-live-fallback-${targetChatId}-${channel}`,
+              },
+            );
+          };
           if (needsDurableFyiIntent) {
             const migrated = migratePendingFyiToQueue({
               chatId: targetChatId,
@@ -12998,6 +13319,7 @@ export const useChatStream = ({
               sourceAttemptId,
               migrated.queue,
             );
+            announceLiveQueueFallback();
             if (!stillActive && !clarifyBtwBarrier) {
               relayQueuedTurnsAfterRunRef.current?.({
                 targetChatId,
@@ -13018,7 +13340,15 @@ export const useChatStream = ({
               : true;
           }
           if (stillActive) {
-            return pushQueuedTurn(targetChatId, body, secretDisposition);
+            const queued = pushQueuedTurn(
+              targetChatId,
+              body,
+              secretDisposition,
+            );
+            if (queued) {
+              announceLiveQueueFallback();
+            }
+            return queued;
           }
 
           if (targetChatId === activeChatIdRef.current) {
@@ -14602,6 +14932,9 @@ export const useChatStream = ({
     isDurableInteractionBlocked,
     isTurnMutationBlocked,
     isStreaming,
+    isWaitingForSettlement:
+      (isStreaming && settlementWaitingChatIds.has(chatId)) ||
+      settlementWaitByChatIdRef.current.has(chatId),
     onClarifyResolve,
     onQueueUndo,
     pendingContinuationRequest,

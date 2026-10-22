@@ -1,0 +1,37 @@
+
+> PuPu@0.1.12 build:web
+> npm run version:prepare-build && node ./scripts/build-web.cjs
+
+
+> PuPu@0.1.12 version:prepare-build
+> node ./scripts/prepare-build-version.cjs
+
+[version:prepare-build] Version already 0.1.12; no update needed.
+[build:web] Using build feature flags: {} (snapshot not found; using local defaults)
+(node:76686) [DEP0176] DeprecationWarning: fs.F_OK is deprecated, use fs.constants.F_OK instead
+(Use `node --trace-deprecation ...` to show where the warning was created)
+Creating an optimized production build...
+Browserslist: browsers data (caniuse-lite) is 7 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+Browserslist: browsers data (caniuse-lite) is 7 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+Browserslist: browsers data (caniuse-lite) is 7 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+Browserslist: browsers data (caniuse-lite) is 7 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+
+Treating warnings as errors because process.env.CI = true.
+Most CI servers set it automatically.
+
+Failed to compile.
+
+[eslint]
+src/COMPONENTs/chat-bubble/trace_chain.js
+  Line 2223:6:  React Hook useMemo has a missing dependency: 'isCancelled'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+
+[acceptance child exit] {"cwd":"/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384","command":"/Users/red/.nvm/versions/node/v24.18.0/bin/node","args":["/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/node_modules/react-scripts/scripts/build.js"],"status":1,"signal":null,"error":null,"pid":76686,"duration_ms":26961,"node_options":"--max-old-space-size=8192 --require=/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/.local/ticket-384-build/child-probe.cjs","generate_sourcemap":null}

@@ -1,4 +1,7 @@
+import copy
 import json
+import os
+import tempfile
 import sys
 import unittest
 from pathlib import Path
@@ -31,7 +34,87 @@ def _parse_sse_blocks(payload_text: str) -> list[tuple[str, dict]]:
 
 class ChatStreamV4RouteTests(unittest.TestCase):
     def setUp(self) -> None:
+        data = tempfile.TemporaryDirectory()
+        self.addCleanup(data.cleanup)
+        environment = mock.patch.dict(os.environ, {"UNCHAIN_DATA_DIR": data.name})
+        environment.start()
+        self.addCleanup(environment.stop)
         self.client = miso_app.create_app().test_client()
+
+
+    def test_route_rejects_explicit_null_reference_and_metadata(self) -> None:
+        call_ref = {
+            "schema": "pupu.tool_call_ref.v1",
+            "execution_id": "execution-a",
+            "original_attempt_id": "attempt-a",
+            "call_id": "call-a",
+            "tool_name": "lookup",
+            "intent_cursor": {
+                "schema": "unchain.event_cursor.v1",
+                "store_seq": 7,
+                "event_id": "event-a",
+            },
+        }
+        sidecar = route_chat.ToolCallDisplayMetadataSidecar({
+            "call_ref": call_ref,
+            "timeline_merge_policy_declared": False,
+            "original_arguments_declared": False,
+        })
+        event = {
+            "schema_version": "v4",
+            "type": "step.started",
+            "session_id": "execution-a",
+            "run_id": "attempt-a",
+            "payload": {"call_id": "call-a", "tool_name": "lookup"},
+        }
+
+        projected = route_chat.project_tool_call_display_metadata(event, sidecar)
+        self.assertIsNotNone(projected)
+        self.assertNotIn("call_ref", event["payload"])
+        self.assertEqual(projected["payload"]["call_ref"], call_ref)
+
+        for explicit_null in ({"call_ref": None}, {"call_ref_metadata": None}):
+            with self.subTest(explicit_null=explicit_null):
+                conflicting = {
+                    **event,
+                    "payload": {**event["payload"], **explicit_null},
+                }
+                before = copy.deepcopy(conflicting)
+                self.assertIsNone(
+                    route_chat.project_tool_call_display_metadata(
+                        conflicting, sidecar
+                    )
+                )
+                self.assertEqual(conflicting, before)
+
+    def test_chat_stream_v4_emits_safe_provider_retry_without_private_diagnostics(self) -> None:
+        retry = {
+            "type": "provider_retry", "run_id": "run-gemini", "iteration": 1,
+            "timestamp": 1790970507.0, "provider": "gemini", "http_status": 503,
+            "retry_ordinal": 1, "max_retries": 2, "delay_ms": 500,
+        }
+        events = iter([
+            {"type": "run_started", "run_id": "run-gemini", "iteration": 1},
+            retry,
+            {**retry, "response_body": "private-provider-content"},
+            {"type": "final_message", "run_id": "run-gemini",
+             "iteration": 1, "content": "done"},
+        ])
+        with mock.patch.object(miso_routes, "stream_chat_events", return_value=events):
+            response = self.client.post(
+                "/chat/stream/v4",
+                json={"message": "hello", "threadId": "chat-gemini-retry",
+                      "attempt_id": "attempt-gemini-retry"},
+            )
+            body = response.get_data(as_text=True)
+        frames = _parse_sse_blocks(body)
+        retry_events = [payload for name, payload in frames
+                        if name == "runtime_event" and
+                        payload.get("payload", {}).get("kind") == "provider_retry"]
+        self.assertEqual(len(retry_events), 1)
+        self.assertEqual(retry_events[0]["type"], "step.delta")
+        self.assertEqual(retry_events[0]["payload"]["retry_ordinal"], 1)
+        self.assertNotIn("private-provider-content", body)
 
     def test_chat_stream_v4_records_latency_without_adding_a_wire_event(self) -> None:
         events = iter(

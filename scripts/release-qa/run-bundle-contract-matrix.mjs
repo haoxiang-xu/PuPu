@@ -215,8 +215,8 @@ export const RENDERER_RUN_BUNDLE_TESTS = Object.freeze([
     file: "src/PAGEs/chat/chat.test.js",
     names: Object.freeze([
       "keeps a reattached terminal stream pending until canonical accounting is durable",
-      "rehydrates an awaiting durable interaction without cancelling or auto-resuming it",
-      "cold fresh send seals the exact awaiting attempt before starting one normal run",
+      "seals an awaiting durable interaction on reload without restoring an approval card",
+      "cold reload seals the awaiting attempt before a fresh send starts one normal run",
       "seals a recorded durable receipt on reload without auto-resuming",
       "projects a canonical done bundle into the keyed RunBundle store",
       "keeps the assistant streaming until canonical accounting is durable",

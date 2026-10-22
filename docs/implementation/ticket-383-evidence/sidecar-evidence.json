@@ -1,0 +1,397 @@
+{
+  "source_revision": "0047d58d0369d5c245a3fd8021d4d97c3e3f9a35",
+  "run_kind": "read-only-isolated-fixture",
+  "cases": [
+    {
+      "case": "silent-batch",
+      "route_status": 200,
+      "enriched_raw_types": [
+        "run_started",
+        "iteration_started",
+        "tool_call",
+        "tool_result",
+        "tool_call",
+        "tool_result",
+        "response_received",
+        "iteration_completed",
+        "iteration_started",
+        "response_received",
+        "final_message",
+        "run_completed"
+      ],
+      "canonical_types": [
+        "session.started",
+        "run.started",
+        "turn.started",
+        "step.started",
+        "step.completed",
+        "step.started",
+        "step.completed",
+        "step.completed",
+        "turn.completed",
+        "turn.started",
+        "step.completed",
+        "step.completed",
+        "run.completed"
+      ],
+      "done": {
+        "finished_at": 1790911106033,
+        "execution_id": "silent-batch-session",
+        "attempt_id": "silent-batch-run",
+        "cancelled": false,
+        "diagnostics": {
+          "dropped_event_count": 0,
+          "dropped_events": []
+        }
+      },
+      "tool_starts": [
+        {
+          "step_id": "tool:silent-batch-call-1",
+          "step_type": "tool",
+          "tool_name": "read_file",
+          "call_id": "silent-batch-call-1",
+          "toolkit_id": "fixture.in_memory",
+          "toolkit_name": "Fixture in-memory tools",
+          "arguments": {
+            "path": "fixture-1.txt"
+          }
+        },
+        {
+          "step_id": "tool:silent-batch-call-2",
+          "step_type": "tool",
+          "tool_name": "read_file",
+          "call_id": "silent-batch-call-2",
+          "toolkit_id": "fixture.in_memory",
+          "toolkit_name": "Fixture in-memory tools",
+          "arguments": {
+            "path": "fixture-2.txt"
+          }
+        }
+      ],
+      "tool_completions": [
+        {
+          "step_id": "tool:silent-batch-call-1",
+          "step_type": "tool",
+          "tool_name": "read_file",
+          "call_id": "silent-batch-call-1",
+          "status": "success",
+          "result": {}
+        },
+        {
+          "step_id": "tool:silent-batch-call-2",
+          "step_type": "tool",
+          "tool_name": "read_file",
+          "call_id": "silent-batch-call-2",
+          "status": "success",
+          "result": {}
+        }
+      ]
+    },
+    {
+      "case": "content-batch",
+      "route_status": 200,
+      "enriched_raw_types": [
+        "run_started",
+        "iteration_started",
+        "tool_call",
+        "tool_result",
+        "tool_call",
+        "tool_result",
+        "response_received",
+        "iteration_completed",
+        "iteration_started",
+        "response_received",
+        "final_message",
+        "run_completed"
+      ],
+      "canonical_types": [
+        "session.started",
+        "run.started",
+        "turn.started",
+        "step.started",
+        "step.completed",
+        "step.started",
+        "step.completed",
+        "step.completed",
+        "turn.completed",
+        "turn.started",
+        "step.completed",
+        "step.completed",
+        "run.completed"
+      ],
+      "done": {
+        "finished_at": 1790911106054,
+        "execution_id": "content-batch-session",
+        "attempt_id": "content-batch-run",
+        "cancelled": false,
+        "diagnostics": {
+          "dropped_event_count": 0,
+          "dropped_events": []
+        }
+      },
+      "tool_starts": [
+        {
+          "step_id": "tool:content-batch-call-1",
+          "step_type": "tool",
+          "tool_name": "read_file",
+          "call_id": "content-batch-call-1",
+          "toolkit_id": "fixture.in_memory",
+          "toolkit_name": "Fixture in-memory tools",
+          "arguments": {
+            "path": "fixture-1.txt"
+          }
+        },
+        {
+          "step_id": "tool:content-batch-call-2",
+          "step_type": "tool",
+          "tool_name": "read_file",
+          "call_id": "content-batch-call-2",
+          "toolkit_id": "fixture.in_memory",
+          "toolkit_name": "Fixture in-memory tools",
+          "arguments": {
+            "path": "fixture-2.txt"
+          }
+        }
+      ],
+      "tool_completions": [
+        {
+          "step_id": "tool:content-batch-call-1",
+          "step_type": "tool",
+          "tool_name": "read_file",
+          "call_id": "content-batch-call-1",
+          "status": "success",
+          "result": {
+            "content": "fixture contents for fixture-1.txt"
+          }
+        },
+        {
+          "step_id": "tool:content-batch-call-2",
+          "step_type": "tool",
+          "tool_name": "read_file",
+          "call_id": "content-batch-call-2",
+          "status": "success",
+          "result": {
+            "content": "fixture contents for fixture-2.txt"
+          }
+        }
+      ]
+    },
+    {
+      "case": "observed-batch",
+      "route_status": 200,
+      "enriched_raw_types": [
+        "run_started",
+        "iteration_started",
+        "tool_call",
+        "tool_result",
+        "tool_call",
+        "tool_result",
+        "observation",
+        "response_received",
+        "iteration_completed",
+        "iteration_started",
+        "response_received",
+        "final_message",
+        "run_completed"
+      ],
+      "canonical_types": [
+        "session.started",
+        "run.started",
+        "turn.started",
+        "step.started",
+        "step.completed",
+        "step.started",
+        "step.completed",
+        "step.completed",
+        "turn.completed",
+        "turn.started",
+        "step.completed",
+        "step.completed",
+        "run.completed"
+      ],
+      "done": {
+        "finished_at": 1790911106076,
+        "execution_id": "observed-batch-session",
+        "attempt_id": "observed-batch-run",
+        "cancelled": false,
+        "diagnostics": {
+          "dropped_event_count": 1,
+          "dropped_events": [
+            {
+              "type": "observation",
+              "event": {
+                "type": "observation",
+                "run_id": "observed-batch-run",
+                "iteration": 0,
+                "content": "Fixture output reviewed safely"
+              }
+            }
+          ]
+        }
+      },
+      "tool_starts": [
+        {
+          "step_id": "tool:observed-batch-call-1",
+          "step_type": "tool",
+          "tool_name": "read_file",
+          "call_id": "observed-batch-call-1",
+          "toolkit_id": "fixture.in_memory",
+          "toolkit_name": "Fixture in-memory tools",
+          "arguments": {
+            "path": "fixture-1.txt"
+          }
+        },
+        {
+          "step_id": "tool:observed-batch-call-2",
+          "step_type": "tool",
+          "tool_name": "read_file",
+          "call_id": "observed-batch-call-2",
+          "toolkit_id": "fixture.in_memory",
+          "toolkit_name": "Fixture in-memory tools",
+          "arguments": {
+            "path": "fixture-2.txt"
+          }
+        }
+      ],
+      "tool_completions": [
+        {
+          "step_id": "tool:observed-batch-call-1",
+          "step_type": "tool",
+          "tool_name": "read_file",
+          "call_id": "observed-batch-call-1",
+          "status": "success",
+          "result": {
+            "content": "fixture contents for fixture-1.txt"
+          }
+        },
+        {
+          "step_id": "tool:observed-batch-call-2",
+          "step_type": "tool",
+          "tool_name": "read_file",
+          "call_id": "observed-batch-call-2",
+          "status": "success",
+          "result": {
+            "content": "fixture contents for fixture-2.txt"
+          }
+        }
+      ]
+    },
+    {
+      "case": "observed-sequential",
+      "route_status": 200,
+      "enriched_raw_types": [
+        "run_started",
+        "iteration_started",
+        "tool_call",
+        "tool_result",
+        "observation",
+        "response_received",
+        "iteration_completed",
+        "iteration_started",
+        "tool_call",
+        "tool_result",
+        "observation",
+        "response_received",
+        "iteration_completed",
+        "iteration_started",
+        "response_received",
+        "final_message",
+        "run_completed"
+      ],
+      "canonical_types": [
+        "session.started",
+        "run.started",
+        "turn.started",
+        "step.started",
+        "step.completed",
+        "step.completed",
+        "turn.completed",
+        "turn.started",
+        "step.started",
+        "step.completed",
+        "step.completed",
+        "turn.completed",
+        "turn.started",
+        "step.completed",
+        "step.completed",
+        "run.completed"
+      ],
+      "done": {
+        "finished_at": 1790911106183,
+        "execution_id": "observed-sequential-session",
+        "attempt_id": "observed-sequential-run",
+        "cancelled": false,
+        "diagnostics": {
+          "dropped_event_count": 2,
+          "dropped_events": [
+            {
+              "type": "observation",
+              "event": {
+                "type": "observation",
+                "run_id": "observed-sequential-run",
+                "iteration": 0,
+                "content": "Fixture output reviewed safely"
+              }
+            },
+            {
+              "type": "observation",
+              "event": {
+                "type": "observation",
+                "run_id": "observed-sequential-run",
+                "iteration": 1,
+                "content": "Fixture output reviewed safely"
+              }
+            }
+          ]
+        }
+      },
+      "tool_starts": [
+        {
+          "step_id": "tool:observed-sequential-call-1",
+          "step_type": "tool",
+          "tool_name": "read_file",
+          "call_id": "observed-sequential-call-1",
+          "toolkit_id": "fixture.in_memory",
+          "toolkit_name": "Fixture in-memory tools",
+          "arguments": {
+            "path": "fixture-1.txt"
+          }
+        },
+        {
+          "step_id": "tool:observed-sequential-call-2",
+          "step_type": "tool",
+          "tool_name": "read_file",
+          "call_id": "observed-sequential-call-2",
+          "toolkit_id": "fixture.in_memory",
+          "toolkit_name": "Fixture in-memory tools",
+          "arguments": {
+            "path": "fixture-2.txt"
+          }
+        }
+      ],
+      "tool_completions": [
+        {
+          "step_id": "tool:observed-sequential-call-1",
+          "step_type": "tool",
+          "tool_name": "read_file",
+          "call_id": "observed-sequential-call-1",
+          "status": "success",
+          "result": {
+            "content": "fixture contents for fixture-1.txt"
+          }
+        },
+        {
+          "step_id": "tool:observed-sequential-call-2",
+          "step_type": "tool",
+          "tool_name": "read_file",
+          "call_id": "observed-sequential-call-2",
+          "status": "success",
+          "result": {
+            "content": "fixture contents for fixture-2.txt"
+          }
+        }
+      ]
+    }
+  ],
+  "network_attempts": []
+}

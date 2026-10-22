@@ -137,6 +137,6 @@ describe("build_model_options", () => {
 
 
 test("Gemini groups preserve the provider prefix and icon", () => {
-  const groups = build_model_options({ providers: { gemini: ["gemini-2.5-flash"] }, collapsed_groups: { Gemini: true } });
-  expect(groups).toEqual([{ group: "Gemini", icon: "gemini", collapsed: true, options: [{ value: "gemini:gemini-2.5-flash", label: "gemini-2.5-flash", trigger_label: "gemini-2.5-flash" }] }]);
+  const groups = build_model_options({ providers: { gemini: ["gemini-3.6-flash"] }, collapsed_groups: { Gemini: true } });
+  expect(groups).toEqual([{ group: "Gemini", icon: "gemini", collapsed: true, options: [{ value: "gemini:gemini-3.6-flash", label: "gemini-3.6-flash", trigger_label: "gemini-3.6-flash" }] }]);
 });

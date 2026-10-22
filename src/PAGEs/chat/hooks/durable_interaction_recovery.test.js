@@ -304,6 +304,75 @@ describe("durable interaction recovery helpers", () => {
     );
   });
 
+  test("preserves recovered request frame provenance and omits absent toolkit identity", () => {
+    const callRef = {
+      schema: "pupu.tool_call_ref.v1",
+      execution_id: "execution-recovered",
+      original_attempt_id: "attempt-recovered",
+      call_id: "recovered-call",
+      tool_name: "shell",
+      intent_cursor: {
+        schema: "unchain.event_cursor.v1",
+        store_seq: 23,
+        event_id: "recovered-intent",
+      },
+      iteration: 4,
+    };
+    const callRefMetadata = {
+      schema: "pupu.tool_call_ref_metadata.v1",
+      intent_cursor: callRef.intent_cursor,
+      timeline_merge_policy_declared: true,
+      timeline_merge_policy: "approved",
+    };
+    const request = buildRecoveredConfirmationRequest({
+      pending: {
+        interactionId: "recovered-interaction",
+        callId: "recovered-call",
+        sessionId: "session-recovered",
+        traceFrame: {
+          run_id: "attempt-recovered",
+          execution_id: "execution-recovered",
+          session_id: "source-session-recovered",
+          event_cursor: callRef.intent_cursor,
+          event_id: "recovered-intent",
+          iteration: 4,
+          links: { interaction_id: "recovered-interaction" },
+          payload: {
+            call_id: "recovered-call",
+            confirmation_id: "recovered-interaction",
+            tool_name: "shell",
+            timeline_merge_policy: "approved",
+            call_ref: callRef,
+            call_ref_metadata: callRefMetadata,
+          },
+        },
+      },
+      chatId: "chat-a",
+      ownerMessageId: "assistant-1",
+      requestedAt: 200,
+    });
+
+    expect(request).toMatchObject({
+      runId: "attempt-recovered",
+      executionId: "execution-recovered",
+      sessionId: "session-recovered",
+      session_id: "source-session-recovered",
+      eventCursor: callRef.intent_cursor,
+      event_cursor: callRef.intent_cursor,
+      eventId: "recovered-intent",
+      event_id: "recovered-intent",
+      run_id: "attempt-recovered",
+      execution_id: "execution-recovered",
+      iteration: 4,
+      links: { interaction_id: "recovered-interaction" },
+      callRef,
+      callRefMetadata,
+      timelineMergePolicy: "approved",
+    });
+    expect(Object.prototype.hasOwnProperty.call(request, "toolkitId"))
+      .toBe(false);
+  });
+
   test("recognizes retryable lease failures and caps exponential delay", () => {
     expect(
       isRetryableDurableInteractionError({ code: "execution_lease_conflict" }),

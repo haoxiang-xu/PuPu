@@ -9,6 +9,7 @@ import re
 import threading
 import time
 import uuid
+import weakref
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -32,6 +33,71 @@ _GRAPH_STEP_CONTEXT_DIRECTORY = "durable_graph_step_resumes"
 _ATTEMPT_BINDING_SCHEMA_VERSION = 1
 _ATTEMPT_BINDING_DIRECTORY = "execution_attempt_bindings"
 _INTERACTION_COMMIT_LOCK_DIRECTORY = "durable_interaction_commit_locks"
+_INTERACTION_WRITER_LOCK = threading.RLock()
+_INTERACTION_WRITERS: dict[tuple[str, ...], weakref.ReferenceType] = {}
+
+
+def _interaction_writer_key(guard, source_attempt_id: str, interaction_id: str):
+    return (guard.session_id, guard.attempt_id, str(guard.owner_pid),
+            guard.owner_id, guard.process_incarnation, source_attempt_id, interaction_id)
+
+
+def _remember_interaction_writer(*, session_id, source_attempt_id, interaction_id, owner_attempt_id):
+    from session_execution_guard import _DEFAULT_REGISTRY
+
+    guard = _DEFAULT_REGISTRY.snapshot(session_id=session_id)
+    if guard is None:
+        return
+    if guard.attempt_id != owner_attempt_id or _DEFAULT_REGISTRY._owner_state(guard) != "owned":
+        raise DurableInteractionHostError(
+            "session_guard_interaction_owner_mismatch", "Interaction writer changed its owner",
+            status_code=409, retryable=False,
+        )
+    with _INTERACTION_WRITER_LOCK:
+        for key, reference in tuple(_INTERACTION_WRITERS.items()):
+            worker = reference()
+            if worker is None or not worker.is_alive():
+                del _INTERACTION_WRITERS[key]
+        _INTERACTION_WRITERS[_interaction_writer_key(guard, source_attempt_id, interaction_id)] = weakref.ref(threading.current_thread())
+
+
+def _parked_interaction_writer_is_live(guard) -> bool:
+    from session_execution_guard import _DEFAULT_REGISTRY
+
+    owner_state = _DEFAULT_REGISTRY._owner_state(guard)
+    if owner_state == "foreign":
+        # A different live process's empty local registry proves nothing.
+        return True
+    if owner_state == "reclaimable":
+        return False
+    with _INTERACTION_WRITER_LOCK:
+        reference = _INTERACTION_WRITERS.get(_interaction_writer_key(
+            guard, guard.interaction_source_attempt_id, guard.interaction_id,
+        ))
+        worker = reference() if reference is not None else None
+        return worker is not None and worker.is_alive()
+
+
+def finish_cancelled_interaction_writer(*, session_id: str, attempt_id: str) -> None:
+    """Called only after this worker's kernel and graph writers have returned."""
+    from session_execution_guard import _DEFAULT_REGISTRY
+
+    guard = _session_execution_guard_call("snapshot_session_guard", session_id=session_id)
+    if guard is None or guard.attempt_id != attempt_id:
+        return
+    if guard.operation != "run" or _DEFAULT_REGISTRY._owner_state(guard) != "owned":
+        raise DurableInteractionHostError(
+            "session_guard_interaction_owner_mismatch", "Finished interaction writer changed its owner",
+            status_code=409, retryable=False,
+        )
+    if _execution_control_status(session_id, attempt_id) != "cancelled":
+        return
+    with _INTERACTION_WRITER_LOCK:
+        for key, reference in tuple(_INTERACTION_WRITERS.items()):
+            if key[:5] == _interaction_writer_key(guard, "", "")[:5] and reference() is threading.current_thread():
+                del _INTERACTION_WRITERS[key]
+    if guard.state == "parked":
+        _consume_terminal_session_guard(session_id)
 
 _GRAPH_STEP_CONTEXT_RECORD_KEYS = frozenset(
     {
@@ -3418,6 +3484,18 @@ def get_pending_interaction(session_id: str) -> dict[str, Any]:
                 runtime,
             )
     if source_run_id:
+        cancelled_owner_id = _cancelled_owner_for_interaction_source(
+            normalized_session_id, source_run_id, revoke_bound_resumes=True,
+        )
+        if cancelled_owner_id:
+            cancel_chat_execution(
+                session_id=normalized_session_id,
+                attempt_id=cancelled_owner_id,
+                expected_interaction_id=str(request.interaction_id or "").strip(),
+                reason="retired interaction from stopped execution",
+            )
+            return {"status": "none", "session_id": normalized_session_id}
+    if source_run_id:
         _reconcile_durable_interaction_session_guard(
             session_id=normalized_session_id,
             interaction_id=str(request.interaction_id or "").strip(),
@@ -3557,6 +3635,121 @@ def get_pending_interaction(session_id: str) -> dict[str, Any]:
         except DurableInteractionHostError as exc:
             context_unavailable_reason = exc.code
 
+    presentation = _presentation_for_request(request)
+    tool_presentation = presentation.get("tool_call")
+    if isinstance(tool_presentation, dict):
+        policy = None
+        source_metadata_resolved = False
+        request_subject = request.subject if isinstance(request.subject, dict) else {}
+        subject_extra = (
+            request_subject.get("extra")
+            if isinstance(request_subject.get("extra"), dict)
+            else {}
+        )
+        authority = subject_extra.get("context_v2_tool_authority")
+        intent_cursor = (
+            authority.get("intent_cursor")
+            if isinstance(authority, dict)
+            else None
+        )
+        call_id = str(tool_presentation.get("call_id") or "").strip()
+        tool_name = str(tool_presentation.get("tool_name") or "").strip()
+        if source_run_id and call_id and tool_name and isinstance(intent_cursor, dict):
+            try:
+                owner_chat_id = _cold_interaction_owner_chat_id(
+                    normalized_session_id, source_run_id
+                )
+                from memory_v2_unchain_active_bridge import (
+                    pupu_unchain_cold_tool_call_display_metadata,
+                )
+
+                display_metadata = pupu_unchain_cold_tool_call_display_metadata(
+                    owner_chat_id=owner_chat_id,
+                    session_id=normalized_session_id,
+                    source_attempt_id=source_run_id,
+                    call_id=call_id,
+                    tool_name=tool_name,
+                    intent_cursor=intent_cursor,
+                )
+                if display_metadata is not None:
+                    source_metadata_resolved = True
+                    from pupu_tool_call_ref import (
+                        TOOL_CALL_DISPLAY_METADATA_SCHEMA,
+                    )
+
+                    tool_presentation["call_ref"] = display_metadata["call_ref"]
+                    if "iteration" in display_metadata["call_ref"]:
+                        trace_frame = presentation.get("trace_frame")
+                        if isinstance(trace_frame, dict):
+                            trace_frame["iteration"] = display_metadata[
+                                "call_ref"
+                            ]["iteration"]
+                    metadata_payload = {
+                        "schema": TOOL_CALL_DISPLAY_METADATA_SCHEMA,
+                        "intent_cursor": copy.deepcopy(
+                            display_metadata["call_ref"]["intent_cursor"]
+                        ),
+                        "timeline_merge_policy_declared": display_metadata[
+                            "timeline_merge_policy_declared"
+                        ],
+                        "original_arguments_declared": display_metadata[
+                            "original_arguments_declared"
+                        ],
+                    }
+                    if display_metadata["timeline_merge_policy_declared"]:
+                        metadata_payload["timeline_merge_policy"] = copy.deepcopy(
+                            display_metadata["timeline_merge_policy"]
+                        )
+                        policy = display_metadata["timeline_merge_policy"]
+                    else:
+                        tool_presentation.pop("timeline_merge_policy", None)
+                    if display_metadata["original_arguments_declared"]:
+                        metadata_payload["original_arguments"] = copy.deepcopy(
+                            display_metadata["original_arguments"]
+                        )
+                        tool_presentation["arguments"] = copy.deepcopy(
+                            display_metadata["original_arguments"]
+                        )
+                    else:
+                        tool_presentation.pop("arguments", None)
+                    tool_presentation["call_ref_metadata"] = metadata_payload
+            except Exception:
+                # Missing or ambiguous historical provenance keeps legacy display behavior.
+                policy = None
+        if (
+            policy is None
+            and not source_metadata_resolved
+            and tool_name == "ask_user_question"
+        ):
+            policy = "never"
+        if policy in {"never", "no_feedback", "approved", "always"}:
+            tool_presentation["timeline_merge_policy"] = policy
+        elif source_metadata_resolved:
+            tool_presentation.pop("timeline_merge_policy", None)
+        if policy in {"never", "no_feedback", "approved", "always"} or source_metadata_resolved:
+            trace_frame = presentation.get("trace_frame")
+            trace_payload = (
+                trace_frame.get("payload")
+                if isinstance(trace_frame, dict)
+                else None
+            )
+            if isinstance(trace_payload, dict):
+                if policy is None:
+                    trace_payload.pop("timeline_merge_policy", None)
+                else:
+                    trace_payload["timeline_merge_policy"] = policy
+                for provenance_key in ("call_ref", "call_ref_metadata"):
+                    if provenance_key in tool_presentation:
+                        trace_payload[provenance_key] = copy.deepcopy(
+                            tool_presentation[provenance_key]
+                        )
+                if "arguments" in tool_presentation:
+                    trace_payload["arguments"] = copy.deepcopy(
+                        tool_presentation["arguments"]
+                    )
+                else:
+                    trace_payload.pop("arguments", None)
+
     result: dict[str, Any] = {
         "status": (
             "receipt_recorded"
@@ -3570,7 +3763,7 @@ def get_pending_interaction(session_id: str) -> dict[str, Any]:
         "kind": request.kind,
         "provider": subject_provider,
         "model": subject_model,
-        "presentation": _presentation_for_request(request),
+        "presentation": presentation,
         "resume_available": context is not None or graph_context is not None,
         "resume_options": (
             copy.deepcopy(
@@ -3694,7 +3887,7 @@ def _cancelled_owner_for_interaction_source(
 ) -> str:
     """Return the cancelled attempt that owns this interaction's source, or "".
 
-    Checks the source attempt itself and every resume attempt bound to it
+    Checks the source, its verified graph coordinator and bound resume attempts
     against the execution-control registry and the durable cancellation
     tombstones.  With ``revoke_bound_resumes`` the source's own cancellation
     also revokes its still-live bound resume owners (the original repair
@@ -3712,6 +3905,14 @@ def _cancelled_owner_for_interaction_source(
                 reason="parent execution cancelled",
             )
         return source_run_id
+    owner_attempt_id = _durable_interaction_guard_owner_attempt(
+        session_id, source_run_id,
+    )
+    if owner_attempt_id != source_run_id and (
+        _execution_control_status(session_id, owner_attempt_id) == "cancelled"
+        or _load_execution_cancellation(session_id, owner_attempt_id) is not None
+    ):
+        return owner_attempt_id
     for binding in _bindings_for_source_attempt(session_id, source_run_id):
         bound_attempt_id = str(binding.get("attempt_id") or "").strip()
         if not bound_attempt_id:
@@ -3723,6 +3924,121 @@ def _cancelled_owner_for_interaction_source(
         ):
             return bound_attempt_id
     return ""
+
+
+def retire_cancelled_callback_interaction(
+    *, session_id: str, source_attempt_id: str, interaction_id: str,
+) -> None:
+    """Finish the exact live callback cancellation before its kernel terminal.
+
+    A transport Stop can wake the callback before the HTTP cancellation has
+    projected its receipt. The callback must join that durable transition;
+    otherwise the kernel terminal would precede interaction.resolved.
+    """
+    from unchain.interaction import DurableInteractionSettlementPending
+
+    owner_attempt_id = ""
+    try:
+        snapshot = _interaction_runtime().load(
+            session_id, interaction_id=interaction_id, require_active=False,
+        )
+        if snapshot.request.source_run_id != source_attempt_id:
+            raise DurableInteractionHostError(
+                "interaction_cancel_source_mismatch",
+                "Cancelled callback changed its durable interaction source",
+                status_code=409, retryable=False,
+            )
+        owner_attempt_id = _durable_interaction_guard_owner_attempt(session_id, source_attempt_id)
+        cancel_chat_execution(
+            session_id=session_id, attempt_id=owner_attempt_id,
+            expected_interaction_id=interaction_id, reason="transport_stop",
+        )
+    except Exception as error:
+        # The callback identity came from its canonical interaction tracker.
+        # A failed durable read is not evidence that it has become terminal.
+        # Signal only an owner we actually proved before the failure.
+        if owner_attempt_id:
+            try:
+                _execution_control_cancel(session_id, owner_attempt_id, reason="transport_stop")
+            except Exception:
+                # A second storage failure must not replace the explicit
+                # no-terminal signal with an ordinary kernel failure.
+                pass
+        raise DurableInteractionSettlementPending(
+            execution_id=session_id, attempt_id=source_attempt_id,
+            interaction_id=interaction_id,
+        ) from error
+
+
+def defer_cancelled_interaction_settlement(*, session_id, attempt_id, pending) -> None:
+    """Park the stopped worker, retaining its exact interaction for retry."""
+    from unchain.interaction import DurableInteractionSettlementPending
+
+    if not isinstance(pending, DurableInteractionSettlementPending) or pending.execution_id != session_id:
+        raise ValueError("settlement deferral changed execution identity")
+    snapshot = _interaction_runtime().load(
+        session_id, interaction_id=pending.interaction_id, require_active=False,
+    )
+    if snapshot.request.source_run_id != pending.attempt_id:
+        raise ValueError("settlement deferral changed interaction source")
+    owner = _durable_interaction_guard_owner_attempt(session_id, pending.attempt_id)
+    if owner != attempt_id:
+        binding = load_execution_attempt_binding(session_id, attempt_id) or {}
+        if binding.get("source_attempt_id") != pending.attempt_id:
+            raise ValueError("settlement deferral changed execution owner")
+    _session_execution_guard_call(
+        "park_session_guard", session_id=session_id,
+        interaction_id=pending.interaction_id, source_attempt_id=pending.attempt_id,
+        owner_attempt_id=attempt_id,
+    )
+
+
+def finalize_cancelled_execution_interactions(*, session_id: str, attempt_id: str) -> bool:
+    """Retire a late request after this worker stopped, before releasing its guard.
+
+    The caller owns worker shutdown. This helper never releases an active guard
+    and never claims an interaction from another execution or attempt.
+    """
+    if not str(session_id or "").strip() or not str(attempt_id or "").strip():
+        return False
+    if (
+        _execution_control_status(session_id, attempt_id) != "cancelled"
+        and _load_execution_cancellation(session_id, attempt_id) is None
+    ):
+        return False
+    from unchain.interaction import InteractionNotPendingError
+
+    try:
+        snapshot = _interaction_runtime().load_active(session_id)
+    except InteractionNotPendingError:
+        return False
+    request = snapshot.request
+    source_attempt_id = str(request.source_run_id or "").strip()
+    owner_attempt_id = _durable_interaction_guard_owner_attempt(
+        session_id, source_attempt_id,
+    )
+    if attempt_id not in {source_attempt_id, owner_attempt_id}:
+        binding = load_execution_attempt_binding(session_id, attempt_id)
+        bound_source = str((binding or {}).get("source_attempt_id") or "").strip()
+        if not bound_source or (
+            bound_source != source_attempt_id
+            and not _graph_step_follows_bound_interaction_source(
+                session_id=session_id,
+                bound_source_attempt_id=bound_source,
+                current_source_attempt_id=source_attempt_id,
+                interaction_id=str(request.interaction_id),
+                bound_graph_guard_lineage=(binding or {}).get("source_graph_guard_lineage"),
+                allow_resolved=snapshot.receipt is not None,
+            )
+        ):
+            return False
+    cancel_chat_execution(
+        session_id=session_id,
+        attempt_id=attempt_id,
+        expected_interaction_id=str(request.interaction_id),
+        reason="retired late interaction after worker stopped",
+    )
+    return True
 
 
 def _reject_if_host_interaction_cancelled(snapshot: Any) -> None:
@@ -4615,25 +4931,53 @@ def _consume_cancelled_session_guard(
         # The worker still owns an active guard until its cancellation
         # finalizer proves all writes have stopped.
         return
-    _reconcile_durable_interaction_session_guard(
-        session_id=session_id,
-        interaction_id=interaction_id,
-        source_attempt_id=source_attempt_id,
-        # _reconcile_cancelled_interaction_to_context (called by our caller,
-        # cancel_chat_execution, before this function) may already have
-        # committed the cancellation's own canonical resolution for this
-        # exact interaction. That is the legitimate terminal fact this
-        # guard consumption is unwinding, not a competing answer racing in
-        # -- the same "resolved but not yet resumed" state
-        # record_interaction_receipt's own lineage check already tolerates.
-        allow_resolved=True,
-    )
-    _session_execution_guard_call(
-        "consume_parked_session_guard",
-        session_id=session_id,
-        interaction_id=interaction_id,
-        source_attempt_id=source_attempt_id,
-    )
+    with _interaction_commit_lock(session_id):
+        guard = _session_execution_guard_call("snapshot_session_guard", session_id=session_id)
+        if guard is None:
+            return
+        if (guard.state != "parked" or guard.interaction_id != interaction_id
+                or guard.interaction_source_attempt_id != source_attempt_id):
+            raise DurableInteractionHostError(
+                "session_guard_cancel_lineage_changed", "Cancelled parked guard changed",
+                status_code=409, retryable=False,
+            )
+        if _parked_interaction_writer_is_live(guard):
+            # A live approval callback parks for receipt routing while its
+            # kernel still owns the writer. It must write its own terminal.
+            return
+        graph_record = _read_graph_step_context_path(
+            _graph_step_context_path(session_id, source_attempt_id),
+            expected_session_id=session_id, expected_step_attempt_id=source_attempt_id,
+        )
+        if graph_record is not None:
+            if guard.attempt_id not in {graph_record["coordinator_attempt_id"], *cancelled_attempt_ids}:
+                # A resumed transport may be parked on a later graph step.
+                # Its immutable source binding plus canonical successor proof
+                # must identify this exact owner before we can consume it.
+                verified_owner, active_resume = _validated_durable_interaction_guard_owner_attempt(
+                    session_id=session_id, interaction_id=interaction_id,
+                    source_attempt_id=source_attempt_id, allow_resolved=True,
+                )
+                if active_resume or verified_owner != guard.attempt_id:
+                    raise DurableInteractionHostError(
+                        "session_guard_cancel_attempt_mismatch", "Cancelled parked owner changed",
+                        status_code=409, retryable=False,
+                    )
+            from memory_v2_unchain_graph_failure import settle_cancelled_parked_graph_interaction
+
+            settle_cancelled_parked_graph_interaction(
+                session_id=session_id, source_attempt_id=source_attempt_id,
+                interaction_id=interaction_id, record=graph_record,
+            )
+        else:
+            _reconcile_durable_interaction_session_guard(
+                session_id=session_id, interaction_id=interaction_id,
+                source_attempt_id=source_attempt_id, allow_resolved=True,
+            )
+        _session_execution_guard_call(
+            "consume_parked_session_guard", session_id=session_id,
+            interaction_id=interaction_id, source_attempt_id=source_attempt_id,
+        )
 
 
 def _consume_terminal_session_guard(session_id: str) -> bool:
@@ -4673,6 +5017,15 @@ def _consume_terminal_session_guard(session_id: str) -> bool:
             status_code=409,
             retryable=True,
         )
+    if str(entry["application"].get("applied_checkpoint_id") or "").startswith("cancelled:"):
+        # A host application can precede canonical projection after an I/O
+        # failure. Polling must join settlement, never release that guard early.
+        _consume_cancelled_session_guard(
+            session_id=session_id, source_attempt_id=source_attempt_id,
+            cancelled_attempt_ids=(str(guard.attempt_id),),
+            expected_interaction_id=interaction_id, cancelled_snapshot=None,
+        )
+        return True
     _session_execution_guard_call(
         "consume_parked_session_guard",
         session_id=session_id,
@@ -4711,6 +5064,15 @@ def cancel_chat_execution(
             field_name="expected_interaction_id",
         )
     normalized_source_attempt_id = str(source_attempt_id or "").strip()
+    if not normalized_source_attempt_id and not normalized_expected_interaction_id:
+        from execution_admission import cancel_unstarted_attempt_with_foreign_interaction
+
+        unstarted = cancel_unstarted_attempt_with_foreign_interaction(
+            session_id=normalized_session_id, attempt_id=normalized_attempt_id,
+            reason=normalized_reason, owner_chat_id=owner_chat_id,
+        )
+        if unstarted is not None:
+            return unstarted
     if normalized_source_attempt_id:
         binding = bind_execution_attempt(
             session_id=normalized_session_id,
@@ -4791,6 +5153,7 @@ def cancel_chat_execution(
             status_code=409,
         )
     durable_interaction_cancelled = False
+    context_interaction_reconciled = False
     cancelled_interaction_snapshot = None
     cancelled_bound_attempt_ids: tuple[str, ...] = ()
     if exact_target is not None and exact_target.is_cancelled_applied:
@@ -4871,6 +5234,27 @@ def cancel_chat_execution(
                     "Durable interaction cancel target changed before atomic apply",
                     status_code=409,
                     retryable=True,
+                )
+
+        # Do not wake a live kernel until its exact cancellation resolution
+        # has crossed the canonical boundary. Its callback can then terminate
+        # without writing a run terminal ahead of interaction.resolved.
+        if durable_interaction_cancelled:
+            cancellation_owner_chat_id = _cold_interaction_owner_chat_id(
+                normalized_session_id, pending_source_attempt_id,
+                explicit_owner_chat_id=owner_chat_id,
+            )
+            if _cold_active_interaction_required(
+                owner_chat_id=cancellation_owner_chat_id,
+                session_id=normalized_session_id,
+            ):
+                context_interaction_reconciled = _reconcile_cancelled_interaction_to_context(
+                    owner_chat_id=cancellation_owner_chat_id,
+                    session_id=normalized_session_id,
+                    source_attempt_id=pending_source_attempt_id,
+                    expected_interaction_id=normalized_expected_interaction_id,
+                    cancellation_applied=True,
+                    cancellation_snapshot=cancelled_interaction_snapshot,
                 )
 
         try:
@@ -5030,8 +5414,7 @@ def cancel_chat_execution(
         session_id=normalized_session_id,
     )
 
-    context_interaction_reconciled = False
-    if cold_active_required:
+    if cold_active_required and not context_interaction_reconciled:
         context_interaction_reconciled = (
             _reconcile_cancelled_interaction_to_context(
                 owner_chat_id=resolved_owner_chat_id,
@@ -5132,6 +5515,11 @@ class DurableInteractionIdTracker:
         if not kind or not isinstance(payload, dict):
             return
         if interaction_id and session_id and source_run_id:
+            _remember_interaction_writer(
+                session_id=session_id, source_attempt_id=source_run_id,
+                interaction_id=interaction_id,
+                owner_attempt_id=self._guard_owner_attempt_id or source_run_id,
+            )
             _session_execution_guard_call(
                 "park_session_guard",
                 session_id=session_id,
@@ -5214,6 +5602,7 @@ __all__ = [
     "interaction_receipt_handoff",
     "record_interaction_receipt",
     "reconcile_cancelled_interactions_before_active_run",
+    "finalize_cancelled_execution_interactions",
     "resolve_graph_step_resume_options",
     "resolve_resume_options",
     "save_graph_step_resume_context",

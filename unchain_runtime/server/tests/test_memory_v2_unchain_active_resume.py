@@ -52,7 +52,7 @@ def test_active_resume_uses_canonical_host_without_legacy_double_write() -> None
 
         def resume_interaction(self, **kwargs):
             resume_kwargs.update(kwargs)
-            event = {
+            final_event = {
                 "type": "final_message",
                 "run_id": kwargs["run_id"],
                 "iteration": 1,
@@ -60,8 +60,19 @@ def test_active_resume_uses_canonical_host_without_legacy_double_write() -> None
             }
             # A real Unchain Agent persists this through ContextRuntime before
             # invoking the PuPu host callback.
-            durable_events.append(dict(event))
-            kwargs["callback"](event)
+            durable_events.append(dict(final_event))
+            kwargs["callback"](final_event)
+            tool_result = {
+                "type": "tool_result",
+                "run_id": kwargs["run_id"],
+                "iteration": 1,
+                "tool_name": "plan_read",
+                "call_id": "call-resume",
+                "result": {"ok": True, "plans": []},
+                "durable_result_outcome": "success",
+            }
+            durable_events.append(dict(tool_result))
+            kwargs["callback"].deliver_persisted_tool_result(tool_result)
             return SimpleNamespace(
                 status="completed",
                 messages=[{"role": "assistant", "content": "resumed"}],
@@ -152,5 +163,19 @@ def test_active_resume_uses_canonical_host_without_legacy_double_write() -> None
     assert isinstance(runtime_context, AgentRuntimeContext)
     assert runtime_context.identity == run.identity
     assert runtime_context.grant_for(MEMORY_V2_MODULE_KEY) == run.grant
-    assert [event["type"] for event in durable_events] == ["final_message"]
+    assert [event["type"] for event in durable_events] == [
+        "final_message",
+        "tool_result",
+    ]
     assert sum(event.get("type") == "final_message" for event in events) == 1
+    assert [event for event in events if event.get("type") == "tool_result"] == [
+        {
+            "type": "tool_result",
+            "run_id": "resume-attempt-active",
+            "iteration": 1,
+            "tool_name": "plan_read",
+            "call_id": "call-resume",
+            "result": {"ok": True, "plans": []},
+            "durable_result_outcome": "success",
+        }
+    ]

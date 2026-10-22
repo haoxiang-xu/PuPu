@@ -1,0 +1,96 @@
+
+  GitNexus Context (1.6.12)
+{"level":40,"time":1790914527809,"name":"gitnexus","msg":"GitNexus: FTS extension unavailable; continuing without FTS features. load-only policy (no install attempted); LOAD fts failed: Binder exception: Extension: fts is an official extension and has not been installed. You can install it by: install fts."}
+{
+  "status": "found",
+  "symbol": {
+    "uid": "Function:src/COMPONENTs/chat-bubble/trace_tool_grouping.js:getToolGroupingIdentity",
+    "name": "getToolGroupingIdentity",
+    "kind": "Function",
+    "filePath": "src/COMPONENTs/chat-bubble/trace_tool_grouping.js",
+    "startLine": 35,
+    "endLine": 60
+  },
+  "epistemic": "exact",
+  "incoming": {
+    "calls": [
+      {
+        "uid": "File:src/COMPONENTs/chat-bubble/trace_tool_grouping.test.js",
+        "name": "trace_tool_grouping.test.js",
+        "filePath": "src/COMPONENTs/chat-bubble/trace_tool_grouping.test.js"
+      },
+      {
+        "uid": "Function:src/COMPONENTs/chat-bubble/trace_tool_grouping.js:collectLegacyObservationOwners",
+        "name": "collectLegacyObservationOwners",
+        "filePath": "src/COMPONENTs/chat-bubble/trace_tool_grouping.js"
+      },
+      {
+        "uid": "Function:src/COMPONENTs/chat-bubble/trace_tool_grouping.js:groupToolTimelineItems",
+        "name": "groupToolTimelineItems",
+        "filePath": "src/COMPONENTs/chat-bubble/trace_tool_grouping.js"
+      },
+      {
+        "uid": "Function:src/COMPONENTs/chat-bubble/trace_tool_grouping.js:isTransparentBetweenCalls",
+        "name": "isTransparentBetweenCalls",
+        "filePath": "src/COMPONENTs/chat-bubble/trace_tool_grouping.js"
+      },
+      {
+        "uid": "Function:src/COMPONENTs/chat-bubble/trace_tool_grouping.test.js:call",
+        "name": "call",
+        "filePath": "src/COMPONENTs/chat-bubble/trace_tool_grouping.test.js"
+      }
+    ]
+  },
+  "outgoing": {
+    "calls": [
+      {
+        "uid": "Function:src/COMPONENTs/chat-bubble/trace_tool_grouping.js:hasTextIdentity",
+        "name": "hasTextIdentity",
+        "filePath": "src/COMPONENTs/chat-bubble/trace_tool_grouping.js"
+      },
+      {
+        "uid": "Function:src/COMPONENTs/chat-bubble/trace_tool_grouping.js:isInlineInteraction",
+        "name": "isInlineInteraction",
+        "filePath": "src/COMPONENTs/chat-bubble/trace_tool_grouping.js"
+      },
+      {
+        "uid": "Function:src/COMPONENTs/chat-bubble/trace_tool_grouping.js:normalizedToolName",
+        "name": "normalizedToolName",
+        "filePath": "src/COMPONENTs/chat-bubble/trace_tool_grouping.js"
+      },
+      {
+        "uid": "Function:src/COMPONENTs/chat-bubble/trace_tool_grouping.js:scopePart",
+        "name": "scopePart",
+        "filePath": "src/COMPONENTs/chat-bubble/trace_tool_grouping.js"
+      },
+      {
+        "uid": "Function:src/COMPONENTs/chat-bubble/trace_tool_grouping.js:scopePart",
+        "name": "scopePart",
+        "filePath": "src/COMPONENTs/chat-bubble/trace_tool_grouping.js"
+      }
+    ],
+    "accesses": [
+      {
+        "uid": "Property:src/COMPONENTs/chat-bubble/trace_tool_grouping.js:getToolGroupingIdentity.runId@57:4",
+        "name": "runId",
+        "filePath": "src/COMPONENTs/chat-bubble/trace_tool_grouping.js"
+      },
+      {
+        "uid": "Property:src/COMPONENTs/chat-bubble/trace_tool_grouping.js:getToolGroupingIdentity.runPresent@56:4",
+        "name": "runPresent",
+        "filePath": "src/COMPONENTs/chat-bubble/trace_tool_grouping.js"
+      },
+      {
+        "uid": "Property:src/COMPONENTs/chat-bubble/trace_tool_grouping.js:getToolGroupingIdentity.toolkitPresent@54:4",
+        "name": "toolkitPresent",
+        "filePath": "src/COMPONENTs/chat-bubble/trace_tool_grouping.js"
+      },
+      {
+        "uid": "Property:src/SERVICEs/mcp_install.js:normalizeCustomMcpRecipe.toolkit_id@183:4",
+        "name": "toolkit_id",
+        "filePath": "src/SERVICEs/mcp_install.js"
+      }
+    ]
+  },
+  "processes": []
+}

@@ -9,6 +9,7 @@ is opened.  No PuPu legacy Context/Memory repository is used.
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 import sqlite3
 import threading
@@ -38,7 +39,7 @@ from memory_v2_unchain_worker import (
     build_pupu_unchain_memory_agent_worker_module,
 )
 from unchain.agent.modules import ContextModule, ContextShadowModule
-from unchain.memory import MemoryV2Module
+from unchain.memory import MemoryAttachmentRequest, MemoryV2Module
 from unchain.agent.modules.task_state_bootstrap import (
     PinnedTaskStateBootstrapModule,
 )
@@ -78,14 +79,17 @@ from unchain.journal import (
     DurableEventSink,
     EventRange,
     ResourceRef,
+    SemanticEventDraft,
 )
 from unchain.journal.models import _required_text
 from unchain.kernel.harness import HarnessContext
 from unchain.memory.curator.host import (
+    MemoryAgentEnqueueReceipt,
     MemoryAgentHostAdapter,
     MemoryAgentHostConfig,
     MemoryAgentModelInvoker,
 )
+from unchain.memory.curator import EnqueueDisposition, RootRunCompletion
 from unchain.memory.toolkit.models import MemoryToolContentPage, ReferencePurpose
 from unchain.memory.workspace import (
     MemorySpace,
@@ -705,7 +709,13 @@ class PupuUnchainContextMemoryV2HostFactory:
                 build_pupu_memory_v2_root_completion_resolver(
                     capture_journal=self._capture_root_completion_journal,
                     before_enqueue=self.prepare_memory_completion,
+                    enqueue_result_callback=(
+                        self._record_memory_completion_result
+                    ),
                 )
+            ),
+            proposal_source_refs_resolver=(
+                self._resolve_memory_proposal_source_refs
             ),
         )
         self.memory_host = MemoryAgentHostAdapter(
@@ -976,6 +986,150 @@ class PupuUnchainContextMemoryV2HostFactory:
             return None
         return prepared.bundle.journal.capture_snapshot()
 
+    def _resolve_memory_proposal_source_refs(
+        self,
+        request: MemoryAttachmentRequest,
+    ) -> tuple[ResourceRef, ...]:
+        """Bind a normal proposal to exact-attempt evidence owned by the host."""
+
+        if not isinstance(request, MemoryAttachmentRequest):
+            raise TypeError("request must be a MemoryAttachmentRequest")
+        prepared = self.attempt(
+            execution_id=request.session_id,
+            attempt_id=request.attempt_id,
+        )
+        attempt = prepared.bundle.attempt
+        if (
+            request.session_id != attempt.generation.execution_id
+            or request.attempt_id != attempt.attempt_id
+        ):
+            raise PupuUnchainHostFactoryError(
+                "memory proposal provenance changed the attempt identity"
+            )
+        events = tuple(
+            event
+            for event in prepared.bundle.journal.capture_snapshot().events
+            if event.attempt == attempt
+        )
+        input_events = tuple(
+            event
+            for event in events
+            if event.event_type in {"message.user", "interaction.resolved"}
+        )
+        tool_results = tuple(
+            event
+            for event in events
+            if event.event_type in {"tool_result", "tool.result"}
+        )
+        selected = []
+        if input_events:
+            selected.append(input_events[-1])
+        selected.extend(tool_results[-127:])
+        if not selected:
+            raise PupuUnchainHostFactoryError(
+                "memory proposal requires current-run evidence"
+            )
+        return tuple(
+            ResourceRef("context_event", event.event_id, 1)
+            for event in selected
+        )
+
+    def _record_memory_completion_result(
+        self,
+        completion: RootRunCompletion,
+        receipt: MemoryAgentEnqueueReceipt,
+    ) -> None:
+        """Append one content-free, replay-safe terminal learning decision."""
+
+        if not isinstance(completion, RootRunCompletion):
+            raise TypeError("completion must be a RootRunCompletion")
+        if not isinstance(receipt, MemoryAgentEnqueueReceipt):
+            raise TypeError("receipt must be a MemoryAgentEnqueueReceipt")
+        with self._attempt_lock:
+            prepared = self._attempts.get(
+                (completion.session_id, completion.attempt_id)
+            )
+        if prepared is None:
+            raise PupuUnchainHostFactoryError(
+                "memory completion attempt is unavailable"
+            )
+        attempt = prepared.bundle.attempt
+        if (
+            attempt.generation.execution_id != completion.session_id
+            or attempt.attempt_id != completion.attempt_id
+            or completion.run_id != completion.attempt_id
+        ):
+            raise PupuUnchainHostFactoryError(
+                "memory completion audit changed the attempt identity"
+            )
+
+        result = receipt.result
+        disposition = (
+            result.disposition
+            if result is not None
+            else None
+        )
+        job = result.job if result is not None else None
+        if disposition is EnqueueDisposition.REPLAYED:
+            audit_disposition = EnqueueDisposition.ENQUEUED
+            audit_reason = "completed_root_run"
+        else:
+            audit_disposition = disposition
+            audit_reason = str(receipt.reason or "feature_disabled")
+        event_type = {
+            EnqueueDisposition.ENQUEUED: "memory.curator.enqueued",
+            EnqueueDisposition.NO_OP: "memory.curator.noop",
+            EnqueueDisposition.ISOLATED: "memory.curator.isolated",
+            EnqueueDisposition.REJECTED: "memory.curator.failed",
+            None: "memory.curator.noop",
+        }[audit_disposition]
+        status = {
+            EnqueueDisposition.ENQUEUED: "Enqueued",
+            EnqueueDisposition.NO_OP: "NoOp",
+            EnqueueDisposition.ISOLATED: "Isolated",
+            EnqueueDisposition.REJECTED: "Failed",
+            None: "NoOp",
+        }[audit_disposition]
+        candidate_count = len(job.candidates) if job is not None else 0
+        payload = {
+            "schema": "pupu.memory_curator_completion.v1",
+            "backend": "unchain",
+            "status": status,
+            "enqueue_status": status,
+            "reason": audit_reason,
+            "trigger": "completed_root_run",
+            "run_id": completion.run_id,
+            "job_id": job.job_id if job is not None else "",
+            "candidate_count": candidate_count,
+            "worker_status": (
+                "Pending"
+                if audit_disposition is EnqueueDisposition.ENQUEUED
+                else "NotScheduled"
+            ),
+        }
+        identity = {
+            "owner_chat_id": self.owner_chat_id,
+            "trigger_key": completion.trigger_key,
+            "event_type": event_type,
+            "payload": payload,
+        }
+        encoded = json.dumps(
+            identity,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+        digest = hashlib.sha256(encoded).hexdigest()
+        draft = SemanticEventDraft(
+            event_id=f"memory-curator-audit-{digest}",
+            event_type=event_type,
+            attempt=attempt,
+            operation_id=f"memory-curator-audit.{digest}",
+            payload=payload,
+        )
+        prepared.bundle.journal.append(request=draft.to_append_request())
+
     def _build_bundle(self, attempt: AttemptRef) -> ContextExecutionBundle:
         _assert_chat_active(
             database_path=self.database_path,
@@ -1016,6 +1170,7 @@ class PupuUnchainContextMemoryV2HostFactory:
             checkpoint_repository=compiler_capabilities.checkpoints,
             build_repository=compiler_capabilities.context_builds,
             partial_attempt_sink=self._partial_attempt_sink,
+            provider_turn_result_reader=journal.read_full_verified,
             model_projection=ModelContextProjection(
                 artifacts,
                 remote_source_decoder=decode_pupu_attachment_source,

@@ -4,6 +4,7 @@ import {
   createInitialActivityTreeState,
   reduceActivityTree,
 } from "./activity_tree";
+import { projectToolCallLifecycle } from "./tool_call_projection";
 
 const event = ({
   id,
@@ -40,6 +41,390 @@ const reduceEvents = (events) => {
 };
 
 describe("runtime events activity tree", () => {
+  test("interaction adapters preserve original call reference metadata and event scope", () => {
+    const callRef = {
+      schema: "pupu.tool_call_ref.v1",
+      execution_id: "run-root",
+      original_attempt_id: "run-root",
+      call_id: "fetch-1",
+      tool_name: "web_fetch",
+      intent_cursor: {
+        schema: "unchain.event_cursor.v1",
+        store_seq: 7,
+        event_id: "canonical-intent-7",
+      },
+    };
+    const callRefMetadata = {
+      schema: "pupu.tool_call_ref_metadata.v1",
+      intent_cursor: callRef.intent_cursor,
+      timeline_merge_policy_declared: true,
+      timeline_merge_policy: "approved",
+      original_arguments_declared: true,
+      original_arguments: { url: "https://example.invalid/original" },
+    };
+    const state = reduceEvents([
+      {
+        ...event({
+          id: "request-event",
+          type: "interaction.requested",
+          seq: 1,
+          links: { tool_call_id: "fetch-1", interaction_id: "confirm-fetch-1" },
+          payload: {
+            interaction_id: "confirm-fetch-1",
+            call_ref: callRef,
+            call_ref_metadata: callRefMetadata,
+            timeline_merge_policy: "approved",
+            target: {
+              tool_call_id: "fetch-1",
+              tool_name: "web_fetch",
+              arguments: { url: "https://example.invalid/original" },
+            },
+          },
+        }),
+        metadata: { raw_type: "interaction_requested" },
+      },
+      {
+        ...event({
+          id: "resolved-event",
+          type: "interaction.resolved",
+          seq: 2,
+          links: {
+            tool_call_id: "fetch-1",
+            interaction_id: "confirm-fetch-1",
+            input_request_id: "stale-request-link",
+          },
+          payload: {
+            interaction_id: "confirm-fetch-1",
+            outcome: "submitted",
+            response: { selected_values: ["x"] },
+            call_ref: callRef,
+            call_ref_metadata: callRefMetadata,
+            timeline_merge_policy: "approved",
+          },
+        }),
+        metadata: { raw_type: "interaction_resolved" },
+      },
+    ]);
+
+    expect(state.frames).toHaveLength(2);
+    expect(state.frames[0].payload.call_ref).toEqual(callRef);
+    expect(state.frames[0].payload.call_ref_metadata).toEqual(callRefMetadata);
+    expect(state.frames[0].payload.runtime_source_type).toBe("interaction_requested");
+    expect(state.frames[0]).toMatchObject({ run_id: "run-root", session_id: "thread-1" });
+    expect(state.frames[0]).not.toHaveProperty("iteration");
+    expect(state.frames[1].payload.outcome).toBe("submitted");
+    expect(state.frames[1].payload.call_ref).toEqual(callRef);
+    expect(state.frames[1].payload.call_ref_metadata).toEqual(callRefMetadata);
+    expect(state.frames[1].payload.timeline_merge_policy).toBe("approved");
+    expect(state.frames[1].links.input_request_id).toBe("confirm-fetch-1");
+  });
+
+  test("keeps a malformed explicit call reference visible and unqualified", () => {
+    const malformedRef = { schema: "pupu.tool_call_ref.v2", call_id: "fetch-1" };
+    const state = reduceEvents([
+      {
+        ...event({
+          id: "malformed-request",
+          type: "interaction.requested",
+          seq: 1,
+          links: { tool_call_id: "fetch-1", interaction_id: "confirm-fetch-1" },
+          payload: {
+            interaction_id: "confirm-fetch-1",
+            call_ref: malformedRef,
+            target: { tool_call_id: "fetch-1", tool_name: "web_fetch" },
+          },
+        }),
+        metadata: { raw_type: "interaction_requested" },
+      },
+    ]);
+
+    expect(state.frames[0].payload.call_ref).toEqual(malformedRef);
+    const projection = projectToolCallLifecycle(state.frames);
+    expect(projection.calls).toEqual([]);
+    expect(projection.unresolved).toEqual([
+      expect.objectContaining({ frameIndex: 0, reason: "invalid_explicit_ref" }),
+    ]);
+  });
+
+  test("derives interaction toolkit identity from canonical own-properties, not a materialized target placeholder", () => {
+    const projectRequest = (id, payload) =>
+      reduceEvents([
+        {
+          ...event({
+            id,
+            type: "interaction.requested",
+            links: { tool_call_id: "call-1", interaction_id: "confirm-1" },
+            payload: {
+              interaction_id: "confirm-1",
+              target: {
+                tool_call_id: "call-1",
+                tool_name: "web_fetch",
+                toolkit_id: "",
+                toolkit_name: "",
+              },
+              ...payload,
+            },
+          }),
+          metadata: { raw_type: "interaction_requested" },
+        },
+      ]).frames[0];
+
+    const canonicalAbsent = projectRequest("request-absent", {
+      request: { payload: {} },
+    });
+    expect(canonicalAbsent.payload).not.toHaveProperty("toolkit_id");
+    expect(canonicalAbsent.payload).not.toHaveProperty("toolkit_name");
+
+    const canonicalNull = projectRequest("request-null", {
+      request: { payload: { toolkit_id: null } },
+    });
+    expect(canonicalNull.payload).toHaveProperty("toolkit_id", null);
+
+    const canonicalName = projectRequest("request-name", {
+      request: { payload: { toolkit_name: "" } },
+    });
+    expect(canonicalName.payload).toHaveProperty("toolkit_name", "");
+
+    const targetOnly = projectRequest("request-target-only", {});
+    expect(targetOnly.payload).toHaveProperty("toolkit_id", "");
+    expect(targetOnly.payload).toHaveProperty("toolkit_name", "");
+  });
+
+  test("interaction projection retains the original scoped tool merge policy", () => {
+    const state = reduceEvents([
+      event({ id: "run", type: "run.started", seq: 1 }),
+      event({
+        id: "tool-start",
+        type: "step.started",
+        seq: 2,
+        links: { step_id: "tool:fetch-1", tool_call_id: "fetch-1" },
+        payload: {
+          step_id: "tool:fetch-1",
+          step_type: "tool",
+          call_id: "fetch-1",
+          tool_name: "web_fetch",
+          toolkit_id: "core",
+          timeline_merge_policy: "always",
+        },
+      }),
+      event({
+        id: "interaction-request",
+        type: "interaction.requested",
+        seq: 3,
+        links: {
+          tool_call_id: "fetch-1",
+          interaction_id: "confirm-fetch-1",
+        },
+        payload: {
+          interaction_id: "confirm-fetch-1",
+          kind: "tool_approval",
+          target: {
+            tool_call_id: "fetch-1",
+            tool_name: "web_fetch",
+            toolkit_id: "core",
+          },
+        },
+      }),
+    ]);
+
+    const projectedInteraction = state.frames.find(
+      (frame) => frame.seq === 3 && frame.type === "tool_call",
+    );
+    expect(projectedInteraction.payload.timeline_merge_policy).toBe("always");
+  });
+
+  test("preserves historical absence and uses only cold target metadata when no call exists", () => {
+    const legacy = reduceEvents([
+      event({ id: "legacy-run", type: "run.started", seq: 1 }),
+      event({
+        id: "legacy-tool",
+        type: "step.started",
+        seq: 2,
+        links: { step_id: "tool:legacy", tool_call_id: "legacy" },
+        payload: {
+          step_id: "tool:legacy",
+          step_type: "tool",
+          call_id: "legacy",
+          tool_name: "web_fetch",
+        },
+      }),
+      event({
+        id: "legacy-interaction",
+        type: "interaction.requested",
+        seq: 3,
+        links: { tool_call_id: "legacy", interaction_id: "legacy-confirm" },
+        payload: {
+          interaction_id: "legacy-confirm",
+          target: {
+            tool_call_id: "legacy",
+            tool_name: "web_fetch",
+            timeline_merge_policy: "always",
+          },
+        },
+      }),
+    ]);
+    const legacyInteraction = legacy.frames.find((frame) => frame.seq === 3);
+    expect(legacyInteraction.payload).not.toHaveProperty("timeline_merge_policy");
+
+    const cold = reduceEvents([
+      event({ id: "cold-run", type: "run.started", seq: 1 }),
+      event({
+        id: "cold-interaction",
+        type: "interaction.requested",
+        seq: 2,
+        links: { tool_call_id: "cold", interaction_id: "cold-confirm" },
+        payload: {
+          interaction_id: "cold-confirm",
+          target: {
+            tool_call_id: "cold",
+            tool_name: "web_fetch",
+            timeline_merge_policy: "no_feedback",
+          },
+        },
+      }),
+    ]);
+    expect(cold.frames.find((frame) => frame.seq === 2).payload.timeline_merge_policy)
+      .toBe("no_feedback");
+  });
+
+  test("uses top-level interaction projection policy only when the original call is absent", () => {
+    const cold = reduceEvents([
+      event({ id: "cold-policy-run", type: "run.started", seq: 1 }),
+      event({
+        id: "cold-policy-interaction",
+        type: "interaction.requested",
+        seq: 2,
+        links: { tool_call_id: "cold-policy", interaction_id: "cold-policy-confirm" },
+        payload: {
+          interaction_id: "cold-policy-confirm",
+          timeline_merge_policy: "no_feedback",
+          target: { tool_call_id: "cold-policy", tool_name: "web_fetch" },
+        },
+      }),
+    ]);
+    expect(cold.frames.find((frame) => frame.seq === 2).payload.timeline_merge_policy)
+      .toBe("no_feedback");
+
+    const legacyOriginalWins = reduceEvents([
+      event({ id: "legacy-policy-run", type: "run.started", seq: 1 }),
+      event({
+        id: "legacy-policy-tool",
+        type: "step.started",
+        seq: 2,
+        links: { step_id: "tool:legacy-policy", tool_call_id: "legacy-policy" },
+        payload: {
+          step_id: "tool:legacy-policy",
+          step_type: "tool",
+          call_id: "legacy-policy",
+          tool_name: "web_fetch",
+        },
+      }),
+      event({
+        id: "legacy-policy-interaction",
+        type: "interaction.requested",
+        seq: 3,
+        links: { tool_call_id: "legacy-policy", interaction_id: "legacy-policy-confirm" },
+        payload: {
+          interaction_id: "legacy-policy-confirm",
+          timeline_merge_policy: "always",
+          target: {
+            tool_call_id: "legacy-policy",
+            tool_name: "web_fetch",
+            timeline_merge_policy: "no_feedback",
+          },
+        },
+      }),
+    ]);
+    expect(legacyOriginalWins.frames.find((frame) => frame.seq === 3).payload)
+      .not.toHaveProperty("timeline_merge_policy");
+  });
+
+  test("preserves both retry formats and ignores grouped wait heartbeats", () => {
+    const retry = (id, seq, fields) => ({
+      ...event({
+        id, type: "step.delta", seq,
+        links: { step_id: "model:run-root:turn-1:response" },
+        payload: {
+          step_id: "model:run-root:turn-1:response",
+          step_type: "model_response", kind: "provider_retry",
+          provider: "gemini", http_status: 503, delay_ms: 500,
+          ...fields,
+        },
+      }),
+      metadata: { provider: "gemini" },
+    });
+    const groupedFields = {
+      attempt_failed: 1, next_attempt: 2, max_attempts: 11,
+      remaining_ms: 500, provider_status: "UNAVAILABLE",
+    };
+    const state = reduceEvents([
+      retry("bounded", 1, { retry_ordinal: 1, max_retries: 2 }),
+      retry("grouped", 2, groupedFields),
+      retry("heartbeat", 3, { ...groupedFields, remaining_ms: 250 }),
+    ]);
+    const frames = state.frames.filter((item) => item.type === "provider_retry");
+    expect(frames).toHaveLength(2);
+    expect(frames[0].payload).toMatchObject({ retry_ordinal: 1, max_retries: 2 });
+    expect(frames[0].payload).not.toHaveProperty("attempt_failed");
+    expect(frames[1].payload).toMatchObject(groupedFields);
+    expect(frames[1].payload).not.toHaveProperty("retry_ordinal");
+    expect(state.modelTextByRunId["run-root"] || "").toBe("");
+  });
+
+  test.each([
+    { retry_ordinal: 1, max_retries: 2 },
+    { retry_ordinal: null },
+    { max_retries: "2" },
+  ])("does not reinterpret a hybrid retry payload as a grouped wait: %p", (legacyFields) => {
+    const state = reduceEvents([{
+      ...event({
+        id: "hybrid", type: "step.delta",
+        links: { step_id: "model:run-root:turn-1:response" },
+        payload: {
+          step_id: "model:run-root:turn-1:response",
+          step_type: "model_response", kind: "provider_retry",
+          provider: "gemini", http_status: 503, delay_ms: 500,
+          attempt_failed: 1, next_attempt: 2, max_attempts: 11,
+          remaining_ms: 500, provider_status: "UNAVAILABLE",
+          ...legacyFields,
+        },
+      }),
+      metadata: { provider: "gemini" },
+    }]);
+    expect(state.frames.filter((item) => item.type === "provider_retry")).toHaveLength(0);
+    expect(state.modelTextByRunId["run-root"] || "").toBe("");
+    expect(state.effects.filter((effect) => effect.type === "token")).toHaveLength(0);
+  });
+
+  test("projects bounded Gemini retry progress without model text or leaked fields", () => {
+    const retry = (id, seq, overrides = {}) => ({
+      ...event({
+        id, type: "step.delta", seq,
+        links: { step_id: "model:run-root:turn-1:response" },
+        payload: {
+          step_id: "model:run-root:turn-1:response",
+          step_type: "model_response", kind: "provider_retry",
+          provider: "gemini", http_status: 503,
+          retry_ordinal: 1, max_retries: 2, delay_ms: 500,
+          ...overrides,
+        },
+      }),
+      metadata: { provider: "gemini" },
+    });
+    const state = reduceEvents([
+      event({ id: "run", type: "run.started", seq: 1 }),
+      retry("safe", 2),
+      retry("unsafe", 3, { response_body: "private-provider-content" }),
+    ]);
+    const progress = state.frames.filter((frame) => frame.type === "provider_retry");
+    expect(progress).toHaveLength(1);
+    expect(progress[0].payload).toMatchObject({
+      provider: "gemini", retry_ordinal: 1, max_retries: 2, delay_ms: 500,
+    });
+    expect(state.modelTextByRunId["run-root"] || "").toBe("");
+    expect(JSON.stringify(progress)).not.toContain("private-provider-content");
+  });
+
   test("resets only a failed Ollama reasoning preview while preserving committed and later thinking", () => {
     const failedId = "a".repeat(32);
     const acceptedId = "b".repeat(32);
@@ -1219,6 +1604,81 @@ describe("runtime events activity tree", () => {
             frame.type === "observation" && frame.payload.call_id === "call-b",
         ),
       ).toHaveLength(50);
+    });
+  });
+
+  describe("provider retry waits (#386 BC-386-6)", () => {
+    const retry = (id, seq, remaining, extra = {}) =>
+      event({
+        id,
+        type: "step.delta",
+        seq,
+        turnId: "run-root:turn-0",
+        links: { step_id: "model:run-root:turn-0:response" },
+        payload: {
+          step_id: "model:run-root:turn-0:response",
+          step_type: "model_response",
+          kind: "provider_retry",
+          provider: "gemini",
+          attempt_failed: 1,
+          next_attempt: 2,
+          max_attempts: 11,
+          delay_ms: 4000,
+          remaining_ms: remaining,
+          http_status: 503,
+          provider_status: "UNAVAILABLE",
+          ...extra,
+        },
+      });
+
+    test("the start of a wait becomes one provider_retry frame; heartbeats add nothing", () => {
+      const state = reduceEvents([
+        retry("r1", 1, 4000),
+        retry("r2", 2, 3000),
+        retry("r3", 3, 2000),
+      ]);
+      const frames = state.frames.filter((frame) => frame.type === "provider_retry");
+      expect(frames).toHaveLength(1);
+      expect(frames[0]).toMatchObject({
+        type: "provider_retry",
+        run_id: "run-root",
+        iteration: 0,
+        ts: Date.parse("2026-05-26T12:00:00.000Z"),
+        payload: {
+          provider: "gemini",
+          attempt_failed: 1,
+          next_attempt: 2,
+          max_attempts: 11,
+          delay_ms: 4000,
+          http_status: 503,
+          provider_status: "UNAVAILABLE",
+          runtime_event_id: "r1",
+        },
+      });
+      expect(state.frames.filter((frame) => frame.type === "token_delta")).toHaveLength(0);
+      expect(state.modelTextByRunId["run-root"] || "").toBe("");
+      expect(state.effects.filter((effect) => effect.type === "token")).toHaveLength(0);
+    });
+
+    test("each new wait in the same turn adds its own frame", () => {
+      const state = reduceEvents([
+        retry("r1", 1, 4000),
+        retry("r2", 2, 8000, { attempt_failed: 2, next_attempt: 3, delay_ms: 8000 }),
+      ]);
+      expect(
+        state.frames
+          .filter((frame) => frame.type === "provider_retry")
+          .map((frame) => frame.payload.next_attempt),
+      ).toEqual([2, 3]);
+    });
+
+    test("a malformed retry delta is dropped instead of becoming text", () => {
+      const state = reduceEvents([
+        retry("r1", 1, 4000, { max_attempts: "11" }),
+        retry("r2", 2, 4000, { next_attempt: 12 }),
+      ]);
+      expect(state.frames).toHaveLength(0);
+      expect(state.modelTextByRunId["run-root"] || "").toBe("");
     });
   });
 });

@@ -79,7 +79,152 @@ const makeRafScheduler = () => {
   };
 };
 
+test("bounded retry records do not create a grouped waiting header", () => {
+  renderTraceChain({
+    status: "streaming",
+    frames: [frame({ seq: 1, type: "provider_retry", payload: {
+      provider: "gemini", http_status: 503,
+      retry_ordinal: 1, max_retries: 2, delay_ms: 500,
+    } })],
+  });
+  expect(screen.getByText("Gemini temporarily busy — retrying 1/2")).toBeInTheDocument();
+  expect(screen.queryByText("Retrying…")).not.toBeInTheDocument();
+  expect(screen.queryByText("Waiting for Gemini")).not.toBeInTheDocument();
+});
+
+test("shows bounded Gemini retry progress without rendering provider content", () => {
+  renderTraceChain({
+    status: "streaming",
+    frames: [
+      frame({ seq: 1, type: "stream_started" }),
+      frame({
+        seq: 2,
+        type: "provider_retry",
+        payload: {
+          provider: "gemini",
+          http_status: 503,
+          retry_ordinal: 1,
+          max_retries: 2,
+          delay_ms: 500,
+        },
+      }),
+      frame({
+        seq: 3,
+        type: "provider_retry",
+        payload: {
+          provider: "gemini",
+          http_status: 503,
+          retry_ordinal: 2,
+          max_retries: 2,
+          delay_ms: 1000,
+        },
+      }),
+      frame({
+        seq: 4,
+        type: "provider_retry",
+        payload: {
+          provider: "gemini",
+          http_status: 503,
+          retry_ordinal: 3,
+          max_retries: 2,
+          delay_ms: 1000,
+          response_body: "secret provider text",
+        },
+      }),
+    ],
+  });
+  expect(screen.getByText("Gemini temporarily busy — retrying 1/2")).toBeInTheDocument();
+  expect(screen.getByText("Gemini temporarily busy — retrying 2/2")).toBeInTheDocument();
+  expect(screen.queryByText(/secret provider text/)).not.toBeInTheDocument();
+  expect(screen.queryByText(/retrying 3\/2/)).not.toBeInTheDocument();
+});
+
 describe("TraceChain final_message draft timeline", () => {
+  test("#384: cancelled generic calls are not presented as completed", () => {
+    renderTraceChain({
+      status: "cancelled",
+      frames: [frame({
+        seq: 1,
+        type: "tool_call",
+        payload: { call_id: "unfinished-generic", tool_name: "search", arguments: { query: "x" } },
+      })],
+    });
+
+    expect(screen.getByText("Interrupted")).toBeInTheDocument();
+    expect(screen.getByText("Used 1 step")).toBeInTheDocument();
+  });
+
+  test("#384: cancelled nested calls do not keep a child trace actively running", () => {
+    renderTraceChain({
+      status: "cancelled",
+      frames: [frame({
+        seq: 1,
+        type: "tool_call",
+        payload: { call_id: "delegate-1", tool_name: "delegate_to_subagent", arguments: { target: "worker" } },
+      }), frame({
+        seq: 2,
+        type: "tool_result",
+        payload: { call_id: "delegate-1", tool_name: "delegate_to_subagent", result: { agent_name: "worker", status: "running" } },
+      })],
+      subagentFrames: {
+        "worker-run": [frame({ seq: 1, type: "tool_call", payload: { call_id: "worker-call", tool_name: "search" } })],
+      },
+      subagentMetaByRunId: {
+        "worker-run": { subagentId: "worker", mode: "delegate", template: "worker", status: "running" },
+      },
+    });
+
+    expect(screen.getAllByText("Interrupted").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Thinking…")).not.toBeInTheDocument();
+    expect(screen.getByText("search")).toBeInTheDocument();
+    expect(screen.queryByText("running")).not.toBeInTheDocument();
+  });
+
+  test.each([
+    ["done", "Used 1 step"],
+    ["error", "Used 1 step"],
+  ])("#384: keeps the existing %s summary for result-less calls", (status, summary) => {
+    renderTraceChain({
+      status,
+      frames: [frame({
+        seq: 1,
+        type: "tool_call",
+        payload: { call_id: `call-${status}`, tool_name: "search", arguments: { query: "x" } },
+      })],
+    });
+
+    expect(screen.getByText(summary)).toBeInTheDocument();
+    expect(screen.queryByText("Interrupted")).not.toBeInTheDocument();
+  });
+
+  test("#384: stopping a pending approval leaves it pending and removes stale decisions", () => {
+    const onDecision = jest.fn();
+    renderTraceChain({
+      status: "cancelled",
+      onToolConfirmationDecision: onDecision,
+      frames: [frame({
+        seq: 1,
+        type: "tool_call",
+        payload: {
+          call_id: "approval-call",
+          confirmation_id: "approval-384",
+          requires_confirmation: true,
+          interact_type: "confirmation",
+          interact_config: {},
+          toolkit_id: "core",
+          tool_name: "delete_file",
+          arguments: { path: "a.txt" },
+        },
+      })],
+      toolConfirmationUiStateById: { "approval-384": { status: "idle" } },
+    });
+
+    expect(screen.getByText("Pending")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Allow once" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Deny" })).not.toBeInTheDocument();
+    expect(onDecision).not.toHaveBeenCalled();
+  });
+
   test("shows one Assistant Draft for tool_call + two final_message frames", () => {
     const frames = [
       frame({ seq: 1, type: "stream_started", payload: {} }),
@@ -205,6 +350,71 @@ describe("TraceChain final_message draft timeline", () => {
     expect(timelineText.indexOf("Response")).toBeLessThan(
       timelineText.indexOf("Error"),
     );
+  });
+
+  test("token-level reasoning deltas render as one block per model turn", () => {
+    const delta = (seq, iteration, text) => ({
+      ...frame({ seq, type: "reasoning", payload: { reasoning: text } }),
+      run_id: "run-1",
+      iteration,
+    });
+    const frames = [
+      frame({ seq: 1, type: "stream_started" }),
+      delta(2, 0, "The"),
+      delta(3, 0, " user"),
+      delta(4, 0, " asks"),
+      delta(5, 0, " about"),
+      delta(6, 0, " pricing."),
+      {
+        ...frame({
+          seq: 7,
+          type: "tool_call",
+          payload: { call_id: "c1", tool_name: "web_fetch", arguments: {} },
+        }),
+        run_id: "run-1",
+        iteration: 0,
+      },
+      {
+        ...frame({ seq: 8, type: "tool_result", payload: { call_id: "c1", status: "completed" } }),
+        run_id: "run-1",
+        iteration: 0,
+      },
+      delta(9, 1, "Now"),
+      delta(10, 1, " summarize."),
+      frame({ seq: 11, type: "done" }),
+    ];
+
+    const { container } = renderTraceChain({ frames });
+
+    expect(screen.getAllByText("Reasoning")).toHaveLength(2);
+    expect(container.textContent).toContain("The user asks about pricing.");
+    expect(container.textContent).toContain("Now summarize.");
+    expect(screen.getByText(/Used 3 steps/)).toBeInTheDocument();
+  });
+
+  test("whole reasoning items from the Responses API stay separate blocks", () => {
+    const item = (seq, id, text) => ({
+      ...frame({
+        seq,
+        type: "reasoning",
+        payload: {
+          response_id: "resp_1",
+          reasoning_items: [{ id, type: "reasoning", summary: [{ type: "summary_text", text }] }],
+        },
+      }),
+      run_id: "run-1",
+      iteration: 0,
+    });
+    const frames = [
+      frame({ seq: 1, type: "stream_started" }),
+      item(2, "rs_1", "first summary"),
+      item(3, "rs_2", "second summary"),
+      frame({ seq: 4, type: "done" }),
+    ];
+
+    renderTraceChain({ frames });
+
+    expect(screen.getAllByText("Reasoning")).toHaveLength(2);
   });
 
   test("in streaming mode, only non-latest final_message appears as draft", () => {
@@ -730,11 +940,12 @@ describe("TraceChain final_message draft timeline", () => {
       }),
       frame({
         seq: 3,
-        type: "tool_confirmed",
-        payload: {
-          call_id: "call-1",
-          tool_name: "delete_file",
-        },
+      type: "tool_confirmed",
+      payload: {
+        call_id: "call-1",
+        tool_name: "delete_file",
+        confirmation_id: "confirm-1",
+      },
       }),
     ];
 

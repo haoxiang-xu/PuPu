@@ -1,0 +1,130 @@
+Excerpt from original aggregate log; complete SHA-256 recorded in aggregate-closure.json.
+
+FAIL src/electron/tests/main/memory_vault_sink_broker.test.js
+  ● memory vault sink broker › binds only an ephemeral 127.0.0.1 port and exposes child env in memory
+
+    [vault_broker_unavailable] vault broker request failed
+
+      23 |
+      24 | const brokerError = (code, statusCode) => {
+    > 25 |   const error = new Error(`[${code}] vault broker request failed`);
+         |                 ^
+      26 |   error.code = code;
+      27 |   error.statusCode = statusCode;
+      28 |   return error;
+
+      at brokerError (electron/main/services/memory_vault/sink_broker.js:25:17)
+      at Server.failStart (electron/main/services/memory_vault/sink_broker.js:316:16)
+
+  ● memory vault sink broker › authenticates method/path/timestamp/nonce/raw-body hash and rejects nonce replay
+
+    [vault_broker_unavailable] vault broker request failed
+
+      23 |
+      24 | const brokerError = (code, statusCode) => {
+    > 25 |   const error = new Error(`[${code}] vault broker request failed`);
+         |                 ^
+      26 |   error.code = code;
+      27 |   error.statusCode = statusCode;
+      28 |   return error;
+
+      at brokerError (electron/main/services/memory_vault/sink_broker.js:25:17)
+      at Server.failStart (electron/main/services/memory_vault/sink_broker.js:316:16)
+
+  ● memory vault sink broker › rejects forged and stale requests without poisoning their nonce
+
+    [vault_broker_unavailable] vault broker request failed
+
+      23 |
+      24 | const brokerError = (code, statusCode) => {
+    > 25 |   const error = new Error(`[${code}] vault broker request failed`);
+         |                 ^
+      26 |   error.code = code;
+      27 |   error.statusCode = statusCode;
+      28 |   return error;
+
+      at brokerError (electron/main/services/memory_vault/sink_broker.js:25:17)
+      at Server.failStart (electron/main/services/memory_vault/sink_broker.js:316:16)
+
+  ● memory vault sink broker › enforces 64KiB raw bodies and JSON content type before dispatch
+
+    [vault_broker_unavailable] vault broker request failed
+
+      23 |
+      24 | const brokerError = (code, statusCode) => {
+    > 25 |   const error = new Error(`[${code}] vault broker request failed`);
+         |                 ^
+      26 |   error.code = code;
+      27 |   error.statusCode = statusCode;
+      28 |   return error;
+
+      at brokerError (electron/main/services/memory_vault/sink_broker.js:25:17)
+      at Server.failStart (electron/main/services/memory_vault/sink_broker.js:316:16)
+
+  ● memory vault sink broker › has no decrypt/read endpoint and never serializes handler messages
+
+    [vault_broker_unavailable] vault broker request failed
+
+      23 |
+      24 | const brokerError = (code, statusCode) => {
+    > 25 |   const error = new Error(`[${code}] vault broker request failed`);
+         |                 ^
+      26 |   error.code = code;
+      27 |   error.statusCode = statusCode;
+      28 |   return error;
+
+      at brokerError (electron/main/services/memory_vault/sink_broker.js:25:17)
+      at Server.failStart (electron/main/services/memory_vault/sink_broker.js:316:16)
+
+  ● memory vault sink broker › status is authenticated and contains no key or storage metadata
+
+    [vault_broker_unavailable] vault broker request failed
+
+      23 |
+      24 | const brokerError = (code, statusCode) => {
+    > 25 |   const error = new Error(`[${code}] vault broker request failed`);
+         |                 ^
+      26 |   error.code = code;
+      27 |   error.statusCode = statusCode;
+      28 |   return error;
+
+      at brokerError (electron/main/services/memory_vault/sink_broker.js:25:17)
+      at Server.failStart (electron/main/services/memory_vault/sink_broker.js:316:16)
+
+FAIL src/electron/tests/main/memory_vault_use_state.test.js
+  ● memory vault one-time use state machine › configureSinkExecutors is one-shot and locks once the broker has started
+
+    [vault_broker_unavailable] vault broker request failed
+
+      23 |
+      24 | const brokerError = (code, statusCode) => {
+    > 25 |   const error = new Error(`[${code}] vault broker request failed`);
+         |                 ^
+      26 |   error.code = code;
+      27 |   error.statusCode = statusCode;
+      28 |   return error;
+
+      at brokerError (electron/main/services/memory_vault/sink_broker.js:25:17)
+      at Server.failStart (electron/main/services/memory_vault/sink_broker.js:316:16)
+
+  ● memory vault one-time use state machine › close stops the broker and drains the executor registry before closing the db
+
+    [vault_broker_unavailable] vault broker request failed
+
+      23 |
+      24 | const brokerError = (code, statusCode) => {
+    > 25 |   const error = new Error(`[${code}] vault broker request failed`);
+         |                 ^
+      26 |   error.code = code;
+      27 |   error.statusCode = statusCode;
+      28 |   return error;
+
+      at brokerError (electron/main/services/memory_vault/sink_broker.js:25:17)
+      at Server.failStart (electron/main/services/memory_vault/sink_broker.js:316:16)
+
+
+Test Suites: 2 failed, 443 passed, 445 total
+Tests:       8 failed, 5 skipped, 5402 passed, 5415 total
+Snapshots:   0 total
+Time:        115.624 s
+Ran all test suites.

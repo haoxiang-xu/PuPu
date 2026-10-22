@@ -1,0 +1,4790 @@
+{
+  "summary": {
+    "changed_count": 118,
+    "affected_count": 274,
+    "changed_files": 38,
+    "risk_level": "critical"
+  },
+  "changed_symbols": [
+    {
+      "id": "Section:docs/architecture/provider-terminal-failure-repair.md:L1:#195 installed provider failure repair",
+      "name": "#195 installed provider failure repair",
+      "type": "Section",
+      "filePath": "docs/architecture/provider-terminal-failure-repair.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/architecture/provider-terminal-failure-repair.md:L174:#386 extension: provider 5xx retry and Gemini failure reasons",
+      "name": "#386 extension: provider 5xx retry and Gemini failure reasons",
+      "type": "Section",
+      "filePath": "docs/architecture/provider-terminal-failure-repair.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-383-dev390-integration.md:L1:Integrate current dev / #390 into #383",
+      "name": "Integrate current dev / #390 into #383",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-383-dev390-integration.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-383-dev390-integration.md:L30:Pending evidence",
+      "name": "Pending evidence",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-383-dev390-integration.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390-ci-sdk-compatibility.md:L1:PR #48 Anthropic SDK compatibility — 2026-10-02",
+      "name": "PR #48 Anthropic SDK compatibility — 2026-10-02",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390-ci-sdk-compatibility.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390-ci-sdk-compatibility.md:L16:Changes and strict boundaries",
+      "name": "Changes and strict boundaries",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390-ci-sdk-compatibility.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390-ci-sdk-compatibility.md:L39:RED and GREEN evidence",
+      "name": "RED and GREEN evidence",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390-ci-sdk-compatibility.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390-ci-sdk-compatibility.md:L70:Exact artifact pair and delivery",
+      "name": "Exact artifact pair and delivery",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390-ci-sdk-compatibility.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390-claude-fix-acceptance.md:L1:#390 Claude parsed_output 修复验收 — 2026-10-02",
+      "name": "#390 Claude parsed_output 修复验收 — 2026-10-02",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390-claude-fix-acceptance.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390-claude-fix-acceptance.md:L3:结论与范围",
+      "name": "结论与范围",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390-claude-fix-acceptance.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390-claude-fix-acceptance.md:L13:验收证据",
+      "name": "验收证据",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390-claude-fix-acceptance.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390-claude-fix-acceptance.md:L42:候选身份",
+      "name": "候选身份",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390-claude-fix-acceptance.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390-claude-fix-acceptance.md:L63:独立发现：P2 测试 API 错判成功工具状态",
+      "name": "独立发现：P2 测试 API 错判成功工具状态",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390-claude-fix-acceptance.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390-gemini-response-outcomes-acceptance.md:L1:Gemini response outcomes repair acceptance — 2026-10-02",
+      "name": "Gemini response outcomes repair acceptance — 2026-10-02",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390-gemini-response-outcomes-acceptance.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390-gemini-response-outcomes-acceptance.md:L17:Exact artifact pair",
+      "name": "Exact artifact pair",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390-gemini-response-outcomes-acceptance.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390-gemini-response-outcomes-acceptance.md:L26:Verification",
+      "name": "Verification",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390-gemini-response-outcomes-acceptance.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390-gemini-response-outcomes-acceptance.md:L42:Existing-profile live verification",
+      "name": "Existing-profile live verification",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390-gemini-response-outcomes-acceptance.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390-gemini-response-outcomes-acceptance.md:L62:Graph review and limits",
+      "name": "Graph review and limits",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390-gemini-response-outcomes-acceptance.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390-gemini-response-outcomes-acceptance.md:L76:Owner's subsequent real-world incident",
+      "name": "Owner's subsequent real-world incident",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390-gemini-response-outcomes-acceptance.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390-live-claude-diagnosis.md:L1:#390 Claude 实机故障诊断 — 2026-10-02",
+      "name": "#390 Claude 实机故障诊断 — 2026-10-02",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390-live-claude-diagnosis.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390-live-claude-diagnosis.md:L3:结论",
+      "name": "结论",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390-live-claude-diagnosis.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390-live-claude-diagnosis.md:L13:实机证据",
+      "name": "实机证据",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390-live-claude-diagnosis.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390-live-claude-diagnosis.md:L34:两条独立复现",
+      "name": "两条独立复现",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390-live-claude-diagnosis.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390-live-claude-diagnosis.md:L36:原始事故 artifact",
+      "name": "原始事故 artifact",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390-live-claude-diagnosis.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390-live-claude-diagnosis.md:L50:真正的 SDK 流与运行器",
+      "name": "真正的 SDK 流与运行器",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390-live-claude-diagnosis.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390-live-claude-diagnosis.md:L75:确定的代码链",
+      "name": "确定的代码链",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390-live-claude-diagnosis.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390-live-claude-diagnosis.md:L100:为什么之前验收漏掉",
+      "name": "为什么之前验收漏掉",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390-live-claude-diagnosis.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390-live-claude-diagnosis.md:L116:修复范围与必须验证的边界",
+      "name": "修复范围与必须验证的边界",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390-live-claude-diagnosis.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390-live-gemini-diagnosis.md:L1:#390 实机 Gemini 失败诊断 — 2026-10-02",
+      "name": "#390 实机 Gemini 失败诊断 — 2026-10-02",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390-live-gemini-diagnosis.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390-live-gemini-diagnosis.md:L9:1. 真实故障证据",
+      "name": "1. 真实故障证据",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390-live-gemini-diagnosis.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390-live-gemini-diagnosis.md:L43:2. 故障链及本地问题",
+      "name": "2. 故障链及本地问题",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390-live-gemini-diagnosis.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390-live-gemini-diagnosis.md:L56:3. 为什么之前没有修好",
+      "name": "3. 为什么之前没有修好",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390-live-gemini-diagnosis.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390-live-gemini-diagnosis.md:L69:4. 请求及原生续传核查",
+      "name": "4. 请求及原生续传核查",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390-live-gemini-diagnosis.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390-live-gemini-diagnosis.md:L82:5. 已验证的修复方向",
+      "name": "5. 已验证的修复方向",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390-live-gemini-diagnosis.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390-live-gemini-diagnosis.md:L110:6. 同时查出的其他协议缺口",
+      "name": "6. 同时查出的其他协议缺口",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390-live-gemini-diagnosis.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390-pr395-ci-acceptance.md:L1:#390 / PR #395 CI reconciliation — 2026-10-02",
+      "name": "#390 / PR #395 CI reconciliation — 2026-10-02",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390-pr395-ci-acceptance.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390-pr395-ci-acceptance.md:L15:Resulting behavior",
+      "name": "Resulting behavior",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390-pr395-ci-acceptance.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390-pr395-ci-acceptance.md:L44:One artifact, reused throughout local acceptance",
+      "name": "One artifact, reused throughout local acceptance",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390-pr395-ci-acceptance.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390-pr395-ci-acceptance.md:L60:Verification",
+      "name": "Verification",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390-pr395-ci-acceptance.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390-pr395-ci-acceptance.md:L102:Impact and delivery limits",
+      "name": "Impact and delivery limits",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390-pr395-ci-acceptance.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390-pr395-ci-acceptance.md:L104:First delivered CI follow-up",
+      "name": "First delivered CI follow-up",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390-pr395-ci-acceptance.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390-pr395-conflict-resolution.md:L1:PR #395 dev conflict resolution — 2026-10-02",
+      "name": "PR #395 dev conflict resolution — 2026-10-02",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390-pr395-conflict-resolution.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390-pr395-conflict-resolution.md:L12:Resolutions",
+      "name": "Resolutions",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390-pr395-conflict-resolution.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390-pr395-conflict-resolution.md:L35:Verification",
+      "name": "Verification",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390-pr395-conflict-resolution.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390-pr395-conflict-resolution.md:L76:Delivery limits",
+      "name": "Delivery limits",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390-pr395-conflict-resolution.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390-uncertainty-diagnostics-acceptance.md:L1:Provider uncertainty diagnostics — 2026-10-02",
+      "name": "Provider uncertainty diagnostics — 2026-10-02",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390-uncertainty-diagnostics-acceptance.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390-uncertainty-diagnostics-acceptance.md:L15:Model availability",
+      "name": "Model availability",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390-uncertainty-diagnostics-acceptance.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390-uncertainty-diagnostics-acceptance.md:L24:Delivered behavior",
+      "name": "Delivered behavior",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390-uncertainty-diagnostics-acceptance.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390-uncertainty-diagnostics-acceptance.md:L52:Final artifact pair",
+      "name": "Final artifact pair",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390-uncertainty-diagnostics-acceptance.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390-uncertainty-diagnostics-acceptance.md:L64:Verification",
+      "name": "Verification",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390-uncertainty-diagnostics-acceptance.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390-uncertainty-diagnostics-acceptance.md:L87:Rollout and limits",
+      "name": "Rollout and limits",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390-uncertainty-diagnostics-acceptance.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390-uncertainty-diagnostics-acceptance.md:L110:Console findings after owner acceptance",
+      "name": "Console findings after owner acceptance",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390-uncertainty-diagnostics-acceptance.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390.md:L1:Ticket 390 — Provider-native tool continuation repair",
+      "name": "Ticket 390 — Provider-native tool continuation repair",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390.md:L15:Goal",
+      "name": "Goal",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390.md:L27:Non-goals",
+      "name": "Non-goals",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390.md:L41:Confirmed root cause",
+      "name": "Confirmed root cause",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390.md:L70:Why tickets #369 and #380 did not cover this defect",
+      "name": "Why tickets #369 and #380 did not cover this defect",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390.md:L93:Fixed design decisions",
+      "name": "Fixed design decisions",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390.md:L95:D-390-01 — Preserve the strict replay guard",
+      "name": "D-390-01 — Preserve the strict replay guard",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390.md:L102:D-390-02 — Use the durable provider result as the semantic authority",
+      "name": "D-390-02 — Use the durable provider result as the semantic authority",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390.md:L121:D-390-03 — Keep the new seam private",
+      "name": "D-390-03 — Keep the new seam private",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390.md:L133:D-390-04 — Compiler owns budgeted semantic content; replay owns wire-only content",
+      "name": "D-390-04 — Compiler owns budgeted semantic content; replay owns wire-only content",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390.md:L144:D-390-05 — One provider-neutral contract",
+      "name": "D-390-05 — One provider-neutral contract",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390.md:L150:Cross-boundary records",
+      "name": "Cross-boundary records",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390.md:L265:Impact and risk evidence",
+      "name": "Impact and risk evidence",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390.md:L282:Worker suitability",
+      "name": "Worker suitability",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390.md:L292:Phase 0 — Freeze the reproduction and evidence",
+      "name": "Phase 0 — Freeze the reproduction and evidence",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390.md:L319:Phase 1 — Verified current-turn projection",
+      "name": "Phase 1 — Verified current-turn projection",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390.md:L346:Checkpoint 1 — Contract and minimal repair review",
+      "name": "Checkpoint 1 — Contract and minimal repair review",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390.md:L360:CP1 repair evidence — 2026-10-01",
+      "name": "CP1 repair evidence — 2026-10-01",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390.md:L380:Phase 2 — Durable lifecycle and provider matrix",
+      "name": "Phase 2 — Durable lifecycle and provider matrix",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390.md:L394:Phase 2 local evidence — 2026-10-02",
+      "name": "Phase 2 local evidence — 2026-10-02",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390.md:L431:Checkpoint 2 — State, restart, and compatibility review",
+      "name": "Checkpoint 2 — State, restart, and compatibility review",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390.md:L445:Checkpoint 2 independent re-review — 2026-10-02",
+      "name": "Checkpoint 2 independent re-review — 2026-10-02",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390.md:L464:Phase 3 — Exact PuPu artifact and real multi-model acceptance",
+      "name": "Phase 3 — Exact PuPu artifact and real multi-model acceptance",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390.md:L482:Phase 3 local artifact evidence — 2026-10-02",
+      "name": "Phase 3 local artifact evidence — 2026-10-02",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390.md:L509:Checkpoint 3 — Release acceptance review",
+      "name": "Checkpoint 3 — Release acceptance review",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390.md:L523:Gemini HTTP 503 remediation evidence — 2026-10-02",
+      "name": "Gemini HTTP 503 remediation evidence — 2026-10-02",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390.md:L566:Gemini retry-progress final artifact — 2026-10-02",
+      "name": "Gemini retry-progress final artifact — 2026-10-02",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390.md:L599:Acceptance criteria",
+      "name": "Acceptance criteria",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390.md:L620:Gemini response outcomes repair — 2026-10-02",
+      "name": "Gemini response outcomes repair — 2026-10-02",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390.md:L670:Uncertain request diagnostics — 2026-10-02",
+      "name": "Uncertain request diagnostics — 2026-10-02",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390.md:L736:Delivery integration hold — 2026-10-02",
+      "name": "Delivery integration hold — 2026-10-02",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390.md:L772:PR #48 SDK compatibility follow-up — 2026-10-02",
+      "name": "PR #48 SDK compatibility follow-up — 2026-10-02",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390.md:L821:PR #395 source conflict resolution — 2026-10-02",
+      "name": "PR #395 source conflict resolution — 2026-10-02",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-390.md:L860:PR #395 CI runtime reconciliation — 2026-10-02",
+      "name": "PR #395 CI runtime reconciliation — 2026-10-02",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-390.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Const:electron/main/services/unchain/memory_v2_rollout.js:UNCHAIN_RUNTIME_PROTOCOL_REQUIRED_PROTOCOLS",
+      "name": "UNCHAIN_RUNTIME_PROTOCOL_REQUIRED_PROTOCOLS",
+      "type": "Const",
+      "filePath": "electron/main/services/unchain/memory_v2_rollout.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Const:electron/tests/main/memory_v2_startup_readiness.test.cjs:REQUIRED_PROTOCOLS",
+      "name": "REQUIRED_PROTOCOLS",
+      "type": "Const",
+      "filePath": "electron/tests/main/memory_v2_startup_readiness.test.cjs",
+      "change_type": "touched"
+    },
+    {
+      "id": "Const:scripts/release-qa/unchain-artifact.mjs:REQUIRED_RUNTIME_PROTOCOLS",
+      "name": "REQUIRED_RUNTIME_PROTOCOLS",
+      "type": "Const",
+      "filePath": "scripts/release-qa/unchain-artifact.mjs",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:scripts/release-qa/unchain-artifact.mjs:REQUIRED_RUNTIME_PROTOCOLS.provider_turn_ownership",
+      "name": "provider_turn_ownership",
+      "type": "Property",
+      "filePath": "scripts/release-qa/unchain-artifact.mjs",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/COMPONENTs/chat-bubble/provider_retry_step.js:isGroupedProviderRetry",
+      "name": "isGroupedProviderRetry",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/chat-bubble/provider_retry_step.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/COMPONENTs/chat-bubble/provider_retry_step.js:groupProviderRetryFrames",
+      "name": "groupProviderRetryFrames",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/chat-bubble/provider_retry_step.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Const:src/COMPONENTs/chat-bubble/trace_chain.js:DISPLAY_FRAME_TYPES",
+      "name": "DISPLAY_FRAME_TYPES",
+      "type": "Const",
+      "filePath": "src/COMPONENTs/chat-bubble/trace_chain.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Const:src/COMPONENTs/chat-bubble/trace_chain.js:GEMINI_RETRY_FIELDS",
+      "name": "GEMINI_RETRY_FIELDS",
+      "type": "Const",
+      "filePath": "src/COMPONENTs/chat-bubble/trace_chain.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/COMPONENTs/chat-bubble/trace_chain.js:safeGeminiRetry",
+      "name": "safeGeminiRetry",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/chat-bubble/trace_chain.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/COMPONENTs/chat-bubble/trace_chain.js:TraceChain",
+      "name": "TraceChain",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/chat-bubble/trace_chain.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/COMPONENTs/chat-bubble/trace_chain.js:TraceChain.timelineItems@1491:2",
+      "name": "timelineItems",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/chat-bubble/trace_chain.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/SERVICEs/runtime_events/activity_tree.js:applyEvent",
+      "name": "applyEvent",
+      "type": "Function",
+      "filePath": "src/SERVICEs/runtime_events/activity_tree.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/SERVICEs/runtime_events/activity_tree.test.js:fn@41:41.fn@191:75.retry@192:4",
+      "name": "retry",
+      "type": "Function",
+      "filePath": "src/SERVICEs/runtime_events/activity_tree.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/SERVICEs/runtime_events/activity_tree.test.js:fn@41:41.fn@191:75.attempt_failed@206:6",
+      "name": "attempt_failed",
+      "type": "Property",
+      "filePath": "src/SERVICEs/runtime_events/activity_tree.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/SERVICEs/runtime_events/activity_tree.test.js:fn@41:41.fn@191:75.max_attempts@206:42",
+      "name": "max_attempts",
+      "type": "Property",
+      "filePath": "src/SERVICEs/runtime_events/activity_tree.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/SERVICEs/runtime_events/activity_tree.test.js:fn@41:41.fn@191:75.next_attempt@206:25",
+      "name": "next_attempt",
+      "type": "Property",
+      "filePath": "src/SERVICEs/runtime_events/activity_tree.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/SERVICEs/runtime_events/activity_tree.test.js:fn@41:41.fn@191:75.provider_status@207:25",
+      "name": "provider_status",
+      "type": "Property",
+      "filePath": "src/SERVICEs/runtime_events/activity_tree.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/SERVICEs/runtime_events/activity_tree.test.js:fn@41:41.fn@191:75.remaining_ms@207:6",
+      "name": "remaining_ms",
+      "type": "Property",
+      "filePath": "src/SERVICEs/runtime_events/activity_tree.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/SERVICEs/runtime_events/activity_tree.test.js:fn@41:41.fn@248:85.retry@249:4",
+      "name": "retry",
+      "type": "Function",
+      "filePath": "src/SERVICEs/runtime_events/activity_tree.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "",
+      "name": "_REQUIRED_PROTOCOLS",
+      "type": "Variable",
+      "filePath": "unchain_runtime/server/context_memory_v2_capability.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:unchain_runtime/server/memory_v2_context_adapter.py:bind_pupu_context_module",
+      "name": "bind_pupu_context_module",
+      "type": "Function",
+      "filePath": "unchain_runtime/server/memory_v2_context_adapter.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Class:unchain_runtime/server/memory_v2_unchain_runtime_factory.py:PupuUnchainContextMemoryV2HostFactory",
+      "name": "PupuUnchainContextMemoryV2HostFactory",
+      "type": "Class",
+      "filePath": "unchain_runtime/server/memory_v2_unchain_runtime_factory.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Method:unchain_runtime/server/memory_v2_unchain_runtime_factory.py:PupuUnchainContextMemoryV2HostFactory._build_bundle#1",
+      "name": "_build_bundle",
+      "type": "Method",
+      "filePath": "unchain_runtime/server/memory_v2_unchain_runtime_factory.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Class:unchain_runtime/server/tests/test_chat_stream_v4.py:ChatStreamV4RouteTests",
+      "name": "ChatStreamV4RouteTests",
+      "type": "Class",
+      "filePath": "unchain_runtime/server/tests/test_chat_stream_v4.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Method:unchain_runtime/server/tests/test_chat_stream_v4.py:ChatStreamV4RouteTests.test_chat_stream_v4_emits_safe_provider_retry_without_private_diagnostics#0",
+      "name": "test_chat_stream_v4_emits_safe_provider_retry_without_private_diagnostics",
+      "type": "Method",
+      "filePath": "unchain_runtime/server/tests/test_chat_stream_v4.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:unchain_runtime/server/tests/test_provider_retry_events.py:test_an_unexpected_provider_error_reaches_the_stream_with_its_class_only",
+      "name": "test_an_unexpected_provider_error_reaches_the_stream_with_its_class_only",
+      "type": "Function",
+      "filePath": "unchain_runtime/server/tests/test_provider_retry_events.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:unchain_runtime/server/tests/test_provider_terminal_diagnostic.py:test_gemini_busy_terminal_failure_has_safe_actionable_message",
+      "name": "test_gemini_busy_terminal_failure_has_safe_actionable_message",
+      "type": "Function",
+      "filePath": "unchain_runtime/server/tests/test_provider_terminal_diagnostic.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:unchain_runtime/server/tests/test_provider_terminal_diagnostic.py:test_explicit_gemini_finish_reason_reaches_host_without_fake_http_status",
+      "name": "test_explicit_gemini_finish_reason_reaches_host_without_fake_http_status",
+      "type": "Function",
+      "filePath": "unchain_runtime/server/tests/test_provider_terminal_diagnostic.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:unchain_runtime/server/tests/test_provider_terminal_diagnostic.py:test_response_outcome_feature_is_required_before_active_admission",
+      "name": "test_response_outcome_feature_is_required_before_active_admission",
+      "type": "Function",
+      "filePath": "unchain_runtime/server/tests/test_provider_terminal_diagnostic.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:unchain_runtime/server/tests/test_provider_terminal_diagnostic.py:test_uncertain_and_exhausted_provider_failures_keep_their_status_text",
+      "name": "test_uncertain_and_exhausted_provider_failures_keep_their_status_text",
+      "type": "Function",
+      "filePath": "unchain_runtime/server/tests/test_provider_terminal_diagnostic.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:unchain_runtime/server/tests/test_provider_terminal_diagnostic.py:test_uncertain_failure_without_http_status_keeps_its_fixed_reason",
+      "name": "test_uncertain_failure_without_http_status_keeps_its_fixed_reason",
+      "type": "Function",
+      "filePath": "unchain_runtime/server/tests/test_provider_terminal_diagnostic.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:unchain_runtime/server/tests/test_provider_terminal_diagnostic.py:test_uncertain_error_rejects_free_form_detail_at_construction",
+      "name": "test_uncertain_error_rejects_free_form_detail_at_construction",
+      "type": "Function",
+      "filePath": "unchain_runtime/server/tests/test_provider_terminal_diagnostic.py",
+      "change_type": "touched"
+    }
+  ],
+  "affected_processes": [
+    {
+      "id": "proc_5_swipecardcontent",
+      "name": "SwipeCardContent → Error",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 10
+        }
+      ]
+    },
+    {
+      "id": "proc_11_recipelist",
+      "name": "RecipeList → Bootstrap",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 10
+        }
+      ]
+    },
+    {
+      "id": "proc_14_handleconfirmdelete",
+      "name": "HandleConfirmDelete → Unavailable",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 9
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 10
+        }
+      ]
+    },
+    {
+      "id": "proc_15_timelineitems",
+      "name": "TimelineItems → ClampPct",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "timelineItems",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_16_timelineitems",
+      "name": "TimelineItems → GetBar",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "timelineItems",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_17_timelineitems",
+      "name": "TimelineItems → GetOverlay",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "timelineItems",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_18_timelineitems",
+      "name": "TimelineItems → Notify",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "timelineItems",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_19_timelineitems",
+      "name": "TimelineItems → EmitMisoRuntimeLog",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "timelineItems",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_20_timelineitems",
+      "name": "TimelineItems → RelaySessionGuardDiagnostic",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "timelineItems",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_21_timelineitems",
+      "name": "TimelineItems → SplitStreamingMarkdown",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "timelineItems",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_22_timelineitems",
+      "name": "TimelineItems → HasLineEnd",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "timelineItems",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_23_timelineitems",
+      "name": "TimelineItems → SplitLines",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "timelineItems",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_29_pluginsdiscoverpage",
+      "name": "PluginsDiscoverPage → ReadUserAgent",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_30_pluginsdiscoverpage",
+      "name": "PluginsDiscoverPage → ReadHeight",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_31_pluginsdiscoverpage",
+      "name": "PluginsDiscoverPage → Set",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_38_apply_job_candidate_",
+      "name": "Apply_job_candidate_new → Redact_text",
+      "process_type": "cross_community",
+      "step_count": 8,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 8
+        }
+      ]
+    },
+    {
+      "id": "proc_42_plugindetailpage",
+      "name": "PluginDetailPage → HasOAuthRecipe",
+      "process_type": "cross_community",
+      "step_count": 7,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        }
+      ]
+    },
+    {
+      "id": "proc_43_plugindetailpage",
+      "name": "PluginDetailPage → RequiresWorkspace",
+      "process_type": "cross_community",
+      "step_count": 7,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        }
+      ]
+    },
+    {
+      "id": "proc_47_runpricingcatalogcli",
+      "name": "RunPricingCatalogCli → PricingCatalogError",
+      "process_type": "cross_community",
+      "step_count": 6,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_48_recipespage",
+      "name": "RecipesPage → GetWindowBridge",
+      "process_type": "cross_community",
+      "step_count": 6,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_49_messageminimap",
+      "name": "MessageMinimap → Clamp",
+      "process_type": "cross_community",
+      "step_count": 6,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 4
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 5
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 6
+        }
+      ]
+    },
+    {
+      "id": "proc_50_onpointermove",
+      "name": "OnPointerMove → WinCapacity",
+      "process_type": "cross_community",
+      "step_count": 6,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 4
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 5
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 6
+        }
+      ]
+    },
+    {
+      "id": "proc_51_providerkeysection",
+      "name": "ProviderKeySection → HasLocalStorage",
+      "process_type": "cross_community",
+      "step_count": 6,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 4
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 5
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 6
+        }
+      ]
+    },
+    {
+      "id": "proc_52_providerkeysection",
+      "name": "ProviderKeySection → IsPlainObject",
+      "process_type": "cross_community",
+      "step_count": 6,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 4
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 5
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 6
+        }
+      ]
+    },
+    {
+      "id": "proc_65_place_from_palette",
+      "name": "Place_from_palette → Normalize_node_type",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 4
+        }
+      ]
+    },
+    {
+      "id": "proc_66_providerkeysection",
+      "name": "ProviderKeySection → AssertProviderSecretField",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 4
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 5
+        }
+      ]
+    },
+    {
+      "id": "proc_67_pluginscategoriespag",
+      "name": "PluginsCategoriesPage → IsCustomToolkitId",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 4
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 5
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        }
+      ]
+    },
+    {
+      "id": "proc_89_registeripchandlers",
+      "name": "RegisterIpcHandlers → Prepare",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        }
+      ]
+    },
+    {
+      "id": "proc_90_registeripchandlers",
+      "name": "RegisterIpcHandlers → Prepare",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        }
+      ]
+    },
+    {
+      "id": "proc_97_recipespage",
+      "name": "RecipesPage → HasLocalStorage",
+      "process_type": "intra_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 4
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_98_recipespage",
+      "name": "RecipesPage → NormalizeWidth",
+      "process_type": "intra_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 4
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_99_recipespage",
+      "name": "RecipesPage → PanelMaxWidth",
+      "process_type": "intra_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 4
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_108_handlepull",
+      "name": "HandlePull → GetActive",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_111_modelproviderssettin",
+      "name": "ModelProvidersSettings → FetchOllamaModels",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 4
+        }
+      ]
+    },
+    {
+      "id": "proc_112_handlepickfolder",
+      "name": "HandlePickFolder → SkillFrontmatterError",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_128_get_computer_use_sta",
+      "name": "Get_computer_use_status → Detect_platform",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 4
+        }
+      ]
+    },
+    {
+      "id": "proc_139_prepare",
+      "name": "Prepare → Cursor",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 4
+        }
+      ]
+    },
+    {
+      "id": "proc_140_compare_and_swap",
+      "name": "Compare_and_swap → _identifier",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 4
+        }
+      ]
+    },
+    {
+      "id": "proc_142_rebase_session",
+      "name": "Rebase_session → _installed_rebase_reason_values",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        }
+      ]
+    },
+    {
+      "id": "proc_143_rebase_session",
+      "name": "Rebase_session → _structured_rebase_failure_detail",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        }
+      ]
+    },
+    {
+      "id": "proc_144_rebase_session",
+      "name": "Rebase_session → _current_head",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 4
+        }
+      ]
+    },
+    {
+      "id": "proc_145_registeripchandlers",
+      "name": "RegisterIpcHandlers → On",
+      "process_type": "cross_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        }
+      ]
+    },
+    {
+      "id": "proc_147_runpricingcatalogcli",
+      "name": "RunPricingCatalogCli → WriteFile",
+      "process_type": "cross_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_150_recipespage",
+      "name": "RecipesPage → Cleanup",
+      "process_type": "cross_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_152_toolpoolpanel",
+      "name": "ToolPoolPanel → Is_all_on",
+      "process_type": "intra_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        }
+      ]
+    },
+    {
+      "id": "proc_166_pluginscategoriespag",
+      "name": "PluginsCategoriesPage → CurrentStoreEntries",
+      "process_type": "intra_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        }
+      ]
+    },
+    {
+      "id": "proc_167_pluginsshell",
+      "name": "PluginsShell → EmitToolkitCatalogRefresh",
+      "process_type": "cross_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        }
+      ]
+    },
+    {
+      "id": "proc_178_get_computer_use_sta",
+      "name": "Get_computer_use_status → Detect_display_server",
+      "process_type": "cross_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        }
+      ]
+    },
+    {
+      "id": "proc_189_rebase_session",
+      "name": "Rebase_session → Generation_rebase_recovery_is_exhausted",
+      "process_type": "cross_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        }
+      ]
+    },
+    {
+      "id": "proc_190_rebase_session",
+      "name": "Rebase_session → _required_identifier",
+      "process_type": "cross_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        }
+      ]
+    },
+    {
+      "id": "proc_195_handleconfirmdelete",
+      "name": "HandleConfirmDelete → Error",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 9
+        }
+      ]
+    },
+    {
+      "id": "proc_196_handleconfirmdelete",
+      "name": "HandleConfirmDelete → Error",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 9
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 10
+        }
+      ]
+    },
+    {
+      "id": "proc_198_ollamastore",
+      "name": "OllamaStore → MakeBlock",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_203_handleconfirmnewagen",
+      "name": "HandleConfirmNewAgent → Unavailable",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 9
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 10
+        }
+      ]
+    },
+    {
+      "id": "proc_209_pluginsdiscoverpage",
+      "name": "PluginsDiscoverPage → RelaySessionGuardDiagnostic",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_214_pluginsdiscoverpage",
+      "name": "PluginsDiscoverPage → ReadWidth",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_215_pluginsdiscoverpage",
+      "name": "PluginsDiscoverPage → EmitLine",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_224_decide_candidate_rev",
+      "name": "Decide_candidate_review → Redact_text",
+      "process_type": "cross_community",
+      "step_count": 8,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 8
+        }
+      ]
+    },
+    {
+      "id": "proc_232_messageminimap",
+      "name": "MessageMinimap → WinCapacity",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 4
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 5
+        }
+      ]
+    },
+    {
+      "id": "proc_233_recipespage",
+      "name": "RecipesPage → FrontendApiError",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_240_pluginsinstalledpage",
+      "name": "PluginsInstalledPage → IsObject",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_253_registersettingsstor",
+      "name": "RegisterSettingsStorageHandlers → Prepare",
+      "process_type": "intra_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_254_registersettingsstor",
+      "name": "RegisterSettingsStorageHandlers → Prepare",
+      "process_type": "intra_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_269_apply_job_candidate_",
+      "name": "Apply_job_candidate_new → Cursor",
+      "process_type": "intra_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 4
+        }
+      ]
+    },
+    {
+      "id": "proc_270_prepare",
+      "name": "Prepare → _identifier",
+      "process_type": "cross_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        }
+      ]
+    },
+    {
+      "id": "proc_273_pluginsdiscoverpage",
+      "name": "PluginsDiscoverPage → CurrentStoreEntries",
+      "process_type": "cross_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_284_handleconfirmnewagen",
+      "name": "HandleConfirmNewAgent → Error",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 9
+        }
+      ]
+    },
+    {
+      "id": "proc_285_handleconfirmnewagen",
+      "name": "HandleConfirmNewAgent → Error",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 9
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 10
+        }
+      ]
+    },
+    {
+      "id": "proc_287_pluginsinstalledpage",
+      "name": "PluginsInstalledPage → MakeBlock",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_292_handleconfirmrename",
+      "name": "HandleConfirmRename → Unavailable",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 9
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 10
+        }
+      ]
+    },
+    {
+      "id": "proc_311_propose_job_candidat",
+      "name": "Propose_job_candidate_review → Redact_text",
+      "process_type": "cross_community",
+      "step_count": 8,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 8
+        }
+      ]
+    },
+    {
+      "id": "proc_320_buildrecipenodeconte",
+      "name": "BuildRecipeNodeContextMenuItems → Normalize_node_type",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        }
+      ]
+    },
+    {
+      "id": "proc_331_toasthost",
+      "name": "ToastHost → Delete",
+      "process_type": "cross_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        }
+      ]
+    },
+    {
+      "id": "proc_341_handleconfirmrename",
+      "name": "HandleConfirmRename → Error",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 9
+        }
+      ]
+    },
+    {
+      "id": "proc_342_handleconfirmrename",
+      "name": "HandleConfirmRename → Error",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 9
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 10
+        }
+      ]
+    },
+    {
+      "id": "proc_349_handleduplicate",
+      "name": "HandleDuplicate → Unavailable",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 9
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 10
+        }
+      ]
+    },
+    {
+      "id": "proc_359_timelineitems",
+      "name": "TimelineItems → ReadUserAgent",
+      "process_type": "cross_community",
+      "step_count": 9,
+      "changed_steps": [
+        {
+          "symbol": "timelineItems",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_360_timelineitems",
+      "name": "TimelineItems → ReadHeight",
+      "process_type": "cross_community",
+      "step_count": 9,
+      "changed_steps": [
+        {
+          "symbol": "timelineItems",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_367_handlepickfolder",
+      "name": "HandlePickFolder → GetWindowBridge",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_368_handlepickfolder",
+      "name": "HandlePickFolder → FrontendApiError",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_377_runpricingcatalogcli",
+      "name": "RunPricingCatalogCli → Update",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_378_tooltip",
+      "name": "Tooltip → Delete",
+      "process_type": "cross_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_386_handleduplicate",
+      "name": "HandleDuplicate → Error",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 9
+        }
+      ]
+    },
+    {
+      "id": "proc_387_handleduplicate",
+      "name": "HandleDuplicate → Error",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 9
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 10
+        }
+      ]
+    },
+    {
+      "id": "proc_394_handlereorder",
+      "name": "HandleReorder → Unavailable",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 9
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 10
+        }
+      ]
+    },
+    {
+      "id": "proc_402_timelineitems",
+      "name": "TimelineItems → ReadWidth",
+      "process_type": "cross_community",
+      "step_count": 9,
+      "changed_steps": [
+        {
+          "symbol": "timelineItems",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_411_configcontainer",
+      "name": "ConfigContainer → GetWindowBridge",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        }
+      ]
+    },
+    {
+      "id": "proc_412_configcontainer",
+      "name": "ConfigContainer → FrontendApiError",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        }
+      ]
+    },
+    {
+      "id": "proc_415_agentpanel",
+      "name": "AgentPanel → Normalize_node_type",
+      "process_type": "cross_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_421_toolkitinspector",
+      "name": "ToolkitInspector → Delete",
+      "process_type": "intra_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        }
+      ]
+    },
+    {
+      "id": "proc_423_ollamastore",
+      "name": "OllamaStore → Exec",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_424_ollamastore",
+      "name": "OllamaStore → Exec",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_426_handlereorder",
+      "name": "HandleReorder → Error",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 9
+        }
+      ]
+    },
+    {
+      "id": "proc_427_handlereorder",
+      "name": "HandleReorder → Error",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 9
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 10
+        }
+      ]
+    },
+    {
+      "id": "proc_434_pluginscategoriespag",
+      "name": "PluginsCategoriesPage → Unavailable",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 9
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 10
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 4
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 5
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        }
+      ]
+    },
+    {
+      "id": "proc_452_endpanel",
+      "name": "EndPanel → Normalize_node_type",
+      "process_type": "cross_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_456_pluginsinstalledpage",
+      "name": "PluginsInstalledPage → Exec",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_457_pluginsinstalledpage",
+      "name": "PluginsInstalledPage → Exec",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_460_conflictreview",
+      "name": "ConflictReview → Error",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 10
+        }
+      ]
+    },
+    {
+      "id": "proc_463_pluginscategoriespag",
+      "name": "PluginsCategoriesPage → UnwrapResponse",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 4
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 5
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        }
+      ]
+    },
+    {
+      "id": "proc_465_pluginscategoriespag",
+      "name": "PluginsCategoriesPage → ResolveApi",
+      "process_type": "cross_community",
+      "step_count": 9,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 4
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 5
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        }
+      ]
+    },
+    {
+      "id": "proc_466_pluginscategoriespag",
+      "name": "PluginsCategoriesPage → UnavailableSnapshot",
+      "process_type": "cross_community",
+      "step_count": 9,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 4
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 5
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        }
+      ]
+    },
+    {
+      "id": "proc_467_usechatsessionstate",
+      "name": "UseChatSessionState → Unavailable",
+      "process_type": "cross_community",
+      "step_count": 9,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 8
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 9
+        }
+      ]
+    },
+    {
+      "id": "proc_489_pluginscategoriespag",
+      "name": "PluginsCategoriesPage → Error",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 9
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 4
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 5
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        }
+      ]
+    },
+    {
+      "id": "proc_490_pluginscategoriespag",
+      "name": "PluginsCategoriesPage → Error",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 9
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 4
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 5
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 10
+        }
+      ]
+    },
+    {
+      "id": "proc_497_attachpanel",
+      "name": "AttachPanel → Unavailable",
+      "process_type": "cross_community",
+      "step_count": 8,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 7
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 8
+        }
+      ]
+    },
+    {
+      "id": "proc_503_ollamastore",
+      "name": "OllamaStore → IsBlankLine",
+      "process_type": "cross_community",
+      "step_count": 9,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_511_ollamastore",
+      "name": "OllamaStore → Exec",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_516_processfiles",
+      "name": "ProcessFiles → Error",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 10
+        }
+      ]
+    },
+    {
+      "id": "proc_523_handlelocalbetatoggl",
+      "name": "HandleLocalBetaToggle → Unavailable",
+      "process_type": "cross_community",
+      "step_count": 8,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 7
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 8
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 4
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        }
+      ]
+    },
+    {
+      "id": "proc_527_ollamastore",
+      "name": "OllamaStore → HasLineEnd",
+      "process_type": "cross_community",
+      "step_count": 9,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_528_ollamastore",
+      "name": "OllamaStore → SplitLines",
+      "process_type": "cross_community",
+      "step_count": 9,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_529_pluginsinstalledpage",
+      "name": "PluginsInstalledPage → IsBlankLine",
+      "process_type": "cross_community",
+      "step_count": 9,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_534_runpricingcatalogcli",
+      "name": "RunPricingCatalogCli → Map",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_539_toasthost",
+      "name": "ToastHost → GetDocument",
+      "process_type": "cross_community",
+      "step_count": 7,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        }
+      ]
+    },
+    {
+      "id": "proc_541_next",
+      "name": "Next → Error",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 10
+        }
+      ]
+    },
+    {
+      "id": "proc_542_ollamastore",
+      "name": "OllamaStore → Add",
+      "process_type": "cross_community",
+      "step_count": 9,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_547_devsettings",
+      "name": "DevSettings → Unavailable",
+      "process_type": "cross_community",
+      "step_count": 8,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 7
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 8
+        }
+      ]
+    },
+    {
+      "id": "proc_549_toasthost",
+      "name": "ToastHost → GetBar",
+      "process_type": "cross_community",
+      "step_count": 6,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        }
+      ]
+    },
+    {
+      "id": "proc_551_pluginsinstalledpage",
+      "name": "PluginsInstalledPage → HasLineEnd",
+      "process_type": "cross_community",
+      "step_count": 9,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_552_pluginsinstalledpage",
+      "name": "PluginsInstalledPage → SplitLines",
+      "process_type": "cross_community",
+      "step_count": 9,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_560_pluginsinstalledpage",
+      "name": "PluginsInstalledPage → Exec",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_562_tooltip",
+      "name": "Tooltip → GetDocument",
+      "process_type": "cross_community",
+      "step_count": 7,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_564_loadmemoryv2entrypre",
+      "name": "LoadMemoryV2EntryPreview → Error",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 10
+        }
+      ]
+    },
+    {
+      "id": "proc_570_tokenusagesettings",
+      "name": "TokenUsageSettings → Unavailable",
+      "process_type": "cross_community",
+      "step_count": 8,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 7
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 8
+        }
+      ]
+    },
+    {
+      "id": "proc_572_tooltip",
+      "name": "Tooltip → GetBar",
+      "process_type": "cross_community",
+      "step_count": 6,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_573_ollamastore",
+      "name": "OllamaStore → EmitMisoRuntimeLog",
+      "process_type": "cross_community",
+      "step_count": 8,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_584_toolkitinspector",
+      "name": "ToolkitInspector → GetDocument",
+      "process_type": "cross_community",
+      "step_count": 7,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        }
+      ]
+    },
+    {
+      "id": "proc_585_handleinstall",
+      "name": "HandleInstall → Error",
+      "process_type": "cross_community",
+      "step_count": 9,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 8
+        }
+      ]
+    },
+    {
+      "id": "proc_586_onimport",
+      "name": "OnImport → Error",
+      "process_type": "cross_community",
+      "step_count": 9,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 8
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 9
+        }
+      ]
+    },
+    {
+      "id": "proc_591_applyturnmutationmem",
+      "name": "ApplyTurnMutationMemory → Unavailable",
+      "process_type": "cross_community",
+      "step_count": 8,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 7
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 8
+        }
+      ]
+    },
+    {
+      "id": "proc_593_toolkitinspector",
+      "name": "ToolkitInspector → GetBar",
+      "process_type": "cross_community",
+      "step_count": 6,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        }
+      ]
+    },
+    {
+      "id": "proc_606_handleinstall",
+      "name": "HandleInstall → Error",
+      "process_type": "cross_community",
+      "step_count": 9,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 8
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 9
+        }
+      ]
+    },
+    {
+      "id": "proc_609_handlelocalbetatoggl",
+      "name": "HandleLocalBetaToggle → UnwrapResponse",
+      "process_type": "cross_community",
+      "step_count": 8,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 4
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        }
+      ]
+    },
+    {
+      "id": "proc_610_handlelocalbetatoggl",
+      "name": "HandleLocalBetaToggle → ResolveApi",
+      "process_type": "cross_community",
+      "step_count": 6,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 4
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        }
+      ]
+    },
+    {
+      "id": "proc_620_recipespage",
+      "name": "RecipesPage → Map",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_624_usechatsessionstate",
+      "name": "UseChatSessionState → Error",
+      "process_type": "cross_community",
+      "step_count": 9,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 8
+        }
+      ]
+    },
+    {
+      "id": "proc_625_chatinterface",
+      "name": "ChatInterface → Error",
+      "process_type": "cross_community",
+      "step_count": 9,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 8
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 9
+        }
+      ]
+    },
+    {
+      "id": "proc_627_handlepickfolder",
+      "name": "HandlePickFolder → MakeBlock",
+      "process_type": "cross_community",
+      "step_count": 8,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_636_ollamastore",
+      "name": "OllamaStore → ReadWidth",
+      "process_type": "cross_community",
+      "step_count": 7,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_639_agentpanel",
+      "name": "AgentPanel → Map",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_644_collectrawcandidates",
+      "name": "CollectRawCandidates → Error",
+      "process_type": "cross_community",
+      "step_count": 9,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 9
+        }
+      ]
+    },
+    {
+      "id": "proc_658_endpanel",
+      "name": "EndPanel → Map",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_662_attachpanel",
+      "name": "AttachPanel → Error",
+      "process_type": "cross_community",
+      "step_count": 8,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 7
+        }
+      ]
+    },
+    {
+      "id": "proc_663_usechatsessionstate",
+      "name": "UseChatSessionState → Error",
+      "process_type": "cross_community",
+      "step_count": 9,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 8
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 9
+        }
+      ]
+    },
+    {
+      "id": "proc_674_registeripchandlers",
+      "name": "RegisterIpcHandlers → ReadUserAgent",
+      "process_type": "cross_community",
+      "step_count": 6,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        }
+      ]
+    },
+    {
+      "id": "proc_675_registeripchandlers",
+      "name": "RegisterIpcHandlers → ReadHeight",
+      "process_type": "cross_community",
+      "step_count": 6,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        }
+      ]
+    },
+    {
+      "id": "proc_676_startpanel",
+      "name": "StartPanel → Map",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_680_handlelocalbetatoggl",
+      "name": "HandleLocalBetaToggle → Error",
+      "process_type": "cross_community",
+      "step_count": 8,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 7
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 4
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        }
+      ]
+    },
+    {
+      "id": "proc_681_decidereview",
+      "name": "DecideReview → Error",
+      "process_type": "cross_community",
+      "step_count": 8,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 8
+        }
+      ]
+    },
+    {
+      "id": "proc_693_pluginsshell",
+      "name": "PluginsShell → Map",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        }
+      ]
+    },
+    {
+      "id": "proc_696_devsettings",
+      "name": "DevSettings → Error",
+      "process_type": "cross_community",
+      "step_count": 8,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 7
+        }
+      ]
+    },
+    {
+      "id": "proc_697_attachpanel",
+      "name": "AttachPanel → Error",
+      "process_type": "cross_community",
+      "step_count": 8,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 7
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 8
+        }
+      ]
+    },
+    {
+      "id": "proc_706_registeripchandlers",
+      "name": "RegisterIpcHandlers → ReadWidth",
+      "process_type": "cross_community",
+      "step_count": 6,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        }
+      ]
+    },
+    {
+      "id": "proc_710_handlepickfolder",
+      "name": "HandlePickFolder → Exec",
+      "process_type": "cross_community",
+      "step_count": 9,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_713_handlelocalbetatoggl",
+      "name": "HandleLocalBetaToggle → Error",
+      "process_type": "cross_community",
+      "step_count": 8,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 7
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 4
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 8
+        }
+      ]
+    },
+    {
+      "id": "proc_716_toasthost",
+      "name": "ToastHost → ClampPct",
+      "process_type": "cross_community",
+      "step_count": 6,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        }
+      ]
+    },
+    {
+      "id": "proc_729_devsettings",
+      "name": "DevSettings → Error",
+      "process_type": "cross_community",
+      "step_count": 8,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 7
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 8
+        }
+      ]
+    },
+    {
+      "id": "proc_732_tooltip",
+      "name": "Tooltip → ClampPct",
+      "process_type": "cross_community",
+      "step_count": 6,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_737_handlepickfolder",
+      "name": "HandlePickFolder → IsBlankLine",
+      "process_type": "cross_community",
+      "step_count": 7,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_739_registersettingsstor",
+      "name": "RegisterSettingsStorageHandlers → ReadUserAgent",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_744_tokenusagesettings",
+      "name": "TokenUsageSettings → Error",
+      "process_type": "cross_community",
+      "step_count": 8,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 7
+        }
+      ]
+    },
+    {
+      "id": "proc_745_providerkeysection",
+      "name": "ProviderKeySection → Error",
+      "process_type": "cross_community",
+      "step_count": 8,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 8
+        }
+      ]
+    },
+    {
+      "id": "proc_748_toolkitinspector",
+      "name": "ToolkitInspector → ClampPct",
+      "process_type": "cross_community",
+      "step_count": 6,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        }
+      ]
+    },
+    {
+      "id": "proc_751_handlepickfolder",
+      "name": "HandlePickFolder → HasLineEnd",
+      "process_type": "cross_community",
+      "step_count": 7,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_755_place_from_palette",
+      "name": "Place_from_palette → ReadUserAgent",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 4
+        }
+      ]
+    },
+    {
+      "id": "proc_756_registersettingsstor",
+      "name": "RegisterSettingsStorageHandlers → ReadHeight",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_761_modelproviderssettin",
+      "name": "ModelProvidersSettings → Error",
+      "process_type": "cross_community",
+      "step_count": 8,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 8
+        }
+      ]
+    },
+    {
+      "id": "proc_768_handlepickfolder",
+      "name": "HandlePickFolder → SplitLines",
+      "process_type": "cross_community",
+      "step_count": 7,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_772_place_from_palette",
+      "name": "Place_from_palette → ReadHeight",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 4
+        }
+      ]
+    },
+    {
+      "id": "proc_776_applyturnmutationmem",
+      "name": "ApplyTurnMutationMemory → Error",
+      "process_type": "cross_community",
+      "step_count": 8,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 7
+        }
+      ]
+    },
+    {
+      "id": "proc_777_tokenusagesettings",
+      "name": "TokenUsageSettings → Error",
+      "process_type": "cross_community",
+      "step_count": 8,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 7
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 8
+        }
+      ]
+    },
+    {
+      "id": "proc_780_handlepull",
+      "name": "HandlePull → ClampPct",
+      "process_type": "cross_community",
+      "step_count": 6,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_793_reconcilestoresnapsh",
+      "name": "ReconcileStoreSnapshot → Error",
+      "process_type": "cross_community",
+      "step_count": 8,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 8
+        }
+      ]
+    },
+    {
+      "id": "proc_802_registersettingsstor",
+      "name": "RegisterSettingsStorageHandlers → ReadWidth",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_809_applyturnmutationmem",
+      "name": "ApplyTurnMutationMemory → Error",
+      "process_type": "cross_community",
+      "step_count": 8,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 7
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 8
+        }
+      ]
+    },
+    {
+      "id": "proc_818_place_from_palette",
+      "name": "Place_from_palette → ReadWidth",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 4
+        }
+      ]
+    },
+    {
+      "id": "proc_825_onerror",
+      "name": "OnError → Error",
+      "process_type": "cross_community",
+      "step_count": 8,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 8
+        }
+      ]
+    },
+    {
+      "id": "proc_840_toasthost",
+      "name": "ToastHost → Error",
+      "process_type": "cross_community",
+      "step_count": 7,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        }
+      ]
+    },
+    {
+      "id": "proc_841_onqueueundo",
+      "name": "OnQueueUndo → Error",
+      "process_type": "cross_community",
+      "step_count": 8,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 8
+        }
+      ]
+    },
+    {
+      "id": "proc_845_pluginsshell",
+      "name": "PluginsShell → GetBar",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        }
+      ]
+    },
+    {
+      "id": "proc_846_applyevent",
+      "name": "ApplyEvent → EmitMisoRuntimeLog",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "applyEvent",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_853_pluginscategoriespag",
+      "name": "PluginsCategoriesPage → Map",
+      "process_type": "cross_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        }
+      ]
+    },
+    {
+      "id": "proc_856_tooltip",
+      "name": "Tooltip → Error",
+      "process_type": "cross_community",
+      "step_count": 7,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_857_acknowledgeconsumedr",
+      "name": "AcknowledgeConsumedRelay → Error",
+      "process_type": "cross_community",
+      "step_count": 8,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 8
+        }
+      ]
+    },
+    {
+      "id": "proc_859_applyevent",
+      "name": "ApplyEvent → MakeBlock",
+      "process_type": "cross_community",
+      "step_count": 7,
+      "changed_steps": [
+        {
+          "symbol": "applyEvent",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_868_pluginsdiscoverpage",
+      "name": "PluginsDiscoverPage → Map",
+      "process_type": "cross_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_870_pluginsshell",
+      "name": "PluginsShell → GetDocument",
+      "process_type": "cross_community",
+      "step_count": 6,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        }
+      ]
+    },
+    {
+      "id": "proc_871_toolkitinspector",
+      "name": "ToolkitInspector → Error",
+      "process_type": "cross_community",
+      "step_count": 7,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        }
+      ]
+    },
+    {
+      "id": "proc_872_loadofficialsourceca",
+      "name": "LoadOfficialSourceCapture → Error",
+      "process_type": "cross_community",
+      "step_count": 7,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 7
+        }
+      ]
+    },
+    {
+      "id": "proc_886_toasthost",
+      "name": "ToastHost → Error",
+      "process_type": "cross_community",
+      "step_count": 7,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 7
+        }
+      ]
+    },
+    {
+      "id": "proc_900_tooltip",
+      "name": "Tooltip → Error",
+      "process_type": "cross_community",
+      "step_count": 7,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 7
+        }
+      ]
+    },
+    {
+      "id": "proc_914_toolkitinspector",
+      "name": "ToolkitInspector → Error",
+      "process_type": "cross_community",
+      "step_count": 7,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 7
+        }
+      ]
+    },
+    {
+      "id": "proc_915_applyevent",
+      "name": "ApplyEvent → Add",
+      "process_type": "cross_community",
+      "step_count": 6,
+      "changed_steps": [
+        {
+          "symbol": "applyEvent",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_928_memoryv2pendingrevie",
+      "name": "MemoryV2PendingReviews → Error",
+      "process_type": "cross_community",
+      "step_count": 7,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 7
+        }
+      ]
+    },
+    {
+      "id": "proc_938_applyevent",
+      "name": "ApplyEvent → Exec",
+      "process_type": "cross_community",
+      "step_count": 8,
+      "changed_steps": [
+        {
+          "symbol": "applyEvent",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_941_appendlocalbtwresult",
+      "name": "AppendLocalBtwResultForOwner → Error",
+      "process_type": "cross_community",
+      "step_count": 7,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 7
+        }
+      ]
+    },
+    {
+      "id": "proc_942_pluginsinstalledpage",
+      "name": "PluginsInstalledPage → Add",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_944_agentpanel",
+      "name": "AgentPanel → GetBar",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_947_applyevent",
+      "name": "ApplyEvent → IsBlankLine",
+      "process_type": "cross_community",
+      "step_count": 6,
+      "changed_steps": [
+        {
+          "symbol": "applyEvent",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_949_buildrecipenodeconte",
+      "name": "BuildRecipeNodeContextMenuItems → ReadUserAgent",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        }
+      ]
+    },
+    {
+      "id": "proc_951_agentpanel",
+      "name": "AgentPanel → GetDocument",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_953_clearqueuedturnsforc",
+      "name": "ClearQueuedTurnsForChat → Error",
+      "process_type": "cross_community",
+      "step_count": 7,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 7
+        }
+      ]
+    },
+    {
+      "id": "proc_956_endpanel",
+      "name": "EndPanel → GetBar",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_957_applyevent",
+      "name": "ApplyEvent → HasLineEnd",
+      "process_type": "cross_community",
+      "step_count": 6,
+      "changed_steps": [
+        {
+          "symbol": "applyEvent",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_961_buildrecipenodeconte",
+      "name": "BuildRecipeNodeContextMenuItems → ReadHeight",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        }
+      ]
+    },
+    {
+      "id": "proc_962_endpanel",
+      "name": "EndPanel → GetDocument",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_964_dispatchpromise",
+      "name": "DispatchPromise → Error",
+      "process_type": "cross_community",
+      "step_count": 7,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 7
+        }
+      ]
+    },
+    {
+      "id": "proc_965_toasthost",
+      "name": "ToastHost → Add",
+      "process_type": "cross_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        }
+      ]
+    },
+    {
+      "id": "proc_967_handlepull",
+      "name": "HandlePull → GetBar",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_968_applyevent",
+      "name": "ApplyEvent → SplitLines",
+      "process_type": "cross_community",
+      "step_count": 6,
+      "changed_steps": [
+        {
+          "symbol": "applyEvent",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_972_handlepull",
+      "name": "HandlePull → GetDocument",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_974_applylatestprojectio",
+      "name": "ApplyLatestProjection → Error",
+      "process_type": "cross_community",
+      "step_count": 7,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 7
+        }
+      ]
+    },
+    {
+      "id": "proc_975_toolkitinspector",
+      "name": "ToolkitInspector → Add",
+      "process_type": "intra_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 2
+        }
+      ]
+    },
+    {
+      "id": "proc_983_finishattachedstream",
+      "name": "FinishAttachedStream → Error",
+      "process_type": "cross_community",
+      "step_count": 7,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 7
+        }
+      ]
+    },
+    {
+      "id": "proc_992_restorerejectedrelay",
+      "name": "RestoreRejectedRelayedTurn → Error",
+      "process_type": "cross_community",
+      "step_count": 7,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 7
+        }
+      ]
+    },
+    {
+      "id": "proc_1001_settleunavailablestr",
+      "name": "SettleUnavailableStream → Error",
+      "process_type": "cross_community",
+      "step_count": 7,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 7
+        }
+      ]
+    },
+    {
+      "id": "proc_1009_hydratequeuedturnsfo",
+      "name": "HydrateQueuedTurnsForAttempt → Error",
+      "process_type": "cross_community",
+      "step_count": 7,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 7
+        }
+      ]
+    },
+    {
+      "id": "proc_1017_hydratequeuedturnsfo",
+      "name": "HydrateQueuedTurnsForClientOperation → Error",
+      "process_type": "cross_community",
+      "step_count": 7,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 7
+        }
+      ]
+    },
+    {
+      "id": "proc_1025_relayqueuedturnsafte",
+      "name": "RelayQueuedTurnsAfterRun → Error",
+      "process_type": "cross_community",
+      "step_count": 7,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 7
+        }
+      ]
+    },
+    {
+      "id": "proc_1033_applyfyiparentinterj",
+      "name": "ApplyFyiParentInterjectionAndAck → Error",
+      "process_type": "cross_community",
+      "step_count": 7,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 7
+        }
+      ]
+    },
+    {
+      "id": "proc_1034_pluginsshell",
+      "name": "PluginsShell → ClampPct",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        }
+      ]
+    },
+    {
+      "id": "proc_1038_runpricingcatalogcli",
+      "name": "RunPricingCatalogCli → ReadHeight",
+      "process_type": "cross_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_1041_ontoken",
+      "name": "OnToken → Error",
+      "process_type": "cross_community",
+      "step_count": 7,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 7
+        }
+      ]
+    },
+    {
+      "id": "proc_1049_rejectqueuerelaybefo",
+      "name": "RejectQueueRelayBeforeAcceptance → Error",
+      "process_type": "cross_community",
+      "step_count": 7,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 7
+        }
+      ]
+    },
+    {
+      "id": "proc_1056_pluginsshell",
+      "name": "PluginsShell → Error",
+      "process_type": "cross_community",
+      "step_count": 6,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        }
+      ]
+    },
+    {
+      "id": "proc_1057_rollbackoptimistic",
+      "name": "RollbackOptimistic → Error",
+      "process_type": "cross_community",
+      "step_count": 7,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 7
+        }
+      ]
+    },
+    {
+      "id": "proc_1065_scheduleauthoritativ",
+      "name": "ScheduleAuthoritativeLookup → Error",
+      "process_type": "cross_community",
+      "step_count": 7,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 7
+        }
+      ]
+    },
+    {
+      "id": "proc_1068_buildrecipenodeconte",
+      "name": "BuildRecipeNodeContextMenuItems → ReadWidth",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        }
+      ]
+    },
+    {
+      "id": "proc_1073_scheduledurableresum",
+      "name": "ScheduleDurableResumeRetry → Error",
+      "process_type": "cross_community",
+      "step_count": 7,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 7
+        }
+      ]
+    },
+    {
+      "id": "proc_1081_syncdurablequeuefora",
+      "name": "SyncDurableQueueForAttempt → Error",
+      "process_type": "cross_community",
+      "step_count": 7,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 7
+        }
+      ]
+    },
+    {
+      "id": "proc_1088_dispatchinterjectcha",
+      "name": "DispatchInterjectChannel → Error",
+      "process_type": "cross_community",
+      "step_count": 6,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 5
+        }
+      ]
+    },
+    {
+      "id": "proc_1089_pluginsshell",
+      "name": "PluginsShell → Error",
+      "process_type": "cross_community",
+      "step_count": 6,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 3
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 6
+        }
+      ]
+    },
+    {
+      "id": "proc_1090_agentpanel",
+      "name": "AgentPanel → ClampPct",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_1097_timerid",
+      "name": "TimerId → Error",
+      "process_type": "cross_community",
+      "step_count": 6,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 6
+        }
+      ]
+    },
+    {
+      "id": "proc_1098_endpanel",
+      "name": "EndPanel → ClampPct",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_1103_deleteturn",
+      "name": "DeleteTurn → Error",
+      "process_type": "cross_community",
+      "step_count": 6,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 6
+        }
+      ]
+    },
+    {
+      "id": "proc_1109_dispatchinterjectcha",
+      "name": "DispatchInterjectChannel → Error",
+      "process_type": "cross_community",
+      "step_count": 6,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 5
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 6
+        }
+      ]
+    },
+    {
+      "id": "proc_1114_agentpanel",
+      "name": "AgentPanel → Error",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_1115_searchlibrary",
+      "name": "SearchLibrary → Error",
+      "process_type": "cross_community",
+      "step_count": 6,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 6
+        }
+      ]
+    },
+    {
+      "id": "proc_1120_endpanel",
+      "name": "EndPanel → Error",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_1121_loadmemoryv2treestat",
+      "name": "LoadMemoryV2TreeState → Error",
+      "process_type": "cross_community",
+      "step_count": 6,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 6
+        }
+      ]
+    },
+    {
+      "id": "proc_1126_onimport",
+      "name": "OnImport → Error",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 4
+        }
+      ]
+    },
+    {
+      "id": "proc_1127_agentpanel",
+      "name": "AgentPanel → Error",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 5
+        }
+      ]
+    },
+    {
+      "id": "proc_1132_handlesave",
+      "name": "HandleSave → Error",
+      "process_type": "intra_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 4
+        }
+      ]
+    },
+    {
+      "id": "proc_1133_endpanel",
+      "name": "EndPanel → Error",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 5
+        }
+      ]
+    },
+    {
+      "id": "proc_1138_handlesave",
+      "name": "HandleSave → Error",
+      "process_type": "intra_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 4
+        }
+      ]
+    },
+    {
+      "id": "proc_1139_handlesave",
+      "name": "HandleSave → Error",
+      "process_type": "intra_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 4
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 5
+        }
+      ]
+    },
+    {
+      "id": "proc_1141_applyevent",
+      "name": "ApplyEvent → ReadWidth",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "applyEvent",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_1144_handlepull",
+      "name": "HandlePull → Error",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_1145_handlesave",
+      "name": "HandleSave → Error",
+      "process_type": "intra_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 4
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 5
+        }
+      ]
+    },
+    {
+      "id": "proc_1147_runpricingcatalogcli",
+      "name": "RunPricingCatalogCli → ReadWidth",
+      "process_type": "cross_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_1150_handleoauthconnect",
+      "name": "HandleOAuthConnect → Error",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 4
+        }
+      ]
+    },
+    {
+      "id": "proc_1151_handlepull",
+      "name": "HandlePull → Error",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 5
+        }
+      ]
+    },
+    {
+      "id": "proc_1153_agentpanel",
+      "name": "AgentPanel → ReadWidth",
+      "process_type": "cross_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_1156_handleoauthconnect",
+      "name": "HandleOAuthConnect → Error",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 4
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 5
+        }
+      ]
+    },
+    {
+      "id": "proc_1158_endpanel",
+      "name": "EndPanel → ReadWidth",
+      "process_type": "cross_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_1160_usechatstream",
+      "name": "UseChatStream → Error",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 5
+        }
+      ]
+    },
+    {
+      "id": "proc_1164_appendsynthetictoolc",
+      "name": "AppendSyntheticToolConfirmationDecision → Error",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 5
+        }
+      ]
+    },
+    {
+      "id": "proc_1168_clearresolvedtoolcon",
+      "name": "ClearResolvedToolConfirmationByCallId → Error",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 5
+        }
+      ]
+    },
+    {
+      "id": "proc_1171_discardturnmutation",
+      "name": "DiscardTurnMutation → Error",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 5
+        }
+      ]
+    },
+    {
+      "id": "proc_1174_reconcilereplayinter",
+      "name": "ReconcileReplayInteractions → Error",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 5
+        }
+      ]
+    },
+    {
+      "id": "proc_1177_handletoolconfirmati",
+      "name": "HandleToolConfirmationDecision → Error",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 5
+        }
+      ]
+    },
+    {
+      "id": "proc_1180_lookupdurableinterac",
+      "name": "LookupDurableInteraction → Error",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 5
+        }
+      ]
+    },
+    {
+      "id": "proc_1183_retryturnmutation",
+      "name": "RetryTurnMutation → Error",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 5
+        }
+      ]
+    },
+    {
+      "id": "proc_1186_processchildtoolinte",
+      "name": "ProcessChildToolInteractionSideEffects → Error",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 5
+        }
+      ]
+    },
+    {
+      "id": "proc_1188_runsend",
+      "name": "RunSend → Error",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 4
+        }
+      ]
+    },
+    {
+      "id": "proc_1189_runsend",
+      "name": "RunSend → Error",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 4
+        },
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 5
+        }
+      ]
+    },
+    {
+      "id": "proc_1192_submitautoapprovedto",
+      "name": "SubmitAutoApprovedToolConfirmation → Error",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 5
+        }
+      ]
+    },
+    {
+      "id": "proc_1195_run",
+      "name": "Run → Error",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 5
+        }
+      ]
+    },
+    {
+      "id": "proc_1198_grouped",
+      "name": "Grouped → Error",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 4
+        }
+      ]
+    },
+    {
+      "id": "proc_1201_grouptooltimelineite",
+      "name": "GroupToolTimelineItems → Error",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 4
+        }
+      ]
+    },
+    {
+      "id": "proc_1204_usetokenusagedata",
+      "name": "UseTokenUsageData → Error",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 4
+        }
+      ]
+    },
+    {
+      "id": "proc_1207_configcontainer",
+      "name": "ConfigContainer → Error",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "_REQUIRED_PROTOCOLS",
+          "step": 4
+        }
+      ]
+    }
+  ]
+}

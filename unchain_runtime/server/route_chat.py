@@ -1,3 +1,4 @@
+import copy
 import json
 import logging
 import re
@@ -20,6 +21,12 @@ from context_composition_host import (
 from context_memory_v2_capability import resolve_context_memory_v2_capability
 from route_blueprint import api_blueprint
 from memory_v2_error_contract import safe_context_v2_error
+from pupu_tool_call_ref import (
+    TOOL_CALL_DISPLAY_METADATA_SIDECAR_KEY,
+    ToolCallDisplayMetadataSidecar,
+    validate_tool_call_ref,
+    validate_tool_call_ref_metadata,
+)
 
 try:
     from unchain.events import RuntimeEventBridge
@@ -68,6 +75,75 @@ def _sse_event(event_name: str, payload: Dict) -> str:
         f"event: {event_name}\n"
         f"data: {json.dumps(payload, ensure_ascii=False, default=str)}\n\n"
     )
+
+
+def project_tool_call_display_metadata(
+    runtime_event: object,
+    sidecar: object,
+) -> dict[str, Any] | None:
+    """Decorate a normalized open-v4 event with validated host source metadata."""
+
+    if not isinstance(runtime_event, dict) or not isinstance(
+        sidecar, ToolCallDisplayMetadataSidecar
+    ):
+        return None
+    metadata = sidecar.to_dict()
+    call_ref = validate_tool_call_ref(metadata.get("call_ref"))
+    if call_ref is None:
+        return None
+    source = {
+        "schema": "pupu.tool_call_ref_metadata.v1",
+        "intent_cursor": copy.deepcopy(call_ref["intent_cursor"]),
+        "timeline_merge_policy_declared": metadata[
+            "timeline_merge_policy_declared"
+        ],
+        "original_arguments_declared": metadata[
+            "original_arguments_declared"
+        ],
+    }
+    if source["timeline_merge_policy_declared"]:
+        source["timeline_merge_policy"] = copy.deepcopy(
+            metadata["timeline_merge_policy"]
+        )
+    if source["original_arguments_declared"]:
+        source["original_arguments"] = copy.deepcopy(
+            metadata["original_arguments"]
+        )
+    validated_source = validate_tool_call_ref_metadata(
+        source, call_ref=call_ref
+    )
+    if validated_source is None:
+        return None
+
+    projected = copy.deepcopy(runtime_event)
+    payload = projected.get("payload")
+    if not isinstance(payload, dict):
+        return None
+    if "call_ref" in payload:
+        validated_existing_ref = validate_tool_call_ref(payload["call_ref"])
+        if validated_existing_ref is None or validated_existing_ref != call_ref:
+            return None
+    if "call_ref_metadata" in payload:
+        validated_existing_source = validate_tool_call_ref_metadata(
+            payload["call_ref_metadata"], call_ref=call_ref
+        )
+        if validated_existing_source is None or validated_existing_source != validated_source:
+            return None
+
+    payload["call_ref"] = call_ref
+    payload["call_ref_metadata"] = validated_source
+    if source["timeline_merge_policy_declared"]:
+        payload["timeline_merge_policy"] = copy.deepcopy(
+            source["timeline_merge_policy"]
+        )
+    else:
+        payload.pop("timeline_merge_policy", None)
+    if source["original_arguments_declared"]:
+        payload["arguments"] = copy.deepcopy(source["original_arguments"])
+    else:
+        payload.pop("arguments", None)
+    projected["payload"] = payload
+    return projected
 
 
 def _sanitize_trace_level(raw_trace_level: object) -> str:
@@ -859,7 +935,14 @@ def chat_stream_v2() -> Response:
                 payload_data = {
                     key: value
                     for key, value in raw_event.items()
-                    if key not in {"type", "run_id", "iteration", "timestamp"}
+                    if key
+                    not in {
+                        "type",
+                        "run_id",
+                        "iteration",
+                        "timestamp",
+                        TOOL_CALL_DISPLAY_METADATA_SIDECAR_KEY,
+                    }
                 }
                 # Skip sanitization for frames that carry structured data needed by the UI:
                 # - tool_call: interact_config.options for selections, confirmation metadata
@@ -1017,6 +1100,17 @@ def chat_stream_v4() -> Response:
         )
     mode = str(payload.get("mode") or "").strip().lower()
     resume_interaction = mode == "resume_interaction"
+    from execution_admission import validate_stopped_attempts
+
+    try:
+        stopped_attempts = validate_stopped_attempts(
+            payload["stopped_attempts"], attempt_id=attempt_id, resume=resume_interaction,
+        ) if "stopped_attempts" in payload else ()
+    except ValueError as error:
+        return root._json_error("invalid_request", str(error), 400)
+    admission_owner_chat_id = str(payload.get("owner_chat_id") or "").strip()
+    if stopped_attempts and not _MEMORY_V2_OWNER_RE.fullmatch(admission_owner_chat_id):
+        return root._json_error("invalid_request", "owner_chat_id is required for stopped_attempts", 400)
     message = str(payload.get("message", ""))
     attachments = _sanitize_attachments(payload.get("attachments"))
     if not resume_interaction and not message.strip() and not attachments:
@@ -1205,6 +1299,10 @@ def chat_stream_v4() -> Response:
             root.cancel_tool_confirmations(confirmation_cancel_event)
 
         try:
+            if not resume_interaction:
+                import execution_control
+
+                execution_control.register(thread_id, attempt_id)
             session_event = bridge.emit_session_started(
                 {
                     "model": root.get_display_model_id(options),
@@ -1217,6 +1315,19 @@ def chat_stream_v4() -> Response:
                 }
             )
             yield _sse_event("runtime_event", session_event.to_dict())
+
+            if not resume_interaction:
+                from execution_admission import reconcile_stopped_attempts
+
+                reconcile_stopped_attempts(
+                    session_id=thread_id, owner_chat_id=admission_owner_chat_id,
+                    attempt_id=attempt_id, stopped_attempts=stopped_attempts,
+                )
+                if _execution_attempt_cancelled(thread_id, attempt_id):
+                    yield _sse_event("done", {"finished_at": int(time.time() * 1000),
+                        "execution_id": thread_id, "attempt_id": attempt_id,
+                        "cancelled": True, "diagnostics": bridge.diagnostics()})
+                    return
 
             event_source = (
                 root.resume_chat_interaction_events(
@@ -1272,8 +1383,25 @@ def chat_stream_v4() -> Response:
                         )
                     )
                     continue
-                for runtime_event in bridge.normalize(raw_event):
-                    yield _sse_event("runtime_event", runtime_event.to_dict())
+                display_sidecar = raw_event.get(
+                    TOOL_CALL_DISPLAY_METADATA_SIDECAR_KEY
+                )
+                normalizer_event = {
+                    key: value
+                    for key, value in raw_event.items()
+                    if key != TOOL_CALL_DISPLAY_METADATA_SIDECAR_KEY
+                }
+                for runtime_event in bridge.normalize(normalizer_event):
+                    runtime_payload = runtime_event.to_dict()
+                    if isinstance(
+                        display_sidecar, ToolCallDisplayMetadataSidecar
+                    ):
+                        projected_payload = project_tool_call_display_metadata(
+                            runtime_payload, display_sidecar
+                        )
+                        if projected_payload is not None:
+                            runtime_payload = projected_payload
+                    yield _sse_event("runtime_event", runtime_payload)
 
             cancelled = _execution_attempt_cancelled(thread_id, attempt_id)
             done_payload: Dict[str, object] = {

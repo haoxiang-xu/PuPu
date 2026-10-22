@@ -1,0 +1,186 @@
+{
+  "summary": {
+    "changed_count": 25,
+    "affected_count": 0,
+    "changed_files": 33,
+    "risk_level": "low"
+  },
+  "changed_symbols": [
+    {
+      "id": "Variable:docs/implementation/ticket-411-evidence/check_frozen_pair.py:ROOT",
+      "name": "ROOT",
+      "type": "Variable",
+      "filePath": "docs/implementation/ticket-411-evidence/check_frozen_pair.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Variable:docs/implementation/ticket-411-evidence/check_frozen_pair.py:EVIDENCE",
+      "name": "EVIDENCE",
+      "type": "Variable",
+      "filePath": "docs/implementation/ticket-411-evidence/check_frozen_pair.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Variable:docs/implementation/ticket-411-evidence/check_frozen_pair.py:pair",
+      "name": "pair",
+      "type": "Variable",
+      "filePath": "docs/implementation/ticket-411-evidence/check_frozen_pair.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Variable:docs/implementation/ticket-411-evidence/check_frozen_pair.py:binary",
+      "name": "binary",
+      "type": "Variable",
+      "filePath": "docs/implementation/ticket-411-evidence/check_frozen_pair.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Variable:docs/implementation/ticket-411-evidence/check_frozen_pair.py:boots",
+      "name": "boots",
+      "type": "Variable",
+      "filePath": "docs/implementation/ticket-411-evidence/check_frozen_pair.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:docs/implementation/ticket-411-evidence/check_frozen_pair.py:fetch",
+      "name": "fetch",
+      "type": "Function",
+      "filePath": "docs/implementation/ticket-411-evidence/check_frozen_pair.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Variable:docs/implementation/ticket-411-evidence/check_frozen_pair.py:report",
+      "name": "report",
+      "type": "Variable",
+      "filePath": "docs/implementation/ticket-411-evidence/check_frozen_pair.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-411.md:L1:Ticket #411 — Gemini 4 Argon",
+      "name": "Ticket #411 — Gemini 4 Argon",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-411.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-411.md:L10:Goal and researched decisions",
+      "name": "Goal and researched decisions",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-411.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-411.md:L42:Files, impact and invariants",
+      "name": "Files, impact and invariants",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-411.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-411.md:L76:Boundary contracts and acceptance",
+      "name": "Boundary contracts and acceptance",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-411.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-411.md:L135:Slices and supervision",
+      "name": "Slices and supervision",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-411.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Const:src/COMPONENTs/agents/pages/recipes_page/detail_panel/agent_panel.js:MODEL_OPTIONS",
+      "name": "MODEL_OPTIONS",
+      "type": "Const",
+      "filePath": "src/COMPONENTs/agents/pages/recipes_page/detail_panel/agent_panel.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Variable:unchain_runtime/server/tests/test_gemini_argon_contract.py:MODEL",
+      "name": "MODEL",
+      "type": "Variable",
+      "filePath": "unchain_runtime/server/tests/test_gemini_argon_contract.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Variable:unchain_runtime/server/tests/test_gemini_argon_contract.py:MODEL_ID",
+      "name": "MODEL_ID",
+      "type": "Variable",
+      "filePath": "unchain_runtime/server/tests/test_gemini_argon_contract.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Variable:unchain_runtime/server/tests/test_gemini_argon_contract.py:ROOT",
+      "name": "ROOT",
+      "type": "Variable",
+      "filePath": "unchain_runtime/server/tests/test_gemini_argon_contract.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Variable:unchain_runtime/server/tests/test_gemini_argon_contract.py:FIXTURE",
+      "name": "FIXTURE",
+      "type": "Variable",
+      "filePath": "unchain_runtime/server/tests/test_gemini_argon_contract.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:unchain_runtime/server/tests/test_gemini_argon_contract.py:_catalog_response",
+      "name": "_catalog_response",
+      "type": "Function",
+      "filePath": "unchain_runtime/server/tests/test_gemini_argon_contract.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:unchain_runtime/server/tests/test_gemini_argon_contract.py:test_argon_real_route_and_host_payloads_match_renderer_fixture",
+      "name": "test_argon_real_route_and_host_payloads_match_renderer_fixture",
+      "type": "Function",
+      "filePath": "unchain_runtime/server/tests/test_gemini_argon_contract.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:unchain_runtime/server/tests/test_gemini_argon_contract.py:test_argon_real_host_producer_to_pinned_sdk_strict_stream_consumer",
+      "name": "test_argon_real_host_producer_to_pinned_sdk_strict_stream_consumer",
+      "type": "Function",
+      "filePath": "unchain_runtime/server/tests/test_gemini_argon_contract.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:unchain_runtime/server/tests/test_gemini_argon_contract.py:test_argon_real_host_producer_to_pinned_sdk_strict_stream_consumer.factory@79:4",
+      "name": "factory",
+      "type": "Function",
+      "filePath": "unchain_runtime/server/tests/test_gemini_argon_contract.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:unchain_runtime/server/tests/test_gemini_argon_contract.py:test_argon_real_host_producer_to_pinned_sdk_strict_stream_consumer.factory@79:4.send@84:8",
+      "name": "send",
+      "type": "Function",
+      "filePath": "unchain_runtime/server/tests/test_gemini_argon_contract.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:unchain_runtime/server/tests/test_gemini_argon_contract.py:test_argon_real_host_producer_to_pinned_sdk_strict_stream_consumer.lookup@106:4",
+      "name": "lookup",
+      "type": "Function",
+      "filePath": "unchain_runtime/server/tests/test_gemini_argon_contract.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:unchain_runtime/server/tests/test_gemini_argon_contract.py:test_argon_host_output_request_above_synchronous_contract_never_sends",
+      "name": "test_argon_host_output_request_above_synchronous_contract_never_sends",
+      "type": "Function",
+      "filePath": "unchain_runtime/server/tests/test_gemini_argon_contract.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:unchain_runtime/server/tests/test_gemini_argon_contract.py:test_argon_recipe_can_select_exact_catalog_model",
+      "name": "test_argon_recipe_can_select_exact_catalog_model",
+      "type": "Function",
+      "filePath": "unchain_runtime/server/tests/test_gemini_argon_contract.py",
+      "change_type": "touched"
+    }
+  ],
+  "affected_processes": []
+}

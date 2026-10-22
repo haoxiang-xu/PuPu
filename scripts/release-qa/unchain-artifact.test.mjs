@@ -34,6 +34,21 @@ const runtimeManifest = ({
   };
 };
 
+test("paging without read-recovery is rejected before release admission", () => {
+  const manifest = runtimeManifest({
+    protocolFeatures: {
+      ...REQUIRED_RUNTIME_PROTOCOLS,
+      context_memory: REQUIRED_RUNTIME_PROTOCOLS.context_memory.filter(
+        (feature) => feature !== "context_content_read_recovery_v1",
+      ),
+    },
+  });
+  assert.throws(
+    () => validateRuntimeManifestForRelease(manifest),
+    /context_memory\.context_content_read_recovery_v1/,
+  );
+});
+
 test("one immutable wheel records artifact, protocol, and source provenance", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "pupu-unchain-artifact-"));
   const artifactPath = path.join(root, "unchain-1.2.3-py3-none-any.whl");
@@ -257,6 +272,12 @@ test("release evidence requires the cold-reconcile and exact-cancel protocol fea
     true,
   );
   assert.equal(
+    REQUIRED_RUNTIME_PROTOCOLS.context_memory.includes(
+      "context_content_paging_v1",
+    ),
+    true,
+  );
+  assert.equal(
     REQUIRED_RUNTIME_PROTOCOLS.durable_interaction.includes(
       "graph_interaction_lineage_preflight_v1",
     ),
@@ -289,6 +310,17 @@ test("release evidence requires the cold-reconcile and exact-cancel protocol fea
       },
     })),
     /context_memory\.interaction_resolution_compat/,
+  );
+  assert.throws(
+    () => validateRuntimeManifestForRelease(runtimeManifest({
+      protocolFeatures: {
+        ...REQUIRED_RUNTIME_PROTOCOLS,
+        context_memory: REQUIRED_RUNTIME_PROTOCOLS.context_memory.filter(
+          (feature) => feature !== "context_content_paging_v1",
+        ),
+      },
+    })),
+    /context_memory\.context_content_paging_v1/,
   );
   assert.throws(
     () => validateRuntimeManifestForRelease(runtimeManifest({
@@ -341,6 +373,8 @@ test("release evidence rejects missing provider-turn and RunBundle features", ()
   for (const [protocolId, feature] of [
     ["provider_turn_ownership", "atomic_receipt_cas"],
     ["provider_turn_ownership", "ollama_reasoning_preview_v1"],
+    ["provider_turn_ownership", "provider_response_outcomes_v1"],
+    ["provider_turn_ownership", "provider_uncertainty_diagnostics_v1"],
     ["run_bundle", "run_bundle_v1"],
   ]) {
     assert.throws(
@@ -422,5 +456,35 @@ test("manifest verification rejects bad digest, empty strings, Unicode drift, an
   assert.throws(
     () => validateRuntimeManifestForRelease(order),
     /sorted and unique by id/,
+  );
+});
+
+test("release admission rejects an older wheel without graph failure terminals", () => {
+  const manifest = runtimeManifest({
+    protocolFeatures: {
+      ...REQUIRED_RUNTIME_PROTOCOLS,
+      context_memory: REQUIRED_RUNTIME_PROTOCOLS.context_memory.filter(
+        (feature) => feature !== "graph_failure_terminals_v1",
+      ),
+    },
+  });
+  assert.throws(
+    () => validateRuntimeManifestForRelease(manifest),
+    /context_memory\.graph_failure_terminals_v1/,
+  );
+});
+
+test("release admission rejects an older wheel without durable interaction settlement fencing", () => {
+  const manifest = runtimeManifest({
+    protocolFeatures: {
+      ...REQUIRED_RUNTIME_PROTOCOLS,
+      context_memory: REQUIRED_RUNTIME_PROTOCOLS.context_memory.filter(
+        (feature) => feature !== "durable_interaction_settlement_fence_v1",
+      ),
+    },
+  });
+  assert.throws(
+    () => validateRuntimeManifestForRelease(manifest),
+    /context_memory\.durable_interaction_settlement_fence_v1/,
   );
 });

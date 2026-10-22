@@ -1,0 +1,25 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> PuPu@0.1.12 test
+> react-scripts test --watchAll=false --runInBand --runTestsByPath src/COMPONENTs/chat-bubble/trace_chain.test.js src/COMPONENTs/chat-bubble/trace_chain.grouping.test.js src/COMPONENTs/chat-bubble/trace_chain.grouping_parity.test.js src/COMPONENTs/chat-bubble/trace_tool_grouping.test.js src/COMPONENTs/chat-bubble/trace_chain.provider_retry.test.js src/COMPONENTs/chat-bubble/pending_confirmation_trace_frames.test.js src/COMPONENTs/chat-bubble/lazy_trace_chain.test.js src/COMPONENTs/chat-bubble/trace_chain.live_subscription.test.js src/SERVICEs/runtime_events/stream_replay_projector.test.js src/SERVICEs/runtime_events/event_store.test.js src/SERVICEs/runtime_events/trace_chain_adapter.test.js src/SERVICEs/chat_storage/chat_storage_memory_v2_trace.test.js
+
+PASS src/COMPONENTs/chat-bubble/trace_chain.grouping_parity.test.js
+PASS src/COMPONENTs/chat-bubble/trace_chain.test.js
+PASS src/COMPONENTs/chat-bubble/trace_chain.grouping.test.js
+PASS src/COMPONENTs/chat-bubble/trace_chain.provider_retry.test.js
+PASS src/COMPONENTs/chat-bubble/trace_chain.live_subscription.test.js
+PASS src/COMPONENTs/chat-bubble/lazy_trace_chain.test.js
+PASS src/SERVICEs/chat_storage/chat_storage_memory_v2_trace.test.js
+PASS src/COMPONENTs/chat-bubble/trace_tool_grouping.test.js
+PASS src/SERVICEs/runtime_events/event_store.test.js
+PASS src/COMPONENTs/chat-bubble/pending_confirmation_trace_frames.test.js
+PASS src/SERVICEs/runtime_events/trace_chain_adapter.test.js
+PASS src/SERVICEs/runtime_events/stream_replay_projector.test.js
+
+Test Suites: 12 passed, 12 total
+Tests:       122 passed, 122 total
+Snapshots:   0 total
+Time:        3.531 s, estimated 4 s
+Ran all test suites within paths "src/COMPONENTs/chat-bubble/trace_chain.test.js", "src/COMPONENTs/chat-bubble/trace_chain.grouping.test.js", "src/COMPONENTs/chat-bubble/trace_chain.grouping_parity.test.js", "src/COMPONENTs/chat-bubble/trace_tool_grouping.test.js", "src/COMPONENTs/chat-bubble/trace_chain.provider_retry.test.js", "src/COMPONENTs/chat-bubble/pending_confirmation_trace_frames.test.js", "src/COMPONENTs/chat-bubble/lazy_trace_chain.test.js", "src/COMPONENTs/chat-bubble/trace_chain.live_subscription.test.js", "src/SERVICEs/runtime_events/stream_replay_projector.test.js", "src/SERVICEs/runtime_events/event_store.test.js", "src/SERVICEs/runtime_events/trace_chain_adapter.test.js", "src/SERVICEs/chat_storage/chat_storage_memory_v2_trace.test.js".
+
+exit=0

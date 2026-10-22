@@ -1,0 +1,304 @@
+
+> PuPu@0.1.12 test
+> react-scripts test --watchAll=false --runInBand --runTestsByPath src/PAGEs/chat/utils/chat_turn_utils.test.js src/PAGEs/chat/hooks/use_chat_stream.composer_sidecar.test.js src/PAGEs/chat/hooks/use_chat_session_state.straggler_settle.test.js src/COMPONENTs/chat-bubble/trace_chain.test.js
+
+FAIL src/COMPONENTs/chat-bubble/trace_chain.test.js
+  ● TraceChain final_message draft timeline › #384: cancelled generic calls are not presented as completed
+
+    TestingLibraryElementError: Unable to find an element with the text: Interrupted. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.
+
+    Ignored nodes: comments, script, style
+    [36m<body>[39m
+      [36m<div>[39m
+        [36m<div[39m
+          [33mstyle[39m=[32m"margin-bottom: 10px; width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box;"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mstyle[39m=[32m"display: inline-flex; align-items: center; gap: 5px; cursor: pointer; user-select: none; margin-bottom: 6px;"[39m
+          [36m>[39m
+            [36m<span[39m
+              [33mstyle[39m=[32m"font-size: 11.5px; color: rgb(34, 34, 34); opacity: 0.38; font-family: sans-serif; letter-spacing: 0.1px;"[39m
+            [36m>[39m
+              [0mUsed 1 step[0m
+            [36m</span>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mstyle[39m=[32m"height: auto; overflow: visible; transition: height 0.28s cubic-bezier(0.32, 1, 0.32, 1); will-change: height;"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mstyle[39m=[32m"padding-left: 2px; padding-bottom: 2px; width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box;"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mstyle[39m=[32m"display: flex; flex-direction: column; width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box; font-size: 13px;"[39m
+              [36m>[39m
+                [36m<div[39m
+                  [33mstyle[39m=[32m"display: flex; flex-direction: row; align-items: stretch; min-width: 0; max-width: 100%;"[39m
+                [36m>[39m
+                  [36m<div[39m
+                    [33mstyle[39m=[32m"width: 24px; flex-shrink: 0; position: relative;"[39m
+                  [36m>[39m
+                    [36m<div[39m
+                      [33mstyle[39m=[32m"position: absolute; top: 3px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; justify-content: center;"[39m
+                    [36m>[39m
+                      [36m<div[39m
+                        [33mstyle[39m=[32m"width: 10px; height: 10px; border-radius: 50%; background: transparent; flex-shrink: 0; box-sizing: border-box;"[39m
+                      [36m/>[39m
+                    [36m</div>[39m
+                  [36m</div>[39m
+                  [36m<div[39m
+                    [33mstyle[39m=[32m"flex: 1; min-width: 0; padding-left: 14px; padding-bottom: 0px;"[39m
+                  [36m>[39m
+                    [36m<div[39m
+                      [33mstyle[39m=[32m"display: flex; align-items: center; gap: 6px; line-height: 18px; width: 100%; min-width: 0; max-width: 100%; box-sizing: border-box;"[39m
+                    [36m>[39m
+                      [36m<span[39m
+                        [33mstyle[39m=[32m"font-size: 14px; font-weight: 500; color: rgb(34, 34, 34); letter-spacing: 0.01em; user-select: none; flex: 0 1 auto; min-width: 0; max-width: 100%; overflow-wrap: anywhere;"[39m
+                      [36m>[39m
+                        [36m<span[39m
+                          [33mstyle[39m=[32m"display: inline-flex; align-items: center; padding: 1px 7px; border-radius: 5px; font-family: Menlo, Monaco, Consolas, monospace; font-size: 0.82em; letter-spacing: 0.1px; user-select: none;"[39m
+                        [36m>[39m
+                          [0msearch[0m
+                        [36m</span>[39m
+                      [36m</span>[39m
+                      [36m<button[39m
+                        [33mstyle[39m=[32m"display: inline-flex; align-items: center; gap: 3px; padding: 0px; background: transparent; cursor: pointer; font-size: 11px; color: rgba(0, 0, 0, 0.35); font-family: Menlo, Monaco, Consolas, monospace; outline: none; user-select: none; flex-shrink: 0;"[39m
+                      [36m>[39m
+                        [0mdetail[0m
+                      [36m</button>[39m
+                      [36m<span[39m
+                        [33mstyle[39m=[32m"flex: 1 1 0px; min-width: 0;"[39m
+                      [36m/>[39m
+                    [36m</div>[39m
+                    [36m<div[39m
+                      [33mstyle[39m=[32m"height: 0px; overflow: hidden; transition: height 0.28s cubic-bezier(0.32, 1, 0.32, 1); will-change: height;"[39m
+                    [36m>[39m
+                      [36m<div[39m
+                        [33mstyle[39m=[32m"margin-top: 5px; width: 100%; padding: 8px 0px 8px 10px; border-radius: 8px; background: rgba(0, 0, 0, 0.025); font-size: 13px; color: rgba(0, 0, 0, 0.45); min-width: 0; max-width: 100%; box-sizing: border-box;"[39m
+                      [36m>[39m
+                        [36m<div[39m
+                          [33mstyle[39m=[32m"display: flex; flex-direction: column; gap: 2px; width: 100%; max-width: 100%; min-width: 0;"[39m
+                        [36m>[39m
+                          [36m<div>[39m
+                            [36m<div[39m
+                              [33mstyle[39m=[32m"font-size: 9px; letter-spacing: 0.9px; text-transform: uppercase; color: rgb(34, 34, 34); opacity: 0.28; font-family: Menlo, Monaco, Consolas, monospace; margin-bottom: 3px; margin-top: 2px; user-select: none;"[39m
+                            [36m>[39m
+                              [0margs[0m
+                            [36m</div>[39m
+                            [36m<div[39m
+                              [33mstyle[39m=[32m"display: flex; gap: 10px; align-items: flex-start; min-height: 18px; min-width: 0; max-width: 100%;"[39m
+                            [36m>[39m
+                              [36m<span[39m
+                                [33mstyle[39m=[32m"font-family: Menlo, Monaco, Consolas, monospace; font-size: 10.5px; color: rgb(34, 34, 34); opacity: 0.3; flex-shrink: 0; min-width: 52px; padding-top: 1px; user-select: none;"[39m
+                              [36m>[39m
+                                [0mquery[0m
+                              [36m</span>[39m
+                              [36m<span[39m
+                                [33mstyle[39m=[32m"font-family: Menlo, Monaco, Consolas, monospace; font-size: 10.5px; color: rgb(34, 34, 34); opacity: 0.68; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-all; line-height: 1.58; flex: 1 1 auto; min-width: 0; max-width: 100%;"[39m
+                              [36m>[39m
+                                [0mx[0m
+                              [36m</span>[39m
+                            [36m</div>[39m
+                          [36m</div>[39m
+                        [36m</div>[39m
+                      [36m</div>[39m
+                    [36m</div>[39m
+                  [36m</div>[39m
+                [36m</div>[39m
+              [36m</div>[39m
+            [36m</div>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+      [36m</div>[39m
+    [36m</body>[39m
+
+      91 |     });
+      92 |
+    > 93 |     expect(screen.getByText("Interrupted")).toBeInTheDocument();
+         |                   ^
+      94 |     expect(screen.queryByText("Used 1 step")).not.toBeInTheDocument();
+      95 |   });
+      96 |
+
+      at Object.getElementError (../../../../../Desktop/GITRepo/PuPu/node_modules/@testing-library/dom/dist/config.js:37:19)
+      at ../../../../../Desktop/GITRepo/PuPu/node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+      at ../../../../../Desktop/GITRepo/PuPu/node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+      at getByText (../../../../../Desktop/GITRepo/PuPu/node_modules/@testing-library/dom/dist/query-helpers.js:95:19)
+      at Object.<anonymous> (src/COMPONENTs/chat-bubble/trace_chain.test.js:93:19)
+
+  ● TraceChain final_message draft timeline › #384: cancelled nested calls do not keep a child trace actively running
+
+    TestingLibraryElementError: Unable to find an element with the text: Interrupted. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.
+
+    Ignored nodes: comments, script, style
+    [36m<body>[39m
+      [36m<div>[39m
+        [36m<div[39m
+          [33mstyle[39m=[32m"margin-bottom: 10px; width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box;"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mstyle[39m=[32m"display: inline-flex; align-items: center; gap: 5px; cursor: pointer; user-select: none; margin-bottom: 6px;"[39m
+          [36m>[39m
+            [36m<span[39m
+              [33mstyle[39m=[32m"font-size: 11.5px; color: rgb(34, 34, 34); opacity: 0.38; font-family: sans-serif; letter-spacing: 0.1px;"[39m
+            [36m>[39m
+              [0mUsed 1 step[0m
+            [36m</span>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mstyle[39m=[32m"height: auto; overflow: visible; transition: height 0.28s cubic-bezier(0.32, 1, 0.32, 1); will-change: height;"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mstyle[39m=[32m"padding-left: 2px; padding-bottom: 2px; width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box;"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mstyle[39m=[32m"display: flex; flex-direction: column; width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box; font-size: 13px;"[39m
+              [36m>[39m
+                [36m<div[39m
+                  [33mstyle[39m=[32m"display: flex; flex-direction: row; align-items: stretch; min-width: 0; max-width: 100%;"[39m
+                [36m>[39m
+                  [36m<div[39m
+                    [33mstyle[39m=[32m"width: 24px; flex-shrink: 0; position: relative;"[39m
+                  [36m>[39m
+                    [36m<div[39m
+                      [33mstyle[39m=[32m"position: absolute; top: 3px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; justify-content: center;"[39m
+                    [36m>[39m
+                      [36m<div[39m
+                        [33mstyle[39m=[32m"width: 10px; height: 10px; border-radius: 50%; background: transparent; border: 1.5px solid rgba(124,58,237,0.35); box-shadow: 0 0 0 2.5px rgba(124,58,237,0.08); flex-shrink: 0; box-sizing: border-box;"[39m
+                      [36m/>[39m
+                    [36m</div>[39m
+                  [36m</div>[39m
+                  [36m<div[39m
+                    [33mstyle[39m=[32m"flex: 1; min-width: 0; padding-left: 14px; padding-bottom: 0px;"[39m
+                  [36m>[39m
+                    [36m<div[39m
+                      [33mstyle[39m=[32m"display: flex; align-items: center; gap: 6px; line-height: 18px; width: 100%; min-width: 0; max-width: 100%; box-sizing: border-box;"[39m
+                    [36m>[39m
+                      [36m<span[39m
+                        [33mstyle[39m=[32m"font-size: 14px; font-weight: 500; color: rgb(34, 34, 34); letter-spacing: 0.01em; user-select: none; flex: 0 1 auto; min-width: 0; max-width: 100%; overflow-wrap: anywhere;"[39m
+                      [36m>[39m
+                        [36m<span[39m
+                          [33mstyle[39m=[32m"display: inline-flex; align-items: center; gap: 5px;"[39m
+                        [36m>[39m
+                          [36m<span[39m
+                            [33mstyle[39m=[32m"font-size: 0.82em; font-family: Menlo, Monaco, Consolas, monospace; user-select: none;"[39m
+                          [36m>[39m
+                            [0mdelegate[0m
+                          [36m</span>[39m
+                          [36m<span[39m
+                            [33mstyle[39m=[32m"display: inline-flex; align-items: center; padding: 1px 7px; border-radius: 5px; background: rgba(124, 58, 237, 0.07); font-family: Menlo, Monaco, Consolas, monospace; font-size: 0.82em; letter-spacing: 0.1px; color: rgba(109, 40, 217, 0.8); user-select: none;"[39m
+                          [36m>[39m
+                            [0mworker[0m
+                          [36m</span>[39m
+                        [36m</span>[39m
+                      [36m</span>[39m
+                      [36m<span[39m
+                        [33mstyle[39m=[32m"flex: 1 1 0px; min-width: 0;"[39m
+                      [36m/>[39m
+                    [36m</div>[39m
+                  [36m</div>[39m
+                [36m</div>[39m
+              [36m</div>[39m
+            [36m</div>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+      [36m</div>[39m
+    [36m</body>[39m
+
+      111 |     });
+      112 |
+    > 113 |     expect(screen.getByText("Interrupted")).toBeInTheDocument();
+          |                   ^
+      114 |     expect(screen.queryByText("Thinking…")).not.toBeInTheDocument();
+      115 |   });
+      116 |
+
+      at Object.getElementError (../../../../../Desktop/GITRepo/PuPu/node_modules/@testing-library/dom/dist/config.js:37:19)
+      at ../../../../../Desktop/GITRepo/PuPu/node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+      at ../../../../../Desktop/GITRepo/PuPu/node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+      at getByText (../../../../../Desktop/GITRepo/PuPu/node_modules/@testing-library/dom/dist/query-helpers.js:95:19)
+      at Object.<anonymous> (src/COMPONENTs/chat-bubble/trace_chain.test.js:113:19)
+
+FAIL src/PAGEs/chat/hooks/use_chat_stream.composer_sidecar.test.js
+  ● composer sidecar (write + 禁读 + rewrite paths) › #384: the composer Stop retains observed tool history through persisted messages
+
+    expect(received).toBeDefined()
+
+    Received: undefined
+
+      472 |
+      473 |     const assistant = getChatMessages(chatId).find((message) => message.role === "assistant");
+    > 474 |     expect(assistant).toBeDefined();
+          |                       ^
+      475 |     expect(assistant.status).toBe("cancelled");
+      476 |     expect(assistant.content).toBe("");
+      477 |     expect(assistant.traceFrames.map((entry) => entry.payload.call_id)).toEqual([
+
+      at Object.<anonymous> (src/PAGEs/chat/hooks/use_chat_stream.composer_sidecar.test.js:474:23)
+
+FAIL src/PAGEs/chat/hooks/use_chat_session_state.straggler_settle.test.js
+  ● useChatSessionState bootstrap straggler settle (isGenerating meta driven) › #384: bootstrap retains a tool-only interrupted assistant for a cold remount
+
+    expect(received).toBeDefined()
+
+    Received: undefined
+
+      215 |     const { cs, view } = renderSessionState();
+      216 |     const settled = cs.getChatMessages(CHAT_B).find((message) => message.role === "assistant");
+    > 217 |     expect(settled).toBeDefined();
+          |                     ^
+      218 |     expect(settled.status).toBe("cancelled");
+      219 |     expect(settled.content).toBe("");
+      220 |     expect(settled.traceFrames.map((entry) => entry.payload.call_id)).toEqual([
+
+      at Object.<anonymous> (src/PAGEs/chat/hooks/use_chat_session_state.straggler_settle.test.js:217:21)
+
+FAIL src/PAGEs/chat/utils/chat_turn_utils.test.js
+  ● settleStreamingAssistantMessages › #384: retains completed and in-flight tool history without fabricating a body
+
+    expect(received).toHaveLength(expected)
+
+    Expected length: 1
+    Received length: 0
+    Received array:  []
+
+      75 |     ]);
+      76 |
+    > 77 |     expect(nextMessages).toHaveLength(1);
+         |                          ^
+      78 |     expect(nextMessages[0]).toEqual({
+      79 |       id: "assistant-1",
+      80 |       role: "assistant",
+
+      at Object.<anonymous> (src/PAGEs/chat/utils/chat_turn_utils.test.js:77:26)
+      at TestScheduler.scheduleTests (../../../../../Desktop/GITRepo/PuPu/node_modules/@jest/core/build/TestScheduler.js:333:13)
+      at runJest (../../../../../Desktop/GITRepo/PuPu/node_modules/@jest/core/build/runJest.js:404:19)
+      at _run10000 (../../../../../Desktop/GITRepo/PuPu/node_modules/@jest/core/build/cli/index.js:320:7)
+      at runCLI (../../../../../Desktop/GITRepo/PuPu/node_modules/@jest/core/build/cli/index.js:173:3)
+
+  ● settleStreamingAssistantMessages › #384: keeps nested execution history when it is the only meaningful content
+
+    expect(received).toHaveLength(expected)
+
+    Expected length: 1
+    Received length: 0
+    Received array:  []
+
+      107 |     }]);
+      108 |
+    > 109 |     expect(nextMessages).toHaveLength(1);
+          |                          ^
+      110 |     expect(nextMessages[0].status).toBe("cancelled");
+      111 |     expect(nextMessages[0].content).toBe("");
+      112 |     expect(nextMessages[0].subagentFrames).toEqual(subagentFrames);
+
+      at Object.<anonymous> (src/PAGEs/chat/utils/chat_turn_utils.test.js:109:26)
+      at TestScheduler.scheduleTests (../../../../../Desktop/GITRepo/PuPu/node_modules/@jest/core/build/TestScheduler.js:333:13)
+      at runJest (../../../../../Desktop/GITRepo/PuPu/node_modules/@jest/core/build/runJest.js:404:19)
+      at _run10000 (../../../../../Desktop/GITRepo/PuPu/node_modules/@jest/core/build/cli/index.js:320:7)
+      at runCLI (../../../../../Desktop/GITRepo/PuPu/node_modules/@jest/core/build/cli/index.js:173:3)
+
+Test Suites: 4 failed, 4 total
+Tests:       6 failed, 61 passed, 67 total
+Snapshots:   0 total
+Time:        1.975 s, estimated 4 s
+Ran all test suites within paths "src/PAGEs/chat/utils/chat_turn_utils.test.js", "src/PAGEs/chat/hooks/use_chat_stream.composer_sidecar.test.js", "src/PAGEs/chat/hooks/use_chat_session_state.straggler_settle.test.js", "src/COMPONENTs/chat-bubble/trace_chain.test.js".

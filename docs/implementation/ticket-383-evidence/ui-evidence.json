@@ -1,0 +1,1251 @@
+{
+  "counterpart": "0047d58d0369d5c245a3fd8021d4d97c3e3f9a35",
+  "fixtureKind": "EXECUTED_REAL_PINNED_PRODUCER_REAL_PUPU_V4_ROUTE_REAL_PROJECTOR_REAL_TRACECHAIN",
+  "results": [
+    {
+      "case": "silent-batch",
+      "toolCalls": 2,
+      "observationFrames": 0,
+      "groupedCount": 1,
+      "text": "Used 2 steps · 1msread_file×2detailtook0msargspathfixture-1.txttook0msargspathfixture-2.txt",
+      "projected": {
+        "status": "done",
+        "content": "Fixture complete",
+        "traceFrames": [
+          {
+            "seq": 1,
+            "ts": 1790911106026,
+            "type": "stream_started",
+            "run_id": "silent-batch-run",
+            "stage": "runtime_event",
+            "payload": {
+              "thread_id": "silent-batch-session",
+              "model": "ollama:deepseek-r1:14b",
+              "trace_level": "minimal",
+              "runtime_event_id": "evt_bb2772f6d36f48dc865592f2d30e6de2"
+            }
+          },
+          {
+            "seq": 2,
+            "ts": 1790911106027,
+            "type": "run_started",
+            "run_id": "silent-batch-run",
+            "stage": "runtime_event",
+            "iteration": 0,
+            "payload": {
+              "status": "running",
+              "provider": "openai",
+              "model": "gpt-test",
+              "run_id": "silent-batch-run",
+              "runtime_event_id": "evt_e92e63676d424618b5f780816354a62c"
+            }
+          },
+          {
+            "seq": 3,
+            "ts": 1790911106027,
+            "type": "iteration_started",
+            "run_id": "silent-batch-run",
+            "stage": "runtime_event",
+            "iteration": 0,
+            "payload": {
+              "iteration": 0,
+              "runtime_event_id": "evt_ccdfc62b76794a8d919d9b8ef0e0cd3f"
+            }
+          },
+          {
+            "seq": 4,
+            "ts": 1790911106027,
+            "type": "tool_call",
+            "run_id": "silent-batch-run",
+            "stage": "runtime_event",
+            "iteration": 0,
+            "payload": {
+              "step_id": "tool:silent-batch-call-1",
+              "step_type": "tool",
+              "tool_name": "read_file",
+              "call_id": "silent-batch-call-1",
+              "toolkit_id": "fixture.in_memory",
+              "toolkit_name": "Fixture in-memory tools",
+              "arguments": {
+                "path": "fixture-1.txt"
+              },
+              "runtime_event_id": "evt_d1eb5ac694494060be588c649705e7c9"
+            }
+          },
+          {
+            "seq": 5,
+            "ts": 1790911106027,
+            "type": "tool_result",
+            "run_id": "silent-batch-run",
+            "stage": "runtime_event",
+            "iteration": 0,
+            "payload": {
+              "step_id": "tool:silent-batch-call-1",
+              "step_type": "tool",
+              "tool_name": "read_file",
+              "call_id": "silent-batch-call-1",
+              "status": "success",
+              "result": {},
+              "runtime_event_id": "evt_d2b24083c0f346a08db292f9b9d7f24e"
+            }
+          },
+          {
+            "seq": 6,
+            "ts": 1790911106027,
+            "type": "tool_call",
+            "run_id": "silent-batch-run",
+            "stage": "runtime_event",
+            "iteration": 0,
+            "payload": {
+              "step_id": "tool:silent-batch-call-2",
+              "step_type": "tool",
+              "tool_name": "read_file",
+              "call_id": "silent-batch-call-2",
+              "toolkit_id": "fixture.in_memory",
+              "toolkit_name": "Fixture in-memory tools",
+              "arguments": {
+                "path": "fixture-2.txt"
+              },
+              "runtime_event_id": "evt_e2c73503d7c445c1869c68bce2bda005"
+            }
+          },
+          {
+            "seq": 7,
+            "ts": 1790911106027,
+            "type": "tool_result",
+            "run_id": "silent-batch-run",
+            "stage": "runtime_event",
+            "iteration": 0,
+            "payload": {
+              "step_id": "tool:silent-batch-call-2",
+              "step_type": "tool",
+              "tool_name": "read_file",
+              "call_id": "silent-batch-call-2",
+              "status": "success",
+              "result": {},
+              "runtime_event_id": "evt_c4863e5ca0474732950e0d07b2042648"
+            }
+          },
+          {
+            "seq": 8,
+            "ts": 1790911106027,
+            "type": "response_received",
+            "run_id": "silent-batch-run",
+            "stage": "runtime_event",
+            "iteration": 0,
+            "payload": {
+              "step_id": "model:silent-batch-run:turn-0:response",
+              "step_type": "model_response",
+              "status": "running",
+              "response_id": "silent-batch-main-1",
+              "has_tool_calls": true,
+              "usage": {
+                "model": "gpt-test",
+                "consumed_tokens": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "last_turn_tokens": 0,
+                "last_turn_input_tokens": 0,
+                "last_turn_output_tokens": 0,
+                "max_context_window_tokens": 0,
+                "context_window_used_pct": 0,
+                "status": "running",
+                "human_input_request": null,
+                "continuation": null,
+                "previous_response_id": "silent-batch-main-1",
+                "iteration": 1
+              },
+              "runtime_event_id": "evt_7b0d3af34e604d3294036e5de2a8a7bc"
+            }
+          },
+          {
+            "seq": 9,
+            "ts": 1790911106027,
+            "type": "iteration_completed",
+            "run_id": "silent-batch-run",
+            "stage": "runtime_event",
+            "iteration": 0,
+            "payload": {
+              "iteration": 0,
+              "has_tool_calls": true,
+              "runtime_event_id": "evt_a71cf2c8c0aa4c2a8ee2bd9331a1bfb9"
+            }
+          },
+          {
+            "seq": 10,
+            "ts": 1790911106027,
+            "type": "iteration_started",
+            "run_id": "silent-batch-run",
+            "stage": "runtime_event",
+            "iteration": 1,
+            "payload": {
+              "iteration": 1,
+              "runtime_event_id": "evt_45d707b2e69948c2819c15cbabd914d9"
+            }
+          },
+          {
+            "seq": 11,
+            "ts": 1790911106027,
+            "type": "response_received",
+            "run_id": "silent-batch-run",
+            "stage": "runtime_event",
+            "iteration": 1,
+            "payload": {
+              "step_id": "model:silent-batch-run:turn-1:response",
+              "step_type": "model_response",
+              "status": "running",
+              "response_id": "silent-batch-main-2",
+              "has_tool_calls": false,
+              "usage": {
+                "model": "gpt-test",
+                "consumed_tokens": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "last_turn_tokens": 0,
+                "last_turn_input_tokens": 0,
+                "last_turn_output_tokens": 0,
+                "max_context_window_tokens": 0,
+                "context_window_used_pct": 0,
+                "status": "completed",
+                "human_input_request": null,
+                "continuation": null,
+                "previous_response_id": "silent-batch-main-2",
+                "iteration": 2
+              },
+              "runtime_event_id": "evt_2c4b3fe0ca914a79b8cb4f1cd01ffa2e"
+            }
+          },
+          {
+            "seq": 12,
+            "ts": 1790911106027,
+            "type": "final_message",
+            "run_id": "silent-batch-run",
+            "stage": "runtime_event",
+            "iteration": 1,
+            "payload": {
+              "content": "Fixture complete",
+              "runtime_event_id": "evt_2c5c391dc7f0457596f1a786c538de8d"
+            }
+          },
+          {
+            "seq": 13,
+            "ts": 1790911106027,
+            "type": "done",
+            "run_id": "silent-batch-run",
+            "stage": "runtime_event",
+            "iteration": 1,
+            "payload": {
+              "status": "completed",
+              "usage": {
+                "model": "gpt-test",
+                "consumed_tokens": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "last_turn_tokens": 0,
+                "last_turn_input_tokens": 0,
+                "last_turn_output_tokens": 0,
+                "max_context_window_tokens": 0,
+                "context_window_used_pct": 0,
+                "status": "completed",
+                "human_input_request": null,
+                "continuation": null,
+                "previous_response_id": "silent-batch-main-2",
+                "iteration": 2
+              },
+              "bundle": {
+                "model": "gpt-test",
+                "consumed_tokens": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "last_turn_tokens": 0,
+                "last_turn_input_tokens": 0,
+                "last_turn_output_tokens": 0,
+                "max_context_window_tokens": 0,
+                "context_window_used_pct": 0,
+                "status": "completed",
+                "human_input_request": null,
+                "continuation": null,
+                "previous_response_id": "silent-batch-main-2",
+                "iteration": 2
+              },
+              "runtime_event_id": "evt_8e0ed34340ce4e8dbd6b679553703ae5"
+            }
+          }
+        ],
+        "subagentFrames": {},
+        "subagentMetaByRunId": {},
+        "toolConfirmationUiStateById": {},
+        "runArtifactSummary": null,
+        "artifactSummariesByTurnId": {},
+        "bundle": {
+          "model": "gpt-test",
+          "consumed_tokens": 0,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "last_turn_tokens": 0,
+          "last_turn_input_tokens": 0,
+          "last_turn_output_tokens": 0,
+          "max_context_window_tokens": 0,
+          "context_window_used_pct": 0,
+          "status": "completed",
+          "human_input_request": null,
+          "continuation": null,
+          "previous_response_id": "silent-batch-main-2",
+          "iteration": 2
+        },
+        "replayedThroughSeq": 13
+      }
+    },
+    {
+      "case": "content-batch",
+      "toolCalls": 2,
+      "observationFrames": 0,
+      "groupedCount": 1,
+      "text": "Used 2 steps · 1msread_file×2detailtook0msargspathfixture-1.txtresultcontentfixture contents for fixture-1.txttook0msargspathfixture-2.txtresultcontentfixture contents for fixture-2.txt",
+      "projected": {
+        "status": "done",
+        "content": "Fixture complete",
+        "traceFrames": [
+          {
+            "seq": 1,
+            "ts": 1790911106053,
+            "type": "stream_started",
+            "run_id": "content-batch-run",
+            "stage": "runtime_event",
+            "payload": {
+              "thread_id": "content-batch-session",
+              "model": "ollama:deepseek-r1:14b",
+              "trace_level": "minimal",
+              "runtime_event_id": "evt_9216b8ea550745179f1d84f00b8f6e3a"
+            }
+          },
+          {
+            "seq": 2,
+            "ts": 1790911106053,
+            "type": "run_started",
+            "run_id": "content-batch-run",
+            "stage": "runtime_event",
+            "iteration": 0,
+            "payload": {
+              "status": "running",
+              "provider": "openai",
+              "model": "gpt-test",
+              "run_id": "content-batch-run",
+              "runtime_event_id": "evt_efb06c5c04a34b8fba1767a28bb50053"
+            }
+          },
+          {
+            "seq": 3,
+            "ts": 1790911106053,
+            "type": "iteration_started",
+            "run_id": "content-batch-run",
+            "stage": "runtime_event",
+            "iteration": 0,
+            "payload": {
+              "iteration": 0,
+              "runtime_event_id": "evt_a8519d05622b4395bb271d95afc06613"
+            }
+          },
+          {
+            "seq": 4,
+            "ts": 1790911106053,
+            "type": "tool_call",
+            "run_id": "content-batch-run",
+            "stage": "runtime_event",
+            "iteration": 0,
+            "payload": {
+              "step_id": "tool:content-batch-call-1",
+              "step_type": "tool",
+              "tool_name": "read_file",
+              "call_id": "content-batch-call-1",
+              "toolkit_id": "fixture.in_memory",
+              "toolkit_name": "Fixture in-memory tools",
+              "arguments": {
+                "path": "fixture-1.txt"
+              },
+              "runtime_event_id": "evt_a7f0f6a1782f43cb8fc236dbff6328f8"
+            }
+          },
+          {
+            "seq": 5,
+            "ts": 1790911106053,
+            "type": "tool_result",
+            "run_id": "content-batch-run",
+            "stage": "runtime_event",
+            "iteration": 0,
+            "payload": {
+              "step_id": "tool:content-batch-call-1",
+              "step_type": "tool",
+              "tool_name": "read_file",
+              "call_id": "content-batch-call-1",
+              "status": "success",
+              "result": {
+                "content": "fixture contents for fixture-1.txt"
+              },
+              "runtime_event_id": "evt_6e94a622144442c484e6ad36ec45d473"
+            }
+          },
+          {
+            "seq": 6,
+            "ts": 1790911106053,
+            "type": "tool_call",
+            "run_id": "content-batch-run",
+            "stage": "runtime_event",
+            "iteration": 0,
+            "payload": {
+              "step_id": "tool:content-batch-call-2",
+              "step_type": "tool",
+              "tool_name": "read_file",
+              "call_id": "content-batch-call-2",
+              "toolkit_id": "fixture.in_memory",
+              "toolkit_name": "Fixture in-memory tools",
+              "arguments": {
+                "path": "fixture-2.txt"
+              },
+              "runtime_event_id": "evt_f31253257df24d55912af0249d65961e"
+            }
+          },
+          {
+            "seq": 7,
+            "ts": 1790911106053,
+            "type": "tool_result",
+            "run_id": "content-batch-run",
+            "stage": "runtime_event",
+            "iteration": 0,
+            "payload": {
+              "step_id": "tool:content-batch-call-2",
+              "step_type": "tool",
+              "tool_name": "read_file",
+              "call_id": "content-batch-call-2",
+              "status": "success",
+              "result": {
+                "content": "fixture contents for fixture-2.txt"
+              },
+              "runtime_event_id": "evt_bc90d209b7544b1bafa2cd206e353839"
+            }
+          },
+          {
+            "seq": 8,
+            "ts": 1790911106053,
+            "type": "response_received",
+            "run_id": "content-batch-run",
+            "stage": "runtime_event",
+            "iteration": 0,
+            "payload": {
+              "step_id": "model:content-batch-run:turn-0:response",
+              "step_type": "model_response",
+              "status": "running",
+              "response_id": "content-batch-main-1",
+              "has_tool_calls": true,
+              "usage": {
+                "model": "gpt-test",
+                "consumed_tokens": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "last_turn_tokens": 0,
+                "last_turn_input_tokens": 0,
+                "last_turn_output_tokens": 0,
+                "max_context_window_tokens": 0,
+                "context_window_used_pct": 0,
+                "status": "running",
+                "human_input_request": null,
+                "continuation": null,
+                "previous_response_id": "content-batch-main-1",
+                "iteration": 1
+              },
+              "runtime_event_id": "evt_c0315d8136174ed39c415a0ec6ff7464"
+            }
+          },
+          {
+            "seq": 9,
+            "ts": 1790911106053,
+            "type": "iteration_completed",
+            "run_id": "content-batch-run",
+            "stage": "runtime_event",
+            "iteration": 0,
+            "payload": {
+              "iteration": 0,
+              "has_tool_calls": true,
+              "runtime_event_id": "evt_fca1525433ff46979101d03882d96c91"
+            }
+          },
+          {
+            "seq": 10,
+            "ts": 1790911106053,
+            "type": "iteration_started",
+            "run_id": "content-batch-run",
+            "stage": "runtime_event",
+            "iteration": 1,
+            "payload": {
+              "iteration": 1,
+              "runtime_event_id": "evt_9c51ba76eea84f7381c40bac665887d0"
+            }
+          },
+          {
+            "seq": 11,
+            "ts": 1790911106054,
+            "type": "response_received",
+            "run_id": "content-batch-run",
+            "stage": "runtime_event",
+            "iteration": 1,
+            "payload": {
+              "step_id": "model:content-batch-run:turn-1:response",
+              "step_type": "model_response",
+              "status": "running",
+              "response_id": "content-batch-main-2",
+              "has_tool_calls": false,
+              "usage": {
+                "model": "gpt-test",
+                "consumed_tokens": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "last_turn_tokens": 0,
+                "last_turn_input_tokens": 0,
+                "last_turn_output_tokens": 0,
+                "max_context_window_tokens": 0,
+                "context_window_used_pct": 0,
+                "status": "completed",
+                "human_input_request": null,
+                "continuation": null,
+                "previous_response_id": "content-batch-main-2",
+                "iteration": 2
+              },
+              "runtime_event_id": "evt_672db62481f24c52b41a0950ec6a8584"
+            }
+          },
+          {
+            "seq": 12,
+            "ts": 1790911106054,
+            "type": "final_message",
+            "run_id": "content-batch-run",
+            "stage": "runtime_event",
+            "iteration": 1,
+            "payload": {
+              "content": "Fixture complete",
+              "runtime_event_id": "evt_dbecde302cb543319a3ec7cb1396c0e9"
+            }
+          },
+          {
+            "seq": 13,
+            "ts": 1790911106054,
+            "type": "done",
+            "run_id": "content-batch-run",
+            "stage": "runtime_event",
+            "iteration": 1,
+            "payload": {
+              "status": "completed",
+              "usage": {
+                "model": "gpt-test",
+                "consumed_tokens": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "last_turn_tokens": 0,
+                "last_turn_input_tokens": 0,
+                "last_turn_output_tokens": 0,
+                "max_context_window_tokens": 0,
+                "context_window_used_pct": 0,
+                "status": "completed",
+                "human_input_request": null,
+                "continuation": null,
+                "previous_response_id": "content-batch-main-2",
+                "iteration": 2
+              },
+              "bundle": {
+                "model": "gpt-test",
+                "consumed_tokens": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "last_turn_tokens": 0,
+                "last_turn_input_tokens": 0,
+                "last_turn_output_tokens": 0,
+                "max_context_window_tokens": 0,
+                "context_window_used_pct": 0,
+                "status": "completed",
+                "human_input_request": null,
+                "continuation": null,
+                "previous_response_id": "content-batch-main-2",
+                "iteration": 2
+              },
+              "runtime_event_id": "evt_c046aaff6d814330bd8af98405a7e8ac"
+            }
+          }
+        ],
+        "subagentFrames": {},
+        "subagentMetaByRunId": {},
+        "toolConfirmationUiStateById": {},
+        "runArtifactSummary": null,
+        "artifactSummariesByTurnId": {},
+        "bundle": {
+          "model": "gpt-test",
+          "consumed_tokens": 0,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "last_turn_tokens": 0,
+          "last_turn_input_tokens": 0,
+          "last_turn_output_tokens": 0,
+          "max_context_window_tokens": 0,
+          "context_window_used_pct": 0,
+          "status": "completed",
+          "human_input_request": null,
+          "continuation": null,
+          "previous_response_id": "content-batch-main-2",
+          "iteration": 2
+        },
+        "replayedThroughSeq": 13
+      }
+    },
+    {
+      "case": "observed-batch",
+      "toolCalls": 2,
+      "observationFrames": 0,
+      "groupedCount": 1,
+      "text": "Used 2 steps · 1msread_file×2detailtook0msargspathfixture-1.txtresultcontentfixture contents for fixture-1.txttook0msargspathfixture-2.txtresultcontentfixture contents for fixture-2.txt",
+      "projected": {
+        "status": "done",
+        "content": "Fixture complete",
+        "traceFrames": [
+          {
+            "seq": 1,
+            "ts": 1790911106075,
+            "type": "stream_started",
+            "run_id": "observed-batch-run",
+            "stage": "runtime_event",
+            "payload": {
+              "thread_id": "observed-batch-session",
+              "model": "ollama:deepseek-r1:14b",
+              "trace_level": "minimal",
+              "runtime_event_id": "evt_3bc12dd41cd74130ab0e6e39ff2e9dc2"
+            }
+          },
+          {
+            "seq": 2,
+            "ts": 1790911106075,
+            "type": "run_started",
+            "run_id": "observed-batch-run",
+            "stage": "runtime_event",
+            "iteration": 0,
+            "payload": {
+              "status": "running",
+              "provider": "openai",
+              "model": "gpt-test",
+              "run_id": "observed-batch-run",
+              "runtime_event_id": "evt_582105e48b0346f6b7bfc398a5125430"
+            }
+          },
+          {
+            "seq": 3,
+            "ts": 1790911106075,
+            "type": "iteration_started",
+            "run_id": "observed-batch-run",
+            "stage": "runtime_event",
+            "iteration": 0,
+            "payload": {
+              "iteration": 0,
+              "runtime_event_id": "evt_84ff2302eaad468e8da567f1d9b43c26"
+            }
+          },
+          {
+            "seq": 4,
+            "ts": 1790911106075,
+            "type": "tool_call",
+            "run_id": "observed-batch-run",
+            "stage": "runtime_event",
+            "iteration": 0,
+            "payload": {
+              "step_id": "tool:observed-batch-call-1",
+              "step_type": "tool",
+              "tool_name": "read_file",
+              "call_id": "observed-batch-call-1",
+              "toolkit_id": "fixture.in_memory",
+              "toolkit_name": "Fixture in-memory tools",
+              "arguments": {
+                "path": "fixture-1.txt"
+              },
+              "runtime_event_id": "evt_8c817782e8c04b52bcf81ec022949f56"
+            }
+          },
+          {
+            "seq": 5,
+            "ts": 1790911106075,
+            "type": "tool_result",
+            "run_id": "observed-batch-run",
+            "stage": "runtime_event",
+            "iteration": 0,
+            "payload": {
+              "step_id": "tool:observed-batch-call-1",
+              "step_type": "tool",
+              "tool_name": "read_file",
+              "call_id": "observed-batch-call-1",
+              "status": "success",
+              "result": {
+                "content": "fixture contents for fixture-1.txt"
+              },
+              "runtime_event_id": "evt_07645bf557dc444bb18a76f703ee30b9"
+            }
+          },
+          {
+            "seq": 6,
+            "ts": 1790911106075,
+            "type": "tool_call",
+            "run_id": "observed-batch-run",
+            "stage": "runtime_event",
+            "iteration": 0,
+            "payload": {
+              "step_id": "tool:observed-batch-call-2",
+              "step_type": "tool",
+              "tool_name": "read_file",
+              "call_id": "observed-batch-call-2",
+              "toolkit_id": "fixture.in_memory",
+              "toolkit_name": "Fixture in-memory tools",
+              "arguments": {
+                "path": "fixture-2.txt"
+              },
+              "runtime_event_id": "evt_60b3952e7a71455aa0f016f6e0246010"
+            }
+          },
+          {
+            "seq": 7,
+            "ts": 1790911106075,
+            "type": "tool_result",
+            "run_id": "observed-batch-run",
+            "stage": "runtime_event",
+            "iteration": 0,
+            "payload": {
+              "step_id": "tool:observed-batch-call-2",
+              "step_type": "tool",
+              "tool_name": "read_file",
+              "call_id": "observed-batch-call-2",
+              "status": "success",
+              "result": {
+                "content": "fixture contents for fixture-2.txt"
+              },
+              "runtime_event_id": "evt_0bf1cfb85de641ddb173b622a646d9c8"
+            }
+          },
+          {
+            "seq": 8,
+            "ts": 1790911106076,
+            "type": "response_received",
+            "run_id": "observed-batch-run",
+            "stage": "runtime_event",
+            "iteration": 0,
+            "payload": {
+              "step_id": "model:observed-batch-run:turn-0:response",
+              "step_type": "model_response",
+              "status": "running",
+              "response_id": "observed-batch-main-1",
+              "has_tool_calls": true,
+              "usage": {
+                "model": "gpt-test",
+                "consumed_tokens": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "last_turn_tokens": 0,
+                "last_turn_input_tokens": 0,
+                "last_turn_output_tokens": 0,
+                "max_context_window_tokens": 0,
+                "context_window_used_pct": 0,
+                "status": "running",
+                "human_input_request": null,
+                "continuation": null,
+                "previous_response_id": "observed-batch-main-1",
+                "iteration": 1
+              },
+              "runtime_event_id": "evt_e080bcb763094465b4c565879a979573"
+            }
+          },
+          {
+            "seq": 9,
+            "ts": 1790911106076,
+            "type": "iteration_completed",
+            "run_id": "observed-batch-run",
+            "stage": "runtime_event",
+            "iteration": 0,
+            "payload": {
+              "iteration": 0,
+              "has_tool_calls": true,
+              "runtime_event_id": "evt_1038b8b8f83c4be39a8980f9a812fe41"
+            }
+          },
+          {
+            "seq": 10,
+            "ts": 1790911106076,
+            "type": "iteration_started",
+            "run_id": "observed-batch-run",
+            "stage": "runtime_event",
+            "iteration": 1,
+            "payload": {
+              "iteration": 1,
+              "runtime_event_id": "evt_e0ac6c8df8204286bd33e80b50ea1851"
+            }
+          },
+          {
+            "seq": 11,
+            "ts": 1790911106076,
+            "type": "response_received",
+            "run_id": "observed-batch-run",
+            "stage": "runtime_event",
+            "iteration": 1,
+            "payload": {
+              "step_id": "model:observed-batch-run:turn-1:response",
+              "step_type": "model_response",
+              "status": "running",
+              "response_id": "observed-batch-main-2",
+              "has_tool_calls": false,
+              "usage": {
+                "model": "gpt-test",
+                "consumed_tokens": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "last_turn_tokens": 0,
+                "last_turn_input_tokens": 0,
+                "last_turn_output_tokens": 0,
+                "max_context_window_tokens": 0,
+                "context_window_used_pct": 0,
+                "status": "completed",
+                "human_input_request": null,
+                "continuation": null,
+                "previous_response_id": "observed-batch-main-2",
+                "iteration": 2
+              },
+              "runtime_event_id": "evt_ff894732fdbc45599ad4e59af3f82d26"
+            }
+          },
+          {
+            "seq": 12,
+            "ts": 1790911106076,
+            "type": "final_message",
+            "run_id": "observed-batch-run",
+            "stage": "runtime_event",
+            "iteration": 1,
+            "payload": {
+              "content": "Fixture complete",
+              "runtime_event_id": "evt_1c064e39c1b54735b9e6767c168e83f0"
+            }
+          },
+          {
+            "seq": 13,
+            "ts": 1790911106076,
+            "type": "done",
+            "run_id": "observed-batch-run",
+            "stage": "runtime_event",
+            "iteration": 1,
+            "payload": {
+              "status": "completed",
+              "usage": {
+                "model": "gpt-test",
+                "consumed_tokens": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "last_turn_tokens": 0,
+                "last_turn_input_tokens": 0,
+                "last_turn_output_tokens": 0,
+                "max_context_window_tokens": 0,
+                "context_window_used_pct": 0,
+                "status": "completed",
+                "human_input_request": null,
+                "continuation": null,
+                "previous_response_id": "observed-batch-main-2",
+                "iteration": 2
+              },
+              "bundle": {
+                "model": "gpt-test",
+                "consumed_tokens": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "last_turn_tokens": 0,
+                "last_turn_input_tokens": 0,
+                "last_turn_output_tokens": 0,
+                "max_context_window_tokens": 0,
+                "context_window_used_pct": 0,
+                "status": "completed",
+                "human_input_request": null,
+                "continuation": null,
+                "previous_response_id": "observed-batch-main-2",
+                "iteration": 2
+              },
+              "runtime_event_id": "evt_e604df91689546de9fc332bcf39882a4"
+            }
+          }
+        ],
+        "subagentFrames": {},
+        "subagentMetaByRunId": {},
+        "toolConfirmationUiStateById": {},
+        "runArtifactSummary": null,
+        "artifactSummariesByTurnId": {},
+        "bundle": {
+          "model": "gpt-test",
+          "consumed_tokens": 0,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "last_turn_tokens": 0,
+          "last_turn_input_tokens": 0,
+          "last_turn_output_tokens": 0,
+          "max_context_window_tokens": 0,
+          "context_window_used_pct": 0,
+          "status": "completed",
+          "human_input_request": null,
+          "continuation": null,
+          "previous_response_id": "observed-batch-main-2",
+          "iteration": 2
+        },
+        "replayedThroughSeq": 13
+      }
+    },
+    {
+      "case": "observed-sequential",
+      "toolCalls": 2,
+      "observationFrames": 0,
+      "groupedCount": 1,
+      "text": "Used 2 stepsread_file×2detailtook0msargspathfixture-1.txtresultcontentfixture contents for fixture-1.txttook0msargspathfixture-2.txtresultcontentfixture contents for fixture-2.txt",
+      "projected": {
+        "status": "done",
+        "content": "Fixture complete",
+        "traceFrames": [
+          {
+            "seq": 1,
+            "ts": 1790911106182,
+            "type": "stream_started",
+            "run_id": "observed-sequential-run",
+            "stage": "runtime_event",
+            "payload": {
+              "thread_id": "observed-sequential-session",
+              "model": "ollama:deepseek-r1:14b",
+              "trace_level": "minimal",
+              "runtime_event_id": "evt_f050bd0af97f432fafd9aded2de0fd80"
+            }
+          },
+          {
+            "seq": 2,
+            "ts": 1790911106182,
+            "type": "run_started",
+            "run_id": "observed-sequential-run",
+            "stage": "runtime_event",
+            "iteration": 0,
+            "payload": {
+              "status": "running",
+              "provider": "openai",
+              "model": "gpt-test",
+              "run_id": "observed-sequential-run",
+              "runtime_event_id": "evt_00bf7dd01df94c50ab80262fc542dd50"
+            }
+          },
+          {
+            "seq": 3,
+            "ts": 1790911106182,
+            "type": "iteration_started",
+            "run_id": "observed-sequential-run",
+            "stage": "runtime_event",
+            "iteration": 0,
+            "payload": {
+              "iteration": 0,
+              "runtime_event_id": "evt_6c87f83e5bae49f2a141b6ee4674267b"
+            }
+          },
+          {
+            "seq": 4,
+            "ts": 1790911106182,
+            "type": "tool_call",
+            "run_id": "observed-sequential-run",
+            "stage": "runtime_event",
+            "iteration": 0,
+            "payload": {
+              "step_id": "tool:observed-sequential-call-1",
+              "step_type": "tool",
+              "tool_name": "read_file",
+              "call_id": "observed-sequential-call-1",
+              "toolkit_id": "fixture.in_memory",
+              "toolkit_name": "Fixture in-memory tools",
+              "arguments": {
+                "path": "fixture-1.txt"
+              },
+              "runtime_event_id": "evt_08101a83840c42c1b19caab68b23fb8d"
+            }
+          },
+          {
+            "seq": 5,
+            "ts": 1790911106182,
+            "type": "tool_result",
+            "run_id": "observed-sequential-run",
+            "stage": "runtime_event",
+            "iteration": 0,
+            "payload": {
+              "step_id": "tool:observed-sequential-call-1",
+              "step_type": "tool",
+              "tool_name": "read_file",
+              "call_id": "observed-sequential-call-1",
+              "status": "success",
+              "result": {
+                "content": "fixture contents for fixture-1.txt"
+              },
+              "runtime_event_id": "evt_851c8dd51ee946b5b482a49c193a5b4a"
+            }
+          },
+          {
+            "seq": 6,
+            "ts": 1790911106182,
+            "type": "response_received",
+            "run_id": "observed-sequential-run",
+            "stage": "runtime_event",
+            "iteration": 0,
+            "payload": {
+              "step_id": "model:observed-sequential-run:turn-0:response",
+              "step_type": "model_response",
+              "status": "running",
+              "response_id": "observed-sequential-main-1",
+              "has_tool_calls": true,
+              "usage": {
+                "model": "gpt-test",
+                "consumed_tokens": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "last_turn_tokens": 0,
+                "last_turn_input_tokens": 0,
+                "last_turn_output_tokens": 0,
+                "max_context_window_tokens": 0,
+                "context_window_used_pct": 0,
+                "status": "running",
+                "human_input_request": null,
+                "continuation": null,
+                "previous_response_id": "observed-sequential-main-1",
+                "iteration": 1
+              },
+              "runtime_event_id": "evt_e2df9d284fea45f5b9c27daf06f4d3f8"
+            }
+          },
+          {
+            "seq": 7,
+            "ts": 1790911106182,
+            "type": "iteration_completed",
+            "run_id": "observed-sequential-run",
+            "stage": "runtime_event",
+            "iteration": 0,
+            "payload": {
+              "iteration": 0,
+              "has_tool_calls": true,
+              "runtime_event_id": "evt_ba289d40cc144071aa443a9637e9da6e"
+            }
+          },
+          {
+            "seq": 8,
+            "ts": 1790911106182,
+            "type": "iteration_started",
+            "run_id": "observed-sequential-run",
+            "stage": "runtime_event",
+            "iteration": 1,
+            "payload": {
+              "iteration": 1,
+              "runtime_event_id": "evt_a3d7d3ebaa9f4bc79ae7b910a31b8ae9"
+            }
+          },
+          {
+            "seq": 9,
+            "ts": 1790911106182,
+            "type": "tool_call",
+            "run_id": "observed-sequential-run",
+            "stage": "runtime_event",
+            "iteration": 1,
+            "payload": {
+              "step_id": "tool:observed-sequential-call-2",
+              "step_type": "tool",
+              "tool_name": "read_file",
+              "call_id": "observed-sequential-call-2",
+              "toolkit_id": "fixture.in_memory",
+              "toolkit_name": "Fixture in-memory tools",
+              "arguments": {
+                "path": "fixture-2.txt"
+              },
+              "runtime_event_id": "evt_0d6115b14d114d00a99e4bc8f4f01a49"
+            }
+          },
+          {
+            "seq": 10,
+            "ts": 1790911106182,
+            "type": "tool_result",
+            "run_id": "observed-sequential-run",
+            "stage": "runtime_event",
+            "iteration": 1,
+            "payload": {
+              "step_id": "tool:observed-sequential-call-2",
+              "step_type": "tool",
+              "tool_name": "read_file",
+              "call_id": "observed-sequential-call-2",
+              "status": "success",
+              "result": {
+                "content": "fixture contents for fixture-2.txt"
+              },
+              "runtime_event_id": "evt_0fb60f0b1a264532b584d95372db9860"
+            }
+          },
+          {
+            "seq": 11,
+            "ts": 1790911106182,
+            "type": "response_received",
+            "run_id": "observed-sequential-run",
+            "stage": "runtime_event",
+            "iteration": 1,
+            "payload": {
+              "step_id": "model:observed-sequential-run:turn-1:response",
+              "step_type": "model_response",
+              "status": "running",
+              "response_id": "observed-sequential-main-2",
+              "has_tool_calls": true,
+              "usage": {
+                "model": "gpt-test",
+                "consumed_tokens": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "last_turn_tokens": 0,
+                "last_turn_input_tokens": 0,
+                "last_turn_output_tokens": 0,
+                "max_context_window_tokens": 0,
+                "context_window_used_pct": 0,
+                "status": "running",
+                "human_input_request": null,
+                "continuation": null,
+                "previous_response_id": "observed-sequential-main-2",
+                "iteration": 2
+              },
+              "runtime_event_id": "evt_374b9e894f7e477f8878d0bf5ce29af7"
+            }
+          },
+          {
+            "seq": 12,
+            "ts": 1790911106182,
+            "type": "iteration_completed",
+            "run_id": "observed-sequential-run",
+            "stage": "runtime_event",
+            "iteration": 1,
+            "payload": {
+              "iteration": 1,
+              "has_tool_calls": true,
+              "runtime_event_id": "evt_7c541f920c1e449eba2639cb7575f9f5"
+            }
+          },
+          {
+            "seq": 13,
+            "ts": 1790911106182,
+            "type": "iteration_started",
+            "run_id": "observed-sequential-run",
+            "stage": "runtime_event",
+            "iteration": 2,
+            "payload": {
+              "iteration": 2,
+              "runtime_event_id": "evt_a6e1cd7182aa4d5fa3736afce0595ac5"
+            }
+          },
+          {
+            "seq": 14,
+            "ts": 1790911106182,
+            "type": "response_received",
+            "run_id": "observed-sequential-run",
+            "stage": "runtime_event",
+            "iteration": 2,
+            "payload": {
+              "step_id": "model:observed-sequential-run:turn-2:response",
+              "step_type": "model_response",
+              "status": "running",
+              "response_id": "observed-sequential-main-3",
+              "has_tool_calls": false,
+              "usage": {
+                "model": "gpt-test",
+                "consumed_tokens": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "last_turn_tokens": 0,
+                "last_turn_input_tokens": 0,
+                "last_turn_output_tokens": 0,
+                "max_context_window_tokens": 0,
+                "context_window_used_pct": 0,
+                "status": "completed",
+                "human_input_request": null,
+                "continuation": null,
+                "previous_response_id": "observed-sequential-main-3",
+                "iteration": 3
+              },
+              "runtime_event_id": "evt_a013aaea50dc45f197bcace0171668a5"
+            }
+          },
+          {
+            "seq": 15,
+            "ts": 1790911106182,
+            "type": "final_message",
+            "run_id": "observed-sequential-run",
+            "stage": "runtime_event",
+            "iteration": 2,
+            "payload": {
+              "content": "Fixture complete",
+              "runtime_event_id": "evt_c4de8cf04548494f95d0bb69f16f8895"
+            }
+          },
+          {
+            "seq": 16,
+            "ts": 1790911106182,
+            "type": "done",
+            "run_id": "observed-sequential-run",
+            "stage": "runtime_event",
+            "iteration": 2,
+            "payload": {
+              "status": "completed",
+              "usage": {
+                "model": "gpt-test",
+                "consumed_tokens": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "last_turn_tokens": 0,
+                "last_turn_input_tokens": 0,
+                "last_turn_output_tokens": 0,
+                "max_context_window_tokens": 0,
+                "context_window_used_pct": 0,
+                "status": "completed",
+                "human_input_request": null,
+                "continuation": null,
+                "previous_response_id": "observed-sequential-main-3",
+                "iteration": 3
+              },
+              "bundle": {
+                "model": "gpt-test",
+                "consumed_tokens": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "last_turn_tokens": 0,
+                "last_turn_input_tokens": 0,
+                "last_turn_output_tokens": 0,
+                "max_context_window_tokens": 0,
+                "context_window_used_pct": 0,
+                "status": "completed",
+                "human_input_request": null,
+                "continuation": null,
+                "previous_response_id": "observed-sequential-main-3",
+                "iteration": 3
+              },
+              "runtime_event_id": "evt_e9f118cb15fc4c3d8966e7abbf7d319b"
+            }
+          }
+        ],
+        "subagentFrames": {},
+        "subagentMetaByRunId": {},
+        "toolConfirmationUiStateById": {},
+        "runArtifactSummary": null,
+        "artifactSummariesByTurnId": {},
+        "bundle": {
+          "model": "gpt-test",
+          "consumed_tokens": 0,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "last_turn_tokens": 0,
+          "last_turn_input_tokens": 0,
+          "last_turn_output_tokens": 0,
+          "max_context_window_tokens": 0,
+          "context_window_used_pct": 0,
+          "status": "completed",
+          "human_input_request": null,
+          "continuation": null,
+          "previous_response_id": "observed-sequential-main-3",
+          "iteration": 3
+        },
+        "replayedThroughSeq": 16
+      }
+    }
+  ]
+}

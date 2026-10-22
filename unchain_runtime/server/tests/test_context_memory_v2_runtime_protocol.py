@@ -536,6 +536,21 @@ def test_tool_output_management_feature_is_required() -> None:
     assert verdict.reason == "unchain_runtime_protocol_required_feature_missing"
 
 
+def test_context_content_paging_feature_is_required() -> None:
+    manifest = _producer_manifest()
+    context_memory = _protocol(manifest, "context_memory")
+    context_memory["features"].remove("context_content_paging_v1")
+    manifest = _resign(manifest)
+
+    verdict = capability_gate.verify_context_memory_v2_capability(
+        manifest=manifest,
+        requested_mode="all",
+    )
+
+    assert verdict.ready is False
+    assert verdict.reason == "unchain_runtime_protocol_required_feature_missing"
+
+
 def test_higher_minor_extra_feature_and_extra_protocol_are_compatible() -> None:
     manifest = _producer_manifest()
     context_memory = _protocol(manifest, "context_memory")
@@ -740,3 +755,30 @@ def test_manifest_without_skills_protocol_fails_closed_for_ticket_291() -> None:
         manifest=manifest, requested_mode="all"
     )
     assert verdict.ready is True
+
+
+def test_graph_failure_terminals_feature_is_required() -> None:
+    manifest = _producer_manifest()
+    context_memory = _protocol(manifest, "context_memory")
+    context_memory["features"] = [
+        feature for feature in context_memory["features"]
+        if feature != "graph_failure_terminals_v1"
+    ]
+    verdict = capability_gate.verify_context_memory_v2_capability(
+        manifest=_resign(manifest), requested_mode="all",
+    )
+    assert verdict.ready is False
+    assert verdict.reason == "unchain_runtime_protocol_required_feature_missing"
+
+def test_durable_interaction_settlement_fence_feature_is_required() -> None:
+    manifest = _producer_manifest()
+    context_memory = _protocol(manifest, "context_memory")
+    context_memory["features"] = [
+        feature for feature in context_memory["features"]
+        if feature != "durable_interaction_settlement_fence_v1"
+    ]
+    verdict = capability_gate.verify_context_memory_v2_capability(
+        manifest=_resign(manifest), requested_mode="all",
+    )
+    assert verdict.ready is False
+    assert verdict.reason == "unchain_runtime_protocol_required_feature_missing"

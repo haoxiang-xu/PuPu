@@ -46,6 +46,7 @@ const TraceChainRunner = () => {
   const [speed, setSpeed] = useState(600);
   const [confirmationStates, setConfirmationStates] = useState({});
   const [waitingForConfirmation, setWaitingForConfirmation] = useState(false);
+  const [stopped, setStopped] = useState(false);
   const nextFrameIdx = useRef(0);
   const allItems = useRef(scenarioItems);
 
@@ -77,7 +78,9 @@ const TraceChainRunner = () => {
     !waitingForConfirmation &&
     nextFrameIdx.current >= allItems.current.length &&
     traceFrames.some((f) => f.type === "done");
-  const status = isDone
+  const status = stopped
+    ? "cancelled"
+    : isDone
     ? "done"
     : traceStatus && traceStatus !== "done"
       ? traceStatus
@@ -92,22 +95,27 @@ const TraceChainRunner = () => {
     setPlaying(false);
     setConfirmationStates({});
     setWaitingForConfirmation(false);
+    setStopped(false);
     nextFrameIdx.current = 0;
     allItems.current = scenarioItems;
   }, [scenario, scenarioItems]);
 
   /* ── timer ── */
   useEffect(() => {
-    if (!playing || waitingForConfirmation) return;
+    if (!playing || waitingForConfirmation || stopped) return;
     if (nextFrameIdx.current >= allItems.current.length) {
       setPlaying(false);
       return;
     }
+    const gap = scenario.gapsMs?.[nextFrameIdx.current];
     const timer = setTimeout(() => {
       const item = allItems.current[nextFrameIdx.current];
       nextFrameIdx.current += 1;
       if (isRuntimeEventScenario) {
-        setRuntimeEvents((prev) => [...prev, item]);
+        const played = scenario.liveTimestamps
+          ? { ...item, timestamp: new Date().toISOString() }
+          : item;
+        setRuntimeEvents((prev) => [...prev, played]);
       } else {
         setFrames((prev) => [...prev, item]);
       }
@@ -121,16 +129,24 @@ const TraceChainRunner = () => {
         setWaitingForConfirmation(true);
         setPlaying(false);
       }
-    }, speed);
+    }, Number.isFinite(gap) ? gap : speed);
     return () => clearTimeout(timer);
   }, [
     playing,
     frames.length,
+    runtimeEvents.length,
     speed,
     scenario,
     waitingForConfirmation,
+    stopped,
     isRuntimeEventScenario,
   ]);
+
+  /* ── Stop on a provider retry row ends the turn, like the composer's stop ── */
+  const handleStopStream = useCallback(() => {
+    setStopped(true);
+    setPlaying(false);
+  }, []);
 
   /* ── confirmation handler ── */
   const handleConfirmationDecision = useCallback(
@@ -170,6 +186,7 @@ const TraceChainRunner = () => {
     setPlaying(false);
     setConfirmationStates({});
     setWaitingForConfirmation(false);
+    setStopped(false);
     nextFrameIdx.current = 0;
     allItems.current = scenarioItems;
   };
@@ -222,6 +239,11 @@ const TraceChainRunner = () => {
             <TraceChain
               frames={traceFrames}
               status={status}
+              onStopStream={
+                scenario.stoppable && status === "streaming"
+                  ? handleStopStream
+                  : undefined
+              }
               onToolConfirmationDecision={handleConfirmationDecision}
               toolConfirmationUiStateById={traceToolConfirmationStates}
               subagentFrames={

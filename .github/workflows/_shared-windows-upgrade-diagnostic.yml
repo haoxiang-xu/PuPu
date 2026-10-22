@@ -91,13 +91,16 @@ jobs:
             echo "::error::Diagnostic tools checkout drift"
             exit 1
           fi
-          gh api "repos/$GITHUB_REPOSITORY/environments/windows-signing-qualification" |
+          node scripts/release-qa/external-network-retry.mjs --profile github-read -- \
+            gh api "repos/$GITHUB_REPOSITORY/environments/windows-signing-qualification" |
             node scripts/release-qa/verify-github-environment.mjs --environment windows-signing-qualification
-          git fetch --no-tags origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG" "refs/tags/$FROM_TAG:refs/tags/$FROM_TAG"
+          node scripts/release-qa/external-network-retry.mjs --profile git-read -- \
+            git fetch --no-tags origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG" "refs/tags/$FROM_TAG:refs/tags/$FROM_TAG"
           TAG_COMMIT="$(git rev-list -n 1 "$RELEASE_TAG")"
           FROM_COMMIT="$(git rev-list -n 1 "$FROM_TAG")"
           FROM_VERSION="$(git show "$FROM_TAG:package.json" | node -e 'let s=""; process.stdin.on("data", c => s += c); process.stdin.on("end", () => process.stdout.write(JSON.parse(s).version))')"
-          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CANDIDATE_RUN_ID" |
+          node scripts/release-qa/external-network-retry.mjs --profile github-read -- \
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CANDIDATE_RUN_ID" |
             node scripts/release-qa/verify-actions-run-provenance.mjs --run-id "$CANDIDATE_RUN_ID" --tag "$RELEASE_TAG" --commit "$TAG_COMMIT" --workflow-path .github/workflows/release-qa.yml
           echo "TAG_COMMIT=$TAG_COMMIT" >> "$GITHUB_ENV"
           echo "FROM_COMMIT=$FROM_COMMIT" >> "$GITHUB_ENV"
@@ -108,12 +111,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh run download "$CANDIDATE_RUN_ID" --repo "$GITHUB_REPOSITORY" \
-            --name pupu-release-candidate --dir ../candidate
+          node scripts/release-qa/external-network-retry.mjs \
+            --profile github-read --cleanup-path .release-qa/candidate -- \
+            gh run download "$CANDIDATE_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --name pupu-release-candidate --dir .release-qa/candidate
           node scripts/release-qa/verify-release-candidate.mjs \
-            --manifest ../candidate/release-assets.v1.json \
-            --asset-dir ../candidate/assets \
-            --qa-report ../candidate/release-qa-report.json \
+            --manifest .release-qa/candidate/release-assets.v1.json \
+            --asset-dir .release-qa/candidate/assets \
+            --qa-report .release-qa/candidate/release-qa-report.json \
             --tag "$RELEASE_TAG" \
             --commit "$TAG_COMMIT" \
             --candidate-run-id "$CANDIDATE_RUN_ID"
@@ -122,7 +127,7 @@ jobs:
         working-directory: pupu
         run: |
           node scripts/release-qa/validate-update-fixture-source.mjs \
-            --candidate-dir ../candidate --from-tag "$FROM_TAG" --from-version "$FROM_VERSION" --from-commit "$FROM_COMMIT"
+            --candidate-dir .release-qa/candidate --from-tag "$FROM_TAG" --from-version "$FROM_VERSION" --from-commit "$FROM_COMMIT"
           node scripts/release-qa/windows-upgrade-diagnostic-identity.mjs
 
       - name: Resolve immutable N-1 Unchain source from its published manifest
@@ -131,8 +136,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          mkdir -p previous-release
-          gh release download "$FROM_TAG" --repo "$GITHUB_REPOSITORY" \
+          node pupu/scripts/release-qa/external-network-retry.mjs \
+            --profile github-read --cleanup-path previous-release -- \
+            gh release download "$FROM_TAG" --repo "$GITHUB_REPOSITORY" \
             --pattern release-assets.v1.json --dir previous-release
           FROM_UNCHAIN_REVISION="$(node -e '
             const fs = require("fs");
@@ -181,7 +187,7 @@ jobs:
       - name: Install immutable N-1 build dependencies
         working-directory: fixture-source
         run: |
-          npm ci
+          npm ci --fetch-retries=5 --fetch-retry-mintimeout=10000 --fetch-retry-maxtimeout=120000 --fetch-timeout=300000
           python -m pip install --disable-pip-version-check --retries 5 --timeout 60 \
             -r unchain_runtime/server/requirements.txt
 
@@ -277,6 +283,7 @@ jobs:
           installer-path: ${{ github.workspace }}\fixture-source\dist\fixture-installer.exe
           evidence-output: windows-signing-qualification.v1.json
           evidence-schema: pupu.windows-signing-qualification.v1
+          app-update-contract: qualification-fixture
           azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
           azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           azure-subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
@@ -332,7 +339,7 @@ jobs:
           SIGNED_FIXTURE: ${{ steps.fixture_evidence.outputs.fixture }}
         run: |
           node scripts/release-qa/run-windows-upgrade-diagnostic.mjs `
-            --candidate-dir "$env:GITHUB_WORKSPACE\candidate" `
+            --candidate-dir .release-qa/candidate `
             --fixture "$env:SIGNED_FIXTURE" `
             --fixture-evidence windows-restart-fixture.v1.json `
             --target windows-x64 `

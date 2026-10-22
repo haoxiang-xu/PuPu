@@ -22,7 +22,11 @@ const REQUIRED_PROTOCOLS = Object.freeze([
       "canonical_journal",
       "chat_deletion_sqlite_scope_closure",
       "context_compiler",
+      "context_content_paging_v1",
+      "context_content_read_recovery_v1",
+      "durable_interaction_settlement_fence_v1",
       "generation_rebase_live_interaction_cycles",
+      "graph_failure_terminals_v1",
       "interaction_resolution_compat",
       "long_term_promotion",
       "memory_curator",
@@ -55,6 +59,8 @@ const REQUIRED_PROTOCOLS = Object.freeze([
       "graph_runs",
       "memory_off",
       "ollama_reasoning_preview_v1",
+      "provider_response_outcomes_v1",
+      "provider_uncertainty_diagnostics_v1",
       "subagent_runs",
     ]),
   }),
@@ -443,6 +449,8 @@ describe("Memory V2 runtime protocol admission", () => {
 
   test.each([
     ["chat_deletion_sqlite_scope_closure", "context_memory"],
+    ["context_content_paging_v1", "context_memory"],
+    ["context_content_read_recovery_v1", "context_memory"],
     ["generation_rebase_live_interaction_cycles", "context_memory"],
     ["interaction_resolution_compat", "context_memory"],
     ["tool_output_management_v1", "context_memory"],
@@ -450,6 +458,8 @@ describe("Memory V2 runtime protocol admission", () => {
     ["graph_interaction_lineage_preflight_v1", "durable_interaction"],
     ["interaction_resolution_atomic_acceptance_v1", "durable_interaction"],
     ["ollama_reasoning_preview_v1", "provider_turn_ownership"],
+    ["provider_response_outcomes_v1", "provider_turn_ownership"],
+    ["provider_uncertainty_diagnostics_v1", "provider_turn_ownership"],
     ["run_bundle_v2", "run_bundle"],
   ])("requires incident compatibility feature %s", (feature, protocolId) => {
     const protocols = cloneProtocols();
@@ -570,5 +580,31 @@ describe("Memory V2 runtime protocol admission", () => {
     expect(
       validateMemoryV2Status({ ...status, rollout_mode: "all" }, config),
     ).toMatchObject({ ok: false, reason: "context_v2_rollout_mismatch" });
+  });
+});
+
+test("an older wheel without graph failure terminals cannot activate Memory V2", () => {
+  const config = packagedConfig(createBuildFeatureSnapshot({}, {}));
+  const protocols = cloneProtocols();
+  const context = protocols.find((item) => item.id === "context_memory");
+  context.features = context.features.filter((feature) => feature !== "graph_failure_terminals_v1");
+  expect(validateMemoryV2Status(statusFor(config, {
+    runtime_protocol_manifest: runtimeProtocolManifest(protocols),
+  }), config)).toMatchObject({
+    ok: false,
+    reason: "context_v2_unchain_protocol_incompatible",
+  });
+});
+
+test("an older wheel without graph failure terminals cannot activate Memory V2", () => {
+  const config = packagedConfig(createBuildFeatureSnapshot({}, {}));
+  const protocols = cloneProtocols();
+  const context = protocols.find((item) => item.id === "context_memory");
+  context.features = context.features.filter((feature) => feature !== "durable_interaction_settlement_fence_v1");
+  expect(validateMemoryV2Status(statusFor(config, {
+    runtime_protocol_manifest: runtimeProtocolManifest(protocols),
+  }), config)).toMatchObject({
+    ok: false,
+    reason: "context_v2_unchain_protocol_incompatible",
   });
 });

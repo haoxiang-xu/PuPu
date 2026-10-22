@@ -7,6 +7,8 @@ test.each([
   "openai:gpt-6-sol", "openai:gpt-6-luna",
   "anthropic:claude-opus-5-5", "anthropic:claude-sonnet-5",
   "gemini:gemini-3.7-flash", "gemini:gemini-3.8-flash", "gemini:gemini-3.5-flash-lite",
+  "gemini:gemini-3.5-flash", "gemini:gemini-3.1-pro-preview",
+  "gemini:gemini-3.1-flash-lite", "gemini:gemini-3-flash-preview",
 ])("selecting %s preserves its provider in the recipe override", (model) => {
   const recipe = {
     nodes: [{ id: "agent", type: "agent", override: {}, outputs: [] }], edges: [],

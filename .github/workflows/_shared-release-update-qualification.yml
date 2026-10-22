@@ -77,7 +77,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh run download "$CANDIDATE_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+          node scripts/release-qa/external-network-retry.mjs \
+            --profile github-read --cleanup-path candidate -- \
+            gh run download "$CANDIDATE_RUN_ID" --repo "$GITHUB_REPOSITORY" \
             --name pupu-release-candidate --dir candidate
           node scripts/release-qa/verify-release-candidate.mjs \
             --manifest candidate/release-assets.v1.json \

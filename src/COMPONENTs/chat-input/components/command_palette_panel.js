@@ -363,9 +363,11 @@ const CommandPalettePanel = ({
             {onOrganize ? (
               /* The header is pointer-events:none (it is decorative — the
                  pill underneath owns the clicks at rest). This one child
-                 re-enables them for itself. mousedown is cancelled on the
-                 wrapper so the composer's textarea keeps focus: a blur would
-                 close the palette before the click ever lands. */
+                 re-enables them only after the palette has visibly entered;
+                 while closed it must not become an invisible hit target over
+                 the pill. mousedown is cancelled on the wrapper so the
+                 composer's textarea keeps focus: a blur would close the
+                 palette before the click ever lands. */
               <span
                 onMouseDown={(event) => {
                   event.preventDefault();
@@ -374,7 +376,7 @@ const CommandPalettePanel = ({
                 style={{
                   marginLeft: "auto",
                   display: "inline-flex",
-                  pointerEvents: "auto",
+                  pointerEvents: on ? "auto" : "none",
                 }}
               >
                 <Button

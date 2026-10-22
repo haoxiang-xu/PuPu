@@ -316,6 +316,8 @@
     "consumed_usage": "소비 사용량",
     "consumed_usage_desc": "선택한 시간대별 총 소비 토큰입니다.",
     "no_data": "토큰 사용 데이터가 아직 없습니다",
+    "excluded_note": "{total}개 중 {excluded}개 요청은 사용량을 알 수 없어 제외되었습니다",
+    "no_known_usage": "이 기간의 모든 요청에서 사용량을 확인할 수 없습니다",
     "load_failed": "토큰 사용량 데이터를 불러올 수 없습니다. 저장된 데이터는 변경되지 않았습니다.",
     "breakdown": "입력 / 출력 분석",
     "breakdown_desc": "요청 및 응답의 토큰 흐름을 분리하여 표시합니다.",
@@ -573,6 +575,11 @@
   },
   "chat": {
     "placeholder": "PuPu에게 메시지 보내기...",
+    "settlement": {
+      "waiting": "이전 작업이 마무리되기를 기다리는 중…",
+      "cancelled": "대기를 취소했습니다. 이 메시지 변경을 다시 시도하거나 취소할 수 있습니다.",
+      "timeout": "이전 작업이 아직 마무리 중입니다. 이 메시지 변경을 다시 시도하거나 취소할 수 있습니다."
+    },
     "minimap": {
       "top": "처음",
       "prev": "이전",
@@ -903,5 +910,26 @@
     "organization_queued": "기억 정리 대기 중",
     "organization_empty": "정리할 기억 없음",
     "organization_complete": "기억 정리 완료"
+  },
+  "provider_retry": {
+    "waiting": "{provider} 대기 중",
+    "retrying_header": "재시도 중…",
+    "next_try_in": "{seconds}초 후 재시도",
+    "trying_again": "재시도 중 ({max}회 중 {attempt}회째)",
+    "stopped": "재시도 중 중지됨",
+    "retried": "{count}회 재시도함",
+    "legend_failed": "{count}회 실패",
+    "legend_current": "{attempt}회째",
+    "legend_left": "{count}회 남음",
+    "stop": "중지",
+    "stopped_by_you": "사용자가 중지함",
+    "bar_label": "사용한 시도 횟수 (총 {max}회)",
+    "reason_overloaded": "과부하 (HTTP {status})",
+    "reason_rate_limited": "속도 또는 할당량 한도 도달 (HTTP {status})",
+    "reason_gateway": "게이트웨이 오류 (HTTP {status})",
+    "reason_http": "일시적 오류 (HTTP {status})",
+    "reason_unknown": "일시적 오류",
+    "provider_fallback": "제공자",
+    "usage_partial": "{total}개 호출 중 {excluded}개는 사용량 없음"
   }
 }

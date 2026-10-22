@@ -671,7 +671,88 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             "stream cancelled",
             str(response_holder.get("error")),
         )
+        # #389: the Stop error carries the host's cancel code, so the kernel
+        # journals run_cancelled (not run_failed) for it.
+        self.assertEqual(
+            getattr(response_holder.get("error"), "code", ""),
+            "execution_cancelled",
+        )
+        self.assertTrue(
+            unchain_adapter._is_execution_cancelled_error(
+                response_holder.get("error")
+            )
+        )
         self.assertFalse(submitted)
+
+    def test_stop_errors_of_every_blocking_callback_carry_the_cancel_code(self) -> None:
+        """#389 P1: tool confirmation, human input and continuation request."""
+
+        cancel_event = threading.Event()
+        cancel_event.set()
+        human_request = SimpleNamespace(
+            request_id="human-cancelled",
+            question="Which one?",
+            selection_mode="single",
+            to_dict=lambda: {"request_id": "human-cancelled"},
+        )
+        callbacks = {
+            "tool confirmation": (
+                unchain_adapter._make_tool_confirm_callback(
+                    lambda _event: None, cancel_event=cancel_event
+                ),
+                {
+                    "tool_name": "delete_file",
+                    "call_id": "call-stop",
+                    "arguments": {"path": "tmp.txt"},
+                },
+            ),
+            "human input": (
+                unchain_adapter._make_human_input_callback(
+                    lambda _event: None, cancel_event=cancel_event
+                ),
+                human_request,
+            ),
+            "continuation request": (
+                unchain_adapter._make_continuation_callback(
+                    lambda _event: None, cancel_event=cancel_event
+                ),
+                {"iteration": 1},
+            ),
+        }
+        for name, (callback, request) in callbacks.items():
+            with self.subTest(name):
+                with self.assertRaises(RuntimeError) as caught:
+                    callback(request)
+                self.assertIn("stream cancelled", str(caught.exception))
+                self.assertEqual(
+                    getattr(caught.exception, "code", ""), "execution_cancelled"
+                )
+
+    def test_a_cancelled_run_is_not_a_lost_ownership_and_a_lease_loss_is(self) -> None:
+        from unchain.execution import (
+            ExecutionCancelledError,
+            ExecutionLeaseNotOwnedError,
+            StaleExecutionLeaseError,
+        )
+        from session_execution_guard import SessionExecutionGuardError
+
+        cancelled_by_code = unchain_adapter._stream_cancelled_error("stop")
+        self.assertFalse(unchain_adapter._graph_run_lost_ownership(cancelled_by_code))
+        self.assertFalse(
+            unchain_adapter._graph_run_lost_ownership(ExecutionCancelledError("stop"))
+        )
+        self.assertFalse(unchain_adapter._graph_run_lost_ownership(RuntimeError("boom")))
+        self.assertFalse(unchain_adapter._graph_run_lost_ownership(None))
+        for lost in (
+            ExecutionLeaseNotOwnedError("lost"),
+            StaleExecutionLeaseError("stale"),
+            SessionExecutionGuardError("session_execution_guard_lost", "guard"),
+        ):
+            with self.subTest(type(lost).__name__):
+                self.assertTrue(unchain_adapter._graph_run_lost_ownership(lost))
+        wrapped = RuntimeError("wrapped")
+        wrapped.__cause__ = ExecutionLeaseNotOwnedError("lost")
+        self.assertTrue(unchain_adapter._graph_run_lost_ownership(wrapped))
 
     def test_tool_confirmation_emit_failure_is_not_recorded_as_denial(self) -> None:
         def fail_emit(_event) -> None:

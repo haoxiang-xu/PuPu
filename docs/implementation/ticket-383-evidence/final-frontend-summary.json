@@ -1,0 +1,60 @@
+{
+  "numPassedTestSuites": 445,
+  "numFailedTestSuites": 2,
+  "numTotalTestSuites": 447,
+  "numPassedTests": 5375,
+  "numFailedTests": 38,
+  "numPendingTests": 5,
+  "numTotalTests": 5418,
+  "success": false,
+  "failed_suites": [
+    {
+      "path": "/workspace/shared/pupu-383-planning-20261002/src/electron/tests/main/memory_vault_service.test.js",
+      "failed_assertions": [
+        "memory vault service getStatus exposes no row counts status is availability-only \u2014 never a count oracle over the vault",
+        "memory vault service deposit stores ciphertext only and returns an opaque >=128-bit handle, never plaintext or ciphertext",
+        "memory vault service deposit handles are random: distinct deposits yield distinct handles",
+        "memory vault service deposit scope_kind is locked to chat/user",
+        "memory vault service deposit label handles Unicode strictly: NFC-normalized, control chars rejected, bounded",
+        "memory vault service deposit label guard: a label may never embed the secret benign control: a label that does not contain the secret still deposits",
+        "memory vault service operationId idempotency + receipts replaying a deposit returns the original handle without a second row",
+        "memory vault service operationId idempotency + receipts same operationId with different non-secret params is a conflict",
+        "memory vault service operationId idempotency + receipts receipt hash is independent of the plaintext (never secret-derived)",
+        "memory vault service safeStorage fail-closed an encryptString failure latches unavailable for the session",
+        "memory vault service descriptors, grants, delete cascade listDescriptors returns only the one exact scope and never ciphertext",
+        "memory vault service descriptors, grants, delete cascade listDescriptors REQUIRES both scope fields \u2014 no global or partial enumeration",
+        "memory vault service descriptors, grants, delete cascade grant requires an existing in-scope handle and returns a well-formed grantId; revoke is idempotent",
+        "memory vault service descriptors, grants, delete cascade grant is scope-bound: a handle from another scope is indistinguishable from a missing one",
+        "memory vault service descriptors, grants, delete cascade grants target the closed sink-kind enum \u2014 arbitrary grantee strings are refused",
+        "memory vault service descriptors, grants, delete cascade delete cascades grants transactionally and leaves a non-secret receipt",
+        "memory vault service database-enforced grant integrity foreign_keys is ON and vault_grants.handle CASCADEs on delete at the DB level",
+        "memory vault service database-enforced grant integrity a preflight vault_grants table (free-text grantee, no FK) is rebuilt without touching secrets",
+        "memory vault service coexistence with settings storage (same settings.db file) settings reset never touches the vault, and the vault never touches settings"
+      ]
+    },
+    {
+      "path": "/workspace/shared/pupu-383-planning-20261002/src/electron/tests/main/memory_vault_use_state.test.js",
+      "failed_assertions": [
+        "memory vault one-time use state machine prepare generates the intent and resolves scope/grant internally",
+        "memory vault one-time use state machine prepare rejects caller-selected intent/scope, while first native approval creates the sink grant",
+        "memory vault one-time use state machine binding is full-identity CAS and renderer auto-approval still needs native confirmation",
+        "memory vault one-time use state machine renderer denial records denied without opening a native prompt",
+        "memory vault one-time use state machine execute resolves multiple secrets only inside the injected sink and returns a safe replayable receipt",
+        "memory vault one-time use state machine oversized executor output is replaced by a bounded static result",
+        "memory vault one-time use state machine missing executor fails closed while keeping approval retryable and never decrypting",
+        "memory vault one-time use state machine an unregistered computer sink fails before decrypting",
+        "memory vault one-time use state machine executor prepare must reach READY before CAS or decrypt",
+        "memory vault one-time use state machine prepare rejection leaves the durable intent approved and never decrypts",
+        "memory vault one-time use state machine concurrent replay of one operation shares exactly one prepared lease",
+        "memory vault one-time use state machine a different operation conflicts while prepare is pending",
+        "memory vault one-time use state machine cancellation during prepare wins without decrypting or becoming indeterminate",
+        "memory vault one-time use state machine executor failure becomes durable indeterminate and is never replayed",
+        "memory vault one-time use state machine startup converts a crash-left executing intent to indeterminate",
+        "memory vault one-time use state machine cancel is strictly interaction-bound and idempotently records a safe receipt",
+        "memory vault one-time use state machine chat deletion atomically removes only use state and is naturally idempotent",
+        "memory vault one-time use state machine chat deletion remains retryable while native confirmation is in flight",
+        "memory vault one-time use state machine before configureSinkExecutors: execute never decrypts and the broker refuses to listen"
+      ]
+    }
+  ]
+}

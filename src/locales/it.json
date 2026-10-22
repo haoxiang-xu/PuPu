@@ -316,6 +316,8 @@
     "consumed_usage": "Utilizzo consumato",
     "consumed_usage_desc": "Token totali consumati per periodo selezionato.",
     "no_data": "Nessun dato di utilizzo token ancora",
+    "excluded_note": "{excluded} richieste su {total} escluse perché il loro utilizzo non è disponibile",
+    "no_known_usage": "L'utilizzo non è disponibile per nessuna richiesta di questo periodo",
     "load_failed": "Impossibile caricare i dati di utilizzo dei token. I dati salvati non sono stati modificati.",
     "breakdown": "Ripartizione input / output",
     "breakdown_desc": "Flusso token separato per richieste e risposte.",
@@ -573,6 +575,11 @@
   },
   "chat": {
     "placeholder": "Messaggio a PuPu...",
+    "settlement": {
+      "waiting": "In attesa che termini l’esecuzione precedente…",
+      "cancelled": "Attesa annullata. Puoi riprovare o scartare questa modifica al messaggio.",
+      "timeout": "L’esecuzione precedente è ancora in fase di completamento. Puoi riprovare o scartare questa modifica al messaggio."
+    },
     "minimap": {
       "top": "Inizio",
       "prev": "Prec.",
@@ -903,5 +910,26 @@
     "organization_queued": "Organizzazione dei ricordi in attesa",
     "organization_empty": "Nessun ricordo da organizzare",
     "organization_complete": "Ricordi organizzati"
+  },
+  "provider_retry": {
+    "waiting": "In attesa di {provider}",
+    "retrying_header": "Nuovo tentativo…",
+    "next_try_in": "prossimo tentativo tra {seconds} s",
+    "trying_again": "nuovo tentativo (tentativo {attempt} di {max})",
+    "stopped": "Interrotto durante i tentativi",
+    "retried": "Riprovato {count}×",
+    "legend_failed": "{count} falliti",
+    "legend_current": "tentativo {attempt}",
+    "legend_left": "{count} rimasti",
+    "stop": "Interrompi",
+    "stopped_by_you": "interrotto da te",
+    "bar_label": "Tentativi usati su {max}",
+    "reason_overloaded": "Sovraccarico (HTTP {status})",
+    "reason_rate_limited": "Limite di frequenza o quota (HTTP {status})",
+    "reason_gateway": "Errore del gateway (HTTP {status})",
+    "reason_http": "Errore temporaneo (HTTP {status})",
+    "reason_unknown": "Errore temporaneo",
+    "provider_fallback": "provider",
+    "usage_partial": "{excluded} chiamate su {total} senza dati di utilizzo"
   }
 }

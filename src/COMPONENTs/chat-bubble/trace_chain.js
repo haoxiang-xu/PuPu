@@ -48,6 +48,80 @@ import { mergeMemoryV2AuditWithJournal } from "./memory_v2_journal_reload";
 import { selectRunBundleUsage } from "../../SERVICEs/run_bundle_v1";
 import { hasContextCompositionEvidence } from "../../SERVICEs/context_composition_v1";
 import ContextCompositionModal from "./context-composition/context_composition_modal";
+import {
+  groupProviderRetryFrames,
+  providerDisplayName,
+  providerRetryReason,
+  ProviderRetryRecordDetails,
+  ProviderRetryWaitBody,
+  RetryStoppedPoint,
+  RetryWaitPoint,
+} from "./provider_retry_step";
+import {
+  getToolGroupingIdentity,
+  groupToolTimelineItems,
+} from "./trace_tool_grouping";
+import { projectToolCallLifecycle } from "../../SERVICEs/runtime_events/tool_call_projection";
+
+const coalesceToolCallProjectionFrames = (frames, projection) => {
+  if (!projection?.calls?.length) return frames;
+  const ownerByFrameIndex = new Map(
+    projection.evidenceOwnership.map(({ frameIndex, callKey }) => [frameIndex, callKey]),
+  );
+  const callByKey = new Map(projection.calls.map((call) => [call.key, call]));
+  const emittedCallKeys = new Set();
+  const projectedFrames = frames.flatMap((frame, frameIndex) => {
+    if (frame?.type !== "tool_call") return [frame];
+    const callKey = ownerByFrameIndex.get(frameIndex);
+    if (!callKey) {
+      // Explicit but invalid provenance must stay visible without acquiring a
+      // legacy owner through call_id coincidence.
+      if (Object.prototype.hasOwnProperty.call(frame.payload || {}, "call_ref") ||
+          Object.prototype.hasOwnProperty.call(frame.payload || {}, "call_ref_metadata")) {
+        return [frame];
+      }
+      return [frame];
+    }
+    if (emittedCallKeys.has(callKey)) return [];
+    emittedCallKeys.add(callKey);
+    const call = callByKey.get(callKey);
+    const payload = { ...frame.payload };
+    const ownedCallFrames = (call?.callFrameIndexes || [])
+      .map((index) => frames[index])
+      .filter(Boolean);
+    ["confirmation_id", "description", "interact_type", "interact_config"].forEach((field) => {
+      if (payload[field] !== undefined && payload[field] !== null && payload[field] !== "") return;
+      const candidates = ownedCallFrames
+        .map((candidate) => candidate?.payload?.[field])
+        .filter((value) => value !== undefined && value !== null && value !== "");
+      const unique = new Map(candidates.map((value) => [JSON.stringify(value), value]));
+      if (unique.size === 1) payload[field] = unique.values().next().value;
+    });
+    if (ownedCallFrames.some((candidate) => candidate?.payload?.requires_confirmation === true)) {
+      payload.requires_confirmation = true;
+    }
+    if (call?.originalArguments?.present === true) {
+      payload.arguments = call.originalArguments.value;
+    } else if (call?.originalArguments?.present === false) {
+      delete payload.arguments;
+    }
+    if (call?.policy?.present === true) {
+      payload.timeline_merge_policy = call.policy.value;
+    } else {
+      delete payload.timeline_merge_policy;
+    }
+    payload.call_id = call?.descriptor?.call_id || payload.call_id;
+    payload.tool_name = call?.descriptor?.tool_name || payload.tool_name;
+    return [{
+      ...frame,
+      _lifecycle_call_key: callKey,
+      _lifecycle_policy_present: call?.policy?.present === true,
+      _lifecycle_policy_status: call?.policy?.status || "unknown",
+      payload,
+    }];
+  });
+  return projectedFrames;
+};
 
 /* ─── constants & helpers ────────────────────────────────────────────────── */
 
@@ -58,10 +132,49 @@ export const DISPLAY_FRAME_TYPES = new Set([
   "tool_result",
   "final_message",
   "error",
+  "provider_retry",
   "fyi_injected",
   "side_answer",
   "clarify_request",
 ]);
+
+/* Anthropic-protocol providers stream thinking as one runtime event per
+   thinking_delta (a single token on DeepSeek), and each becomes its own
+   reasoning frame. Adjacent deltas from the same model turn are one block.
+   Whole reasoning items (Responses API `reasoning_items`) are left as-is. */
+const isReasoningDeltaFrame = (frame) =>
+  frame?.type === "reasoning" &&
+  typeof frame.payload?.reasoning === "string" &&
+  frame.payload?.reasoning_items === undefined;
+
+const sameReasoningTurn = (a, b) =>
+  (a.run_id || "") === (b.run_id || "") &&
+  a.iteration === b.iteration &&
+  (a.payload?.provisional_reasoning_id || "") ===
+    (b.payload?.provisional_reasoning_id || "");
+
+export const coalesceReasoningDeltaFrames = (frames) => {
+  const out = [];
+  for (const frame of frames) {
+    const prev = out[out.length - 1];
+    if (
+      isReasoningDeltaFrame(frame) &&
+      isReasoningDeltaFrame(prev) &&
+      sameReasoningTurn(prev, frame)
+    ) {
+      out[out.length - 1] = {
+        ...prev,
+        payload: {
+          ...prev.payload,
+          reasoning: prev.payload.reasoning + frame.payload.reasoning,
+        },
+      };
+      continue;
+    }
+    out.push(frame);
+  }
+  return out;
+};
 
 const CONFIRMATION_DECISION_INTERACT_TYPES = new Set([
   "confirmation",
@@ -84,6 +197,45 @@ const extractText = (payload) => {
     payload.observation ||
     ""
   );
+};
+
+const GEMINI_RETRY_FIELDS = new Set([
+  "provider",
+  "http_status",
+  "retry_ordinal",
+  "max_retries",
+  "delay_ms",
+  "workflow_node_id",
+  "workflow_step_index",
+  "workflow_step_count",
+  "runtime_event_id",
+]);
+
+const safeGeminiRetry = (payload) => {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return null;
+  }
+  if (Object.keys(payload).some((key) => !GEMINI_RETRY_FIELDS.has(key))) {
+    return null;
+  }
+  const { provider, http_status: httpStatus, retry_ordinal: ordinal,
+    max_retries: maxRetries, delay_ms: delayMs } = payload;
+  if (
+    provider !== "gemini" ||
+    httpStatus !== 503 ||
+    !Number.isSafeInteger(ordinal) ||
+    !Number.isSafeInteger(maxRetries) ||
+    !Number.isSafeInteger(delayMs) ||
+    maxRetries < 1 ||
+    maxRetries > 2 ||
+    ordinal < 1 ||
+    ordinal > maxRetries ||
+    delayMs < 0 ||
+    delayMs > 3600000
+  ) {
+    return null;
+  }
+  return { ordinal, maxRetries, delayMs };
 };
 
 const toKVPairs = (data) => {
@@ -485,6 +637,9 @@ const getSubagentTraceStatus = (status) => {
   if (normalized === "failed" || normalized === "timeout") {
     return "error";
   }
+  if (normalized === "cancelled" || normalized === "canceled") {
+    return "cancelled";
+  }
   if (
     normalized === "running" ||
     normalized === "spawned" ||
@@ -602,7 +757,7 @@ const AccentPoint = ({ color }) => (
 
 /* ─── TokenSummary ───────────────────────────────────────────────────────── */
 
-const TokenSummary = ({ usage, isDark, bundle }) => {
+const TokenSummary = ({ usage, isDark, bundle, partialNote = null }) => {
   const [compositionOpen, setCompositionOpen] = useState(false);
   const triggerRef = useRef(null);
   const fmt = (n) =>
@@ -635,6 +790,11 @@ const TokenSummary = ({ usage, isDark, bundle }) => {
         </span>
       )}
       {" "}&middot; {fmt(usage.total)} total
+      {partialNote ? (
+        <span style={{ color: cacheColor }}>
+          {" "}&middot; {partialNote}
+        </span>
+      ) : null}
     </>
   );
   const textStyle = {
@@ -690,6 +850,51 @@ const TokenSummary = ({ usage, isDark, bundle }) => {
 
 /* ─── TraceChain ─────────────────────────────────────────────────────────── */
 
+// Group detail rows can be inserted when a late tool_result adds a truncation
+// summary. Timeline's uncontrolled indices would then follow the old position
+// instead of the observation row the user expanded. Keep that nested state by
+// the existing stable member key while leaving the shared Timeline unchanged.
+const ToolGroupTimeline = ({
+  items = [],
+  compact,
+  hideTrack,
+  style,
+}) => {
+  const [expandedItemKeys, setExpandedItemKeys] = useState(() => new Set());
+  const expandedIndices = useMemo(() => {
+    const indices = [];
+    items.forEach((item, index) => {
+      if (typeof item?.key === "string" && expandedItemKeys.has(item.key)) {
+        indices.push(index);
+      }
+    });
+    return indices;
+  }, [expandedItemKeys, items]);
+  const handleExpandChange = useCallback(
+    (indices) => {
+      setExpandedItemKeys(
+        new Set(
+          indices
+            .map((index) => items[index]?.key)
+            .filter((key) => typeof key === "string" && key.length > 0),
+        ),
+      );
+    },
+    [items],
+  );
+
+  return (
+    <Timeline
+      items={items}
+      expanded_indices={expandedIndices}
+      on_expand_change={handleExpandChange}
+      compact={compact}
+      hideTrack={hideTrack}
+      style={style}
+    />
+  );
+};
+
 const TraceChain = ({
   frames = [],
   status,
@@ -699,6 +904,7 @@ const TraceChain = ({
   onToolConfirmationDecision,
   toolConfirmationUiStateById = {},
   onClarifyResolve,
+  onStopStream,
   bundle,
   completionDiagnostics,
   subagentFrames,
@@ -756,7 +962,11 @@ const TraceChain = ({
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
   const color = theme?.color || "#222";
+  const timelineExpansionScope = JSON.stringify([chatId || "", messageId || ""]);
   const [bodyOpen, setBodyOpen] = useState(true);
+  const [expandedTimelineState, setExpandedTimelineState] = useState(
+    () => ({ scope: timelineExpansionScope, keys: new Set() }),
+  );
   const [memoryV2JournalProjection, setMemoryV2JournalProjection] =
     useState(null);
   const handleMemoryV2JournalProjection = useCallback((projection) => {
@@ -795,6 +1005,7 @@ const TraceChain = ({
   }, []);
 
   const isStreaming = status === "streaming";
+  const isCancelled = status === "cancelled" || status === "canceled";
   const effectiveSubagentFrames = useMemo(
     () =>
       subagentFrames && typeof subagentFrames === "object" ? subagentFrames : {},
@@ -894,21 +1105,46 @@ const TraceChain = ({
     return new Set(included.map((f) => Number(f.seq)).filter(Number.isFinite));
   }, [bubbleOwnsFinalMessage, frames, isStreaming]);
 
+  const lifecycleProjection = useMemo(() => {
+    const acknowledgedSyntheticFeedbackIndexes = frames.flatMap((frame, index) =>
+      (frame?.type === "tool_confirmed" || frame?.type === "tool_denied") &&
+      frame?.payload?.synthetic === true &&
+      frame?.payload?.feedback_acknowledged === true
+        ? [index]
+        : [],
+    );
+    return projectToolCallLifecycle(frames, {
+      acknowledgedSyntheticFeedbackIndexes,
+    });
+  }, [frames]);
+  const lifecycleOwnerByFrame = useMemo(() => {
+    const owners = new Map();
+    lifecycleProjection.evidenceOwnership.forEach(({ frameIndex, callKey }) => {
+      if (frames[frameIndex]) owners.set(frames[frameIndex], callKey);
+    });
+    return owners;
+  }, [frames, lifecycleProjection]);
+  const logicalFrames = useMemo(
+    () => coalesceToolCallProjectionFrames(frames, lifecycleProjection),
+    [frames, lifecycleProjection],
+  );
   const displayFrames = useMemo(
     () =>
-      frames.filter((frame) => {
-        if (!DISPLAY_FRAME_TYPES.has(frame.type)) {
-          return false;
-        }
+      coalesceReasoningDeltaFrames(
+        logicalFrames.filter((frame) => {
+          if (!DISPLAY_FRAME_TYPES.has(frame.type)) {
+            return false;
+          }
 
-        if (frame.type !== "final_message") {
-          return true;
-        }
+          if (frame.type !== "final_message") {
+            return true;
+          }
 
-        const seq = Number(frame.seq);
-        return Number.isFinite(seq) && intermediateFinalMessageSeqs.has(seq);
-      }),
-    [frames, intermediateFinalMessageSeqs],
+          const seq = Number(frame.seq);
+          return Number.isFinite(seq) && intermediateFinalMessageSeqs.has(seq);
+        }),
+      ),
+    [logicalFrames, intermediateFinalMessageSeqs],
   );
   const startFrame = frames.find((f) => f.type === "stream_started");
   const doneFrame = frames.find((f) => f.type === "done");
@@ -919,31 +1155,93 @@ const TraceChain = ({
     (f) => f.type === "tool_call" || f.type === "reasoning",
   ).length;
   const hasError = displayFrames.some((f) => f.type === "error");
+  const providerRetryGroups = useMemo(
+    () => groupProviderRetryFrames(displayFrames, frames, status),
+    [displayFrames, frames, status],
+  );
+  const isRetryWaiting = Array.from(providerRetryGroups.values()).some(
+    (group) => group.outcome === "waiting",
+  );
 
-  const toolResultByCallId = useMemo(() => {
-    const m = new Map();
-    for (const frame of frames) {
-      if (frame.type === "tool_result" && frame.payload?.call_id) {
-        m.set(frame.payload.call_id, frame);
-      }
+  const toolCallFrames = useMemo(
+    () => logicalFrames.filter((frame) => frame?.type === "tool_call"),
+    [logicalFrames],
+  );
+  const lifecycleCallKeyForFrame = useCallback((frame) => {
+    if (typeof frame?._lifecycle_call_key === "string") {
+      return frame._lifecycle_call_key;
     }
-    return m;
-  }, [frames]);
+    if (lifecycleOwnerByFrame.has(frame)) return lifecycleOwnerByFrame.get(frame);
+    const payload = frame?.payload || {};
+    if (
+      Object.prototype.hasOwnProperty.call(payload, "call_ref") ||
+      Object.prototype.hasOwnProperty.call(payload, "call_ref_metadata")
+    ) return "";
+    return "";
+  }, [lifecycleOwnerByFrame]);
 
-  const confirmationStatusByCallId = useMemo(() => {
+  const toolResultFramesByCallScope = useMemo(() => {
     const map = new Map();
-    for (const frame of frames) {
-      if (!frame?.payload?.call_id) {
-        continue;
-      }
-      if (frame.type === "tool_confirmed") {
-        map.set(frame.payload.call_id, "approved");
-      } else if (frame.type === "tool_denied") {
-        map.set(frame.payload.call_id, "denied");
-      }
+    for (const frame of logicalFrames) {
+      if (frame?.type !== "tool_result") continue;
+      const key = lifecycleCallKeyForFrame(frame);
+      if (!key) continue;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(frame);
     }
     return map;
-  }, [frames]);
+  }, [logicalFrames, lifecycleCallKeyForFrame]);
+
+  const toolResultByCallScope = useMemo(() => {
+    const map = new Map();
+    toolResultFramesByCallScope.forEach((candidates, key) => {
+      if (candidates.length === 1) {
+        map.set(key, candidates[0]);
+        return;
+      }
+      const signatures = new Set(candidates.map((frame) => {
+        try {
+          return JSON.stringify({
+            status: frame?.payload?.status,
+            result: frame?.payload?.result,
+            error: frame?.payload?.error,
+            user_response: frame?.payload?.user_response,
+          });
+        } catch (_error) {
+          return "<unserializable>";
+        }
+      }));
+      if (signatures.size === 1) map.set(key, candidates[0]);
+    });
+    return map;
+  }, [toolResultFramesByCallScope]);
+
+  const confirmationFramesByCallScope = useMemo(() => {
+    const map = new Map();
+    const tentativeFrames = new Set(
+      lifecycleProjection.calls.flatMap((call) =>
+        (call.tentativeFeedbackFrameIndexes || []).map((index) => frames[index]),
+      ),
+    );
+    for (const frame of logicalFrames) {
+      if (frame?.type !== "tool_confirmed" && frame?.type !== "tool_denied") continue;
+      if (tentativeFrames.has(frame)) continue;
+      const key = lifecycleCallKeyForFrame(frame);
+      if (!key) continue;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(frame);
+    }
+    return map;
+  }, [frames, lifecycleProjection, logicalFrames, lifecycleCallKeyForFrame]);
+
+  const confirmationStatusByCallScope = useMemo(() => {
+    const map = new Map();
+    confirmationFramesByCallScope.forEach((candidates, key) => {
+      if (candidates.length !== 1) return;
+      map.set(key, candidates[0].type === "tool_confirmed" ? "approved" : "denied");
+    });
+    return map;
+  }, [confirmationFramesByCallScope]);
 
   const childRunIdsBySubagentId = useMemo(() => {
     const map = new Map();
@@ -961,75 +1259,59 @@ const TraceChain = ({
     return map;
   }, [effectiveSubagentMetaByRunId]);
 
-  const interactTypeByCallId = useMemo(() => {
+  const interactTypeByCallScope = useMemo(() => {
     const map = new Map();
-    for (const frame of frames) {
-      if (frame?.type !== "tool_call" || !frame?.payload?.call_id) {
-        continue;
-      }
-      const itype =
-        typeof frame.payload?.interact_type === "string"
-          ? frame.payload.interact_type
-          : "";
-      if (itype) {
-        map.set(frame.payload.call_id, itype);
-      }
+    for (const frame of toolCallFrames) {
+      const key = lifecycleCallKeyForFrame(frame);
+      const itype = typeof frame.payload?.interact_type === "string"
+        ? frame.payload.interact_type
+        : "";
+      if (key && itype) map.set(key, itype);
     }
     return map;
-  }, [frames]);
+  }, [toolCallFrames, lifecycleCallKeyForFrame]);
 
-  const confirmationUserResponseByCallId = useMemo(() => {
+  const confirmationUserResponseByCallScope = useMemo(() => {
     const map = new Map();
-    for (const frame of frames) {
+    for (const frame of logicalFrames) {
       if (
         (frame?.type !== "tool_confirmed" && frame?.type !== "tool_denied") ||
-        !frame?.payload?.call_id ||
         frame?.payload?.user_response === undefined
-      ) {
-        continue;
-      }
-
+      ) continue;
+      const key = lifecycleCallKeyForFrame(frame);
+      if (!key || confirmationFramesByCallScope.get(key)?.length !== 1) continue;
       const normalized = normalizePersistedInteractionResponse(
-        interactTypeByCallId.get(frame.payload.call_id) || "",
+        interactTypeByCallScope.get(key) || "",
         frame.payload.user_response,
       );
-      map.set(
-        frame.payload.call_id,
-        normalized === undefined ? frame.payload.user_response : normalized,
-      );
+      map.set(key, normalized === undefined ? frame.payload.user_response : normalized);
     }
     return map;
-  }, [frames, interactTypeByCallId]);
+  }, [logicalFrames, confirmationFramesByCallScope, interactTypeByCallScope, lifecycleCallKeyForFrame]);
 
-  const toolResultUserResponseByCallId = useMemo(() => {
+  const toolResultUserResponseByCallScope = useMemo(() => {
     const map = new Map();
-    for (const frame of frames) {
-      if (frame?.type !== "tool_result" || !frame?.payload?.call_id) {
-        continue;
-      }
-
+    for (const frame of logicalFrames) {
+      if (frame?.type !== "tool_result") continue;
+      const key = lifecycleCallKeyForFrame(frame);
+      if (!key || toolResultByCallScope.get(key) !== frame) continue;
       const interactType =
         typeof frame?.payload?.interact_type === "string"
           ? frame.payload.interact_type
-          : interactTypeByCallId.get(frame.payload.call_id) ||
-            (typeof frame?.payload?.tool_name === "string" &&
-            frame.payload.tool_name === "ask_user_question"
-              ? "single"
-              : "");
+          : interactTypeByCallScope.get(key) ||
+            (frame?.payload?.tool_name === "ask_user_question" ? "single" : "");
       const normalized = normalizePersistedInteractionResponse(
         interactType,
         frame.payload?.result,
       );
-      if (normalized !== undefined) {
-        map.set(frame.payload.call_id, normalized);
-      }
+      if (normalized !== undefined) map.set(key, normalized);
     }
     return map;
-  }, [frames, interactTypeByCallId]);
+  }, [logicalFrames, interactTypeByCallScope, lifecycleCallKeyForFrame, toolResultByCallScope]);
 
   const timelineItems = useMemo(() => {
     const items = [];
-    const renderedCallIds = new Set();
+    const renderedCallScopes = new Set();
     const usedRunIds = new Set();
     let prevTs = startFrame?.ts ?? null;
     const fallbackChunks = isStreaming
@@ -1059,12 +1341,32 @@ const TraceChain = ({
       const spanText =
         delta != null && delta > 0 ? `+${formatDelta(delta)}` : null;
 
-      if (frame.type === "reasoning" || frame.type === "observation") {
+      if (
+        frame.type === "provider_retry" &&
+        (Object.prototype.hasOwnProperty.call(frame.payload || {}, "retry_ordinal") ||
+          Object.prototype.hasOwnProperty.call(frame.payload || {}, "max_retries"))
+      ) {
+        const retry = safeGeminiRetry(frame.payload);
+        if (!retry) continue;
+        items.push({
+          key: `${frame.seq}-provider-retry`,
+          title: `Gemini temporarily busy — retrying ${retry.ordinal}/${retry.maxRetries}`,
+          span: spanText,
+          status: "done",
+          body: `Waiting ${(retry.delayMs / 1000).toFixed(1)}s before retry`,
+        });
+      } else if (frame.type === "reasoning" || frame.type === "observation") {
         const text = extractText(frame.payload);
         const isObs = frame.type === "observation";
         items.push({
           key: `${frame.seq}-${frame.type}`,
-          ...(isObs ? { _callId: frame.payload?.call_id } : {}),
+          ...(isObs
+            ? {
+                _sourceFrame: frame,
+                _toolOutput: true,
+                _outputCallId: frame.payload?.call_id,
+              }
+            : {}),
           title: isObs ? "Observation" : "Reasoning",
           span: spanText,
           status: "done",
@@ -1254,8 +1556,9 @@ const TraceChain = ({
         });
       } else if (frame.type === "tool_call") {
         const callId = frame.payload?.call_id;
-        if (callId && renderedCallIds.has(callId)) continue;
-        if (callId) renderedCallIds.add(callId);
+        const callScopeKey = lifecycleCallKeyForFrame(frame);
+        if (callScopeKey && renderedCallScopes.has(callScopeKey)) continue;
+        if (callScopeKey) renderedCallScopes.add(callScopeKey);
 
         const toolName = getToolDisplayName(frame.payload);
         const args = frame.payload?.arguments;
@@ -1275,7 +1578,10 @@ const TraceChain = ({
             ? frame.payload.interact_type
             : "confirmation";
         const interactConfig = frame.payload?.interact_config || {};
-        const resultFrame = callId ? toolResultByCallId.get(callId) : null;
+        const resultFrame = callScopeKey ? toolResultByCallScope.get(callScopeKey) : null;
+        const hasTerminalResult = Boolean(
+          resultFrame && resultFrame.payload?.status !== "running",
+        );
         const result = resultFrame?.payload?.result;
         const internalDelta =
           resultFrame?.ts && frame.ts ? resultFrame.ts - frame.ts : null;
@@ -1442,20 +1748,32 @@ const TraceChain = ({
           };
 
           const branches = childTimelineItems.map((worker, wi) => {
+            const normalizedWorkerStatus =
+              typeof worker.status === "string"
+                ? worker.status.trim().toLowerCase()
+                : "";
+            const workerStatus =
+              isCancelled &&
+              ["", "running", "spawned", "needs_clarification"].includes(
+                normalizedWorkerStatus,
+              )
+                ? "cancelled"
+                : worker.status;
             const wLabel = getSubagentShortLabel({
               meta: worker.meta,
               fallbackAgentName: worker.agentName,
               fallbackTemplate: worker.template,
             });
             const wStatusColor = getSubagentStatusColor(
-              worker.status,
+              workerStatus,
               isDark,
             );
             const hasWFrames =
               Array.isArray(worker.frames) && worker.frames.length > 0;
             const canExpand = hasWFrames && _depth < MAX_TRACE_DEPTH;
             const frameCount = hasWFrames ? worker.frames.length : 0;
-            const workerTraceStatus = getSubagentTraceStatus(worker.status);
+            const workerTraceStatus = getSubagentTraceStatus(workerStatus);
+            const workerInterrupted = workerTraceStatus === "cancelled";
             const shouldLazyRender =
               workerTraceStatus === "streaming" ||
               _depth > 0 ||
@@ -1507,7 +1825,7 @@ const TraceChain = ({
                       userSelect: "none",
                     }}
                   >
-                    {worker.status || "pending"}
+                    {workerStatus || "pending"}
                   </span>
                   {canExpand && (
                     <BranchExpandArrow
@@ -1518,9 +1836,11 @@ const TraceChain = ({
                   )}
                 </span>
               ),
-              span: worker.task
-                ? truncateInlineText(worker.task, 120)
-                : undefined,
+              span: workerInterrupted
+                ? "Interrupted"
+                : worker.task
+                  ? truncateInlineText(worker.task, 120)
+                  : undefined,
               status:
                 workerTraceStatus === "done"
                   ? "done"
@@ -1541,6 +1861,7 @@ const TraceChain = ({
                   onToolConfirmationDecision={onToolConfirmationDecision}
                   toolConfirmationUiStateById={toolConfirmationUiStateById}
                   onClarifyResolve={onClarifyResolve}
+                  onStopStream={onStopStream}
                   _depth={_depth + 1}
                 />
               ) : hasWFrames ? (
@@ -1564,7 +1885,9 @@ const TraceChain = ({
             ? failed
               ? "error"
               : "done"
-            : "active";
+            : isCancelled
+              ? "pending"
+              : "active";
 
           items.push({
             key: `${frame.seq}-subagent`,
@@ -1593,8 +1916,15 @@ const TraceChain = ({
                 )}
               </span>
             ),
-            span: spanText,
-            status: resultFrame ? "done" : "active",
+            span:
+              isCancelled && !resultFrame
+                ? "Interrupted"
+                : spanText,
+            status: resultFrame
+              ? "done"
+              : isCancelled
+                ? "pending"
+                : "active",
             point: <SubagentPoint isDark={isDark} />,
             body: branches.length > 0 ? (
               <BranchGraph
@@ -1611,8 +1941,8 @@ const TraceChain = ({
           continue;
         }
 
-        const confirmationResult = callId
-          ? confirmationStatusByCallId.get(callId)
+        const confirmationResult = callScopeKey
+          ? confirmationStatusByCallScope.get(callScopeKey)
           : "";
         const hasAuthoritativeConfirmationUiState = Boolean(
           confirmationId &&
@@ -1626,10 +1956,10 @@ const TraceChain = ({
           ? toolConfirmationUiStateById[confirmationId] || {}
           : {};
         const persistedUserResponse =
-          callId && confirmationUserResponseByCallId.has(callId)
-            ? confirmationUserResponseByCallId.get(callId)
-            : callId && toolResultUserResponseByCallId.has(callId)
-              ? toolResultUserResponseByCallId.get(callId)
+          callScopeKey && confirmationUserResponseByCallScope.has(callScopeKey)
+            ? confirmationUserResponseByCallScope.get(callScopeKey)
+            : callScopeKey && toolResultUserResponseByCallScope.has(callScopeKey)
+              ? toolResultUserResponseByCallScope.get(callScopeKey)
               : undefined;
         const effectiveConfirmationUiState =
           persistedUserResponse !== undefined &&
@@ -1699,7 +2029,8 @@ const TraceChain = ({
         /* ── confirmation / selection state (computed for all tool_calls) ── */
         let interactBody = undefined;
         let toolPointEl = <HammerPoint isDark={isDark} />;
-        let toolStatus = "done";
+        const callStatus = isCancelled && !resultFrame ? "pending" : "done";
+        let toolStatus = callStatus;
 
         if (isInlineInteraction) {
           let statusLabel = "Pending";
@@ -1721,6 +2052,8 @@ const TraceChain = ({
             !isResolved &&
             !uiResolved &&
             !isSubmitting &&
+            !hasTerminalResult &&
+            !isCancelled &&
             typeof onToolConfirmationDecision === "function";
 
           /* approved / denied / pending are success, danger and neutral —
@@ -1732,7 +2065,7 @@ const TraceChain = ({
             : "var(--pupu-text-secondary)";
 
           toolPointEl = <HammerPoint isDark={isDark} />;
-          toolStatus = "done";
+          toolStatus = callStatus;
 
           interactBody = (
             <div
@@ -1786,7 +2119,10 @@ const TraceChain = ({
         items.push({
           key: `${frame.seq}-tool`,
           title: <ToolTag name={toolName} isDark={isDark} compact={compact} />,
-          span: spanText,
+          span:
+            isCancelled && !resultFrame
+              ? "Interrupted"
+              : spanText,
           status: toolStatus,
           point: toolPointEl,
           body: interactBody,
@@ -1794,9 +2130,90 @@ const TraceChain = ({
             sections.length > 0 ? (
               <KVPanel sections={sections} isDark={isDark} color={color} />
             ) : undefined,
-          _toolName: isInlineInteraction ? undefined : toolName,
-          _sections: isInlineInteraction ? undefined : sections,
+          _toolName: toolName,
+          _sections: sections,
+          _hasPendingFeedback:
+            isInlineInteraction &&
+            !isResolved &&
+            !uiResolved &&
+            !hasTerminalResult,
+          _sourceFrame: frame,
+          _toolGrouping: getToolGroupingIdentity(frame),
         });
+      } else if (frame.type === "tool_result") {
+        // A rejected or ambiguous owner must remain inspectable without being
+        // attached to a call by a coincidental call_id match.
+        if (lifecycleCallKeyForFrame(frame)) continue;
+        const result = frame.payload?.result;
+        const pairs = toKVPairs(
+          result !== undefined ? result : frame.payload || {},
+        );
+        const resultStatus = frame.payload?.status;
+        items.push({
+          key: `${frame.seq}-unowned-tool-result`,
+          title: "Tool result",
+          span: spanText,
+          status: "done",
+          point: <HammerPoint isDark={isDark} />,
+          details: (
+            <KVPanel
+              sections={[
+                ...(resultStatus
+                  ? [{ heading: "status", pairs: [{ key: "value", value: resultStatus }] }]
+                  : []),
+                ...(pairs.length ? [{ heading: "result", pairs }] : []),
+              ]}
+              isDark={isDark}
+              color={color}
+            />
+          ),
+          _sourceFrame: frame,
+          _outputFrame: frame,
+          _toolOutput: true,
+          _outputCallId: frame.payload?.call_id,
+        });
+      } else if (frame.type === "provider_retry") {
+        const group = providerRetryGroups.get(Number(frame.seq));
+        if (!group) continue;
+        const last = group.frames[group.frames.length - 1].payload;
+        const provider = providerDisplayName(last.provider, t);
+        // A plain string gets the timeline's default body style.
+        const record = `${provider} · ${providerRetryReason(last, t)}`;
+        if (group.outcome === "waiting") {
+          items.push({
+            key: `${frame.seq}-provider-retry`,
+            title: t("provider_retry.waiting", { provider }),
+            span: spanText,
+            status: "active",
+            point: "loading",
+            body: (
+              <ProviderRetryWaitBody
+                frames={group.frames}
+                onStopStream={onStopStream}
+                t={t}
+              />
+            ),
+          });
+        } else {
+          const stopped = group.outcome === "stopped";
+          items.push({
+            key: `${frame.seq}-provider-retry`,
+            title: stopped
+              ? t("provider_retry.stopped")
+              : t("provider_retry.retried", { count: last.attempt_failed }),
+            span: spanText,
+            status: "done",
+            point: stopped ? <RetryStoppedPoint /> : <RetryWaitPoint />,
+            body: record,
+            details: (
+              <ProviderRetryRecordDetails
+                frames={group.frames}
+                outcome={group.outcome}
+                t={t}
+              />
+            ),
+          });
+        }
       } else if (frame.type === "error") {
         const msg = frame.payload?.message || "Unknown error";
         const code = frame.payload?.code;
@@ -1880,7 +2297,7 @@ const TraceChain = ({
             ),
           });
         }
-      } else {
+      } else if (!isRetryWaiting) {
         items.push({
           key: "__streaming__",
           title: "Thinking…",
@@ -1908,9 +2325,16 @@ const TraceChain = ({
         continue;
       }
       const cid = frame.payload.call_id;
+      const resultScopeKey = lifecycleCallKeyForFrame(frame);
+      if (!resultScopeKey) continue;
       let lastObsIdx = -1;
       for (let idx = items.length - 1; idx >= 0; idx -= 1) {
-        if (items[idx]._callId === cid) {
+        const observationFrame = items[idx]?._sourceFrame;
+        if (
+          items[idx]?._toolOutput === true &&
+          observationFrame?.type === "observation" &&
+          lifecycleCallKeyForFrame(observationFrame) === resultScopeKey
+        ) {
           lastObsIdx = idx;
           break;
         }
@@ -1921,10 +2345,15 @@ const TraceChain = ({
         ? frame.payload.observation_tail.filter(Boolean)
         : [];
       const tailText = tail.join("\n");
+      const observationAnchor = items[lastObsIdx]?._sourceFrame || frame;
       items.splice(lastObsIdx + 1, 0, {
-        key: `obs-trunc-${cid}`,
+        key: `obs-trunc-${resultScopeKey}`,
         title: `+${omitted} more output line${omitted === 1 ? "" : "s"} coalesced`,
         status: "done",
+        _sourceFrame: observationAnchor,
+        _outputFrame: frame,
+        _toolOutput: true,
+        _outputCallId: cid,
         ...(tailText
           ? {
               details: (
@@ -1944,48 +2373,54 @@ const TraceChain = ({
       });
     }
 
-    /* ── group consecutive identical tool calls ── */
-    const grouped = [];
-    let i = 0;
-    while (i < items.length) {
-      const item = items[i];
-      if (!item._toolName) {
-        grouped.push(item);
-        i++;
-        continue;
-      }
-      /* collect consecutive run of the same tool name */
-      const run = [item];
-      while (
-        i + run.length < items.length &&
-        items[i + run.length]._toolName === item._toolName
-      ) {
-        run.push(items[i + run.length]);
-      }
-      i += run.length;
-      if (run.length === 1) {
-        grouped.push(item);
-        continue;
-      }
-      /* merge run into a single batched item */
-      const allSections = run.flatMap((r) => r._sections || []);
-      grouped.push({
-        key: run.map((r) => r.key).join("+"),
+    /* ── group consecutive calls by canonical tool, preserving owned output ── */
+    const grouped = groupToolTimelineItems(items, logicalFrames, {
+      lifecycleProjection,
+      sourceFrames: frames,
+      ownerByFrame: lifecycleOwnerByFrame,
+    }).map((item) => {
+      const group = item?._toolGroup;
+      if (!group) return item;
+
+      const firstCall = group.calls[0];
+      const groupInterrupted = isCancelled && group.calls.some((call) => call.status === "pending");
+      const allSections = group.calls.flatMap((call) => call._sections || []);
+      const memberTimeline = (
+        <ToolGroupTimeline
+          key={`tool-group:${timelineExpansionScope}:${firstCall.key}`}
+          items={group.memberItems}
+          compact
+          hideTrack
+          style={{ fontSize: compact ? 11 : 12 }}
+        />
+      );
+      const details = group.hasPendingFeedback
+        ? undefined
+        : group.hasFeedback || group.outputs.length > 0
+          ? memberTimeline
+          : allSections.length > 0 ? (
+            <KVPanel sections={allSections} isDark={isDark} color={color} />
+          ) : undefined;
+
+      return {
+        key: firstCall.key,
         title: (
           <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
-            <ToolTag name={item._toolName} isDark={isDark} compact={compact} />
-            <CountBadge count={run.length} isDark={isDark} />
+            <ToolTag
+              name={firstCall._toolName}
+              isDark={isDark}
+              compact={compact}
+            />
+            <CountBadge count={group.calls.length} isDark={isDark} />
           </span>
         ),
-        span: run[run.length - 1].span,
-        status: "done",
+        span: groupInterrupted ? "Interrupted" : group.calls[group.calls.length - 1].span,
+        status: groupInterrupted ? "pending" : "done",
         point: <HammerPoint isDark={isDark} />,
-        details:
-          allSections.length > 0 ? (
-            <KVPanel sections={allSections} isDark={isDark} color={color} />
-          ) : undefined,
-      });
-    }
+        ...(group.hasPendingFeedback ? { body: memberTimeline } : {}),
+        details,
+      };
+    });
 
     /* ── durable Memory V2 audit + token summary at the end ── */
     const memoryV2Audit = mergeMemoryV2AuditWithJournal(
@@ -2066,6 +2501,14 @@ const TraceChain = ({
             usage={tokenUsage}
             isDark={isDark}
             bundle={bundle}
+            partialNote={
+              tokenUsage.callsWithoutUsage > 0
+                ? t("provider_retry.usage_partial", {
+                    excluded: tokenUsage.callsWithoutUsage,
+                    total: tokenUsage.callCount,
+                  })
+                : null
+            }
           />
         ),
         status: "done",
@@ -2075,20 +2518,30 @@ const TraceChain = ({
 
     return grouped;
   }, [
+    logicalFrames,
+    frames,
     displayFrames,
+    providerRetryGroups,
+    isRetryWaiting,
+    onStopStream,
     isStreaming,
+    isCancelled,
     bubbleOwnsLiveText,
     messageId,
+    lifecycleCallKeyForFrame,
+    lifecycleOwnerByFrame,
+    lifecycleProjection,
+    timelineExpansionScope,
     streamingContent,
     streamingChunks,
     storeHasLiveText,
     store,
     chatId,
     startFrame,
-    toolResultByCallId,
-    confirmationStatusByCallId,
-    confirmationUserResponseByCallId,
-    toolResultUserResponseByCallId,
+    toolResultByCallScope,
+    confirmationStatusByCallScope,
+    confirmationUserResponseByCallScope,
+    toolResultUserResponseByCallScope,
     handleInteractSubmit,
     onToolConfirmationDecision,
     toolConfirmationUiStateById,
@@ -2114,6 +2567,31 @@ const TraceChain = ({
     toggleBranchSummary,
     toggleBranchWorker,
   ]);
+
+  const expandedTimelineIndices = useMemo(() => {
+    const expandedKeys =
+      expandedTimelineState.scope === timelineExpansionScope
+        ? expandedTimelineState.keys
+        : new Set();
+    const indices = [];
+    timelineItems.forEach((item, index) => {
+      if (expandedKeys.has(item.key)) indices.push(index);
+    });
+    return indices;
+  }, [expandedTimelineState, timelineExpansionScope, timelineItems]);
+  const handleTimelineExpandChange = useCallback(
+    (indices) => {
+      setExpandedTimelineState({
+        scope: timelineExpansionScope,
+        keys: new Set(
+          indices
+            .map((index) => timelineItems[index]?.key)
+            .filter((key) => typeof key === "string" && key.length > 0),
+        ),
+      });
+    },
+    [timelineExpansionScope, timelineItems],
+  );
 
   if (timelineItems.length === 0) return null;
 
@@ -2142,6 +2620,8 @@ const TraceChain = ({
       >
         <Timeline
           items={timelineItems}
+          expanded_indices={expandedTimelineIndices}
+          on_expand_change={handleTimelineExpandChange}
           compact={compact}
           hideTrack={hideTrack}
           style={{ fontSize: compact ? 12 : 13 }}
@@ -2196,7 +2676,9 @@ const TraceChain = ({
             }}
           >
             {isStreaming && !doneFrame
-              ? "Thinking…"
+              ? isRetryWaiting
+                ? t("provider_retry.retrying_header")
+                : "Thinking…"
               : hasError
                 ? (stepCount > 0
                     ? `Failed after ${stepCount} step${stepCount !== 1 ? "s" : ""}`

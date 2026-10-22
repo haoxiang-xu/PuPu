@@ -17,6 +17,7 @@ import {
 import {
   buildQualificationFeed,
 } from "./build-qualification-feed.mjs";
+import { validateProductionAppUpdateFile } from "./production-app-update.mjs";
 import {
   expectedTargetAssets,
   readJson,
@@ -413,6 +414,14 @@ const assertUpdatedIdentity = ({ installed, expected, targetId }) => {
     executablePath: installed.identity.executablePath,
     sidecarPlatform: sidecarPlatformForTarget(targetId),
   });
+  if (targetId === "windows-x64") {
+    const updater = validateProductionAppUpdateFile({
+      appUpdatePath: path.join(path.dirname(installed.identity.asarPath), "app-update.yml"),
+    });
+    console.log(
+      `[restart-update] validated relaunched Windows updater config ${updater.sha256}`,
+    );
+  }
   for (const key of ["executable_sha256", "app_asar_sha256", "sidecar_sha256", "snapshot_sha256"]) {
     if (actual.hashes[key] !== expected[key]) {
       throw new Error(`restarted candidate ${key} does not match the exact N package`);
@@ -681,6 +690,14 @@ export async function runRestartUpdateQualification({
       installerPath: candidateInstallerPath,
       tempRoot: path.join(tempRoot, "expected-n"),
     });
+    if (targetId === "windows-x64") {
+      const updater = validateProductionAppUpdateFile({
+        appUpdatePath: path.join(path.dirname(expectedCandidate.identity.asarPath), "app-update.yml"),
+      });
+      console.log(
+        `[restart-update] validated expected Windows candidate updater config ${updater.sha256}`,
+      );
+    }
     const expected = expectedIdentity({ installed: expectedCandidate, targetId });
     stage = "install-fixture";
     installedFixture = await installTargetPackage({

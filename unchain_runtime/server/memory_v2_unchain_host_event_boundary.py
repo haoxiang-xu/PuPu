@@ -25,6 +25,7 @@ HOST_EVENT_ORIGIN_HUMAN_INPUT = "human_input"
 HOST_EVENT_ORIGIN_MAX_BUDGET = "max_budget"
 HOST_EVENT_ORIGIN_INTERACTION_RESOLUTION = "interaction_resolution"
 HOST_EVENT_ORIGIN_FALLBACK_FINAL = "fallback_final"
+HOST_EVENT_ORIGIN_COLD_TERMINAL = "cold_terminal_repair"
 
 _PRESENTATION_ORIGINS = frozenset(
     {
@@ -36,6 +37,7 @@ _PRESENTATION_ORIGINS = frozenset(
 _SEMANTIC_ORIGINS = frozenset(
     {
         HOST_EVENT_ORIGIN_FALLBACK_FINAL,
+        HOST_EVENT_ORIGIN_COLD_TERMINAL,
     }
 )
 _RESOLUTION_ORIGINS = frozenset({HOST_EVENT_ORIGIN_INTERACTION_RESOLUTION})
@@ -389,6 +391,23 @@ def _assert_canonical_identity_shape(
         )
 
 
+def _cold_terminal_type(event, authority):
+    expected = "run_cancelled" if event.get("status") == "cancelled" else "run_failed"
+    if (
+        set(event) != {"type", "run_id", "iteration", "status", "code", "message", "recoverable"}
+        or event.get("type") != expected
+        or event.get("status") not in {"failed", "cancelled"}
+        or event.get("code") != "cold_terminal_repair"
+        or event.get("message") != ("Run cancelled" if expected == "run_cancelled" else "Run failed")
+        or type(event.get("iteration")) is not int
+        or event["iteration"] < 0
+        or event.get("recoverable") is not False
+        or authority.interaction_id or authority.source_attempt_id or authority.interaction_kind
+    ):
+        raise PupuUnchainHostEventBoundaryError("cold terminal payload is not closed")
+    return expected
+
+
 def validate_pupu_unchain_bound_host_event(
     bound_event: PupuUnchainBoundHostEvent,
 ) -> None:
@@ -410,7 +429,11 @@ def validate_pupu_unchain_bound_host_event(
             raise PupuUnchainHostEventBoundaryError(
                 "presentation host event origin cannot enter semantic lane"
             )
-        expected_type = "final_message"
+        expected_type = (
+            _cold_terminal_type(event, authority)
+            if authority.origin == HOST_EVENT_ORIGIN_COLD_TERMINAL
+            else "final_message"
+        )
     else:
         raise PupuUnchainHostEventBoundaryError(
             f"unsupported host event lane: {bound_event.lane}"
@@ -565,7 +588,11 @@ class PupuUnchainHostEventBoundary:
                 raise PupuUnchainHostEventBoundaryError(
                     "presentation host event origin cannot enter semantic lane"
                 )
-            expected_type = "final_message"
+            expected_type = (
+                _cold_terminal_type(event, authority)
+                if authority.origin == HOST_EVENT_ORIGIN_COLD_TERMINAL
+                else "final_message"
+            )
             if event_type != expected_type:
                 raise PupuUnchainHostEventBoundaryError(
                     f"semantic host event origin requires {expected_type}"

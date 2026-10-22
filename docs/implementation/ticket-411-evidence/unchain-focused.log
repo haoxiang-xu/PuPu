@@ -1,0 +1,14 @@
+........................................................................ [ 44%]
+........................................................................ [ 88%]
+...................                                                      [100%]
+=============================== warnings summary ===============================
+tests/context_v2/test_gemini_response_outcomes.py::test_known_finish_is_terminal_and_survives_reopen[MISSING_THOUGHT_SIGNATURE]
+  /Users/red/Desktop/GITRepo/unchain-411/.venv/lib/python3.12/site-packages/google/genai/_common.py:707: UserWarning: MISSING_THOUGHT_SIGNATURE is not a valid FinishReason
+    warnings.warn(f'{value} is not a valid {cls.__name__}')
+
+tests/context_v2/test_provider_uncertainty_diagnostics.py::test_real_sdk_uncertainty_is_detailed_after_cold_reopen[data: {"candidates": [{"finishReason": "UNRECOGNIZED_FUTURE_FINISH"}]}\n\n-unsupported_finish_reason-processing_response]
+  /Users/red/Desktop/GITRepo/unchain-411/.venv/lib/python3.12/site-packages/google/genai/_common.py:707: UserWarning: UNRECOGNIZED_FUTURE_FINISH is not a valid FinishReason
+    warnings.warn(f'{value} is not a valid {cls.__name__}')
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+163 passed, 2 warnings in 6.79s

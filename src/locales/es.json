@@ -316,6 +316,8 @@
     "consumed_usage": "Uso consumido",
     "consumed_usage_desc": "Total de tokens consumidos por período de tiempo seleccionado.",
     "no_data": "Aún no hay datos de uso de tokens",
+    "excluded_note": "{excluded} de {total} solicitudes excluidas porque su uso no está disponible",
+    "no_known_usage": "El uso no está disponible para ninguna solicitud de este período",
     "load_failed": "No se pudieron cargar los datos de uso de tokens. Tus datos almacenados no se modificaron.",
     "breakdown": "Desglose de entrada / salida",
     "breakdown_desc": "Flujo de tokens separado para solicitudes y respuestas.",
@@ -573,6 +575,11 @@
   },
   "chat": {
     "placeholder": "Mensaje a PuPu...",
+    "settlement": {
+      "waiting": "Esperando a que termine la ejecución anterior…",
+      "cancelled": "Se ha cancelado la espera. Puedes reintentar o descartar este cambio en el mensaje.",
+      "timeout": "La ejecución anterior aún está terminando. Puedes reintentar o descartar este cambio en el mensaje."
+    },
     "minimap": {
       "top": "Inicio",
       "prev": "Ant.",
@@ -903,5 +910,26 @@
     "organization_queued": "Organización de recuerdos en espera",
     "organization_empty": "No hay recuerdos que organizar",
     "organization_complete": "Recuerdos organizados"
+  },
+  "provider_retry": {
+    "waiting": "Esperando a {provider}",
+    "retrying_header": "Reintentando…",
+    "next_try_in": "siguiente intento en {seconds} s",
+    "trying_again": "reintentando (intento {attempt} de {max})",
+    "stopped": "Detenido durante los reintentos",
+    "retried": "Reintentado {count}×",
+    "legend_failed": "{count} fallidos",
+    "legend_current": "intento {attempt}",
+    "legend_left": "quedan {count}",
+    "stop": "Detener",
+    "stopped_by_you": "detenido por ti",
+    "bar_label": "Intentos usados de {max}",
+    "reason_overloaded": "Sobrecargado (HTTP {status})",
+    "reason_rate_limited": "Límite de velocidad o cuota (HTTP {status})",
+    "reason_gateway": "Error de pasarela (HTTP {status})",
+    "reason_http": "Fallo temporal (HTTP {status})",
+    "reason_unknown": "Fallo temporal",
+    "provider_fallback": "el proveedor",
+    "usage_partial": "{excluded} de {total} llamadas sin datos de uso"
   }
 }

@@ -1,0 +1,9 @@
+{
+  "source_revision": "358b96d723daa0d2882158985c8245c7f8c7fb23",
+  "tracked_test_files_compared": 346,
+  "tracked_test_byte_comparison": "PASS",
+  "runtime_src_symlink_target": "/workspace/scratch/0b50cbee41b6/artifacts/dev390/site",
+  "fixture_src_symlink_target": "/workspace/scratch/0b50cbee41b6/artifacts/dev390/site",
+  "wheel_sha256": "819e097dee4ad8b934b76fabf83d04360c3081a48730d21792bf525b806e7e76",
+  "cold_process_binding": "Existing fixture src prefixes resolve to the same verified installed wheel target; no mutable checkout runtime is present in this mirror"
+}

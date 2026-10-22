@@ -1,3 +1,5 @@
+import { validateDurablePresentationMetadata } from "../../../SERVICEs/durable_interaction_presentation";
+
 const isObject = (value) =>
   value !== null && typeof value === "object" && !Array.isArray(value);
 
@@ -137,20 +139,24 @@ const isCanonicalHumanInputPayload = (toolCall) => {
 
 const isCanonicalDurablePresentation = (
   presentation,
-  { kind, interactionId, sourceRunId },
+  { kind, interactionId, sourceRunId, sessionId },
 ) => {
   if (!isObject(presentation) || !hasExactKeys(presentation, DURABLE_PRESENTATION_KEYS)) {
     return false;
   }
   const traceFrame = presentation.trace_frame;
   const toolCall = presentation.tool_call;
+  const extensions = validateDurablePresentationMetadata(presentation, {
+    kind, sessionId, sourceRunId, equalJson: jsonValuesEqual,
+  });
+  if (!extensions) return false;
   const expectedToolKeys =
     kind === "max_budget"
       ? DURABLE_MAX_BUDGET_TOOL_CALL_KEYS
       : DURABLE_TOOL_CALL_KEYS;
   if (
     !isObject(traceFrame) ||
-    !hasExactKeys(traceFrame, DURABLE_TRACE_FRAME_KEYS) ||
+    !hasExactKeys(traceFrame, [...DURABLE_TRACE_FRAME_KEYS, ...extensions.traceKeys]) ||
     traceFrame.seq !== 0 ||
     !Number.isSafeInteger(traceFrame.ts) ||
     traceFrame.ts < 0 ||
@@ -159,15 +165,14 @@ const isCanonicalDurablePresentation = (
     traceFrame.stage !== "durable_recovery" ||
     !isObject(toolCall) ||
     !isObject(traceFrame.payload) ||
-    !hasExactKeys(toolCall, expectedToolKeys) ||
-    !hasExactKeys(traceFrame.payload, expectedToolKeys) ||
+    !hasExactKeys(toolCall, [...expectedToolKeys, ...extensions.toolKeys]) ||
+    !hasExactKeys(traceFrame.payload, [...expectedToolKeys, ...extensions.toolKeys]) ||
     !jsonValuesEqual(toolCall, traceFrame.payload) ||
     normalizedString(toolCall.confirmation_id) !== interactionId ||
     toolCall.requires_confirmation !== true ||
     !normalizedString(toolCall.call_id) ||
     !normalizedString(toolCall.tool_name) ||
     typeof toolCall.tool_display_name !== "string" ||
-    !isObject(toolCall.arguments) ||
     typeof toolCall.description !== "string" ||
     !normalizedString(toolCall.interact_type) ||
     (!isObject(toolCall.interact_config) &&
@@ -309,6 +314,7 @@ export const normalizePendingInteraction = (
       kind,
       interactionId,
       sourceRunId,
+      sessionId,
     })
   ) {
     return null;
@@ -386,6 +392,15 @@ export const normalizePendingInteraction = (
     kind,
     sourceRunId,
     activeAttemptId,
+    ...(resumeKind === "graph_step"
+      ? {
+          resumeKind,
+          graphStepAttemptId: normalizedString(rawPending.graph_step_attempt_id),
+          graphCoordinatorAttemptId: normalizedString(
+            rawPending.graph_coordinator_attempt_id,
+          ),
+        }
+      : {}),
     receiptId,
     resumeAvailable: rawPending.resume_available === true,
     resumeUnavailableReason: normalizedString(
@@ -520,17 +535,48 @@ export const buildRecoveredConfirmationRequest = ({
   ownerMessageId,
   requestedAt = Date.now(),
 }) => {
-  const payload = isObject(pending?.traceFrame?.payload)
-    ? pending.traceFrame.payload
-    : {};
+  const traceFrame = isObject(pending?.traceFrame) ? pending.traceFrame : {};
+  const payload = isObject(traceFrame.payload) ? traceFrame.payload : {};
   return {
     confirmationId: pending.interactionId,
     callId: pending.callId,
     chatId: normalizedString(chatId),
     sessionId: pending.sessionId,
+    ...(Object.prototype.hasOwnProperty.call(traceFrame, "session_id")
+      ? { session_id: traceFrame.session_id }
+      : {}),
+    ...(Object.prototype.hasOwnProperty.call(traceFrame, "run_id")
+      ? { runId: traceFrame.run_id, run_id: traceFrame.run_id }
+      : {}),
+    ...(Object.prototype.hasOwnProperty.call(traceFrame, "execution_id")
+      ? { executionId: traceFrame.execution_id, execution_id: traceFrame.execution_id }
+      : {}),
+    ...(Object.prototype.hasOwnProperty.call(traceFrame, "event_cursor")
+      ? { eventCursor: traceFrame.event_cursor, event_cursor: traceFrame.event_cursor }
+      : {}),
+    ...(Object.prototype.hasOwnProperty.call(traceFrame, "event_id")
+      ? { eventId: traceFrame.event_id, event_id: traceFrame.event_id }
+      : {}),
+    ...(Object.prototype.hasOwnProperty.call(traceFrame, "iteration")
+      ? { iteration: traceFrame.iteration }
+      : {}),
+    ...(Object.prototype.hasOwnProperty.call(traceFrame, "links")
+      ? { links: traceFrame.links }
+      : {}),
     ownerMessageId: normalizedString(ownerMessageId),
     toolName: normalizedString(payload.tool_name),
-    toolkitId: normalizedString(payload.toolkit_id),
+    ...(Object.prototype.hasOwnProperty.call(payload, "toolkit_id")
+      ? { toolkitId: payload.toolkit_id }
+      : {}),
+    ...(Object.prototype.hasOwnProperty.call(payload, "call_ref")
+      ? { callRef: payload.call_ref }
+      : {}),
+    ...(Object.prototype.hasOwnProperty.call(payload, "call_ref_metadata")
+      ? { callRefMetadata: payload.call_ref_metadata }
+      : {}),
+    ...(Object.prototype.hasOwnProperty.call(payload, "timeline_merge_policy")
+      ? { timelineMergePolicy: payload.timeline_merge_policy }
+      : {}),
     toolDisplayName: normalizedString(payload.tool_display_name),
     arguments: isObject(payload.arguments) ? payload.arguments : {},
     description: normalizedString(payload.description),

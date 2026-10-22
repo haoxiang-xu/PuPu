@@ -1,0 +1,125 @@
+{
+  "source_checkpoint": "5a2e3fa52ded0a29098d828898d6800bccb832ce",
+  "production_basis": "ce9e434c069c14cf0ae6bf7997671d6d065d1394",
+  "entry": "docs/implementation/ticket-384-evidence/compiled-consumer/qa-entry.js",
+  "entry_sha256": "5f604cc728db9b7e12d6a8ba744c2dec644941ea3e97d9289fda7eacfa59f1c0",
+  "verifier_sha256": "b6ae9dbf564ce11fc585413c032082e5a1d8d6c0da013e3d59153dd59e8828e0",
+  "bundle_sha256": "789f1248c23473ba6b5dd04c18d34cabe1460fbb18c789bace9d5af43d92bf8a",
+  "served_bundle_matches": true,
+  "browser": "149.0.7827.55",
+  "profile": "Playwright temporary context; no persistent or user profile",
+  "permitted_origin": "http://127.0.0.1:2924",
+  "blocked_requests": [],
+  "diagnostics": [],
+  "requested_resources": [
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:2924/",
+      "type": "document"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:2924/ticket-384-consumer.js",
+      "type": "script"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:2924/?chat=chat-1790979959558-f68cd4dc8e24ea33aa2f52ba1b804466&scenario=generic",
+      "type": "document"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:2924/ticket-384-consumer.js",
+      "type": "script"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:2924/?chat=chat-1790979959558-f68cd4dc8e24ea33aa2f52ba1b804466&scenario=nested",
+      "type": "document"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:2924/ticket-384-consumer.js",
+      "type": "script"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:2924/?chat=chat-1790979959558-f68cd4dc8e24ea33aa2f52ba1b804466&scenario=approval",
+      "type": "document"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:2924/ticket-384-consumer.js",
+      "type": "script"
+    }
+  ],
+  "bridges_absent": true,
+  "provider_or_approval_requests": 0,
+  "records": [
+    {
+      "scenario": "generic",
+      "saved_sha256": "f605d59241a5dab37a569fa4dd7d43ac0c2db1ee52e247daa6cb1481d1c0fbc1",
+      "message_id": "assistant-generic-384",
+      "root_call_order": [
+        "qa-completed-call",
+        "qa-completed-call",
+        "qa-pending-call"
+      ],
+      "switched_trace_absent": true,
+      "return_bytes_identical": true,
+      "reload_bytes_identical": true,
+      "expanded_details": 1,
+      "truthful_interrupted_status": true,
+      "approval_actions": 0,
+      "trace": "Used 2 steps\nread_file\n×2\nhide\nInterrupted\ntook\n0ms\nARGS\npath\nfixture-1.txt\nRESULT\ncontent\nfixture contents for fixture-1.txt\nARGS\npath\nfixture-2.txt",
+      "screenshot": "generic-after-reload.png",
+      "screenshot_sha256": "b74d8932f9d18676e339f4cb943010aa5d6e012c02e77b4ac35dc85381942276"
+    },
+    {
+      "scenario": "nested",
+      "saved_sha256": "bb275721f3bad5899bd64525733c6b5e15f1ed3bf74eef601813be5289cf1800",
+      "message_id": "assistant-nested-384",
+      "root_call_order": [
+        "qa-completed-call",
+        "qa-completed-call",
+        "qa-pending-call",
+        "qa-delegate-call",
+        "qa-delegate-call"
+      ],
+      "switched_trace_absent": true,
+      "return_bytes_identical": true,
+      "reload_bytes_identical": true,
+      "expanded_details": 2,
+      "truthful_interrupted_status": true,
+      "approval_actions": 0,
+      "trace": "Used 3 steps\nread_file\n×2\nhide\nInterrupted\ntook\n0ms\nARGS\npath\nfixture-1.txt\nRESULT\ncontent\nfixture contents for fixture-1.txt\nARGS\npath\nfixture-2.txt\ndelegate\nworker\nhide\n+69060.7s\nqa-worker\nsearch\ncancelled\nhide\nInterrupted\nread_file\nhide\nInterrupted\nARGS\npath\nworker.txt",
+      "screenshot": "nested-after-reload.png",
+      "screenshot_sha256": "19f7854b08cc5ba18f10a29c9a6d12f060a2ba8feea899cfc35a0465290e3a32"
+    },
+    {
+      "scenario": "approval",
+      "saved_sha256": "fa5992d61f27d38552ac1de6bbec4913f3c3ab24719c7f01d424e8e1e9df5979",
+      "message_id": "assistant-approval-384",
+      "root_call_order": [
+        "qa-completed-call",
+        "qa-completed-call",
+        "qa-pending-call",
+        "qa-approval-call"
+      ],
+      "switched_trace_absent": true,
+      "return_bytes_identical": true,
+      "reload_bytes_identical": true,
+      "expanded_details": 2,
+      "truthful_interrupted_status": true,
+      "approval_actions": 0,
+      "trace": "Used 3 steps\nread_file\n×2\nhide\nInterrupted\ntook\n0ms\nARGS\npath\nfixture-1.txt\nRESULT\ncontent\nfixture contents for fixture-1.txt\nARGS\npath\nfixture-2.txt\nshell\nhide\nInterrupted\nPending\nARGS\ncommand\necho approval",
+      "screenshot": "approval-after-reload.png",
+      "screenshot_sha256": "f803f436cd67c9231a1b9e67dffdf45c57c46a826b86b790e8c70bf42422f63f"
+    }
+  ],
+  "limitations": [
+    "Isolated compiled consumer and fallback localStorage only.",
+    "Actual Stop timing is covered by real-hook tests, not this seeded QA entry.",
+    "No Electron/shared profile, deployed sidecar cancellation, MemoryV2 journal replay or cold sidecar restart."
+  ]
+}

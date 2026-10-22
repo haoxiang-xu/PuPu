@@ -26,6 +26,7 @@ import {
 } from "../../../CONTAINERs/config/context";
 import ChatInterface from "../chat";
 import {
+  getChatMessages,
   getChatsStore,
   createChatInSelectedContext,
   selectTreeNode,
@@ -35,8 +36,12 @@ import {
 } from "../../../SERVICEs/chat_storage";
 import { writeFeatureFlags } from "../../../SERVICEs/feature_flags";
 import { enqueueExecutionCancel, readExecutionCancelOutbox } from "./execution_cancel_outbox";
+import { normalizePendingInteraction } from "./durable_interaction_recovery";
 import { writeReasoningEffortPref } from "../../../SERVICEs/reasoning_effort_prefs";
 import ollamaPreviewFixture from "../../../SERVICEs/runtime_events/fixtures/ollama_live_preview.json";
+import { resolveToolCallOwnerForRequest } from "../../../SERVICEs/runtime_events/tool_call_projection";
+import { mergePendingConfirmationTraceState } from "../../../COMPONENTs/chat-bubble/pending_confirmation_trace_frames";
+import observedBatchFixture from "../../../SERVICEs/runtime_events/fixtures/ticket_384_observed_batch.json";
 
 const pendingToolInteraction = (sessionId, attemptId, interactionId) => {
   const toolCall = {
@@ -55,6 +60,13 @@ const pendingToolInteraction = (sessionId, attemptId, interactionId) => {
     },
   };
 };
+
+const pendingGraphStepInteraction = (sessionId, graphStepAttemptId, coordinatorAttemptId, interactionId) => ({
+  ...pendingToolInteraction(sessionId, graphStepAttemptId, interactionId),
+  resume_kind: "graph_step",
+  graph_step_attempt_id: graphStepAttemptId,
+  graph_coordinator_attempt_id: coordinatorAttemptId,
+});
 
 let lastChatMessagesProps = null;
 let lastChatInputProps = null;
@@ -95,7 +107,7 @@ jest.mock("../../../COMPONENTs/chat-input/chat_input", () => ({
   __esModule: true,
   default: (props) => {
     lastChatInputProps = props;
-    const { value, onChange, onSend, sendDisabled } = props;
+    const { value, onChange, onSend, onStop, isStreaming, sendDisabled } = props;
     return (
       <div>
         <input
@@ -110,6 +122,11 @@ jest.mock("../../../COMPONENTs/chat-input/chat_input", () => ({
         >
           Send
         </button>
+        {isStreaming ? (
+          <button data-testid="stop-button" onClick={onStop}>
+            Stop
+          </button>
+        ) : null}
       </div>
     );
   },
@@ -150,6 +167,53 @@ const DEFAULT_MEMORY_AGENT_CONFIG = {
   modelId: "",
 };
 
+const makeQualifiedToolFrame = ({ confirmationId, callId, attemptId, eventId, args }) => {
+  const intentCursor = {
+    schema: "unchain.event_cursor.v1",
+    store_seq: attemptId === "attempt-one" ? 11 : 12,
+    event_id: eventId,
+  };
+  const callRef = {
+    schema: "pupu.tool_call_ref.v1",
+    execution_id: "execution-one",
+    original_attempt_id: attemptId,
+    call_id: callId,
+    tool_name: "shell",
+    intent_cursor: intentCursor,
+    iteration: attemptId === "attempt-one" ? 2 : 3,
+    toolkit_id: "core",
+  };
+  return {
+    seq: intentCursor.store_seq,
+    ts: intentCursor.store_seq * 10,
+    type: "tool_call",
+    run_id: attemptId,
+    execution_id: "execution-one",
+    session_id: "session-one",
+    stage: "tools",
+    iteration: callRef.iteration,
+    payload: {
+      call_id: callId,
+      confirmation_id: confirmationId,
+      requires_confirmation: true,
+      toolkit_id: "core",
+      tool_name: "shell",
+      arguments: args,
+      interact_type: "confirmation",
+      timeline_merge_policy: "approved",
+      call_ref: callRef,
+      call_ref_metadata: {
+        schema: "pupu.tool_call_ref_metadata.v1",
+        intent_cursor: intentCursor,
+        timeline_merge_policy_declared: true,
+        timeline_merge_policy: "approved",
+        original_arguments_declared: true,
+        original_arguments: args,
+      },
+    },
+  };
+};
+
 describe("Memory V2 P0 payload seams", () => {
   let streamHandlers;
 
@@ -172,6 +236,7 @@ describe("Memory V2 P0 payload seams", () => {
         url: "http://localhost:3000",
         reason: "",
       })),
+      isRuntimeEventStreamV4Available: jest.fn(() => false),
       getModelCatalog: jest.fn(async () => ({
         activeModel: "openai:gpt-5",
         providers: { openai: ["gpt-5"], ollama: [], anthropic: [] },
@@ -235,6 +300,40 @@ describe("Memory V2 P0 payload seams", () => {
     fireEvent.click(screen.getByTestId("send-button"));
   };
 
+  const startRuntimeV4 = (attemptId) => {
+    window.unchainAPI.isRuntimeEventStreamV4Available.mockReturnValue(true);
+    window.unchainAPI.startStreamV4 = jest.fn((_payload, handlers) => {
+      streamHandlers = handlers;
+      return { cancel: jest.fn(), disconnect: jest.fn(), requestId: `request-${attemptId}`, attemptId };
+    });
+  };
+
+  const observedBatchEvent = (index, { chatId, runId, callIds = {} }) => {
+    const event = JSON.parse(JSON.stringify(observedBatchFixture[index]));
+    event.event_id = `test-${runId}-${event.seq}`;
+    event.session_id = chatId;
+    event.run_id = runId;
+    event.turn_id = `${runId}:turn-0`;
+    const previousCallId = event.links?.tool_call_id;
+    const mappedCallId = previousCallId ? callIds[previousCallId] : undefined;
+    if (mappedCallId) {
+      event.links.tool_call_id = mappedCallId;
+      if (typeof event.links.step_id === "string") {
+        event.links.step_id = `tool:${mappedCallId}`;
+      }
+      if (event.payload?.call_id) event.payload.call_id = mappedCallId;
+      if (typeof event.payload?.step_id === "string") {
+        event.payload.step_id = `tool:${mappedCallId}`;
+      }
+    }
+    return event;
+  };
+
+  const waitForRuntimeRun = async () => {
+    await waitFor(() => expect(streamHandlers).not.toBeNull());
+    expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(1);
+  };
+
   const seedPriorTurn = (chatId) => {
     const priorMessages = [
       {
@@ -258,6 +357,344 @@ describe("Memory V2 P0 payload seams", () => {
     setChatMessages(chatId, priorMessages, { source: "test" });
     return priorMessages;
   };
+
+  test("#384: stop preserves a canonical V4 call admitted to the pending 64ms batch", async () => {
+    startRuntimeV4("attempt-buffered-384");
+    renderChat();
+    await waitForReady();
+    sendText("read the fixture");
+    await waitForRuntimeRun();
+
+    const chatId = getChatsStore().activeChatId;
+    const admittedCall = observedBatchEvent(2, {
+      chatId,
+      runId: "attempt-buffered-384",
+      callIds: { "observed-batch-call-1": "call-buffered-384" },
+    });
+    await act(async () => streamHandlers.onRuntimeEvent(admittedCall));
+    expect(lastChatMessagesProps.messages.find((message) => message.role === "assistant")?.traceFrames)
+      .not.toEqual(expect.arrayContaining([expect.objectContaining({ type: "tool_call" })]));
+
+    await act(async () => fireEvent.click(screen.getByTestId("stop-button")));
+
+    const assistant = getChatMessages(chatId).find((message) => message.role === "assistant");
+    expect(assistant).toBeDefined();
+    expect(assistant.status).toBe("cancelled");
+    expect(assistant.traceFrames).toEqual([
+      expect.objectContaining({
+        type: "tool_call",
+        payload: expect.objectContaining({
+          call_id: "call-buffered-384",
+          tool_name: "read_file",
+          arguments: { path: "fixture-1.txt" },
+        }),
+      }),
+    ]);
+  });
+
+  test("#384: stop drains a result and the in-flight root call admitted in the same stack", async () => {
+    startRuntimeV4("attempt-same-stack-result-384");
+    renderChat();
+    await waitForReady();
+    sendText("read both files");
+    await waitForRuntimeRun();
+    const chatId = getChatsStore().activeChatId;
+    const callIds = {
+      "observed-batch-call-1": "call-same-stack-complete-384",
+    };
+
+    await act(async () => {
+      observedBatchFixture.slice(0, 5).forEach((_event, index) => {
+        streamHandlers.onRuntimeEvent(observedBatchEvent(index, {
+          chatId,
+          runId: "attempt-same-stack-result-384",
+          callIds: {
+            ...callIds,
+            "observed-batch-call-2": "call-same-stack-running-384",
+          },
+        }));
+      });
+      fireEvent.click(screen.getByTestId("stop-button"));
+    });
+
+    const assistant = getChatMessages(chatId).find((message) => message.role === "assistant");
+    expect(assistant.status).toBe("cancelled");
+    expect(assistant.traceFrames.map((frame) => frame.payload?.call_id).filter(Boolean)).toEqual([
+      "call-same-stack-complete-384",
+      "call-same-stack-complete-384",
+      "call-same-stack-running-384",
+    ]);
+    expect(assistant.traceFrames.find((frame) =>
+      frame.type === "tool_result" && frame.payload?.call_id === "call-same-stack-complete-384",
+    )?.payload.result).toEqual({ content: "fixture contents for fixture-1.txt" });
+  });
+
+  test("#384: stop drains nested V4 calls and results admitted in the same 64ms batch", async () => {
+    startRuntimeV4("attempt-nested-buffered-384");
+    renderChat();
+    await waitForReady();
+    sendText("inspect with a worker");
+    await waitForRuntimeRun();
+    const chatId = getChatsStore().activeChatId;
+    const runId = "attempt-nested-buffered-384";
+    const rootCallIds = {
+      "observed-batch-call-1": "call-nested-root-complete-384",
+      "observed-batch-call-2": "call-nested-root-running-384",
+    };
+    const childEvents = [
+      {
+        seq: 6, type: "run.started", run_id: "worker-run-384", agent_id: "worker-search",
+        links: { parent_run_id: runId }, payload: { agent_id: "worker-search", mode: "delegate" },
+      },
+      {
+        seq: 7, type: "step.started", run_id: "worker-run-384", agent_id: "worker-search",
+        links: { parent_run_id: runId, tool_call_id: "child-call-complete-384" },
+        payload: { step_type: "tool", call_id: "child-call-complete-384", tool_name: "read_file", arguments: { path: "worker-complete.txt" } },
+      },
+      {
+        seq: 8, type: "step.completed", run_id: "worker-run-384", agent_id: "worker-search",
+        links: { parent_run_id: runId, tool_call_id: "child-call-complete-384" },
+        payload: { step_type: "tool", call_id: "child-call-complete-384", tool_name: "read_file", status: "success", result: { content: "worker result" } },
+      },
+      {
+        seq: 9, type: "step.started", run_id: "worker-run-384", agent_id: "worker-search",
+        links: { parent_run_id: runId, tool_call_id: "child-call-running-384" },
+        payload: { step_type: "tool", call_id: "child-call-running-384", tool_name: "search", arguments: { query: "unfinished" } },
+      },
+    ].map((event) => ({
+      schema_version: "v4",
+      event_id: `test-worker-${event.seq}`,
+      timestamp: "2026-10-02T00:00:00.000Z",
+      session_id: chatId,
+      turn_id: `${runId}:turn-0`,
+      visibility: "user",
+      metadata: {},
+      surface: { slot: "trace_inline", scope: "turn" },
+      ...event,
+    }));
+
+    await act(async () => {
+      observedBatchFixture.slice(0, 5).forEach((_event, index) => {
+        streamHandlers.onRuntimeEvent(observedBatchEvent(index, { chatId, runId, callIds: rootCallIds }));
+      });
+      childEvents.forEach((event) => streamHandlers.onRuntimeEvent(event));
+      fireEvent.click(screen.getByTestId("stop-button"));
+    });
+
+    const assistant = getChatMessages(chatId).find((message) => message.role === "assistant");
+    expect(assistant.status).toBe("cancelled");
+    expect(assistant.traceFrames.map((frame) => frame.payload?.call_id).filter(Boolean)).toEqual([
+      "call-nested-root-complete-384",
+      "call-nested-root-complete-384",
+      "call-nested-root-running-384",
+    ]);
+    expect(assistant.traceFrames.find((frame) => frame.type === "tool_result" && frame.payload?.call_id === "call-nested-root-complete-384")?.payload.result)
+      .toEqual({ content: "fixture contents for fixture-1.txt" });
+    expect(assistant.subagentFrames["worker-run-384"].map((frame) => frame.payload?.call_id).filter(Boolean)).toEqual([
+      "child-call-complete-384",
+      "child-call-complete-384",
+      "child-call-running-384",
+    ]);
+    expect(assistant.subagentFrames["worker-run-384"].find((frame) => frame.type === "tool_result")?.payload.result)
+      .toEqual({ content: "worker result" });
+    // Keep the worker's observed raw status for provenance. TraceChain projects
+    // running child metadata as Cancelled when its saved parent is cancelled.
+    expect(assistant.subagentMetaByRunId["worker-run-384"].status).toBe("running");
+    expect(JSON.stringify(getChatMessages(chatId).find((message) => message.id === assistant.id).subagentFrames["worker-run-384"]))
+      .toBe(JSON.stringify(assistant.subagentFrames["worker-run-384"]));
+  });
+
+  test("#384: repeated stop and callbacks from a finished V4 run cannot mutate its successor", async () => {
+    // This scenario starts a successor only after the exact Stop is confirmed.
+    window.unchainAPI.cancelExecution = jest.fn(async (payload) => ({
+      status: "cancelled", state: "cancelled",
+      execution_id: payload.session_id, attempt_id: payload.attempt_id,
+    }));
+    const handlersByRun = [];
+    window.unchainAPI.isRuntimeEventStreamV4Available.mockReturnValue(true);
+    window.unchainAPI.startStreamV4 = jest.fn((_payload, handlers) => {
+      handlersByRun.push(handlers);
+      streamHandlers = handlers;
+      const index = handlersByRun.length;
+      return {
+        cancel: jest.fn(),
+        requestId: `request-stale-${index}`,
+        attemptId: `attempt-stale-${index}`,
+      };
+    });
+    renderChat();
+    await waitForReady();
+    sendText("first attempt");
+    await waitForRuntimeRun();
+    const chatId = getChatsStore().activeChatId;
+    const firstHandlers = streamHandlers;
+
+    await act(async () => {
+      firstHandlers.onRuntimeEvent(observedBatchEvent(2, {
+        chatId,
+        runId: "attempt-stale-first",
+        callIds: { "observed-batch-call-1": "call-stale-first" },
+      }));
+      await new Promise((resolve) => setTimeout(resolve, 80));
+    });
+    await act(async () => fireEvent.click(screen.getByTestId("stop-button")));
+    const firstSnapshot = getChatMessages(chatId).find((message) => message.role === "assistant");
+    expect(firstSnapshot.status).toBe("cancelled");
+
+    await act(async () => lastChatInputProps.onStop());
+    await act(async () => firstHandlers.onRuntimeEvent(observedBatchEvent(3, {
+      chatId,
+      runId: "attempt-stale-first",
+      callIds: { "observed-batch-call-1": "call-stale-first" },
+    })));
+    sendText("successor attempt");
+    await waitFor(() => expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(2));
+    const successorHandlers = handlersByRun[1];
+
+    await act(async () => {
+      firstHandlers.onRuntimeEvent(observedBatchEvent(5, {
+        chatId,
+        runId: "attempt-stale-first",
+        callIds: { "observed-batch-call-2": "call-stale-first-late-result" },
+      }));
+      await new Promise((resolve) => setTimeout(resolve, 80));
+    });
+    const messagesBeforeSuccessorEvent = getChatMessages(chatId);
+    expect(messagesBeforeSuccessorEvent.find((message) => message.id === firstSnapshot.id).traceFrames)
+      .toEqual(firstSnapshot.traceFrames);
+    const successorBeforeEvent = messagesBeforeSuccessorEvent.filter((message) => message.role === "assistant")[1];
+    expect(successorBeforeEvent?.traceFrames || []).toEqual([]);
+
+    await act(async () => {
+      successorHandlers.onRuntimeEvent(observedBatchEvent(2, {
+        chatId,
+        runId: "attempt-stale-second",
+        callIds: { "observed-batch-call-1": "call-stale-second" },
+      }));
+      await new Promise((resolve) => setTimeout(resolve, 80));
+    });
+    await waitFor(() => {
+      const successor = lastChatMessagesProps.messages.filter((message) => message.role === "assistant")[1];
+      expect(successor?.traceFrames?.some((frame) => frame.payload?.call_id === "call-stale-second")).toBe(true);
+    });
+    const assistants = getChatMessages(chatId).filter((message) => message.role === "assistant");
+    expect(assistants[0].traceFrames.some((frame) => frame.payload?.call_id === "call-stale-first-late-result")).toBe(false);
+  });
+
+  test("#384: stop drains a same-stack approval request before recording cancellation identity", async () => {
+    startRuntimeV4("attempt-same-stack-approval-384");
+    window.unchainAPI.cancelExecution = jest.fn(async (payload) => ({
+      status: "ok",
+      session_id: payload.session_id,
+      attempt_id: payload.attempt_id,
+      state: "cancelled",
+    }));
+    renderChat();
+    await waitForReady();
+    sendText("choose a folder");
+    await waitForRuntimeRun();
+    const chatId = getChatsStore().activeChatId;
+    const interactionId = "interaction-stop-384";
+    const callId = "call-stop-approval-384";
+    const config = {
+      prompt: "Choose a folder",
+      options: [],
+      allow_other: true,
+    };
+    const approvalEvent = {
+      schema_version: "v4",
+      event_id: "event-stop-approval-384",
+      type: "interaction.requested",
+      timestamp: "2026-10-02T00:00:00.000Z",
+      session_id: chatId,
+      run_id: "attempt-same-stack-approval-384",
+      agent_id: "developer",
+      turn_id: "attempt-same-stack-approval-384:turn-0",
+      seq: 1,
+      links: { interaction_id: interactionId, tool_call_id: callId },
+      surface: { slot: "trace_inline", scope: "turn" },
+      visibility: "user",
+      metadata: {},
+      payload: {
+        interaction_id: interactionId,
+        kind: "choice",
+        renderer: "single",
+        title: "Folder",
+        prompt: "Choose a folder",
+        selection_mode: "single",
+        options: [],
+        allow_other: true,
+        target: { tool_call_id: callId, tool_name: "ask_user_question" },
+        config,
+      },
+    };
+
+    await act(async () => {
+      streamHandlers.onRuntimeEvent(approvalEvent);
+      fireEvent.click(screen.getByTestId("stop-button"));
+    });
+
+    const assistant = getChatMessages(chatId).find((message) => message.role === "assistant");
+    expect(assistant.status).toBe("cancelled");
+    expect(assistant.traceFrames).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: "tool_call", payload: expect.objectContaining({
+        confirmation_id: interactionId,
+        call_id: callId,
+        requires_confirmation: true,
+      }) }),
+    ]));
+    expect(window.unchainAPI.cancelExecution).toHaveBeenCalledWith(expect.objectContaining({
+      owner_chat_id: chatId,
+      interaction_id: interactionId,
+      reason: "user_stop",
+    }));
+    expect(lastChatMessagesProps.pendingToolConfirmationRequests[interactionId]).toBeUndefined();
+    expect(window.unchainAPI.respondToolConfirmation).not.toHaveBeenCalled();
+  });
+
+  test("#384: stop preserves two V4 calls when one result was projected before stop", async () => {
+    startRuntimeV4("attempt-visible-384");
+    renderChat();
+    await waitForReady();
+    sendText("read both files");
+    await waitForRuntimeRun();
+    const chatId = getChatsStore().activeChatId;
+    const callIds = {
+      "observed-batch-call-1": "call-completed-384",
+      "observed-batch-call-2": "call-running-384",
+    };
+
+    await act(async () => {
+      observedBatchFixture.slice(0, 5).forEach((_event, index) => {
+        streamHandlers.onRuntimeEvent(observedBatchEvent(index, {
+          chatId,
+          runId: "attempt-visible-384",
+          callIds,
+        }));
+      });
+      await new Promise((resolve) => setTimeout(resolve, 80));
+    });
+
+    await waitFor(() => {
+      const assistant = lastChatMessagesProps.messages.find((message) => message.role === "assistant");
+      expect(assistant.traceFrames?.some((frame) => frame.payload?.call_id === "call-running-384")).toBe(true);
+    });
+    await act(async () => fireEvent.click(screen.getByTestId("stop-button")));
+
+    const assistant = getChatMessages(chatId).find((message) => message.role === "assistant");
+    expect(assistant.status).toBe("cancelled");
+    expect(assistant.traceFrames.map((frame) => frame.payload?.call_id).filter(Boolean)).toEqual([
+      "call-completed-384",
+      "call-completed-384",
+      "call-running-384",
+    ]);
+    const completedResult = assistant.traceFrames.find((frame) =>
+      frame.type === "tool_result" && frame.payload?.call_id === "call-completed-384",
+    );
+    expect(completedResult?.payload).toEqual(expect.objectContaining({
+      result: { content: "fixture contents for fixture-1.txt" },
+    }));
+  });
 
   test("a v4 reset removes only its failed live reasoning from the assistant message", async () => {
     window.unchainAPI.startStreamV4 = jest.fn((_payload, handlers) => {
@@ -555,9 +992,12 @@ describe("Memory V2 P0 payload seams", () => {
     };
   };
 
-  const prepareRecoveredHumanInput = async ({ disposition = "receipt_recorded", mismatch = false, resumeAvailable = true } = {}) => {
+  const prepareLiveHumanInput = async ({ disposition = "receipt_recorded", mismatch = false, resumeAvailable = true, initialAssistant = null } = {}) => {
     const chatId = getChatsStore().activeChatId;
-    setChatMessages(chatId, [{ id: "user-path", role: "user", content: "Ask where to put the project", createdAt: 1, updatedAt: 1 }], { source: "test" });
+    setChatMessages(chatId, [
+      { id: "user-path", role: "user", content: "Ask where to put the project", createdAt: 1, updatedAt: 1 },
+      ...(initialAssistant ? [initialAssistant] : []),
+    ], { source: "test" });
     const interactionId = "interaction-path";
     const config = {
       kind: "selector", request_id: "call-path", selection_mode: "single",
@@ -570,7 +1010,7 @@ describe("Memory V2 P0 payload seams", () => {
       tool_display_name: "Ask User", description: "Where?", arguments: config,
       interact_type: "single", interact_config: config,
     };
-    let pending = {
+    const awaiting = {
       status: "awaiting_response", session_id: chatId, interaction_id: interactionId,
       source_run_id: "attempt-path", active_attempt_id: "attempt-path", kind: "human_input",
       provider: "openai", model: "gpt-5", resume_available: resumeAvailable,
@@ -578,48 +1018,162 @@ describe("Memory V2 P0 payload seams", () => {
       ...(!resumeAvailable ? { resume_unavailable_reason: "missing_checkpoint" } : {}),
       presentation: { tool_call: toolCall, trace_frame: { seq: 0, ts: 100, type: "tool_call", run_id: "attempt-path", stage: "durable_recovery", payload: toolCall } },
     };
+    let pending = { status: "none", session_id: chatId };
+    startRuntimeV4("attempt-path");
     window.unchainAPI.getPendingInteraction = jest.fn(async ({ session_id: sessionId = chatId } = {}) => sessionId === chatId ? pending : { status: "none", session_id: sessionId });
     window.unchainAPI.cancelExecution = jest.fn(async (payload) => {
       pending = { status: "none", session_id: chatId };
       return { status: "ok", attempt_id: payload.attempt_id, source_attempt_id: payload.source_attempt_id };
     });
-    window.unchainAPI.startStreamV4 = jest.fn(() => ({ requestId: "resume-path", attemptId: "resume-path", disconnect: jest.fn(), cancel: jest.fn() }));
+    window.unchainAPI.startStreamV4.mockImplementation((payload, handlers = {}) => {
+      streamHandlers = handlers;
+      return {
+        requestId: payload?.mode === "resume_interaction" ? "resume-path" : "request-path",
+        attemptId: payload?.mode === "resume_interaction" ? "resume-path" : "attempt-path",
+        disconnect: jest.fn(),
+        cancel: jest.fn(),
+      };
+    });
     window.unchainAPI.respondToolConfirmation = jest.fn(async () => {
-      pending = { ...pending, status: "receipt_recorded", receipt_id: "receipt-path", resolution: {
+      pending = { ...awaiting, status: "receipt_recorded", receipt_id: "receipt-path", resolution: {
         outcome: "submitted", response: { request_id: "call-path", selected_values: ["__other__"], other_text: "/tmp/中文 项目" },
       } };
       return { status: "ok", durable: true, disposition, session_id: chatId,
         interaction_id: interactionId, receipt_id: mismatch ? "foreign-receipt" : "receipt-path" };
     });
     renderChat();
+    await waitForReady();
+    sendText("Ask where to put the project");
+    await waitForRuntimeRun();
+    pending = awaiting;
+    await act(async () => streamHandlers.onRuntimeEvent({
+      schema_version: "v4",
+      event_id: "event-live-human-input-path",
+      type: "interaction.requested",
+      timestamp: "2026-09-12T00:00:00.000Z",
+      session_id: chatId,
+      run_id: "attempt-path",
+      agent_id: "developer",
+      turn_id: "attempt-path:turn-1",
+      seq: 1,
+      links: { tool_call_id: "call-path", interaction_id: interactionId },
+      surface: { slot: "trace_inline", scope: "turn" },
+      visibility: "user",
+      metadata: {},
+      payload: {
+        interaction_id: interactionId,
+        kind: "human_input",
+        renderer: "single",
+        title: config.title,
+        prompt: config.question,
+        selection_mode: config.selection_mode,
+        options: config.options,
+        allow_other: config.allow_other,
+        min_selected: config.min_selected,
+        max_selected: config.max_selected,
+        target: {
+          tool_call_id: "call-path",
+          tool_name: "ask_user_question",
+          toolkit_id: "core",
+          arguments: config,
+        },
+      },
+    }));
     await waitFor(() => expect(lastChatMessagesProps?.pendingToolConfirmationRequests[interactionId]).toBeDefined());
     return { chatId, interactionId, replacePending: (value) => { pending = value; }, decision: { confirmationId: interactionId, approved: true, userResponse: { value: "__other__", other_text: "/tmp/中文 项目" } } };
   };
 
-  test("explicit answer to recovered human input resumes once without sealing the receipt", async () => {
-    const { chatId, interactionId, decision } = await prepareRecoveredHumanInput();
+  test("explicit answer to a live human-input request resumes once without sealing the receipt", async () => {
+    const { chatId, interactionId, decision } = await prepareLiveHumanInput();
     await act(async () => {
       await lastChatMessagesProps.onToolConfirmationDecision(decision);
       await lastChatMessagesProps.onToolConfirmationDecision(decision);
     });
-    await waitFor(() => expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(1));
-    expect(window.unchainAPI.startStreamV4.mock.calls[0][0]).toEqual(expect.objectContaining({ threadId: chatId, owner_chat_id: chatId, interaction_id: interactionId, source_attempt_id: "attempt-path" }));
+    await waitFor(() => expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(2));
+    expect(window.unchainAPI.startStreamV4.mock.calls[1][0]).toEqual(expect.objectContaining({ threadId: chatId, owner_chat_id: chatId, interaction_id: interactionId, source_attempt_id: "attempt-path" }));
+    expect(window.unchainAPI.startStreamV4.mock.calls[1][0]).not.toHaveProperty("stopped_attempts");
     expect(window.unchainAPI.cancelExecution).not.toHaveBeenCalled();
     expect(window.unchainAPI.respondToolConfirmation).toHaveBeenCalledTimes(1);
+    const legacyDecision = lastChatMessagesProps.messages
+      .filter((message) => message.role === "assistant")
+      .flatMap((message) => message.traceFrames || [])
+      .find((frame) => frame.type === "tool_confirmed" && frame.payload?.confirmation_id === interactionId);
+    expect(legacyDecision).toMatchObject({
+      type: "tool_confirmed",
+      run_id: "attempt-path",
+      payload: {
+        tool_name: "ask_user_question",
+        call_id: "call-path",
+        confirmation_id: interactionId,
+        feedback_acknowledged: true,
+        user_response: decision.userResponse,
+      },
+    });
+    expect(legacyDecision).not.toHaveProperty("intent_cursor");
+    expect(legacyDecision).not.toHaveProperty("execution_cursor");
+    expect(legacyDecision.payload).not.toHaveProperty("call_ref");
+    expect(legacyDecision.payload).not.toHaveProperty("call_ref_metadata");
+  });
+
+  test("a stale receipt projection cannot replace a newer live attempt's identity or history", async () => {
+    const { chatId, interactionId, replacePending, decision } = await prepareLiveHumanInput();
+    const recordReceipt = window.unchainAPI.respondToolConfirmation.getMockImplementation();
+    window.unchainAPI.respondToolConfirmation.mockImplementation(async (...args) => {
+      const response = await recordReceipt(...args);
+      const receiptProjection = await window.unchainAPI.getPendingInteraction({ session_id: chatId });
+      replacePending({
+        ...receiptProjection,
+        source_run_id: "attempt-older",
+        active_attempt_id: "attempt-older",
+        presentation: {
+          ...receiptProjection.presentation,
+          tool_call: {
+            ...receiptProjection.presentation.tool_call,
+            call_id: "call-stale-history",
+            description: "Stale prior-run content",
+          },
+          trace_frame: {
+            ...receiptProjection.presentation.trace_frame,
+            run_id: "attempt-older",
+            payload: {
+              ...receiptProjection.presentation.trace_frame.payload,
+              call_id: "call-stale-history",
+            },
+          },
+        },
+      });
+      return response;
+    });
+
+    await act(async () => lastChatMessagesProps.onToolConfirmationDecision(decision));
+
+    expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(1);
+    expect(lastChatMessagesProps.pendingToolConfirmationRequests[interactionId]).toEqual(expect.objectContaining({
+      callId: "call-path",
+      runId: "attempt-path",
+    }));
+    expect(lastChatMessagesProps.messages.flatMap((message) => message.traceFrames || [])
+      .some((frame) => frame.payload?.call_id === "call-stale-history")).toBe(false);
+
+    await act(async () => lastChatInputProps.onStop());
+    expect(window.unchainAPI.cancelExecution).toHaveBeenCalledWith(expect.objectContaining({
+      attempt_id: "attempt-path",
+      reason: "user_stop",
+    }));
   });
 
   test("live human input callback does not start another stream", async () => {
-    const { decision } = await prepareRecoveredHumanInput({ disposition: "live_continues" });
+    const { decision } = await prepareLiveHumanInput({ disposition: "live_continues" });
     await act(async () => lastChatMessagesProps.onToolConfirmationDecision(decision));
-    expect(window.unchainAPI.startStreamV4).not.toHaveBeenCalled();
+    expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(1);
     expect(window.unchainAPI.cancelExecution).not.toHaveBeenCalled();
   });
 
   test.each([
     ["mismatched receipt", { mismatch: true }],
     ["unavailable resume", { resumeAvailable: false }],
-  ])("%s cannot resume or cancel a recorded human answer", async (_name, options) => {
-    const { decision } = await prepareRecoveredHumanInput(options);
+  ])("%s cannot restart a live human answer", async (_name, options) => {
+    const { decision } = await prepareLiveHumanInput(options);
     jest.useFakeTimers();
     await act(async () => lastChatMessagesProps.onToolConfirmationDecision(decision));
     for (let index = 0; index < 4; index += 1) {
@@ -627,12 +1181,12 @@ describe("Memory V2 P0 payload seams", () => {
     }
     expect(lastChatInputProps.sendDisabled).toBe(true);
     expect((await window.unchainAPI.getPendingInteraction()).status).toBe("receipt_recorded");
-    expect(window.unchainAPI.startStreamV4).not.toHaveBeenCalled();
+    expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(1);
     expect(window.unchainAPI.cancelExecution).not.toHaveBeenCalled();
   });
 
-  test("passive recovery while an explicit answer POST is in flight cannot seal that answer", async () => {
-    const { chatId, decision } = await prepareRecoveredHumanInput();
+  test("passive lookup while a live answer POST is in flight cannot seal that answer", async () => {
+    const { chatId, decision } = await prepareLiveHumanInput();
     const originalNodeId = getChatsStore().tree.selectedNodeId;
     const record = window.unchainAPI.respondToolConfirmation.getMockImplementation();
     let resolveReceipt;
@@ -648,20 +1202,18 @@ describe("Memory V2 P0 payload seams", () => {
       selectTreeNode({ nodeId: otherChat.nodeId }, { source: "test" });
     });
     await waitFor(() => expect(document.querySelector("[data-chat-id]")?.getAttribute("data-chat-id")).toBe(otherChat.chatId));
-    const before = window.unchainAPI.getPendingInteraction.mock.calls.length;
     await act(async () => { selectTreeNode({ nodeId: originalNodeId }, { source: "test" }); });
     await waitFor(() => {
       expect(document.querySelector("[data-chat-id]")?.getAttribute("data-chat-id")).toBe(chatId);
-      expect(window.unchainAPI.getPendingInteraction.mock.calls.length).toBeGreaterThan(before);
     });
     expect(window.unchainAPI.cancelExecution).not.toHaveBeenCalled();
     await act(async () => { resolveReceipt(); await submission; });
-    await waitFor(() => expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(2));
     expect(window.unchainAPI.cancelExecution).not.toHaveBeenCalled();
   });
 
-  test.each(["root", "child"])("a new %s question after resume remains actionable when that stream disconnects", async (branch) => {
-    const { decision, replacePending } = await prepareRecoveredHumanInput();
+  test.each(["root", "child"])("a new %s question after resume is sealed when that stream disconnects", async (branch) => {
+    const { decision, replacePending } = await prepareLiveHumanInput();
     const next = JSON.parse(JSON.stringify(await window.unchainAPI.getPendingInteraction()));
     next.interaction_id = "interaction-next-path";
     for (const call of [next.presentation.tool_call, next.presentation.trace_frame.payload]) {
@@ -671,8 +1223,8 @@ describe("Memory V2 P0 payload seams", () => {
       call.interact_config.request_id = "call-next-path";
     }
     await act(async () => lastChatMessagesProps.onToolConfirmationDecision(decision));
-    await waitFor(() => expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(1));
-    const handlers = window.unchainAPI.startStreamV4.mock.calls[0][1];
+    await waitFor(() => expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(2));
+    const handlers = window.unchainAPI.startStreamV4.mock.calls[1][1];
     replacePending(next);
     await act(async () => handlers.onRuntimeEvent({
       schema_version: "v4", event_id: "event-resume-started", type: "run.started",
@@ -693,38 +1245,117 @@ describe("Memory V2 P0 payload seams", () => {
       },
     }));
     await act(async () => handlers.onError(Object.assign(new Error("aborted"), { code: "stream_bridge_failed" })));
-    await waitFor(() => expect(lastChatInputProps.disclaimer).toBe("This run is waiting for your confirmation."));
-    expect(lastChatMessagesProps.pendingToolConfirmationRequests[next.interaction_id]).toBeDefined();
-    expect(lastChatMessagesProps.toolConfirmationUiStateById[next.interaction_id].status).toBe("idle");
-    expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(1);
-    expect(window.unchainAPI.cancelExecution).not.toHaveBeenCalled();
-    window.unchainAPI.respondToolConfirmation.mockImplementation(async () => {
-      replacePending({ ...next, status: "receipt_recorded", receipt_id: "receipt-next-path", resolution: {
-        outcome: "submitted", response: { request_id: "call-next-path", selected_values: ["__other__"], other_text: "/tmp/新 路径" },
-      } });
-      return { status: "ok", durable: true, disposition: "receipt_recorded", session_id: next.session_id,
-        interaction_id: next.interaction_id, receipt_id: "receipt-next-path" };
+    await waitFor(() => expect(window.unchainAPI.cancelExecution).toHaveBeenCalledWith(expect.objectContaining({
+      interaction_id: next.interaction_id,
+      reason: "interaction_suspended",
+    })));
+    expect(lastChatMessagesProps.pendingToolConfirmationRequests[next.interaction_id]).toBeUndefined();
+    expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(2);
+    expect(window.unchainAPI.respondToolConfirmation).toHaveBeenCalledTimes(1);
+  });
+
+  test("#384: Stop on a second child approval cancels that interaction and preserves the first completed answer", async () => {
+    const interactionId = "interaction-path";
+    const firstCompleted = {
+      id: "assistant-first-answer-384",
+      role: "assistant",
+      content: "The first folder was selected.",
+      status: "done",
+      createdAt: 2,
+      updatedAt: 3,
+      traceFrames: [
+        { seq: 1, ts: 2, run_id: "attempt-path", type: "tool_call", payload: {
+          call_id: "call-path", confirmation_id: interactionId, requires_confirmation: true,
+          tool_name: "ask_user_question", arguments: { question: "Where first?" },
+        } },
+        { seq: 2, ts: 3, run_id: "attempt-path", type: "tool_result", payload: {
+          call_id: "call-path", result: { selected_values: ["/tmp/first"] },
+        } },
+      ],
+    };
+    const { chatId, decision, replacePending } = await prepareLiveHumanInput({ initialAssistant: firstCompleted });
+    await waitFor(() => expect(lastChatMessagesProps.messages.some((message) => message.id === firstCompleted.id)).toBe(true));
+    const savedFirstCompleted = firstCompleted;
+
+    let resumedHandlers;
+    window.unchainAPI.startStreamV4.mockImplementation((_payload, handlers) => {
+      resumedHandlers = handlers;
+      return { requestId: "resume-second-interaction", attemptId: "resume-second-interaction", disconnect: jest.fn(), cancel: jest.fn() };
     });
-    await act(async () => lastChatMessagesProps.onToolConfirmationDecision({
-      confirmationId: next.interaction_id, approved: true, userResponse: { value: "__other__", other_text: "/tmp/新 路径" },
+    await act(async () => lastChatMessagesProps.onToolConfirmationDecision(decision));
+    await waitFor(() => expect(resumedHandlers).not.toBeNull());
+    const second = JSON.parse(JSON.stringify(await window.unchainAPI.getPendingInteraction()));
+    second.interaction_id = "interaction-second-stop-384";
+    for (const call of [second.presentation.tool_call, second.presentation.trace_frame.payload]) {
+      call.call_id = "call-second-stop-384";
+      call.confirmation_id = second.interaction_id;
+      call.arguments.request_id = call.call_id;
+      call.interact_config.request_id = call.call_id;
+    }
+    replacePending(second);
+    window.unchainAPI.cancelExecution.mockClear();
+
+    await act(async () => {
+      resumedHandlers.onRuntimeEvent({
+        schema_version: "v4", event_id: "event-second-run-started-384", type: "run.started",
+        timestamp: "2026-10-02T00:00:00.000Z", session_id: chatId,
+        run_id: "resume-second-interaction", agent_id: "developer",
+        turn_id: "resume-second-interaction:turn-1", seq: 0,
+        links: {}, surface: { slot: "trace_inline", scope: "turn" }, visibility: "user", metadata: {}, payload: {},
+      });
+      resumedHandlers.onRuntimeEvent({
+        schema_version: "v4", event_id: "event-second-child-approval-384", type: "interaction.requested",
+        timestamp: "2026-10-02T00:00:00.000Z", session_id: chatId,
+        run_id: "worker-second-interaction", agent_id: "developer",
+        turn_id: "resume-second-interaction:turn-1", seq: 1,
+        links: { parent_run_id: "resume-second-interaction", interaction_id: second.interaction_id, tool_call_id: "call-second-stop-384" },
+        surface: { slot: "trace_inline", scope: "turn" }, visibility: "user", metadata: {},
+        payload: {
+          interaction_id: second.interaction_id, kind: "choice", renderer: "single",
+          title: "Folder", prompt: "Where next?", selection_mode: "single", options: [], allow_other: true,
+          target: { tool_call_id: "call-second-stop-384", tool_name: "ask_user_question" },
+          config: second.presentation.tool_call.interact_config,
+        },
+      });
+    });
+
+    await act(async () => lastChatInputProps.onStop());
+
+    await waitFor(() => expect(window.unchainAPI.cancelExecution).toHaveBeenCalled());
+    expect(window.unchainAPI.cancelExecution.mock.calls[0][0]).toEqual(expect.objectContaining({
+      interaction_id: second.interaction_id,
+      reason: "user_stop",
     }));
-    await waitFor(() => expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(2));
-    expect(window.unchainAPI.startStreamV4.mock.calls[1][0].interaction_id).toBe(next.interaction_id);
-    expect(window.unchainAPI.cancelExecution).not.toHaveBeenCalled();
+    expect(window.unchainAPI.respondToolConfirmation).toHaveBeenCalledTimes(1);
+    expect(window.unchainAPI.respondToolConfirmation.mock.calls[0][0]).toEqual(expect.objectContaining({
+      confirmation_id: interactionId,
+    }));
+    await waitFor(() => {
+      expect(lastChatMessagesProps.pendingToolConfirmationRequests[second.interaction_id]).toBeUndefined();
+      expect(lastChatMessagesProps.messages.find((message) => message.id === savedFirstCompleted.id)?.status).toBe("cancelled");
+    });
+    const afterStop = getChatMessages(chatId).find((message) => message.id === savedFirstCompleted.id);
+    expect(afterStop.content).toBe(savedFirstCompleted.content);
+    expect(afterStop.traceFrames.slice(0, 2)).toEqual(savedFirstCompleted.traceFrames.slice(0, 2));
+    const retainedSecondCall = [
+      ...(afterStop.traceFrames || []),
+      ...Object.values(afterStop.subagentFrames || {}).flat(),
+    ].some((frame) => frame.payload?.call_id === "call-second-stop-384");
+    expect(retainedSecondCall).toBe(true);
   });
 
   test("a resume startup error preserves the receipt and exposes the failure without cancellation", async () => {
-    const { decision } = await prepareRecoveredHumanInput();
+    const { decision } = await prepareLiveHumanInput();
     window.unchainAPI.startStreamV4.mockImplementation(() => { throw new Error("resume startup failed"); });
     await act(async () => lastChatMessagesProps.onToolConfirmationDecision(decision));
     await waitFor(() => expect(lastChatInputProps.disclaimer).toContain("resume startup failed"));
-    expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(1);
+    expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(2);
     expect(window.unchainAPI.cancelExecution).not.toHaveBeenCalled();
     expect((await window.unchainAPI.getPendingInteraction()).status).toBe("receipt_recorded");
   });
 
   test("Stop while the answer is being recorded prevents the late receipt from resuming", async () => {
-    const { decision } = await prepareRecoveredHumanInput();
+    const { decision } = await prepareLiveHumanInput();
     const record = window.unchainAPI.respondToolConfirmation.getMockImplementation();
     let resolveReceipt;
     window.unchainAPI.respondToolConfirmation.mockImplementation(() => new Promise((resolve) => { resolveReceipt = resolve; }));
@@ -732,7 +1363,7 @@ describe("Memory V2 P0 payload seams", () => {
     await act(async () => { submission = lastChatMessagesProps.onToolConfirmationDecision(decision); });
     await act(async () => lastChatInputProps.onStop());
     await act(async () => { resolveReceipt(await record()); await submission; });
-    expect(window.unchainAPI.startStreamV4).not.toHaveBeenCalled();
+    expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(1);
     expect(window.unchainAPI.cancelExecution).toHaveBeenCalled();
     expect(window.unchainAPI.cancelExecution.mock.calls[0][0].reason).toBe("user_stop");
   });
@@ -791,11 +1422,157 @@ describe("Memory V2 P0 payload seams", () => {
     await act(async () => lastChatMessagesProps.onToolConfirmationDecision(decision));
     expect(lastChatMessagesProps.toolConfirmationUiStateById["live-confirmation"].status).toBe("error");
     expect(lastChatMessagesProps.pendingToolConfirmationRequests["live-confirmation"]).toBeDefined();
+    expect(lastChatMessagesProps.messages
+      .filter((message) => message.role === "assistant")
+      .flatMap((message) => message.traceFrames || [])
+      .some((frame) => frame.payload?.feedback_acknowledged === true)).toBe(false);
     await act(async () => lastChatMessagesProps.onToolConfirmationDecision(decision));
     expect(lastChatMessagesProps.toolConfirmationUiStateById["live-confirmation"].resolved).toBe(true);
     const calls = window.unchainAPI.respondToolConfirmation.mock.calls;
     expect(calls).toHaveLength(2);
     expect(calls[0][0]).toEqual(calls[1][0]);
+  });
+
+  test("same call_id requests keep both source frames and acknowledge only the uniquely bound owner", async () => {
+    renderChat();
+    await waitForReady();
+    sendText("run two attempts");
+    await waitFor(() => expect(streamHandlers).not.toBeNull());
+
+    const first = makeQualifiedToolFrame({
+      confirmationId: "confirm-one",
+      callId: "reused-call-id",
+      attemptId: "attempt-one",
+      eventId: "intent-one",
+      args: { command: "first" },
+    });
+    const second = makeQualifiedToolFrame({
+      confirmationId: "confirm-two",
+      callId: "reused-call-id",
+      attemptId: "attempt-two",
+      eventId: "intent-two",
+      args: { command: "second" },
+    });
+    first.session_id = "frame-session-one";
+    first.event_cursor = first.payload.call_ref.intent_cursor;
+    first.event_id = "intent-one";
+    first.links = { interaction_id: "confirm-one", call_id: "reused-call-id" };
+    delete first.payload.toolkit_id;
+    first.payload.timeline_merge_policy = "approved";
+    expect(resolveToolCallOwnerForRequest([first, second], "confirm-one").status)
+      .toBe("qualified");
+    await act(async () => streamHandlers.onFrame(first));
+    await act(async () => streamHandlers.onFrame(second));
+
+    const sourceFrames = () => lastChatMessagesProps.messages
+      .filter((message) => message.role === "assistant")
+      .flatMap((message) => message.traceFrames || []);
+    await waitFor(() => {
+      expect(sourceFrames().filter((frame) => frame.type === "tool_call")).toHaveLength(2);
+    });
+    expect(resolveToolCallOwnerForRequest(sourceFrames(), "confirm-one").status)
+      .toBe("qualified");
+    await waitFor(() => {
+      expect(lastChatMessagesProps.pendingToolConfirmationRequests["confirm-one"]).toBeDefined();
+    });
+    const pendingRequest =
+      lastChatMessagesProps.pendingToolConfirmationRequests["confirm-one"];
+    expect(pendingRequest).toMatchObject({
+      runId: first.run_id,
+      run_id: first.run_id,
+      executionId: first.execution_id,
+      execution_id: first.execution_id,
+      sessionId: getChatsStore().activeChatId,
+      session_id: first.session_id,
+      eventCursor: first.event_cursor,
+      event_cursor: first.event_cursor,
+      eventId: first.event_id,
+      event_id: first.event_id,
+      iteration: first.iteration,
+      links: first.links,
+      callRef: first.payload.call_ref,
+      callRefMetadata: first.payload.call_ref_metadata,
+      timelineMergePolicy: "approved",
+    });
+    expect(Object.prototype.hasOwnProperty.call(pendingRequest, "toolkitId"))
+      .toBe(false);
+    const merged = mergePendingConfirmationTraceState({
+      frames: sourceFrames(),
+      requests: { "confirm-one": pendingRequest },
+    });
+    expect(merged.frames).toHaveLength(2);
+    expect(merged.frames.map((frame) => frame.payload?.confirmation_id))
+      .toEqual(["confirm-one", "confirm-two"]);
+    expect(merged.frames[0].payload.call_ref).toEqual(first.payload.call_ref);
+    expect(window.unchainAPI.respondToolConfirmation).not.toHaveBeenCalled();
+
+    window.unchainAPI.respondToolConfirmation.mockResolvedValue({
+      status: "ok",
+      durable: false,
+      disposition: "live_only",
+      interaction_id: "confirm-one",
+    });
+    await act(async () => lastChatMessagesProps.onToolConfirmationDecision({
+      confirmationId: "confirm-one",
+      approved: true,
+    }));
+    expect(window.unchainAPI.respondToolConfirmation).toHaveBeenCalled();
+    expect(lastChatMessagesProps.toolConfirmationUiStateById["confirm-one"]?.status)
+      .toBe("submitted");
+
+    await waitFor(() => {
+      const frames = sourceFrames();
+      const decisions = frames.filter((frame) => frame.type === "tool_confirmed");
+      expect(decisions).toHaveLength(1);
+      expect(decisions[0].payload.confirmation_id).toBe("confirm-one");
+      expect(decisions[0].payload.feedback_acknowledged).toBe(true);
+      expect(decisions[0].payload.call_ref).toEqual(first.payload.call_ref);
+      expect(decisions[0].payload.call_ref_metadata).toEqual(first.payload.call_ref_metadata);
+      expect(decisions[0].run_id).toBe("attempt-one");
+      expect(decisions[0].iteration).toBe(2);
+      expect(frames.filter((frame) => frame.type === "tool_call")).toEqual([first, second]);
+    });
+  });
+
+  test("a malformed explicit call_ref remains visible and never gets synthetic acknowledged feedback", async () => {
+    renderChat();
+    await waitForReady();
+    sendText("run a malformed-reference call");
+    await waitFor(() => expect(streamHandlers).not.toBeNull());
+
+    const malformed = makeQualifiedToolFrame({
+      confirmationId: "confirm-malformed",
+      callId: "malformed-call",
+      attemptId: "attempt-one",
+      eventId: "intent-malformed",
+      args: { command: "preserve evidence" },
+    });
+    malformed.payload.call_ref = { ...malformed.payload.call_ref, unexpected: true };
+    await act(async () => streamHandlers.onFrame(malformed));
+    await waitFor(() => {
+      expect(lastChatMessagesProps.pendingToolConfirmationRequests["confirm-malformed"])
+        .toBeDefined();
+    });
+
+    window.unchainAPI.respondToolConfirmation.mockResolvedValue({
+      status: "ok",
+      durable: false,
+      disposition: "live_only",
+      interaction_id: "confirm-malformed",
+    });
+    await act(async () => lastChatMessagesProps.onToolConfirmationDecision({
+      confirmationId: "confirm-malformed",
+      approved: true,
+    }));
+
+    const frames = lastChatMessagesProps.messages
+      .filter((message) => message.role === "assistant")
+      .flatMap((message) => message.traceFrames || []);
+    expect(frames.find((frame) => frame.type === "tool_call")?.payload.call_ref)
+      .toEqual(malformed.payload.call_ref);
+    expect(frames.some((frame) => frame.type === "tool_confirmed" &&
+      frame.payload?.confirmation_id === "confirm-malformed")).toBe(false);
+    expect(frames.some((frame) => frame.payload?.feedback_acknowledged === true)).toBe(false);
   });
 
   test.each(["same", "foreign"])("old Stop outbox recovers only a %s attempt target", async (target) => {
@@ -826,6 +1603,117 @@ describe("Memory V2 P0 payload seams", () => {
     rendered.unmount();
   });
 
+  test("old Stop outbox refetch matches a graph-step interaction to its coordinator attempt", async () => {
+    const chatId = getChatsStore().activeChatId;
+    const coordinatorAttemptId = "unchain-coordinator-attempt";
+    const graphStepAttemptId = "graph-step-attempt";
+    const interactionId = "graph-step-interaction";
+    const pending = pendingGraphStepInteraction(
+      chatId,
+      graphStepAttemptId,
+      coordinatorAttemptId,
+      interactionId,
+    );
+    expect(normalizePendingInteraction(pending, chatId)).toEqual(expect.objectContaining({
+      status: "awaiting_response",
+      sourceRunId: graphStepAttemptId,
+      activeAttemptId: graphStepAttemptId,
+      resumeKind: "graph_step",
+      graphStepAttemptId,
+      graphCoordinatorAttemptId: coordinatorAttemptId,
+    }));
+
+    enqueueExecutionCancel({
+      ownerChatId: chatId,
+      sessionId: chatId,
+      attemptId: coordinatorAttemptId,
+    });
+    window.unchainAPI.getPendingInteraction = jest.fn(async () => pending);
+    window.unchainAPI.cancelExecution = jest.fn()
+      .mockRejectedValueOnce(Object.assign(new Error("interaction_cancel_target_required"), {
+        code: "interaction_cancel_target_required",
+      }))
+      .mockImplementation(async (payload) => ({
+        status: "ok",
+        execution_id: payload.session_id,
+        attempt_id: payload.attempt_id,
+        state: "cancelled",
+      }));
+
+    const rendered = renderChat();
+    await waitFor(() => expect(window.unchainAPI.cancelExecution).toHaveBeenCalledTimes(2));
+    expect(window.unchainAPI.cancelExecution.mock.calls[1][0]).toEqual({
+      owner_chat_id: chatId,
+      session_id: chatId,
+      attempt_id: coordinatorAttemptId,
+      interaction_id: interactionId,
+      reason: "user_stop",
+      idempotency_key: `stop:${coordinatorAttemptId}`,
+    });
+    await waitFor(() => expect(readExecutionCancelOutbox()).toEqual([]));
+    rendered.unmount();
+  });
+
+  test.each([
+    ["wrong coordinator", { graphCoordinatorAttemptId: "foreign-coordinator-attempt" }],
+    ["graph step/source mismatch", { graphStepAttemptId: "foreign-graph-step" }],
+    ["wrong session", { sessionId: "foreign-session" }],
+  ])("old Stop outbox blocks a graph-step interaction with %s lineage", async (_label, mismatch) => {
+    const chatId = getChatsStore().activeChatId;
+    const coordinatorAttemptId = "unchain-coordinator-attempt";
+    const graphStepAttemptId = "graph-step-attempt";
+    const pending = pendingGraphStepInteraction(
+      mismatch.sessionId || chatId,
+      graphStepAttemptId,
+      coordinatorAttemptId,
+      "graph-step-interaction",
+    );
+    if (mismatch.graphCoordinatorAttemptId) {
+      pending.graph_coordinator_attempt_id = mismatch.graphCoordinatorAttemptId;
+      expect(normalizePendingInteraction(pending, chatId)).not.toBeNull();
+    }
+    if (mismatch.graphStepAttemptId) {
+      pending.graph_step_attempt_id = mismatch.graphStepAttemptId;
+      expect(normalizePendingInteraction(pending, chatId)).toBeNull();
+    }
+    if (mismatch.sessionId) {
+      expect(normalizePendingInteraction(pending, chatId)).toBeNull();
+    }
+
+    enqueueExecutionCancel({
+      ownerChatId: chatId,
+      sessionId: chatId,
+      attemptId: coordinatorAttemptId,
+    });
+    window.unchainAPI.getPendingInteraction = jest.fn(async () => pending);
+    window.unchainAPI.cancelExecution = jest.fn()
+      .mockRejectedValueOnce(Object.assign(new Error("interaction_cancel_target_required"), {
+        code: "interaction_cancel_target_required",
+      }))
+      .mockImplementation(async (payload) => ({
+        status: "ok",
+        execution_id: payload.session_id,
+        attempt_id: payload.attempt_id,
+        state: "cancelled",
+      }));
+
+    const rendered = renderChat();
+    if (mismatch.sessionId) {
+      await waitFor(() => expect(window.unchainAPI.getPendingInteraction).toHaveBeenCalled());
+    } else {
+      await waitFor(() => expect(readExecutionCancelOutbox()[0]?.retryBlocked).toBe(true));
+    }
+    expect(window.unchainAPI.cancelExecution).toHaveBeenCalledTimes(1);
+    expect(window.unchainAPI.cancelExecution.mock.calls[0][0]).toEqual(expect.objectContaining({
+      session_id: chatId,
+      attempt_id: coordinatorAttemptId,
+    }));
+    expect(window.unchainAPI.cancelExecution.mock.calls.some(
+      ([payload]) => payload.interaction_id === "graph-step-interaction",
+    )).toBe(false);
+    rendered.unmount();
+  });
+
   test("cancel failures stop retrying after three attempts and stay stopped after remount", async () => {
     jest.useFakeTimers();
     const chatId = getChatsStore().activeChatId;
@@ -838,11 +1726,14 @@ describe("Memory V2 P0 payload seams", () => {
     }
     expect(window.unchainAPI.cancelExecution).toHaveBeenCalledTimes(3);
     expect(readExecutionCancelOutbox()[0].retryBlocked).toBe(true);
-    expect(lastChatInputProps.disclaimer).toContain("Stop failed; try again");
+    expect(lastChatInputProps.disclaimer).not.toContain("Stop failed; try again");
+    expect(lastChatInputProps.isStreaming).toBe(false);
     rendered.unmount();
     const reopened = renderChat();
     await act(async () => { jest.advanceTimersByTime(20000); });
     expect(window.unchainAPI.cancelExecution).toHaveBeenCalledTimes(3);
+    expect(lastChatInputProps.disclaimer).not.toContain("Stop failed; try again");
+    expect(lastChatInputProps.isStreaming).toBe(false);
     reopened.unmount();
     jest.useRealTimers();
   });

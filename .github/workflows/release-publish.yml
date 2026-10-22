@@ -51,7 +51,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh api "repos/$GITHUB_REPOSITORY/environments/release-publish" \
+          node scripts/release-qa/external-network-retry.mjs --profile github-read -- \
+            gh api "repos/$GITHUB_REPOSITORY/environments/release-publish" \
             | node scripts/release-qa/verify-github-environment.mjs --environment release-publish
 
   publish-draft:
@@ -120,7 +121,9 @@ jobs:
           RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           TAG_COMMIT="$(git rev-list -n 1 "$RELEASE_TAG")"
-          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --dir draft-assets --clobber
+          node scripts/release-qa/external-network-retry.mjs \
+            --profile github-read --cleanup-path draft-assets -- \
+            gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --dir draft-assets --clobber
           CANDIDATE_RUN_ID="$(node -e 'const fs = require("fs"); const manifest = JSON.parse(fs.readFileSync("draft-assets/release-assets.v1.json", "utf8")); process.stdout.write(String(manifest?.release?.candidate_run_id || ""))')"
           QUALIFICATION_RUN_ID="$(node -e 'const fs = require("fs"); const receipt = JSON.parse(fs.readFileSync("draft-assets/release-qualification.v1.json", "utf8")); process.stdout.write(String(receipt?.qualification_run_id || ""))')"
           QUALIFICATION_WORKFLOW_PATH="$(node scripts/release-qa/qualification-provenance.mjs \
@@ -132,13 +135,15 @@ jobs:
             --release-commit "$TAG_COMMIT" \
             --tools-tag "$GITHUB_REF_NAME" \
             --tools-commit "$GITHUB_SHA")"
-          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CANDIDATE_RUN_ID" \
+          node scripts/release-qa/external-network-retry.mjs --profile github-read -- \
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CANDIDATE_RUN_ID" \
             | node scripts/release-qa/verify-actions-run-provenance.mjs \
               --run-id "$CANDIDATE_RUN_ID" \
               --tag "$RELEASE_TAG" \
               --commit "$TAG_COMMIT" \
               --workflow-path .github/workflows/release-qa.yml
-          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$QUALIFICATION_RUN_ID" \
+          node scripts/release-qa/external-network-retry.mjs --profile github-read -- \
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$QUALIFICATION_RUN_ID" \
             | node scripts/release-qa/verify-actions-run-provenance.mjs \
               --run-id "$QUALIFICATION_RUN_ID" \
               --tag "$GITHUB_REF_NAME" \

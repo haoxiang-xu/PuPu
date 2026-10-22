@@ -717,6 +717,7 @@ def bind_pupu_context_module(
             request,
             error,
         ),
+        provider_turn_result_reader=execution.artifacts.read_full_verified,
         model_projection=ModelContextProjection(
             artifacts,
             remote_source_decoder=decode_pupu_attachment_source,

@@ -239,6 +239,13 @@ def test_active_two_node_graph_restarts_without_provider_reexecution(
                     "run_id": kwargs.get("run_id"),
                     "session_id": kwargs.get("session_id"),
                     "runtime_context": kwargs.get("runtime_context"),
+                    "callback_has_durable_tool_delivery": callable(
+                        getattr(
+                            kwargs.get("callback"),
+                            "deliver_persisted_tool_result",
+                            None,
+                        )
+                    ),
                 }
             )
             return self._inner.run(**kwargs)
@@ -478,6 +485,7 @@ def test_active_two_node_graph_restarts_without_provider_reexecution(
     assert len(run_calls) == 2
     assert len({call["run_id"] for call in run_calls}) == 2
     assert all(call["session_id"] == execution_id for call in run_calls)
+    assert all(call["callback_has_durable_tool_delivery"] for call in run_calls)
     first_run_id = str(run_calls[0]["run_id"])
     second_run_id = str(run_calls[1]["run_id"])
     first_context = run_calls[0]["runtime_context"]

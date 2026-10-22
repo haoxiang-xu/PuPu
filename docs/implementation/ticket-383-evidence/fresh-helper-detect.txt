@@ -1,0 +1,36 @@
+
+  GitNexus Detect Changes (1.6.12)
+{"level":40,"time":1790914591108,"name":"gitnexus","msg":"GitNexus: FTS extension unavailable; continuing without FTS features. load-only policy (no install attempted); LOAD fts failed: Binder exception: Extension: fts is an official extension and has not been installed. You can install it by: install fts."}
+Changes: 6 files, 49 symbols
+Affected processes: 10
+Risk level: high
+
+Changed symbols:
+  Section Exact-runtime recovery backup → docs/implementation/ticket-383-evidence/runtime/README.md
+  Const SUBAGENT_TOOLS → src/COMPONENTs/chat-bubble/trace_tool_grouping.js
+  Const TRANSPARENT_METADATA_TYPES → src/COMPONENTs/chat-bubble/trace_tool_grouping.js
+  Function hasTextIdentity → src/COMPONENTs/chat-bubble/trace_tool_grouping.js
+  Function scopePart → src/COMPONENTs/chat-bubble/trace_tool_grouping.js
+  Function normalizedToolName → src/COMPONENTs/chat-bubble/trace_tool_grouping.js
+  Function isInlineInteraction → src/COMPONENTs/chat-bubble/trace_tool_grouping.js
+  Function getToolGroupingIdentity → src/COMPONENTs/chat-bubble/trace_tool_grouping.js
+  Property callId → src/COMPONENTs/chat-bubble/trace_tool_grouping.js
+  Property toolName → src/COMPONENTs/chat-bubble/trace_tool_grouping.js
+  Property toolkitPresent → src/COMPONENTs/chat-bubble/trace_tool_grouping.js
+  Property toolkitId → src/COMPONENTs/chat-bubble/trace_tool_grouping.js
+  Property runPresent → src/COMPONENTs/chat-bubble/trace_tool_grouping.js
+  Property runId → src/COMPONENTs/chat-bubble/trace_tool_grouping.js
+  Function sameGroupingIdentity → src/COMPONENTs/chat-bubble/trace_tool_grouping.js
+... and 34 more
+
+Affected execution flows:
+  • GroupToolTimelineItems → MakeBlock (7 steps) — changed: groupToolTimelineItems
+  • GroupToolTimelineItems → IsBlankLine (6 steps) — changed: groupToolTimelineItems
+  • GroupToolTimelineItems → HasLineEnd (6 steps) — changed: groupToolTimelineItems
+  • GroupToolTimelineItems → Exec (8 steps) — changed: groupToolTimelineItems
+  • GroupToolTimelineItems → SplitLines (6 steps) — changed: groupToolTimelineItems
+  • GroupToolTimelineItems → GetDocument (4 steps) — changed: groupToolTimelineItems
+  • GroupToolTimelineItems → GetBar (3 steps) — changed: groupToolTimelineItems
+  • GroupToolTimelineItems → ClampPct (3 steps) — changed: groupToolTimelineItems
+  • GroupToolTimelineItems → Error (4 steps) — changed: groupToolTimelineItems
+  • GroupToolTimelineItems → Error (4 steps) — changed: groupToolTimelineItems

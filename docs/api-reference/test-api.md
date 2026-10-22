@@ -51,6 +51,14 @@ chat before starting either form of request. Status and cancel are always scoped
 the chat and attempt ids in the URL; PuPu never falls back to the currently visible
 chat when either id is wrong.
 
+`tool_calls` on assistant messages and run responses is trace-backed evidence. It
+is `null` when no tool frame identifies a call. Each record has exactly `id`,
+`run_id`, `name`, `arguments`, `status`, and `result`; unavailable values are
+`null`. Status is `pending` while confirmation is required, `running` after
+approval or while executing, and `completed`, `failed`, `denied`, or `cancelled`
+only when the trace supports that outcome. Root and child runs retain separate
+`run_id` values even when they reuse a call id.
+
 ### Catalog and selection
 
 | Method | Path | Body | Returns |
