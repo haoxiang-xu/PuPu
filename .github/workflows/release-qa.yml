@@ -67,7 +67,7 @@ jobs:
         if: env.QA_MODE == 'release-candidate'
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Checkout release environment verifier
         if: env.QA_MODE == 'release-candidate'

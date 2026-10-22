@@ -57,7 +57,8 @@ request.
 ## 4. Set up
 
 Full instructions are in the [Developer Guide](../DEV_GUIDE.md); the short
-version is:
+version is below. Use Node.js 24.22.1 or a newer 24.x release, matching the
+supported development and CI toolchain.
 
 ```bash
 npm install

@@ -8,7 +8,6 @@ const path = require("node:path");
 const { Readable } = require("node:stream");
 const { pipeline } = require("node:stream/promises");
 
-const extractZip = require("extract-zip");
 const tar = require("tar");
 
 const REPO_ROOT = path.resolve(__dirname, "..");
@@ -478,6 +477,7 @@ async function extractArchive(archivePath, destination, archiveType) {
     return;
   }
   if (archiveType === "zip") {
+    const { default: extractZip } = await import("@electron-internal/extract-zip");
     await extractZip(archivePath, { dir: path.resolve(destination) });
     return;
   }
@@ -486,6 +486,7 @@ async function extractArchive(archivePath, destination, archiveType) {
 
 async function extractWheel(wheelPath, destination) {
   await fsp.mkdir(destination, { recursive: true });
+  const { default: extractZip } = await import("@electron-internal/extract-zip");
   await extractZip(wheelPath, { dir: path.resolve(destination) });
 }
 

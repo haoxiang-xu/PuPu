@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { crc32 } from "node:zlib";
 import { createRequire } from "node:module";
 import { afterEach, test } from "node:test";
 
@@ -14,6 +15,7 @@ const {
   SUPPORTED_TARGETS,
   detectHostTarget,
   extractArchive,
+  extractWheel,
   parseArgs,
   prepareMcpRuntime,
   readPinsManifest,
@@ -30,6 +32,61 @@ const {
 } = require("./verify-packaged-mcp-runtime.cjs");
 
 const tempDirs = [];
+
+// Stored ZIP fixtures deliberately allow unsafe names that normal ZIP writers reject.
+function storedZip(entries) {
+  const files = [];
+  const directory = [];
+  let offset = 0;
+  for (const { name, contents, mode = 0o100644 } of entries) {
+    const filename = Buffer.from(name);
+    const body = Buffer.from(contents);
+    const checksum = crc32(body);
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0); local.writeUInt16LE(20, 4);
+    local.writeUInt32LE(checksum, 14); local.writeUInt32LE(body.length, 18);
+    local.writeUInt32LE(body.length, 22); local.writeUInt16LE(filename.length, 26);
+    files.push(local, filename, body);
+    const central = Buffer.alloc(46);
+    central.writeUInt32LE(0x02014b50, 0); central.writeUInt16LE(0x0314, 4);
+    central.writeUInt16LE(20, 6); central.writeUInt32LE(checksum, 16);
+    central.writeUInt32LE(body.length, 20); central.writeUInt32LE(body.length, 24);
+    central.writeUInt16LE(filename.length, 28); central.writeUInt32LE((mode << 16) >>> 0, 38);
+    central.writeUInt32LE(offset, 42); directory.push(central, filename);
+    offset += local.length + filename.length + body.length;
+  }
+  const central = Buffer.concat(directory);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50); end.writeUInt16LE(entries.length, 8);
+  end.writeUInt16LE(entries.length, 10); end.writeUInt32LE(central.length, 12);
+  end.writeUInt32LE(offset, 16);
+  return Buffer.concat([...files, central, end]);
+}
+
+test("native ZIP and wheel extraction preserve valid files and reject traversal and symlink escapes", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "pupu-native-extract-"));
+  tempDirs.push(root);
+  const archive = path.join(root, "fixture.zip");
+  for (const extractor of [(source, destination) => extractArchive(source, destination, "zip"), extractWheel]) {
+    const destination = path.join(root, `valid-${Math.random()}`);
+    await fs.writeFile(archive, storedZip([{ name: "package/module.py", contents: "SAFE_FIXTURE" }]));
+    await extractor(archive, destination);
+    assert.equal(await fs.readFile(path.join(destination, "package/module.py"), "utf8"), "SAFE_FIXTURE");
+    for (const name of ["../outside.txt", "nested/../../outside.txt", "nested/..\\../outside.txt"]) {
+      await fs.writeFile(archive, storedZip([{ name, contents: "MALICIOUS_FIXTURE" }]));
+      await assert.rejects(extractor(archive, path.join(root, `invalid-${Math.random()}`)));
+      await assert.rejects(fs.access(path.join(root, "outside.txt")));
+    }
+    const outside = path.join(root, "outside-directory");
+    await fs.mkdir(outside, { recursive: true });
+    await fs.writeFile(archive, storedZip([
+      { name: "escape", contents: outside, mode: 0o120777 },
+      { name: "escape/outside.txt", contents: "MALICIOUS_FIXTURE" },
+    ]));
+    await assert.rejects(extractor(archive, path.join(root, `symlink-${Math.random()}`)));
+    await assert.rejects(fs.access(path.join(outside, "outside.txt")));
+  }
+});
 
 async function makeDirectoriesWritable(directory) {
   const stat = await fs.stat(directory).catch(() => null);

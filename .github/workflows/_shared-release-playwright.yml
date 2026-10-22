@@ -58,7 +58,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
           cache-dependency-path: package-lock.json
 
@@ -127,6 +127,23 @@ jobs:
       - name: Configure Electron SUID sandbox (Linux)
         if: runner.os == 'Linux'
         run: |
+          # Electron 43 downloads its binary on first resolution, not npm ci.
+          # Complete that verified installation before touching the helper.
+          node <<'NODE'
+          const fs = require("node:fs");
+          const path = require("node:path");
+          const electron = require("electron");
+          const dist = path.resolve("node_modules/electron/dist");
+          if (electron !== path.join(dist, "electron")) {
+            throw new Error("Unexpected Electron binary path");
+          }
+          for (const filename of [electron, path.join(dist, "chrome-sandbox")]) {
+            if (!fs.lstatSync(filename).isFile()) {
+              throw new Error("Electron binary and sandbox must be regular files");
+            }
+            fs.accessSync(filename, fs.constants.X_OK);
+          }
+          NODE
           sudo chown root:root node_modules/electron/dist/chrome-sandbox
           sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
 

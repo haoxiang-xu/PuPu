@@ -74,6 +74,6 @@ test("patch is idempotent and rejects changed or partially patched bytes", () =>
 });
 
 test("normal dependency installation applies the patch", () => {
-  assert.equal(require("../../package.json").scripts.postinstall, "node scripts/release-qa/patch-macos-keychain.cjs");
+  assert.equal(require("../../package.json").scripts.postinstall, "node scripts/release-qa/patch-macos-keychain.cjs && node scripts/release-qa/patch-security-dependencies.cjs");
   assert.equal(installed, patchSource(installed));
 });

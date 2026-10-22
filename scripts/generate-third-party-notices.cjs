@@ -81,6 +81,7 @@ const COPYLEFT_SOURCE_OFFERS = {
   "axe-core": "https://github.com/dequelabs/axe-core",
   "harmony-reflect": "https://github.com/tvcutsem/harmony-reflect",
   "node-forge": "https://github.com/digitalbazaar/forge",
+  dompurify: "https://github.com/cure53/DOMPurify",
   certifi: "https://github.com/certifi/python-certifi",
   pyinstaller: "https://github.com/pyinstaller/pyinstaller",
   "pyinstaller-hooks-contrib":

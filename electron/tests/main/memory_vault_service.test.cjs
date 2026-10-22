@@ -57,6 +57,7 @@ const fakeEncrypt = (plaintext) => {
 };
 const makeFakeSafeStorage = (overrides = {}) => ({
   isEncryptionAvailable: jest.fn(() => true),
+  getSelectedStorageBackend: jest.fn(() => "gnome_libsecret"),
   encryptString: jest.fn(fakeEncrypt),
   ...overrides,
 });
@@ -584,6 +585,29 @@ describeIfSqlite("memory vault service", () => {
   });
 
   describe("safeStorage fail-closed", () => {
+    test("default safeStorage fixture supports Linux encrypted deposits", () => {
+      const safeStorage = makeFakeSafeStorage();
+      const vault = makeVault({ platform: "linux", safeStorage });
+      expect(vault.getStatus().secretStorageStatus).toBe("available");
+      expect(vault.deposit(depositPayload()).ok).toBe(true);
+      expect(safeStorage.getSelectedStorageBackend).toHaveBeenCalledTimes(1);
+      expect(safeStorage.encryptString).toHaveBeenCalledTimes(1);
+    });
+
+    test("Linux missing backend probe fails before encrypting or storing a secret", () => {
+      const safeStorage = makeFakeSafeStorage({
+        getSelectedStorageBackend: undefined,
+      });
+      const vault = makeVault({ platform: "linux", safeStorage });
+      expect(vault.getStatus().secretStorageStatus).toBe("unavailable");
+      expectThrowCode(
+        () => vault.deposit(depositPayload()),
+        "secret_storage_unavailable",
+      );
+      expect(safeStorage.encryptString).not.toHaveBeenCalled();
+      expect(rowCounts()).toEqual({ secrets: 0, grants: 0, receipts: 0 });
+    });
+
     test("unavailable safeStorage: deposit rejects with a stable code and stores nothing", () => {
       const vault = makeVault({
         safeStorage: makeFakeSafeStorage({
