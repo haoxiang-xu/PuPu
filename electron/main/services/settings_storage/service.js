@@ -186,6 +186,7 @@ const PROVIDER_CREDENTIALS_META_KEYS = Object.freeze({
   MIGRATED_AT: "provider_credentials_migrated_at",
   RETRY_AFTER: "provider_credentials_keychain_retry_after",
 });
+const PROVIDER_CREDENTIAL_DELETED_PREFIX = "provider_credential_deleted:";
 
 const MIGRATION_STATE = Object.freeze({
   NOT_STARTED: "not_started",
@@ -1151,6 +1152,12 @@ const createSettingsStorageService = ({
       // ciphertext ever crosses this boundary.
       secretStorageStatus,
       configuredCredentials,
+      // Identity-only tombstones survive partial renderer migration and a
+      // crash after deletion. Historical plaintext must never resurrect them.
+      clearedCredentials: db.prepare("SELECT key FROM meta WHERE key GLOB ?")
+        .all(`${PROVIDER_CREDENTIAL_DELETED_PREFIX}*`)
+        .map((row) => row.key.slice(PROVIDER_CREDENTIAL_DELETED_PREFIX.length))
+        .filter((id) => isValidCredentialTarget(id.startsWith("custom.") ? "custom_provider" : "provider", id)),
       ...(toolkitPrefs !== undefined ? { toolkitPrefs } : {}),
       ...(computerUse !== undefined ? { computerUse } : {}),
       ...(storeMigrations !== undefined ? { storeMigrations } : {}),
@@ -2767,16 +2774,30 @@ const createSettingsStorageService = ({
     }
     const ciphertext = encryptProviderCredential(plaintext);
     const updatedAt = Date.now();
-    return db.tx(() => {
-      db.prepare(
-        "INSERT INTO provider_credentials(credential_kind, owner_id, ciphertext, updated_at) " +
-          "VALUES (?, ?, ?, ?) " +
-          "ON CONFLICT(credential_kind, owner_id) DO UPDATE SET " +
-          "ciphertext = excluded.ciphertext, updated_at = excluded.updated_at",
-      ).run(kind, ownerId, ciphertext, updatedAt);
-      clearProviderCredentialRetryBackoff();
-      return { ok: true, kind, ownerId, updatedAt };
-    });
+    try {
+      return db.tx(() => {
+        db.prepare(
+          "INSERT INTO provider_credentials(credential_kind, owner_id, ciphertext, updated_at) " +
+            "VALUES (?, ?, ?, ?) " +
+            "ON CONFLICT(credential_kind, owner_id) DO UPDATE SET " +
+            "ciphertext = excluded.ciphertext, updated_at = excluded.updated_at",
+        ).run(kind, ownerId, ciphertext, updatedAt);
+        if (readDecryptedProviderSecret(kind, ownerId) !== plaintext) {
+          throw errorWithCode(
+            "provider credential round-trip verification failed",
+            "secret_roundtrip_failed",
+          );
+        }
+        db.prepare("DELETE FROM meta WHERE key = ?").run(`${PROVIDER_CREDENTIAL_DELETED_PREFIX}${ownerId}`);
+        clearProviderCredentialRetryBackoff();
+        return { ok: true, kind, ownerId, updatedAt };
+      });
+    } catch (error) {
+      // The row and any backoff write inside the transaction were rolled back.
+      // Preserve a real keyring outage's cooldown outside that rollback.
+      if (secretStorageStatus === SECRET_STORAGE_STATUS.UNAVAILABLE) latchSecretStorageUnavailable();
+      throw error;
+    }
   };
 
   // The narrow S4 injection seam. Decrypt a single credential to plaintext, or
@@ -2818,20 +2839,18 @@ const createSettingsStorageService = ({
   const deleteProviderCredential = (kind, ownerId) => {
     requireDb();
     validateCredentialTarget(kind, ownerId);
-    const result = db
-      .prepare(
+    return db.tx(() => {
+      const result = db.prepare(
         "DELETE FROM provider_credentials WHERE credential_kind = ? AND owner_id = ?",
-      )
-      .run(kind, ownerId);
-    return { ok: true, kind, ownerId, deleted: Number(result.changes) > 0 };
+      ).run(kind, ownerId);
+      upsertMeta(`${PROVIDER_CREDENTIAL_DELETED_PREFIX}${ownerId}`, true);
+      return { ok: true, kind, ownerId, deleted: Number(result.changes) > 0 };
+    });
   };
 
-  // Renderer-facing steady-state write seam. The caller has already written
-  // the legacy dual-keep copy before invoking this method. When safeStorage is
-  // unavailable (including an encryptString failure after the init probe), a
-  // stale ciphertext row is removed so it can never become authoritative on a
-  // later restart. The result contains identity + status only — never
-  // plaintext or ciphertext.
+  // Renderer-facing write seam. A save acknowledges only verified encrypted
+  // durability; failures preserve prior ciphertext and never request plaintext
+  // persistence. The result contains identity/status only, never a credential.
   const persistProviderCredential = (kind, ownerId, plaintext) => {
     requireDb();
     validateCredentialTarget(kind, ownerId);
@@ -2843,32 +2862,14 @@ const createSettingsStorageService = ({
     }
 
     if (secretStorageStatus !== SECRET_STORAGE_STATUS.AVAILABLE) {
-      const removed = deleteProviderCredential(kind, ownerId);
-      return {
-        ok: true,
-        status: "legacy-only",
-        kind,
-        ownerId,
-        deletedStale: removed.deleted,
-      };
+      throw errorWithCode(
+        "provider credential secure storage is unavailable",
+        "secret_storage_unavailable",
+      );
     }
 
-    try {
-      const stored = setProviderCredential(kind, ownerId, plaintext);
-      return { ...stored, status: "stored" };
-    } catch (error) {
-      if (error && error.code === "secret_storage_unavailable") {
-        const removed = deleteProviderCredential(kind, ownerId);
-        return {
-          ok: true,
-          status: "legacy-only",
-          kind,
-          ownerId,
-          deletedStale: removed.deleted,
-        };
-      }
-      throw error;
-    }
+    const stored = setProviderCredential(kind, ownerId, plaintext);
+    return { ...stored, status: "stored" };
   };
 
   // Existence check — NEVER decrypts. Used by higher slices for gating.
@@ -2941,6 +2942,44 @@ const createSettingsStorageService = ({
   // it is never logged, never returned, and never hashed into persisted meta.
   const migrateProviderCredentials = (payload) => {
     const label = "provider-credentials-migrate";
+    // V2 is a single-identity cutover operation, serialized with UI edits by
+    // the renderer's existing per-owner queue. V1 bulk replay stays unchanged.
+    if (isPlainObject(payload) && payload.migrationVersion === 2) {
+      requireDb();
+      const credentials = payload.credentials;
+      if (Object.keys(payload).some((key) => !["migrationVersion", "credentials"].includes(key)) ||
+          !isPlainObject(credentials) || Object.keys(credentials).some((key) => !["openai", "anthropic", "gemini", "custom"].includes(key))) {
+        throw errorWithCode("invalid credential cutover payload", "invalid_migration_payload");
+      }
+      const targets = [];
+      for (const id of ["openai", "anthropic", "gemini"]) {
+        if (Object.prototype.hasOwnProperty.call(credentials, id)) targets.push({ kind: "provider", ownerId: id, plaintext: credentials[id] });
+      }
+      if (Object.prototype.hasOwnProperty.call(credentials, "custom")) {
+        if (!isPlainObject(credentials.custom)) throw errorWithCode("invalid custom cutover payload", "invalid_migration_payload");
+        for (const slug of Object.keys(credentials.custom)) {
+          targets.push({ kind: "custom_provider", ownerId: `custom.${slug}`, plaintext: credentials.custom[slug] });
+        }
+      }
+      if (targets.length !== 1) throw errorWithCode("cutover requires exactly one credential", "invalid_migration_payload");
+      const { kind, ownerId, plaintext } = targets[0];
+      validateCredentialTarget(kind, ownerId);
+      if (typeof plaintext !== "string" || !plaintext) throw errorWithCode("invalid cutover credential", "invalid_credential");
+      if (readMetaValue(`${PROVIDER_CREDENTIAL_DELETED_PREFIX}${ownerId}`) === true) {
+        return { ok: true, status: "deleted", kind, ownerId, deleted: true };
+      }
+      if (secretStorageStatus !== SECRET_STORAGE_STATUS.AVAILABLE) {
+        throw errorWithCode("secure credential storage unavailable", "secret_storage_unavailable");
+      }
+      // SQL authority wins over a stale mirror, but existence alone is not
+      // enough to discard the backup: verify the ciphertext can be read.
+      if (hasProviderCredential(kind, ownerId).present && readDecryptedProviderSecret(kind, ownerId) !== null) {
+        return { ok: true, status: "stored", kind, ownerId };
+      }
+      // A decrypt outage latches unavailable and persist refuses. An invalid
+      // empty plaintext row can instead recover from the historical backup.
+      return persistProviderCredential(kind, ownerId, plaintext);
+    }
     // gate 3: unavailable (or degraded db, which forces status unavailable) →
     // do not migrate. Legacy stays authoritative. This is a correct no-op, not
     // an error, so it returns a status rather than throwing.
@@ -2977,6 +3016,7 @@ const createSettingsStorageService = ({
     // else is simply absent.
     const targets = [];
     const pushTarget = (kind, ownerId, id, value) => {
+      if (readMetaValue(`${PROVIDER_CREDENTIAL_DELETED_PREFIX}${ownerId}`) === true) return;
       if (typeof value === "string" && value.length > 0) {
         targets.push({ kind, ownerId, id, plaintext: value });
       }

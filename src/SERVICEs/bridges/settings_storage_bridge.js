@@ -151,6 +151,7 @@ export const parseSettingsStorageErrorCode = (error) => {
 
 let sessionBootstrapSnapshot;
 const runtimeProviderCredentialPresenceOverrides = new Map();
+const runtimeClearedCredentialOverrides = new Map();
 let runtimeSecretStorageUnavailable = false;
 
 export const getSessionBootstrapSnapshot = () => {
@@ -164,6 +165,7 @@ export const getSessionBootstrapSnapshot = () => {
 export const resetSessionBootstrapSnapshotForTests = () => {
   sessionBootstrapSnapshot = undefined;
   runtimeProviderCredentialPresenceOverrides.clear();
+  runtimeClearedCredentialOverrides.clear();
   runtimeSecretStorageUnavailable = false;
 };
 
@@ -228,6 +230,24 @@ export const getBootstrapConfiguredCredentials = () => {
 export const setRuntimeProviderCredentialPresence = (id, present) => {
   if (typeof id !== "string" || id.length === 0) return;
   runtimeProviderCredentialPresenceOverrides.set(id, present === true);
+};
+
+export const getBootstrapClearedCredentials = () => {
+  // Adapter reads in browser/dev must not cache an unavailable bootstrap before
+  // a preload is installed. Only ask native for metadata when its bridge exists.
+  if (!resolveApi()) return [];
+  const snapshot = getSessionBootstrapSnapshot();
+  const cleared = new Set(Array.isArray(snapshot?.clearedCredentials)
+    ? snapshot.clearedCredentials.filter((id) => typeof id === "string") : []);
+  for (const [id, deleted] of runtimeClearedCredentialOverrides) {
+    if (deleted) cleared.add(id);
+    else cleared.delete(id);
+  }
+  return [...cleared];
+};
+
+export const setRuntimeProviderCredentialCleared = (id, cleared) => {
+  runtimeClearedCredentialOverrides.set(id, cleared === true);
 };
 
 // safeStorage availability from S1's gate-3 probe. Anything other than the
