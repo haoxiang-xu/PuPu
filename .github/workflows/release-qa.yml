@@ -37,6 +37,10 @@ on:
         # including the earlier #389 journal/interaction fixes.
         default: 4e9d8c3bb228874bd81e4d80ea1905d4aa71110c
 
+# Selected runtime source executes in reusable QA jobs. Cap their server-issued
+# cache tokens too: GITHUB_TOKEN permissions do not restrict cache writes.
+cache-mode: read
+
 permissions:
   contents: read
   actions: read

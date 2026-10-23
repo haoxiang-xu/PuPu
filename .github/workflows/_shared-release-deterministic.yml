@@ -24,6 +24,9 @@ on:
         required: true
         type: string
 
+# Protect this reusable workflow even when called by another entrypoint.
+cache-mode: read
+
 jobs:
   deterministic:
     name: Deterministic QA
@@ -39,6 +42,15 @@ jobs:
       contents: read
       actions: read
     steps:
+      - name: Verify read-only cache authority
+        shell: bash
+        run: |
+          case "${ACTIONS_CACHE_MODE:-}" in
+            read|none) echo "Cache authority: $ACTIONS_CACHE_MODE" ;;
+            "") echo "Cache authority enforced by workflow cache-mode: read; runner telemetry unavailable" ;;
+            *) echo "::error::Selected runtime code requires read-only cache authority"; exit 1 ;;
+          esac
+
       - name: Validate closed shared deterministic inputs
         shell: bash
         run: |
