@@ -33,9 +33,9 @@ on:
       unchain_ref:
         description: "Unchain source ref selected once for the immutable release artifact (release-candidate requires a full 40-character revision)"
         type: string
-        # Paired #411 runtime: Gemini 4 Argon catalog and request limits,
-        # including the earlier #389 journal/interaction fixes.
-        default: 4e9d8c3bb228874bd81e4d80ea1905d4aa71110c
+        # Paired #447/#451 runtime: complete small outputs, bounded paging,
+        # historical-evidence guidance, and bounded context-limit recovery.
+        default: e01b4fc6f27646751c4f6afd16b6241d4ea686e2
 
 # Selected runtime source executes in reusable QA jobs. Cap their server-issued
 # cache tokens too: GITHUB_TOKEN permissions do not restrict cache writes.
@@ -54,7 +54,7 @@ jobs:
     uses: ./.github/workflows/_shared-release-deterministic.yml
     with:
       qa_mode: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_scope == 'windows-playwright' && 'release' || (github.event_name == 'workflow_dispatch' && inputs.qa_mode) || (startsWith(github.ref, 'refs/tags/v') && 'release') || 'lite' }}
-      unchain_ref: ${{ github.event.inputs.unchain_ref || '4e9d8c3bb228874bd81e4d80ea1905d4aa71110c' }}
+      unchain_ref: ${{ github.event.inputs.unchain_ref || 'e01b4fc6f27646751c4f6afd16b6241d4ea686e2' }}
       source_ref: ${{ github.ref }}
       source_sha: ${{ github.sha }}
       release_tag: ${{ github.ref_name }}
@@ -129,7 +129,7 @@ jobs:
       target_id: ${{ matrix.target_id }}
       platform_name: ${{ matrix.name }}
       signing_platform: ${{ matrix.signing_platform }}
-      unchain_ref: ${{ github.event.inputs.unchain_ref || '4e9d8c3bb228874bd81e4d80ea1905d4aa71110c' }}
+      unchain_ref: ${{ github.event.inputs.unchain_ref || 'e01b4fc6f27646751c4f6afd16b6241d4ea686e2' }}
       source_ref: ${{ github.ref }}
       source_sha: ${{ github.sha }}
       release_tag: ${{ github.ref_name }}
@@ -150,7 +150,7 @@ jobs:
       target_id: linux-x64
       platform_name: linux
       signing_platform: linux
-      unchain_ref: ${{ github.event.inputs.unchain_ref || '4e9d8c3bb228874bd81e4d80ea1905d4aa71110c' }}
+      unchain_ref: ${{ github.event.inputs.unchain_ref || 'e01b4fc6f27646751c4f6afd16b6241d4ea686e2' }}
       source_ref: ${{ github.ref }}
       source_sha: ${{ github.sha }}
       release_tag: ${{ github.ref_name }}
@@ -171,7 +171,7 @@ jobs:
       target_id: windows-x64
       platform_name: windows
       signing_platform: windows
-      unchain_ref: ${{ github.event.inputs.unchain_ref || '4e9d8c3bb228874bd81e4d80ea1905d4aa71110c' }}
+      unchain_ref: ${{ github.event.inputs.unchain_ref || 'e01b4fc6f27646751c4f6afd16b6241d4ea686e2' }}
       source_ref: ${{ github.ref }}
       source_sha: ${{ github.sha }}
       release_tag: ${{ github.ref_name }}
