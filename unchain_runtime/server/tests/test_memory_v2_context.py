@@ -983,12 +983,14 @@ class MemoryV2ContextTests(unittest.TestCase):
         self.assertIsNotNone(persisted_result)
         self.assertEqual(persisted_result["result"]["projection"], "head_tail")
         self.assertIn("preview", persisted_result["result"])
-        self.assertIn("tail_preview", persisted_result["result"])
+        self.assertEqual(json.loads(persisted_result["result"]["preview"]), {"text": "a" * 3000})
+        self.assertNotIn("tail_preview", persisted_result["result"])
+        self.assertNotIn("read_request", persisted_result["result"])
         self.assertEqual(
             persisted_result["result_projection"]["projection_policy"],
             "head_tail",
         )
-        self.assertFalse(persisted_result["result_projection"]["inline"])
+        self.assertTrue(persisted_result["result_projection"]["inline"])
 
     def test_tool_result_projection_respects_artifact_only_policy(self):
         runtime = _FakeRuntime()
