@@ -60,8 +60,8 @@ const allowedOAuthReleaseStatuses = [
 const requiredMcpSdkPins = new Map([
   // These upstream releases declared only a lower bound and broke when mcp
   // 2.0.0 landed. Keep the last verified 1.x SDK explicit in their recipes.
-  ["workspace.fetch", "mcp==1.28.0"],
-  ["workspace.sqlite", "mcp==1.28.0"],
+  ["workspace.fetch", "mcp==1.30.0"],
+  ["workspace.sqlite", "mcp==1.30.0"],
 ]);
 
 const stdioPackageSpec = (entry) => {
@@ -167,10 +167,27 @@ for (const entry of registry.entries || []) {
     if (!isPinnedPackageSpec(spec, entry.mcp.command)) {
       fail(`${tag}: stdio package must use an exact pinned version (got "${spec}")`);
     }
+    const cutoff = entry.dependencyPolicy?.cutoff ?? registry.dependencyCutoff;
+    if (entry.dependencyPolicy && (
+      typeof cutoff !== "string" ||
+      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(cutoff) ||
+      !Number.isFinite(Date.parse(cutoff)) ||
+      new Date(cutoff).toISOString() !== cutoff.replace("Z", ".000Z")
+    )) {
+      fail(`${tag}: dependency policy cutoff must be a valid canonical UTC timestamp`);
+    }
     const cutoffFlag =
       entry.mcp.command === "npx"
-        ? `--before=${registry.dependencyCutoff}`
-        : `--exclude-newer=${registry.dependencyCutoff}`;
+        ? `--before=${cutoff}`
+        : `--exclude-newer=${cutoff}`;
+    const policyFlags = (entry.mcp.args || []).filter((arg) =>
+      /^--(?:before|exclude-newer)(?:=|$)/.test(arg),
+    );
+    if (entry.dependencyPolicy && (
+      policyFlags.length !== 1 || policyFlags[0] !== cutoffFlag
+    )) {
+      fail(`${tag}: dependency policy must have exactly one matching cutoff flag`);
+    }
     if (!(entry.mcp.args || []).includes(cutoffFlag)) {
       fail(`${tag}: stdio recipe must use dependency cutoff ${cutoffFlag}`);
     }

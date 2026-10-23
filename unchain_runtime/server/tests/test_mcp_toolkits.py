@@ -1684,13 +1684,13 @@ class McpToolkitServiceTests(unittest.TestCase):
         )
 
         self.assertIn(
-            "--exclude-newer=2026-07-28T00:00:00Z",
+            "--exclude-newer=2026-10-22T00:00:00Z",
             toolkit.kwargs["args"],
         )
         with_index = toolkit.kwargs["args"].index("--with")
         self.assertEqual(
             toolkit.kwargs["args"][with_index + 1],
-            "mcp==1.28.0",
+            "mcp==1.30.0",
         )
 
     def test_managed_runtime_error_does_not_persist_failed_install(self):
