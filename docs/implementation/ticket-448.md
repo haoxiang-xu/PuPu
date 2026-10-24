@@ -51,6 +51,11 @@ checkpoint schema, source-turn split, task-state objective or graph scheduling.
    tests. Update architecture documentation only as needed to describe behavior.
 4. Review diff, complete graph change analysis, build one wheel, verify the exact
    PuPu/wheel pair, commit/push separate repository PRs to dev, feature audit.
+5. Deployment integration follow-up: bind the Release QA default and every
+   reusable-job fallback to the same verified Unchain source commit. The first
+   PR head still selected the older #451 runtime in CI; local exact-wheel tests
+   did not prove that workflow default. Preserve explicit operator overrides,
+   source-SHA validation, cache/permission and signing boundaries.
 
 GitNexus upstream impact for `_neutral_context`, `_assemble`, `_compile_core` is
 LOW: direct compiler assembly/core callers, coordinator compile passes, and six
@@ -93,6 +98,29 @@ No journal rewrite, synthesized checkpoint coverage, inferred latest fact or
 summary-model fallback is allowed. Bound identity and protocol admission remain
 unchanged; use the imported runtime manifest, never a Git SHA allowlist.
 Positive/negative acceptance: AC-448-001/002/003/005.
+
+### BC-448-003 — QA runtime selection → one built wheel → reusable consumers
+
+Producer: `.github/workflows/release-qa.yml` dispatch default and four job
+fallbacks. Canonical source provenance is the full immutable Unchain commit
+`122f476df60a549c4e13c102d8a48abe1f1e46f0`, matching the already built wheel's
+source revision. Consumers are shared deterministic, Playwright and platform
+package workflows; existing admission requires a full 40-hex SHA and builds one
+wheel for subsequent consumers. CLOSED source selection remains unchanged;
+explicit operator input still overrides the default. Wrong/mutable source refs,
+dirty source, changed wheel bytes or manifest mismatch fail at existing guards.
+This is artifact provenance, not runtime compatibility via Git SHA allowlisting.
+Runtime admission remains based on the actual imported manifest. AC-448-006:
+existing artifact-continuity/source-identity/workflow contracts prove that all
+fallbacks agree, explicit overrides survive, and consumers retain one-wheel
+verification; independently compare the selected SHA to wheel evidence.
+
+GitNexus lookup for this YAML file is UNKNOWN (no callable graph anchor).
+Literal/caller inspection confirms exactly five old fixed-SHA occurrences:
+one dispatch default and four `unchain_ref` fallbacks. All called workflows use
+the passed immutable source and the existing artifact contract. This unresolved
+graph coverage is supplemented by direct workflow inspection and owning contract
+tests; it is not described as LOW risk or proof that the workflow is unused.
 
 ### BC-448-002 — compiler failure → host error → SSE consumer
 
@@ -189,8 +217,8 @@ built from that clean source and reused throughout:
 - Imported runtime manifest:
   `sha256:f96b620fca6dc3e26f84cac47c4bbd8ce5e5d43505bf63759b88a15ec5234077`.
 - Candidate digest:
-  `sha256:e3d98d6004a4c6a9a4b2767f2cd8d54cdf58153128f28f076e5cc01a0935578a`.
-  It hashes 1,880 PuPu source/test/support files plus wheel and manifest digests;
+  `sha256:8c6534755a46293efe686b35051da7ee2545d2b7edcc54130c995d0f6e628ffd`.
+  It hashes 1,910 PuPu workflow/source/test/support files plus wheel and manifest digests;
   Git metadata, plans, reports, caches and environments are excluded. Complete
   input list: external evidence `candidate-inputs.json`.
 
@@ -221,3 +249,15 @@ Remaining acceptance: real desktop/provider probe, packaged application smoke
 and an actual sidecar-process cold resume are **NOT_RUN**. No audit PASS or waiver
 is inferred from deterministic tests. Keep both clones for owner acceptance;
 PR delivery does not merge, close the ticket or mark it Done.
+
+Deployment-binding checkpoint: corrected the five Release QA runtime selections
+to the same verified Unchain source. All **19** owning artifact-continuity,
+Playwright, source/toolchain, signing-boundary and cache-authority tests pass. An
+independent YAML check verifies the one dispatch default and four job fallbacks
+match the wheel source revision, with explicit overrides unchanged. Initial
+runner failure was a missing clone-local YAML dependency; the exact lockfile
+version (1.10.3) was then used read-only without changing source/lock files. All
+1,880 previously verified runtime/test/support inputs remain byte-identical, so
+the same wheel and runtime/host results remain applicable. The candidate digest
+now includes workflow inputs as well. The prior audit draft was not posted; a
+fresh audit is required for this delivered head and updated digest.
