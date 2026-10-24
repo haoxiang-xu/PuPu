@@ -138,9 +138,8 @@ export const DISPLAY_FRAME_TYPES = new Set([
   "clarify_request",
 ]);
 
-/* Anthropic-protocol providers stream thinking as one runtime event per
-   thinking_delta (a single token on DeepSeek), and each becomes its own
-   reasoning frame. Adjacent deltas from the same model turn are one block.
+/* Providers stream thinking as one runtime event per delta, and each becomes
+   its own reasoning frame. Adjacent deltas from the same model turn are one block.
    Whole reasoning items (Responses API `reasoning_items`) are left as-is. */
 const isReasoningDeltaFrame = (frame) =>
   frame?.type === "reasoning" &&
@@ -149,9 +148,9 @@ const isReasoningDeltaFrame = (frame) =>
 
 const sameReasoningTurn = (a, b) =>
   (a.run_id || "") === (b.run_id || "") &&
-  a.iteration === b.iteration &&
-  (a.payload?.provisional_reasoning_id || "") ===
-    (b.payload?.provisional_reasoning_id || "");
+  // Ollama preview IDs identify individual deltas for rollback, not turns.
+  // The source frames retain those IDs; only this display projection is merged.
+  a.iteration === b.iteration;
 
 export const coalesceReasoningDeltaFrames = (frames) => {
   const out = [];
