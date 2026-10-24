@@ -171,8 +171,8 @@ const renderPanel = async (props = {}) => {
 
 const track = () => screen.getByTestId("context-composition-track");
 
-describe("Current composer window display", () => {
-  test("updates the readout and composition bar with current usage without rewriting the receipt", async () => {
+describe("Recorded call window display", () => {
+  test("keeps the readout and composition bar bound to the receipt when the composer window changes", async () => {
     const bundle = dualAvailableBundle();
     const original = JSON.stringify(bundle);
     const usage = selectContextUsage(bundle);
@@ -191,14 +191,14 @@ describe("Current composer window display", () => {
     const headline = () => screen.getByTestId("context-composition-headline");
     const bar = () => within(screen.getByTestId("context-composition-pane-model_call"))
       .getByRole("img", { name: /Estimated input composition against the context window/i });
-    expect(headline()).toHaveTextContent(/25% full/i);
-    expect(headline()).toHaveTextContent("~1K / 4K Tokens");
-    expect(bar().firstChild).toHaveStyle({ width: "7.5%" });
+    expect(headline()).toHaveTextContent(/0.8% full/i);
+    expect(headline()).toHaveTextContent("~1K / 128K Tokens");
+    expect(bar().firstChild).toHaveStyle({ width: "0.25%" });
 
     rerender(surface(8000));
-    expect(headline()).toHaveTextContent(/13% full/i);
-    expect(headline()).toHaveTextContent("~1K / 8K Tokens");
-    expect(bar().firstChild).toHaveStyle({ width: "3.75%" });
+    expect(headline()).toHaveTextContent(/0.8% full/i);
+    expect(headline()).toHaveTextContent("~1K / 128K Tokens");
+    expect(bar().firstChild).toHaveStyle({ width: "0.25%" });
     expect(JSON.stringify(bundle)).toBe(original);
 
     // A historical shell has no current-composer usage override.

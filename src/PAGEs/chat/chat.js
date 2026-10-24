@@ -966,10 +966,9 @@ const ChatInterface = () => {
     () => selectLatestContextCompositionBundle(session.messages),
     [session.messages],
   );
-  // Accounting-only pressure. Independent of Context Composition so the
-  // indicator works before any contribution source is instrumented. Normal
-  // chats use the active composer selection; character chats retain the
-  // catalog-maximum behavior because their request path has no window picker.
+  // Accounting pressure works before any composition source is instrumented.
+  // Recorded call windows win. Catalog/composer windows are fallbacks only for
+  // receipts from the same model, so switching models cannot invent pressure.
   const contextUsageView = useMemo(() => {
     const usage = selectLatestContextUsage(session.messages);
     if (!usage) return null;
@@ -979,7 +978,9 @@ const ChatInterface = () => {
           modelId: session.selectedModelId,
           selectedContextWindow: session.selectedContextWindow,
         });
-    return buildContextUsageView(usage, windowTokens);
+    return buildContextUsageView(usage, windowTokens, {
+      modelId: session.selectedModelId,
+    });
   }, [
     session.messages,
     activeModelCapabilities,
