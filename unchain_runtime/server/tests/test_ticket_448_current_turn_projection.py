@@ -287,6 +287,11 @@ def test_ticket_448_completed_evidence_reduces_and_exact_reads_survive_cold_host
 
 def test_ticket_448_production_coordinator_continues_one_turn_with_strict_fake_provider(tmp_path, monkeypatch):
     """Real native receipts and coordinator; only provider network IO is replaced."""
+    # Cross the real 256 KiB history limit without 64 expensive coordinator
+    # rebuilds. The latest native batch is excluded, so seven older 40 KiB
+    # arguments must still exceed that limit. Separate tests retain 64 exchanges.
+    tool_count = 8
+    argument_padding = "x" * (40 * 1024)
     host = _production_host(
         tmp_path,
         root_run_id="attempt-a",
@@ -316,14 +321,14 @@ def test_ticket_448_production_coordinator_continues_one_turn_with_strict_fake_p
             assert kwargs["model"] == "gpt-test" and kwargs["stream"] is True
             requests.append(json.loads(json.dumps(kwargs)))
             ordinal = len(requests) - 1
-            if ordinal < 64:
+            if ordinal < tool_count:
                 output = [{
                     "type": "function_call", "call_id": f"native-448-{ordinal:03}",
                     "name": "inspect_file",
-                    "arguments": json.dumps({"source": f"argument-{ordinal:03}-" + "x" * 4096}),
+                    "arguments": json.dumps({"source": f"argument-{ordinal:03}-" + argument_padding}),
                 }]
             else:
-                assert ordinal == 64
+                assert ordinal == tool_count
                 output = [{
                     "type": "message", "role": "assistant",
                     "content": [{"type": "output_text", "text": "inspection complete"}],
@@ -349,7 +354,7 @@ def test_ticket_448_production_coordinator_continues_one_turn_with_strict_fake_p
         state=AgentState(),
         call_context=AgentCallContext(
             mode="run", input_messages=[{"role": "user", "content": _GOAL}],
-            session_id="execution-a", run_id="attempt-a", max_iterations=65,
+            session_id="execution-a", run_id="attempt-a", max_iterations=tool_count + 1,
             max_context_window_tokens=128_000,
             execution_guard=ExecutionRuntime(InMemorySessionStore()).acquire("execution-a"),
             runtime_context=_runtime_context(
@@ -367,9 +372,10 @@ def test_ticket_448_production_coordinator_continues_one_turn_with_strict_fake_p
         module.configure(builder)
     result = builder.build().run()
     assert result.status == "completed"
-    assert len(requests) == 65
-    assert len(tool_effects) == 64
-    assert len(set(tool_effects)) == 64
+    assert len(requests) == tool_count + 1
+    assert tool_effects == [
+        f"argument-{index:03}-" + argument_padding for index in range(tool_count)
+    ]
     pressured = [compiled for compiled in compiled_builds
                  if compiled.diagnostics.get("semantic_history_compacted_exchange_count", 0)]
     assert pressured
@@ -394,6 +400,12 @@ def test_ticket_448_production_coordinator_continues_one_turn_with_strict_fake_p
                if text.startswith("[MEMORY_V2_EVIDENCE_HISTORY]")]
     assert len(markers) == 1
     history = json.loads(markers[0].split("\n", 2)[2])
+    assert [item["call_id"] for item in history["tool_exchanges"]] == [
+        f"native-448-{index:03}" for index in range(tool_count - 1)
+    ]
+    native_calls = [item["call_id"] for item in requests[-1]["input"]
+                    if item.get("type") == "function_call"]
+    assert native_calls == [f"native-448-{tool_count - 1:03}"]
     assert len(markers[0].encode("utf-8")) < 256 * 1024
     assert any(isinstance(item["arguments"], dict)
                and item["arguments"].get("truncated") is True

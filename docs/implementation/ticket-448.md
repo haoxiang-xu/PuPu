@@ -261,3 +261,46 @@ version (1.10.3) was then used read-only without changing source/lock files. All
 the same wheel and runtime/host results remain applicable. The candidate digest
 now includes workflow inputs as well. The prior audit draft was not posted; a
 fresh audit is required for this delivered head and updated digest.
+
+## CI repair — 2026-10-24
+
+ReleaseQA run `40113824320` selected the correct immutable runtime, but its
+full Python backend step exceeded the existing ten-minute deadline. The uploaded
+Python log ended at 85% without an assertion failure. The earlier 53-test local
+subset was insufficient evidence for the full 2,845-test suite's CI budget.
+
+Profiling the unchanged five-test #448 module locally passed in 107.41 seconds;
+the 64-tool real-coordinator regression alone used 94.22 seconds. That regression
+now crosses the same production 256 KiB boundary with eight 40 KiB arguments:
+the seven historical calls exceed the byte cap even after the current native
+batch is excluded. It still uses real receipts, persistence, compilation and
+provider serialization; only network I/O is a strict fake. It verifies byte and
+token reduction, all eight exact tool effects, ordered historical call IDs 0–6,
+the current native call ID 7 and exactly nine provider requests. The independent
+64-exchange hot/cold exact-reader tests remain unchanged. No product logic,
+pressure threshold, CI deadline or test selection was changed.
+
+The optimized five-test module passes in 19.15 seconds, with the coordinator
+case taking 7.40 seconds. Independent review found no actionable issue in this
+fixture change. Upstream impact for the pytest function and nested fake SDK
+method is UNKNOWN: collection and client-factory dispatch are not graph callers.
+Explicit collection/source inspection supplements that gap; zero graph edges
+are not described as unused or LOW risk.
+
+Current candidate:
+`sha256:c3d854d4d36f6777fb7969e27af08995cfa36442ba2db6e9640d01ff0efb13e5`.
+Only this one test input changed among the 1,910 candidate files. The immutable
+Unchain source, reused wheel and imported manifest remain as recorded above.
+Full-suite and remote CI results are recorded in the delivery checkpoint.
+The earlier incomplete real-app audit is not promoted to PASS by this CI fix.
+Evidence: `/Users/red/.codex/artifacts/pupu-448-ci-fix-20261024/`.
+
+Full backend validation with the actual CI entrypoint (`python -m pytest tests/
+-q --tb=short`, adding only duration reporting) passes: **2,828 passed, 17 skipped,
+3,612 subtests passed**, in **242.12 seconds**. Installed package Python members
+and the runtime manifest still match the same wheel in fresh verification
+processes. The first diagnostic wrapper attempt was discarded because an
+unguarded `pytest.main` recursively ran during macOS multiprocessing spawn;
+the successful run uses the normal module entrypoint, with no tests excluded.
+The isolated five-test module is supplemental evidence, not a substitute for
+this complete suite. Remote ReleaseQA still must pass on the pushed revision.
