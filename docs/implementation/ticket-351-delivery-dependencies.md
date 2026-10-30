@@ -73,3 +73,25 @@ suites, all passing. These are bounded source results, not full feature-audit or
 release PASS. Further results, exact digests and remaining cells are recorded in
 the PR and #351, with local raw logs under
 `~/.codex/artifacts/pupu-351/close-01-20261030/`.
+
+The first Host/installed-wheel check exposed a real integration error: Skeleton
+completion still used the old attachment return value and omitted the completion
+recorder required by current dev. Ten existing completion/recovery tests failed;
+after unpacking and passing the recorder, the same 75-test suite passes, including
+the unchanged ordinary graph-completion controls. Root acknowledgement remains
+after the existing memory enqueue audit.
+
+The bounded installed-wheel resource/condition/selection rerun passes 267 tests
+and 193 subtests. Eighteen process-identity-dependent cases are explicitly
+deselected because the offline OS policy prevents the system ps operation; they
+are not counted as passing. The first runner also omitted PYTHONPATH needed by
+four cold-source subprocesses; the corrected runner exports only this Host's
+server and the installed wheel. All 333 imported Core modules are inside that
+wheel installation, and all 377 wheel Python members match source. Main/preload
+checks pass 165 tests across 11 suites using the repository's actual Jest entry.
+
+The reused wheel is `4169aca0408ac88bd56369d94b3c728db1def61212014143c7571be4fa98a2f6`.
+The runtime dependency PR is haoxiang-xu/unchain#66. Its follow-up fixture-import
+fix changes tests only; production module bytes still match this same wheel.
+The available offline environment has five versions below current dev floors;
+dependency-check failure is retained and does not become package qualification.

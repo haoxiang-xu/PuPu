@@ -86,9 +86,11 @@ def complete_pupu_skeleton_root(runner, bridge, *, agent_name, mode="skeleton"):
         raise ValueError("Skeleton root terminal receipts changed")
     request = MemoryAttachmentRequest(agent_name=agent_name, mode=mode,
                                      identity=binding.identity, grant=binding.grant)
-    completion = _completion_from_attachment(factory=factory, request=request, final_text=final_text)
+    completion, completion_recorder = _completion_from_attachment(
+        factory=factory, request=request, final_text=final_text)
     memory = _run_memory_completion(factory=factory, owner_chat_id=binding.owner_chat_id,
-                                   root_run_id=binding.root_run_id, completion=completion)
+                                   root_run_id=binding.root_run_id, completion=completion,
+                                   completion_recorder=completion_recorder)
     # A lost reply is retried through the same journal/capture/worker identities.
     runner.commit_root()
     output_artifact = ArtifactRef.from_dict(end["output_ref"])
