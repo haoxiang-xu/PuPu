@@ -1,8 +1,33 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 
 import SideMenu from "./side_menu";
 import { ConfigContext, LocaleContext } from "../../CONTAINERs/config/context";
 import { writeFeatureFlags } from "../../SERVICEs/feature_flags";
+
+const originalWindowStateAPI = window.windowStateAPI;
+const originalRuntime = window.runtime;
+const originalOsInfo = window.osInfo;
+
+const installWindowStateAPI = (initialState = { isFullScreen: false }) => {
+  let listener = null;
+  const actions = [];
+  window.windowStateAPI = {
+    windowStateEventHandler: (action) => {
+      actions.push(action);
+      if (action === "get-state") listener?.(initialState);
+    },
+    windowStateEventListener: (callback) => {
+      listener = callback;
+      return () => {
+        listener = null;
+      };
+    },
+  };
+  return {
+    actions,
+    emit: (state) => listener?.(state),
+  };
+};
 
 jest.mock("../settings/settings_modal_content", () => ({
   SettingsModalContent: () => {
@@ -59,6 +84,50 @@ const renderSideMenu = () =>
 describe("SideMenu", () => {
   beforeEach(() => {
     window.localStorage.clear();
+  });
+
+  afterEach(() => {
+    window.windowStateAPI = originalWindowStateAPI;
+    window.runtime = originalRuntime;
+    window.osInfo = originalOsInfo;
+  });
+
+  test("reserves the native lights except during repeated macOS fullscreen transitions", () => {
+    window.osInfo = { platform: "darwin" };
+    const bridge = installWindowStateAPI({ isFullScreen: true });
+
+    renderSideMenu();
+
+    const toggle = screen.getByLabelText("Close sidebar");
+    const newChat = screen.getByLabelText("New chat");
+    expect(bridge.actions).toEqual(["get-state"]);
+    expect(toggle.style.left).toBe("14px");
+    expect(newChat.style.left).toBe("44px");
+
+    act(() => bridge.emit({ isMaximized: true, isFullScreen: false }));
+    expect(toggle.style.left).toBe("90px");
+    expect(newChat.style.left).toBe("120px");
+    act(() => bridge.emit({ isFullScreen: true }));
+    expect(toggle.style.left).toBe("14px");
+    expect(newChat.style.left).toBe("44px");
+    act(() => bridge.emit({ isFullScreen: false }));
+    expect(toggle.style.left).toBe("90px");
+    expect(newChat.style.left).toBe("120px");
+  });
+
+  test("keeps non-macOS button insets when fullscreen state is reported", () => {
+    window.osInfo = { platform: "win32" };
+    const bridge = installWindowStateAPI();
+
+    renderSideMenu();
+
+    const toggle = screen.getByLabelText("Close sidebar");
+    const newChat = screen.getByLabelText("New chat");
+    expect(toggle.style.left).toBe("14px");
+    expect(newChat.style.left).toBe("44px");
+    act(() => bridge.emit({ isFullScreen: true }));
+    expect(toggle.style.left).toBe("14px");
+    expect(newChat.style.left).toBe("44px");
   });
 
   test("hides the Agents entry when both feature flags are disabled", () => {

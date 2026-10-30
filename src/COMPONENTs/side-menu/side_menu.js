@@ -23,6 +23,7 @@ import {
 } from "./side_menu_components";
 import { sideMenuChatTreeAPI } from "./side_menu_api";
 import usePresentationPlatform from "../../BUILTIN_COMPONENTs/mini_react/use_presentation_platform";
+import useWindowFullscreen from "../../BUILTIN_COMPONENTs/mini_react/use_window_fullscreen";
 import { buildSideMenuContextMenuItems } from "./side_menu_context_menu_items";
 import { useChatTreeStore } from "./hooks/use_chat_tree_store";
 import { useSideMenuActions } from "./hooks/use_side_menu_actions";
@@ -211,6 +212,7 @@ const CharacterChatRow = ({ node, depth, isDark, theme, characterAvailability })
 const SideMenu = () => {
   const { theme, onFragment, setOnFragment, onThemeMode } =
     useContext(ConfigContext);
+  const isFullScreen = useWindowFullscreen();
   const { t } = useTranslation();
   const isDark = onThemeMode === "dark_mode";
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -258,6 +260,7 @@ const SideMenu = () => {
 
   const platform = usePresentationPlatform();
   const isDarwin = platform === "darwin";
+  const reserveDarwinTrafficLights = isDarwin && !isFullScreen;
   const sideMenuBackgroundColor = isDark
     ? "var(--pupu-sidebar, #151515)"
     : "var(--pupu-sidebar, rgb(245, 245, 245))";
@@ -576,7 +579,7 @@ const SideMenu = () => {
           position: "absolute",
           top: 25,
           transform: "translate(-50%, -50%)",
-          left: isDarwin ? 90 : 14,
+          left: reserveDarwinTrafficLights ? 90 : 14,
           fontSize: 14,
           marginLeft: 12,
           WebkitAppRegion: "no-drag",
@@ -597,7 +600,7 @@ const SideMenu = () => {
           position: "absolute",
           top: 25,
           transform: "translateY(-50%)",
-          left: isDarwin ? 120 : 44,
+          left: reserveDarwinTrafficLights ? 120 : 44,
           fontSize: 14,
           WebkitAppRegion: "no-drag",
         }}
