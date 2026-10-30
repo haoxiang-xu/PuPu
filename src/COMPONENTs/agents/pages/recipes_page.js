@@ -9,11 +9,11 @@ import {
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import {
   AGENTS_MODAL_Z,
-  TOP_STRIP_LEADING_ICON,
-  TOP_STRIP_LEADING_PADDING,
   useTopStripCenter,
 } from "../top_strip";
-import RecipeList from "./recipes_page/recipe_list";
+import RecipeList, {
+  RECIPE_PANEL_HEADER,
+} from "./recipes_page/recipe_list";
 import RecipeCanvas from "./recipes_page/recipe_canvas";
 import DetailPanel from "./recipes_page/detail_panel/detail_panel";
 import PanelResizeHandle from "./recipes_page/panel_resize_handle";
@@ -38,7 +38,14 @@ export default function RecipesPage({
     left: topStripLeft,
     clearsTrafficLights,
   } = useTopStripCenter(fullscreen);
-  const headerTopPad = clearsTrafficLights ? 28 : 0;
+  /* Where the list's own toggle sits inside the open panel, so the floating
+     one shown while it is collapsed lands on the same spot. Next to the
+     traffic lights it steps right, staying on the top line. */
+  const headerLeft = clearsTrafficLights
+    ? topStripLeft
+    : PANEL_INSET + RECIPE_PANEL_HEADER.INSET;
+  const headerLeadingPad =
+    headerLeft - (PANEL_INSET + RECIPE_PANEL_HEADER.INSET);
   const [recipes, setRecipes] = useState([]);
   const [activeName, setActiveName] = useState(null);
   const {
@@ -219,6 +226,29 @@ export default function RecipesPage({
     }
   };
 
+  const headerButtonStyle = {
+    paddingVertical:
+      (RECIPE_PANEL_HEADER.HEIGHT - RECIPE_PANEL_HEADER.ICON) / 2,
+    paddingHorizontal:
+      (RECIPE_PANEL_HEADER.HEIGHT - RECIPE_PANEL_HEADER.ICON) / 2,
+    borderRadius: RECIPE_PANEL_HEADER.RADIUS,
+    opacity: 0.55,
+    flexShrink: 0,
+    WebkitAppRegion: "no-drag",
+    content: {
+      prefixIconWrap: {
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        lineHeight: 0,
+      },
+      icon: {
+        width: RECIPE_PANEL_HEADER.ICON,
+        height: RECIPE_PANEL_HEADER.ICON,
+      },
+    },
+  };
+
   const overlayBg = isDark
     ? "rgba(20, 20, 20, 0.72)"
     : "rgba(255, 255, 255, 0.78)";
@@ -299,7 +329,7 @@ export default function RecipesPage({
           onListChange={setRecipes}
           onCollapse={() => setListCollapsed(true)}
           isDark={isDark}
-          headerTopPad={headerTopPad}
+          headerLeadingPad={headerLeadingPad}
         />
       </div>
 
@@ -324,30 +354,14 @@ export default function RecipesPage({
         <Button
           prefix_icon="side_menu_left"
           onClick={() => setListCollapsed(false)}
-          ariaLabel="Show workflows"
+          ariaLabel="Show agents"
           style={{
+            ...headerButtonStyle,
             position: "absolute",
             top: topStripCenter,
             transform: "translateY(-50%)",
-            left: topStripLeft,
+            left: headerLeft,
             zIndex: AGENTS_MODAL_Z.PANEL_CONTROL,
-            paddingVertical: TOP_STRIP_LEADING_PADDING,
-            paddingHorizontal: TOP_STRIP_LEADING_PADDING,
-            borderRadius: 6,
-            opacity: 0.55,
-            WebkitAppRegion: "no-drag",
-            content: {
-              prefixIconWrap: {
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                lineHeight: 0,
-              },
-              icon: {
-                width: TOP_STRIP_LEADING_ICON,
-                height: TOP_STRIP_LEADING_ICON,
-              },
-            },
           }}
         />
       )}
@@ -395,6 +409,25 @@ export default function RecipesPage({
           pointerEvents: selectedNodeId ? "auto" : "none",
         }}
       >
+        {/* Mirrors the list's toggle: this icon closes the panel, while the
+            modal's own close button only ever closes the modal. */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            flexShrink: 0,
+            padding: `${
+              RECIPE_PANEL_HEADER.INSET - RECIPE_PANEL_HEADER.BORDER
+            }px ${RECIPE_PANEL_HEADER.INSET - RECIPE_PANEL_HEADER.BORDER}px 0`,
+          }}
+        >
+          <Button
+            prefix_icon="side_menu_right"
+            ariaLabel="Hide details"
+            onClick={() => onSelectNode(null)}
+            style={headerButtonStyle}
+          />
+        </div>
         <DetailPanel
           recipe={activeRecipe}
           selectedNodeId={selectedNodeId}

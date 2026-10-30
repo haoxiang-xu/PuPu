@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../../../../SERVICEs/api";
 import Button from "../../../../BUILTIN_COMPONENTs/input/button";
+import { Input } from "../../../../BUILTIN_COMPONENTs/input/input";
 import Icon from "../../../../BUILTIN_COMPONENTs/icon/icon";
 import Explorer from "../../../../BUILTIN_COMPONENTs/explorer/explorer";
 import ContextMenu from "../../../../BUILTIN_COMPONENTs/context_menu/context_menu";
@@ -15,7 +16,31 @@ import {
   renameRecipeKey,
   forgetRecipe,
 } from "../../../../SERVICEs/agent_folder_storage";
+import { useTranslation } from "../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { buildRecipeListContextMenuItems } from "./recipe_list_context_menu_items";
+
+/* Header row geometry (list toggle, New). The row sits HEADER_INSET from the
+   panel's outer edge (its 1px border plus the padding) on top and left, and
+   its controls are HEADER_GAP apart. Every corner in the row is concentric with the
+   panel's 10px corner: inner radius = outer radius − inset. */
+const PANEL_RADIUS = 10;
+const PANEL_BORDER = 1;
+const HEADER_INSET = 5;
+const HEADER_GAP = 4;
+/* 28 puts the row's centerline at the modal's top-strip centerline (6 + 5 +
+   14 = 25), so the fullscreen / close buttons line up with it. */
+const HEADER_HEIGHT = 28;
+const HEADER_ICON = 14;
+const HEADER_RADIUS = PANEL_RADIUS - HEADER_INSET;
+
+export const RECIPE_PANEL_HEADER = Object.freeze({
+  INSET: HEADER_INSET,
+  BORDER: PANEL_BORDER,
+  GAP: HEADER_GAP,
+  HEIGHT: HEADER_HEIGHT,
+  ICON: HEADER_ICON,
+  RADIUS: HEADER_RADIUS,
+});
 
 const PENDING_AGENT_ID = "__new_agent__";
 const ROOT_ORDER_KEY = "__root__";
@@ -156,8 +181,10 @@ export default function RecipeList({
   onListChange,
   onCollapse,
   isDark,
-  headerTopPad = 0,
+  headerLeadingPad = 0,
 }) {
+  const { t } = useTranslation();
+  const [searchQuery, setSearchQuery] = useState("");
   const [folderVersion, setFolderVersion] = useState(0);
   const [contextMenu, setContextMenu] = useState({
     visible: false,
@@ -563,6 +590,39 @@ export default function RecipeList({
     return ids;
   }, [folderState]);
 
+  const headerButtonStyle = {
+    paddingVertical: (HEADER_HEIGHT - HEADER_ICON) / 2,
+    paddingHorizontal: (HEADER_HEIGHT - HEADER_ICON) / 2,
+    borderRadius: HEADER_RADIUS,
+    opacity: 0.55,
+    flexShrink: 0,
+    WebkitAppRegion: "no-drag",
+    content: {
+      prefixIconWrap: {
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        lineHeight: 0,
+      },
+      icon: { width: HEADER_ICON, height: HEADER_ICON },
+    },
+  };
+
+  /* ── search: flat list of matching agents, folders dropped ── */
+  const filtered = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return null;
+    const matchData = {};
+    const matchRoot = [];
+    Object.entries(decoratedData).forEach(([id, node]) => {
+      if (node.kind === "recipe" && node.name.toLowerCase().includes(q)) {
+        matchData[id] = node;
+        matchRoot.push(id);
+      }
+    });
+    return { data: matchData, root: matchRoot };
+  }, [decoratedData, searchQuery]);
+
   const contextMenuItems = useMemo(
     () =>
       buildRecipeListContextMenuItems({
@@ -590,7 +650,9 @@ export default function RecipeList({
         flexDirection: "column",
         flex: 1,
         minHeight: 0,
-        padding: "10px 8px",
+        padding: `${HEADER_INSET - PANEL_BORDER}px ${
+          HEADER_INSET - PANEL_BORDER
+        }px 10px`,
         gap: 2,
       }}
     >
@@ -598,104 +660,136 @@ export default function RecipeList({
         style={{
           display: "flex",
           alignItems: "center",
-          gap: 6,
-          margin: `${2 + headerTopPad}px 2px 8px 2px`,
+          gap: HEADER_GAP,
+          flexShrink: 0,
+          /* Clears macOS's traffic lights on the same line instead of
+             dropping below them. */
+          paddingLeft: headerLeadingPad,
         }}
       >
         {onCollapse && (
           <Button
             prefix_icon="side_menu_close"
+            ariaLabel="Hide agents"
             onClick={onCollapse}
-            style={{
-              paddingVertical: 4,
-              paddingHorizontal: 4,
-              borderRadius: 4,
-              opacity: 0.5,
-              WebkitAppRegion: "no-drag",
-              content: {
-                prefixIconWrap: {
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  lineHeight: 0,
-                },
-                icon: { width: 14, height: 14 },
-              },
-            }}
+            style={headerButtonStyle}
           />
         )}
-        <div
-          style={{
-            fontSize: 10,
-            textTransform: "uppercase",
-            letterSpacing: "0.08em",
-            color: mutedColor,
-            userSelect: "none",
-            WebkitUserSelect: "none",
-            flex: 1,
-          }}
-        >
-          Agents
-        </div>
-        <Button
-          prefix_icon="folder_new"
-          onClick={() => handleNewFolder(null)}
-          style={{
-            paddingVertical: 4,
-            paddingHorizontal: 4,
-            borderRadius: 4,
-            opacity: 0.55,
-            WebkitAppRegion: "no-drag",
-            content: {
-              prefixIconWrap: {
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                lineHeight: 0,
-              },
-              icon: { width: 14, height: 14 },
-            },
-          }}
-        />
         <Button
           prefix_icon="add"
-          onClick={() => handleNewAgent(null)}
+          ariaLabel="New"
+          onClick={(event) => {
+            const rect = event.currentTarget.getBoundingClientRect();
+            setSearchQuery("");
+            setContextMenu({
+              visible: true,
+              x: rect.left,
+              y: rect.bottom + 4,
+              node: null,
+            });
+          }}
+          style={headerButtonStyle}
+        />
+      </div>
+      {/* Same box as the root side menu's search: on its own row below the
+          buttons, 8px in like the list, with room above and below. */}
+      <div style={{ padding: "12px 4px 6px", flexShrink: 0 }}>
+        <Input
+          prefix_icon="search"
+          no_separator
+          value={searchQuery}
+          set_value={setSearchQuery}
+          placeholder={t("side_menu.search")}
+          postfix_component={
+            searchQuery ? (
+              <div
+                style={{
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSearchQuery("");
+                }}
+              >
+                <Icon
+                  src="delete_input"
+                  style={{ width: 18, height: 18 }}
+                  color={isDark ? "#CCC" : "#444"}
+                />
+              </div>
+            ) : undefined
+          }
           style={{
-            paddingVertical: 4,
-            paddingHorizontal: 4,
-            borderRadius: 4,
-            opacity: 0.55,
+            fontSize: 12,
+            width: "100%",
+            height: 32,
+            borderRadius: 6,
             WebkitAppRegion: "no-drag",
-            content: {
-              prefixIconWrap: {
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                lineHeight: 0,
-              },
-              icon: { width: 14, height: 14 },
+            color: isDark ? "#CCC" : "#222",
+            outline: {
+              onFocus: isDark
+                ? "1px solid rgba(255,255,255,0.18)"
+                : "1px solid rgba(0,0,0,0.18)",
+              onBlur: isDark
+                ? "1px solid rgba(255,255,255,0.06)"
+                : "1px solid rgba(0,0,0,0.08)",
             },
+            boxShadow: "none",
           }}
         />
+      </div>
+      <div
+        style={{
+          padding: "4px 8px 6px",
+          fontSize: 11,
+          textTransform: "uppercase",
+          letterSpacing: "1.5px",
+          color: mutedColor,
+          userSelect: "none",
+          WebkitUserSelect: "none",
+          flexShrink: 0,
+        }}
+      >
+        Agents
       </div>
 
       <div
         className="scrollable"
-        style={{ flex: 1, minHeight: 0, overflowY: "auto" }}
+        style={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: "auto",
+          padding: "0 4px",
+        }}
         onContextMenu={handleBackgroundContextMenu}
       >
-        <Explorer
-          data={decoratedData}
-          root={root}
-          default_expanded={defaultExpanded}
-          active_node_id={activeName}
-          context_menu_node_id={
-            contextMenu.visible ? contextMenu.node?.id : undefined
-          }
-          draggable
-          on_reorder={handleReorder}
-          style={{ width: "100%", fontSize: 13 }}
-        />
+        {filtered && filtered.root.length === 0 ? (
+          <div
+            style={{
+              padding: "12px 4px",
+              fontSize: 12,
+              color: mutedColor,
+              userSelect: "none",
+            }}
+          >
+            No agents found
+          </div>
+        ) : (
+          <Explorer
+            data={filtered ? filtered.data : decoratedData}
+            root={filtered ? filtered.root : root}
+            default_expanded={filtered ? true : defaultExpanded}
+            active_node_id={activeName}
+            context_menu_node_id={
+              contextMenu.visible ? contextMenu.node?.id : undefined
+            }
+            draggable={!filtered}
+            on_reorder={handleReorder}
+            style={{ width: "100%", fontSize: 13 }}
+          />
+        )}
       </div>
 
       <ContextMenu

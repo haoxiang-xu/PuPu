@@ -123,6 +123,9 @@ export const AgentsModal = ({
         </div>
       ) : (
         <>
+          {/* 28px squares, 5px radius, 5px in from the detail panel's edge:
+              the same box as the panel's own header buttons, so they read as
+              one row whether or not the panel is open. */}
           <Button
             prefix_icon={fullscreen ? "fullscreen_exit" : "fullscreen"}
             ariaLabel={fullscreen ? "Exit fullscreen" : "Enter fullscreen"}
@@ -131,10 +134,10 @@ export const AgentsModal = ({
               position: "absolute",
               top: center,
               transform: "translateY(-50%)",
-              right: 44,
-              paddingVertical: 6,
-              paddingHorizontal: 6,
-              borderRadius: 6,
+              right: 43,
+              paddingVertical: 7,
+              paddingHorizontal: 7,
+              borderRadius: 5,
               opacity: 0.45,
               zIndex: AGENTS_MODAL_Z.PANEL_CONTROL,
               WebkitAppRegion: "no-drag",
@@ -152,15 +155,18 @@ export const AgentsModal = ({
           <Button
             prefix_icon="close"
             ariaLabel="Close builder"
-            onClick={handleClose}
+            /* The button sits on the top strip, apart from the detail panel,
+               so it always means the whole modal; Escape still steps back
+               out of a selected node first. */
+            onClick={onClose}
             style={{
               position: "absolute",
               top: center,
               transform: "translateY(-50%)",
-              right: 12,
-              paddingVertical: 6,
-              paddingHorizontal: 6,
-              borderRadius: 6,
+              right: 11,
+              paddingVertical: 7,
+              paddingHorizontal: 7,
+              borderRadius: 5,
               opacity: 0.45,
               zIndex: AGENTS_MODAL_Z.PANEL_CONTROL,
               WebkitAppRegion: "no-drag",
