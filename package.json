@@ -143,6 +143,7 @@
     "files": [
       "build/**/*",
       "electron/**/*",
+      "src/SERVICEs/custom_provider_presets.json",
       "public/electron.js",
       "public/preload.js",
       "public/favicon.ico",

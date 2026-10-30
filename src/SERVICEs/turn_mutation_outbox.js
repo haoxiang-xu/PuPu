@@ -363,6 +363,15 @@ export const normalizeTurnMutationOutboxEntry = (value) => {
         : null,
     modelId: normalizedString(value?.modelId),
     threadId: normalizedString(value?.threadId),
+    /* The Agent this mutation was launched with. Three states on purpose:
+       `null` is an entry written before this field existed, so a replay falls
+       back to the chat's own row exactly as it did then; "" means the turn was
+       launched with no Agent and a replay must keep it that way; an id means
+       that resource runs even if the chat has chosen another one since. */
+    selectedSkeletonAgentId:
+      typeof value?.selectedSkeletonAgentId === "string"
+        ? value.selectedSkeletonAgentId
+        : null,
     memoryNamespace: normalizedString(value?.memoryNamespace),
     forceMemoryEnabled: value?.forceMemoryEnabled === true,
     expectedCancelAttemptId: normalizedString(value?.expectedCancelAttemptId),

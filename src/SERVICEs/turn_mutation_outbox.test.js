@@ -711,3 +711,44 @@ describe("turn mutation outbox — durable retry and quarantine", () => {
     expect(reset.v2RebasePayload).toEqual(original.v2RebasePayload);
   });
 });
+
+/* #356 integration: a retry has to run the Agent it was launched with, so the
+   durable record carries that identity beside the model it already carried.
+   The field has three states and the absent one must keep old entries behaving
+   exactly as they did before it existed. */
+describe("the Agent a turn mutation was launched with", () => {
+  test("an id is recorded and read back as itself", () => {
+    const normalized = normalizeTurnMutationOutboxEntry(
+      entry({ selectedSkeletonAgentId: "research.agent:v2" }),
+    );
+    expect(normalized.selectedSkeletonAgentId).toBe("research.agent:v2");
+  });
+
+  test("a turn launched with no Agent records that, rather than nothing", () => {
+    const normalized = normalizeTurnMutationOutboxEntry(
+      entry({ selectedSkeletonAgentId: "" }),
+    );
+    expect(normalized.selectedSkeletonAgentId).toBe("");
+  });
+
+  test("an entry written before the field exists reads as not recorded", () => {
+    const older = entry();
+    delete older.selectedSkeletonAgentId;
+    expect(normalizeTurnMutationOutboxEntry(older).selectedSkeletonAgentId).toBeNull();
+    /* And a non-string cannot pose as a recorded value. */
+    expect(
+      normalizeTurnMutationOutboxEntry(entry({ selectedSkeletonAgentId: 7 }))
+        .selectedSkeletonAgentId,
+    ).toBeNull();
+  });
+
+  test("the identity survives a write and a read of the durable outbox", () => {
+    window.localStorage.clear();
+    enqueueTurnMutation(entry({ selectedSkeletonAgentId: "research.agent:v2" }));
+    const [stored] = readTurnMutationOutbox();
+    expect(stored.selectedSkeletonAgentId).toBe("research.agent:v2");
+    /* Beside the identity fields the entry already carried. */
+    expect(stored.operationId).toBe("turn-op-1");
+    expect(stored.targetMessageId).toBe("user-1");
+  });
+});

@@ -1,15 +1,12 @@
 import React from "react";
 import Select from "../../../../../BUILTIN_COMPONENTs/select/select";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
-import { Input } from "../../../../../BUILTIN_COMPONENTs/input/input";
-import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
-
-const TYPE_OPTIONS = [
-  { value: "string", label: "string" },
-  { value: "image[]", label: "image[]" },
-  { value: "file[]", label: "file[]" },
-  { value: "json", label: "json" },
-];
+import {
+  is_valid_output_row,
+  output_source,
+  output_sources_for,
+  unused_output_sources,
+} from "./output_sources";
 
 const SECTION_LABEL = {
   fontSize: 11,
@@ -29,39 +26,87 @@ export default function StartPanel({ node, recipe, onChange, isDark }) {
     });
   }
 
-  function set_row(i, patch) {
+  const rows = node.outputs || [];
+  const sources = output_sources_for(node);
+  const available = unused_output_sources(node);
+
+  /* A row is a pick, so changing it means taking that source's type with it —
+   * the type is never chosen separately, and never typed by hand. */
+  function set_row(i, name) {
+    const src = output_source(node, name);
+    if (!src) return;
     update_outputs(
-      node.outputs.map((o, idx) => (idx === i ? { ...o, ...patch } : o)),
+      rows.map((o, idx) =>
+        idx === i ? { name: src.name, type: src.type } : o,
+      ),
     );
   }
   function add_row() {
-    update_outputs([...(node.outputs || []), { name: "", type: "string" }]);
+    const next = available[0];
+    if (!next) return;
+    update_outputs([...rows, { name: next.name, type: next.type }]);
   }
   function remove_row(i) {
-    update_outputs(node.outputs.filter((_, idx) => idx !== i));
+    update_outputs(rows.filter((_, idx) => idx !== i));
   }
+
+  const muted = "#86868b";
 
   return (
     <>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <div
-          style={{
-            width: 26,
-            height: 26,
-            borderRadius: 7,
-            background: "linear-gradient(135deg, #4cbe8b, #2f9a68)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            flexShrink: 0,
-          }}
-        >
-          <Icon src="flag" color="#fff" style={{ width: 14, height: 14 }} />
-        </div>
-        <div>
-          <div style={{ fontSize: 14, fontWeight: 600 }}>Start</div>
-          <div style={{ fontSize: 11, color: "#86868b" }}>Workflow entry</div>
-        </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <span style={SECTION_LABEL}>Input Variables</span>
+        <span style={{ fontSize: 10.5, color: muted, lineHeight: 1.45 }}>
+          Fixed by how the graph is entered — a chat turn fills these, so they
+          cannot be added to or renamed here.
+        </span>
+        {sources.map((s) => (
+          <div
+            key={s.name}
+            data-testid={`start-input-${s.name}`}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "5px 10px",
+              borderRadius: 6,
+              background: isDark
+                ? "rgba(255,255,255,0.04)"
+                : "rgba(0,0,0,0.025)",
+              opacity: 0.75,
+            }}
+          >
+            <span
+              style={{
+                fontFamily: "ui-monospace, Menlo, monospace",
+                fontSize: 11.5,
+              }}
+            >
+              {s.name}
+            </span>
+            <span
+              style={{
+                fontSize: 10,
+                color: muted,
+                fontFamily: "ui-monospace, Menlo, monospace",
+              }}
+            >
+              {s.type}
+            </span>
+            <span
+              style={{
+                marginLeft: "auto",
+                fontSize: 10,
+                color: muted,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {s.description}
+            </span>
+          </div>
+        ))}
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -76,63 +121,107 @@ export default function StartPanel({ node, recipe, onChange, isDark }) {
           <Button
             label="+ Add output"
             onClick={add_row}
+            disabled={available.length === 0}
             style={{
               fontSize: 11,
               paddingVertical: 3,
               paddingHorizontal: 8,
               borderRadius: 5,
-              color: "#4a5bd8",
+              color: available.length === 0 ? muted : "#4a5bd8",
             }}
           />
         </div>
-        {(node.outputs || []).map((o, i) => (
-          <div
-            key={i}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 4,
-            }}
-          >
-            <Select
-              options={TYPE_OPTIONS}
-              value={o.type}
-              set_value={(v) => set_row(i, { type: v })}
-              filterable={false}
-              style={{
-                fontSize: 11,
-                paddingVertical: 4,
-                paddingHorizontal: 6,
-                borderRadius: 5,
-                gap: 4,
-                minWidth: 80,
-              }}
-            />
-            <Input
-              value={o.name}
-              set_value={(v) => set_row(i, { name: v })}
-              style={{
-                flex: 1,
-                minWidth: 0,
-                fontSize: 11.5,
-                paddingVertical: 3,
-                paddingHorizontal: 6,
-                borderRadius: 5,
-                fontFamily: "ui-monospace, Menlo, monospace",
-              }}
-            />
-            <Button
-              prefix_icon="close"
-              onClick={() => remove_row(i)}
-              style={{
-                paddingVertical: 4,
-                paddingHorizontal: 4,
-                borderRadius: 4,
-                content: { icon: { width: 11, height: 11 } },
-              }}
-            />
-          </div>
-        ))}
+
+        {rows.length === 0 && (
+          <span style={{ fontSize: 11, color: muted }}>
+            Nothing exported yet.
+          </span>
+        )}
+
+        {rows.map((o, i) => {
+          const valid = is_valid_output_row(node, o);
+          /* A row loaded from an older definition can name something this node
+           * never produces. Keep it visible and marked rather than silently
+           * dropping the author's data. */
+          const options = [
+            ...unused_output_sources(node).map((s) => ({
+              value: s.name,
+              label: s.name,
+            })),
+            ...(valid ? [{ value: o.name, label: o.name }] : []),
+          ].sort((a, b) => a.label.localeCompare(b.label));
+
+          return (
+            <div
+              key={i}
+              data-testid={`start-output-row-${i}`}
+              style={{ display: "flex", alignItems: "center", gap: 4 }}
+            >
+              {valid ? (
+                <Select
+                  options={options}
+                  value={o.name}
+                  set_value={(v) => set_row(i, v)}
+                  filterable={false}
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    fontSize: 11.5,
+                    paddingVertical: 4,
+                    paddingHorizontal: 6,
+                    borderRadius: 5,
+                    gap: 4,
+                    fontFamily: "ui-monospace, Menlo, monospace",
+                  }}
+                />
+              ) : (
+                <span
+                  data-testid={`start-output-invalid-${i}`}
+                  title="Start does not produce this. The runtime would leave it empty."
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    fontSize: 11.5,
+                    fontFamily: "ui-monospace, Menlo, monospace",
+                    color: isDark
+                      ? "rgba(255,100,100,0.9)"
+                      : "rgba(180,30,30,0.9)",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {o.name || "(unnamed)"} — not produced here
+                </span>
+              )}
+              <span
+                style={{
+                  fontSize: 10,
+                  color: muted,
+                  fontFamily: "ui-monospace, Menlo, monospace",
+                  flexShrink: 0,
+                }}
+              >
+                {o.type}
+              </span>
+              <Button
+                prefix_icon="close"
+                onClick={() => remove_row(i)}
+                style={{
+                  paddingVertical: 4,
+                  paddingHorizontal: 4,
+                  borderRadius: 4,
+                  content: { icon: { width: 11, height: 11 } },
+                }}
+              />
+            </div>
+          );
+        })}
+
+        <span style={{ fontSize: 10.5, color: muted, lineHeight: 1.45 }}>
+          An output is picked from what this node already has, and carries that
+          source's type — nothing is invented here.
+        </span>
       </div>
     </>
   );

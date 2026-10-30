@@ -3450,6 +3450,14 @@ def _recover_accepted_canonical_receipt(
 
 
 def get_pending_interaction(session_id: str) -> dict[str, Any]:
+    from skeleton_production_interactions import get_pending_skeleton_interaction
+    skeleton = get_pending_skeleton_interaction(session_id)
+    if skeleton is not None:
+        if skeleton["status"] == "receipt_recorded":
+            _session_execution_guard_call("bind_session_guard_receipt", session_id=session_id,
+                interaction_id=skeleton["interaction_id"], source_attempt_id=skeleton["source_run_id"],
+                receipt_id=skeleton["receipt_id"])
+        return skeleton
     normalized_session_id = str(session_id or "").strip()
     orphan_repaired = _reconcile_orphaned_cancelled_interaction(
         normalized_session_id,
@@ -4125,6 +4133,15 @@ def record_interaction_receipt(
     modified_arguments: dict[str, Any] | None = None,
     submitted_by: str = "ui:pupu",
 ) -> dict[str, Any]:
+    from skeleton_production_interactions import record_skeleton_interaction_receipt
+    skeleton = record_skeleton_interaction_receipt(session_id=session_id, interaction_id=interaction_id,
+        approved=approved, reason=reason, modified_arguments=modified_arguments, submitted_by=submitted_by)
+    if skeleton is not None:
+        from skeleton_production_interactions import get_pending_skeleton_interaction
+        pending = get_pending_skeleton_interaction(session_id)
+        _session_execution_guard_call("bind_session_guard_receipt", session_id=session_id,
+            interaction_id=interaction_id, source_attempt_id=pending["source_run_id"], receipt_id=skeleton["receipt_id"])
+        return skeleton
     normalized_session_id = str(session_id or "").strip()
     normalized_interaction_id = str(interaction_id or "").strip()
     if not normalized_interaction_id:
@@ -5045,6 +5062,25 @@ def cancel_chat_execution(
     reason: str = "user_stop",
 ) -> dict[str, Any]:
     """Idempotently cancel one exact PuPu/Unchain execution attempt."""
+
+    from skeleton_production_interactions import cancel_skeleton_execution
+    skeleton = cancel_skeleton_execution(session_id=session_id, attempt_id=attempt_id,
+        source_attempt_id=source_attempt_id, owner_chat_id=owner_chat_id,
+        expected_interaction_id=expected_interaction_id, reason=reason)
+    if skeleton is not None:
+        import unchain_adapter as skeleton_host
+        runtime = _execution_runtime()
+        runtime.request_cancel(session_id, attempt_id, reason=reason)
+        _execution_control_cancel(session_id, attempt_id, reason=reason)
+        from session_execution_guard import snapshot_session_guard
+        guard = snapshot_session_guard(session_id=session_id)
+        if guard is not None and guard.state == "parked":
+            skeleton_host._execution_control_call("finish_cancelled_run", session_id, attempt_id)
+        if expected_interaction_id:
+            _consume_cancelled_session_guard(session_id=session_id, source_attempt_id=skeleton["source_attempt_id"],
+                cancelled_attempt_ids=(attempt_id,), expected_interaction_id=expected_interaction_id, cancelled_snapshot=None)
+        clear_execution_attempt_binding(session_id, attempt_id)
+        return skeleton
 
     normalized_session_id = _required_identifier(
         session_id,

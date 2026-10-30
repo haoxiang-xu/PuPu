@@ -1,4 +1,5 @@
 import { api } from "./api";
+import skeletonPendingCapture from "./test_bridge/fixtures/skeleton_child_pending.json";
 
 const writeSettings = (settings) => {
   window.localStorage.setItem("settings", JSON.stringify(settings || {}));
@@ -41,6 +42,53 @@ describe("api.unchain.startStreamV2 memory/provider options", () => {
 
   afterAll(() => {
     window.unchainAPI = originalUnchainApi;
+  });
+
+  test.each(["awaiting", "recorded"])("accepts the actual public Skeleton child %s projection without rekeying", async (state) => {
+    const pending = skeletonPendingCapture[state];
+    window.unchainAPI.getPendingInteraction.mockResolvedValueOnce(pending);
+    await expect(api.unchain.getPendingInteraction({ session_id: pending.session_id })).resolves.toEqual(pending);
+    expect(pending.source_run_id).not.toBe(pending.interaction_source_run_id);
+    expect(pending.session_id).not.toBe(pending.interaction_session_id);
+  });
+
+  test("keeps legacy graph-step pending closed to Skeleton identity fields", async () => {
+    const graph = JSON.parse(JSON.stringify(skeletonPendingCapture.awaiting));
+    graph.source_run_id = graph.interaction_source_run_id;
+    graph.active_attempt_id = graph.source_run_id;
+    delete graph.interaction_source_run_id;
+    delete graph.interaction_session_id;
+    graph.resume_kind = "graph_step";
+    graph.graph_step_attempt_id = graph.source_run_id;
+    graph.graph_coordinator_attempt_id = "coordinator-1";
+    window.unchainAPI.getPendingInteraction.mockResolvedValueOnce(graph);
+    await expect(api.unchain.getPendingInteraction({ session_id: graph.session_id })).resolves.toEqual(graph);
+    window.unchainAPI.getPendingInteraction.mockResolvedValueOnce({ ...graph,
+      interaction_source_run_id: graph.source_run_id, interaction_session_id: graph.session_id });
+    await expect(api.unchain.getPendingInteraction({ session_id: graph.session_id }))
+      .rejects.toMatchObject({ code: "invalid_pending_interaction_response" });
+  });
+
+  test.each([
+    ["missing original source", (pending) => { delete pending.interaction_source_run_id; }],
+    ["missing original session", (pending) => { delete pending.interaction_session_id; }],
+    ["blank original source", (pending) => { pending.interaction_source_run_id = ""; }],
+    ["blank original session", (pending) => { pending.interaction_session_id = " "; }],
+    ["foreign trace source", (pending) => { pending.presentation.trace_frame.run_id = pending.source_run_id; }],
+    ["foreign root attempt", (pending) => { pending.active_attempt_id = pending.interaction_source_run_id; }],
+    ["extra field", (pending) => { pending.unexpected = true; }],
+    ["graph step field", (pending) => { pending.graph_step_attempt_id = pending.source_run_id; }],
+    ["graph coordinator field", (pending) => { pending.graph_coordinator_attempt_id = pending.source_run_id; }],
+    ["unavailable", (pending) => { pending.resume_available = false; pending.resume_unavailable_reason = "unsupported"; }],
+    ["missing resume kind", (pending) => { delete pending.resume_kind; }],
+    ["unknown resume kind", (pending) => { pending.resume_kind = "future"; }],
+    ["foreign confirmation", (pending) => { pending.presentation.tool_call.confirmation_id = "foreign"; }],
+  ])("rejects malformed Skeleton pending: %s", async (_description, mutate) => {
+    const pending = JSON.parse(JSON.stringify(skeletonPendingCapture.awaiting));
+    mutate(pending);
+    window.unchainAPI.getPendingInteraction.mockResolvedValueOnce(pending);
+    await expect(api.unchain.getPendingInteraction({ session_id: skeletonPendingCapture.awaiting.session_id }))
+      .rejects.toMatchObject({ code: "invalid_pending_interaction_response" });
   });
 
   test("injects anthropic provider key without generic apiKey fields", () => {

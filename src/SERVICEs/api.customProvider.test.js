@@ -249,6 +249,135 @@ describe("custom provider payload injection", () => {
   });
 });
 
+/* A request that runs a stored Skeleton Agent (#356, R-SEL-01).
+ *
+ * The injection above is about the model the COMPOSER would run. A chat that
+ * carries a Skeleton selection runs the resource's saved Kernel instead, and
+ * the composer's choice can outlive its provider — an ordinary persisted
+ * state. The three send-time blocks must then not stop it, while every other
+ * chat keeps them, and a `skeleton_selection` the server would refuse must buy
+ * no exemption at all.
+ */
+describe("custom provider injection and a stored Skeleton Agent", () => {
+  const SELECTION = Object.freeze({
+    schema: "pupu.skeleton_chat_selection.v1",
+    kind: "resource",
+    resource_id: "diagnostics-row-14",
+  });
+
+  const send = (options) =>
+    api.unchain.startStreamV2({ message: "hi", options });
+
+  const sentOptions = () =>
+    window.unchainAPI.startStreamV2.mock.calls[0][0].options;
+
+  beforeEach(() => {
+    window.localStorage.clear();
+    writeFeatureFlags({ enable_custom_model_providers: true });
+    window.unchainAPI = {
+      startStream: jest.fn(() => ({ cancel: jest.fn() })),
+      startStreamV2: jest.fn(() => ({ cancel: jest.fn() })),
+      startStreamV4: jest.fn(() => ({ cancel: jest.fn() })),
+    };
+  });
+
+  afterEach(() => {
+    window.localStorage.clear();
+    jest.clearAllMocks();
+  });
+
+  test("a model whose custom provider was deleted does not stop the Agent", () => {
+    /* Nothing seeded: `custom.ghost` is a canonical model id whose provider is
+       gone, which is exactly what a deleted provider leaves behind in a chat. */
+    expect(() =>
+      send({
+        modelId: "custom.ghost:old-model",
+        skeleton_selection: { ...SELECTION },
+      }),
+    ).not.toThrow();
+    expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1);
+    /* The selection travels untouched and no provider was invented for it. */
+    expect(sentOptions().skeleton_selection).toEqual(SELECTION);
+    expect(sentOptions().modelId).toBe("custom.ghost:old-model");
+    expect("custom_provider" in sentOptions()).toBe(false);
+    expect("custom_provider_api_key" in sentOptions()).toBe(false);
+  });
+
+  test("the same chat without an Agent is still blocked", () => {
+    expect(() => send({ modelId: "custom.ghost:old-model" })).toThrow(
+      expect.objectContaining({ code: "custom_provider_not_found" }),
+    );
+    expect(window.unchainAPI.startStreamV2).not.toHaveBeenCalled();
+  });
+
+  test("a disabled provider and a missing key are dropped the same way", () => {
+    seedProvider({ enabled: false });
+    setCustomProviderSecret("sap-hyperspace", "hs-secret-value");
+    expect(() =>
+      send({
+        modelId: "custom.sap-hyperspace:anthropic--claude-4.5-haiku",
+        skeleton_selection: { ...SELECTION },
+      }),
+    ).not.toThrow();
+
+    window.localStorage.clear();
+    writeFeatureFlags({ enable_custom_model_providers: true });
+    seedProvider(); // enabled, requires a key, none set
+    expect(() =>
+      send({
+        modelId: "custom.sap-hyperspace:anthropic--claude-4.5-haiku",
+        skeleton_selection: { ...SELECTION },
+      }),
+    ).not.toThrow();
+    expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(2);
+  });
+
+  test("a provider that does resolve is still injected for the same request", () => {
+    /* Only the blocks are dropped, not the enrichment: an Agent whose Kernel
+       names this provider keeps what the payload supplies. */
+    seedProvider();
+    setCustomProviderSecret("sap-hyperspace", "hs-secret-value");
+    send({
+      modelId: "custom.sap-hyperspace:anthropic--claude-4.5-haiku",
+      skeleton_selection: { ...SELECTION },
+    });
+    expect(sentOptions().custom_provider).toEqual(
+      expect.objectContaining({ id: "sap-hyperspace" }),
+    );
+    expect(sentOptions().skeleton_selection).toEqual(SELECTION);
+  });
+
+  test("a selection the server would refuse buys no exemption", () => {
+    /* Each of these is refused by `prepare_skeleton_chat_selection`, so none of
+       them may switch off a composer-side block here either. */
+    const refused = [
+      { ...SELECTION, name: "Research Agent" },
+      { schema: SELECTION.schema, kind: "resource" },
+      { ...SELECTION, schema: "pupu.skeleton_chat_selection.v2" },
+      { ...SELECTION, kind: "legacy" },
+      { ...SELECTION, resource_id: " diagnostics-row-14" },
+      { ...SELECTION, resource_id: "a/b" },
+      { ...SELECTION, resource_id: "" },
+      { ...SELECTION, resource_id: 14 },
+      "diagnostics-row-14",
+      null,
+    ];
+    refused.forEach((selection) => {
+      expect(() =>
+        send({ modelId: "custom.ghost:old-model", skeleton_selection: selection }),
+      ).toThrow(expect.objectContaining({ code: "custom_provider_not_found" }));
+    });
+    expect(window.unchainAPI.startStreamV2).not.toHaveBeenCalled();
+  });
+
+  test("an ordinary model with an Agent is enriched exactly as before", () => {
+    /* The non-custom path is not touched by any of this. */
+    send({ modelId: "openai:gpt-5", skeleton_selection: { ...SELECTION } });
+    expect("custom_provider" in sentOptions()).toBe(false);
+    expect(sentOptions().skeleton_selection).toEqual(SELECTION);
+  });
+});
+
 describe("getModelCatalog merges custom providers", () => {
   const originalUnchainApi = window.unchainAPI;
 

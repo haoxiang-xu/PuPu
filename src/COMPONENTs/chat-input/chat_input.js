@@ -79,6 +79,9 @@ const ChatInput = ({
   selectedRecipeName = "Default",
   onSelectRecipe,
   recipeOptions = [],
+  skeletonAgentOptions = [],
+  selectedSkeletonAgentId = "",
+  onSelectSkeletonAgent,
   interjectState,
   onQueueUndo,
   contextCompositionBundle = null,
@@ -611,6 +614,9 @@ const ChatInput = ({
                       selectedRecipeName={selectedRecipeName}
                       onSelectRecipe={onSelectRecipe}
                       recipeOptions={recipeOptions}
+                      skeletonAgentOptions={skeletonAgentOptions}
+                      selectedSkeletonAgentId={selectedSkeletonAgentId}
+                      onSelectSkeletonAgent={onSelectSkeletonAgent}
                       queueItems={interjectState?.queueItems || []}
                       onQueueUndo={onQueueUndo}
                       contextCompositionBundle={contextCompositionBundle}

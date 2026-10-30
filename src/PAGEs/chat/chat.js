@@ -32,7 +32,12 @@ import {
   updateChatDraft,
 } from "../../SERVICEs/chat_storage";
 import { api, EMPTY_MODEL_CATALOG, FrontendApiError } from "../../SERVICEs/api";
+import {
+  skeleton_agent_options,
+  skeleton_selection_payload,
+} from "../../SERVICEs/skeleton_chat_selection";
 import { subscribeModelCatalogRefresh } from "../../SERVICEs/model_catalog_refresh";
+import { subscribeSkeletonLibraryRefresh } from "../../SERVICEs/skeleton_library_refresh";
 import {
   start as progressStart,
   stop as progressStop,
@@ -263,6 +268,10 @@ const ChatInterface = () => {
   });
   const [modelCatalog, setModelCatalog] = useState(() => EMPTY_MODEL_CATALOG);
   const [recipeOptions, setRecipeOptions] = useState([]);
+  /* The stored Skeleton Agents this chat may run, as [{id, name}]. Read from
+     the store, so what the list offers is what is SAVED — a draft open in the
+     Builder is not an Agent anyone can run until it is saved. */
+  const [skeletonAgentOptions, setSkeletonAgentOptions] = useState([]);
   const [configuredProviders, setConfiguredProviders] = useState(
     readConfiguredBuiltInProviders,
   );
@@ -351,6 +360,26 @@ const ChatInterface = () => {
         : "";
     return Boolean(selectedModelId && selectedModelId !== "unchain-unset");
   }, [session.isCharacterChat, session.selectedModelId]);
+
+  /* A chat that runs a stored Agent brings its own model.
+     The resource's Kernel profile decides provider, model and context window
+     on the server (`skeleton_production_chat` reads them out of the saved
+     document), and the composer's pill cannot override it — so requiring a
+     pill model before this chat may send asks the user to choose something
+     that will not be used, and blocks a correctly configured Agent outright.
+     Built from `skeleton_selection_payload`, the same function that builds
+     the wire object, so the requirement is lifted exactly when a selection
+     actually goes out — the door and the request cannot disagree.
+     Nothing else is relaxed: readiness, the durable-interaction and
+     turn-mutation holds, the secret gate and the attachment rules all still
+     apply, and an Agent that cannot run is refused by the server's own
+     admission rather than waved through here. */
+  const runsStoredSkeletonAgent = useMemo(
+    () =>
+      !session.isCharacterChat &&
+      Boolean(skeleton_selection_payload(session.selectedSkeletonAgentId)),
+    [session.isCharacterChat, session.selectedSkeletonAgentId],
+  );
 
   const activeModelCapabilities = useMemo(() => {
     const fallbackCapabilities =
@@ -467,6 +496,7 @@ const ChatInterface = () => {
     selectedToolkits: effectiveSelectedToolkits,
     selectedWorkspaceIds: effectiveSelectedWorkspaceIds,
     selectedRecipeName: session.selectedRecipeName,
+    selectedSkeletonAgentId: session.selectedSkeletonAgentId,
     chatKind: session.activeChatKind,
     characterId: session.activeCharacterId,
     threadIdRef: session.threadIdRef,
@@ -669,6 +699,56 @@ const ChatInterface = () => {
     storageApi,
   ]);
 
+  /* Re-reading the saved Skeleton library.
+     Called when the runtime becomes ready, and again whenever something says
+     the library may have changed — a save in the Builder, or this chat's own
+     Agent selector being opened. Two rules it has to keep:
+     - a late answer must not win. Two reads can be in flight (a save and an
+       opening selector a moment apart), and the older one may answer second;
+       applying it would put the library from before the save back on screen.
+     - a read that did not happen is not an empty library. A failed read
+       leaves the row offering what it already had: "no Agents exist" is a
+       statement about the store, and it must not be how an unread answer
+       looks. (`api.unchain.listSkeletonResources` already turns an answer
+       that is not a listing into an empty one, so that one case arrives here
+       indistinguishable from an empty store; the array check below is this
+       consumer's own, not a trust in that transport.)
+     Either way the chat keeps the id it holds: a selection is never dropped
+     because a listing could not be read, and the row says "not available any
+     more" on its own. */
+  const skeletonLibraryRequestRef = useRef(0);
+  const skeletonLibraryAppliedRef = useRef(0);
+  const refreshSkeletonAgentOptions = useCallback(async () => {
+    const requestId = skeletonLibraryRequestRef.current + 1;
+    skeletonLibraryRequestRef.current = requestId;
+    let resources = null;
+    try {
+      /* Archived records are not asked for at all; `skeleton_agent_options`
+         then keeps only what declares itself an Agent, so a Workflow is never
+         offered as one. */
+      const answer = await api.unchain.listSkeletonResources(false);
+      resources = answer ? answer.resources : null;
+    } catch (_exc) {
+      return;
+    }
+    if (!Array.isArray(resources)) {
+      return;
+    }
+    if (requestId < skeletonLibraryAppliedRef.current) {
+      return;
+    }
+    skeletonLibraryAppliedRef.current = requestId;
+    setSkeletonAgentOptions(skeleton_agent_options(resources));
+  }, []);
+
+  useEffect(
+    () =>
+      subscribeSkeletonLibraryRefresh(() => {
+        void refreshSkeletonAgentOptions();
+      }),
+    [refreshSkeletonAgentOptions],
+  );
+
   useEffect(() => {
     refreshUnchainStatus();
 
@@ -719,6 +799,8 @@ const ChatInterface = () => {
     };
     refreshRecipeOptions();
 
+    void refreshSkeletonAgentOptions();
+
     const unsubscribeModelCatalogRefresh = subscribeModelCatalogRefresh(() => {
       refreshModelCatalog();
       setConfiguredProviders(readConfiguredBuiltInProviders());
@@ -728,7 +810,7 @@ const ChatInterface = () => {
       cancelled = true;
       unsubscribeModelCatalogRefresh();
     };
-  }, [unchainStatus.ready, refreshModelCatalog]);
+  }, [unchainStatus.ready, refreshModelCatalog, refreshSkeletonAgentOptions]);
 
   /* Memory V2 P0 secret gate: while the user is deciding what to do with a
      detected credential, the whole composer surface is frozen. Changing the
@@ -899,6 +981,12 @@ const ChatInterface = () => {
         : `Connecting to Unchain (${unchainStatus.status})...`;
     }
     if (!hasSelectedModel) {
+      /* With no pill model the attachment line below is the honest one for
+         attachments, and the Agent decides the model for the message. Saying
+         "select a model" here would be false: this chat can send. */
+      if (runsStoredSkeletonAgent) {
+        return "This Agent runs with the model saved inside it.";
+      }
       return "Select a model to send a message.";
     }
     if (attachmentsDisabledReason) {
@@ -907,6 +995,7 @@ const ChatInterface = () => {
     return DEFAULT_DISCLAIMER;
   }, [
     hasSelectedModel,
+    runsStoredSkeletonAgent,
     attachmentsDisabledReason,
     unchainStatus,
     stream.durableInteractionStatus,
@@ -924,7 +1013,7 @@ const ChatInterface = () => {
     stream.isTurnMutationBlocked ||
     stream.isSecretCapturePending ||
     (!unchainStatus.ready && !stream.isStreaming) ||
-    !hasSelectedModel;
+    (!hasSelectedModel && !runsStoredSkeletonAgent);
 
   const [characterAvailability, setCharacterAvailability] = useState("");
 
@@ -1068,6 +1157,9 @@ const ChatInterface = () => {
       selectedRecipeName: session.selectedRecipeName,
       onSelectRecipe: session.setSelectedRecipeName,
       recipeOptions,
+      skeletonAgentOptions,
+      selectedSkeletonAgentId: session.selectedSkeletonAgentId,
+      onSelectSkeletonAgent: session.setSelectedSkeletonAgentId,
       interjectState: stream.interjectState,
       onQueueUndo: stream.onQueueUndo,
       contextCompositionBundle,
@@ -1081,6 +1173,8 @@ const ChatInterface = () => {
       session.isCharacterChat, effectiveSelectedToolkits, handleToolkitsChange,
       effectiveSelectedWorkspaceIds, handleWorkspaceIdsChange,
       session.selectedRecipeName, session.setSelectedRecipeName, recipeOptions,
+      skeletonAgentOptions, session.selectedSkeletonAgentId,
+      session.setSelectedSkeletonAgentId,
       stream.sendNewTurn, stream.stopStream, stream.canStop,
       stream.interjectState, stream.onQueueUndo,
       contextCompositionBundle, contextUsageView,
