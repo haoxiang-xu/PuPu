@@ -82,9 +82,10 @@ the unchanged ordinary graph-completion controls. Root acknowledgement remains
 after the existing memory enqueue audit.
 
 The bounded installed-wheel resource/condition/selection rerun passes 267 tests
-and 193 subtests. Eighteen process-identity-dependent cases are explicitly
-deselected because the offline OS policy prevents the system ps operation; they
-are not counted as passing. The first runner also omitted PYTHONPATH needed by
+and 193 subtests. Eighteen cases are explicitly deselected as whole named test
+groups: ten are blocked by the offline OS policy preventing the system ps
+operation, and eight are associated v3 route controls. They are not counted in
+that passing rerun. The first runner also omitted PYTHONPATH needed by
 four cold-source subprocesses; the corrected runner exports only this Host's
 server and the installed wheel. All 333 imported Core modules are inside that
 wheel installation, and all 377 wheel Python members match source. Main/preload
