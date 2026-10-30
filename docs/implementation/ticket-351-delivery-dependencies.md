@@ -95,3 +95,12 @@ The runtime dependency PR is haoxiang-xu/unchain#66. Its follow-up fixture-impor
 fix changes tests only; production module bytes still match this same wheel.
 The available offline environment has five versions below current dev floors;
 dependency-check failure is retained and does not become package qualification.
+
+The Release QA entrypoint's five default source selections are pinned together
+to runtime PR #66 head `6a1cb5944d7022a06c28899553d0f004067491ca`. The previous
+`e01b4fc6` remains an ancestor of this integrated runtime; using it directly would
+omit Skeleton. Existing explicit operator input, read-only cache authority,
+single-wheel continuity, signing conditions and publication gates are unchanged.
+The actual imported manifest is
+`sha256:ec8741b2425ef3d07578fff9508bd3be6dfd5804210068597ddd673e287b6330`.
+This pin does not authorize launching a release or publishing an artifact.
