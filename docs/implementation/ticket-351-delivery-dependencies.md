@@ -249,3 +249,21 @@ runner omitted the Host path; the second correctly rejected a fallback import
 from the sibling checkout rather than counting it as installed-pair evidence.
 All final imports are inside the installed wheel. Complete hosted CI and real App
 qualification remain required; these local checks do not launch the desktop.
+
+## Measured complete-CI budget correction
+
+Both final-source runs exhausted the 35-minute Python limit. The retained Host
+log advances through 2748 cases to 80%, with no assertion failure in that prefix;
+it is incomplete, not a PASS. The compared pip version lists are identical.
+Completion intervals for common long cases increase roughly 15–20% against the
+31m38s complete older run; both diagnostic dumps are followed by further passing
+cases. No single-test deadlock is established by these logs. The as-run sources,
+raw UTC job logs and comparison receipt are preserved under ci-04-20261030.
+
+Use a bounded 50-minute Python allowance within a 65-minute job. Frontend and
+Electron limits, the 60-second stack diagnostic, every test, pipefail, uploaded
+logs and final failure propagation remain unchanged. The lifecycle test keeps
+exact limit assertions and real-shell failed-command controls. This is a CI
+execution window, not a runtime timeout or an exception accepting incomplete
+tests. The earlier feature audit remains bound to source 795b4f9b; the CI-only
+candidate update requires refreshed artifact/source audit evidence before close.
