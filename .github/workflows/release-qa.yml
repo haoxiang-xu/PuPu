@@ -100,6 +100,24 @@ jobs:
             ip -j address show > test-results/offline-interfaces.json
             exec setpriv --reuid="$QA_UID" --regid="$QA_GID" --init-groups env -i               PATH="$PATH" HOME="$QA_HOME" TMPDIR="$QA_TMP" LANG=C.UTF-8               CI=true GITHUB_ACTIONS=true RUNNER_ENVIRONMENT=github-hosted RUNNER_OS=Linux               PUPU_STEPS_ACCEPTANCE=1 UNCHAIN_SOURCE_PATH="$QA_SITE" UNCHAIN_PYTHON_BIN="$QA_PYTHON" PYTHONDONTWRITEBYTECODE=1               NODE_OPTIONS=--max-old-space-size=2048               xvfb-run -a node node_modules/@playwright/test/cli.js test e2e/pupu-skeleton-steps.spec.js
           '
+      - name: Write the imported-runtime probe
+        shell: bash
+        run: >-
+          set -euo pipefail
+
+          mkdir -p test-results
+
+          cat > test-results/imported_runtime_probe.py <<'PY'
+
+          import json, sys
+
+          import unchain
+
+          from unchain.runtime.runtime_protocol import runtime_protocol_manifest
+
+          json.dump({"file": unchain.__file__, "manifest": runtime_protocol_manifest()["manifest_digest"], "executable": sys.executable}, sys.stdout)
+
+          PY
       - name: Run actual page steps, lifecycle, cold recovery and contracts offline
         shell: bash
         run: >
@@ -119,7 +137,7 @@ jobs:
             test "$(ip -j route show | tr -d "[:space:]")" = "[]"
             ip -j address show > "$QA_OUT/public-offline-interfaces.json"
             cd "$QA_SERVER"
-            setpriv --reuid="$QA_UID" --regid="$QA_GID" --init-groups env -i PATH="$PATH" HOME="$QA_HOME" TMPDIR="$QA_TMP" LANG=C.UTF-8 PYTHONPATH="$QA_SERVER:$QA_SITE" UNCHAIN_SOURCE_PATH="$QA_SITE" PYTHONDONTWRITEBYTECODE=1 "$QA_PYTHON" -B -c "import json,sys,unchain; from unchain.runtime.runtime_protocol import runtime_protocol_manifest as m; json.dump(dict(file=unchain.__file__, manifest=m()["manifest_digest"], executable=sys.executable), sys.stdout)" > "$QA_OUT/imported-runtime.json"
+            setpriv --reuid="$QA_UID" --regid="$QA_GID" --init-groups env -i PATH="$PATH" HOME="$QA_HOME" TMPDIR="$QA_TMP" LANG=C.UTF-8 PYTHONPATH="$QA_SERVER:$QA_SITE" UNCHAIN_SOURCE_PATH="$QA_SITE" PYTHONDONTWRITEBYTECODE=1 "$QA_PYTHON" -B "$QA_OUT/imported_runtime_probe.py" > "$QA_OUT/imported-runtime.json"
             exec setpriv --reuid="$QA_UID" --regid="$QA_GID" --init-groups env -i               PATH="$PATH" HOME="$QA_HOME" TMPDIR="$QA_TMP" LANG=C.UTF-8               PYTHONPATH="$QA_SERVER:$QA_SITE" UNCHAIN_SOURCE_PATH="$QA_SITE" PYTHONDONTWRITEBYTECODE=1               "$QA_PYTHON" -B -m pytest -q -vv --tb=short -p no:cacheprovider               -o faulthandler_timeout=60 --junitxml="$QA_OUT/public-control.xml"               tests/test_skeleton_steps_delivery.py tests/test_skeleton_tool_lifecycle.py tests/test_skeleton_tool_recovery.py tests/test_skeleton_tool_recovery_controls.py tests/test_skeleton_skill_preview.py tests/test_skeleton_production_interactions.py tests/test_skeleton_credential_boundary.py tests/test_skeleton_tool_schemas.py tests/test_skeleton_failure_message.py
           '
       - name: Compare the imported runtime with the verified artifact
