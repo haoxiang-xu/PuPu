@@ -8,15 +8,18 @@ import YAML from "yaml";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
 
+for (const job of ["deterministic", "playwright"]) {
 for (const dependencyExit of [0, 29]) {
-  test(`artifact verification follows a successful dependency check only (${dependencyExit})`, (t) => {
+  test(`${job} artifact verification follows a successful dependency check only (${dependencyExit})`, (t) => {
     const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "pupu-dependency-gate-"));
     t.after(() => fs.rmSync(temporary, { recursive: true, force: true }));
     const bin = path.join(temporary, "bin");
     fs.mkdirSync(bin);
     const trace = path.join(temporary, "trace.log");
-    const artifact = path.join(temporary, "candidate.whl");
-    const evidence = path.join(temporary, "evidence.json");
+    const artifactDirectory = path.join(temporary, ".release-qa/unchain-artifact");
+    fs.mkdirSync(artifactDirectory, { recursive: true });
+    const artifact = path.join(artifactDirectory, "candidate.whl");
+    const evidence = path.join(artifactDirectory, "unchain-artifact.json");
     fs.writeFileSync(artifact, "fixture wheel");
     fs.writeFileSync(evidence, "{}");
     // Exercise the real workflow shell; only its executables are substituted.
@@ -29,9 +32,9 @@ for (const dependencyExit of [0, 29]) {
       '#!/bin/sh\nprintf "verify:%s\\n" "$*" >> "$QA_TRACE_PATH"\nexit 0\n',
       { mode: 0o755 });
     const workflow = YAML.parse(fs.readFileSync(
-      path.join(ROOT, ".github/workflows/_shared-release-deterministic.yml"), "utf8",
+      path.join(ROOT, `.github/workflows/_shared-release-${job}.yml`), "utf8",
     ));
-    const step = workflow.jobs.deterministic.steps.find((entry) => entry.id === "artifact_verify");
+    const step = workflow.jobs[job].steps.find((entry) => entry.id === "artifact_verify");
     const script = step.run
       .replaceAll("${{ steps.unchain_artifact.outputs.artifact_path }}", artifact)
       .replaceAll("${{ steps.unchain_artifact.outputs.evidence_path }}", evidence);
@@ -39,14 +42,16 @@ for (const dependencyExit of [0, 29]) {
       cwd: temporary, encoding: "utf8", timeout: 5000,
       env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}`,
         QA_TRACE_PATH: trace, QA_DEPENDENCY_EXIT: String(dependencyExit),
-        GITHUB_ENV: path.join(temporary, "github-env") },
+        GITHUB_ENV: path.join(temporary, "github-env"),
+        GITHUB_OUTPUT: path.join(temporary, "github-output") },
     });
     assert.equal(result.status, dependencyExit, result.stderr);
     const calls = fs.readFileSync(trace, "utf8");
     assert.match(calls, /python:-m pip check/);
     assert.equal(calls.includes("verify:"), dependencyExit === 0);
-    assert.ok(calls.includes(artifact));
+    assert.ok(calls.includes(job === "playwright" ? ".release-qa/unchain-artifact/candidate.whl" : artifact));
   });
+}
 }
 
 test("sidecar builders resolve the same wheel's dependencies before verifying it", () => {

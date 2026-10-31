@@ -108,14 +108,35 @@ This pin does not authorize launching a release or publishing an artifact.
 
 ## Complete-CI correction and bounded execution
 
+The verbose b141049b CI run still exhausted its twenty-minute Python allowance,
+but progressed through the native Agent tests to 68%. Its uploaded python.log
+also exposed a real failing assertion. Isolated reproduction is 1 failed/1 passed:
+the delegate result is present under Core dev's MEMORY_V2_EVIDENCE_HISTORY marker,
+while the historical test only parses MEMORY_V2_UNTRUSTED_HISTORY. The actual
+captured request contains the correct call id and completed child result. The
+reader now follows the current marker and asserts exactly one matching call,
+tool name, completed receipt schema/status and exact child output. Production
+code is unchanged for this correction; both isolated cases pass in 35 seconds.
+The last case reached by CI also passes in isolation, so it is not classified
+as a deadlock. Python receives thirty-five bounded minutes within the unchanged
+forty-five-minute job; no case is skipped and failure propagation stays intact.
+The measured run used about three minutes before Python and four after it,
+leaving approximately three minutes of job-level headroom at this bound.
+
+The downstream Playwright consumer uses the same constrained dependency
+resolution and `pip check` before artifact verification. Its real workflow shell
+is exercised with successful and rejected dependency checks; the rejected check
+must prevent verification. This consumes the already-built wheel and does not
+build another runtime. Before the fix, both new consumer controls failed.
+
 The first Host full run on `0fe1d7be` passed 506 frontend suites (8347 tests)
 and 67 Electron suites (1166 tests). Its Python phase did not pass: the step's
 `continue-on-error` conclusion obscured an actual ten-minute timeout at 66%.
 The aggregate gate correctly rejected that run. The raw log, including the
 timeout, is retained under `~/.codex/artifacts/pupu-351/ci-02-20261030/`.
 
-The Python phase now has a twenty-minute hard limit inside the unchanged
-forty-five-minute job limit. Verbose case names, the slowest durations and
+The b141049b attempt used a twenty-minute hard limit inside the unchanged
+forty-five-minute job limit; the later measured correction above supersedes it. Verbose case names, the slowest durations and
 sixty-second stack diagnostics make an actual stall identifiable. `pipefail`,
 failure outcomes, always-uploaded logs and the final rejection gate are kept.
 The release lifecycle and seven related workflow files pass 23 offline checks.
@@ -162,3 +183,22 @@ Those shell-wiring tests substitute executables only. Runtime/Store checks use
 the real installed wheel with their existing offline SDK substitutes.
 Actual dependency-environment acceptance still requires the fresh CI result; the
 older local cached environment is not labelled fully qualified.
+
+## Final dependency candidate for Branch receipt acceptance
+
+The five Release QA defaults now select Core PR #67 source
+`94a3aab829adc111d0ca5d726b594a0497b0c9be`, not the earlier #66 source.
+This includes the explicit branch selection/skipped-sibling receipt required
+by #351. Delivery is conditional on this source’s own full CI; the earlier
+5519-test result is not reused. The new locally retained wheel is
+`22ff61a1ac6849abbd8348415ff1e83adb4c21a2b1c5f4ededbff1bb2ed770a3`
+(1352585 bytes; all 377 Python modules equal the candidate). Remote CI builds
+one separate immutable artifact and every downstream job must reuse its bytes.
+The local old-wheel fixture diagnosis remains a separately labelled cohort.
+
+The corrected Agent regression covers all 62 collected member identities:
+53 passed before the bounded first invocation stopped at seven minutes; the
+remaining nine passed in an explicit second invocation. The stopped invocation
+is not a full-suite PASS. Source hashes match between both runs. The eight
+workflow files pass 28 offline controls, including the actual Playwright
+dependency-resolution shell and its failing-pip-check negative control.
