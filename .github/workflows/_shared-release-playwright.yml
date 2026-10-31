@@ -108,6 +108,8 @@ jobs:
           python -m pip install --disable-pip-version-check --retries 5 --timeout 60 --upgrade pip
           python -m pip install --disable-pip-version-check --retries 5 --timeout 60 -r unchain_runtime/server/requirements.txt
           python -m pip install --force-reinstall --no-deps "$WHEEL_PATH"
+          python -m pip install --constraint unchain_runtime/server/requirements.txt "$WHEEL_PATH"
+          python -m pip check
           node scripts/release-qa/verify-unchain-artifact.mjs \
             --artifact "$WHEEL_PATH" \
             --evidence "$EVIDENCE_PATH" \

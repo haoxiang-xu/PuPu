@@ -108,6 +108,12 @@ This pin does not authorize launching a release or publishing an artifact.
 
 ## Complete-CI correction and bounded execution
 
+The downstream Playwright consumer uses the same constrained dependency
+resolution and `pip check` before artifact verification. Its real workflow shell
+is exercised with successful and rejected dependency checks; the rejected check
+must prevent verification. This consumes the already-built wheel and does not
+build another runtime. Before the fix, both new consumer controls failed.
+
 The first Host full run on `0fe1d7be` passed 506 frontend suites (8347 tests)
 and 67 Electron suites (1166 tests). Its Python phase did not pass: the step's
 `continue-on-error` conclusion obscured an actual ten-minute timeout at 66%.
