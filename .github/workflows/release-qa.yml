@@ -1,226 +1,45 @@
-name: Release QA
-
+name: Ticket 351 Python diagnostic (non-delivery)
 on:
-  pull_request:
-    branches:
-      - dev
-      - main
-  push:
-    tags:
-      - "v*"
-      - "!v*-tools.*"
   workflow_dispatch:
-    inputs:
-      qa_mode:
-        description: "QA mode"
-        type: choice
-        options:
-          - lite
-          - release
-          - release-candidate
-        default: lite
-      qa_scope:
-        description: "Closed execution scope"
-        type: choice
-        options:
-          - standard
-          - windows-playwright
-        default: standard
-      run_unchain_analysis:
-        description: "Run optional Unchain advisory analysis"
-        type: boolean
-        default: true
-      unchain_ref:
-        description: "Unchain source ref selected once for the immutable release artifact (release-candidate requires a full 40-character revision)"
-        type: string
-        # #351 delivery pair: Skeleton foundation merged with current runtime dev;
-        # retains #447/#451 context behavior and current security dependencies.
-        default: 94a3aab829adc111d0ca5d726b594a0497b0c9be
-
-# Selected runtime source executes in reusable QA jobs. Cap their server-issued
-# cache tokens too: GITHUB_TOKEN permissions do not restrict cache writes.
-cache-mode: read
-
 permissions:
   contents: read
   actions: read
-
+cache-mode: read
 jobs:
-  deterministic-checks:
-    name: Deterministic QA
-    permissions:
-      contents: read
-      actions: read
-    uses: ./.github/workflows/_shared-release-deterministic.yml
-    with:
-      qa_mode: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_scope == 'windows-playwright' && 'release' || (github.event_name == 'workflow_dispatch' && inputs.qa_mode) || (startsWith(github.ref, 'refs/tags/v') && 'release') || 'lite' }}
-      unchain_ref: ${{ github.event.inputs.unchain_ref || '94a3aab829adc111d0ca5d726b594a0497b0c9be' }}
-      source_ref: ${{ github.ref }}
-      source_sha: ${{ github.sha }}
-      release_tag: ${{ github.ref_name }}
-
-  release-candidate-environment-preflight:
-    name: Release candidate environment preflight
-    needs: deterministic-checks
-    if: ${{ always() && (github.event_name != 'workflow_dispatch' || inputs.qa_scope != 'windows-playwright') }}
+  diagnostic:
     runs-on: ubuntu-latest
-    env:
-      QA_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_scope == 'windows-playwright' && 'release' || (github.event_name == 'workflow_dispatch' && inputs.qa_mode) || (startsWith(github.ref, 'refs/tags/v') && 'release') || 'lite' }}
+    timeout-minutes: 15
     steps:
-      - name: Set up Node for release environment verifier
-        if: env.QA_MODE == 'release-candidate'
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
-          node-version: 24
-
-      - name: Checkout release environment verifier
-        if: env.QA_MODE == 'release-candidate'
-        uses: actions/checkout@v4
-
-      - name: Require protected release-signing Environment
-        if: env.QA_MODE == 'release-candidate'
-        env:
-          GH_TOKEN: ${{ github.token }}
+          python-version: '3.12.15'
+      - uses: actions/download-artifact@v4
+        with:
+          name: unchain-release-artifact
+          run-id: 41152436111
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/exact-unchain
+      - name: Install the observed versions and reuse the existing wheel
+        shell: bash
         run: |
-          node scripts/release-qa/external-network-retry.mjs --profile github-read -- \
-            gh api "repos/$GITHUB_REPOSITORY/environments/release-signing" \
-            | node scripts/release-qa/verify-github-environment.mjs --environment release-signing
-
-  playwright-electron:
-    name: Playwright Electron (${{ matrix.os }})
-    needs: deterministic-checks
-    strategy:
-      fail-fast: false
-      matrix:
-        os: ${{ fromJSON((github.event_name == 'workflow_dispatch' && inputs.qa_scope == 'windows-playwright') && '["windows-latest"]' || (((github.event_name == 'workflow_dispatch' && inputs.qa_mode != 'lite') || (github.event_name != 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/v'))) && '["ubuntu-latest","macos-latest","windows-latest"]' || '["ubuntu-latest"]')) }}
-    permissions:
-      contents: read
-      actions: read
-    uses: ./.github/workflows/_shared-release-playwright.yml
-    with:
-      qa_mode: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_scope == 'windows-playwright' && 'release' || (github.event_name == 'workflow_dispatch' && inputs.qa_mode) || (startsWith(github.ref, 'refs/tags/v') && 'release') || 'lite' }}
-      runner_selector: ${{ matrix.os }}
-      source_ref: ${{ github.ref }}
-      source_sha: ${{ github.sha }}
-      release_tag: ${{ github.ref_name }}
-
-  package-macos:
-    name: Package ${{ matrix.name }}
-    needs:
-      - deterministic-checks
-      - release-candidate-environment-preflight
-    if: ${{ needs.deterministic-checks.result == 'success' && needs.release-candidate-environment-preflight.result == 'success' && ((github.event_name == 'workflow_dispatch' && inputs.qa_scope != 'windows-playwright' && inputs.qa_mode != 'lite') || (github.event_name != 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/v'))) }}
-    permissions:
-      contents: read
-      actions: read
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: mac-arm64
-            target_id: macos-arm64
-            signing_platform: macos
-          - name: mac-intel
-            target_id: macos-x64
-            signing_platform: macos
-    uses: ./.github/workflows/_shared-release-package.yml
-    with:
-      qa_mode: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.qa_mode || (startsWith(github.ref, 'refs/tags/v') && 'release') || 'lite' }}
-      target_id: ${{ matrix.target_id }}
-      platform_name: ${{ matrix.name }}
-      signing_platform: ${{ matrix.signing_platform }}
-      unchain_ref: ${{ github.event.inputs.unchain_ref || '94a3aab829adc111d0ca5d726b594a0497b0c9be' }}
-      source_ref: ${{ github.ref }}
-      source_sha: ${{ github.sha }}
-      release_tag: ${{ github.ref_name }}
-    secrets: inherit
-
-  package-linux:
-    name: Package linux
-    needs:
-      - deterministic-checks
-      - release-candidate-environment-preflight
-    if: ${{ needs.deterministic-checks.result == 'success' && needs.release-candidate-environment-preflight.result == 'success' && ((github.event_name == 'workflow_dispatch' && inputs.qa_scope != 'windows-playwright' && inputs.qa_mode != 'lite') || (github.event_name != 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/v'))) }}
-    permissions:
-      contents: read
-      actions: read
-    uses: ./.github/workflows/_shared-release-package.yml
-    with:
-      qa_mode: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.qa_mode || (startsWith(github.ref, 'refs/tags/v') && 'release') || 'lite' }}
-      target_id: linux-x64
-      platform_name: linux
-      signing_platform: linux
-      unchain_ref: ${{ github.event.inputs.unchain_ref || '94a3aab829adc111d0ca5d726b594a0497b0c9be' }}
-      source_ref: ${{ github.ref }}
-      source_sha: ${{ github.sha }}
-      release_tag: ${{ github.ref_name }}
-
-  package-windows:
-    name: Package windows
-    needs:
-      - deterministic-checks
-      - release-candidate-environment-preflight
-    if: ${{ needs.deterministic-checks.result == 'success' && needs.release-candidate-environment-preflight.result == 'success' && ((github.event_name == 'workflow_dispatch' && inputs.qa_scope != 'windows-playwright' && inputs.qa_mode != 'lite') || (github.event_name != 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/v'))) }}
-    permissions:
-      contents: read
-      actions: read
-      id-token: write
-    uses: ./.github/workflows/_shared-release-package.yml
-    with:
-      qa_mode: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.qa_mode || (startsWith(github.ref, 'refs/tags/v') && 'release') || 'lite' }}
-      target_id: windows-x64
-      platform_name: windows
-      signing_platform: windows
-      unchain_ref: ${{ github.event.inputs.unchain_ref || '94a3aab829adc111d0ca5d726b594a0497b0c9be' }}
-      source_ref: ${{ github.ref }}
-      source_sha: ${{ github.sha }}
-      release_tag: ${{ github.ref_name }}
-    secrets: inherit
-
-  package-matrix:
-    name: Package release matrix
-    needs:
-      - deterministic-checks
-      - release-candidate-environment-preflight
-      - package-macos
-      - package-linux
-      - package-windows
-    if: ${{ always() && needs.deterministic-checks.result == 'success' && needs.release-candidate-environment-preflight.result == 'success' && ((github.event_name == 'workflow_dispatch' && inputs.qa_scope != 'windows-playwright' && inputs.qa_mode != 'lite') || (github.event_name != 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/v'))) }}
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - name: Require every package target to pass
+          python -m pip install --disable-pip-version-check --retries 5 --timeout 60 \
+            --constraint unchain_runtime/server/requirements.txt \
+            -r scripts/release-qa/351-observed-dependencies.txt \
+            "${{ runner.temp }}/exact-unchain/unchain-0.2.0-py3-none-any.whl"
+          python -m pip check
+      - name: Offline no-dump and dump controls, serially as the runner user
+        shell: bash
         env:
-          MACOS_RESULT: ${{ needs.package-macos.result }}
-          LINUX_RESULT: ${{ needs.package-linux.result }}
-          WINDOWS_RESULT: ${{ needs.package-windows.result }}
+          QA_DIAGNOSTIC_OUT: ${{ runner.temp }}/qa-351-diagnostic
+          QA_DIAGNOSTIC_WHEEL: ${{ runner.temp }}/exact-unchain/unchain-0.2.0-py3-none-any.whl
         run: |
-          if [ "$MACOS_RESULT" != "success" ] || [ "$LINUX_RESULT" != "success" ] || [ "$WINDOWS_RESULT" != "success" ]; then
-            echo "::error title=Package matrix failed::macOS=$MACOS_RESULT Linux=$LINUX_RESULT Windows=$WINDOWS_RESULT"
-            exit 1
-          fi
-
-  final-report:
-    name: Final Release QA Report
-    if: ${{ always() && (github.event_name != 'workflow_dispatch' || inputs.qa_scope != 'windows-playwright') }}
-    needs:
-      - deterministic-checks
-      - playwright-electron
-      - package-matrix
-    permissions:
-      contents: read
-      actions: read
-    uses: ./.github/workflows/_shared-release-report.yml
-    with:
-      qa_mode: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.qa_mode || (startsWith(github.ref, 'refs/tags/v') && 'release') || 'lite' }}
-      source_ref: ${{ github.ref }}
-      source_sha: ${{ github.sha }}
-      release_tag: ${{ github.ref_name }}
-      deterministic_result: ${{ needs.deterministic-checks.result }}
-      playwright_result: ${{ needs.playwright-electron.result }}
-      package_result: ${{ needs.package-matrix.result }}
-      run_unchain_analysis: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.event.inputs.qa_mode == 'release' && github.event.inputs.run_unchain_analysis }}
-    secrets:
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ulimit -c 0
+          sudo -E unshare --net --setgid "$(id -g)" --setuid "$(id -u)" -- \
+            "$(command -v python)" -I -B scripts/release-qa/diagnose-351-python.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ticket-351-python-diagnostic
+          path: ${{ runner.temp }}/qa-351-diagnostic
+          if-no-files-found: warn
