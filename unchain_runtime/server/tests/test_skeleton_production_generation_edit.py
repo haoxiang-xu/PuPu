@@ -69,7 +69,7 @@ def test_premodel_context_overflow_public_attempt_can_be_edited(production):
     with pytest.raises(DurableInteractionHostError) as failure:
         list(adapter.stream_chat_events(message="pre-model failure", history=[], options=options,
             session_id=session, attempt_id="failed-history-root"))
-    assert failure.value.code == "skeleton_execution_failed"
+    assert failure.value.code == "context_overflow"
     state = load_launch(session, "failed-history-root").store.load().state
     assert state["status"] == "failed" and state["error"]["code"] == "context_overflow"
     assert calls == []

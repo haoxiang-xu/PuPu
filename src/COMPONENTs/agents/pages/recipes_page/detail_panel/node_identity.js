@@ -61,6 +61,19 @@ const IDENTITY = {
     title: () => "Switch / Case",
     subtitle: () => "Branch",
   },
+  /* The deterministic steps (#352), native only like the branches. */
+  tool_call: {
+    icon: "tool",
+    gradient: "linear-gradient(135deg, #f6a341, #ea7547)",
+    title: () => "Tool call",
+    subtitle: () => "Run one tool, no model",
+  },
+  skill_read: {
+    icon: "book_open",
+    gradient: "linear-gradient(135deg, #4fbf87, #2e9a63)",
+    title: () => "Skill read",
+    subtitle: () => "Read one skill when the run gets here",
+  },
 };
 
 function count_label(list, noun) {

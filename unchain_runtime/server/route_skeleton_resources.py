@@ -324,6 +324,39 @@ def list_skeleton_kernel_profiles():
     return _run(operation)
 
 
+@api_blueprint.post("/skeleton_skills/preview")
+def preview_skeleton_skill():
+    """The body a Skill Read node naming this exact identity would read (#352).
+
+    Read-only: the Skill Read panel's preview. See `skeleton_step_catalogs`
+    for why it is the runtime's own read and which roots it searches.
+    """
+    denied = _authorized()
+    if denied is not None:
+        return denied
+    from skeleton_step_catalogs import skill_preview
+    return _run(lambda: skill_preview(_payload("skill", "include_user_dirs")))
+
+
+@api_blueprint.get("/skeleton_tools/schemas")
+def list_skeleton_tool_schemas():
+    """The runtime's own argument schemas for one builtin toolkit (#352).
+
+    Read-only: the Tool Call panel renders one argument row per property of
+    the chosen tool. See `skeleton_step_catalogs` for why these and no others.
+    """
+    denied = _authorized()
+    if denied is not None:
+        return denied
+
+    def operation():
+        from skeleton_step_catalogs import tool_schemas
+
+        return tool_schemas(request.args.get("toolkit"))
+
+    return _run(operation)
+
+
 @api_blueprint.get("/skeleton_python_profiles")
 def list_skeleton_python_profiles():
     denied = _authorized()

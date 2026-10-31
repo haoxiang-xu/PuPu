@@ -17,7 +17,8 @@ from skeleton_chat_selection import prepare_skeleton_chat_selection
 from skeleton_production_bindings import SkeletonProductionBindings
 from skeleton_production_state import load_active_launch, save_launch, assert_launch_current
 from skeleton_production_interactions import (resolve_pending_skeleton_interaction,
-    get_pending_skeleton_interaction, cancel_skeleton_execution)
+    get_pending_skeleton_interaction, cancel_skeleton_execution, publish_skeleton_tool_presentation,
+    recover_skeleton_transport_takeover, recover_skeleton_before_start)
 from skeleton_resource_store import SkeletonResourceError
 from skeleton_workflow_snapshot import freeze_skeleton_workflow_dependencies
 from skeleton_credential_requirements import assert_credential_scope
@@ -25,6 +26,25 @@ from skeleton_credential_requirements import assert_credential_scope
 
 def _fail(code, message, status=409):
     raise DurableInteractionHostError(code, message, status_code=status, retryable=False)
+
+
+def _raise_execution_failure(result, plan):
+    """Keep the checked runner's failure identity, without exposing tool data."""
+    failure = result.error
+    code = failure["code"] if failure is not None else "skeleton_execution_" + result.status
+    description = "Skeleton execution"
+    path = tuple(failure["path"]) if failure is not None else ()
+    if len(path) >= 3 and path[:2] == ("execution", "nodes") and type(path[2]) is int:
+        nodes = plan.snapshot()["nodes"]
+        if 0 <= path[2] < len(nodes):
+            node = nodes[path[2]]
+            label = {"tool_call": "Tool Call", "skill_read": "Skill Read"}.get(node["type"], "Skeleton")
+            description = f"{label} node '{node['id']}'"
+    error = DurableInteractionHostError(code, f"{description} did not complete safely ({code}).",
+        status_code=409, retryable=False)
+    if failure is not None:
+        error.path = tuple(failure["path"])
+    raise error
 
 
 def _identifiers(session_id, attempt_id):
@@ -194,8 +214,11 @@ def _stream_worker(*, host, bridge, durability, bindings, plan, selection, workf
                     node_invocation_id=pending.root_node_invocation_id, original_task=launch.descriptor["inputs"]["message"])
             host._execution_raise_if_cancelled(token)
             if result.status == "waiting":
-                public = get_pending_skeleton_interaction(session_id)
                 actual = resolve_pending_skeleton_interaction(session_id)
+                if actual is not None and actual.leaf_node_type == "tool_call":
+                    publish_skeleton_tool_presentation(actual,
+                        bindings.tool_presentation(actual.request.payload["tool_name"]))
+                public = get_pending_skeleton_interaction(session_id)
                 if public is None or actual is None: _fail("skeleton_interaction_missing", "Graph wait has no approved interaction contract.")
                 host._session_execution_guard_transition("park_session_guard", session_id=session_id,
                     interaction_id=actual.request.interaction_id, source_attempt_id=root_run_id, owner_attempt_id=attempt_id)
@@ -208,7 +231,7 @@ def _stream_worker(*, host, bridge, durability, bindings, plan, selection, workf
                 host._execution_control_call("mark_completed", session_id, attempt_id)
                 events.put({"type": "run_completed", "run_id": root_run_id, "status": "completed"})
             else:
-                _fail("skeleton_execution_" + result.status, "Skeleton execution did not complete safely.")
+                _raise_execution_failure(result, execution.store.plan)
         except BaseException as error:
             holder["error"] = error
             durable_cancelled = guard is not None and ExecutionRuntime(durability.store).load_cancellation(session_id, attempt_id) is not None
@@ -262,6 +285,8 @@ def stream_skeleton_chat_events(*, message, history, attachments, options, sessi
     if not host._memory_v2_active_graph_candidate(options):
         _fail("skeleton_active_context_required", "Skeleton chat requires the active Context V2 host.", 422)
     _identifiers(session_id, attempt_id)
+    recover_skeleton_before_start(session_id=session_id, attempt_id=attempt_id,
+        owner_chat_id=options.get("_memory_v2_owner_chat_id"))
     registration = host._execution_control_call("register", session_id, attempt_id)
     token = host._execution_cancellation_token(session_id, attempt_id)
     if host._execution_result_is_terminal(registration):
@@ -275,6 +300,8 @@ def stream_skeleton_chat_events(*, message, history, attachments, options, sessi
         try:
             bindings = SkeletonProductionBindings(selection, workflows, options, session_id=session_id,
                 workspace_root=workspace, workspace_roots=roots)
+            recover_skeleton_transport_takeover(session_id=session_id, attempt_id=attempt_id,
+                owner_chat_id=options.get("_memory_v2_owner_chat_id"), registration=registration, running=running)
             takeover = host._memory_v2_guard_reclaimed_execution(options=options, session_id=session_id,
                 attempt_id=attempt_id, registration=registration, running=running)
             if takeover is not None:

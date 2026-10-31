@@ -283,6 +283,16 @@ const createMisoBridge = (ipcRenderer, streamClient) => ({
       action: "kernel_profiles",
       payload: {},
     }),
+  previewSkeletonSkill: (skill, includeUserDirs) =>
+    invokeSkeletonResource(ipcRenderer, {
+      action: "skill_preview",
+      payload: { skill, include_user_dirs: includeUserDirs },
+    }),
+  listSkeletonToolSchemas: (toolkitId) =>
+    invokeSkeletonResource(ipcRenderer, {
+      action: "tool_schemas",
+      payload: { toolkit_id: toolkitId },
+    }),
   listSkeletonPythonProfiles: () =>
     invokeSkeletonResource(ipcRenderer, {
       action: "list_profiles",

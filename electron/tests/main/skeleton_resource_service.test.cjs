@@ -108,6 +108,32 @@ describe("Skeleton resource main-process request builder", () => {
       method: "GET",
       path: "/skeleton_kernel_profiles",
     });
+    /* #352: one builtin toolkit's own tool schemas, for the Tool Call panel.
+       The id travels encoded in the query and nothing else is taken. */
+    expect(buildSkeletonResourceRequest("tool_schemas", {
+      toolkit_id: "core", path: "/arbitrary", body: { x: 1 },
+    })).toEqual({
+      method: "GET",
+      path: "/skeleton_tools/schemas?toolkit=core",
+    });
+    expect(buildSkeletonResourceRequest("tool_schemas", { toolkit_id: "a/b?c" })).toEqual({
+      method: "GET",
+      path: "/skeleton_tools/schemas?toolkit=a%2Fb%3Fc",
+    });
+    expect(() => buildSkeletonResourceRequest("tool_schemas", {})).toThrow("toolkit_id is required");
+    /* #352: the exact-identity skill read behind the Skill Read preview. Only
+       the identity and the user-roots switch reach the route. */
+    expect(buildSkeletonResourceRequest("skill_preview", {
+      skill: { source: "user-unchain", source_id: "/h/.unchain/skills/notes/SKILL.md", name: "notes" },
+      include_user_dirs: true, workspace_root: "/elsewhere", path: "/arbitrary",
+    })).toEqual({
+      method: "POST",
+      path: "/skeleton_skills/preview",
+      body: {
+        skill: { source: "user-unchain", source_id: "/h/.unchain/skills/notes/SKILL.md", name: "notes" },
+        include_user_dirs: true,
+      },
+    });
     expect(buildSkeletonResourceRequest("save_profile", {
       profile_id: "project", executable: "/venv/bin/python",
       expected_edit_token: "profile-edit", path: "/arbitrary",

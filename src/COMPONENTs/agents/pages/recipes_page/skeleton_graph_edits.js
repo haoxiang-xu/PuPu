@@ -76,6 +76,14 @@ const ADDABLE = new Map([
   ],
   ["if_else", { id_base: "if", config: () => ({ execution: { inputs: [] } }) }],
   ["switch_case", { id_base: "switch", config: () => ({ execution: { inputs: [], cases: [] } }) }],
+  /* #352: an unfinished draft the store saves and preflight refuses with
+     `missing_field` at `config.tool` until the author picks a tool, an error
+     policy and an approval limit (steps-352/probe/tool-call-store-01, "seed").
+     None of the three is chosen here. */
+  ["tool_call", { id_base: "tool", config: () => ({ execution: { inputs: [], outputs: [] } }) }],
+  /* Likewise refused at `config.skill` until a skill is picked
+     (steps-352/probe/skill-read-store-01, "seed"). It takes no inputs. */
+  ["skill_read", { id_base: "skill", config: () => ({ execution: { inputs: [], outputs: [] } }) }],
 ]);
 
 export const ADDABLE_NODE_TYPES = Object.freeze([...ADDABLE.keys()]);
@@ -98,8 +106,8 @@ const BRANCH_IF = "if_else";
 const BRANCH_SWITCH = "switch_case";
 const IF_OUTLETS = Object.freeze(["true", "false"]);
 const SWITCH_DEFAULT_OUTLET = "default";
-const FLOW_SOURCE_TYPES = new Set([FACTORY_NODE_START, "agent", BRANCH_IF, BRANCH_SWITCH]);
-const FLOW_TARGET_TYPES = new Set(["agent", FACTORY_NODE_END, BRANCH_IF, BRANCH_SWITCH]);
+const FLOW_SOURCE_TYPES = new Set([FACTORY_NODE_START, "agent", BRANCH_IF, BRANCH_SWITCH, "tool_call", "skill_read"]);
+const FLOW_TARGET_TYPES = new Set(["agent", FACTORY_NODE_END, BRANCH_IF, BRANCH_SWITCH, "tool_call", "skill_read"]);
 
 /* Attach joins one Agent and one Subagent Pool through attach_top /
  * attach_bot. Top and bottom are placement, not execution order, so the

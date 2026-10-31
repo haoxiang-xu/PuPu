@@ -196,6 +196,19 @@ const buildSkeletonResourceRequest = (action, payload = {}) => {
       method: "GET",
       path: "/skeleton_kernel_profiles",
     }),
+    /* #352: the runtime's own tool schemas for one builtin toolkit, read for
+       the Tool Call panel. Only the encoded id reaches the route. */
+    tool_schemas: () => ({
+      method: "GET",
+      path: `/skeleton_tools/schemas?toolkit=${requiredId("toolkit_id")}`,
+    }),
+    /* #352: the exact-identity skill read behind the Skill Read preview;
+       only the identity and the user-roots switch reach the route. */
+    skill_preview: () => ({
+      method: "POST",
+      path: "/skeleton_skills/preview",
+      body: pickedBody("skill", "include_user_dirs"),
+    }),
     save_profile: () => ({
       method: "POST",
       path: "/skeleton_python_profiles",

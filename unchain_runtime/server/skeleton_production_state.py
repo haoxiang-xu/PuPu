@@ -303,7 +303,7 @@ def load_launch(session_id, root_run_id, *, expected_owner_chat_id=None, allow_t
         if store.read_json(record.state["inputs_ref"]) != value["inputs"]:
             _fail("skeleton_launch_input_mismatch")
     launch = SkeletonLaunch(value, journal, selection, workflows, plan, store)
-    if allow_terminal_stale is True and record is not None and record.state["status"] in {"completed", "failed", "cancelled"}:
+    if allow_terminal_stale is True and record is not None and record.state["status"] in {"completed", "failed", "cancelled", "outcome_unknown"}:
         from unchain.persistence.sqlite_generation_lifecycle_v2 import read_existing_host_generation_binding
         head, binding = read_existing_host_generation_binding(
             database_path=context_root / "context_v2.sqlite3", owner_chat_id=value["owner_chat_id"],

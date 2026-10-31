@@ -1,0 +1,862 @@
+{
+  "skill-read-page": {
+    "schema_version": 1,
+    "kind": "agent",
+    "id": "branch-page",
+    "name": "Branch page",
+    "nodes": [
+      {
+        "id": "start",
+        "type": "start",
+        "config": {
+          "execution": {
+            "outputs": [
+              {
+                "name": "message",
+                "source": {
+                  "kind": "result",
+                  "path": [
+                    "message"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "router",
+        "type": "agent",
+        "config": {
+          "execution": {
+            "inputs": [
+              {
+                "name": "message",
+                "value": {
+                  "kind": "ref",
+                  "node_id": "start",
+                  "path": [
+                    "message"
+                  ]
+                },
+                "missing": "error"
+              },
+              {
+                "name": "guide",
+                "value": {
+                  "kind": "ref",
+                  "node_id": "skill",
+                  "path": [
+                    "guide"
+                  ]
+                },
+                "missing": "error"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "reply",
+                "source": {
+                  "kind": "result",
+                  "path": [
+                    "message"
+                  ]
+                }
+              }
+            ]
+          },
+          "kernel": {
+            "schema_version": 1,
+            "profile": {
+              "id": "openai:gpt-6-luna",
+              "provider": "openai",
+              "model": "gpt-6-luna",
+              "protocol": "openai-responses",
+              "endpoint": "https://api.openai.com/v1",
+              "credential_ref": "openai",
+              "context_window": 1050000,
+              "output_limit": 128000,
+              "capabilities": {
+                "json_schema": true,
+                "images": true,
+                "files": false
+              }
+            },
+            "prompt": "[router]",
+            "max_iterations": 12,
+            "output_tokens": 128000,
+            "history": "root",
+            "overflow": "error",
+            "json_schema": null
+          }
+        }
+      },
+      {
+        "id": "end",
+        "type": "end",
+        "config": {
+          "execution": {
+            "inputs": [
+              {
+                "name": "message",
+                "value": {
+                  "kind": "ref",
+                  "node_id": "router",
+                  "path": [
+                    "reply"
+                  ]
+                },
+                "missing": "error"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "message",
+                "source": {
+                  "kind": "input",
+                  "path": [
+                    "message"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "skill",
+        "type": "skill_read",
+        "config": {
+          "execution": {
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "guide",
+                "source": {
+                  "kind": "result",
+                  "path": [
+                    "content"
+                  ]
+                }
+              },
+              {
+                "name": "skill_name",
+                "source": {
+                  "kind": "result",
+                  "path": [
+                    "name"
+                  ]
+                }
+              }
+            ]
+          },
+          "skill": {
+            "source": "user-unchain",
+            "source_id": "/Users/red/.codex/artifacts/pupu-356/356-parallel-dispatch-20261022/native-advanced/steps-352/probe/skill-capture-sandbox-01/.unchain/skills/notes/SKILL.md",
+            "name": "notes"
+          }
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "b",
+        "kind": "flow",
+        "source_node_id": "router",
+        "source_port_id": "out",
+        "target_node_id": "end",
+        "target_port_id": "in"
+      },
+      {
+        "id": "flow-start-skill",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "skill",
+        "target_port_id": "in"
+      },
+      {
+        "id": "flow-skill-router",
+        "kind": "flow",
+        "source_node_id": "skill",
+        "source_port_id": "out",
+        "target_node_id": "router",
+        "target_port_id": "in"
+      }
+    ]
+  },
+  "skill-wait-page": {
+    "schema_version": 1,
+    "kind": "agent",
+    "id": "branch-page",
+    "name": "Branch page",
+    "nodes": [
+      {
+        "id": "start",
+        "type": "start",
+        "config": {
+          "execution": {
+            "outputs": [
+              {
+                "name": "message",
+                "source": {
+                  "kind": "result",
+                  "path": [
+                    "message"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "router",
+        "type": "agent",
+        "config": {
+          "execution": {
+            "inputs": [
+              {
+                "name": "message",
+                "value": {
+                  "kind": "ref",
+                  "node_id": "start",
+                  "path": [
+                    "message"
+                  ]
+                },
+                "missing": "error"
+              },
+              {
+                "name": "guide",
+                "value": {
+                  "kind": "ref",
+                  "node_id": "skill",
+                  "path": [
+                    "guide"
+                  ]
+                },
+                "missing": "error"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "reply",
+                "source": {
+                  "kind": "result",
+                  "path": [
+                    "message"
+                  ]
+                }
+              }
+            ]
+          },
+          "kernel": {
+            "schema_version": 1,
+            "profile": {
+              "id": "openai:gpt-6-luna",
+              "provider": "openai",
+              "model": "gpt-6-luna",
+              "protocol": "openai-responses",
+              "endpoint": "https://api.openai.com/v1",
+              "credential_ref": "openai",
+              "context_window": 1050000,
+              "output_limit": 128000,
+              "capabilities": {
+                "json_schema": true,
+                "images": true,
+                "files": false
+              }
+            },
+            "prompt": "[router]",
+            "max_iterations": 12,
+            "output_tokens": 128000,
+            "history": "root",
+            "overflow": "error",
+            "json_schema": null
+          }
+        }
+      },
+      {
+        "id": "end",
+        "type": "end",
+        "config": {
+          "execution": {
+            "inputs": [
+              {
+                "name": "message",
+                "value": {
+                  "kind": "ref",
+                  "node_id": "router",
+                  "path": [
+                    "reply"
+                  ]
+                },
+                "missing": "error"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "message",
+                "source": {
+                  "kind": "input",
+                  "path": [
+                    "message"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "skill",
+        "type": "skill_read",
+        "config": {
+          "execution": {
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "guide",
+                "source": {
+                  "kind": "result",
+                  "path": [
+                    "content"
+                  ]
+                }
+              },
+              {
+                "name": "skill_name",
+                "source": {
+                  "kind": "result",
+                  "path": [
+                    "name"
+                  ]
+                }
+              }
+            ]
+          },
+          "skill": {
+            "source": "user-unchain",
+            "source_id": "/Users/red/.codex/artifacts/pupu-356/356-parallel-dispatch-20261022/native-advanced/steps-352/probe/skill-capture-sandbox-01/.unchain/skills/notes/SKILL.md",
+            "name": "notes"
+          }
+        }
+      },
+      {
+        "id": "tool",
+        "type": "tool_call",
+        "config": {
+          "execution": {
+            "inputs": [
+              {
+                "name": "path",
+                "value": {
+                  "kind": "ref",
+                  "node_id": "start",
+                  "path": [
+                    "message"
+                  ]
+                },
+                "missing": "error"
+              },
+              {
+                "name": "content",
+                "value": {
+                  "kind": "literal",
+                  "value": "after the skill"
+                },
+                "missing": "error"
+              }
+            ],
+            "outputs": []
+          },
+          "tool": {
+            "name": "write",
+            "on_error": "stop",
+            "approval_timeout_ms": 60000
+          }
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "b",
+        "kind": "flow",
+        "source_node_id": "router",
+        "source_port_id": "out",
+        "target_node_id": "end",
+        "target_port_id": "in"
+      },
+      {
+        "id": "flow-start-skill",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "skill",
+        "target_port_id": "in"
+      },
+      {
+        "id": "flow-skill-tool",
+        "kind": "flow",
+        "source_node_id": "skill",
+        "source_port_id": "out",
+        "target_node_id": "tool",
+        "target_port_id": "in"
+      },
+      {
+        "id": "flow-tool-router",
+        "kind": "flow",
+        "source_node_id": "tool",
+        "source_port_id": "out",
+        "target_node_id": "router",
+        "target_port_id": "in"
+      }
+    ]
+  },
+  "tool-read-page": {
+    "schema_version": 1,
+    "kind": "agent",
+    "id": "branch-page",
+    "name": "Branch page",
+    "nodes": [
+      {
+        "id": "start",
+        "type": "start",
+        "config": {
+          "execution": {
+            "outputs": [
+              {
+                "name": "message",
+                "source": {
+                  "kind": "result",
+                  "path": [
+                    "message"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "router",
+        "type": "agent",
+        "config": {
+          "execution": {
+            "inputs": [
+              {
+                "name": "message",
+                "value": {
+                  "kind": "ref",
+                  "node_id": "start",
+                  "path": [
+                    "message"
+                  ]
+                },
+                "missing": "error"
+              },
+              {
+                "name": "page",
+                "value": {
+                  "kind": "ref",
+                  "node_id": "tool",
+                  "path": [
+                    "page"
+                  ]
+                },
+                "missing": "error"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "reply",
+                "source": {
+                  "kind": "result",
+                  "path": [
+                    "message"
+                  ]
+                }
+              }
+            ]
+          },
+          "kernel": {
+            "schema_version": 1,
+            "profile": {
+              "id": "openai:gpt-6-luna",
+              "provider": "openai",
+              "model": "gpt-6-luna",
+              "protocol": "openai-responses",
+              "endpoint": "https://api.openai.com/v1",
+              "credential_ref": "openai",
+              "context_window": 1050000,
+              "output_limit": 128000,
+              "capabilities": {
+                "json_schema": true,
+                "images": true,
+                "files": false
+              }
+            },
+            "prompt": "[router]",
+            "max_iterations": 12,
+            "output_tokens": 128000,
+            "history": "root",
+            "overflow": "error",
+            "json_schema": null
+          }
+        }
+      },
+      {
+        "id": "end",
+        "type": "end",
+        "config": {
+          "execution": {
+            "inputs": [
+              {
+                "name": "message",
+                "value": {
+                  "kind": "first_present",
+                  "values": [
+                    {
+                      "kind": "ref",
+                      "node_id": "router",
+                      "path": [
+                        "reply"
+                      ]
+                    },
+                    {
+                      "kind": "ref",
+                      "node_id": "start",
+                      "path": [
+                        "message"
+                      ]
+                    }
+                  ]
+                },
+                "missing": "error"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "message",
+                "source": {
+                  "kind": "input",
+                  "path": [
+                    "message"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "tool",
+        "type": "tool_call",
+        "config": {
+          "execution": {
+            "inputs": [
+              {
+                "name": "path",
+                "value": {
+                  "kind": "ref",
+                  "node_id": "start",
+                  "path": [
+                    "message"
+                  ]
+                },
+                "missing": "error"
+              },
+              {
+                "name": "limit",
+                "value": {
+                  "kind": "literal",
+                  "value": 5
+                },
+                "missing": "error"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "page",
+                "source": {
+                  "kind": "result",
+                  "path": [
+                    "result"
+                  ]
+                }
+              },
+              {
+                "name": "ok",
+                "source": {
+                  "kind": "result",
+                  "path": [
+                    "ok"
+                  ]
+                }
+              }
+            ]
+          },
+          "tool": {
+            "name": "read",
+            "on_error": "continue",
+            "approval_timeout_ms": 60000
+          }
+        }
+      },
+      {
+        "id": "if",
+        "type": "if_else",
+        "config": {
+          "execution": {
+            "inputs": [
+              {
+                "name": "ok",
+                "value": {
+                  "kind": "ref",
+                  "node_id": "tool",
+                  "path": [
+                    "ok"
+                  ]
+                },
+                "missing": "error"
+              }
+            ],
+            "condition": {
+              "kind": "compare",
+              "operator": "eq",
+              "left": {
+                "kind": "input",
+                "path": [
+                  "ok"
+                ]
+              },
+              "right": {
+                "kind": "literal",
+                "value": true
+              }
+            }
+          }
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "b",
+        "kind": "flow",
+        "source_node_id": "router",
+        "source_port_id": "out",
+        "target_node_id": "end",
+        "target_port_id": "in"
+      },
+      {
+        "id": "flow-start-tool",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "tool",
+        "target_port_id": "in"
+      },
+      {
+        "id": "flow-tool-if",
+        "kind": "flow",
+        "source_node_id": "tool",
+        "source_port_id": "out",
+        "target_node_id": "if",
+        "target_port_id": "in"
+      },
+      {
+        "id": "flow-if-router",
+        "kind": "flow",
+        "source_node_id": "if",
+        "source_port_id": "true",
+        "target_node_id": "router",
+        "target_port_id": "in"
+      },
+      {
+        "id": "flow-if-end",
+        "kind": "flow",
+        "source_node_id": "if",
+        "source_port_id": "false",
+        "target_node_id": "end",
+        "target_port_id": "in"
+      }
+    ]
+  },
+  "tool-write-page": {
+    "schema_version": 1,
+    "kind": "agent",
+    "id": "branch-page",
+    "name": "Branch page",
+    "nodes": [
+      {
+        "id": "start",
+        "type": "start",
+        "config": {
+          "execution": {
+            "outputs": [
+              {
+                "name": "message",
+                "source": {
+                  "kind": "result",
+                  "path": [
+                    "message"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "router",
+        "type": "agent",
+        "config": {
+          "execution": {
+            "inputs": [
+              {
+                "name": "message",
+                "value": {
+                  "kind": "ref",
+                  "node_id": "start",
+                  "path": [
+                    "message"
+                  ]
+                },
+                "missing": "error"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "reply",
+                "source": {
+                  "kind": "result",
+                  "path": [
+                    "message"
+                  ]
+                }
+              }
+            ]
+          },
+          "kernel": {
+            "schema_version": 1,
+            "profile": {
+              "id": "openai:gpt-6-luna",
+              "provider": "openai",
+              "model": "gpt-6-luna",
+              "protocol": "openai-responses",
+              "endpoint": "https://api.openai.com/v1",
+              "credential_ref": "openai",
+              "context_window": 1050000,
+              "output_limit": 128000,
+              "capabilities": {
+                "json_schema": true,
+                "images": true,
+                "files": false
+              }
+            },
+            "prompt": "[router]",
+            "max_iterations": 12,
+            "output_tokens": 128000,
+            "history": "root",
+            "overflow": "error",
+            "json_schema": null
+          }
+        }
+      },
+      {
+        "id": "end",
+        "type": "end",
+        "config": {
+          "execution": {
+            "inputs": [
+              {
+                "name": "message",
+                "value": {
+                  "kind": "ref",
+                  "node_id": "router",
+                  "path": [
+                    "reply"
+                  ]
+                },
+                "missing": "error"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "message",
+                "source": {
+                  "kind": "input",
+                  "path": [
+                    "message"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "tool",
+        "type": "tool_call",
+        "config": {
+          "execution": {
+            "inputs": [
+              {
+                "name": "path",
+                "value": {
+                  "kind": "ref",
+                  "node_id": "start",
+                  "path": [
+                    "message"
+                  ]
+                },
+                "missing": "error"
+              },
+              {
+                "name": "content",
+                "value": {
+                  "kind": "literal",
+                  "value": "written by the builder"
+                },
+                "missing": "error"
+              }
+            ],
+            "outputs": []
+          },
+          "tool": {
+            "name": "write",
+            "on_error": "stop",
+            "approval_timeout_ms": 30000
+          }
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "b",
+        "kind": "flow",
+        "source_node_id": "router",
+        "source_port_id": "out",
+        "target_node_id": "end",
+        "target_port_id": "in"
+      },
+      {
+        "id": "flow-start-tool",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "tool",
+        "target_port_id": "in"
+      },
+      {
+        "id": "flow-tool-router",
+        "kind": "flow",
+        "source_node_id": "tool",
+        "source_port_id": "out",
+        "target_node_id": "router",
+        "target_port_id": "in"
+      }
+    ]
+  }
+}

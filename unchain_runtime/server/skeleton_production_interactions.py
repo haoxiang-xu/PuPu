@@ -20,7 +20,8 @@ from unchain.context.projector import CanonicalSemanticEventProjector
 from unchain.interaction import InteractionRequest, build_interaction_receipt
 from unchain.interaction.durable import strict_json_digest
 from unchain.interaction.runtime import normalize_interaction_response
-from unchain.journal import ArtifactRef, AttemptRef, DurableEventSink, PreparedSemanticEvent, ResourceRef
+from unchain.journal import (ArtifactRef, AttemptRef, DurableEventSink, PreparedSemanticEvent,
+    ResourceRef, JournalAppendRequest, build_operation_ref)
 from unchain.journal.models import _thaw_json
 from unchain.skeleton import prepare_agent_graph, prepare_workflow
 from unchain.skeleton.agent_preparation import execution_definition_digest
@@ -42,6 +43,10 @@ _AGENT_FIELDS = frozenset({"schema", "parent_graph_id", "parent_node_invocation_
     "child_graph_id", "child_attempt_id", "entry_id", "definition_digest", "child_guard_session_id",
     "child_node_invocation_id", "child_wait_kind", "child_wait_id", "interaction_request", "mode"})
 _TERMINAL = {"completed", "failed", "cancelled", "outcome_unknown"}
+_TOOL_PRESENTATION = "pupu.skeleton.tool-presentation.v1"
+_TOOL_PRESENTATION_EVENT = "pupu.skeleton.tool_presentation"
+_PRESENTATION_KEYS = {"tool_name", "tool_display_name", "toolkit_id", "toolkit_name"}
+_RECLAIMED_RECOVERY_GUARDS = set()
 
 
 def _fail(code="skeleton_interaction_not_pending", message="Skeleton approval no longer belongs to the current graph."):
@@ -78,10 +83,17 @@ def _node(store, active):
     return nodes[0]
 
 
-def _waiting(store, *, allow_cancelled=False):
+def _wait_status_allowed(record, *, allow_cancelled=False, allow_expired=False):
+    if record is None:
+        return False
+    status = record.state["status"]
+    return (status == "waiting" or allow_cancelled and status == "cancelled"
+        or allow_expired and status == "failed" and (record.state["error"] or {}).get("code") == "interaction_expired")
+
+
+def _waiting(store, *, allow_cancelled=False, allow_expired=False):
     record = store.load()
-    statuses = {"waiting", "cancelled"} if allow_cancelled else {"waiting"}
-    if record is None or record.state["status"] not in statuses or record.state["active"] is None:
+    if not _wait_status_allowed(record, allow_cancelled=allow_cancelled, allow_expired=allow_expired) or record.state["active"] is None:
         _fail()
     active = record.state["active"]
     if active["wait"] is None:
@@ -108,7 +120,7 @@ def _prove_child(parent, child):
         _fail("skeleton_interaction_lineage_mismatch")
 
 
-def _workflow_child(anchor, launch, *, allow_cancelled=False):
+def _workflow_child(anchor, launch, *, allow_cancelled=False, allow_expired=False):
     active = anchor.record.state["active"]
     request = anchor.request_payload
     fields = {"schema", "parent_graph_id", "child_graph_id", "child_attempt_id", "workflow_id", "revision_id", "definition_digest"}
@@ -124,12 +136,12 @@ def _workflow_child(anchor, launch, *, allow_cancelled=False):
         _fail("skeleton_interaction_lineage_mismatch")
     if active["wait"]["id"] != graph_id:
         _fail("skeleton_interaction_lineage_mismatch")
-    child = _waiting(_child_store(anchor, plan, graph_id, attempt_id), allow_cancelled=allow_cancelled)
+    child = _waiting(_child_store(anchor, plan, graph_id, attempt_id), allow_cancelled=allow_cancelled, allow_expired=allow_expired)
     _prove_child(anchor, child)
     return child
 
 
-def _agent_child(anchor, manifests, *, allow_cancelled=False):
+def _agent_child(anchor, manifests, *, allow_cancelled=False, allow_expired=False):
     active = anchor.record.state["active"]
     request = anchor.request_payload
     fields = _AGENT_FIELDS | ({"parent_tool_call"} if request.get("schema") == "pupu.skeleton_subagent_wait.v2" else set())
@@ -159,7 +171,7 @@ def _agent_child(anchor, manifests, *, allow_cancelled=False):
     wait_identity = "\0".join((graph_id, request["child_wait_id"]))
     if active["wait"]["id"] != "subagent." + sha256(wait_identity.encode("utf-8", "surrogatepass")).hexdigest():
         _fail("skeleton_interaction_lineage_mismatch")
-    child = _waiting(_child_store(anchor, plan, graph_id, request["child_attempt_id"]), allow_cancelled=allow_cancelled)
+    child = _waiting(_child_store(anchor, plan, graph_id, request["child_attempt_id"]), allow_cancelled=allow_cancelled, allow_expired=allow_expired)
     _prove_child(anchor, child)
     child_active = child.record.state["active"]
     if (child_active["node_invocation_id"] != request["child_node_invocation_id"]
@@ -201,7 +213,7 @@ def _tool_request(anchor, raw):
     return request
 
 
-def _descend(anchor, launch, manifests, session, chain, *, allow_cancelled=False):
+def _descend(anchor, launch, manifests, session, chain, *, allow_cancelled=False, allow_expired=False):
     if len(chain) >= 32 or any(item.store.graph_id == anchor.store.graph_id for item in chain):
         _fail("skeleton_interaction_lineage_mismatch")
     chain = chain + (anchor,)
@@ -209,11 +221,11 @@ def _descend(anchor, launch, manifests, session, chain, *, allow_cancelled=False
     wait = active["wait"]
     if wait["kind"] == "child":
         if anchor.request_payload.get("schema") == _WORKFLOW_WAIT:
-            return _descend(_workflow_child(anchor, launch, allow_cancelled=allow_cancelled), launch, [], session, chain,
-                allow_cancelled=allow_cancelled)
+            return _descend(_workflow_child(anchor, launch, allow_cancelled=allow_cancelled, allow_expired=allow_expired), launch, [], session, chain,
+                allow_cancelled=allow_cancelled, allow_expired=allow_expired)
         if anchor.request_payload.get("schema") in _AGENT_WAITS:
-            child, nested, child_session = _agent_child(anchor, manifests, allow_cancelled=allow_cancelled)
-            result = _descend(child, launch, nested, child_session, chain, allow_cancelled=allow_cancelled)
+            child, nested, child_session = _agent_child(anchor, manifests, allow_cancelled=allow_cancelled, allow_expired=allow_expired)
+            result = _descend(child, launch, nested, child_session, chain, allow_cancelled=allow_cancelled, allow_expired=allow_expired)
             # The wrapper is an immutable assertion of the actual child wait.
             actual = child.request_payload
             if child.record.state["active"]["wait"]["kind"] == "child" and actual.get("schema") in _AGENT_WAITS:
@@ -235,7 +247,7 @@ def _descend(anchor, launch, manifests, session, chain, *, allow_cancelled=False
             _fail("skeleton_interaction_session_mismatch")
         hook_wait = request.subject.get("hook_child_wait") if type(request.subject) is dict else None
         if hook_wait is not None:
-            chain = _hook_chain(anchor, launch, request, hook_wait, chain, allow_cancelled=allow_cancelled)
+            chain = _hook_chain(anchor, launch, request, hook_wait, chain, allow_cancelled=allow_cancelled, allow_expired=allow_expired)
     else:
         _fail()
     if request.interaction_id != wait["id"]:
@@ -243,7 +255,7 @@ def _descend(anchor, launch, manifests, session, chain, *, allow_cancelled=False
     return request, anchor, chain
 
 
-def _hook_chain(parent, launch, request, raw, chain, *, allow_cancelled=False):
+def _hook_chain(parent, launch, request, raw, chain, *, allow_cancelled=False, allow_expired=False):
     active = parent.record.state["active"]
     if (type(raw) is not dict or raw.get("schema") != HOOK_CHILD_WAIT_SCHEMA
             or raw.get("parent_graph_id") != parent.store.graph_id
@@ -268,9 +280,9 @@ def _hook_chain(parent, launch, request, raw, chain, *, allow_cancelled=False):
         raw["hook_id"], raw["workflow_id"], raw["revision_id"]))
     suffix = sha256(basis.encode("utf-8", "surrogatepass")).hexdigest()
     child = _waiting(_child_store(parent, plan, parent.store.graph_id + ".hook." + suffix, "hook." + suffix),
-        allow_cancelled=allow_cancelled)
+        allow_cancelled=allow_cancelled, allow_expired=allow_expired)
     _prove_child(parent, child)
-    actual, leaf, expanded = _descend(child, launch, [], request.session_id, chain, allow_cancelled=allow_cancelled)
+    actual, leaf, expanded = _descend(child, launch, [], request.session_id, chain, allow_cancelled=allow_cancelled, allow_expired=allow_expired)
     leaf_active = leaf.record.state["active"]
     if (actual.to_dict() != child_request.to_dict() or raw["child_graph_id"] != leaf.store.graph_id
             or raw["child_attempt_id"] != leaf.store.attempt.attempt_id
@@ -284,21 +296,112 @@ def resolve_pending_skeleton_interaction(session_id, *, expected_owner_chat_id=N
     launch = load_active_launch(session_id, expected_owner_chat_id=expected_owner_chat_id)
     if launch is None:
         return None
-    return _pending_for_launch(launch)
+    with _interaction_commit_lock(session_id):
+        _recover_stopped_skeleton_owner(launch)
+        pending = _pending_for_launch(launch, allow_expired=True)
+        if pending is not None and _expire_tool_wait(pending):
+            _fail("interaction_expired", "This Tool Call approval has expired; the tool was not executed.")
+        return pending
 
 
-def _pending_for_launch(launch, *, allow_cancelled=False):
+def _prove_recovery_source(launch, attempt_id):
+    root = launch.descriptor["root_run_id"]
+    binding = load_execution_attempt_binding(launch.descriptor["session_id"], attempt_id) if attempt_id != root else None
+    if attempt_id != root and (binding is None or binding.get("source_attempt_id") != root):
+        _fail("skeleton_recovery_source_mismatch", "Stopped execution does not belong to this Skeleton root.")
+
+
+def _recover_running_launch(launch, attempt_id):
+    _prove_recovery_source(launch, attempt_id)
+    assert_launch_current(launch)
+    journal = _mutable_journal(launch)
+    store = WorkflowExecutionStore(journal, launch.store.plan, graph_id=launch.store.graph_id, attempt=launch.store.attempt)
+    record = store.load()
+    if record.state["status"] == "running":
+        # Official conservative recovery; no handler can dispatch a tool or
+        # turn a possibly performed effect into a fresh invocation.
+        result = DurableWorkflowRunner(store, {}).recover()
+        if result.status != "outcome_unknown":
+            _fail("skeleton_recovery_incomplete")
+    if store.load().state["status"] == "outcome_unknown":
+        from durable_interaction_host import _execution_runtime
+        # Revoke only the dead transport's independent core lease. This
+        # administrative fence cannot cancel a successor or relabel the
+        # graph's possibly performed effect as an unexecuted cancellation.
+        _execution_runtime().request_cancel(launch.descriptor["session_id"], attempt_id, reason="outcome_unknown")
+    return store.load()
+
+
+def _recover_stopped_skeleton_owner(launch):
+    record = launch.store.load()
+    if record is None or record.state["status"] not in {"running", "outcome_unknown"}:
+        return
+    from session_execution_guard import (snapshot_session_guard, acquire_run_guard,
+        release_run_guard, SessionExecutionInProgress)
+    session = launch.descriptor["session_id"]
+    guard = snapshot_session_guard(session_id=session)
+    if guard is None or guard.state != "active":
+        return  # Missing ownership evidence is not proof of a dead worker.
+    _prove_recovery_source(launch, guard.attempt_id)
+    before = strict_json_digest(guard.to_dict())
+    try:
+        disposition = acquire_run_guard(session, guard.attempt_id)
+    except SessionExecutionInProgress:
+        return  # A live foreign process retains its exclusive authority.
+    if disposition == "acquired":
+        release_run_guard(session, guard.attempt_id)
+        return  # The guard disappeared between reads; absence proves nothing.
+    if disposition != "reclaimed" and before not in _RECLAIMED_RECOVERY_GUARDS:
+        return  # Ordinary same-process reentrancy is not takeover authority.
+    owned = snapshot_session_guard(session_id=session)
+    proof = strict_json_digest(owned.to_dict())
+    _RECLAIMED_RECOVERY_GUARDS.add(proof)
+    _recover_running_launch(launch, guard.attempt_id)
+    import execution_control
+    execution_control.mark_failed(session, guard.attempt_id, reason="outcome_unknown")
+    release_run_guard(session, guard.attempt_id)
+    _RECLAIMED_RECOVERY_GUARDS.discard(proof)
+
+
+def recover_skeleton_transport_takeover(*, session_id, attempt_id, owner_chat_id, registration, running):
+    """Settle a graph at the existing transport's proved dead-owner fence."""
+    import unchain_adapter as host
+    if not host._execution_reclaimed_stopped_owner(registration, running):
+        return
+    with _interaction_commit_lock(session_id):
+        launch = load_active_launch(session_id, expected_owner_chat_id=owner_chat_id)
+        if launch is not None:
+            _recover_running_launch(launch, attempt_id)
+
+
+def recover_skeleton_before_start(*, session_id, attempt_id, owner_chat_id):
+    if type(owner_chat_id) is not str or not owner_chat_id or owner_chat_id != owner_chat_id.strip():
+        raise DurableInteractionHostError("skeleton_active_context_required",
+            "Skeleton chat requires a validated chat owner.", status_code=422, retryable=False)
+    with _interaction_commit_lock(session_id):
+        launch = load_active_launch(session_id, expected_owner_chat_id=owner_chat_id, allow_terminal_stale=True)
+        if launch is None:
+            return
+        _recover_stopped_skeleton_owner(launch)
+        if launch.store.load().state["status"] != "outcome_unknown":
+            return
+        root = launch.descriptor["root_run_id"]
+        binding = load_execution_attempt_binding(session_id, attempt_id) if attempt_id != root else None
+        if attempt_id == root or binding is not None and binding.get("source_attempt_id") == root:
+            _fail("outcome_unknown", "This interrupted attempt cannot be replayed safely. Review its unknown outcome before starting a new attempt.")
+
+
+def _pending_for_launch(launch, *, allow_cancelled=False, allow_expired=False):
     try:
         record = launch.store.load()
-        statuses = {"waiting", "cancelled"} if allow_cancelled else {"waiting"}
-        if record is None or record.state["status"] not in statuses or record.state["active"] is None:
+        if not _wait_status_allowed(record, allow_cancelled=allow_cancelled, allow_expired=allow_expired) or record.state["active"] is None:
             return None
         if record.state["active"]["wait"] is None:
             return None
         assert_launch_current(launch)
-        anchor = _waiting(launch.store, allow_cancelled=allow_cancelled)
+        anchor = _waiting(launch.store, allow_cancelled=allow_cancelled, allow_expired=allow_expired)
         request, leaf, chain = _descend(anchor, launch, launch.selection.to_dict()["subagents"],
-            launch.descriptor["session_id"], (), allow_cancelled=allow_cancelled)
+            launch.descriptor["session_id"], (), allow_cancelled=allow_cancelled, allow_expired=allow_expired)
         root_active = anchor.record.state["active"]
         leaf_active = leaf.record.state["active"]
         return SkeletonPendingInteraction(launch, request, chain, root_active["node_invocation_id"],
@@ -396,6 +499,98 @@ def _publish_request_if_needed(pending, journal, projector, sink, *, status="wai
     _requested(pending, journal.capture_snapshot())
 
 
+def _tool_wait_expired(pending):
+    leaf = pending.chain[-1]
+    return (_node(leaf.store, leaf.record.state["active"])["type"] == "tool_call"
+        and leaf.request_payload.get("schema") == _TOOL_WAIT
+        and time.time_ns() // 1_000_000 > leaf.request_payload["expires_at_ms"])
+
+
+def _close_expired_kernel_checkpoint(pending):
+    if pending.leaf_node_type != "agent":
+        return None
+    from unchain.interaction import InteractionNotPendingError
+    runtime = _interaction_runtime()
+    try:
+        closed = runtime.cancel_pending(pending.request.session_id, source_run_id=pending.request.source_run_id,
+            expected_interaction_id=pending.request.interaction_id, reason="interaction_expired")
+    except InteractionNotPendingError:
+        closed = runtime.load(pending.request.session_id, interaction_id=pending.request.interaction_id, require_active=False)
+    if (closed is None or closed.request.to_dict() != pending.request.to_dict()
+            or (closed.application or {}).get("applied_checkpoint_id") != "cancelled:" + closed.checkpoint_id):
+        _fail("skeleton_interaction_lineage_mismatch")
+    return closed.receipt
+
+
+def _expire_tool_wait(pending):
+    """Finish an expired, verified graph lineage without executing its tool.
+
+    Failed-expiry anchors retain their immutable wait refs. They are admitted
+    only for completing this transition after a crash; ordinary failures are
+    never interpreted as pending interactions.
+    """
+    leaf = pending.chain[-1]
+    if _node(leaf.store, leaf.record.state["active"])["type"] != "tool_call":
+        return False
+    now_ms = time.time_ns() // 1_000_000
+    if (leaf.request_payload.get("schema") != _TOOL_WAIT
+            or now_ms <= leaf.request_payload["expires_at_ms"]
+            and all(anchor.record.state["status"] == "waiting" for anchor in pending.chain)):
+        return False
+    from unchain.skeleton.errors import SkeletonValidationError
+    from unchain.skeleton.tool_runtime import SkeletonToolRuntime
+    from unchain.tools import Toolkit
+    journal = _mutable_journal(pending.launch)
+    for anchor in reversed(pending.chain):
+        assert_launch_current(pending.launch)
+        store = WorkflowExecutionStore(journal, anchor.store.plan, graph_id=anchor.store.graph_id, attempt=anchor.store.attempt)
+        current = store.load()
+        if current.event_id != anchor.record.event_id or current.state != anchor.record.state:
+            _fail()
+        if current.state["status"] == "failed":
+            continue
+        if anchor is leaf:
+            # Exact official type required by the installed lifecycle method.
+            # Its empty Toolkit cannot dispatch any tool, nor is run() called.
+            lifecycle = SkeletonToolRuntime(store.plan, Toolkit(), pending.request.session_id, lambda: now_ms)
+            runner = DurableWorkflowRunner(store, {"tool_call": lifecycle})
+            runner.expire_tool_interaction(current.state["active"]["wait"]["id"],
+                node_invocation_id=current.state["active"]["node_invocation_id"], now_ms=now_ms)
+        else:
+            runner = DurableWorkflowRunner(store, {})
+            runner._failed(current, SkeletonValidationError("interaction_expired",
+                runner._runtime_path(current.state["active"]["node_id"]), "Descendant Tool approval expired"))
+    terminal = _pending_for_launch(pending.launch, allow_expired=True)
+    if terminal is None or terminal.request.to_dict() != pending.request.to_dict():
+        _fail("skeleton_interaction_lineage_mismatch")
+    abandoned = _close_expired_kernel_checkpoint(terminal)
+    journal, projector, sink = _canonical_components(terminal)
+    _publish_request_if_needed(terminal, journal, projector, sink, status="failed")
+    if _accepted(terminal, normalize=False) is None:
+        response = abandoned.response if abandoned is not None else {"expired": True, "reason": "interaction_expired"}
+        def accept_expiry(snapshot):
+            _prove_current(terminal, snapshot, status="failed")
+            _requested(terminal, snapshot)
+            already = _accepted(terminal, snapshot, normalize=False)
+            if already is not None and already.response != response:
+                _fail("interaction_receipt_conflict")
+            if already is None:
+                assert_interaction_unresolved(snapshot, attempt=_attempt(terminal), interaction_id=terminal.request.interaction_id)
+        ContextInputIngress(attempt=_attempt(terminal), projector=projector, sink=sink).persist(
+            HostResolvedInteractionInput(_attempt(terminal), terminal.request.interaction_id, response, "user"),
+            precondition=accept_expiry)
+    from session_execution_guard import snapshot_session_guard, consume_parked_session_guard
+    guard = snapshot_session_guard(session_id=pending.launch.descriptor["session_id"])
+    if (guard is not None and guard.state == "parked"
+            and guard.interaction_id == pending.request.interaction_id
+            and guard.interaction_source_attempt_id == pending.launch.descriptor["root_run_id"]):
+        import execution_control
+        execution_control.mark_failed(guard.session_id, guard.attempt_id, reason="interaction_expired")
+        consume_parked_session_guard(session_id=guard.session_id, interaction_id=guard.interaction_id,
+            source_attempt_id=guard.interaction_source_attempt_id)
+    return True
+
+
 def get_pending_skeleton_interaction(session_id):
     try:
         return _pending_presentation(session_id)
@@ -406,17 +601,75 @@ def get_pending_skeleton_interaction(session_id):
             status_code=409) from exc
 
 
+def _tool_presentation_metadata(pending, journal=None):
+    journal = journal or pending.launch.journal
+    matches = [event for event in journal.capture_snapshot().events
+        if event.event_type == _TOOL_PRESENTATION_EVENT and event.attempt == _attempt(pending)
+        and event.payload.get("interaction_id") == pending.request.interaction_id]
+    if not matches:
+        return None  # Older launches have no host presentation snapshot.
+    if len(matches) != 1:
+        _fail("skeleton_tool_presentation_invalid")
+    payload = _thaw_json(matches[0].payload)
+    metadata = payload.get("metadata")
+    operation = "tool-presentation." + sha256(pending.request.interaction_id.encode()).hexdigest()
+    if (set(payload) != {"schema", "interaction_id", "request_sha256", "metadata"}
+            or matches[0].event_id != "event." + operation
+            or matches[0].operation != build_operation_ref(operation, domain=_TOOL_PRESENTATION, payload=payload)
+            or payload["schema"] != _TOOL_PRESENTATION
+            or payload["request_sha256"] != strict_json_digest(pending.request.to_dict())
+            or type(metadata) is not dict or set(metadata) != _PRESENTATION_KEYS
+            or any(type(value) is not str or not value for value in metadata.values())
+            or metadata["tool_name"] != pending.request.payload["tool_name"]):
+        _fail("skeleton_tool_presentation_invalid")
+    return metadata
+
+
+def publish_skeleton_tool_presentation(pending, metadata):
+    """Retain display-only host facts under the same exact approval identity."""
+    if pending.leaf_node_type != "tool_call":
+        return
+    if (type(metadata) is not dict or set(metadata) != _PRESENTATION_KEYS
+            or any(type(value) is not str or not value for value in metadata.values())
+            or metadata["tool_name"] != pending.request.payload["tool_name"]):
+        _fail("skeleton_tool_presentation_invalid")
+    with _interaction_commit_lock(pending.launch.descriptor["session_id"]):
+        journal, projector, sink = _canonical_components(pending)
+        _publish_request_if_needed(pending, journal, projector, sink)
+        if _tool_presentation_metadata(pending, journal) is not None:
+            return
+        payload = {"schema": _TOOL_PRESENTATION, "interaction_id": pending.request.interaction_id,
+            "request_sha256": strict_json_digest(pending.request.to_dict()), "metadata": deepcopy(metadata)}
+        operation = "tool-presentation." + sha256(pending.request.interaction_id.encode()).hexdigest()
+        request = JournalAppendRequest(event_id="event." + operation, event_type=_TOOL_PRESENTATION_EVENT,
+            attempt=_attempt(pending), operation=build_operation_ref(operation, domain=_TOOL_PRESENTATION, payload=payload),
+            payload=payload)
+        journal.append_with_artifacts(request=request, artifacts=(),
+            precondition=lambda snapshot: _prove_current(pending, snapshot))
+
+
 def _pending_presentation(session_id):
-    pending = resolve_pending_skeleton_interaction(session_id)
+    try:
+        pending = resolve_pending_skeleton_interaction(session_id)
+    except DurableInteractionHostError as error:
+        if error.code != "interaction_expired":
+            raise
+        return None
     if pending is None:
         return None
     receipt = _accepted(pending)
     subject = pending.request.subject if type(pending.request.subject) is dict else {}
+    presentation = _presentation_for_request(pending.request)
+    if pending.leaf_node_type == "tool_call":
+        metadata = _tool_presentation_metadata(pending)
+        if metadata is not None:
+            presentation["tool_call"].update(metadata)
+            presentation["trace_frame"]["payload"].update(metadata)
     result = {"status": "receipt_recorded" if receipt else "awaiting_response", "session_id": session_id,
         "interaction_id": pending.request.interaction_id, "source_run_id": pending.launch.descriptor["root_run_id"],
         "active_attempt_id": pending.launch.descriptor["root_run_id"], "kind": pending.request.kind,
         "provider": subject.get("provider", ""), "model": subject.get("model", ""),
-        "presentation": _presentation_for_request(pending.request), "resume_available": True,
+        "presentation": presentation, "resume_available": True,
         "resume_kind": "skeleton", "resume_options": {},
         "interaction_source_run_id": pending.request.source_run_id,
         "interaction_session_id": pending.request.session_id}
@@ -433,7 +686,7 @@ def record_skeleton_interaction_receipt(*, session_id, interaction_id, approved,
         return None
     try:
         with _interaction_commit_lock(session_id):
-            pending = resolve_pending_skeleton_interaction(session_id)
+            pending = _pending_for_launch(launch, allow_expired=True)
             if pending is None:
                 record = launch.store.load()
                 if record is not None and record.state["status"] == "cancelled":
@@ -441,6 +694,8 @@ def record_skeleton_interaction_receipt(*, session_id, interaction_id, approved,
                 return None
             if interaction_id != pending.request.interaction_id:
                 _fail("interaction_not_found")
+            if _expire_tool_wait(pending):
+                _fail("interaction_expired", "This Tool Call approval has expired; the tool was not executed.")
             response = normalize_interaction_response(pending.request, _durable_response(request=pending.request,
                 approved=approved, reason=reason, modified_arguments=modified_arguments))
             attempt = _attempt(pending)
@@ -448,6 +703,8 @@ def record_skeleton_interaction_receipt(*, session_id, interaction_id, approved,
             _publish_request_if_needed(pending, journal, projector, sink)
             def accept(current):
                 _prove_current(pending, current)
+                if _tool_wait_expired(pending):
+                    _fail("interaction_expired", "This Tool Call approval has expired; the tool was not executed.")
                 _requested(pending, current)
                 accepted = _accepted(pending, current)
                 if accepted is not None:
@@ -460,10 +717,18 @@ def record_skeleton_interaction_receipt(*, session_id, interaction_id, approved,
             receipt = _accepted(pending)
             if receipt is None:
                 _fail("interaction_receipt_missing")
+            from durable_interaction_host import _session_execution_guard_call
+            _session_execution_guard_call("bind_session_guard_receipt", session_id=session_id,
+                interaction_id=interaction_id, source_attempt_id=pending.launch.descriptor["root_run_id"], receipt_id=receipt.receipt_id)
             return DurableInteractionReceiptResult({"status": "ok", "disposition": "receipt_recorded",
                 "session_id": session_id, "interaction_id": interaction_id, "receipt_id": receipt.receipt_id},
                 handoff=DurableInteractionReceiptHandoff.from_persisted_receipt(session_id=session_id, receipt=receipt))
-    except DurableInteractionHostError:
+    except DurableInteractionHostError as error:
+        if error.code == "interaction_expired":
+            with _interaction_commit_lock(session_id):
+                current = _pending_for_launch(launch, allow_expired=True)
+                if current is not None and current.request.interaction_id == interaction_id:
+                    _expire_tool_wait(current)
         raise
     except Exception as exc:
         raise DurableInteractionHostError("interaction_canonical_conflict", "Skeleton approval was not accepted.", status_code=409) from exc
@@ -490,7 +755,10 @@ def _cancel_execution(*, session_id, attempt_id, source_attempt_id, owner_chat_i
             and (binding is None or binding.get("source_attempt_id") != root_run)):
         _fail("skeleton_cancel_source_mismatch")
     with _interaction_commit_lock(session_id):
+        _recover_stopped_skeleton_owner(launch)
         record = launch.store.load()
+        if record is not None and record.state["status"] == "outcome_unknown":
+            _fail("outcome_unknown", "This interrupted execution has an unknown outcome. Cancellation cannot undo effects that may already have occurred.")
         if record is None or record.state["status"] in _TERMINAL - {"cancelled"}:
             return None
         pending = _pending_for_launch(launch, allow_cancelled=True)

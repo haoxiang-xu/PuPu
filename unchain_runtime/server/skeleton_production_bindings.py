@@ -325,6 +325,26 @@ class SkeletonProductionBindings:
     def tools_for_node(self, context):
         return self._tools_by_scope[self._scope(context)]
 
+    def tool_presentation(self, name):
+        """Snapshot the identity of the actual resolved Tool, not a guessed owner."""
+        self._active()
+        import unchain_adapter as host
+        tool = self._toolkit_catalog.tools.get(name)
+        owners = [toolkit for toolkit in self._instances.values()
+                  if tool is not None and toolkit.tools.get(name) is tool]
+        identities = {tuple(sorted(host._get_runtime_toolkit_metadata(owner).items())) for owner in owners}
+        if len(identities) != 1:
+            _fail("identity_conflict", ("tool", name), "The resolved tool has no unique Toolkit identity.")
+        metadata = dict(next(iter(identities)))
+        title = name
+        for row in host.get_toolkit_catalog_v2()["toolkits"]:
+            if row.get("toolkitId") == metadata["toolkit_id"]:
+                declared = [item for item in row.get("tools", ()) if item.get("name") == name]
+                if len(declared) == 1 and type(declared[0].get("title")) is str and declared[0]["title"]:
+                    title = declared[0]["title"]
+        return {"tool_name": name, "tool_display_name": title,
+                "toolkit_id": metadata["toolkit_id"], "toolkit_name": metadata["toolkit_name"]}
+
     def modules_for_node(self, context, *, allowed_tools=None, disabled_tools=()):
         sections, skills = self._metadata_by_scope[self._scope(context)]
         can_read_skill = (allowed_tools is None or "skill" in allowed_tools) and "skill" not in disabled_tools

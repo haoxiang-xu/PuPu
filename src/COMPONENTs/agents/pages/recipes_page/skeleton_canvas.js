@@ -6,8 +6,10 @@ import RecipeNodePalette from "./recipe_node_palette";
 import { ADDABLE_NODE_TYPES } from "./skeleton_graph_edits";
 import { node_toolkit_refs } from "./toolkit_pool_config";
 import { branch_ports, branch_summary, is_branch_type } from "./skeleton_branch_config";
-import { NATIVE_PALETTE_ENTRIES } from "./skeleton_node_catalog";
+import { NATIVE_PALETTE_ENTRIES, native_step_ports } from "./skeleton_node_catalog";
 import BranchNode from "./nodes/branch_node";
+import ToolCallNode from "./nodes/tool_call_node";
+import SkillReadNode from "./nodes/skill_read_node";
 import AgentNode from "./nodes/agent_node";
 import EndNode from "./nodes/end_node";
 import StartNode from "./nodes/start_node";
@@ -85,6 +87,8 @@ function renderNode(node, isDark, onOpenSubagent) {
   if (is_branch_type(node.type) && node.branch) {
     return <BranchNode node={node} rows={node.branch.rows} summary={node.branch.summary} isDark={isDark} />;
   }
+  if (node.type === "tool_call") return <ToolCallNode node={node} isDark={isDark} />;
+  if (node.type === "skill_read") return <SkillReadNode node={node} isDark={isDark} />;
   if (node.type === "start") return <StartNode isDark={isDark} />;
   if (node.type === "end") return <EndNode isDark={isDark} />;
   /* A type this build has no drawing for still has to appear: a graph that
@@ -194,7 +198,10 @@ function GraphDrawing({
              here either way, and it is still drawn by its own type.
              The catalog's own read is shared with the legacy canvas and is
              not this slice's to change. */
-          ports: branch ? branch.ports : NODE_TYPES.includes(node.type) ? ports_for_type(node.type) : [],
+          /* A deterministic step (#352) has one way in and one way out; the
+             legacy catalog has no entry for it, so its ports come from the
+             native catalog. */
+          ports: branch ? branch.ports : native_step_ports(node.type) || (NODE_TYPES.includes(node.type) ? ports_for_type(node.type) : []),
           ...(branch ? { branch: { rows: branch.rows, readable: branch.readable, summary: branch_summary(node) } } : {}),
           deletable: canEdit && node.type !== "start" && node.type !== "end",
         };

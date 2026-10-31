@@ -19,6 +19,15 @@ from durable_interaction_host import DurableInteractionHostError, interaction_re
 from test_skeleton_resource_store import agent, workflow, output, binding
 
 
+@pytest.fixture(autouse=True)
+def isolated_host_clock_and_guard(tmp_path, monkeypatch):
+    # These runner fixtures intentionally use epochs 100/1000. The host now
+    # enforces deadlines too; qualify the same instant, not today's wall time.
+    # Dedicated lifecycle tests drive real clocks and after-deadline behavior.
+    monkeypatch.setenv("UNCHAIN_DATA_DIR", str(tmp_path / "host-data"))
+    monkeypatch.setattr(_api().time, "time_ns", lambda: 1000 * 1_000_000)
+
+
 def _api():
     return importlib.import_module("skeleton_production_interactions")
 
@@ -134,6 +143,25 @@ def test_nested_workflow_call_locates_real_leaf_and_does_not_execute_it(tmp_path
     receipt = api.record_skeleton_interaction_receipt(session_id="session", interaction_id=locator.request.interaction_id, approved=False)
     assert receipt["interaction_id"] == locator.request.interaction_id
     assert api.get_pending_skeleton_interaction("session")["source_run_id"] == "root-run"
+    assert calls == []
+
+
+def test_expired_workflow_child_settles_leaf_and_parent_exactly_once(tmp_path, monkeypatch):
+    child = _tool_document("child")
+    root = workflow("root", call=("child", "revision-1"))
+    api, launch, _runner, calls = _setup(tmp_path, monkeypatch, root, [PublishedWorkflow("child", "revision-1", child)])
+    pending = api.resolve_pending_skeleton_interaction("session")
+    deadline = pending.chain[-1].request_payload["expires_at_ms"]
+    monkeypatch.setattr(api.time, "time_ns", lambda: (deadline + 1) * 1_000_000)
+    with pytest.raises(DurableInteractionHostError) as refused:
+        api.record_skeleton_interaction_receipt(session_id="session", interaction_id=pending.request.interaction_id, approved=True)
+    assert refused.value.code == "interaction_expired"
+    assert all(anchor.store.load().state["status"] == "failed" for anchor in pending.chain)
+    assert all(anchor.store.load().state["error"]["code"] == "interaction_expired" for anchor in pending.chain)
+    count = len(launch.journal.capture_snapshot().events)
+    assert api.get_pending_skeleton_interaction("session") is None
+    assert len(launch.journal.capture_snapshot().events) == count
+    assert len([event for event in launch.journal.capture_snapshot().events if event.event_type == "interaction.resolved"]) == 1
     assert calls == []
 
 
@@ -346,3 +374,68 @@ def test_kernel_cancel_retries_after_graph_commit_before_checkpoint_cancel(tmp_p
     assert api._accepted(pending, normalize=False).response == terminal.receipt.response
     assert api.get_pending_skeleton_interaction(bridge.execution_id) is None
     assert calls == []
+
+
+@pytest.mark.parametrize("nested", [False, True])
+def test_expiry_closes_actual_hook_checkpoint_without_executing(tmp_path, monkeypatch, nested):
+    from test_skeleton_agent_runtime import (_bridge, _agent_document, _document_with_hook_pool,
+        _before_hook_execution_workflow, _host_execution, _StrictOpenAIClient, _approval_tool_response)
+    from unchain.execution import ExecutionRuntime
+    from unchain.memory import JsonFileSessionStore, KernelMemoryRuntime
+
+    api = _api()
+    bridge = _bridge(tmp_path, monkeypatch, execution_id="hook-production-approval")
+    plan = prepare_agent_graph(_document_with_hook_pool(_agent_document()))
+    workflow_body = _before_hook_execution_workflow("policy-workflow")
+    leaf_body = deepcopy(workflow_body)
+    leaf_body["id"] = "nested-policy" if nested else "policy-workflow"
+    leaf_body["nodes"][1].update(type="tool_call", config={
+        "execution": {"inputs": [{"name": "value", "value": {"kind": "ref", "node_id": "start", "path": ["arguments", "value"]}, "missing": "error"}],
+            "outputs": [output(name, "result", ["result", name]) for name in ("decision", "require_approval", "arguments")]},
+        "tool": {"name": "hook_decision", "on_error": "stop", "approval_timeout_ms": 30000}})
+    if nested:
+        workflow_body["nodes"][1].update(type="workflow_call", config={
+            "workflow": {"workflow_id": "nested-policy", "revision_id": "nested-revision"},
+            "execution": deepcopy(workflow_body["nodes"][1]["config"]["execution"])})
+    else:
+        workflow_body = leaf_body
+    def resolve(workflow_id, revision_id):
+        return PublishedWorkflow(workflow_id, revision_id, deepcopy(leaf_body if workflow_id == "nested-policy" else workflow_body))
+    calls = []
+    toolkit = Toolkit()
+    @toolkit.tool(name="hook_decision", requires_confirmation=True)
+    def hook_decision(value: str):
+        calls.append(value)
+        return {"decision": "continue", "require_approval": False, "arguments": {"value": value}}
+    memory_store = JsonFileSessionStore(tmp_path / "kernel-sessions")
+    client = _StrictOpenAIClient([_approval_tool_response()])
+    with ExecutionRuntime(memory_store).scope(bridge.execution_id) as guard:
+        execution = _host_execution(plan, bridge, client=client, guard=guard,
+            memory=KernelMemoryRuntime.from_config(store=memory_store),
+            tools_for_node=lambda _context: (Tool.from_callable(lambda value: calls.append(value) or value,
+                name="dangerous_tool", requires_confirmation=False),),
+            child_handlers_factory=lambda _store, child_plan: {"tool_call": SkeletonToolRuntime(child_plan, toolkit, bridge.execution_id, lambda: 100)},
+            hook_workflow_resolver=resolve)
+        execution.create({})
+        result, _receipt = execution.run(original_task="approve Hook")
+    assert result.status == "waiting", result.error
+    launch = _install_actual_launch(api, monkeypatch, execution, bridge, resolver=resolve)
+    pending = api.resolve_pending_skeleton_interaction(bridge.execution_id)
+    assert pending.leaf_node_type == "agent"
+    assert len(pending.chain) == (3 if nested else 2)
+    assert pending.request.subject["hook_child_wait"]["interaction_request"]["interaction_id"] != pending.request.interaction_id
+    from unchain.interaction.runtime import DurableInteractionRuntime
+    from unchain.interaction import InteractionNotPendingError
+    runtime = DurableInteractionRuntime(KernelMemoryRuntime.from_config(store=memory_store))
+    monkeypatch.setattr(api, "_interaction_runtime", lambda: runtime)
+    deadline = pending.chain[-1].request_payload["expires_at_ms"]
+    monkeypatch.setattr(api.time, "time_ns", lambda: (deadline + 1) * 1_000_000)
+    with pytest.raises(DurableInteractionHostError) as expired:
+        api.record_skeleton_interaction_receipt(session_id=bridge.execution_id,
+            interaction_id=pending.request.interaction_id, approved=True)
+    assert expired.value.code == "interaction_expired"
+    assert all(anchor.store.load().state["status"] == "failed" for anchor in pending.chain)
+    with pytest.raises(InteractionNotPendingError):
+        runtime.load_active(pending.request.session_id)
+    assert api.get_pending_skeleton_interaction(bridge.execution_id) is None
+    assert calls == [] and len(client.requests) == 1

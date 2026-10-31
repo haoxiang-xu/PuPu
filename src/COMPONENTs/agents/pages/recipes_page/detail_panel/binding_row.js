@@ -53,7 +53,9 @@ function ref_from_key(key) {
   return ref_expression(node_id, name ? [name] : []);
 }
 
-function RefPicker({ value, sources, onChange, testid }) {
+/* Exported so the Tool Call panel's argument rows pick a source exactly the
+   way an input row does (#352). */
+export function RefPicker({ value, sources, onChange, testid }) {
   if (sources.length === 0) {
     return (
       <span data-testid={`${testid}-no-sources`} style={{ ...CAPTION, flex: 1 }}>
