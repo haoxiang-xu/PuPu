@@ -28,11 +28,19 @@ def _fail(code, message, status=409):
     raise DurableInteractionHostError(code, message, status_code=status, retryable=False)
 
 
-def _raise_execution_failure(result):
+def _raise_execution_failure(result, plan):
     """Keep the checked runner's failure identity, without exposing tool data."""
     failure = result.error
     code = failure["code"] if failure is not None else "skeleton_execution_" + result.status
-    error = DurableInteractionHostError(code, "Skeleton execution did not complete safely.",
+    description = "Skeleton execution"
+    path = tuple(failure["path"]) if failure is not None else ()
+    if len(path) >= 3 and path[:2] == ("execution", "nodes") and type(path[2]) is int:
+        nodes = plan.snapshot()["nodes"]
+        if 0 <= path[2] < len(nodes):
+            node = nodes[path[2]]
+            label = {"tool_call": "Tool Call", "skill_read": "Skill Read"}.get(node["type"], "Skeleton")
+            description = f"{label} node '{node['id']}'"
+    error = DurableInteractionHostError(code, f"{description} did not complete safely ({code}).",
         status_code=409, retryable=False)
     if failure is not None:
         error.path = tuple(failure["path"])
@@ -223,7 +231,7 @@ def _stream_worker(*, host, bridge, durability, bindings, plan, selection, workf
                 host._execution_control_call("mark_completed", session_id, attempt_id)
                 events.put({"type": "run_completed", "run_id": root_run_id, "status": "completed"})
             else:
-                _raise_execution_failure(result)
+                _raise_execution_failure(result, execution.store.plan)
         except BaseException as error:
             holder["error"] = error
             durable_cancelled = guard is not None and ExecutionRuntime(durability.store).load_cancellation(session_id, attempt_id) is not None

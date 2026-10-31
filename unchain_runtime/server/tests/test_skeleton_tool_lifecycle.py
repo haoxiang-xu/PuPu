@@ -249,6 +249,8 @@ def test_real_failed_tool_reaches_v4_error_terminal_with_typed_identity(producti
     frames = _frames(response.get_data(as_text=True))
     done = frames[-1][1]
     assert frames[-1][0] == "done" and done["error"]["code"] == "tool_failed"
+    assert "Tool Call node 'step'" in done["error"]["message"]
+    assert "(tool_failed)" in done["error"]["message"]
     assert done["cancelled"] is False and calls == []
     assert "not-here.txt" not in done["error"]["message"]
     assert not [value for event, value in frames if event == "runtime_event" and value["type"] in {"final_message", "run.completed"}]

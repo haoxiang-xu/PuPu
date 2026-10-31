@@ -165,17 +165,27 @@ def test_page_tool_result_and_continue_branch_use_the_real_core_read(setup, tmp_
     assert outlet["source_port_id"] == ("true" if exists else "false")
 
 
-def test_page_write_waits_for_existing_approval_then_executes_once(setup, tmp_path):
+def test_page_write_waits_for_existing_approval_then_executes_once(setup, tmp_path, monkeypatch):
+    from functools import wraps
+    from unchain.toolkits.builtin.core.core import CoreToolkit
+    real_write = CoreToolkit.write
+    effects = []
+    @wraps(real_write)
+    def counted_write(self, *args, **kwargs):
+        effects.append(deepcopy(kwargs))
+        return real_write(self, *args, **kwargs)
+    monkeypatch.setattr(CoreToolkit, "write", counted_write)
     _document, options, calls = _save(setup, tmp_path, "tool-write-page")
     file = tmp_path / "approved.txt"
     assert not any(e.get("scope") == "root" and e.get("type") == "final_message" for e in _start(options, str(file)))
     pending = interactions.get_pending_interaction("page-session")
-    assert pending["status"] == "awaiting_response" and calls == [] and not file.exists()
+    assert pending["status"] == "awaiting_response" and calls == [] and effects == [] and not file.exists()
     interaction_id = pending["interaction_id"]
     interactions.record_interaction_receipt(session_id="page-session", interaction_id=interaction_id, approved=True)
     list(adapter.resume_chat_interaction_events(session_id="page-session", interaction_id=interaction_id,
          source_attempt_id="page-root", attempt_id="page-resume", options=options))
     assert file.read_text() == "written by the builder"
+    assert effects == [{"path": str(file), "content": "written by the builder"}]
     assert _state().load().state["status"] == "completed" and len(calls) == 1
 
 

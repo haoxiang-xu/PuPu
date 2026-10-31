@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
 import Select from "../../../../../BUILTIN_COMPONENTs/select/select";
-import SegmentedControl from "../../../../toolkit/components/segmented_control";
+import SegmentedButton from "../../../../../BUILTIN_COMPONENTs/input/segmented_button";
 import { api } from "../../../../../SERVICEs/api";
 import { subscribeToolkitCatalogRefresh } from "../../../../../SERVICEs/toolkit_catalog_refresh";
 import { RefPicker } from "./binding_row";
@@ -139,16 +139,16 @@ function ArgumentRow({ row, sources, toolName, editable, onSet, isDark }) {
       <div style={{ ...ROW, justifyContent: "space-between" }}>
         <span style={{ ...MONO, fontSize: 11 }}>
           {row.name}
-          {row.required && <span aria-label="required" style={{ color: "#d23f37", marginLeft: 3 }}>*</span>}
+          {row.required && <span aria-label="required" style={{ color: problem_style(isDark).color, marginLeft: 3 }}>*</span>}
         </span>
         <span data-testid={`${testid}-mode`} style={{ opacity: editable ? 1 : 0.5, pointerEvents: editable ? "auto" : "none" }}>
-          <SegmentedControl
-            size="compact"
-            isDark={isDark}
-            buttonFontWeight={500}
-            sections={[{ key: "value", label: "Value" }, { key: "variable", label: "Variable" }]}
-            selected={mode}
-            onChange={setMode}
+          <SegmentedButton
+            options={[{ value: "value", label: "Value" }, { value: "variable", label: "Variable" }]}
+            value={mode}
+            on_change={setMode}
+            disabled={!editable}
+            style={{ fontSize: 11.5, padding: 2, borderRadius: 8 }}
+            button_style={{ height: 22, padding: "0 9px", fontWeight: 500 }}
           />
         </span>
       </div>
@@ -414,13 +414,13 @@ export default function ToolCallSection({ document, node, isDark, onChange }) {
       <div data-testid="tool-call-on-error" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         <span style={LABEL}>On error</span>
         <span style={{ opacity: editable && name ? 1 : 0.5, pointerEvents: editable && name ? "auto" : "none" }}>
-          <SegmentedControl
-            size="compact"
-            isDark={isDark}
-            buttonFontWeight={500}
-            sections={ON_ERROR_CHOICES.map((choice) => ({ key: choice.value, label: choice.label }))}
-            selected={tool && tool.on_error}
-            onChange={(value) => setTool({ ...(tool || {}), on_error: value })}
+          <SegmentedButton
+            options={ON_ERROR_CHOICES}
+            value={tool?.on_error ?? null}
+            on_change={(value) => setTool({ ...(tool || {}), on_error: value })}
+            disabled={!editable || !name}
+            style={{ fontSize: 11.5, padding: 2, borderRadius: 8 }}
+            button_style={{ height: 22, padding: "0 9px", fontWeight: 500 }}
           />
         </span>
         {/* The runtime's own rule, measured (steps-352/qualify-a1/measure-results):
