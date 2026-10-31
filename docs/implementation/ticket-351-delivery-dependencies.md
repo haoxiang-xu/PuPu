@@ -202,3 +202,50 @@ remaining nine passed in an explicit second invocation. The stopped invocation
 is not a full-suite PASS. Source hashes match between both runs. The eight
 workflow files pass 28 offline controls, including the actual Playwright
 dependency-resolution shell and its failing-pip-check negative control.
+
+## BC-351-D04 / SEQ-351-D02 — completed root and curator audit
+
+Producer: the unchanged real Host `complete_pupu_skeleton_root` and its memory
+completion recorder. Consumer: Core's read-only Skeleton quiescence classifier
+used by generation rebase. The producer emits End, final, terminal, one
+content-free `pupu.memory_curator_completion.v1` decision, then acknowledgement.
+The Core fixture had omitted this audit, so its exact three-event root seal
+rejected the genuine producer with `graph_root_seal` in complete CI.
+
+Admission stays CLOSED: at most one audit, strictly between terminal and root
+acknowledgement, with the existing exact v1 keys, event/status/worker mapping,
+same root identity, no resources, canonical operation and paired audit ids.
+Unknown fields, other events, duplicate decisions, wrong identity, malformed
+values, or an audit after acknowledgement remain refused. Audit omission remains
+valid for standalone/legacy producers; no new endpoint or manifest is added.
+Rebase validates all graph, artifact, native terminal and acknowledgement evidence
+before treating the root as quiescent; no work or receipt is synthesized.
+
+AC-351-D05: red/green using the real Host completion producer and one installed
+wheel; all four audit dispositions; malformed/duplicate/reordered negative
+controls; repeat/cold completion and genuine completed-generation rebase. The
+same newly built wheel must be reused by Host and App CI consumers. Earlier
+wheel/source results are retained as a separate failed cohort.
+
+Identity is execution/generation/root attempt. Sequence: End completed → native
+final → native terminal → memory enqueue audit → root acknowledgement → history
+edit. Repeated completion must not append an extra audit. Existing replay and
+cold-recovery tests remain required. Waiting and open work still block rebase;
+legacy graph/no-model/ordinary completion controls must keep their behavior.
+
+The final Core correction is PR #68 source
+`5c64edd1f78a105bb8141427b02d9cfc1b1e0764`. Its targeted source suite passes
+57 tests. The real Host producer caught a second mismatch in the first patch:
+its operation binds the full SemanticEventDraft envelope, not just the payload.
+The final validator uses that exact operation construction; the negative control
+for the wrong signature is red before the correction. No consumer signature
+check was removed. The new retained local wheel is
+`70d4cde8add06033654766637af70ee15a04ea831486f12a08c328d4e368f15b`
+(1353144 bytes, all 377 modules equal this source). The actual Host completion,
+repeat/cold recovery, ordinary graph controls and condition tests pass 29 cases;
+the remaining cold-source case passes in a separate run with the Host module
+path and installed runtime location exported to its subprocess. The first
+runner omitted the Host path; the second correctly rejected a fallback import
+from the sibling checkout rather than counting it as installed-pair evidence.
+All final imports are inside the installed wheel. Complete hosted CI and real App
+qualification remain required; these local checks do not launch the desktop.
