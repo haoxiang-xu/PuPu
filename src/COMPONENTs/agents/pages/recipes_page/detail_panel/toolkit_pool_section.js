@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
+import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
 import { api } from "../../../../../SERVICEs/api";
 import { subscribeToolkitCatalogRefresh } from "../../../../../SERVICEs/toolkit_catalog_refresh";
 import { safe_text } from "../document_values";
@@ -50,6 +51,7 @@ function ToolkitRow({ entry, info, currentInfo, index, editable, isDark, onSet, 
 /* Native data only. Library refresh never edits a stored restriction; null,
    an empty list and a nonempty list remain different author choices. */
 export default function ToolkitPoolSection({ document, node, onChange, isDark }) {
+  const problemStyle = { ...PROBLEM, color: isDark ? "rgba(255,140,140,0.95)" : "rgba(176,32,32,0.95)" };
   const config = node.config;
   const legacy = record(config) && own(config, "legacy_fields");
   const [library, setLibrary] = useState({ status: "loading", rows: [] });
@@ -76,7 +78,7 @@ export default function ToolkitPoolSection({ document, node, onChange, isDark })
   const byId = useMemo(() => new Map(library.rows.map((item) => [item.toolkitId, item])), [library.rows]);
 
   if (legacy) return <div data-testid="native-toolkit-legacy" style={NOTE}>Legacy tool settings are kept as stored. This panel does not convert them. Remove this pool and add a new Toolkit Pool if you want to replace its tool settings.</div>;
-  if (!record(config)) return <div style={PROBLEM}>This pool has no readable tool configuration.</div>;
+  if (!record(config)) return <div style={problemStyle}>This pool has no readable tool configuration.</div>;
   const unique = Array.isArray(document.nodes) && document.nodes.filter((candidate) => record(candidate) && candidate.id === node.id).length === 1;
   const editable = unique && document.kind === "agent" && document.schema_version === 1 && typeof onChange === "function";
   const entries = Array.isArray(config.toolkits) ? config.toolkits : [];
@@ -94,15 +96,15 @@ export default function ToolkitPoolSection({ document, node, onChange, isDark })
   return <section data-testid="native-toolkit-section" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
     <strong style={{ ...NOTE, textTransform: "uppercase", letterSpacing: 0.4 }}>Tools</strong>
     <div style={NOTE}>Attach this pool to an Agent node to give it these tools. Availability, workspace access and model support are checked when the Agent runs.</div>
-    {!editable && <div style={PROBLEM}>{!unique ? "Duplicate node ids prevent editing this pool." : "Toolkit Pools belong to Agent graphs. These stored settings are read-only here."}</div>}
-    {toolkit_pool_problems(config).map((message, index) => <div key={index} style={PROBLEM}>{message}</div>)}
+    {!editable && <div style={problemStyle}>{!unique ? "Duplicate node ids prevent editing this pool." : "Toolkit Pools belong to Agent graphs. These stored settings are read-only here."}</div>}
+    {toolkit_pool_problems(config).map((message, index) => <div key={index} style={problemStyle}>{message}</div>)}
     <label style={ROW}>
       <input type="checkbox" aria-label="Include chat-selected toolkits" checked={config.merge_with_user_selected === true} disabled={!editable} onChange={(event) => commit({ ...config, merge_with_user_selected: event.target.checked })} />
       <span style={NOTE}>Include chat-selected toolkits</span>
     </label>
     <div style={NOTE}>Explicit entries keep their restrictions. This option can add other toolkits selected for the chat.</div>
-    {typeof config.merge_with_user_selected !== "boolean" && <div style={PROBLEM}>Stored value: {safe_text(config.merge_with_user_selected)}. Choose on or off to replace it.</div>}
-    {extra.map((key) => <div key={key} style={ROW}><span style={PROBLEM}>Unsupported setting: {key}</span><Button label="Remove setting" ariaLabel={`Remove setting ${key}`} disabled={!editable} onClick={() => { const next = { ...config }; delete next[key]; commit(next); }} /></div>)}
+    {typeof config.merge_with_user_selected !== "boolean" && <div style={problemStyle}>Stored value: {safe_text(config.merge_with_user_selected)}. Choose on or off to replace it.</div>}
+    {extra.map((key) => <div key={key} style={ROW}><span style={problemStyle}>Unsupported setting: {key}</span><Button label="Remove setting" ariaLabel={`Remove setting ${key}`} disabled={!editable} onClick={() => { const next = { ...config }; delete next[key]; commit(next); }} /></div>)}
     {!Array.isArray(config.toolkits) ? <Button label="Replace invalid toolkit list with an empty list" disabled={!editable} onClick={() => setEntries([])} /> : entries.length === 0 && <div style={NOTE}>No toolkits configured here.</div>}
     {entries.map((entry, index) => {
       const info = record(entry) && typeof entry.id === "string" ? byId.get(entry.id) : null;
@@ -110,11 +112,14 @@ export default function ToolkitPoolSection({ document, node, onChange, isDark })
         onSet={(patch) => setEntry(index, patch)} onRemove={() => setEntries(entries.filter((_, at) => at !== index))} />;
     })}
     {library.status === "loading" && <div style={NOTE}>Reading the tool library…</div>}
-    {library.status === "error" && <div data-testid="native-toolkit-library-error" style={PROBLEM}>Could not read the tool library. Stored tool settings are kept.</div>}
+    {library.status === "error" && <div data-testid="native-toolkit-library-error" style={problemStyle}>Could not read the tool library. Stored tool settings are kept.</div>}
     {library.status !== "loading" && <Button label="Read tool library again" onClick={readLibrary} />}
     {library.status === "ready" && <div data-testid="native-toolkit-library-ready" style={{ display: "flex", flexDirection: "column", gap: 7 }}>
       {library.rows.length === 0 ? <span style={NOTE}>No toolkits are listed in this library.</span> : <>
-        <input aria-label="Search toolkits" placeholder="Search toolkits" value={search} onChange={(event) => setSearch(event.target.value)} style={{ background: "transparent", color: "inherit", border: "1px solid #8885", borderRadius: 6, padding: 6 }} />
+        <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <span style={NOTE}>Search toolkits</span>
+          <Input placeholder="Search toolkits" value={search} set_value={setSearch} style={{ width: "100%", fontSize: 11, borderRadius: 6 }} />
+        </label>
         {choices.map((item) => <Button key={item.toolkitId} label={`Add ${item.toolkitName || item.toolkitId}`} disabled={!editable || !Array.isArray(config.toolkits)} onClick={() => setEntries([...entries, { id: item.toolkitId, enabled_tools: null }])} />)}
         {choices.length === 0 && <span style={NOTE}>No additional toolkit matches.</span>}
       </>}
