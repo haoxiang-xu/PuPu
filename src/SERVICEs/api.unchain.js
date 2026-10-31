@@ -2703,6 +2703,75 @@ export const createUnchainApi = () => {
       return { profiles: response.profiles, unavailable: response.unavailable };
     },
 
+    /* #352: one builtin toolkit's own tool schemas, for the Tool Call panel.
+       CLOSED at every level, the way the kernel profile list is: a partial or
+       renamed answer would become argument rows that are not the tool's, so it
+       is a protocol error here rather than a shorter list. */
+    listSkeletonToolSchemas: async (toolkitId) => {
+      const method = assertBridgeMethod("unchainAPI", "listSkeletonToolSchemas");
+      const response = await withTimeout(() => invokeSkeletonBridge(() => method(toolkitId)), 15000,
+        "skeleton_tool_schemas_timeout", "Tool schema read timed out");
+      const exact = (value, keys) => isObject(value) && !Array.isArray(value) &&
+        Object.keys(value).length === keys.length && keys.every((key) => Object.prototype.hasOwnProperty.call(value, key));
+      const names = new Set();
+      const shaped = exact(response, ["schema", "toolkit_id", "tools"]) &&
+        response.schema === "pupu.skeleton_tool_schemas.v1" &&
+        response.toolkit_id === toolkitId &&
+        Array.isArray(response.tools) &&
+        response.tools.every((entry) => {
+          const ok = exact(entry, ["name", "description", "parameters"]) &&
+            typeof entry.name === "string" && entry.name !== "" && !names.has(entry.name) &&
+            typeof entry.description === "string" &&
+            isObject(entry.parameters) && !Array.isArray(entry.parameters);
+          if (ok) names.add(entry.name);
+          return ok;
+        });
+      if (!shaped) {
+        throw new FrontendApiError(
+          "skeleton_tool_schemas_malformed",
+          "Tool schema read was not the agreed shape",
+        );
+      }
+      return { toolkit_id: response.toolkit_id, tools: response.tools };
+    },
+
+    /* #352 (BC-352-2): the body a Skill Read node naming this exact identity
+       would read — the runtime's own read, so the panel can show it as such.
+       CLOSED; an identity that is not three non-empty texts is not sent. */
+    previewSkeletonSkill: async (identity, includeUserDirs) => {
+      const keys = ["source", "source_id", "name"];
+      const skill = isObject(identity) && !Array.isArray(identity) &&
+        keys.every((key) => typeof identity[key] === "string" && identity[key] !== "")
+        ? Object.fromEntries(keys.map((key) => [key, identity[key]]))
+        : null;
+      if (!skill || typeof includeUserDirs !== "boolean") {
+        throw new FrontendApiError("skeleton_skill_preview_invalid", "A skill preview needs an exact skill identity");
+      }
+      const method = assertBridgeMethod("unchainAPI", "previewSkeletonSkill");
+      const response = await withTimeout(() => invokeSkeletonBridge(() => method(skill, includeUserDirs)), 15000,
+        "skeleton_skill_preview_timeout", "Skill preview timed out");
+      const utf8Length = (text) => {
+        let total = 0;
+        for (const char of text) {
+          const point = char.codePointAt(0);
+          total += point < 0x80 ? 1 : point < 0x800 ? 2 : point < 0x10000 ? 3 : 4;
+        }
+        return total;
+      };
+      const exact = (value, names) => isObject(value) && !Array.isArray(value) &&
+        Object.keys(value).length === names.length && names.every((key) => Object.prototype.hasOwnProperty.call(value, key));
+      const shaped = exact(response, ["schema", "identity", "body", "revision", "bytes"]) &&
+        response.schema === "pupu.skeleton_skill_preview.v1" &&
+        exact(response.identity, keys) && keys.every((key) => response.identity[key] === skill[key]) &&
+        typeof response.body === "string" &&
+        typeof response.revision === "string" && response.revision !== "" &&
+        Number.isSafeInteger(response.bytes) && response.bytes === utf8Length(response.body);
+      if (!shaped) {
+        throw new FrontendApiError("skeleton_skill_preview_malformed", "Skill preview was not the agreed shape");
+      }
+      return { identity: skill, body: response.body, revision: response.revision, bytes: response.bytes };
+    },
+
     listSkeletonPythonProfiles: async () => {
       const method = assertBridgeMethod("unchainAPI", "listSkeletonPythonProfiles");
       const response = await withTimeout(() => invokeSkeletonBridge(() => method()), 15000,

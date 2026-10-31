@@ -4137,10 +4137,8 @@ def record_interaction_receipt(
     skeleton = record_skeleton_interaction_receipt(session_id=session_id, interaction_id=interaction_id,
         approved=approved, reason=reason, modified_arguments=modified_arguments, submitted_by=submitted_by)
     if skeleton is not None:
-        from skeleton_production_interactions import get_pending_skeleton_interaction
-        pending = get_pending_skeleton_interaction(session_id)
-        _session_execution_guard_call("bind_session_guard_receipt", session_id=session_id,
-            interaction_id=interaction_id, source_attempt_id=pending["source_run_id"], receipt_id=skeleton["receipt_id"])
+        # The Skeleton command binds its exact root under its receipt lock.
+        # Re-reading pending here can itself expire that just-admitted wait.
         return skeleton
     normalized_session_id = str(session_id or "").strip()
     normalized_interaction_id = str(interaction_id or "").strip()

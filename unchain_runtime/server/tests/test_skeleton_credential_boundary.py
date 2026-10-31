@@ -128,10 +128,13 @@ def test_stale_scope_is_refused_before_start_registers_any_effect(boundary, monk
     assert refused.value.code == "skeleton_credential_scope_stale"
 
 
-def test_current_start_scope_reaches_registration_without_composer_model(boundary, monkeypatch):
+def test_current_start_scope_reaches_registration_without_composer_model(boundary, monkeypatch, tmp_path):
     from skeleton_chat_selection import prepare_skeleton_chat_selection
     from skeleton_workflow_snapshot import freeze_skeleton_workflow_dependencies
     import skeleton_production_chat as chat
+    # Start now checks for a stopped predecessor before registration. Give
+    # that real read a disposable data root; no prior launch exists here.
+    monkeypatch.setenv("UNCHAIN_DATA_DIR", str(tmp_path / "execution-data"))
     client, headers, store = boundary
     scope = client.post("/skeleton_credentials/requirements", headers=headers, json=query()).get_json()["scope"]
     options = {"skeleton_selection": query()["selection"], "skeleton_credential_scope": scope,

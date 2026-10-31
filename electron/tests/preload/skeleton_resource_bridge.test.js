@@ -86,6 +86,8 @@ describe("Skeleton resource preload bridge", () => {
     const ipcRenderer = { invoke: jest.fn(() => Promise.resolve({ schema: "pupu.skeleton-resource-response.v1", ok: true, data: { ok: true } })) };
     const bridge = createMisoBridge(ipcRenderer, {});
     await bridge.listSkeletonKernelProfiles();
+    await bridge.listSkeletonToolSchemas("core");
+    await bridge.previewSkeletonSkill({ source: "user-unchain", source_id: "/s/SKILL.md", name: "notes" }, false);
     await bridge.listSkeletonPythonProfiles();
     await bridge.saveSkeletonPythonProfile({
       profile_id: "project", executable: "/venv/bin/python",
@@ -94,6 +96,11 @@ describe("Skeleton resource preload bridge", () => {
     await bridge.deleteSkeletonPythonProfile("project", "edit-1");
     expect(ipcRenderer.invoke.mock.calls.map((call) => call[1])).toEqual([
       { action: "kernel_profiles", payload: {} },
+      { action: "tool_schemas", payload: { toolkit_id: "core" } },
+      {
+        action: "skill_preview",
+        payload: { skill: { source: "user-unchain", source_id: "/s/SKILL.md", name: "notes" }, include_user_dirs: false },
+      },
       { action: "list_profiles", payload: {} },
       {
         action: "save_profile",

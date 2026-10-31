@@ -51,7 +51,7 @@ const ifGraph = () => {
 };
 
 test("the branch types are addable alongside the native types that already had editors", () => {
-  expect([...ADDABLE_NODE_TYPES]).toEqual(["toolkit_pool", "agent", "subagent_pool", "if_else", "switch_case"]);
+  expect([...ADDABLE_NODE_TYPES]).toEqual(["toolkit_pool", "agent", "subagent_pool", "if_else", "switch_case", "tool_call", "skill_read"]);
 });
 
 test("new branch nodes carry exactly the measured unfinished seeds and nothing invented", () => {

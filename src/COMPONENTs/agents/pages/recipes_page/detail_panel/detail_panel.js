@@ -14,6 +14,8 @@ import OutputSchemaSection from "./output_schema_section";
 import SubagentPoolSection from "./subagent_pool_section";
 import ToolkitPoolSection from "./toolkit_pool_section";
 import BranchSection from "./branch_section";
+import ToolCallSection from "./tool_call_section";
+import SkillReadSection from "./skill_read_section";
 import { branch_summary, is_branch_type } from "../skeleton_branch_config";
 import { node_toolkit_refs } from "../toolkit_pool_config";
 import OutputVariablesSection from "./output_variables_section";
@@ -158,11 +160,16 @@ export default function DetailPanel({
      drawn, and they are then reported nowhere at all. The legacy Start and End
      panels read the old `node.outputs` / `outputs_schema` rather than Skeleton
      mappings, and they are not what these counts describe. */
+  /* A Tool Call's or a Skill Read's inputs are not drawn as Input Variables
+     rows — their own sections take that place and carry no row diagnostics —
+     so none is counted, and a store diagnostic about one of them lands in the
+     node notice instead of on a row nobody draws (R-352-04). */
+  const input_rows_drawn = skeleton_node && !["tool_call", "skill_read"].includes(skeleton_node.type);
   const routed = skeleton_node
     ? route_diagnostics(diagnostics, document, {
         node_id: skeleton_node.id,
         row_counts: {
-          inputs: node_bindings(skeleton_node).length,
+          inputs: input_rows_drawn ? node_bindings(skeleton_node).length : 0,
           outputs: node_output_mappings(skeleton_node).length,
         },
       })
@@ -286,13 +293,26 @@ export default function DetailPanel({
                 embedded={embedded}
               />
             )}
-            <InputVariablesSection
-              document={document}
-              node={skeleton_node}
-              rowDiagnostics={routed.rows.inputs}
-              isDark={isDark}
-              onChange={onDocumentChange}
-            />
+            {/* A Tool Call's inputs are its tool's arguments, one per property
+                of the tool's own schema, so its section takes the place of
+                Input Variables rather than sitting beside it (#352). */}
+            {skeleton_node.type === "tool_call" ? (
+              <ToolCallSection key={JSON.stringify([document.id, skeleton_node.id, documentRevision])}
+                document={document} node={skeleton_node} isDark={isDark} onChange={onDocumentChange} />
+            ) : skeleton_node.type === "skill_read" ? (
+              /* A Skill Read takes no inputs; its section says so and holds
+                 the skill picker and the runtime-read preview instead. */
+              <SkillReadSection key={JSON.stringify([document.id, skeleton_node.id, documentRevision])}
+                document={document} node={skeleton_node} isDark={isDark} onChange={onDocumentChange} />
+            ) : (
+              <InputVariablesSection
+                document={document}
+                node={skeleton_node}
+                rowDiagnostics={routed.rows.inputs}
+                isDark={isDark}
+                onChange={onDocumentChange}
+              />
+            )}
             {/* A branch decides where the flow goes from what it was given, so
                 its condition or switch sits right under the inputs it reads.
                 It exports nothing: the outputs section renders nothing for it. */}

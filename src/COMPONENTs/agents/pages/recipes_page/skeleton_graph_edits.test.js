@@ -328,7 +328,7 @@ describe("add_node", () => {
   test("offers exactly the native types with business editors", () => {
     /* #351 adds If / Else and Switch / Case together with their editors
        (branch_section.js); the list stays exact. */
-    expect([...ADDABLE_NODE_TYPES]).toEqual(["toolkit_pool", "agent", "subagent_pool", "if_else", "switch_case"]);
+    expect([...ADDABLE_NODE_TYPES]).toEqual(["toolkit_pool", "agent", "subagent_pool", "if_else", "switch_case", "tool_call", "skill_read"]);
     expect(Object.isFrozen(ADDABLE_NODE_TYPES)).toBe(true);
   });
 

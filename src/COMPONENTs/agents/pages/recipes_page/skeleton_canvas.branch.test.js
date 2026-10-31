@@ -33,7 +33,10 @@ test("the palette offers both branch steps beside the existing native types, and
   fireEvent.click(screen.getByRole("button", { name: "Add node" }));
   expect(screen.getByTestId("palette-entry-if_else")).toHaveTextContent("If / Else");
   expect(screen.getByTestId("palette-entry-switch_case")).toHaveTextContent("Switch / Case");
-  ["code", "tool_call", "skill_read", "workflow_call", "hooks_pool"].forEach((type) =>
+  /* Tool Call and Skill Read became addable with #352; the rest are still not the core's to add. */
+  expect(screen.getByTestId("palette-entry-tool_call")).toHaveTextContent("Tool call");
+  expect(screen.getByTestId("palette-entry-skill_read")).toHaveTextContent("Skill read");
+  ["code", "workflow_call", "hooks_pool"].forEach((type) =>
     expect(screen.queryByTestId(`palette-entry-${type}`)).not.toBeInTheDocument());
   fireEvent.click(screen.getByTestId("palette-entry-if_else"));
   expect(current.nodes.at(-1)).toStrictEqual({ id: "if", type: "if_else", config: { execution: { inputs: [] } } });
