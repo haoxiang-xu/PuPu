@@ -327,6 +327,17 @@ def test_real_skeleton_end_delivery_uses_postprocessed_message_and_acknowledges_
         receipt.terminal_cursor.store_seq,
         receipt.terminal_cursor.event_id,
     )
+    # The actual Host adds its content-free curator decision before the root
+    # acknowledgement. History editing must accept this producer's seal, not
+    # only Core's smaller final/terminal/acknowledgement test fixture.
+    from unchain.skeleton.rebase_quiescence import classify_skeleton_attempts
+
+    events = bundle.journal.capture_snapshot().events
+    audits = [event for event in events if event.event_type.startswith("memory.curator.")]
+    assert len(audits) == 1
+    assert root_events[1].store_seq < audits[0].store_seq < events[-1].store_seq
+    assert classify_skeleton_attempts(events, bundle.journal)[bundle.attempt.attempt_id] == "quiescent"
+    assert bundle.journal.capture_snapshot().events == events
 
 
 def test_repeat_and_cold_recovery_replay_one_root_delivery(tmp_path, monkeypatch) -> None:
