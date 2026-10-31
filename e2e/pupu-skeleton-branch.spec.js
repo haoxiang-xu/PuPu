@@ -17,7 +17,9 @@ const enterApp = async (page) => {
 
 const openAgents = async (page) => {
   const sidebar = page.getByRole("button", { name: "Open sidebar", exact: true });
-  if (await sidebar.isVisible()) await sidebar.click();
+  // Match the release probe: Electron's draggable title bar can intercept the
+  // sidebar toggle. Branch fields, Save and navigation below use pointer input.
+  if (await sidebar.isVisible()) await sidebar.dispatchEvent("click");
   await page.getByRole("button", { name: "Agents", exact: true }).click();
   await expect(page.getByTestId("skeleton-resource-list")).toBeVisible();
 };
