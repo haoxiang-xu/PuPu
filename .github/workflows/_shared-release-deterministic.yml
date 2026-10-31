@@ -122,7 +122,7 @@ jobs:
         run: |
           python -m pip install --force-reinstall --no-deps \
             "${{ steps.unchain_artifact.outputs.artifact_path }}"
-          python -m pip install --constraint unchain_runtime/server/requirements.txt \
+          python -m pip install --disable-pip-version-check --retries 5 --timeout 60 --constraint unchain_runtime/server/requirements.txt \
             "${{ steps.unchain_artifact.outputs.artifact_path }}"
           python -m pip check
           node scripts/release-qa/verify-unchain-artifact.mjs \
