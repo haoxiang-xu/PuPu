@@ -223,10 +223,14 @@ def test_page_skill_snapshot_survives_wait_and_new_run_rereads(setup, tmp_path):
          source_attempt_id="page-root", attempt_id="page-resume", options=options))
     assert len(calls) == 1 and "SNAPSHOT-V1" in json.dumps(calls[0]["input"])
     assert "SNAPSHOT-V2" not in json.dumps(calls[0]["input"])
-    _start(options, str(tmp_path / "second.txt"), session="second-session", attempt="second-root")
+    # A chat admission is sticky to its first session. This independent run
+    # uses a new chat owner as well as a new session, not a mismatched binding.
+    second_options = deepcopy(options)
+    second_options["_memory_v2_owner_chat_id"] = "qa-352-owner-second"
+    _start(second_options, str(tmp_path / "second.txt"), session="second-session", attempt="second-root")
     pending = interactions.get_pending_interaction("second-session")
     interactions.record_interaction_receipt(session_id="second-session", interaction_id=pending["interaction_id"], approved=True)
     list(adapter.resume_chat_interaction_events(session_id="second-session", interaction_id=pending["interaction_id"],
-         source_attempt_id="second-root", attempt_id="second-resume", options=options))
+         source_attempt_id="second-root", attempt_id="second-resume", options=second_options))
     assert len(calls) == 2 and "SNAPSHOT-V2" in json.dumps(calls[1]["input"])
     assert "SNAPSHOT-V1" not in json.dumps(calls[1]["input"])
