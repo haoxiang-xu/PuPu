@@ -8,12 +8,23 @@ from pathlib import Path
 
 import pytest
 import socket
+import time
 
 import durable_interaction_host as interactions
 import unchain_adapter as adapter
 from skeleton_production_state import load_launch
 from test_skeleton_production_chat import production  # noqa: F401
 from test_skeleton_resource_store import agent
+
+
+@pytest.fixture(autouse=True)
+def approval_wall_clock(monkeypatch):
+    # Establish the shared producer/host clock before setup can consume a
+    # one-second approval. Individual cases advance it to their exact boundary.
+    # Leave monotonic time and the real process-identity checks untouched.
+    now_ns = time.time_ns()
+    monkeypatch.setattr(time, "time_ns", lambda: now_ns)
+    monkeypatch.setattr(time, "time", lambda: now_ns / 1_000_000_000)
 
 
 @pytest.fixture(autouse=True)
