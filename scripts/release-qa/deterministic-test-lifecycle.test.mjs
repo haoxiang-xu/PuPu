@@ -14,8 +14,8 @@ const job = workflow.jobs.deterministic;
 const steps = job.steps;
 
 test("deterministic tests stop well before the job limit and retain diagnostics", () => {
-  assert.equal(job["timeout-minutes"], 45);
-  for (const [id, limit] of [["frontend", 10], ["electron", 5], ["python", 35]]) {
+  assert.equal(job["timeout-minutes"], 65);
+  for (const [id, limit] of [["frontend", 10], ["electron", 5], ["python", 50]]) {
     const step = steps.find((entry) => entry.id === id);
     assert.equal(step["timeout-minutes"], limit);
     assert.equal(step["continue-on-error"], true);
