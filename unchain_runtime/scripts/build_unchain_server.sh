@@ -183,7 +183,10 @@ if [[ "${UNCHAIN_BUILD_SKIP_INSTALL:-0}" != "1" ]]; then
     -r "$ROOT_DIR/unchain_runtime/server/requirements.txt" \
     "pyinstaller==$PYINSTALLER_VERSION"
   "$VENV_PIP" install --force-reinstall --no-deps "$UNCHAIN_ARTIFACT_PATH"
+  "$VENV_PIP" install --constraint "$ROOT_DIR/unchain_runtime/server/requirements.txt" "$UNCHAIN_ARTIFACT_PATH"
 fi
+
+"$VENV_PY" -m pip check
 
 PYTHONPATH= node "$ROOT_DIR/scripts/release-qa/verify-unchain-artifact.mjs" \
   --artifact "$UNCHAIN_ARTIFACT_PATH" \

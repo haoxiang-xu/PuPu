@@ -1,10 +1,64 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 import test from "node:test";
 import YAML from "yaml";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
+
+for (const dependencyExit of [0, 29]) {
+  test(`artifact verification follows a successful dependency check only (${dependencyExit})`, (t) => {
+    const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "pupu-dependency-gate-"));
+    t.after(() => fs.rmSync(temporary, { recursive: true, force: true }));
+    const bin = path.join(temporary, "bin");
+    fs.mkdirSync(bin);
+    const trace = path.join(temporary, "trace.log");
+    const artifact = path.join(temporary, "candidate.whl");
+    const evidence = path.join(temporary, "evidence.json");
+    fs.writeFileSync(artifact, "fixture wheel");
+    fs.writeFileSync(evidence, "{}");
+    // Exercise the real workflow shell; only its executables are substituted.
+    fs.writeFileSync(path.join(bin, "python"),
+      '#!/bin/sh\nprintf "python:%s\\n" "$*" >> "$QA_TRACE_PATH"\n' +
+      'if [ "$*" = "-m pip check" ]; then exit "$QA_DEPENDENCY_EXIT"; fi\n' +
+      'if [ "$1" = "-I" ]; then printf "UNCHAIN_SOURCE_PATH=fixture-site\\n"; fi\nexit 0\n',
+      { mode: 0o755 });
+    fs.writeFileSync(path.join(bin, "node"),
+      '#!/bin/sh\nprintf "verify:%s\\n" "$*" >> "$QA_TRACE_PATH"\nexit 0\n',
+      { mode: 0o755 });
+    const workflow = YAML.parse(fs.readFileSync(
+      path.join(ROOT, ".github/workflows/_shared-release-deterministic.yml"), "utf8",
+    ));
+    const step = workflow.jobs.deterministic.steps.find((entry) => entry.id === "artifact_verify");
+    const script = step.run
+      .replaceAll("${{ steps.unchain_artifact.outputs.artifact_path }}", artifact)
+      .replaceAll("${{ steps.unchain_artifact.outputs.evidence_path }}", evidence);
+    const result = spawnSync("bash", ["--noprofile", "--norc", "-e", "-c", script], {
+      cwd: temporary, encoding: "utf8", timeout: 5000,
+      env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}`,
+        QA_TRACE_PATH: trace, QA_DEPENDENCY_EXIT: String(dependencyExit),
+        GITHUB_ENV: path.join(temporary, "github-env") },
+    });
+    assert.equal(result.status, dependencyExit, result.stderr);
+    const calls = fs.readFileSync(trace, "utf8");
+    assert.match(calls, /python:-m pip check/);
+    assert.equal(calls.includes("verify:"), dependencyExit === 0);
+    assert.ok(calls.includes(artifact));
+  });
+}
+
+test("sidecar builders resolve the same wheel's dependencies before verifying it", () => {
+  for (const file of ["build_unchain_server.sh", "build_unchain_server.ps1"]) {
+    const source = fs.readFileSync(path.join(ROOT, "unchain_runtime/scripts", file), "utf8");
+    const install = source.indexOf("--force-reinstall --no-deps");
+    const resolve = source.indexOf("--constraint", install);
+    const check = source.indexOf("-m pip check", resolve);
+    const verify = source.indexOf("verify-unchain-artifact.mjs", check);
+    assert.ok(install >= 0 && resolve > install && check > resolve && verify > check, file);
+  }
+});
 
 test("release builds Unchain once and every test/package consumes the same bytes", () => {
   const workflow = fs.readFileSync(

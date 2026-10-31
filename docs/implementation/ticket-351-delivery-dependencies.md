@@ -105,3 +105,60 @@ single-wheel continuity, signing conditions and publication gates are unchanged.
 The actual imported manifest is
 `sha256:ec8741b2425ef3d07578fff9508bd3be6dfd5804210068597ddd673e287b6330`.
 This pin does not authorize launching a release or publishing an artifact.
+
+## Complete-CI correction and bounded execution
+
+The first Host full run on `0fe1d7be` passed 506 frontend suites (8347 tests)
+and 67 Electron suites (1166 tests). Its Python phase did not pass: the step's
+`continue-on-error` conclusion obscured an actual ten-minute timeout at 66%.
+The aggregate gate correctly rejected that run. The raw log, including the
+timeout, is retained under `~/.codex/artifacts/pupu-351/ci-02-20261030/`.
+
+The Python phase now has a twenty-minute hard limit inside the unchanged
+forty-five-minute job limit. Verbose case names, the slowest durations and
+sixty-second stack diagnostics make an actual stall identifiable. `pipefail`,
+failure outcomes, always-uploaded logs and the final rejection gate are kept.
+The release lifecycle and seven related workflow files pass 23 offline checks.
+
+Runtime PR #66 head `555f9fecc5a805e24c00d3cfd3fc10c216cdc1eb` passes its
+complete Linux suite: 5519 passed, 17 skipped, five xfailed. CodeQL analysis also
+completed; its findings are reviewed separately rather than inferred absent.
+The Host entrypoint now pins that source. A newly built wheel is reused for
+this stage: `b963ec5dd7a0c6b491eb8038a4de24290d0b023d6fc0656726c5fbcf0afe0874`
+(1352413 bytes, 377 Python members equal to source). Its imported manifest stays
+`sha256:ec8741b2425ef3d07578fff9508bd3be6dfd5804210068597ddd673e287b6330`.
+The installed-wheel Host run passes 341 tests and 213 subtests, explicitly
+deselects ten known process-identity cases, and encounters two more blocked
+legacy graph cases at the same OS ps restriction. That bounded run is not a full
+environment or App PASS.
+
+## BC-351-D03 — declared dependency compatibility
+
+Producer: Core's built-wheel Requires-Dist metadata. Consumer: the Host's pinned
+requirements and build installer. Canonical form: normalized package names and
+PEP 508 version constraints; admission requires a nonempty compatible selection.
+No version conflict may be hidden by `--no-deps` or counted passing because the
+runtime protocol manifest is well formed. AC-351-D04: compare the actual metadata
+and pins, then verify the resolved CI environment and imported artifact identity.
+This is a build-time boundary; durable execution sequences remain SEQ-351-D01.
+
+The current declared conflict is explicit: Host pins Anthropic 0.83.0 while Core
+requires >=0.87.0; Host pins cryptography 50.0.2 while Core requires >=48.0.1,<49.
+Core's upper bound explicitly retains Intel macOS and 32-bit Windows support.
+The maintainer selected preservation of Intel macOS / 32-bit Windows and Core's
+already recorded legacy-platform exception on 2026-10-30. Accordingly, Host pins
+cryptography 48.0.1 and Anthropic 0.87.0. This keeps Core's current supported range;
+it does not claim the deferred upstream cryptography advisories are fixed. The
+Anthropic version is an existing official release, independently checked against
+its published v0.87.0 tag. Core's compatibility policy itself is unchanged.
+
+CI and both sidecar builders now resolve dependency metadata from the same
+immutable wheel under the Host constraints, then run `pip check` before artifact
+verification. The build-time skip-install option cannot skip that validation.
+Three added checks first fail on the previous scripts: the real workflow shell
+with substituted executables must stop on a failed dependency check, must proceed
+on a successful check, and both builders must resolve/check before verification.
+Those shell-wiring tests substitute executables only. Runtime/Store checks use
+the real installed wheel with their existing offline SDK substitutes.
+Actual dependency-environment acceptance still requires the fresh CI result; the
+older local cached environment is not labelled fully qualified.
