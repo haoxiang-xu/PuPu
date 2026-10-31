@@ -24,6 +24,15 @@ import { is_flow_step_type } from "./recipe_graph_edits";
 const PALETTE_W = 320;
 const MAX_H = 360;
 
+/* The same substring rule as `search_nodes`, over a caller's own entries. */
+function search_entries(entries, query) {
+  const q = (query || "").trim().toLowerCase();
+  if (!q) return entries;
+  return entries.filter((entry) =>
+    `${entry.label} ${entry.type} ${entry.description}`.toLowerCase().includes(q),
+  );
+}
+
 export default function RecipeNodePalette({
   visible,
   x,
@@ -32,6 +41,13 @@ export default function RecipeNodePalette({
   /* True when the pick will be wired into the flow (insert after a node,
    * insert into a connection): only nodes with an in and an out port apply. */
   flowOnly = false,
+  /* Optional admission list for a caller with a narrower native contract.
+     The palette only displays choices; creation stays with that caller. */
+  allowedTypes,
+  /* Optional entries for a caller whose node types are not the legacy
+     catalog's (the native canvas adds the branch steps). Absent, the palette
+     searches the legacy catalog exactly as before. */
+  entries,
   onPick,
   onClose,
   isDark,
@@ -43,9 +59,10 @@ export default function RecipeNodePalette({
 
   const results = useMemo(() => {
     if (!visible) return [];
-    const entries = search_nodes(query, graphKind);
-    return flowOnly ? entries.filter((e) => is_flow_step_type(e.type)) : entries;
-  }, [visible, query, graphKind, flowOnly]);
+    const found = (Array.isArray(entries) ? search_entries(entries, query) : search_nodes(query, graphKind))
+      .filter((entry) => !Array.isArray(allowedTypes) || allowedTypes.includes(entry.type));
+    return flowOnly ? found.filter((e) => is_flow_step_type(e.type)) : found;
+  }, [visible, query, graphKind, flowOnly, allowedTypes, entries]);
   const excluded = useMemo(
     () => (visible ? excluded_nodes(graphKind) : []),
     [visible, graphKind],

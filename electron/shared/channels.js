@@ -271,6 +271,7 @@ const CHANNELS = Object.freeze({
     SAVE_RECIPE: "unchain:save-recipe",
     DELETE_RECIPE: "unchain:delete-recipe",
     LIST_SUBAGENT_REFS: "unchain:list-subagent-refs",
+    SKELETON_RESOURCE_COMMAND: "unchain:skeleton-resource-command",
     PREVIEW_CHARACTER_DECISION: "unchain:preview-character-decision",
     BUILD_CHARACTER_AGENT_CONFIG: "unchain:build-character-agent-config",
     EXPORT_CHARACTER: "unchain:export-character",

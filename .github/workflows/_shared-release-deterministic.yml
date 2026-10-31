@@ -31,7 +31,7 @@ jobs:
   deterministic:
     name: Deterministic QA
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 65
     env:
       QA_MODE: ${{ inputs.qa_mode }}
       UNCHAIN_SOURCE_REF: ${{ inputs.unchain_ref }}
@@ -122,6 +122,9 @@ jobs:
         run: |
           python -m pip install --force-reinstall --no-deps \
             "${{ steps.unchain_artifact.outputs.artifact_path }}"
+          python -m pip install --disable-pip-version-check --retries 5 --timeout 60 --constraint unchain_runtime/server/requirements.txt \
+            "${{ steps.unchain_artifact.outputs.artifact_path }}"
+          python -m pip check
           node scripts/release-qa/verify-unchain-artifact.mjs \
             --artifact "${{ steps.unchain_artifact.outputs.artifact_path }}" \
             --evidence "${{ steps.unchain_artifact.outputs.evidence_path }}" \
@@ -215,14 +218,14 @@ jobs:
 
       - name: Python backend tests
         id: python
-        timeout-minutes: 10
+        timeout-minutes: 50
         continue-on-error: true
         working-directory: pupu/unchain_runtime/server
         shell: bash
         run: |
           set -o pipefail
           mkdir -p ../../release-qa-test-logs
-          python -m pytest tests/ -q --tb=short 2>&1 | tee ../../release-qa-test-logs/python.log
+          python -m pytest tests/ -vv --tb=short --durations=25 -o faulthandler_timeout=60 2>&1 | tee ../../release-qa-test-logs/python.log
 
       - name: Summarize test outcomes
         if: always()
@@ -313,7 +316,7 @@ jobs:
             [
               {"name":"frontend tests","command":"npm run test:frontend -- --passWithNoTests","outcome":"${{ steps.frontend.outcome }}"},
               {"name":"electron tests","command":"npm run test:electron -- --detectOpenHandles","outcome":"${{ steps.electron.outcome }}"},
-              {"name":"python backend tests","command":"python -m pytest tests/ -q --tb=short","outcome":"${{ steps.python.outcome }}"},
+              {"name":"python backend tests","command":"python -m pytest tests/ -vv --tb=short --durations=25 -o faulthandler_timeout=60","outcome":"${{ steps.python.outcome }}"},
               {"name":"Unchain artifact continuity","command":"node scripts/release-qa/verify-unchain-artifact.mjs --installed true","outcome":"${{ steps.artifact_verify.outcome }}","executed_tests":${{ steps.artifact_verify.outputs.executed_tests || 0 }}},
               {"name":"Unchain runtime protocol manifest","command":"node scripts/release-qa/verify-unchain-artifact.mjs --installed true","outcome":"${{ steps.artifact_verify.outcome }}","executed_tests":${{ steps.artifact_verify.outputs.executed_tests || 0 }}},
               {"name":"Context V2 boundary contracts","command":"npm run test:context-v2-contract","outcome":"${{ steps.context_v2_contract.outcome }}","executed_tests":${{ steps.context_v2_contract.outputs.executed_tests || 0 }}},

@@ -70,7 +70,7 @@ jest.mock("../../../../BUILTIN_COMPONENTs/input/segmented_button", () => {
   };
 });
 
-test("picks another workflow as a recipe_ref subagent", async () => {
+test("references another Agent as a recipe_ref subagent", async () => {
   const onPick = jest.fn();
   api.unchain.listRecipes.mockResolvedValue({
     recipes: [
@@ -97,4 +97,47 @@ test("picks another workflow as a recipe_ref subagent", async () => {
     recipe_name: "Explore",
     disabled_tools: [],
   });
+});
+
+test("a Workflow is not offered and cannot be picked", async () => {
+  /* The pool holds Agents only. A resource that declares itself a Workflow must
+   * not reach the list, so there is no row to click — this is the add gate every
+   * route passes through. */
+  const onPick = jest.fn();
+  api.unchain.listRecipes.mockResolvedValue({
+    recipes: [
+      { name: "Explore", description: "scout", kind: "agent" },
+      { name: "Nightly", description: "non-LLM cleanup", kind: "workflow" },
+    ],
+  });
+
+  render(
+    <SubagentPicker
+      onPick={onPick}
+      onClose={() => {}}
+      isDark={false}
+      currentRecipeName=""
+    />,
+  );
+
+  expect(await screen.findByText("Explore")).toBeInTheDocument();
+  expect(screen.queryByText("Nightly")).not.toBeInTheDocument();
+  expect(screen.queryByText("non-LLM cleanup")).not.toBeInTheDocument();
+  expect(onPick).not.toHaveBeenCalled();
+});
+
+test("the list calls what it holds Agents, not workflows", async () => {
+  api.unchain.listRecipes.mockResolvedValue({ recipes: [] });
+
+  render(
+    <SubagentPicker
+      onPick={() => {}}
+      onClose={() => {}}
+      isDark={false}
+      currentRecipeName=""
+    />,
+  );
+
+  expect(await screen.findByText("No other Agents available.")).toBeInTheDocument();
+  expect(screen.queryByText(/workflow/i)).not.toBeInTheDocument();
 });

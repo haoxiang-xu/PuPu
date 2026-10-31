@@ -2,6 +2,12 @@ const { request: nodeHttpRequest } = require("http");
 const { request: nodeHttpsRequest } = require("https");
 const { Readable } = require("stream");
 const { CHANNELS } = require("../../../shared/channels");
+const { readSkeletonResourceResponse } = require("./skeleton_resource_response");
+const {
+  buildSkeletonCredentialQuery,
+  resolveSkeletonCredentials,
+  trustedCustomProviders,
+} = require("./skeleton_credentials");
 const { createPortFinder } = require("../../../shared/port_utils");
 const {
   MEMORY_V2_ENV_KEYS,
@@ -72,6 +78,148 @@ const UNCHAIN_COMPUTER_USE_PROBE_ENDPOINT = "/computer-use/probe";
 const UNCHAIN_MODELS_CATALOG_ENDPOINT = "/models/catalog";
 const UNCHAIN_CUSTOM_PROVIDER_TEST_ENDPOINT =
   "/models/custom-providers/test";
+
+const buildSkeletonResourceRequest = (action, payload = {}) => {
+  const body =
+    payload !== null && typeof payload === "object" && !Array.isArray(payload)
+      ? payload
+      : {};
+  const requiredId = (field) => {
+    const value = typeof body[field] === "string" ? body[field].trim() : "";
+    if (!value) {
+      throw new Error(`${field} is required`);
+    }
+    return encodeURIComponent(value);
+  };
+  const pickedBody = (...fields) =>
+    fields.reduce((result, field) => {
+      if (Object.prototype.hasOwnProperty.call(body, field)) {
+        result[field] = body[field];
+      }
+      return result;
+    }, {});
+  const definitions = {
+    list: () => ({
+      method: "GET",
+      path: `/skeleton_resources?include_archived=${body.include_archived === false ? "false" : "true"}`,
+    }),
+    get: () => ({
+      method: "GET",
+      path: `/skeleton_resources/${requiredId("resource_id")}`,
+    }),
+    save: () => ({
+      method: "POST",
+      path: "/skeleton_resources",
+      body: pickedBody("document", "expected_edit_token"),
+    }),
+    diagnose: () => ({
+      method: "POST",
+      path: "/skeleton_resources/diagnose",
+      body: pickedBody("document"),
+    }),
+    import: () => ({
+      method: "POST",
+      path: "/skeleton_resources/import",
+      body: pickedBody("document"),
+    }),
+    preflight: () => ({
+      method: "POST",
+      path: `/skeleton_resources/${requiredId("resource_id")}/preflight`,
+      body: pickedBody("legacy_kernel"),
+    }),
+    convert_legacy_pools: () => ({
+      method: "POST",
+      path: `/skeleton_resources/${requiredId("resource_id")}/convert_legacy_pools`,
+      body: pickedBody("expected_edit_token", "legacy_kernel"),
+    }),
+    publish: () => ({
+      method: "POST",
+      path: `/skeleton_resources/${requiredId("resource_id")}/publish`,
+      body: pickedBody("expected_edit_token"),
+    }),
+    get_version: () => ({
+      method: "GET",
+      path: `/skeleton_resources/${requiredId("workflow_id")}/versions/${requiredId("revision_id")}`,
+    }),
+    rename: () => ({
+      method: "POST",
+      path: `/skeleton_resources/${requiredId("resource_id")}/rename`,
+      body: pickedBody("name", "expected_edit_token"),
+    }),
+    duplicate: () => ({
+      method: "POST",
+      path: `/skeleton_resources/${requiredId("resource_id")}/duplicate`,
+      body: pickedBody("new_id", "name"),
+    }),
+    archive: () => ({
+      method: "POST",
+      path: `/skeleton_resources/${requiredId("resource_id")}/archive`,
+      body: pickedBody("expected_edit_token"),
+    }),
+    restore: () => ({
+      method: "POST",
+      path: `/skeleton_resources/${requiredId("resource_id")}/restore`,
+      body: pickedBody("expected_edit_token"),
+    }),
+    delete: () => ({
+      method: "DELETE",
+      path: `/skeleton_resources/${requiredId("resource_id")}`,
+      body: pickedBody("expected_edit_token"),
+    }),
+    migrate: () => ({
+      method: "POST",
+      path: "/skeleton_resources/migrate",
+      body: pickedBody(
+        "source_identity",
+        "source_scope",
+        "source_kind",
+        "source",
+        "stop_after_stage",
+      ),
+    }),
+    resolve: () => ({
+      method: "POST",
+      path: "/skeleton_resources/resolve",
+      body: pickedBody(
+        "resource_id",
+        "revision_id",
+        "legacy_name",
+        "source_scope",
+        "default_if_unselected",
+      ),
+    }),
+    list_profiles: () => ({
+      method: "GET",
+      path: "/skeleton_python_profiles",
+    }),
+    kernel_profiles: () => ({
+      method: "GET",
+      path: "/skeleton_kernel_profiles",
+    }),
+    save_profile: () => ({
+      method: "POST",
+      path: "/skeleton_python_profiles",
+      body: pickedBody("profile_id", "executable", "expected_edit_token"),
+    }),
+    probe_profile: () => ({
+      method: "POST",
+      path: `/skeleton_python_profiles/${requiredId("profile_id")}/probe`,
+      body: {},
+    }),
+    delete_profile: () => ({
+      method: "DELETE",
+      path: `/skeleton_python_profiles/${requiredId("profile_id")}`,
+      body: pickedBody("expected_edit_token"),
+    }),
+  };
+  if (
+    typeof action !== "string" ||
+    !Object.prototype.hasOwnProperty.call(definitions, action)
+  ) {
+    throw new Error("Unsupported Skeleton resource action");
+  }
+  return definitions[action]();
+};
 
 // Allowlisted macOS System Settings deep links. The renderer may only pass a
 // known target key; it can never hand us an arbitrary URL to open.
@@ -1253,7 +1401,10 @@ const createUnchainService = ({
 
   const resolveDevUnchainSourcePath = () => {
     const configuredSource = process.env.UNCHAIN_SOURCE_PATH;
-    if (configuredSource && looksLikeUnchainSource(configuredSource)) {
+    // A fixed installed wheel is an explicit import root too. Replacing it
+    // with a sibling checkout would run a different runtime than requested.
+    if (configuredSource && (looksLikeUnchainSource(configuredSource) ||
+        fs.existsSync(path.join(configuredSource, "unchain", "__init__.py")))) {
       return configuredSource;
     }
 
@@ -4439,6 +4590,20 @@ const createUnchainService = ({
     );
   };
 
+  const runMisoSkeletonResourceCommand = async (action, payload = {}) => {
+    ensureMisoReady();
+    const request = buildSkeletonResourceRequest(action, payload);
+    const response = await fetch(`http://${UNCHAIN_HOST}:${unchainPort}${request.path}`, {
+      method: request.method,
+      headers: {
+        ...(request.body ? { "Content-Type": "application/json" } : {}),
+        ...(unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {}),
+      },
+      ...(request.body ? { body: JSON.stringify(request.body) } : {}),
+    });
+    return readSkeletonResourceResponse(response);
+  };
+
   const previewMisoCharacterDecision = async (payload = {}) => {
     ensureMisoReady();
 
@@ -6043,18 +6208,10 @@ const createUnchainService = ({
       requestPayload.options = requestOptions;
     }
 
-    // Phase 4 (S4): decrypt + inject provider secrets from the descriptor list,
-    // then strip the descriptor. Runs after the workspaceRoot injection and
-    // before the POST — this is V1/V2/V4's single choke point. Fail-closed: on
-    // any decryption failure emit a structured error and never keyless-POST.
-    const secretInjection = applyProviderSecretInjection(requestPayload.options);
-    if (!secretInjection.ok) {
-      emitMisoStreamDirectEvent(sender, requestId, "error", {
-        code: secretInjection.code,
-        message: secretInjection.message,
-      });
-      return;
-    }
+    // Only Main may create these transient bindings. Caller-supplied maps and
+    // fences are never authority, including during a durable resume.
+    delete requestPayload.options.skeleton_credentials;
+    delete requestPayload.options.skeleton_credential_scope;
 
     if (
       unchainActiveStreams.has(requestId) ||
@@ -6067,8 +6224,29 @@ const createUnchainService = ({
       return;
     }
 
+    let credentialQuery;
+    try {
+      credentialQuery = buildSkeletonCredentialQuery(requestPayload);
+      // V4 consumes these canonical top-level fields before dispatch. The
+      // discovery API's optional source is not an HTTP resume permission,
+      // and Main-only camelCase aliases cannot satisfy the actual route.
+      if (credentialQuery && endpoint === UNCHAIN_STREAM_V4_ENDPOINT &&
+          (typeof requestPayload.attempt_id !== "string" || !requestPayload.attempt_id.trim() ||
+           (credentialQuery.mode === "resume" && !credentialQuery.source_attempt_id))) {
+        throw Object.assign(new Error("Invalid Skeleton credential query"), {
+          code: "skeleton_credential_query_invalid",
+        });
+      }
+    } catch (error) {
+      emitMisoStreamDirectEvent(sender, requestId, "error", {
+        code: error?.code || "skeleton_credential_query_invalid",
+        message: error?.message || "Invalid Skeleton credential query",
+      });
+      return;
+    }
     const controller = new AbortController();
     const executionIdCandidate =
+      credentialQuery?.session_id ??
       requestPayload.execution_id ??
       requestPayload.executionId ??
       requestPayload.session_id ??
@@ -6078,11 +6256,11 @@ const createUnchainService = ({
     const attemptIdCandidate =
       requestPayload.attempt_id ?? requestPayload.attemptId;
     const sourceAttemptIdCandidate =
-      requestPayload.source_attempt_id ?? requestPayload.sourceAttemptId;
+      credentialQuery?.source_attempt_id ?? requestPayload.source_attempt_id ?? requestPayload.sourceAttemptId;
     const ownerChatIdCandidate =
-      requestPayload.owner_chat_id ?? requestPayload.ownerChatId;
+      credentialQuery?.owner_chat_id ?? requestPayload.owner_chat_id ?? requestPayload.ownerChatId;
     const interactionIdCandidate =
-      requestPayload.interaction_id ?? requestPayload.interactionId;
+      credentialQuery?.interaction_id ?? requestPayload.interaction_id ?? requestPayload.interactionId;
     const executionId =
       typeof executionIdCandidate === "string"
         ? executionIdCandidate.trim()
@@ -6116,7 +6294,11 @@ const createUnchainService = ({
       sourceAttemptId,
       ownerChatId,
       interactionId,
-      requestOptions: { ...requestPayload.options },
+      // Capture before decryption. Retained replay state must not own secrets.
+      requestOptions: Object.fromEntries(Object.entries(requestPayload.options)
+        .filter(([key]) => !["openaiApiKey", "openai_api_key", "anthropicApiKey", "anthropic_api_key",
+          "geminiApiKey", "gemini_api_key", "custom_provider_api_key", "customProviderApiKey",
+          "apiKey", "api_key"].includes(key))),
       replayBuffer: [],
       replayHead: 0,
       replayBytes: 0,
@@ -6131,6 +6313,61 @@ const createUnchainService = ({
     }
 
     try {
+      if (credentialQuery) {
+        const requirementsResponse = await streamRequestImpl(
+          `http://${UNCHAIN_HOST}:${unchainPort}/skeleton_credentials/requirements`,
+          { method: "POST", headers: { "Content-Type": "application/json", "x-unchain-auth": unchainAuthToken },
+            body: JSON.stringify(credentialQuery), signal: controller.signal },
+        );
+        const requirements = await readSkeletonResourceResponse(requirementsResponse);
+        if (controller.signal.aborted) return;
+        let customProviders = [];
+        if (requirements.kind === "skeleton" && Array.isArray(requirements.profiles) &&
+            requirements.profiles.some((profile) => typeof profile?.provider === "string" && profile.provider.startsWith("custom."))) {
+          let registry;
+          try {
+            registry = settingsStorageService?.readModelProviderRegistry?.() || { status: "unavailable" };
+          } catch {
+            registry = { status: "unavailable" };
+          }
+          customProviders = trustedCustomProviders(registry);
+        }
+        const resolved = resolveSkeletonCredentials(requirements, credentialQuery, {
+          customProviders,
+          readSecret: readProviderSecretForInjection,
+        });
+        if (resolved) {
+          // The graph, not the composer, owns its targets. Preserve only the
+          // independently declared embedding channel from that old path,
+          // including its still-supported inline-key migration mode.
+          const descriptors = requestPayload.options[PROVIDER_SECRET_INJECTION_KEY];
+          const embeddingProvider = typeof requestPayload.options.memory_embedding_provider === "string"
+            ? requestPayload.options.memory_embedding_provider.trim().toLowerCase() : "auto";
+          const inlineEmbedding = requestPayload.options.memory_enabled === true &&
+            ["auto", "openai"].includes(embeddingProvider)
+            ? Object.fromEntries(["openaiApiKey", "openai_api_key"].filter((key) =>
+              typeof requestPayload.options[key] === "string" && requestPayload.options[key].trim())
+              .map((key) => [key, requestPayload.options[key]])) : {};
+          for (const key of ["openaiApiKey", "openai_api_key", "anthropicApiKey", "anthropic_api_key",
+            "geminiApiKey", "gemini_api_key", "custom_provider_api_key", "customProviderApiKey", "apiKey", "api_key"]) {
+            delete requestPayload.options[key];
+          }
+          requestPayload.options[PROVIDER_SECRET_INJECTION_KEY] = Array.isArray(descriptors)
+            ? descriptors.filter((entry) => entry?.channel === "embedding") : [];
+          Object.assign(requestPayload.options, inlineEmbedding, resolved.providerOptions, {
+            skeleton_credentials: resolved.credentials,
+            skeleton_credential_scope: resolved.scope,
+          });
+        }
+      }
+      const secretInjection = applyProviderSecretInjection(requestPayload.options);
+      if (!secretInjection.ok) {
+        emitMisoStreamEvent(sender.id, requestId, "error", {
+          code: secretInjection.code, message: secretInjection.message,
+        });
+        return;
+      }
+      if (controller.signal.aborted) return;
       // Keep localhost SSE outside Chromium's network lifecycle. Display sleep
       // can suspend Electron net.fetch, while Undici terminates quiet bodies
       // after five minutes. The Node request adapter has no inactivity timeout.
@@ -6190,8 +6427,11 @@ const createUnchainService = ({
 
       logMisoStreamBridgeFailure(requestId, streamError);
       emitMisoStreamEvent(sender.id, requestId, "error", {
-        code: "stream_bridge_failed",
+        code: typeof streamError?.code === "string" && /^[a-z][a-z0-9_]*$/.test(streamError.code)
+          ? streamError.code : "stream_bridge_failed",
         message: streamError?.message || "Failed to bridge SSE stream",
+        ...(Array.isArray(streamError?.path) ? { path: streamError.path } : {}),
+        ...(Number.isInteger(streamError?.status) ? { status: streamError.status } : {}),
       });
     } finally {
       unchainActiveStreams.delete(requestId);
@@ -6699,6 +6939,7 @@ const createUnchainService = ({
     saveMisoRecipe,
     deleteMisoRecipe,
     listMisoSubagentRefs,
+    runMisoSkeletonResourceCommand,
     previewMisoCharacterDecision,
     buildMisoCharacterAgentConfig,
     exportMisoCharacter,
@@ -6720,6 +6961,7 @@ const createUnchainService = ({
 };
 
 module.exports = {
+  buildSkeletonResourceRequest,
   createNodeStreamFetch,
   createUnchainService,
 };

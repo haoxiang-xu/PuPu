@@ -3,7 +3,6 @@ import { compute_variable_scope } from "../variable_scope";
 import Select from "../../../../../BUILTIN_COMPONENTs/select/select";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import { Input } from "../../../../../BUILTIN_COMPONENTs/input/input";
-import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
 
 const TYPE_OPTIONS = [
   { value: "string", label: "string" },
@@ -50,27 +49,6 @@ export default function EndPanel({ node, recipe, onChange, isDark }) {
 
   return (
     <>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <div
-          style={{
-            width: 26,
-            height: 26,
-            borderRadius: 7,
-            background: "linear-gradient(135deg, #f0635a, #d23f37)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            flexShrink: 0,
-          }}
-        >
-          <Icon src="target" color="#fff" style={{ width: 14, height: 14 }} />
-        </div>
-        <div>
-          <div style={{ fontSize: 14, fontWeight: 600 }}>End</div>
-          <div style={{ fontSize: 11, color: "#86868b" }}>Workflow exit</div>
-        </div>
-      </div>
-
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         <span style={SECTION_LABEL}>Input Variables (upstream)</span>
         {scope.length === 0 && (

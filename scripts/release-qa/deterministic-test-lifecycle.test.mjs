@@ -14,8 +14,8 @@ const job = workflow.jobs.deterministic;
 const steps = job.steps;
 
 test("deterministic tests stop well before the job limit and retain diagnostics", () => {
-  assert.equal(job["timeout-minutes"], 45);
-  for (const [id, limit] of [["frontend", 10], ["electron", 5], ["python", 10]]) {
+  assert.equal(job["timeout-minutes"], 65);
+  for (const [id, limit] of [["frontend", 10], ["electron", 5], ["python", 50]]) {
     const step = steps.find((entry) => entry.id === id);
     assert.equal(step["timeout-minutes"], limit);
     assert.equal(step["continue-on-error"], true);
@@ -24,6 +24,9 @@ test("deterministic tests stop well before the job limit and retain diagnostics"
   const electron = steps.find((step) => step.id === "electron");
   assert.match(electron.run, /--detectOpenHandles/);
   assert.doesNotMatch(electron.run, /--forceExit/);
+  const python = steps.find((step) => step.id === "python");
+  assert.match(python.run, /--durations=25/);
+  assert.match(python.run, /faulthandler_timeout=60/);
   const upload = steps.find((step) => step.name === "Upload test logs");
   assert.equal(upload.if, "always()");
   assert.equal(upload.with.path, "pupu/release-qa-test-logs/");

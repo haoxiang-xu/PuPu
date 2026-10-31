@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../../SERVICEs/api";
+import {
+  skeleton_agent_id,
+  skeleton_selection_payload,
+  skeleton_selection_reason,
+} from "../../../SERVICEs/skeleton_chat_selection";
 import { secureRandomId } from "../../../SERVICEs/secure_random_id";
 import { resyncSkillInventory } from "../../../SERVICEs/plugin_skill_sync";
 import { toast } from "../../../SERVICEs/toast";
@@ -761,6 +766,11 @@ const snapshotStoredRunContext = (store, targetChatId) => {
       chat.selectedRecipeName.trim()
         ? chat.selectedRecipeName.trim()
         : "Default",
+    /* The stored Skeleton Agent this run uses, by resource id. It rides in the
+       run context for the same reason the Recipe name does: a retry or a
+       durable resume has to go out with what the run was started with, not
+       with whatever the selector shows by the time the answer comes back. */
+    selectedSkeletonAgentId: skeleton_agent_id(chat.selectedSkeletonAgentId),
     agentOrchestration: normalizeAgentOrchestration(chat.agentOrchestration),
     systemPromptOverrides:
       chat.systemPromptOverrides &&
@@ -1036,6 +1046,7 @@ export const useChatStream = ({
   selectedToolkits,
   selectedWorkspaceIds,
   selectedRecipeName,
+  selectedSkeletonAgentId,
   chatKind = "default",
   characterId = "",
   threadIdRef,
@@ -1109,6 +1120,8 @@ export const useChatStream = ({
   draftAttachmentsRef.current = draftAttachments;
   const selectedModelIdRef = useRef(selectedModelId);
   selectedModelIdRef.current = selectedModelId;
+  const selectedSkeletonAgentIdRef = useRef(selectedSkeletonAgentId);
+  selectedSkeletonAgentIdRef.current = selectedSkeletonAgentId;
   const selectedReasoningEffortRef = useRef(selectedReasoningEffort);
   selectedReasoningEffortRef.current = selectedReasoningEffort;
   const selectedContextWindowRef = useRef(selectedContextWindow);
@@ -1216,6 +1229,13 @@ export const useChatStream = ({
   const trackedExecutionCancellationsRef = useRef(new Map());
   const lastStoppedExecutionByChatIdRef = useRef(new Map());
   const [settlementWaitingChatIds, setSettlementWaitingChatIds] = useState(new Set());
+  /* Operations whose run started, failed, and could not have that failure
+     written down anywhere, mapped to the failure code that would have been
+     recorded. The durable row still reads "untried", so this map is the only
+     thing standing between it and an unbounded replay; it is deliberately
+     session-scoped, because claiming durability for a state the store just
+     refused to accept would be a lie. Retry/Discard clear it. */
+  const turnMutationUnrecordedFailureRef = useRef(new Map());
   /* Legacy V1 rows predate the durable Context V2 retry contract. Keep their
      existing bounded recovery cadence so this V2 rollout does not change
      replaceSessionMemory conflict behavior. */
@@ -1351,6 +1371,7 @@ export const useChatStream = ({
         typeof selectedRecipeName === "string" && selectedRecipeName.trim()
           ? selectedRecipeName.trim()
           : "Default",
+      selectedSkeletonAgentId: skeleton_agent_id(selectedSkeletonAgentId),
       agentOrchestration: normalizeAgentOrchestration(agentOrchestration),
       systemPromptOverrides:
         systemPromptOverrides &&
@@ -1792,6 +1813,7 @@ export const useChatStream = ({
       if (!target || !clearTurnMutationRetryState(operationId)) return false;
       turnMutationInProgressSeenRef.current.delete(operationId);
       turnMutationStalledAttemptSeenRef.current.delete(operationId);
+      turnMutationUnrecordedFailureRef.current.delete(operationId);
       setStreamErrorForChat(target.chatId, "");
       setTurnMutationVersion((version) => version + 1);
       return true;
@@ -1826,6 +1848,7 @@ export const useChatStream = ({
       if (!removeTurnMutation(operationId)) return false;
       turnMutationInProgressSeenRef.current.delete(operationId);
       turnMutationStalledAttemptSeenRef.current.delete(operationId);
+      turnMutationUnrecordedFailureRef.current.delete(operationId);
       const owner = turnMutationByChatIdRef.current.get(target.chatId);
       if (owner?.operationId === operationId) releaseTurnMutation(owner);
       setStreamErrorForChat(target.chatId, "");
@@ -5241,6 +5264,17 @@ export const useChatStream = ({
             : typeof selectedRecipeName === "string"
               ? selectedRecipeName
               : "Default";
+      /* Same precedence as the Recipe name above: what this run was asked
+         with, else what the chat held when it started, else what is on screen.
+         An id the reader refuses is "", which sends no selection rather than
+         an unsendable one. */
+      const runSelectedSkeletonAgentId = skeleton_agent_id(
+        typeof requestedRunContext?.selectedSkeletonAgentId === "string"
+          ? requestedRunContext.selectedSkeletonAgentId
+          : typeof storedRunContext?.selectedSkeletonAgentId === "string"
+            ? storedRunContext.selectedSkeletonAgentId
+            : selectedSkeletonAgentId,
+      );
       const runAgentOrchestration = normalizeAgentOrchestration(
         requestedRunContext?.agentOrchestration ||
           storedRunContext?.agentOrchestration ||
@@ -5280,12 +5314,18 @@ export const useChatStream = ({
               : "";
       const runIsCharacterChat =
         runKind === "character" && Boolean(runCharacterId);
+      /* The wire object, or null. A character chat runs its character and
+         holds no Agent id at all, so it never carries one. */
+      const runSkeletonSelection = runIsCharacterChat
+        ? null
+        : skeleton_selection_payload(runSelectedSkeletonAgentId);
       const effectiveRunContext = {
         modelId: runModelId,
         threadId: runThreadId,
         selectedToolkits: runSelectedToolkits,
         selectedWorkspaceIds: runSelectedWorkspaceIds,
         selectedRecipeName: runSelectedRecipeName,
+        selectedSkeletonAgentId: runSelectedSkeletonAgentId,
         agentOrchestration: runAgentOrchestration,
         systemPromptOverrides: runSystemPromptOverrides,
         kind: runKind,
@@ -7282,8 +7322,13 @@ export const useChatStream = ({
             "function" &&
           api.unchain.isDurableInteractionBridgeAvailable() &&
           (runIsCharacterChat ||
-            (!runSelectedRecipeName ||
-              runSelectedRecipeName === "Default")) &&
+            ((!runSelectedRecipeName ||
+              runSelectedRecipeName === "Default") &&
+              /* An explicitly selected Skeleton Agent is an explicit Agent
+                 selection, like a Recipe: the Skeleton path owns its own
+                 durable launch, so this chat's default durable interaction is
+                 not what runs it. */
+              !runSkeletonSelection)) &&
           effectiveAgentOrchestration.mode === "default";
 
         /* Memory V2 P0 payload identity + lazy bootstrap.
@@ -7384,11 +7429,23 @@ export const useChatStream = ({
                 ...(effectiveWorkspaceIds.length > 0 && {
                   selectedWorkspaceIds: effectiveWorkspaceIds,
                 }),
+                /* A Skeleton Agent and a legacy Recipe are two selections and
+                   the server accepts one: `skeleton_selection` beside a
+                   non-empty `recipe_name` is `invalid_shape` by its own
+                   contract. So the Recipe name goes out only when no Skeleton
+                   Agent is selected, and the selection object comes from
+                   `skeleton_selection_payload` — three keys, no more and no
+                   fewer, carrying an id and nothing else: the server resolves
+                   it, preflights it and freezes the material itself. */
                 ...(!runIsCharacterChat &&
+                  !runSkeletonSelection &&
                   runSelectedRecipeName &&
                   runSelectedRecipeName !== "Default" && {
                     recipe_name: runSelectedRecipeName,
                   }),
+                ...(runSkeletonSelection
+                  ? { skeleton_selection: runSkeletonSelection }
+                  : {}),
                 ...(!runIsCharacterChat && {
                   agent_orchestration: effectiveAgentOrchestration,
                 }),
@@ -8641,7 +8698,18 @@ export const useChatStream = ({
                 releaseTokenFlushController();
                 return;
               }
-              const errorMessage = error?.message || "Unknown stream error";
+              /* A refused Agent selection gets this chat's own sentence for
+                 the codes the selection owns — "Skeleton chat resource
+                 admission failed." is the server being precise about its
+                 boundary, not about what the person should do. Every other
+                 code keeps the server's message, which is more specific than
+                 a category of ours would be, and nothing falls back to
+                 running the default Agent. */
+              const errorMessage =
+                (runSkeletonSelection &&
+                  skeleton_selection_reason(error?.code)) ||
+                error?.message ||
+                "Unknown stream error";
               const errorCode = error?.code || "stream_error";
               handleSkillInventoryStaleError(error, tRef.current);
               const hasAdmittedRunAccounting =
@@ -8875,6 +8943,114 @@ export const useChatStream = ({
               activeFlushScheduler.flushSync();
               disposeBufferedTokenFlush();
               releaseTokenFlushController();
+
+              /* A recovered or retried turn whose run STARTED and then failed
+                 has to report that to its durable intent. Without this the
+                 recovery effect reads a pristine entry — no attempt, no
+                 failure code, no retryAt — and dispatches it again the moment
+                 anything bumps the turn-mutation version: no backoff, no
+                 bound, and each new run replaces the refusal banner with the
+                 streaming disclaimer, so the reason never stays visible.
+                 The decision is the existing policy's, not a new one: reserve
+                 the attempt, then ask `resolveContextV2TurnMutationFailure`.
+                 A refusal the selection itself owns is terminal by definition
+                 — re-running the identical frozen selection cannot change the
+                 answer — so it quarantines instead of retrying. Quarantine
+                 keeps the user's intent for explicit review; nothing is
+                 deleted here, and nothing re-executes on its own. */
+              if (
+                turnMutationOperationId &&
+                !wasCancelled &&
+                !hasAdmittedRunAccounting
+              ) {
+                const reservedAfterFailure = reserveTurnMutationRetryAttempt(
+                  turnMutationOperationId,
+                );
+                if (reservedAfterFailure) {
+                  const failureDecision = skeleton_selection_reason(errorCode)
+                    ? {
+                        action: TURN_MUTATION_RETRY_ACTIONS.QUARANTINE,
+                        delayMs: 0,
+                      }
+                    : resolveContextV2TurnMutationFailure({
+                        errorCode,
+                        replayAttempts: reservedAfterFailure.replayAttempts,
+                      });
+                  recordTurnMutationRetryOutcome(turnMutationOperationId, {
+                    action: failureDecision.action,
+                    code: errorCode,
+                    retryAt:
+                      failureDecision.action ===
+                      TURN_MUTATION_RETRY_ACTIONS.RETRY
+                        ? Date.now() + failureDecision.delayMs
+                        : 0,
+                  });
+                  notifyTurnMutationChange(targetChatId);
+                } else {
+                  /* The reservation is itself a WRITE, and a refused write
+                     must not read as "nothing happened": the row stays
+                     pristine, so the recovery effect sees runnable work and
+                     dispatches this same intent again — the original loop one
+                     level down (measured: every answered refusal bought
+                     another run). Tell the two causes apart first. A row that
+                     is gone, already held, or waiting on a recorded backoff
+                     belongs to those fences, so leave it to them. Anything
+                     else means this failure could not be recorded, so hold the
+                     operation with the policy's terminal action and keep the
+                     run's own reason on it.
+                     A snapshot that cannot be read answers "I don't know",
+                     which no fence can be inferred from: the row may well be
+                     the pristine one this run just failed to reserve, and
+                     reads recover sooner than the person does, so deferring
+                     here hands that row straight back to the recovery effect
+                     (measured: one extra run once reads worked again). Treat
+                     an unreadable store as untriaged and settle through the
+                     same path — the write attempt below fails too while the
+                     store stays unreachable, which is exactly what the
+                     in-session hold is for. */
+                  const settledSnapshot = readTurnMutationOutboxState();
+                  const currentRow = settledSnapshot.available
+                    ? settledSnapshot.entries.find(
+                        (candidate) =>
+                          candidate.operationId === turnMutationOperationId,
+                      )
+                    : null;
+                  const ownedByAnotherFence =
+                    settledSnapshot.available &&
+                    (!currentRow ||
+                      currentRow.retryStatus ===
+                        TURN_MUTATION_RETRY_STATUSES.QUARANTINED ||
+                      (currentRow.retryStatus ===
+                        TURN_MUTATION_RETRY_STATUSES.WAITING &&
+                        currentRow.retryAt > Date.now()));
+                  if (!ownedByAnotherFence) {
+                    const heldAfterFailure = recordTurnMutationRetryOutcome(
+                      turnMutationOperationId,
+                      {
+                        action: TURN_MUTATION_RETRY_ACTIONS.QUARANTINE,
+                        code: errorCode || "context_v2_persist_failed",
+                      },
+                    );
+                    if (!heldAfterFailure) {
+                      /* Nothing about this turn can be written at all, so the
+                         only bound left is this session's: hold the operation
+                         in memory so recovery stops dispatching it, and say
+                         that the hold itself could not be saved. Nothing is
+                         deleted, the frozen text and Agent stay, and a reload
+                         honestly finds an intent the store never recorded. */
+                      turnMutationUnrecordedFailureRef.current.set(
+                        turnMutationOperationId,
+                        errorCode || "context_v2_persist_failed",
+                      );
+                      setStreamErrorForChat(
+                        targetChatId,
+                        CONTEXT_V2_TURN_MUTATION_MESSAGES.PERSIST,
+                      );
+                    }
+                    notifyTurnMutationChange(targetChatId);
+                  }
+                }
+              }
 
               const materializedStreamMessages = materializeStreamingMessages(
                 targetChatId,
@@ -12233,8 +12409,17 @@ export const useChatStream = ({
           { code: "chat_config_unavailable" },
         );
       }
+      /* Same rule as the composer's own door: a chat that runs a stored
+         Skeleton Agent has a runnable configuration without a composer model,
+         because the resource's Kernel is what runs. Read from the stored run
+         context, which is this chat's own row, not the visible selector. */
+      const exactSkeletonSelection =
+        exactRunContext.kind === "character"
+          ? null
+          : skeleton_selection_payload(exactRunContext.selectedSkeletonAgentId);
       if (
         exactRunContext.kind !== "character" &&
+        !exactSkeletonSelection &&
         (!exactRunContext.modelId ||
           exactRunContext.modelId === "unchain-unset")
       ) {
@@ -12451,6 +12636,26 @@ export const useChatStream = ({
         isCharacterChat ||
         (normalizedSelectedModelId &&
           normalizedSelectedModelId !== "unchain-unset");
+      /* Whether this send needs a composer model at all.
+         A request that carries a Skeleton selection runs the resource's own
+         stored Kernel — provider, model and context window come out of the
+         saved document on the server — so the pill is not what runs and
+         cannot be required. Resolved with the same precedence the run itself
+         uses (the run context this chat holds, else what the composer shows),
+         so this door and the request it guards cannot disagree: the
+         requirement is lifted exactly when a selection goes out. A legacy
+         Recipe is NOT this case — it runs on the composer's model. */
+      const gateRunContext =
+        runContextByChatIdRef.current.get(currentChatId) || null;
+      const gateSkeletonSelection = isCharacterChat
+        ? null
+        : skeleton_selection_payload(
+            typeof gateRunContext?.selectedSkeletonAgentId === "string"
+              ? gateRunContext.selectedSkeletonAgentId
+              : selectedSkeletonAgentIdRef.current,
+          );
+      const modelRequirementSatisfied =
+        Boolean(hasSelectedModel) || Boolean(gateSkeletonSelection);
       const thisChatsRunActive = isChatRunPending(currentChatId);
       const thisChatHasStreamHandle =
         streamHandlesRef.current.has(currentChatId);
@@ -12637,7 +12842,7 @@ export const useChatStream = ({
         return;
       }
 
-      if (!hasSelectedModel) {
+      if (!modelRequirementSatisfied) {
         setStreamError("Select a model before sending a message.");
         return;
       }
@@ -13673,6 +13878,15 @@ export const useChatStream = ({
           typeof threadIdRef?.current === "string" ? threadIdRef.current : "";
         const capturedModelId =
           typeof modelIdRef?.current === "string" ? modelIdRef.current : "";
+        /* Pin the Agent exactly as the model above is pinned. This mutation
+           still has awaits to go (character config, memory plan, rebase), and
+           the chat's own row can change under it — a retry runs the resource
+           that was selected when it was launched, and an empty capture stays
+           empty rather than inheriting a later choice. */
+        const capturedSkeletonAgentId =
+          typeof selectedSkeletonAgentIdRef?.current === "string"
+            ? selectedSkeletonAgentIdRef.current
+            : "";
         const characterConfig = isCharacterChat
           ? await buildCharacterRunConfig(targetThreadId).catch((error) => {
               setStreamErrorForChat(
@@ -13768,6 +13982,7 @@ export const useChatStream = ({
           text: resendText,
           modelId: targetModelId,
           threadId: targetThreadId,
+          selectedSkeletonAgentId: capturedSkeletonAgentId,
           memoryNamespace: characterConfig?.run_memory_namespace || "",
           forceMemoryEnabled: isCharacterChat,
           expectedSessionRevision,
@@ -13831,7 +14046,11 @@ export const useChatStream = ({
           reuseUserMessage: targetMessage,
           missingAttachmentPayloadMode: "degrade",
           characterAgentConfig: characterConfig,
-          runContext: { modelId: targetModelId, threadId: targetThreadId },
+          runContext: {
+            modelId: targetModelId,
+            threadId: targetThreadId,
+            selectedSkeletonAgentId: capturedSkeletonAgentId,
+          },
           turnMutationOperationId: operationId,
         });
       } finally {
@@ -13951,6 +14170,15 @@ export const useChatStream = ({
           typeof threadIdRef?.current === "string" ? threadIdRef.current : "";
         const capturedModelId =
           typeof modelIdRef?.current === "string" ? modelIdRef.current : "";
+        /* Pin the Agent exactly as the model above is pinned. This mutation
+           still has awaits to go (character config, memory plan, rebase), and
+           the chat's own row can change under it — a retry runs the resource
+           that was selected when it was launched, and an empty capture stays
+           empty rather than inheriting a later choice. */
+        const capturedSkeletonAgentId =
+          typeof selectedSkeletonAgentIdRef?.current === "string"
+            ? selectedSkeletonAgentIdRef.current
+            : "";
         const targetSelectedToolkits = Array.isArray(selectedToolkitsRef.current)
           ? [...selectedToolkitsRef.current]
           : [];
@@ -14080,6 +14308,7 @@ export const useChatStream = ({
           composer: built.composer,
           modelId: targetModelId,
           threadId: targetThreadId,
+          selectedSkeletonAgentId: capturedSkeletonAgentId,
           memoryNamespace: characterConfig?.run_memory_namespace || "",
           forceMemoryEnabled: isCharacterChat,
           expectedSessionRevision,
@@ -14125,7 +14354,11 @@ export const useChatStream = ({
           extraToolkits: built.extraToolkits,
           characterAgentConfig: characterConfig,
           composer: built.composer,
-          runContext: { modelId: targetModelId, threadId: targetThreadId },
+          runContext: {
+            modelId: targetModelId,
+            threadId: targetThreadId,
+            selectedSkeletonAgentId: capturedSkeletonAgentId,
+          },
           turnMutationOperationId: operationId,
         });
       } finally {
@@ -14225,6 +14458,15 @@ export const useChatStream = ({
           typeof threadIdRef?.current === "string" ? threadIdRef.current : "";
         const capturedModelId =
           typeof modelIdRef?.current === "string" ? modelIdRef.current : "";
+        /* Pin the Agent exactly as the model above is pinned. This mutation
+           still has awaits to go (character config, memory plan, rebase), and
+           the chat's own row can change under it — a retry runs the resource
+           that was selected when it was launched, and an empty capture stays
+           empty rather than inheriting a later choice. */
+        const capturedSkeletonAgentId =
+          typeof selectedSkeletonAgentIdRef?.current === "string"
+            ? selectedSkeletonAgentIdRef.current
+            : "";
         const characterConfig = isCharacterChat
           ? await buildCharacterRunConfig(targetThreadId).catch((error) => {
               setStreamErrorForChat(
@@ -14327,6 +14569,7 @@ export const useChatStream = ({
           text: "",
           modelId: targetModelId,
           threadId: targetThreadId,
+          selectedSkeletonAgentId: capturedSkeletonAgentId,
           memoryNamespace: characterConfig?.run_memory_namespace || "",
           forceMemoryEnabled: isCharacterChat,
           expectedCancelAttemptId,
@@ -14415,6 +14658,36 @@ export const useChatStream = ({
       return undefined;
     }
     if (
+      turnMutationUnrecordedFailureRef.current.has(entry.operationId) &&
+      !hasActiveRetryAttempt
+    ) {
+      /* This operation's run already started and failed in this session, and
+         the store refused every attempt to record that — so the row still
+         reads as untried. Dispatching it again would only repeat the refusal
+         and replace its reason with the streaming disclaimer, so it is held
+         here and the page says the hold could not be saved.
+         The store may since have become writable, so one conversion into the
+         durable hold is attempted per effect run: a QUARANTINED row is what
+         carries the reason across a reload and what gives the person Retry
+         and Discard. Only a successful write bumps the version, so a still
+         failing store cannot turn this into a render loop. */
+      const heldDurably = recordTurnMutationRetryOutcome(entry.operationId, {
+        action: TURN_MUTATION_RETRY_ACTIONS.QUARANTINE,
+        code:
+          turnMutationUnrecordedFailureRef.current.get(entry.operationId) ||
+          "context_v2_persist_failed",
+      });
+      setStreamErrorForChat(
+        targetChatId,
+        CONTEXT_V2_TURN_MUTATION_MESSAGES.PERSIST,
+      );
+      if (heldDurably) {
+        turnMutationUnrecordedFailureRef.current.delete(entry.operationId);
+        setTurnMutationVersion((version) => version + 1);
+      }
+      return undefined;
+    }
+    if (
       entry.retryStatus === TURN_MUTATION_RETRY_STATUSES.IN_PROGRESS &&
       turnMutationInProgressSeenRef.current.has(entry.operationId)
     ) {
@@ -14458,8 +14731,10 @@ export const useChatStream = ({
       setTurnMutationVersion((version) => version + 1);
       return undefined;
     }
+    /* A recorded backoff is honoured whatever the entry's memory mode is: a
+       legacy intent's run can fail after it started just as a V2 one can, and
+       the writer above is the only thing that sets WAITING for either. */
     if (
-      entry.memoryMode === TURN_MUTATION_MEMORY_MODES.V2 &&
       entry.retryStatus === TURN_MUTATION_RETRY_STATUSES.WAITING &&
       entry.retryAt > Date.now()
     ) {
@@ -14744,7 +15019,15 @@ export const useChatStream = ({
         extraToolkits: entry.extraToolkits,
         composer: entry.composer,
         characterAgentConfig: characterConfig,
-        runContext: { modelId: entry.modelId, threadId: entry.threadId },
+        runContext: {
+          modelId: entry.modelId,
+          threadId: entry.threadId,
+          /* Omitted for an entry written before this field existed, so it
+             replays against the chat's own row as it did then. */
+          ...(typeof entry.selectedSkeletonAgentId === "string"
+            ? { selectedSkeletonAgentId: entry.selectedSkeletonAgentId }
+            : {}),
+        },
         turnMutationOperationId: entry.operationId,
       });
       const storedMessages = storageApi.getChatMessages?.(targetChatId) || [];

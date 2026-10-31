@@ -10,6 +10,7 @@ import {
   withTimeout,
 } from "./api.shared";
 import { readWorkspaces } from "../COMPONENTs/settings/runtime";
+import { invokeSkeletonBridge } from "./skeleton_resource_errors";
 import { readMemorySettings } from "../COMPONENTs/settings/memory/storage";
 import { sanitizeSystemPromptSections } from "./system_prompt_sections";
 import { DEFAULT_SYSTEM_PROMPT_V2_SECTIONS } from "./prompts/defaults";
@@ -24,6 +25,7 @@ import {
   parseCustomProviderKey,
 } from "./custom_provider_store";
 import { isFeatureFlagEnabled } from "./feature_flags";
+import { skeleton_selection_resource_id } from "./skeleton_chat_selection";
 import { isShippedSlug } from "./shipped_provider_registry";
 import { readNamespace } from "./settings_repository";
 import { validateDurablePresentationMetadata } from "./durable_interaction_presentation";
@@ -914,6 +916,52 @@ const mergeCustomProvidersIntoCatalog = (catalog) => {
   };
 };
 
+/* The three send-time blocks `injectCustomProviderIntoPayload` raises. All
+   three are statements about the model the COMPOSER would run: its provider
+   definition is gone, switched off, or has no key. */
+const CUSTOM_PROVIDER_SEND_BLOCKS = new Set([
+  "custom_provider_not_found",
+  "custom_provider_disabled",
+  "custom_provider_missing_api_key",
+]);
+
+/* Custom-provider completion, for a request that may not be running that
+   model at all.
+ *
+ * A chat that carries a stored Skeleton Agent runs the resource's saved Kernel
+ * profile — the server reads provider, model and context window out of the
+ * saved document — while `options.modelId` still carries whatever the composer
+ * holds. A model choice outlives its provider (a custom provider the user
+ * deleted, say), and that is an ordinary persisted state, so it must not stop
+ * an Agent that was never going to use it.
+ *
+ * The enrichment is still attempted: when the pill's provider does resolve,
+ * what it adds to the payload is unchanged, and an Agent whose Kernel names
+ * that same provider keeps whatever it supplies. Only the three send-time
+ * blocks are dropped, and only for a selection the server itself would accept
+ * (`skeleton_selection_resource_id` recognizes nothing else). An ordinary chat
+ * and a Legacy Recipe are untouched — they DO run that model — and any other
+ * error still travels. Nothing here substitutes a provider, a model or a
+ * different resource: a Skeleton run whose own credential is missing is
+ * refused by the host, which is the side that knows its Kernel. */
+const injectCustomProviderForRun = (payload) => {
+  const options = isObject(payload) && isObject(payload.options) ? payload.options : null;
+  if (!skeleton_selection_resource_id(options)) {
+    return injectCustomProviderIntoPayload(payload);
+  }
+  try {
+    return injectCustomProviderIntoPayload(payload);
+  } catch (error) {
+    if (
+      error instanceof FrontendApiError &&
+      CUSTOM_PROVIDER_SEND_BLOCKS.has(error.code)
+    ) {
+      return payload;
+    }
+    throw error;
+  }
+};
+
 const normalizeUnchainV2Payload = (payload) => {
   const payloadWithWorkspaceRoot = injectWorkspaceRootIntoPayload(payload);
   const payloadWithSkillsOptions = injectSkillsOptionsIntoPayload(
@@ -925,7 +973,7 @@ const normalizeUnchainV2Payload = (payload) => {
   const payloadWithMemory = injectMemoryIntoPayload(payloadWithSystemPromptV2);
   const payloadWithProviderKey =
     injectProviderApiKeyIntoPayload(payloadWithMemory);
-  return injectCustomProviderIntoPayload(payloadWithProviderKey);
+  return injectCustomProviderForRun(payloadWithProviderKey);
 };
 
 const DURABLE_INTERACTION_STATUSES = new Set([
@@ -1173,7 +1221,10 @@ const normalizePendingInteractionResponse = (response, expectedSessionId) => {
   const kind = boundaryString(response.kind);
   const sourceRunId = boundaryString(response.source_run_id);
   const activeAttemptId = boundaryString(response.active_attempt_id);
-  const hasGraphResumeKeys = [
+  const isSkeletonResume = response.resume_kind === "skeleton";
+  const interactionSourceRunId = boundaryString(response.interaction_source_run_id);
+  const interactionSessionId = boundaryString(response.interaction_session_id);
+  const hasGraphResumeKeys = !isSkeletonResume && [
     "resume_kind",
     "graph_step_attempt_id",
     "graph_coordinator_attempt_id",
@@ -1182,7 +1233,9 @@ const normalizePendingInteractionResponse = (response, expectedSessionId) => {
     response,
     "resume_unavailable_reason",
   );
-  const resumeKeys = hasGraphResumeKeys
+  const resumeKeys = isSkeletonResume
+    ? ["resume_kind", "interaction_source_run_id", "interaction_session_id"]
+    : hasGraphResumeKeys
     ? [
         "resume_kind",
         "graph_step_attempt_id",
@@ -1205,14 +1258,17 @@ const normalizePendingInteractionResponse = (response, expectedSessionId) => {
     !isCanonicalDurablePresentation(response.presentation, {
       kind,
       interactionId,
-      sourceRunId,
+      sourceRunId: isSkeletonResume ? interactionSourceRunId : sourceRunId,
       sessionId,
     }) ||
     typeof response.resume_available !== "boolean" ||
     !isObject(response.resume_options) ||
+    (isSkeletonResume &&
+      (!interactionSourceRunId || !interactionSessionId ||
+        response.resume_available !== true || hasUnavailableReason)) ||
     (hasGraphResumeKeys &&
       (response.resume_kind !== "graph_step" || hasUnavailableReason)) ||
-    (!hasGraphResumeKeys && response.resume_kind !== undefined) ||
+    (!isSkeletonResume && !hasGraphResumeKeys && response.resume_kind !== undefined) ||
     (response.resume_available === false && !hasUnavailableReason) ||
     (response.resume_available === true && hasUnavailableReason) ||
     !hasExactKeys(response, [
@@ -1391,8 +1447,11 @@ export const createUnchainApi = () => {
       }
     },
 
-    listToolModalCatalog: async () => {
+    listToolModalCatalog: async (options = {}) => {
+      // Renderer-only read policy. Never forwarded to the existing bridge.
+      const strict = options?.strict === true;
       if (!hasBridgeMethod("unchainAPI", "listToolModalCatalog")) {
+        if (strict) throw new FrontendApiError("unchain_tool_modal_catalog_unavailable", "The tool library is unavailable in this build.");
         return { toolkits: [], artifactKinds: [], count: 0, source: "" };
       }
 
@@ -1404,6 +1463,7 @@ export const createUnchainApi = () => {
           "unchain_tool_modal_catalog_timeout",
           "Unchain tool modal catalog request timed out",
         );
+        if (strict && !payload) throw new FrontendApiError("unchain_tool_modal_catalog_invalid", "The tool library returned an unreadable reply.");
         return payload || { toolkits: [], artifactKinds: [], count: 0, source: "" };
       } catch (error) {
         throw toFrontendApiError(
@@ -2509,6 +2569,163 @@ export const createUnchainApi = () => {
           ? Number(response.count)
           : 0,
       };
+    },
+
+    listSkeletonResources: async (includeArchived = true) => {
+      const method = assertBridgeMethod("unchainAPI", "listSkeletonResources");
+      const response = await withTimeout(() => invokeSkeletonBridge(() => method(includeArchived)), 15000,
+        "skeleton_resource_list_timeout", "Skeleton resource list request timed out");
+      return { resources: Array.isArray(response?.resources) ? response.resources : [] };
+    },
+
+    getSkeletonResource: async (resourceId) => {
+      const method = assertBridgeMethod("unchainAPI", "getSkeletonResource");
+      return withTimeout(() => invokeSkeletonBridge(() => method(resourceId)), 15000,
+        "skeleton_resource_get_timeout", "Skeleton resource get request timed out");
+    },
+
+    saveSkeletonResource: async (payload = {}) => {
+      const method = assertBridgeMethod("unchainAPI", "saveSkeletonResource");
+      return withTimeout(() => invokeSkeletonBridge(() => method(isObject(payload) ? payload : {})), 20000,
+        "skeleton_resource_save_timeout", "Skeleton resource save request timed out");
+    },
+
+    diagnoseSkeletonResource: async (document) => {
+      const method = assertBridgeMethod("unchainAPI", "diagnoseSkeletonResource");
+      return withTimeout(() => invokeSkeletonBridge(() => method(document)), 15000,
+        "skeleton_resource_diagnose_timeout", "Skeleton resource diagnosis timed out");
+    },
+
+    importSkeletonResource: async (document) => {
+      const method = assertBridgeMethod("unchainAPI", "importSkeletonResource");
+      return withTimeout(() => invokeSkeletonBridge(() => method(document)), 20000,
+        "skeleton_resource_import_timeout", "Skeleton resource import timed out");
+    },
+
+    convertSkeletonLegacyPools: async (resourceId, expectedEditToken, legacyKernel = null) => {
+      const method = assertBridgeMethod("unchainAPI", "convertSkeletonLegacyPools");
+      const fixedKernel = legacyKernel && typeof legacyKernel === "object" && !Array.isArray(legacyKernel)
+        ? legacyKernel
+        : null;
+      return withTimeout(
+        () => invokeSkeletonBridge(() => method(resourceId, expectedEditToken, fixedKernel)),
+        15000,
+        "skeleton_legacy_pool_conversion_timeout",
+        "Skeleton legacy pool conversion timed out",
+      );
+    },
+
+    preflightSkeletonResource: async (resourceId, legacyKernel = null) => {
+      const method = assertBridgeMethod("unchainAPI", "preflightSkeletonResource");
+      const fixedKernel = legacyKernel && typeof legacyKernel === "object" && !Array.isArray(legacyKernel)
+        ? legacyKernel
+        : null;
+      return withTimeout(() => invokeSkeletonBridge(() => method(resourceId, fixedKernel)), 20000,
+        "skeleton_resource_preflight_timeout", "Skeleton resource preflight timed out");
+    },
+
+    publishSkeletonWorkflow: async (resourceId, expectedEditToken) => {
+      const method = assertBridgeMethod("unchainAPI", "publishSkeletonWorkflow");
+      return withTimeout(() => invokeSkeletonBridge(() => method(resourceId, expectedEditToken)), 20000,
+        "skeleton_workflow_publish_timeout", "Workflow publish request timed out");
+    },
+
+    getSkeletonWorkflowVersion: async (workflowId, revisionId) => {
+      const method = assertBridgeMethod("unchainAPI", "getSkeletonWorkflowVersion");
+      return withTimeout(() => invokeSkeletonBridge(() => method(workflowId, revisionId)), 15000,
+        "skeleton_workflow_version_timeout", "Workflow version request timed out");
+    },
+
+    renameSkeletonResource: async (resourceId, name, expectedEditToken) => {
+      const method = assertBridgeMethod("unchainAPI", "renameSkeletonResource");
+      return withTimeout(() => invokeSkeletonBridge(() => method(resourceId, name, expectedEditToken)), 20000,
+        "skeleton_resource_rename_timeout", "Skeleton resource rename timed out");
+    },
+
+    duplicateSkeletonResource: async (resourceId, newId, name) => {
+      const method = assertBridgeMethod("unchainAPI", "duplicateSkeletonResource");
+      return withTimeout(() => invokeSkeletonBridge(() => method(resourceId, newId, name)), 20000,
+        "skeleton_resource_duplicate_timeout", "Skeleton resource duplicate timed out");
+    },
+
+    archiveSkeletonResource: async (resourceId, expectedEditToken) => {
+      const method = assertBridgeMethod("unchainAPI", "archiveSkeletonResource");
+      return withTimeout(() => invokeSkeletonBridge(() => method(resourceId, expectedEditToken)), 20000,
+        "skeleton_resource_archive_timeout", "Skeleton resource archive timed out");
+    },
+
+    restoreSkeletonResource: async (resourceId, expectedEditToken) => {
+      const method = assertBridgeMethod("unchainAPI", "restoreSkeletonResource");
+      return withTimeout(() => invokeSkeletonBridge(() => method(resourceId, expectedEditToken)), 20000,
+        "skeleton_resource_restore_timeout", "Skeleton resource restore timed out");
+    },
+
+    deleteSkeletonResource: async (resourceId, expectedEditToken) => {
+      const method = assertBridgeMethod("unchainAPI", "deleteSkeletonResource");
+      return withTimeout(() => invokeSkeletonBridge(() => method(resourceId, expectedEditToken)), 30000,
+        "skeleton_resource_delete_timeout", "Skeleton resource delete timed out");
+    },
+
+    migrateSkeletonResource: async (payload = {}) => {
+      const method = assertBridgeMethod("unchainAPI", "migrateSkeletonResource");
+      return withTimeout(() => invokeSkeletonBridge(() => method(isObject(payload) ? payload : {})), 30000,
+        "skeleton_resource_migrate_timeout", "Skeleton resource migration timed out");
+    },
+
+    resolveSkeletonResource: async (payload = {}) => {
+      const method = assertBridgeMethod("unchainAPI", "resolveSkeletonResource");
+      return withTimeout(() => invokeSkeletonBridge(() => method(isObject(payload) ? payload : {})), 15000,
+        "skeleton_resource_resolve_timeout", "Skeleton resource resolve timed out");
+    },
+
+    /* Candidate Kernel Loop profiles. Both halves are carried through: the
+       second one is why a model the author expects to see is not offered, and
+       dropping it would leave the panel unable to say anything. */
+    listSkeletonKernelProfiles: async () => {
+      const method = assertBridgeMethod("unchainAPI", "listSkeletonKernelProfiles");
+      const response = await withTimeout(() => invokeSkeletonBridge(() => method()), 15000,
+        "skeleton_kernel_profile_list_timeout", "Kernel profile list timed out");
+      // Both halves, or neither. Coercing a malformed answer to empty lists
+      // made "this build offers no model" and "that was not a catalog" the
+      // same value, and the panel then stated the first about the second. An
+      // answer that is not the agreed shape is a protocol error here, the way
+      // a refusal that is not the agreed record is in invokeSkeletonBridge.
+      const shaped = isObject(response) &&
+        Array.isArray(response.profiles) && Array.isArray(response.unavailable) &&
+        [...response.profiles, ...response.unavailable].every(
+          (entry) => isObject(entry) && !Array.isArray(entry));
+      if (!shaped) {
+        throw new FrontendApiError(
+          "skeleton_kernel_profile_list_malformed",
+          "Kernel profile list was not a catalog",
+        );
+      }
+      return { profiles: response.profiles, unavailable: response.unavailable };
+    },
+
+    listSkeletonPythonProfiles: async () => {
+      const method = assertBridgeMethod("unchainAPI", "listSkeletonPythonProfiles");
+      const response = await withTimeout(() => invokeSkeletonBridge(() => method()), 15000,
+        "skeleton_python_profile_list_timeout", "Python profile list timed out");
+      return { profiles: Array.isArray(response?.profiles) ? response.profiles : [] };
+    },
+
+    saveSkeletonPythonProfile: async (payload = {}) => {
+      const method = assertBridgeMethod("unchainAPI", "saveSkeletonPythonProfile");
+      return withTimeout(() => invokeSkeletonBridge(() => method(isObject(payload) ? payload : {})), 20000,
+        "skeleton_python_profile_save_timeout", "Python profile save timed out");
+    },
+
+    probeSkeletonPythonProfile: async (profileId) => {
+      const method = assertBridgeMethod("unchainAPI", "probeSkeletonPythonProfile");
+      return withTimeout(() => invokeSkeletonBridge(() => method(profileId)), 10000,
+        "skeleton_python_profile_probe_timeout", "Python profile probe timed out");
+    },
+
+    deleteSkeletonPythonProfile: async (profileId, expectedEditToken) => {
+      const method = assertBridgeMethod("unchainAPI", "deleteSkeletonPythonProfile");
+      return withTimeout(() => invokeSkeletonBridge(() => method(profileId, expectedEditToken)), 20000,
+        "skeleton_python_profile_delete_timeout", "Python profile delete timed out");
     },
 
     previewCharacterDecision: async (payload = {}) => {

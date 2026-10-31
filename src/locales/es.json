@@ -609,7 +609,10 @@
       "link": "Enlace",
       "context_usage": "Uso del contexto",
       "done": "Listo",
-      "drop_here": "Suelta aquí para guardar"
+      "drop_here": "Suelta aquí para guardar",
+      "agent_default": "Agent: Default",
+      "agent_unavailable": "Unavailable",
+      "agent_runs_saved": "Runs the saved definition"
     },
     "skill_inventory_stale": {
       "title": "Las habilidades han cambiado",

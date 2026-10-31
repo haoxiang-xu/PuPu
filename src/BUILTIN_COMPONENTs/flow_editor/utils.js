@@ -56,16 +56,30 @@ export function calculate_port_position(
   }
 }
 
+function own_dimensions(table, node_id) {
+  if (!table || typeof node_id !== "string") return null;
+  return Object.prototype.hasOwnProperty.call(table, node_id)
+    ? table[node_id]
+    : null;
+}
+
 /**
  * Resolve a port's canvas-space position for a given node object.
  *
  * @param {{ id: string, x: number, y: number, ports?: Array }} node
  * @param {string} port_id
- * @param {Object} node_dimensions  Map of nodeId → { width, height }
+ * @param {Object} node_dimensions  Map of nodeId → { width, height }, read by
+ *   own key only: a node id is whatever the graph chose, and `__proto__` is a
+ *   legal one, so a plain-object read could answer with an inherited member
+ *   and give the port NaN coordinates. The editor's own table has no
+ *   prototype; this makes the function safe for any caller's.
  * @returns {{ x: number, y: number, side: string } | null}
  */
 export function get_port_position(node, port_id, node_dimensions) {
-  const dims = node_dimensions[node.id] || { width: 120, height: 60 };
+  const dims = own_dimensions(node_dimensions, node.id) || {
+    width: 120,
+    height: 60,
+  };
   const ports = node.ports || DEFAULT_PORTS;
   const port = ports.find((p) => p.id === port_id);
   if (!port) return null;

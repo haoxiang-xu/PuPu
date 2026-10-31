@@ -1164,6 +1164,36 @@ const createSettingsStorageService = ({
     };
   };
 
+  // Main-only credential authority needs to distinguish an absent registry
+  // from one the public bootstrap omitted because it could not be read.
+  // Preserve entries exactly; the credential consumer owns their admission.
+  // This reader never repairs settings, reads a secret, or crosses IPC.
+  const readModelProviderRegistry = () => {
+    if (!db) return { status: "unavailable" };
+    let row;
+    try {
+      row = db
+        .prepare("SELECT value_json FROM settings WHERE namespace = ?")
+        .get(MODEL_PROVIDERS_NAMESPACE);
+    } catch (_error) {
+      return { status: "unavailable" };
+    }
+    if (!row) return { status: "missing" };
+    let namespace;
+    try {
+      if (typeof row.value_json !== "string") return { status: "invalid" };
+      namespace = JSON.parse(row.value_json);
+    } catch (_error) {
+      return { status: "invalid" };
+    }
+    if (!isPlainObject(namespace)) return { status: "invalid" };
+    const providers = Object.prototype.hasOwnProperty.call(namespace, "custom_providers")
+      ? namespace.custom_providers
+      : [];
+    if (!Array.isArray(providers)) return { status: "invalid" };
+    return { status: "ready", providers };
+  };
+
   const setNamespace = (namespace, value, options = {}) => {
     requireDb();
     validateNamespace(namespace);
@@ -3284,6 +3314,7 @@ const createSettingsStorageService = ({
   return {
     init,
     getBootstrapSnapshot,
+    readModelProviderRegistry,
     setNamespace,
     deleteNamespace,
     migrateLegacy,
