@@ -278,8 +278,11 @@ def stream_skeleton_chat_events(*, message, history, attachments, options, sessi
             takeover = host._memory_v2_guard_reclaimed_execution(options=options, session_id=session_id,
                 attempt_id=attempt_id, registration=registration, running=running)
             if takeover is not None:
-                yield takeover
-                return
+                # The shared guard's raw error is not a V4 runtime event.
+                # Use the typed terminal path without changing its safety fence.
+                _fail(takeover["code"],
+                    "This Skeleton attempt was not restarted because prior effects cannot be proven safe. "
+                    "Review Trace. If its execution is still active, explicitly cancel it before starting a new attempt.")
             old = load_active_launch(session_id, allow_terminal_stale=True)
             if old and old.store.load().state["status"] not in {"completed", "failed", "cancelled", "outcome_unknown"}:
                 _fail("skeleton_execution_already_active", "Resume or cancel the current Skeleton execution first.")

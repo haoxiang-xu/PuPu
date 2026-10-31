@@ -2,12 +2,12 @@ import React from "react";
 import PuzzleShape from "./puzzle_shape";
 import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
 
-export default function ToolPoolNode({ node, isDark }) {
+export default function ToolPoolNode({ node, isDark, native = false, toolkits }) {
   /* Only a list has a length, and this one is drawn: `{"length": …}` reached
      the line below as the count itself, which is the same fault as a label
      that is not text. A Skeleton node carries neither key — its toolkits live
      in `config` — so it draws none. */
-  const list = node.toolkits || node.tools;
+  const list = native ? toolkits : node.toolkits || node.tools;
   const count = Array.isArray(list) ? list.length : 0;
   return (
     <div style={{ width: 180 }}>
@@ -45,7 +45,7 @@ export default function ToolPoolNode({ node, isDark }) {
                   marginTop: 2,
                 }}
               >
-                {count} toolkit{count === 1 ? "" : "s"}
+                {native && !Array.isArray(list) ? "Tool settings incomplete" : `${count} toolkit${count === 1 ? "" : "s"}`}
               </div>
             </div>
           </div>

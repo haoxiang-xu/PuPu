@@ -6,13 +6,16 @@ import {
   save_draft,
 } from "./skeleton_resources";
 import { legacy_conversion_plan } from "./legacy_conversion";
+import { new_agent_document } from "./skeleton_graph_edits";
 import {
+  can_save,
   can_convert_legacy_pools,
   conflict_discarded,
   conversion_failed,
   conversion_started,
   conversion_succeeded,
   conflict_overridden,
+  draft_created,
   edited,
   empty_session,
   load_failed,
@@ -68,6 +71,12 @@ export default function useSkeletonResource() {
     },
     [apply],
   );
+
+  const create = useCallback((args) => {
+    const result = new_agent_document(args);
+    if (result.ok) apply((current) => draft_created(current, result.document));
+    return result;
+  }, [apply]);
 
   /* Opening another resource in this editor, for a drill-in into a referenced
      Agent. The read comes first and what is on screen is replaced only if it
@@ -152,9 +161,19 @@ export default function useSkeletonResource() {
     [apply],
   );
 
+  /* A semantic canvas command must be evaluated against the current ref,
+     including earlier commands in the same React batch. The issued sitting
+     belongs to the view that offered the command; a late view cannot edit a
+     newly opened copy of the same resource. */
+  const editCurrent = useCallback((issued, transform) => apply((current) => {
+    if (!same_open(current, issued) || current.status !== "ready" || !current.document) return current;
+    const next = transform(current);
+    return next && next !== current.document ? edited(current, next) : current;
+  }), [apply]);
+
   const save = useCallback(async () => {
     const current = ref.current;
-    if (!current.document) return current;
+    if (!current.document || !can_save(current)) return current;
     const issued = session_token(current);
     apply(save_started(current));
     const result = await save_draft(current.document, current.edit_token);
@@ -244,10 +263,12 @@ export default function useSkeletonResource() {
 
   return {
     session,
+    create,
     load,
     openAnother: open_another,
     restore,
     edit,
+    editCurrent,
     save,
     keepMine: () => resolve_conflict("mine"),
     takeTheirs: () => resolve_conflict("theirs"),

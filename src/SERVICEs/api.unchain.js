@@ -1447,8 +1447,11 @@ export const createUnchainApi = () => {
       }
     },
 
-    listToolModalCatalog: async () => {
+    listToolModalCatalog: async (options = {}) => {
+      // Renderer-only read policy. Never forwarded to the existing bridge.
+      const strict = options?.strict === true;
       if (!hasBridgeMethod("unchainAPI", "listToolModalCatalog")) {
+        if (strict) throw new FrontendApiError("unchain_tool_modal_catalog_unavailable", "The tool library is unavailable in this build.");
         return { toolkits: [], artifactKinds: [], count: 0, source: "" };
       }
 
@@ -1460,6 +1463,7 @@ export const createUnchainApi = () => {
           "unchain_tool_modal_catalog_timeout",
           "Unchain tool modal catalog request timed out",
         );
+        if (strict && !payload) throw new FrontendApiError("unchain_tool_modal_catalog_invalid", "The tool library returned an unreadable reply.");
         return payload || { toolkits: [], artifactKinds: [], count: 0, source: "" };
       } catch (error) {
         throw toFrontendApiError(

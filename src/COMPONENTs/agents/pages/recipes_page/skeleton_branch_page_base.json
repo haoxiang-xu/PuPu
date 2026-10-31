@@ -1,0 +1,133 @@
+{
+  "schema_version": 1,
+  "kind": "agent",
+  "id": "branch-page",
+  "name": "Branch page",
+  "nodes": [
+    {
+      "id": "start",
+      "type": "start",
+      "config": {
+        "execution": {
+          "outputs": [
+            {
+              "name": "message",
+              "source": {
+                "kind": "result",
+                "path": [
+                  "message"
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "router",
+      "type": "agent",
+      "config": {
+        "execution": {
+          "inputs": [
+            {
+              "name": "message",
+              "value": {
+                "kind": "ref",
+                "node_id": "start",
+                "path": [
+                  "message"
+                ]
+              },
+              "missing": "error"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "reply",
+              "source": {
+                "kind": "result",
+                "path": [
+                  "message"
+                ]
+              }
+            }
+          ]
+        },
+        "kernel": {
+          "schema_version": 1,
+          "profile": {
+            "id": "openai:gpt-6-luna",
+            "provider": "openai",
+            "model": "gpt-6-luna",
+            "protocol": "openai-responses",
+            "endpoint": "https://api.openai.com/v1",
+            "credential_ref": "openai",
+            "context_window": 1050000,
+            "output_limit": 128000,
+            "capabilities": {
+              "json_schema": true,
+              "images": true,
+              "files": false
+            }
+          },
+          "prompt": "[router]",
+          "max_iterations": 12,
+          "output_tokens": 128000,
+          "history": "root",
+          "overflow": "error",
+          "json_schema": null
+        }
+      }
+    },
+    {
+      "id": "end",
+      "type": "end",
+      "config": {
+        "execution": {
+          "inputs": [
+            {
+              "name": "message",
+              "value": {
+                "kind": "ref",
+                "node_id": "router",
+                "path": [
+                  "reply"
+                ]
+              },
+              "missing": "error"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "message",
+              "source": {
+                "kind": "input",
+                "path": [
+                  "message"
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "a",
+      "kind": "flow",
+      "source_node_id": "start",
+      "source_port_id": "out",
+      "target_node_id": "router",
+      "target_port_id": "in"
+    },
+    {
+      "id": "b",
+      "kind": "flow",
+      "source_node_id": "router",
+      "source_port_id": "out",
+      "target_node_id": "end",
+      "target_port_id": "in"
+    }
+  ]
+}

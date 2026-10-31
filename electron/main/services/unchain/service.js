@@ -1401,7 +1401,10 @@ const createUnchainService = ({
 
   const resolveDevUnchainSourcePath = () => {
     const configuredSource = process.env.UNCHAIN_SOURCE_PATH;
-    if (configuredSource && looksLikeUnchainSource(configuredSource)) {
+    // A fixed installed wheel is an explicit import root too. Replacing it
+    // with a sibling checkout would run a different runtime than requested.
+    if (configuredSource && (looksLikeUnchainSource(configuredSource) ||
+        fs.existsSync(path.join(configuredSource, "unchain", "__init__.py")))) {
       return configuredSource;
     }
 

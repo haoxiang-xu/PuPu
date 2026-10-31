@@ -404,7 +404,7 @@ describe("the drawing is given the node, not everything beside it", () => {
     );
   });
 
-  test("a toolkit count is a count, whatever was stored where it was read", () => {
+  test("an unreadable native toolkit list is not reported as an empty one", () => {
     const document = doc();
     document.nodes.push({
       id: "tools",
@@ -413,7 +413,17 @@ describe("the drawing is given the node, not everything beside it", () => {
       config: {},
     });
     show(document);
-    expect(within(screen.getByTestId("node-tools")).getByText(/0 toolkits/)).toBeInTheDocument();
+    expect(within(screen.getByTestId("node-tools")).getByText("Tool settings incomplete")).toBeInTheDocument();
+  });
+
+  test("the toolkit count comes from native config rather than legacy sibling fields", () => {
+    const document = doc();
+    document.nodes.push({
+      id: "tools", type: "toolkit_pool", toolkits: { length: { toString: null } },
+      config: { toolkits: [{ id: "core", enabled_tools: [] }], merge_with_user_selected: false },
+    });
+    show(document);
+    expect(within(screen.getByTestId("node-tools")).getByText("1 toolkit")).toBeInTheDocument();
   });
 
   test("a type the schema does not name is given no ports rather than a prototype", () => {

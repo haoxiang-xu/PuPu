@@ -363,6 +363,7 @@ export default function KernelSection({
             set_value={pick}
             filterable
             placeholder="pick a model"
+            dropdown_style={{ maxHeight: "min(280px, 40vh)" }}
             style={{
               width: 232,
               flexShrink: 0,

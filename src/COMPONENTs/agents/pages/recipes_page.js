@@ -42,6 +42,9 @@ import {
 // is centered inside that hit area, so it clears the panel visibly).
 const PANEL_INSET = 6;
 const HANDLE_GAP = 2;
+// The native workspace includes its Save bar, so it must clear both the
+// floating library and its resize strip rather than sit underneath them.
+const SKELETON_LIST_CLEARANCE = 24;
 
 export default function RecipesPage({
   isDark,
@@ -85,6 +88,7 @@ export default function RecipesPage({
      other rather than overwriting a single "current thing", which is what
      would let a name be used as an id. */
   const [skeletonResourceId, setSkeletonResourceId] = useState(null);
+  const [newSkeletonDraft, setNewSkeletonDraft] = useState(null);
   /* A Skeleton Agent drilled into one of its subagents: the resource list is
      not the graph being edited, and offering a switch from there would drop
      the drill stack's unsaved parent. The Skeleton page owns that stack and
@@ -474,10 +478,20 @@ export default function RecipesPage({
         }}
       >
         {skeletonResourceId ? (
+          <div data-testid="skeleton-workspace" style={{
+            position: "absolute", inset: 0,
+            left: !listHidden
+              ? PANEL_INSET + panelWidths.list + SKELETON_LIST_CLEARANCE
+              : listCollapsed && !drilled && !skeletonDrilled
+                ? headerLeft + RECIPE_PANEL_HEADER.HEIGHT + PANEL_INSET
+                : 0,
+          }}>
           <SkeletonResourcePage
             resourceId={skeletonResourceId}
+            newDraft={newSkeletonDraft}
             onDrilledChange={setSkeletonDrilled}
           />
+          </div>
         ) : (
         <RecipeCanvas
           recipe={activeRecipe}
@@ -522,13 +536,21 @@ export default function RecipesPage({
       >
         <SkeletonResourceList
           activeId={skeletonResourceId}
-          onSelect={(id) => setSkeletonResourceId(id)}
+          onSelect={(id) => {
+            setNewSkeletonDraft(null);
+            setSkeletonResourceId(id);
+          }}
+          onCreate={(args) => {
+            setNewSkeletonDraft(args);
+            setSkeletonResourceId(args.id);
+          }}
           isDark={isDark}
         />
         <RecipeList
           recipes={recipes}
           activeName={activeName}
           onSelect={(name) => {
+            setNewSkeletonDraft(null);
             setSkeletonResourceId(null);
             handleSelectRecipe(name);
           }}

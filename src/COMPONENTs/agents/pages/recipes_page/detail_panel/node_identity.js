@@ -46,6 +46,21 @@ const IDENTITY = {
     title: () => "Subagent Pool",
     subtitle: (node) => count_label(node?.subagents, "subagent"),
   },
+  /* The two branch steps (#351) exist only in native Skeleton graphs; a legacy
+     recipe has no such type, so these entries never answer for one. The panel
+     header replaces the subtitle with what the stored branch holds. */
+  if_else: {
+    icon: "branch",
+    gradient: "linear-gradient(135deg, #2fb2c4, #1d8798)",
+    title: () => "If / Else",
+    subtitle: () => "Branch",
+  },
+  switch_case: {
+    icon: "switch_case",
+    gradient: "linear-gradient(135deg, #2fb2c4, #1d8798)",
+    title: () => "Switch / Case",
+    subtitle: () => "Branch",
+  },
 };
 
 function count_label(list, noun) {

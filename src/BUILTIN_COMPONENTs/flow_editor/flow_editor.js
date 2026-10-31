@@ -102,6 +102,10 @@ function FlowEditor({
   on_nodes_change,
   on_edges_change,
   on_connect,
+  /* Optional semantic consumers own admission and persistence. Without them,
+     the existing recipe consumers keep the drawing-array contract. */
+  on_delete,
+  on_reconnect,
   on_edge_add_node,
   on_select,
   render_node,
@@ -846,6 +850,18 @@ function FlowEditor({
             };
           }
         }
+        if (typeof on_reconnect === "function") {
+          on_reconnect({
+            edge_id: rc.edge_id,
+            connection: updated ? {
+              source_node_id: updated.source_node_id,
+              source_port_id: updated.source_port_id,
+              target_node_id: updated.target_node_id,
+              target_port_id: updated.target_port_id,
+            } : null,
+          });
+          return;
+        }
         let ok = false;
         if (updated && validate_connection) {
           const src_node = nodes_ref.current.find(
@@ -893,6 +909,7 @@ function FlowEditor({
     on_nodes_change,
     on_edges_change,
     on_connect,
+    on_reconnect,
     on_select,
     update_edges_for_node,
     compute_snap,
@@ -914,7 +931,10 @@ function FlowEditor({
         const tag = document.activeElement?.tagName;
         if (tag === "INPUT" || tag === "TEXTAREA") return;
         if (selected_edge_ref.current) {
-          on_edges_change?.(
+          if (typeof on_delete === "function") {
+            e.preventDefault();
+            on_delete({ node_ids: [], edge_ids: [selected_edge_ref.current] });
+          } else on_edges_change?.(
             edges_ref.current.filter(
               (edge) => edge.id !== selected_edge_ref.current,
             ),
@@ -929,16 +949,21 @@ function FlowEditor({
             return !n || n.deletable !== false;
           });
           if (deletable_ids.length === 0) return;
-          on_nodes_change?.(
-            nodes_ref.current.filter((n) => !deletable_ids.includes(n.id)),
-          );
-          on_edges_change?.(
-            edges_ref.current.filter(
-              (edge) =>
-                !deletable_ids.includes(edge.source_node_id) &&
-                !deletable_ids.includes(edge.target_node_id),
-            ),
-          );
+          if (typeof on_delete === "function") {
+            e.preventDefault();
+            on_delete({ node_ids: deletable_ids, edge_ids: [] });
+          } else {
+            on_nodes_change?.(
+              nodes_ref.current.filter((n) => !deletable_ids.includes(n.id)),
+            );
+            on_edges_change?.(
+              edges_ref.current.filter(
+                (edge) =>
+                  !deletable_ids.includes(edge.source_node_id) &&
+                  !deletable_ids.includes(edge.target_node_id),
+              ),
+            );
+          }
           setSelectedNodeIds([]);
         }
       }
@@ -955,7 +980,7 @@ function FlowEditor({
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
     };
-  }, [on_nodes_change, on_edges_change]);
+  }, [on_nodes_change, on_edges_change, on_delete]);
 
   useEffect(() => {
     const el = canvas_ref.current;
@@ -1207,7 +1232,7 @@ function FlowEditor({
                 </g>
               )}
               {/* × button at midpoint — delete edge */}
-              {ep.midpoint && on_edges_change && (
+              {ep.midpoint && (on_delete || on_edges_change) && (
                 <g
                   data-edge-delete-btn={ep.id}
                   style={{
@@ -1225,7 +1250,9 @@ function FlowEditor({
                   }}
                   onClick={(e) => {
                     e.stopPropagation();
-                    on_edges_change(
+                    if (typeof on_delete === "function") {
+                      on_delete({ node_ids: [], edge_ids: [ep.id] });
+                    } else on_edges_change(
                       edges_ref.current.filter((edge) => edge.id !== ep.id),
                     );
                     if (selected_edge_id === ep.id) setSelectedEdgeId(null);
@@ -1272,9 +1299,10 @@ function FlowEditor({
                 </g>
               )}
               {/* Endpoint reconnect handles */}
-              {ep.source_pos &&
+              {(on_reconnect || on_edges_change) && ep.source_pos &&
                 (hovered_edge_id === ep.id || selected_edge_id === ep.id) && (
                   <circle
+                    data-edge-reconnect-source={ep.id}
                     cx={ep.source_pos.x}
                     cy={ep.source_pos.y}
                     r={8}
@@ -1293,9 +1321,10 @@ function FlowEditor({
                     }}
                   />
                 )}
-              {ep.target_pos &&
+              {(on_reconnect || on_edges_change) && ep.target_pos &&
                 (hovered_edge_id === ep.id || selected_edge_id === ep.id) && (
                   <circle
+                    data-edge-reconnect-target={ep.id}
                     cx={ep.target_pos.x}
                     cy={ep.target_pos.y}
                     r={8}

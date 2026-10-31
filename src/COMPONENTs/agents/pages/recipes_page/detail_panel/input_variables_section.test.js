@@ -101,9 +101,11 @@ describe("what an input may read", () => {
   test("the sources are what upstream nodes declare they export", () => {
     /* A node that has not run cannot supply a value, and a value no node
      * exports can never arrive — both come from the document. */
+    /* A straight chain: every upstream source has run by the time `end` reads
+       it, so none is conditional (#351 marks only branch-side values). */
     expect(binding_sources(document_with([]), "end")).toEqual([
-      { node_id: "mid", node_label: "mid", name: "rows" },
-      { node_id: "start", node_label: "start", name: "text" },
+      { node_id: "mid", node_label: "mid", name: "rows", conditional: false },
+      { node_id: "start", node_label: "start", name: "text", conditional: false },
     ]);
   });
 

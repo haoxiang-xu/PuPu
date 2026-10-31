@@ -1,0 +1,3096 @@
+{
+  "binding": {
+    "manifest": {
+      "manifest_digest": "sha256:f6daf3894dd947723ee7dc60392277896b88c4890d35373b26442a1833a28101",
+      "protocols": [
+        {
+          "features": [
+            "artifact_handoff",
+            "canonical_journal",
+            "chat_deletion_sqlite_scope_closure",
+            "context_compiler",
+            "context_content_paging_v1",
+            "context_content_read_recovery_v1",
+            "context_contribution_manifest_v1",
+            "generation_rebase_live_interaction_cycles",
+            "interaction_resolution_compat",
+            "long_term_promotion",
+            "memory_curator",
+            "memory_toolkit",
+            "memory_workspace",
+            "tool_output_management_v1"
+          ],
+          "id": "context_memory",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "features": [
+            "cancel_pending",
+            "expected_interaction_id_cas",
+            "fresh_run_lineage",
+            "graph_interaction_lineage_preflight_v1",
+            "host_controlled_resume",
+            "interaction_resolution_atomic_acceptance_v1"
+          ],
+          "id": "durable_interaction",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "features": [
+            "atomic_receipt_cas",
+            "auxiliary_calls",
+            "enforce_mode",
+            "graph_runs",
+            "memory_off",
+            "ollama_reasoning_preview_v1",
+            "provider_response_outcomes_v1",
+            "provider_uncertainty_diagnostics_v1",
+            "subagent_runs"
+          ],
+          "id": "provider_turn_ownership",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "features": [
+            "canonical_metrics",
+            "completion_diagnostics_ref",
+            "context_composition_ref_v1",
+            "continuation_claim",
+            "immutable_pricing_snapshot",
+            "provider_call_set_union",
+            "provider_call_usage_v1",
+            "run_bundle_v1",
+            "run_bundle_v2"
+          ],
+          "id": "run_bundle",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "features": [
+            "code_python_v1",
+            "draft_diagnostics_v1",
+            "durable_exclusive_dag_v2",
+            "end_only_root_completion_v1",
+            "explicit_bindings_v1",
+            "hook_phase_receipts_v1",
+            "kernel_profiles_v1",
+            "legacy_conversion_v1",
+            "non_llm_workflow_v1",
+            "pinned_workflow_calls_v1",
+            "production_host_bindings_v1",
+            "skill_read_v1",
+            "structured_output_v1",
+            "subagent_graphs_v1",
+            "tool_call_v1"
+          ],
+          "id": "skeleton_execution",
+          "major": 1,
+          "minor": 1
+        },
+        {
+          "features": [
+            "active_skills_snapshot_v1",
+            "catalog_v1",
+            "skill_md_registry_v1",
+            "skill_tool_v1",
+            "toolkit_embedded_skills_v1",
+            "user_invocation_v1"
+          ],
+          "id": "skills",
+          "major": 1,
+          "minor": 0
+        }
+      ],
+      "runtime": "unchain",
+      "schema": "unchain.runtime_protocol_manifest.v1"
+    },
+    "binding_source_sha256": "8ed155faaec25e43b0af4696dc3d857f6c27db0f8dce68857220d8834d0c82e5",
+    "catalog_admission": [
+      {
+        "id": "core",
+        "ok": true,
+        "names": [
+          "ask_user_question",
+          "read",
+          "write",
+          "edit",
+          "glob",
+          "grep",
+          "web_fetch",
+          "shell",
+          "lsp"
+        ],
+        "catalog_names": [
+          "ask_user_question",
+          "read",
+          "write",
+          "edit",
+          "glob",
+          "grep",
+          "web_fetch",
+          "shell",
+          "lsp"
+        ]
+      },
+      {
+        "id": "plan",
+        "ok": true,
+        "names": [
+          "plan_start",
+          "plan_update",
+          "plan_read",
+          "plan_finalize",
+          "plan_list"
+        ],
+        "catalog_names": [
+          "plan_start",
+          "plan_update",
+          "plan_read",
+          "plan_finalize",
+          "plan_list"
+        ]
+      },
+      {
+        "id": "agent_reach",
+        "ok": true,
+        "names": [
+          "agent_reach_status",
+          "agent_reach_read_web",
+          "agent_reach_youtube_metadata"
+        ],
+        "catalog_names": [
+          "agent_reach_status",
+          "agent_reach_read_web",
+          "agent_reach_youtube_metadata"
+        ]
+      }
+    ],
+    "cases": [
+      {
+        "case": "all",
+        "config": {
+          "toolkits": [
+            {
+              "id": "core",
+              "enabled_tools": null
+            }
+          ],
+          "merge_with_user_selected": false
+        },
+        "ok": true,
+        "selected": {
+          "core": [
+            "ask_user_question",
+            "read",
+            "write",
+            "edit",
+            "glob",
+            "grep",
+            "web_fetch",
+            "shell",
+            "lsp"
+          ]
+        }
+      },
+      {
+        "case": "empty_pool",
+        "config": {
+          "toolkits": [],
+          "merge_with_user_selected": false
+        },
+        "ok": true,
+        "selected": {}
+      },
+      {
+        "case": "none",
+        "config": {
+          "toolkits": [
+            {
+              "id": "core",
+              "enabled_tools": []
+            }
+          ],
+          "merge_with_user_selected": false
+        },
+        "ok": true,
+        "selected": {
+          "core": []
+        }
+      },
+      {
+        "case": "missing_toolkits",
+        "config": {
+          "merge_with_user_selected": false
+        },
+        "ok": false,
+        "code": "invalid_shape",
+        "path": [
+          "document",
+          "nodes",
+          "tools",
+          "config"
+        ],
+        "message": "Toolkit Pool config is invalid."
+      },
+      {
+        "case": "missing_merge_with_user_selected",
+        "config": {
+          "toolkits": [
+            {
+              "id": "core",
+              "enabled_tools": null
+            }
+          ]
+        },
+        "ok": false,
+        "code": "invalid_shape",
+        "path": [
+          "document",
+          "nodes",
+          "tools",
+          "config"
+        ],
+        "message": "Toolkit Pool config is invalid."
+      },
+      {
+        "case": "config_None",
+        "config": null,
+        "ok": false,
+        "untyped": "TypeError"
+      },
+      {
+        "case": "config_[]",
+        "config": [],
+        "ok": false,
+        "code": "invalid_shape",
+        "path": [
+          "document",
+          "nodes",
+          "tools",
+          "config"
+        ],
+        "message": "Toolkit Pool config is invalid."
+      },
+      {
+        "case": "config_False",
+        "config": false,
+        "ok": false,
+        "untyped": "TypeError"
+      },
+      {
+        "case": "config_'x'",
+        "config": "x",
+        "ok": false,
+        "code": "invalid_shape",
+        "path": [
+          "document",
+          "nodes",
+          "tools",
+          "config"
+        ],
+        "message": "Toolkit Pool config is invalid."
+      },
+      {
+        "case": "config_0",
+        "config": 0,
+        "ok": false,
+        "untyped": "TypeError"
+      },
+      {
+        "case": "toolkits_0",
+        "config": {
+          "toolkits": null,
+          "merge_with_user_selected": false
+        },
+        "ok": false,
+        "code": "invalid_shape",
+        "path": [
+          "document",
+          "nodes",
+          "tools",
+          "config"
+        ],
+        "message": "Toolkit Pool requires toolkits and merge_with_user_selected."
+      },
+      {
+        "case": "toolkits_1",
+        "config": {
+          "toolkits": {},
+          "merge_with_user_selected": false
+        },
+        "ok": false,
+        "code": "invalid_shape",
+        "path": [
+          "document",
+          "nodes",
+          "tools",
+          "config"
+        ],
+        "message": "Toolkit Pool requires toolkits and merge_with_user_selected."
+      },
+      {
+        "case": "toolkits_2",
+        "config": {
+          "toolkits": "x",
+          "merge_with_user_selected": false
+        },
+        "ok": false,
+        "code": "invalid_shape",
+        "path": [
+          "document",
+          "nodes",
+          "tools",
+          "config"
+        ],
+        "message": "Toolkit Pool requires toolkits and merge_with_user_selected."
+      },
+      {
+        "case": "toolkits_3",
+        "config": {
+          "toolkits": false,
+          "merge_with_user_selected": false
+        },
+        "ok": false,
+        "code": "invalid_shape",
+        "path": [
+          "document",
+          "nodes",
+          "tools",
+          "config"
+        ],
+        "message": "Toolkit Pool requires toolkits and merge_with_user_selected."
+      },
+      {
+        "case": "merge_with_user_selected_0",
+        "config": {
+          "toolkits": [
+            {
+              "id": "core",
+              "enabled_tools": null
+            }
+          ],
+          "merge_with_user_selected": null
+        },
+        "ok": false,
+        "code": "invalid_shape",
+        "path": [
+          "document",
+          "nodes",
+          "tools",
+          "config"
+        ],
+        "message": "Toolkit Pool requires toolkits and merge_with_user_selected."
+      },
+      {
+        "case": "merge_with_user_selected_1",
+        "config": {
+          "toolkits": [
+            {
+              "id": "core",
+              "enabled_tools": null
+            }
+          ],
+          "merge_with_user_selected": 0
+        },
+        "ok": false,
+        "code": "invalid_shape",
+        "path": [
+          "document",
+          "nodes",
+          "tools",
+          "config"
+        ],
+        "message": "Toolkit Pool requires toolkits and merge_with_user_selected."
+      },
+      {
+        "case": "merge_with_user_selected_2",
+        "config": {
+          "toolkits": [
+            {
+              "id": "core",
+              "enabled_tools": null
+            }
+          ],
+          "merge_with_user_selected": 1
+        },
+        "ok": false,
+        "code": "invalid_shape",
+        "path": [
+          "document",
+          "nodes",
+          "tools",
+          "config"
+        ],
+        "message": "Toolkit Pool requires toolkits and merge_with_user_selected."
+      },
+      {
+        "case": "merge_with_user_selected_3",
+        "config": {
+          "toolkits": [
+            {
+              "id": "core",
+              "enabled_tools": null
+            }
+          ],
+          "merge_with_user_selected": "false"
+        },
+        "ok": false,
+        "code": "invalid_shape",
+        "path": [
+          "document",
+          "nodes",
+          "tools",
+          "config"
+        ],
+        "message": "Toolkit Pool requires toolkits and merge_with_user_selected."
+      },
+      {
+        "case": "merge_with_user_selected_4",
+        "config": {
+          "toolkits": [
+            {
+              "id": "core",
+              "enabled_tools": null
+            }
+          ],
+          "merge_with_user_selected": []
+        },
+        "ok": false,
+        "code": "invalid_shape",
+        "path": [
+          "document",
+          "nodes",
+          "tools",
+          "config"
+        ],
+        "message": "Toolkit Pool requires toolkits and merge_with_user_selected."
+      },
+      {
+        "case": "extra_config",
+        "config": {
+          "toolkits": [
+            {
+              "id": "core",
+              "enabled_tools": null
+            }
+          ],
+          "merge_with_user_selected": false,
+          "other": 1
+        },
+        "ok": false,
+        "code": "invalid_shape",
+        "path": [
+          "document",
+          "nodes",
+          "tools",
+          "config"
+        ],
+        "message": "Toolkit Pool config is invalid."
+      },
+      {
+        "case": "entry_0",
+        "config": {
+          "toolkits": [
+            null
+          ],
+          "merge_with_user_selected": false
+        },
+        "ok": false,
+        "code": "invalid_value",
+        "path": [
+          "document",
+          "nodes",
+          "tools",
+          "config",
+          "toolkits",
+          0
+        ],
+        "message": "Capability identity must be an exact non-empty string."
+      },
+      {
+        "case": "entry_1",
+        "config": {
+          "toolkits": [
+            1
+          ],
+          "merge_with_user_selected": false
+        },
+        "ok": false,
+        "code": "invalid_value",
+        "path": [
+          "document",
+          "nodes",
+          "tools",
+          "config",
+          "toolkits",
+          0
+        ],
+        "message": "Capability identity must be an exact non-empty string."
+      },
+      {
+        "case": "entry_2",
+        "config": {
+          "toolkits": [
+            []
+          ],
+          "merge_with_user_selected": false
+        },
+        "ok": false,
+        "code": "invalid_value",
+        "path": [
+          "document",
+          "nodes",
+          "tools",
+          "config",
+          "toolkits",
+          0
+        ],
+        "message": "Capability identity must be an exact non-empty string."
+      },
+      {
+        "case": "entry_3",
+        "config": {
+          "toolkits": [
+            {}
+          ],
+          "merge_with_user_selected": false
+        },
+        "ok": false,
+        "code": "invalid_value",
+        "path": [
+          "document",
+          "nodes",
+          "tools",
+          "config",
+          "toolkits",
+          0
+        ],
+        "message": "Capability identity must be an exact non-empty string."
+      },
+      {
+        "case": "entry_4",
+        "config": {
+          "toolkits": [
+            {
+              "id": "core"
+            }
+          ],
+          "merge_with_user_selected": false
+        },
+        "ok": false,
+        "code": "invalid_shape",
+        "path": [
+          "document",
+          "nodes",
+          "tools",
+          "config",
+          "toolkits",
+          "core"
+        ],
+        "message": "Toolkit reference requires id and enabled_tools only."
+      },
+      {
+        "case": "entry_5",
+        "config": {
+          "toolkits": [
+            {
+              "id": "core",
+              "config": {}
+            }
+          ],
+          "merge_with_user_selected": false
+        },
+        "ok": false,
+        "code": "invalid_shape",
+        "path": [
+          "document",
+          "nodes",
+          "tools",
+          "config",
+          "toolkits",
+          "core"
+        ],
+        "message": "Toolkit reference requires id and enabled_tools only."
+      },
+      {
+        "case": "entry_6",
+        "config": {
+          "toolkits": [
+            {
+              "id": "core",
+              "enabled_tools": null,
+              "extra": true
+            }
+          ],
+          "merge_with_user_selected": false
+        },
+        "ok": false,
+        "code": "invalid_shape",
+        "path": [
+          "document",
+          "nodes",
+          "tools",
+          "config",
+          "toolkits",
+          "core"
+        ],
+        "message": "Toolkit reference requires id and enabled_tools only."
+      },
+      {
+        "case": "entry_7",
+        "config": {
+          "toolkits": [
+            {
+              "id": {
+                "toString": null
+              },
+              "enabled_tools": null
+            }
+          ],
+          "merge_with_user_selected": false
+        },
+        "ok": false,
+        "code": "invalid_value",
+        "path": [
+          "document",
+          "nodes",
+          "tools",
+          "config",
+          "toolkits",
+          0
+        ],
+        "message": "Capability identity must be an exact non-empty string."
+      },
+      {
+        "case": "entry_8",
+        "config": {
+          "toolkits": [
+            {
+              "id": "",
+              "enabled_tools": null
+            }
+          ],
+          "merge_with_user_selected": false
+        },
+        "ok": false,
+        "code": "invalid_value",
+        "path": [
+          "document",
+          "nodes",
+          "tools",
+          "config",
+          "toolkits",
+          0
+        ],
+        "message": "Capability identity must be an exact non-empty string."
+      },
+      {
+        "case": "entry_9",
+        "config": {
+          "toolkits": [
+            {
+              "id": " core",
+              "enabled_tools": null
+            }
+          ],
+          "merge_with_user_selected": false
+        },
+        "ok": false,
+        "code": "invalid_value",
+        "path": [
+          "document",
+          "nodes",
+          "tools",
+          "config",
+          "toolkits",
+          0
+        ],
+        "message": "Capability identity must be an exact non-empty string."
+      },
+      {
+        "case": "entry_10",
+        "config": {
+          "toolkits": [
+            {
+              "id": "__proto__",
+              "enabled_tools": null
+            }
+          ],
+          "merge_with_user_selected": false
+        },
+        "ok": false,
+        "code": "toolkit_unavailable",
+        "path": [
+          "toolkits",
+          "__proto__"
+        ],
+        "message": "Selected Toolkit could not be initialized."
+      },
+      {
+        "case": "enabled_0",
+        "config": {
+          "toolkits": [
+            {
+              "id": "core",
+              "enabled_tools": null
+            }
+          ],
+          "merge_with_user_selected": false
+        },
+        "ok": true,
+        "selected": {
+          "core": [
+            "ask_user_question",
+            "read",
+            "write",
+            "edit",
+            "glob",
+            "grep",
+            "web_fetch",
+            "shell",
+            "lsp"
+          ]
+        }
+      },
+      {
+        "case": "enabled_1",
+        "config": {
+          "toolkits": [
+            {
+              "id": "core",
+              "enabled_tools": []
+            }
+          ],
+          "merge_with_user_selected": false
+        },
+        "ok": true,
+        "selected": {
+          "core": []
+        }
+      },
+      {
+        "case": "enabled_2",
+        "config": {
+          "toolkits": [
+            {
+              "id": "core",
+              "enabled_tools": [
+                "read"
+              ]
+            }
+          ],
+          "merge_with_user_selected": false
+        },
+        "ok": true,
+        "selected": {
+          "core": [
+            "read"
+          ]
+        }
+      },
+      {
+        "case": "enabled_3",
+        "config": {
+          "toolkits": [
+            {
+              "id": "core",
+              "enabled_tools": [
+                "missing-tool"
+              ]
+            }
+          ],
+          "merge_with_user_selected": false
+        },
+        "ok": false,
+        "code": "tool_unavailable",
+        "path": [
+          "document",
+          "nodes",
+          "tools",
+          "config",
+          "toolkits",
+          "core",
+          "enabled_tools"
+        ],
+        "message": "Enabled tool does not exist in this Toolkit."
+      },
+      {
+        "case": "enabled_4",
+        "config": {
+          "toolkits": [
+            {
+              "id": "core",
+              "enabled_tools": [
+                "read",
+                "read"
+              ]
+            }
+          ],
+          "merge_with_user_selected": false
+        },
+        "ok": false,
+        "code": "duplicate_identity",
+        "path": [
+          "document",
+          "nodes",
+          "tools",
+          "config",
+          "toolkits",
+          "core",
+          "enabled_tools"
+        ],
+        "message": "Enabled tool names must be unique."
+      },
+      {
+        "case": "enabled_5",
+        "config": {
+          "toolkits": [
+            {
+              "id": "core",
+              "enabled_tools": [
+                {
+                  "toString": null
+                }
+              ]
+            }
+          ],
+          "merge_with_user_selected": false
+        },
+        "ok": false,
+        "code": "invalid_value",
+        "path": [
+          "document",
+          "nodes",
+          "tools",
+          "config",
+          "toolkits",
+          "core",
+          "enabled_tools",
+          0
+        ],
+        "message": "Capability identity must be an exact non-empty string."
+      },
+      {
+        "case": "enabled_6",
+        "config": {
+          "toolkits": [
+            {
+              "id": "core",
+              "enabled_tools": [
+                " read"
+              ]
+            }
+          ],
+          "merge_with_user_selected": false
+        },
+        "ok": false,
+        "code": "invalid_value",
+        "path": [
+          "document",
+          "nodes",
+          "tools",
+          "config",
+          "toolkits",
+          "core",
+          "enabled_tools",
+          0
+        ],
+        "message": "Capability identity must be an exact non-empty string."
+      },
+      {
+        "case": "enabled_7",
+        "config": {
+          "toolkits": [
+            {
+              "id": "core",
+              "enabled_tools": {}
+            }
+          ],
+          "merge_with_user_selected": false
+        },
+        "ok": false,
+        "code": "invalid_type",
+        "path": [
+          "document",
+          "nodes",
+          "tools",
+          "config",
+          "toolkits",
+          "core",
+          "enabled_tools"
+        ],
+        "message": "Enabled tool names must be a list or null."
+      },
+      {
+        "case": "enabled_8",
+        "config": {
+          "toolkits": [
+            {
+              "id": "core",
+              "enabled_tools": "read"
+            }
+          ],
+          "merge_with_user_selected": false
+        },
+        "ok": false,
+        "code": "invalid_type",
+        "path": [
+          "document",
+          "nodes",
+          "tools",
+          "config",
+          "toolkits",
+          "core",
+          "enabled_tools"
+        ],
+        "message": "Enabled tool names must be a list or null."
+      },
+      {
+        "case": "enabled_9",
+        "config": {
+          "toolkits": [
+            {
+              "id": "core",
+              "enabled_tools": false
+            }
+          ],
+          "merge_with_user_selected": false
+        },
+        "ok": false,
+        "code": "invalid_type",
+        "path": [
+          "document",
+          "nodes",
+          "tools",
+          "config",
+          "toolkits",
+          "core",
+          "enabled_tools"
+        ],
+        "message": "Enabled tool names must be a list or null."
+      },
+      {
+        "case": "duplicate_toolkit",
+        "config": {
+          "toolkits": [
+            {
+              "id": "core",
+              "enabled_tools": null
+            },
+            {
+              "id": "core",
+              "enabled_tools": null
+            }
+          ],
+          "merge_with_user_selected": false
+        },
+        "ok": false,
+        "code": "duplicate_identity",
+        "path": [
+          "document",
+          "nodes",
+          "tools",
+          "config",
+          "toolkits",
+          1
+        ],
+        "message": "Toolkit identities must be unique."
+      },
+      {
+        "case": "duplicate_alias",
+        "config": {
+          "toolkits": [
+            {
+              "id": "core",
+              "enabled_tools": null
+            },
+            {
+              "id": "CoreToolkit",
+              "enabled_tools": null
+            }
+          ],
+          "merge_with_user_selected": false
+        },
+        "ok": false,
+        "code": "duplicate_identity",
+        "path": [
+          "document",
+          "nodes",
+          "tools",
+          "config",
+          "toolkits",
+          1
+        ],
+        "message": "Toolkit identities must be unique."
+      }
+    ],
+    "network_attempts": []
+  },
+  "catalog": {
+    "toolkits": [
+      {
+        "toolkitId": "core",
+        "toolkitName": "Core",
+        "toolkitDescription": "Default coding-agent toolkit for guarded file reads and edits, globbing, grep search, public web fetch, cross-platform shell execution, LSP-powered code intelligence, and structured user questions.",
+        "toolkitIcon": {
+          "type": "file",
+          "mimeType": "image/svg+xml",
+          "content": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<g clip-path=\"url(#clip0_215_5)\">\n<rect width=\"16\" height=\"16\" rx=\"5\" fill=\"#315D8E\"/>\n<g filter=\"url(#filter0_i_215_5)\">\n<path d=\"M2 9.2V6.8C2 5.11984 2 4.27976 2.32698 3.63803C2.6146 3.07354 3.07354 2.6146 3.63803 2.32698C4.27976 2 5.11984 2 6.8 2H9.2C10.8802 2 11.7202 2 12.362 2.32698C12.9265 2.6146 13.3854 3.07354 13.673 3.63803C14 4.27976 14 5.11984 14 6.8V9.2C14 10.8802 14 11.7202 13.673 12.362C13.3854 12.9265 12.9265 13.3854 12.362 13.673C11.7202 14 10.8802 14 9.2 14H6.8C5.11984 14 4.27976 14 3.63803 13.673C3.07354 13.3854 2.6146 12.9265 2.32698 12.362C2 11.7202 2 10.8802 2 9.2Z\" fill=\"url(#paint0_linear_215_5)\"/>\n</g>\n<g filter=\"url(#filter1_f_215_5)\">\n<path d=\"M4.5 6.5L5.85668 7.31401C6.23379 7.54027 6.42234 7.65341 6.48631 7.79971C6.54213 7.9274 6.54213 8.0726 6.48631 8.20029C6.42234 8.34659 6.23379 8.45973 5.85668 8.68599L4.5 9.5\" stroke=\"#93C5FD\" stroke-opacity=\"0.32\" stroke-linecap=\"round\"/>\n</g>\n<g filter=\"url(#filter2_d_215_5)\">\n<path d=\"M4.5 6.5L5.85668 7.31401C6.23379 7.54027 6.42234 7.65341 6.48631 7.79971C6.54213 7.9274 6.54213 8.0726 6.48631 8.20029C6.42234 8.34659 6.23379 8.45973 5.85668 8.68599L4.5 9.5\" stroke=\"#93C5FD\" stroke-linecap=\"round\"/>\n</g>\n<g filter=\"url(#filter3_f_215_5)\">\n<path d=\"M6.5 11H8H9.5\" stroke=\"#FFF200\" stroke-opacity=\"0.32\" stroke-linecap=\"round\"/>\n</g>\n<g filter=\"url(#filter4_d_215_5)\">\n<path d=\"M6.5 11H8H9.5\" stroke=\"#FFF200\" stroke-linecap=\"round\"/>\n</g>\n</g>\n<defs>\n<filter id=\"filter0_i_215_5\" x=\"2\" y=\"2\" width=\"12\" height=\"16\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/>\n<feColorMatrix in=\"SourceAlpha\" type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0\" result=\"hardAlpha\"/>\n<feOffset dy=\"4\"/>\n<feGaussianBlur stdDeviation=\"2\"/>\n<feComposite in2=\"hardAlpha\" operator=\"arithmetic\" k2=\"-1\" k3=\"1\"/>\n<feColorMatrix type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0\"/>\n<feBlend mode=\"normal\" in2=\"shape\" result=\"effect1_innerShadow_215_5\"/>\n</filter>\n<filter id=\"filter1_f_215_5\" x=\"1.99992\" y=\"3.99988\" width=\"7.02825\" height=\"8.00024\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/>\n<feGaussianBlur stdDeviation=\"1\" result=\"effect1_foregroundBlur_215_5\"/>\n</filter>\n<filter id=\"filter2_d_215_5\" x=\"-7.53403e-05\" y=\"5.99988\" width=\"11.0283\" height=\"12.0002\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feColorMatrix in=\"SourceAlpha\" type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0\" result=\"hardAlpha\"/>\n<feOffset dy=\"4\"/>\n<feGaussianBlur stdDeviation=\"2\"/>\n<feComposite in2=\"hardAlpha\" operator=\"out\"/>\n<feColorMatrix type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0\"/>\n<feBlend mode=\"normal\" in2=\"BackgroundImageFix\" result=\"effect1_dropShadow_215_5\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"effect1_dropShadow_215_5\" result=\"shape\"/>\n</filter>\n<filter id=\"filter3_f_215_5\" x=\"4\" y=\"8.5\" width=\"8\" height=\"5\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/>\n<feGaussianBlur stdDeviation=\"1\" result=\"effect1_foregroundBlur_215_5\"/>\n</filter>\n<filter id=\"filter4_d_215_5\" x=\"2\" y=\"10.5\" width=\"12\" height=\"9\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feColorMatrix in=\"SourceAlpha\" type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0\" result=\"hardAlpha\"/>\n<feOffset dy=\"4\"/>\n<feGaussianBlur stdDeviation=\"2\"/>\n<feComposite in2=\"hardAlpha\" operator=\"out\"/>\n<feColorMatrix type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0\"/>\n<feBlend mode=\"normal\" in2=\"BackgroundImageFix\" result=\"effect1_dropShadow_215_5\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"effect1_dropShadow_215_5\" result=\"shape\"/>\n</filter>\n<linearGradient id=\"paint0_linear_215_5\" x1=\"14\" y1=\"2\" x2=\"0.5\" y2=\"14.5\" gradientUnits=\"userSpaceOnUse\">\n<stop stop-color=\"#111827\"/>\n<stop offset=\"1\" stop-color=\"#2A1234\"/>\n</linearGradient>\n<clipPath id=\"clip0_215_5\">\n<rect width=\"16\" height=\"16\" fill=\"white\"/>\n</clipPath>\n</defs>\n</svg>\n",
+          "encoding": "utf8"
+        },
+        "source": "builtin",
+        "toolCount": 9,
+        "defaultEnabled": false,
+        "tools": [
+          {
+            "name": "ask_user_question",
+            "title": "Ask User Question",
+            "description": "Ask the user a structured selector question and suspend the run until they respond.",
+            "icon": {
+              "type": "file",
+              "mimeType": "image/svg+xml",
+              "content": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<g clip-path=\"url(#clip0_215_5)\">\n<rect width=\"16\" height=\"16\" rx=\"5\" fill=\"#315D8E\"/>\n<g filter=\"url(#filter0_i_215_5)\">\n<path d=\"M2 9.2V6.8C2 5.11984 2 4.27976 2.32698 3.63803C2.6146 3.07354 3.07354 2.6146 3.63803 2.32698C4.27976 2 5.11984 2 6.8 2H9.2C10.8802 2 11.7202 2 12.362 2.32698C12.9265 2.6146 13.3854 3.07354 13.673 3.63803C14 4.27976 14 5.11984 14 6.8V9.2C14 10.8802 14 11.7202 13.673 12.362C13.3854 12.9265 12.9265 13.3854 12.362 13.673C11.7202 14 10.8802 14 9.2 14H6.8C5.11984 14 4.27976 14 3.63803 13.673C3.07354 13.3854 2.6146 12.9265 2.32698 12.362C2 11.7202 2 10.8802 2 9.2Z\" fill=\"url(#paint0_linear_215_5)\"/>\n</g>\n<g filter=\"url(#filter1_f_215_5)\">\n<path d=\"M4.5 6.5L5.85668 7.31401C6.23379 7.54027 6.42234 7.65341 6.48631 7.79971C6.54213 7.9274 6.54213 8.0726 6.48631 8.20029C6.42234 8.34659 6.23379 8.45973 5.85668 8.68599L4.5 9.5\" stroke=\"#93C5FD\" stroke-opacity=\"0.32\" stroke-linecap=\"round\"/>\n</g>\n<g filter=\"url(#filter2_d_215_5)\">\n<path d=\"M4.5 6.5L5.85668 7.31401C6.23379 7.54027 6.42234 7.65341 6.48631 7.79971C6.54213 7.9274 6.54213 8.0726 6.48631 8.20029C6.42234 8.34659 6.23379 8.45973 5.85668 8.68599L4.5 9.5\" stroke=\"#93C5FD\" stroke-linecap=\"round\"/>\n</g>\n<g filter=\"url(#filter3_f_215_5)\">\n<path d=\"M6.5 11H8H9.5\" stroke=\"#FFF200\" stroke-opacity=\"0.32\" stroke-linecap=\"round\"/>\n</g>\n<g filter=\"url(#filter4_d_215_5)\">\n<path d=\"M6.5 11H8H9.5\" stroke=\"#FFF200\" stroke-linecap=\"round\"/>\n</g>\n</g>\n<defs>\n<filter id=\"filter0_i_215_5\" x=\"2\" y=\"2\" width=\"12\" height=\"16\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/>\n<feColorMatrix in=\"SourceAlpha\" type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0\" result=\"hardAlpha\"/>\n<feOffset dy=\"4\"/>\n<feGaussianBlur stdDeviation=\"2\"/>\n<feComposite in2=\"hardAlpha\" operator=\"arithmetic\" k2=\"-1\" k3=\"1\"/>\n<feColorMatrix type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0\"/>\n<feBlend mode=\"normal\" in2=\"shape\" result=\"effect1_innerShadow_215_5\"/>\n</filter>\n<filter id=\"filter1_f_215_5\" x=\"1.99992\" y=\"3.99988\" width=\"7.02825\" height=\"8.00024\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/>\n<feGaussianBlur stdDeviation=\"1\" result=\"effect1_foregroundBlur_215_5\"/>\n</filter>\n<filter id=\"filter2_d_215_5\" x=\"-7.53403e-05\" y=\"5.99988\" width=\"11.0283\" height=\"12.0002\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feColorMatrix in=\"SourceAlpha\" type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0\" result=\"hardAlpha\"/>\n<feOffset dy=\"4\"/>\n<feGaussianBlur stdDeviation=\"2\"/>\n<feComposite in2=\"hardAlpha\" operator=\"out\"/>\n<feColorMatrix type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0\"/>\n<feBlend mode=\"normal\" in2=\"BackgroundImageFix\" result=\"effect1_dropShadow_215_5\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"effect1_dropShadow_215_5\" result=\"shape\"/>\n</filter>\n<filter id=\"filter3_f_215_5\" x=\"4\" y=\"8.5\" width=\"8\" height=\"5\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/>\n<feGaussianBlur stdDeviation=\"1\" result=\"effect1_foregroundBlur_215_5\"/>\n</filter>\n<filter id=\"filter4_d_215_5\" x=\"2\" y=\"10.5\" width=\"12\" height=\"9\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feColorMatrix in=\"SourceAlpha\" type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0\" result=\"hardAlpha\"/>\n<feOffset dy=\"4\"/>\n<feGaussianBlur stdDeviation=\"2\"/>\n<feComposite in2=\"hardAlpha\" operator=\"out\"/>\n<feColorMatrix type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0\"/>\n<feBlend mode=\"normal\" in2=\"BackgroundImageFix\" result=\"effect1_dropShadow_215_5\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"effect1_dropShadow_215_5\" result=\"shape\"/>\n</filter>\n<linearGradient id=\"paint0_linear_215_5\" x1=\"14\" y1=\"2\" x2=\"0.5\" y2=\"14.5\" gradientUnits=\"userSpaceOnUse\">\n<stop stop-color=\"#111827\"/>\n<stop offset=\"1\" stop-color=\"#2A1234\"/>\n</linearGradient>\n<clipPath id=\"clip0_215_5\">\n<rect width=\"16\" height=\"16\" fill=\"white\"/>\n</clipPath>\n</defs>\n</svg>\n",
+              "encoding": "utf8"
+            },
+            "hidden": false,
+            "observe": false,
+            "requiresConfirmation": false
+          },
+          {
+            "name": "read",
+            "title": "Read",
+            "description": "Read a UTF-8 text file by absolute path with optional line slicing.",
+            "icon": {
+              "type": "file",
+              "mimeType": "image/svg+xml",
+              "content": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<g clip-path=\"url(#clip0_215_5)\">\n<rect width=\"16\" height=\"16\" rx=\"5\" fill=\"#315D8E\"/>\n<g filter=\"url(#filter0_i_215_5)\">\n<path d=\"M2 9.2V6.8C2 5.11984 2 4.27976 2.32698 3.63803C2.6146 3.07354 3.07354 2.6146 3.63803 2.32698C4.27976 2 5.11984 2 6.8 2H9.2C10.8802 2 11.7202 2 12.362 2.32698C12.9265 2.6146 13.3854 3.07354 13.673 3.63803C14 4.27976 14 5.11984 14 6.8V9.2C14 10.8802 14 11.7202 13.673 12.362C13.3854 12.9265 12.9265 13.3854 12.362 13.673C11.7202 14 10.8802 14 9.2 14H6.8C5.11984 14 4.27976 14 3.63803 13.673C3.07354 13.3854 2.6146 12.9265 2.32698 12.362C2 11.7202 2 10.8802 2 9.2Z\" fill=\"url(#paint0_linear_215_5)\"/>\n</g>\n<g filter=\"url(#filter1_f_215_5)\">\n<path d=\"M4.5 6.5L5.85668 7.31401C6.23379 7.54027 6.42234 7.65341 6.48631 7.79971C6.54213 7.9274 6.54213 8.0726 6.48631 8.20029C6.42234 8.34659 6.23379 8.45973 5.85668 8.68599L4.5 9.5\" stroke=\"#93C5FD\" stroke-opacity=\"0.32\" stroke-linecap=\"round\"/>\n</g>\n<g filter=\"url(#filter2_d_215_5)\">\n<path d=\"M4.5 6.5L5.85668 7.31401C6.23379 7.54027 6.42234 7.65341 6.48631 7.79971C6.54213 7.9274 6.54213 8.0726 6.48631 8.20029C6.42234 8.34659 6.23379 8.45973 5.85668 8.68599L4.5 9.5\" stroke=\"#93C5FD\" stroke-linecap=\"round\"/>\n</g>\n<g filter=\"url(#filter3_f_215_5)\">\n<path d=\"M6.5 11H8H9.5\" stroke=\"#FFF200\" stroke-opacity=\"0.32\" stroke-linecap=\"round\"/>\n</g>\n<g filter=\"url(#filter4_d_215_5)\">\n<path d=\"M6.5 11H8H9.5\" stroke=\"#FFF200\" stroke-linecap=\"round\"/>\n</g>\n</g>\n<defs>\n<filter id=\"filter0_i_215_5\" x=\"2\" y=\"2\" width=\"12\" height=\"16\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/>\n<feColorMatrix in=\"SourceAlpha\" type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0\" result=\"hardAlpha\"/>\n<feOffset dy=\"4\"/>\n<feGaussianBlur stdDeviation=\"2\"/>\n<feComposite in2=\"hardAlpha\" operator=\"arithmetic\" k2=\"-1\" k3=\"1\"/>\n<feColorMatrix type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0\"/>\n<feBlend mode=\"normal\" in2=\"shape\" result=\"effect1_innerShadow_215_5\"/>\n</filter>\n<filter id=\"filter1_f_215_5\" x=\"1.99992\" y=\"3.99988\" width=\"7.02825\" height=\"8.00024\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/>\n<feGaussianBlur stdDeviation=\"1\" result=\"effect1_foregroundBlur_215_5\"/>\n</filter>\n<filter id=\"filter2_d_215_5\" x=\"-7.53403e-05\" y=\"5.99988\" width=\"11.0283\" height=\"12.0002\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feColorMatrix in=\"SourceAlpha\" type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0\" result=\"hardAlpha\"/>\n<feOffset dy=\"4\"/>\n<feGaussianBlur stdDeviation=\"2\"/>\n<feComposite in2=\"hardAlpha\" operator=\"out\"/>\n<feColorMatrix type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0\"/>\n<feBlend mode=\"normal\" in2=\"BackgroundImageFix\" result=\"effect1_dropShadow_215_5\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"effect1_dropShadow_215_5\" result=\"shape\"/>\n</filter>\n<filter id=\"filter3_f_215_5\" x=\"4\" y=\"8.5\" width=\"8\" height=\"5\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/>\n<feGaussianBlur stdDeviation=\"1\" result=\"effect1_foregroundBlur_215_5\"/>\n</filter>\n<filter id=\"filter4_d_215_5\" x=\"2\" y=\"10.5\" width=\"12\" height=\"9\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feColorMatrix in=\"SourceAlpha\" type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0\" result=\"hardAlpha\"/>\n<feOffset dy=\"4\"/>\n<feGaussianBlur stdDeviation=\"2\"/>\n<feComposite in2=\"hardAlpha\" operator=\"out\"/>\n<feColorMatrix type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0\"/>\n<feBlend mode=\"normal\" in2=\"BackgroundImageFix\" result=\"effect1_dropShadow_215_5\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"effect1_dropShadow_215_5\" result=\"shape\"/>\n</filter>\n<linearGradient id=\"paint0_linear_215_5\" x1=\"14\" y1=\"2\" x2=\"0.5\" y2=\"14.5\" gradientUnits=\"userSpaceOnUse\">\n<stop stop-color=\"#111827\"/>\n<stop offset=\"1\" stop-color=\"#2A1234\"/>\n</linearGradient>\n<clipPath id=\"clip0_215_5\">\n<rect width=\"16\" height=\"16\" fill=\"white\"/>\n</clipPath>\n</defs>\n</svg>\n",
+              "encoding": "utf8"
+            },
+            "hidden": false,
+            "observe": false,
+            "requiresConfirmation": false
+          },
+          {
+            "name": "write",
+            "title": "Write",
+            "description": "Create or fully overwrite a UTF-8 text file by absolute path.",
+            "icon": {
+              "type": "file",
+              "mimeType": "image/svg+xml",
+              "content": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<g clip-path=\"url(#clip0_215_5)\">\n<rect width=\"16\" height=\"16\" rx=\"5\" fill=\"#315D8E\"/>\n<g filter=\"url(#filter0_i_215_5)\">\n<path d=\"M2 9.2V6.8C2 5.11984 2 4.27976 2.32698 3.63803C2.6146 3.07354 3.07354 2.6146 3.63803 2.32698C4.27976 2 5.11984 2 6.8 2H9.2C10.8802 2 11.7202 2 12.362 2.32698C12.9265 2.6146 13.3854 3.07354 13.673 3.63803C14 4.27976 14 5.11984 14 6.8V9.2C14 10.8802 14 11.7202 13.673 12.362C13.3854 12.9265 12.9265 13.3854 12.362 13.673C11.7202 14 10.8802 14 9.2 14H6.8C5.11984 14 4.27976 14 3.63803 13.673C3.07354 13.3854 2.6146 12.9265 2.32698 12.362C2 11.7202 2 10.8802 2 9.2Z\" fill=\"url(#paint0_linear_215_5)\"/>\n</g>\n<g filter=\"url(#filter1_f_215_5)\">\n<path d=\"M4.5 6.5L5.85668 7.31401C6.23379 7.54027 6.42234 7.65341 6.48631 7.79971C6.54213 7.9274 6.54213 8.0726 6.48631 8.20029C6.42234 8.34659 6.23379 8.45973 5.85668 8.68599L4.5 9.5\" stroke=\"#93C5FD\" stroke-opacity=\"0.32\" stroke-linecap=\"round\"/>\n</g>\n<g filter=\"url(#filter2_d_215_5)\">\n<path d=\"M4.5 6.5L5.85668 7.31401C6.23379 7.54027 6.42234 7.65341 6.48631 7.79971C6.54213 7.9274 6.54213 8.0726 6.48631 8.20029C6.42234 8.34659 6.23379 8.45973 5.85668 8.68599L4.5 9.5\" stroke=\"#93C5FD\" stroke-linecap=\"round\"/>\n</g>\n<g filter=\"url(#filter3_f_215_5)\">\n<path d=\"M6.5 11H8H9.5\" stroke=\"#FFF200\" stroke-opacity=\"0.32\" stroke-linecap=\"round\"/>\n</g>\n<g filter=\"url(#filter4_d_215_5)\">\n<path d=\"M6.5 11H8H9.5\" stroke=\"#FFF200\" stroke-linecap=\"round\"/>\n</g>\n</g>\n<defs>\n<filter id=\"filter0_i_215_5\" x=\"2\" y=\"2\" width=\"12\" height=\"16\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/>\n<feColorMatrix in=\"SourceAlpha\" type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0\" result=\"hardAlpha\"/>\n<feOffset dy=\"4\"/>\n<feGaussianBlur stdDeviation=\"2\"/>\n<feComposite in2=\"hardAlpha\" operator=\"arithmetic\" k2=\"-1\" k3=\"1\"/>\n<feColorMatrix type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0\"/>\n<feBlend mode=\"normal\" in2=\"shape\" result=\"effect1_innerShadow_215_5\"/>\n</filter>\n<filter id=\"filter1_f_215_5\" x=\"1.99992\" y=\"3.99988\" width=\"7.02825\" height=\"8.00024\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/>\n<feGaussianBlur stdDeviation=\"1\" result=\"effect1_foregroundBlur_215_5\"/>\n</filter>\n<filter id=\"filter2_d_215_5\" x=\"-7.53403e-05\" y=\"5.99988\" width=\"11.0283\" height=\"12.0002\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feColorMatrix in=\"SourceAlpha\" type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0\" result=\"hardAlpha\"/>\n<feOffset dy=\"4\"/>\n<feGaussianBlur stdDeviation=\"2\"/>\n<feComposite in2=\"hardAlpha\" operator=\"out\"/>\n<feColorMatrix type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0\"/>\n<feBlend mode=\"normal\" in2=\"BackgroundImageFix\" result=\"effect1_dropShadow_215_5\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"effect1_dropShadow_215_5\" result=\"shape\"/>\n</filter>\n<filter id=\"filter3_f_215_5\" x=\"4\" y=\"8.5\" width=\"8\" height=\"5\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/>\n<feGaussianBlur stdDeviation=\"1\" result=\"effect1_foregroundBlur_215_5\"/>\n</filter>\n<filter id=\"filter4_d_215_5\" x=\"2\" y=\"10.5\" width=\"12\" height=\"9\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feColorMatrix in=\"SourceAlpha\" type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0\" result=\"hardAlpha\"/>\n<feOffset dy=\"4\"/>\n<feGaussianBlur stdDeviation=\"2\"/>\n<feComposite in2=\"hardAlpha\" operator=\"out\"/>\n<feColorMatrix type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0\"/>\n<feBlend mode=\"normal\" in2=\"BackgroundImageFix\" result=\"effect1_dropShadow_215_5\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"effect1_dropShadow_215_5\" result=\"shape\"/>\n</filter>\n<linearGradient id=\"paint0_linear_215_5\" x1=\"14\" y1=\"2\" x2=\"0.5\" y2=\"14.5\" gradientUnits=\"userSpaceOnUse\">\n<stop stop-color=\"#111827\"/>\n<stop offset=\"1\" stop-color=\"#2A1234\"/>\n</linearGradient>\n<clipPath id=\"clip0_215_5\">\n<rect width=\"16\" height=\"16\" fill=\"white\"/>\n</clipPath>\n</defs>\n</svg>\n",
+              "encoding": "utf8"
+            },
+            "hidden": false,
+            "observe": false,
+            "requiresConfirmation": true
+          },
+          {
+            "name": "edit",
+            "title": "Edit",
+            "description": "Replace one unique string match, or all matches, in a UTF-8 text file.",
+            "icon": {
+              "type": "file",
+              "mimeType": "image/svg+xml",
+              "content": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<g clip-path=\"url(#clip0_215_5)\">\n<rect width=\"16\" height=\"16\" rx=\"5\" fill=\"#315D8E\"/>\n<g filter=\"url(#filter0_i_215_5)\">\n<path d=\"M2 9.2V6.8C2 5.11984 2 4.27976 2.32698 3.63803C2.6146 3.07354 3.07354 2.6146 3.63803 2.32698C4.27976 2 5.11984 2 6.8 2H9.2C10.8802 2 11.7202 2 12.362 2.32698C12.9265 2.6146 13.3854 3.07354 13.673 3.63803C14 4.27976 14 5.11984 14 6.8V9.2C14 10.8802 14 11.7202 13.673 12.362C13.3854 12.9265 12.9265 13.3854 12.362 13.673C11.7202 14 10.8802 14 9.2 14H6.8C5.11984 14 4.27976 14 3.63803 13.673C3.07354 13.3854 2.6146 12.9265 2.32698 12.362C2 11.7202 2 10.8802 2 9.2Z\" fill=\"url(#paint0_linear_215_5)\"/>\n</g>\n<g filter=\"url(#filter1_f_215_5)\">\n<path d=\"M4.5 6.5L5.85668 7.31401C6.23379 7.54027 6.42234 7.65341 6.48631 7.79971C6.54213 7.9274 6.54213 8.0726 6.48631 8.20029C6.42234 8.34659 6.23379 8.45973 5.85668 8.68599L4.5 9.5\" stroke=\"#93C5FD\" stroke-opacity=\"0.32\" stroke-linecap=\"round\"/>\n</g>\n<g filter=\"url(#filter2_d_215_5)\">\n<path d=\"M4.5 6.5L5.85668 7.31401C6.23379 7.54027 6.42234 7.65341 6.48631 7.79971C6.54213 7.9274 6.54213 8.0726 6.48631 8.20029C6.42234 8.34659 6.23379 8.45973 5.85668 8.68599L4.5 9.5\" stroke=\"#93C5FD\" stroke-linecap=\"round\"/>\n</g>\n<g filter=\"url(#filter3_f_215_5)\">\n<path d=\"M6.5 11H8H9.5\" stroke=\"#FFF200\" stroke-opacity=\"0.32\" stroke-linecap=\"round\"/>\n</g>\n<g filter=\"url(#filter4_d_215_5)\">\n<path d=\"M6.5 11H8H9.5\" stroke=\"#FFF200\" stroke-linecap=\"round\"/>\n</g>\n</g>\n<defs>\n<filter id=\"filter0_i_215_5\" x=\"2\" y=\"2\" width=\"12\" height=\"16\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/>\n<feColorMatrix in=\"SourceAlpha\" type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0\" result=\"hardAlpha\"/>\n<feOffset dy=\"4\"/>\n<feGaussianBlur stdDeviation=\"2\"/>\n<feComposite in2=\"hardAlpha\" operator=\"arithmetic\" k2=\"-1\" k3=\"1\"/>\n<feColorMatrix type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0\"/>\n<feBlend mode=\"normal\" in2=\"shape\" result=\"effect1_innerShadow_215_5\"/>\n</filter>\n<filter id=\"filter1_f_215_5\" x=\"1.99992\" y=\"3.99988\" width=\"7.02825\" height=\"8.00024\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/>\n<feGaussianBlur stdDeviation=\"1\" result=\"effect1_foregroundBlur_215_5\"/>\n</filter>\n<filter id=\"filter2_d_215_5\" x=\"-7.53403e-05\" y=\"5.99988\" width=\"11.0283\" height=\"12.0002\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feColorMatrix in=\"SourceAlpha\" type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0\" result=\"hardAlpha\"/>\n<feOffset dy=\"4\"/>\n<feGaussianBlur stdDeviation=\"2\"/>\n<feComposite in2=\"hardAlpha\" operator=\"out\"/>\n<feColorMatrix type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0\"/>\n<feBlend mode=\"normal\" in2=\"BackgroundImageFix\" result=\"effect1_dropShadow_215_5\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"effect1_dropShadow_215_5\" result=\"shape\"/>\n</filter>\n<filter id=\"filter3_f_215_5\" x=\"4\" y=\"8.5\" width=\"8\" height=\"5\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/>\n<feGaussianBlur stdDeviation=\"1\" result=\"effect1_foregroundBlur_215_5\"/>\n</filter>\n<filter id=\"filter4_d_215_5\" x=\"2\" y=\"10.5\" width=\"12\" height=\"9\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feColorMatrix in=\"SourceAlpha\" type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0\" result=\"hardAlpha\"/>\n<feOffset dy=\"4\"/>\n<feGaussianBlur stdDeviation=\"2\"/>\n<feComposite in2=\"hardAlpha\" operator=\"out\"/>\n<feColorMatrix type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0\"/>\n<feBlend mode=\"normal\" in2=\"BackgroundImageFix\" result=\"effect1_dropShadow_215_5\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"effect1_dropShadow_215_5\" result=\"shape\"/>\n</filter>\n<linearGradient id=\"paint0_linear_215_5\" x1=\"14\" y1=\"2\" x2=\"0.5\" y2=\"14.5\" gradientUnits=\"userSpaceOnUse\">\n<stop stop-color=\"#111827\"/>\n<stop offset=\"1\" stop-color=\"#2A1234\"/>\n</linearGradient>\n<clipPath id=\"clip0_215_5\">\n<rect width=\"16\" height=\"16\" fill=\"white\"/>\n</clipPath>\n</defs>\n</svg>\n",
+              "encoding": "utf8"
+            },
+            "hidden": false,
+            "observe": false,
+            "requiresConfirmation": true
+          },
+          {
+            "name": "glob",
+            "title": "Glob",
+            "description": "List files matching a glob pattern inside the workspace.",
+            "icon": {
+              "type": "file",
+              "mimeType": "image/svg+xml",
+              "content": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<g clip-path=\"url(#clip0_215_5)\">\n<rect width=\"16\" height=\"16\" rx=\"5\" fill=\"#315D8E\"/>\n<g filter=\"url(#filter0_i_215_5)\">\n<path d=\"M2 9.2V6.8C2 5.11984 2 4.27976 2.32698 3.63803C2.6146 3.07354 3.07354 2.6146 3.63803 2.32698C4.27976 2 5.11984 2 6.8 2H9.2C10.8802 2 11.7202 2 12.362 2.32698C12.9265 2.6146 13.3854 3.07354 13.673 3.63803C14 4.27976 14 5.11984 14 6.8V9.2C14 10.8802 14 11.7202 13.673 12.362C13.3854 12.9265 12.9265 13.3854 12.362 13.673C11.7202 14 10.8802 14 9.2 14H6.8C5.11984 14 4.27976 14 3.63803 13.673C3.07354 13.3854 2.6146 12.9265 2.32698 12.362C2 11.7202 2 10.8802 2 9.2Z\" fill=\"url(#paint0_linear_215_5)\"/>\n</g>\n<g filter=\"url(#filter1_f_215_5)\">\n<path d=\"M4.5 6.5L5.85668 7.31401C6.23379 7.54027 6.42234 7.65341 6.48631 7.79971C6.54213 7.9274 6.54213 8.0726 6.48631 8.20029C6.42234 8.34659 6.23379 8.45973 5.85668 8.68599L4.5 9.5\" stroke=\"#93C5FD\" stroke-opacity=\"0.32\" stroke-linecap=\"round\"/>\n</g>\n<g filter=\"url(#filter2_d_215_5)\">\n<path d=\"M4.5 6.5L5.85668 7.31401C6.23379 7.54027 6.42234 7.65341 6.48631 7.79971C6.54213 7.9274 6.54213 8.0726 6.48631 8.20029C6.42234 8.34659 6.23379 8.45973 5.85668 8.68599L4.5 9.5\" stroke=\"#93C5FD\" stroke-linecap=\"round\"/>\n</g>\n<g filter=\"url(#filter3_f_215_5)\">\n<path d=\"M6.5 11H8H9.5\" stroke=\"#FFF200\" stroke-opacity=\"0.32\" stroke-linecap=\"round\"/>\n</g>\n<g filter=\"url(#filter4_d_215_5)\">\n<path d=\"M6.5 11H8H9.5\" stroke=\"#FFF200\" stroke-linecap=\"round\"/>\n</g>\n</g>\n<defs>\n<filter id=\"filter0_i_215_5\" x=\"2\" y=\"2\" width=\"12\" height=\"16\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/>\n<feColorMatrix in=\"SourceAlpha\" type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0\" result=\"hardAlpha\"/>\n<feOffset dy=\"4\"/>\n<feGaussianBlur stdDeviation=\"2\"/>\n<feComposite in2=\"hardAlpha\" operator=\"arithmetic\" k2=\"-1\" k3=\"1\"/>\n<feColorMatrix type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0\"/>\n<feBlend mode=\"normal\" in2=\"shape\" result=\"effect1_innerShadow_215_5\"/>\n</filter>\n<filter id=\"filter1_f_215_5\" x=\"1.99992\" y=\"3.99988\" width=\"7.02825\" height=\"8.00024\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/>\n<feGaussianBlur stdDeviation=\"1\" result=\"effect1_foregroundBlur_215_5\"/>\n</filter>\n<filter id=\"filter2_d_215_5\" x=\"-7.53403e-05\" y=\"5.99988\" width=\"11.0283\" height=\"12.0002\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feColorMatrix in=\"SourceAlpha\" type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0\" result=\"hardAlpha\"/>\n<feOffset dy=\"4\"/>\n<feGaussianBlur stdDeviation=\"2\"/>\n<feComposite in2=\"hardAlpha\" operator=\"out\"/>\n<feColorMatrix type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0\"/>\n<feBlend mode=\"normal\" in2=\"BackgroundImageFix\" result=\"effect1_dropShadow_215_5\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"effect1_dropShadow_215_5\" result=\"shape\"/>\n</filter>\n<filter id=\"filter3_f_215_5\" x=\"4\" y=\"8.5\" width=\"8\" height=\"5\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/>\n<feGaussianBlur stdDeviation=\"1\" result=\"effect1_foregroundBlur_215_5\"/>\n</filter>\n<filter id=\"filter4_d_215_5\" x=\"2\" y=\"10.5\" width=\"12\" height=\"9\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feColorMatrix in=\"SourceAlpha\" type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0\" result=\"hardAlpha\"/>\n<feOffset dy=\"4\"/>\n<feGaussianBlur stdDeviation=\"2\"/>\n<feComposite in2=\"hardAlpha\" operator=\"out\"/>\n<feColorMatrix type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0\"/>\n<feBlend mode=\"normal\" in2=\"BackgroundImageFix\" result=\"effect1_dropShadow_215_5\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"effect1_dropShadow_215_5\" result=\"shape\"/>\n</filter>\n<linearGradient id=\"paint0_linear_215_5\" x1=\"14\" y1=\"2\" x2=\"0.5\" y2=\"14.5\" gradientUnits=\"userSpaceOnUse\">\n<stop stop-color=\"#111827\"/>\n<stop offset=\"1\" stop-color=\"#2A1234\"/>\n</linearGradient>\n<clipPath id=\"clip0_215_5\">\n<rect width=\"16\" height=\"16\" fill=\"white\"/>\n</clipPath>\n</defs>\n</svg>\n",
+              "encoding": "utf8"
+            },
+            "hidden": false,
+            "observe": false,
+            "requiresConfirmation": false
+          },
+          {
+            "name": "grep",
+            "title": "Grep",
+            "description": "Search UTF-8 text files inside the workspace with regex.",
+            "icon": {
+              "type": "file",
+              "mimeType": "image/svg+xml",
+              "content": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<g clip-path=\"url(#clip0_215_5)\">\n<rect width=\"16\" height=\"16\" rx=\"5\" fill=\"#315D8E\"/>\n<g filter=\"url(#filter0_i_215_5)\">\n<path d=\"M2 9.2V6.8C2 5.11984 2 4.27976 2.32698 3.63803C2.6146 3.07354 3.07354 2.6146 3.63803 2.32698C4.27976 2 5.11984 2 6.8 2H9.2C10.8802 2 11.7202 2 12.362 2.32698C12.9265 2.6146 13.3854 3.07354 13.673 3.63803C14 4.27976 14 5.11984 14 6.8V9.2C14 10.8802 14 11.7202 13.673 12.362C13.3854 12.9265 12.9265 13.3854 12.362 13.673C11.7202 14 10.8802 14 9.2 14H6.8C5.11984 14 4.27976 14 3.63803 13.673C3.07354 13.3854 2.6146 12.9265 2.32698 12.362C2 11.7202 2 10.8802 2 9.2Z\" fill=\"url(#paint0_linear_215_5)\"/>\n</g>\n<g filter=\"url(#filter1_f_215_5)\">\n<path d=\"M4.5 6.5L5.85668 7.31401C6.23379 7.54027 6.42234 7.65341 6.48631 7.79971C6.54213 7.9274 6.54213 8.0726 6.48631 8.20029C6.42234 8.34659 6.23379 8.45973 5.85668 8.68599L4.5 9.5\" stroke=\"#93C5FD\" stroke-opacity=\"0.32\" stroke-linecap=\"round\"/>\n</g>\n<g filter=\"url(#filter2_d_215_5)\">\n<path d=\"M4.5 6.5L5.85668 7.31401C6.23379 7.54027 6.42234 7.65341 6.48631 7.79971C6.54213 7.9274 6.54213 8.0726 6.48631 8.20029C6.42234 8.34659 6.23379 8.45973 5.85668 8.68599L4.5 9.5\" stroke=\"#93C5FD\" stroke-linecap=\"round\"/>\n</g>\n<g filter=\"url(#filter3_f_215_5)\">\n<path d=\"M6.5 11H8H9.5\" stroke=\"#FFF200\" stroke-opacity=\"0.32\" stroke-linecap=\"round\"/>\n</g>\n<g filter=\"url(#filter4_d_215_5)\">\n<path d=\"M6.5 11H8H9.5\" stroke=\"#FFF200\" stroke-linecap=\"round\"/>\n</g>\n</g>\n<defs>\n<filter id=\"filter0_i_215_5\" x=\"2\" y=\"2\" width=\"12\" height=\"16\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/>\n<feColorMatrix in=\"SourceAlpha\" type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0\" result=\"hardAlpha\"/>\n<feOffset dy=\"4\"/>\n<feGaussianBlur stdDeviation=\"2\"/>\n<feComposite in2=\"hardAlpha\" operator=\"arithmetic\" k2=\"-1\" k3=\"1\"/>\n<feColorMatrix type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0\"/>\n<feBlend mode=\"normal\" in2=\"shape\" result=\"effect1_innerShadow_215_5\"/>\n</filter>\n<filter id=\"filter1_f_215_5\" x=\"1.99992\" y=\"3.99988\" width=\"7.02825\" height=\"8.00024\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/>\n<feGaussianBlur stdDeviation=\"1\" result=\"effect1_foregroundBlur_215_5\"/>\n</filter>\n<filter id=\"filter2_d_215_5\" x=\"-7.53403e-05\" y=\"5.99988\" width=\"11.0283\" height=\"12.0002\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feColorMatrix in=\"SourceAlpha\" type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0\" result=\"hardAlpha\"/>\n<feOffset dy=\"4\"/>\n<feGaussianBlur stdDeviation=\"2\"/>\n<feComposite in2=\"hardAlpha\" operator=\"out\"/>\n<feColorMatrix type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0\"/>\n<feBlend mode=\"normal\" in2=\"BackgroundImageFix\" result=\"effect1_dropShadow_215_5\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"effect1_dropShadow_215_5\" result=\"shape\"/>\n</filter>\n<filter id=\"filter3_f_215_5\" x=\"4\" y=\"8.5\" width=\"8\" height=\"5\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/>\n<feGaussianBlur stdDeviation=\"1\" result=\"effect1_foregroundBlur_215_5\"/>\n</filter>\n<filter id=\"filter4_d_215_5\" x=\"2\" y=\"10.5\" width=\"12\" height=\"9\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feColorMatrix in=\"SourceAlpha\" type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0\" result=\"hardAlpha\"/>\n<feOffset dy=\"4\"/>\n<feGaussianBlur stdDeviation=\"2\"/>\n<feComposite in2=\"hardAlpha\" operator=\"out\"/>\n<feColorMatrix type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0\"/>\n<feBlend mode=\"normal\" in2=\"BackgroundImageFix\" result=\"effect1_dropShadow_215_5\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"effect1_dropShadow_215_5\" result=\"shape\"/>\n</filter>\n<linearGradient id=\"paint0_linear_215_5\" x1=\"14\" y1=\"2\" x2=\"0.5\" y2=\"14.5\" gradientUnits=\"userSpaceOnUse\">\n<stop stop-color=\"#111827\"/>\n<stop offset=\"1\" stop-color=\"#2A1234\"/>\n</linearGradient>\n<clipPath id=\"clip0_215_5\">\n<rect width=\"16\" height=\"16\" fill=\"white\"/>\n</clipPath>\n</defs>\n</svg>\n",
+              "encoding": "utf8"
+            },
+            "hidden": false,
+            "observe": false,
+            "requiresConfirmation": false
+          },
+          {
+            "name": "web_fetch",
+            "title": "Web Fetch",
+            "description": "Fetch a public web page as Markdown text (scripts and styles removed), or run a configured extraction model; a truncated result ends with a notice and next_offset.",
+            "icon": {
+              "type": "file",
+              "mimeType": "image/svg+xml",
+              "content": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<g clip-path=\"url(#clip0_215_5)\">\n<rect width=\"16\" height=\"16\" rx=\"5\" fill=\"#315D8E\"/>\n<g filter=\"url(#filter0_i_215_5)\">\n<path d=\"M2 9.2V6.8C2 5.11984 2 4.27976 2.32698 3.63803C2.6146 3.07354 3.07354 2.6146 3.63803 2.32698C4.27976 2 5.11984 2 6.8 2H9.2C10.8802 2 11.7202 2 12.362 2.32698C12.9265 2.6146 13.3854 3.07354 13.673 3.63803C14 4.27976 14 5.11984 14 6.8V9.2C14 10.8802 14 11.7202 13.673 12.362C13.3854 12.9265 12.9265 13.3854 12.362 13.673C11.7202 14 10.8802 14 9.2 14H6.8C5.11984 14 4.27976 14 3.63803 13.673C3.07354 13.3854 2.6146 12.9265 2.32698 12.362C2 11.7202 2 10.8802 2 9.2Z\" fill=\"url(#paint0_linear_215_5)\"/>\n</g>\n<g filter=\"url(#filter1_f_215_5)\">\n<path d=\"M4.5 6.5L5.85668 7.31401C6.23379 7.54027 6.42234 7.65341 6.48631 7.79971C6.54213 7.9274 6.54213 8.0726 6.48631 8.20029C6.42234 8.34659 6.23379 8.45973 5.85668 8.68599L4.5 9.5\" stroke=\"#93C5FD\" stroke-opacity=\"0.32\" stroke-linecap=\"round\"/>\n</g>\n<g filter=\"url(#filter2_d_215_5)\">\n<path d=\"M4.5 6.5L5.85668 7.31401C6.23379 7.54027 6.42234 7.65341 6.48631 7.79971C6.54213 7.9274 6.54213 8.0726 6.48631 8.20029C6.42234 8.34659 6.23379 8.45973 5.85668 8.68599L4.5 9.5\" stroke=\"#93C5FD\" stroke-linecap=\"round\"/>\n</g>\n<g filter=\"url(#filter3_f_215_5)\">\n<path d=\"M6.5 11H8H9.5\" stroke=\"#FFF200\" stroke-opacity=\"0.32\" stroke-linecap=\"round\"/>\n</g>\n<g filter=\"url(#filter4_d_215_5)\">\n<path d=\"M6.5 11H8H9.5\" stroke=\"#FFF200\" stroke-linecap=\"round\"/>\n</g>\n</g>\n<defs>\n<filter id=\"filter0_i_215_5\" x=\"2\" y=\"2\" width=\"12\" height=\"16\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/>\n<feColorMatrix in=\"SourceAlpha\" type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0\" result=\"hardAlpha\"/>\n<feOffset dy=\"4\"/>\n<feGaussianBlur stdDeviation=\"2\"/>\n<feComposite in2=\"hardAlpha\" operator=\"arithmetic\" k2=\"-1\" k3=\"1\"/>\n<feColorMatrix type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0\"/>\n<feBlend mode=\"normal\" in2=\"shape\" result=\"effect1_innerShadow_215_5\"/>\n</filter>\n<filter id=\"filter1_f_215_5\" x=\"1.99992\" y=\"3.99988\" width=\"7.02825\" height=\"8.00024\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/>\n<feGaussianBlur stdDeviation=\"1\" result=\"effect1_foregroundBlur_215_5\"/>\n</filter>\n<filter id=\"filter2_d_215_5\" x=\"-7.53403e-05\" y=\"5.99988\" width=\"11.0283\" height=\"12.0002\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feColorMatrix in=\"SourceAlpha\" type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0\" result=\"hardAlpha\"/>\n<feOffset dy=\"4\"/>\n<feGaussianBlur stdDeviation=\"2\"/>\n<feComposite in2=\"hardAlpha\" operator=\"out\"/>\n<feColorMatrix type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0\"/>\n<feBlend mode=\"normal\" in2=\"BackgroundImageFix\" result=\"effect1_dropShadow_215_5\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"effect1_dropShadow_215_5\" result=\"shape\"/>\n</filter>\n<filter id=\"filter3_f_215_5\" x=\"4\" y=\"8.5\" width=\"8\" height=\"5\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/>\n<feGaussianBlur stdDeviation=\"1\" result=\"effect1_foregroundBlur_215_5\"/>\n</filter>\n<filter id=\"filter4_d_215_5\" x=\"2\" y=\"10.5\" width=\"12\" height=\"9\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feColorMatrix in=\"SourceAlpha\" type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0\" result=\"hardAlpha\"/>\n<feOffset dy=\"4\"/>\n<feGaussianBlur stdDeviation=\"2\"/>\n<feComposite in2=\"hardAlpha\" operator=\"out\"/>\n<feColorMatrix type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0\"/>\n<feBlend mode=\"normal\" in2=\"BackgroundImageFix\" result=\"effect1_dropShadow_215_5\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"effect1_dropShadow_215_5\" result=\"shape\"/>\n</filter>\n<linearGradient id=\"paint0_linear_215_5\" x1=\"14\" y1=\"2\" x2=\"0.5\" y2=\"14.5\" gradientUnits=\"userSpaceOnUse\">\n<stop stop-color=\"#111827\"/>\n<stop offset=\"1\" stop-color=\"#2A1234\"/>\n</linearGradient>\n<clipPath id=\"clip0_215_5\">\n<rect width=\"16\" height=\"16\" fill=\"white\"/>\n</clipPath>\n</defs>\n</svg>\n",
+              "encoding": "utf8"
+            },
+            "hidden": false,
+            "observe": false,
+            "requiresConfirmation": true
+          },
+          {
+            "name": "shell",
+            "title": "Shell",
+            "description": "Run, poll, wait for, or kill a shell task inside the workspace.",
+            "icon": {
+              "type": "file",
+              "mimeType": "image/svg+xml",
+              "content": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<g clip-path=\"url(#clip0_215_5)\">\n<rect width=\"16\" height=\"16\" rx=\"5\" fill=\"#315D8E\"/>\n<g filter=\"url(#filter0_i_215_5)\">\n<path d=\"M2 9.2V6.8C2 5.11984 2 4.27976 2.32698 3.63803C2.6146 3.07354 3.07354 2.6146 3.63803 2.32698C4.27976 2 5.11984 2 6.8 2H9.2C10.8802 2 11.7202 2 12.362 2.32698C12.9265 2.6146 13.3854 3.07354 13.673 3.63803C14 4.27976 14 5.11984 14 6.8V9.2C14 10.8802 14 11.7202 13.673 12.362C13.3854 12.9265 12.9265 13.3854 12.362 13.673C11.7202 14 10.8802 14 9.2 14H6.8C5.11984 14 4.27976 14 3.63803 13.673C3.07354 13.3854 2.6146 12.9265 2.32698 12.362C2 11.7202 2 10.8802 2 9.2Z\" fill=\"url(#paint0_linear_215_5)\"/>\n</g>\n<g filter=\"url(#filter1_f_215_5)\">\n<path d=\"M4.5 6.5L5.85668 7.31401C6.23379 7.54027 6.42234 7.65341 6.48631 7.79971C6.54213 7.9274 6.54213 8.0726 6.48631 8.20029C6.42234 8.34659 6.23379 8.45973 5.85668 8.68599L4.5 9.5\" stroke=\"#93C5FD\" stroke-opacity=\"0.32\" stroke-linecap=\"round\"/>\n</g>\n<g filter=\"url(#filter2_d_215_5)\">\n<path d=\"M4.5 6.5L5.85668 7.31401C6.23379 7.54027 6.42234 7.65341 6.48631 7.79971C6.54213 7.9274 6.54213 8.0726 6.48631 8.20029C6.42234 8.34659 6.23379 8.45973 5.85668 8.68599L4.5 9.5\" stroke=\"#93C5FD\" stroke-linecap=\"round\"/>\n</g>\n<g filter=\"url(#filter3_f_215_5)\">\n<path d=\"M6.5 11H8H9.5\" stroke=\"#FFF200\" stroke-opacity=\"0.32\" stroke-linecap=\"round\"/>\n</g>\n<g filter=\"url(#filter4_d_215_5)\">\n<path d=\"M6.5 11H8H9.5\" stroke=\"#FFF200\" stroke-linecap=\"round\"/>\n</g>\n</g>\n<defs>\n<filter id=\"filter0_i_215_5\" x=\"2\" y=\"2\" width=\"12\" height=\"16\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/>\n<feColorMatrix in=\"SourceAlpha\" type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0\" result=\"hardAlpha\"/>\n<feOffset dy=\"4\"/>\n<feGaussianBlur stdDeviation=\"2\"/>\n<feComposite in2=\"hardAlpha\" operator=\"arithmetic\" k2=\"-1\" k3=\"1\"/>\n<feColorMatrix type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0\"/>\n<feBlend mode=\"normal\" in2=\"shape\" result=\"effect1_innerShadow_215_5\"/>\n</filter>\n<filter id=\"filter1_f_215_5\" x=\"1.99992\" y=\"3.99988\" width=\"7.02825\" height=\"8.00024\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/>\n<feGaussianBlur stdDeviation=\"1\" result=\"effect1_foregroundBlur_215_5\"/>\n</filter>\n<filter id=\"filter2_d_215_5\" x=\"-7.53403e-05\" y=\"5.99988\" width=\"11.0283\" height=\"12.0002\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feColorMatrix in=\"SourceAlpha\" type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0\" result=\"hardAlpha\"/>\n<feOffset dy=\"4\"/>\n<feGaussianBlur stdDeviation=\"2\"/>\n<feComposite in2=\"hardAlpha\" operator=\"out\"/>\n<feColorMatrix type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0\"/>\n<feBlend mode=\"normal\" in2=\"BackgroundImageFix\" result=\"effect1_dropShadow_215_5\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"effect1_dropShadow_215_5\" result=\"shape\"/>\n</filter>\n<filter id=\"filter3_f_215_5\" x=\"4\" y=\"8.5\" width=\"8\" height=\"5\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/>\n<feGaussianBlur stdDeviation=\"1\" result=\"effect1_foregroundBlur_215_5\"/>\n</filter>\n<filter id=\"filter4_d_215_5\" x=\"2\" y=\"10.5\" width=\"12\" height=\"9\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feColorMatrix in=\"SourceAlpha\" type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0\" result=\"hardAlpha\"/>\n<feOffset dy=\"4\"/>\n<feGaussianBlur stdDeviation=\"2\"/>\n<feComposite in2=\"hardAlpha\" operator=\"out\"/>\n<feColorMatrix type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0\"/>\n<feBlend mode=\"normal\" in2=\"BackgroundImageFix\" result=\"effect1_dropShadow_215_5\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"effect1_dropShadow_215_5\" result=\"shape\"/>\n</filter>\n<linearGradient id=\"paint0_linear_215_5\" x1=\"14\" y1=\"2\" x2=\"0.5\" y2=\"14.5\" gradientUnits=\"userSpaceOnUse\">\n<stop stop-color=\"#111827\"/>\n<stop offset=\"1\" stop-color=\"#2A1234\"/>\n</linearGradient>\n<clipPath id=\"clip0_215_5\">\n<rect width=\"16\" height=\"16\" fill=\"white\"/>\n</clipPath>\n</defs>\n</svg>\n",
+              "encoding": "utf8"
+            },
+            "hidden": false,
+            "observe": false,
+            "requiresConfirmation": true
+          },
+          {
+            "name": "lsp",
+            "title": "LSP",
+            "description": "Run an LSP operation for Python or TS/JS files inside the workspace.",
+            "icon": {
+              "type": "file",
+              "mimeType": "image/svg+xml",
+              "content": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<g clip-path=\"url(#clip0_215_5)\">\n<rect width=\"16\" height=\"16\" rx=\"5\" fill=\"#315D8E\"/>\n<g filter=\"url(#filter0_i_215_5)\">\n<path d=\"M2 9.2V6.8C2 5.11984 2 4.27976 2.32698 3.63803C2.6146 3.07354 3.07354 2.6146 3.63803 2.32698C4.27976 2 5.11984 2 6.8 2H9.2C10.8802 2 11.7202 2 12.362 2.32698C12.9265 2.6146 13.3854 3.07354 13.673 3.63803C14 4.27976 14 5.11984 14 6.8V9.2C14 10.8802 14 11.7202 13.673 12.362C13.3854 12.9265 12.9265 13.3854 12.362 13.673C11.7202 14 10.8802 14 9.2 14H6.8C5.11984 14 4.27976 14 3.63803 13.673C3.07354 13.3854 2.6146 12.9265 2.32698 12.362C2 11.7202 2 10.8802 2 9.2Z\" fill=\"url(#paint0_linear_215_5)\"/>\n</g>\n<g filter=\"url(#filter1_f_215_5)\">\n<path d=\"M4.5 6.5L5.85668 7.31401C6.23379 7.54027 6.42234 7.65341 6.48631 7.79971C6.54213 7.9274 6.54213 8.0726 6.48631 8.20029C6.42234 8.34659 6.23379 8.45973 5.85668 8.68599L4.5 9.5\" stroke=\"#93C5FD\" stroke-opacity=\"0.32\" stroke-linecap=\"round\"/>\n</g>\n<g filter=\"url(#filter2_d_215_5)\">\n<path d=\"M4.5 6.5L5.85668 7.31401C6.23379 7.54027 6.42234 7.65341 6.48631 7.79971C6.54213 7.9274 6.54213 8.0726 6.48631 8.20029C6.42234 8.34659 6.23379 8.45973 5.85668 8.68599L4.5 9.5\" stroke=\"#93C5FD\" stroke-linecap=\"round\"/>\n</g>\n<g filter=\"url(#filter3_f_215_5)\">\n<path d=\"M6.5 11H8H9.5\" stroke=\"#FFF200\" stroke-opacity=\"0.32\" stroke-linecap=\"round\"/>\n</g>\n<g filter=\"url(#filter4_d_215_5)\">\n<path d=\"M6.5 11H8H9.5\" stroke=\"#FFF200\" stroke-linecap=\"round\"/>\n</g>\n</g>\n<defs>\n<filter id=\"filter0_i_215_5\" x=\"2\" y=\"2\" width=\"12\" height=\"16\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/>\n<feColorMatrix in=\"SourceAlpha\" type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0\" result=\"hardAlpha\"/>\n<feOffset dy=\"4\"/>\n<feGaussianBlur stdDeviation=\"2\"/>\n<feComposite in2=\"hardAlpha\" operator=\"arithmetic\" k2=\"-1\" k3=\"1\"/>\n<feColorMatrix type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0\"/>\n<feBlend mode=\"normal\" in2=\"shape\" result=\"effect1_innerShadow_215_5\"/>\n</filter>\n<filter id=\"filter1_f_215_5\" x=\"1.99992\" y=\"3.99988\" width=\"7.02825\" height=\"8.00024\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/>\n<feGaussianBlur stdDeviation=\"1\" result=\"effect1_foregroundBlur_215_5\"/>\n</filter>\n<filter id=\"filter2_d_215_5\" x=\"-7.53403e-05\" y=\"5.99988\" width=\"11.0283\" height=\"12.0002\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feColorMatrix in=\"SourceAlpha\" type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0\" result=\"hardAlpha\"/>\n<feOffset dy=\"4\"/>\n<feGaussianBlur stdDeviation=\"2\"/>\n<feComposite in2=\"hardAlpha\" operator=\"out\"/>\n<feColorMatrix type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0\"/>\n<feBlend mode=\"normal\" in2=\"BackgroundImageFix\" result=\"effect1_dropShadow_215_5\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"effect1_dropShadow_215_5\" result=\"shape\"/>\n</filter>\n<filter id=\"filter3_f_215_5\" x=\"4\" y=\"8.5\" width=\"8\" height=\"5\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/>\n<feGaussianBlur stdDeviation=\"1\" result=\"effect1_foregroundBlur_215_5\"/>\n</filter>\n<filter id=\"filter4_d_215_5\" x=\"2\" y=\"10.5\" width=\"12\" height=\"9\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feColorMatrix in=\"SourceAlpha\" type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0\" result=\"hardAlpha\"/>\n<feOffset dy=\"4\"/>\n<feGaussianBlur stdDeviation=\"2\"/>\n<feComposite in2=\"hardAlpha\" operator=\"out\"/>\n<feColorMatrix type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0\"/>\n<feBlend mode=\"normal\" in2=\"BackgroundImageFix\" result=\"effect1_dropShadow_215_5\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"effect1_dropShadow_215_5\" result=\"shape\"/>\n</filter>\n<linearGradient id=\"paint0_linear_215_5\" x1=\"14\" y1=\"2\" x2=\"0.5\" y2=\"14.5\" gradientUnits=\"userSpaceOnUse\">\n<stop stop-color=\"#111827\"/>\n<stop offset=\"1\" stop-color=\"#2A1234\"/>\n</linearGradient>\n<clipPath id=\"clip0_215_5\">\n<rect width=\"16\" height=\"16\" fill=\"white\"/>\n</clipPath>\n</defs>\n</svg>\n",
+              "encoding": "utf8"
+            },
+            "hidden": false,
+            "observe": false,
+            "requiresConfirmation": false
+          }
+        ],
+        "skills": [],
+        "displayOrder": 15,
+        "hidden": false,
+        "tags": [
+          "builtin",
+          "core",
+          "files",
+          "search",
+          "editing",
+          "user-input"
+        ],
+        "artifactKinds": []
+      },
+      {
+        "toolkitId": "plan",
+        "toolkitName": "Plan",
+        "toolkitDescription": "Workspace-backed planning tools for drafting, updating, reading, listing, and finalizing structured plans.",
+        "toolkitIcon": {
+          "type": "file",
+          "mimeType": "image/svg+xml",
+          "content": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<g clip-path=\"url(#clip0_406_2)\">\n<rect width=\"16\" height=\"16\" rx=\"5\" fill=\"url(#paint0_linear_406_2)\"/>\n<g filter=\"url(#filter0_f_406_2)\">\n<path d=\"M5 8L7.14984 10.3034C7.24894 10.4096 7.41736 10.4092 7.51604 10.3027L11.5 6\" stroke=\"#B7FF00\" stroke-opacity=\"0.64\" stroke-width=\"2.5\" stroke-linecap=\"round\"/>\n</g>\n<g filter=\"url(#filter1_d_406_2)\">\n<path d=\"M5 8L7.14984 10.3034C7.24894 10.4096 7.41736 10.4092 7.51604 10.3027L11.5 6\" stroke=\"white\" stroke-width=\"2.5\" stroke-linecap=\"round\"/>\n</g>\n</g>\n<defs>\n<filter id=\"filter0_f_406_2\" x=\"-0.250004\" y=\"0.75\" width=\"17\" height=\"14.8828\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/>\n<feGaussianBlur stdDeviation=\"2\" result=\"effect1_foregroundBlur_406_2\"/>\n</filter>\n<filter id=\"filter1_d_406_2\" x=\"0.749996\" y=\"3.75\" width=\"15\" height=\"12.8828\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feColorMatrix in=\"SourceAlpha\" type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0\" result=\"hardAlpha\"/>\n<feOffset dy=\"2\"/>\n<feGaussianBlur stdDeviation=\"1.5\"/>\n<feComposite in2=\"hardAlpha\" operator=\"out\"/>\n<feColorMatrix type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.32 0\"/>\n<feBlend mode=\"normal\" in2=\"BackgroundImageFix\" result=\"effect1_dropShadow_406_2\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"effect1_dropShadow_406_2\" result=\"shape\"/>\n</filter>\n<linearGradient id=\"paint0_linear_406_2\" x1=\"1.5\" y1=\"17\" x2=\"17\" y2=\"-4\" gradientUnits=\"userSpaceOnUse\">\n<stop stop-color=\"#0AC800\"/>\n<stop offset=\"1\" stop-color=\"#089A00\"/>\n</linearGradient>\n<clipPath id=\"clip0_406_2\">\n<rect width=\"16\" height=\"16\" fill=\"white\"/>\n</clipPath>\n</defs>\n</svg>\n",
+          "encoding": "utf8"
+        },
+        "source": "builtin",
+        "toolCount": 5,
+        "defaultEnabled": false,
+        "tools": [
+          {
+            "name": "plan_start",
+            "title": "Plan Start",
+            "description": "Create a draft plan and return its plan_id.",
+            "icon": {
+              "type": "file",
+              "mimeType": "image/svg+xml",
+              "content": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<g clip-path=\"url(#clip0_406_2)\">\n<rect width=\"16\" height=\"16\" rx=\"5\" fill=\"url(#paint0_linear_406_2)\"/>\n<g filter=\"url(#filter0_f_406_2)\">\n<path d=\"M5 8L7.14984 10.3034C7.24894 10.4096 7.41736 10.4092 7.51604 10.3027L11.5 6\" stroke=\"#B7FF00\" stroke-opacity=\"0.64\" stroke-width=\"2.5\" stroke-linecap=\"round\"/>\n</g>\n<g filter=\"url(#filter1_d_406_2)\">\n<path d=\"M5 8L7.14984 10.3034C7.24894 10.4096 7.41736 10.4092 7.51604 10.3027L11.5 6\" stroke=\"white\" stroke-width=\"2.5\" stroke-linecap=\"round\"/>\n</g>\n</g>\n<defs>\n<filter id=\"filter0_f_406_2\" x=\"-0.250004\" y=\"0.75\" width=\"17\" height=\"14.8828\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/>\n<feGaussianBlur stdDeviation=\"2\" result=\"effect1_foregroundBlur_406_2\"/>\n</filter>\n<filter id=\"filter1_d_406_2\" x=\"0.749996\" y=\"3.75\" width=\"15\" height=\"12.8828\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feColorMatrix in=\"SourceAlpha\" type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0\" result=\"hardAlpha\"/>\n<feOffset dy=\"2\"/>\n<feGaussianBlur stdDeviation=\"1.5\"/>\n<feComposite in2=\"hardAlpha\" operator=\"out\"/>\n<feColorMatrix type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.32 0\"/>\n<feBlend mode=\"normal\" in2=\"BackgroundImageFix\" result=\"effect1_dropShadow_406_2\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"effect1_dropShadow_406_2\" result=\"shape\"/>\n</filter>\n<linearGradient id=\"paint0_linear_406_2\" x1=\"1.5\" y1=\"17\" x2=\"17\" y2=\"-4\" gradientUnits=\"userSpaceOnUse\">\n<stop stop-color=\"#0AC800\"/>\n<stop offset=\"1\" stop-color=\"#089A00\"/>\n</linearGradient>\n<clipPath id=\"clip0_406_2\">\n<rect width=\"16\" height=\"16\" fill=\"white\"/>\n</clipPath>\n</defs>\n</svg>\n",
+              "encoding": "utf8"
+            },
+            "hidden": false,
+            "observe": false,
+            "requiresConfirmation": false
+          },
+          {
+            "name": "plan_update",
+            "title": "Plan Update",
+            "description": "Update structured sections of a plan.",
+            "icon": {
+              "type": "file",
+              "mimeType": "image/svg+xml",
+              "content": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<g clip-path=\"url(#clip0_406_2)\">\n<rect width=\"16\" height=\"16\" rx=\"5\" fill=\"url(#paint0_linear_406_2)\"/>\n<g filter=\"url(#filter0_f_406_2)\">\n<path d=\"M5 8L7.14984 10.3034C7.24894 10.4096 7.41736 10.4092 7.51604 10.3027L11.5 6\" stroke=\"#B7FF00\" stroke-opacity=\"0.64\" stroke-width=\"2.5\" stroke-linecap=\"round\"/>\n</g>\n<g filter=\"url(#filter1_d_406_2)\">\n<path d=\"M5 8L7.14984 10.3034C7.24894 10.4096 7.41736 10.4092 7.51604 10.3027L11.5 6\" stroke=\"white\" stroke-width=\"2.5\" stroke-linecap=\"round\"/>\n</g>\n</g>\n<defs>\n<filter id=\"filter0_f_406_2\" x=\"-0.250004\" y=\"0.75\" width=\"17\" height=\"14.8828\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/>\n<feGaussianBlur stdDeviation=\"2\" result=\"effect1_foregroundBlur_406_2\"/>\n</filter>\n<filter id=\"filter1_d_406_2\" x=\"0.749996\" y=\"3.75\" width=\"15\" height=\"12.8828\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feColorMatrix in=\"SourceAlpha\" type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0\" result=\"hardAlpha\"/>\n<feOffset dy=\"2\"/>\n<feGaussianBlur stdDeviation=\"1.5\"/>\n<feComposite in2=\"hardAlpha\" operator=\"out\"/>\n<feColorMatrix type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.32 0\"/>\n<feBlend mode=\"normal\" in2=\"BackgroundImageFix\" result=\"effect1_dropShadow_406_2\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"effect1_dropShadow_406_2\" result=\"shape\"/>\n</filter>\n<linearGradient id=\"paint0_linear_406_2\" x1=\"1.5\" y1=\"17\" x2=\"17\" y2=\"-4\" gradientUnits=\"userSpaceOnUse\">\n<stop stop-color=\"#0AC800\"/>\n<stop offset=\"1\" stop-color=\"#089A00\"/>\n</linearGradient>\n<clipPath id=\"clip0_406_2\">\n<rect width=\"16\" height=\"16\" fill=\"white\"/>\n</clipPath>\n</defs>\n</svg>\n",
+              "encoding": "utf8"
+            },
+            "hidden": false,
+            "observe": false,
+            "requiresConfirmation": false
+          },
+          {
+            "name": "plan_read",
+            "title": "Plan Read",
+            "description": "Return plan status and workspace Markdown file location.",
+            "icon": {
+              "type": "file",
+              "mimeType": "image/svg+xml",
+              "content": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<g clip-path=\"url(#clip0_406_2)\">\n<rect width=\"16\" height=\"16\" rx=\"5\" fill=\"url(#paint0_linear_406_2)\"/>\n<g filter=\"url(#filter0_f_406_2)\">\n<path d=\"M5 8L7.14984 10.3034C7.24894 10.4096 7.41736 10.4092 7.51604 10.3027L11.5 6\" stroke=\"#B7FF00\" stroke-opacity=\"0.64\" stroke-width=\"2.5\" stroke-linecap=\"round\"/>\n</g>\n<g filter=\"url(#filter1_d_406_2)\">\n<path d=\"M5 8L7.14984 10.3034C7.24894 10.4096 7.41736 10.4092 7.51604 10.3027L11.5 6\" stroke=\"white\" stroke-width=\"2.5\" stroke-linecap=\"round\"/>\n</g>\n</g>\n<defs>\n<filter id=\"filter0_f_406_2\" x=\"-0.250004\" y=\"0.75\" width=\"17\" height=\"14.8828\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/>\n<feGaussianBlur stdDeviation=\"2\" result=\"effect1_foregroundBlur_406_2\"/>\n</filter>\n<filter id=\"filter1_d_406_2\" x=\"0.749996\" y=\"3.75\" width=\"15\" height=\"12.8828\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feColorMatrix in=\"SourceAlpha\" type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0\" result=\"hardAlpha\"/>\n<feOffset dy=\"2\"/>\n<feGaussianBlur stdDeviation=\"1.5\"/>\n<feComposite in2=\"hardAlpha\" operator=\"out\"/>\n<feColorMatrix type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.32 0\"/>\n<feBlend mode=\"normal\" in2=\"BackgroundImageFix\" result=\"effect1_dropShadow_406_2\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"effect1_dropShadow_406_2\" result=\"shape\"/>\n</filter>\n<linearGradient id=\"paint0_linear_406_2\" x1=\"1.5\" y1=\"17\" x2=\"17\" y2=\"-4\" gradientUnits=\"userSpaceOnUse\">\n<stop stop-color=\"#0AC800\"/>\n<stop offset=\"1\" stop-color=\"#089A00\"/>\n</linearGradient>\n<clipPath id=\"clip0_406_2\">\n<rect width=\"16\" height=\"16\" fill=\"white\"/>\n</clipPath>\n</defs>\n</svg>\n",
+              "encoding": "utf8"
+            },
+            "hidden": false,
+            "observe": false,
+            "requiresConfirmation": false
+          },
+          {
+            "name": "plan_finalize",
+            "title": "Plan Finalize",
+            "description": "Finalize a plan and return its workspace file location.",
+            "icon": {
+              "type": "file",
+              "mimeType": "image/svg+xml",
+              "content": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<g clip-path=\"url(#clip0_406_2)\">\n<rect width=\"16\" height=\"16\" rx=\"5\" fill=\"url(#paint0_linear_406_2)\"/>\n<g filter=\"url(#filter0_f_406_2)\">\n<path d=\"M5 8L7.14984 10.3034C7.24894 10.4096 7.41736 10.4092 7.51604 10.3027L11.5 6\" stroke=\"#B7FF00\" stroke-opacity=\"0.64\" stroke-width=\"2.5\" stroke-linecap=\"round\"/>\n</g>\n<g filter=\"url(#filter1_d_406_2)\">\n<path d=\"M5 8L7.14984 10.3034C7.24894 10.4096 7.41736 10.4092 7.51604 10.3027L11.5 6\" stroke=\"white\" stroke-width=\"2.5\" stroke-linecap=\"round\"/>\n</g>\n</g>\n<defs>\n<filter id=\"filter0_f_406_2\" x=\"-0.250004\" y=\"0.75\" width=\"17\" height=\"14.8828\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/>\n<feGaussianBlur stdDeviation=\"2\" result=\"effect1_foregroundBlur_406_2\"/>\n</filter>\n<filter id=\"filter1_d_406_2\" x=\"0.749996\" y=\"3.75\" width=\"15\" height=\"12.8828\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feColorMatrix in=\"SourceAlpha\" type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0\" result=\"hardAlpha\"/>\n<feOffset dy=\"2\"/>\n<feGaussianBlur stdDeviation=\"1.5\"/>\n<feComposite in2=\"hardAlpha\" operator=\"out\"/>\n<feColorMatrix type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.32 0\"/>\n<feBlend mode=\"normal\" in2=\"BackgroundImageFix\" result=\"effect1_dropShadow_406_2\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"effect1_dropShadow_406_2\" result=\"shape\"/>\n</filter>\n<linearGradient id=\"paint0_linear_406_2\" x1=\"1.5\" y1=\"17\" x2=\"17\" y2=\"-4\" gradientUnits=\"userSpaceOnUse\">\n<stop stop-color=\"#0AC800\"/>\n<stop offset=\"1\" stop-color=\"#089A00\"/>\n</linearGradient>\n<clipPath id=\"clip0_406_2\">\n<rect width=\"16\" height=\"16\" fill=\"white\"/>\n</clipPath>\n</defs>\n</svg>\n",
+              "encoding": "utf8"
+            },
+            "hidden": false,
+            "observe": false,
+            "requiresConfirmation": true
+          },
+          {
+            "name": "plan_list",
+            "title": "Plan List",
+            "description": "List all draft and finalized plans in the workspace.",
+            "icon": {
+              "type": "file",
+              "mimeType": "image/svg+xml",
+              "content": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<g clip-path=\"url(#clip0_406_2)\">\n<rect width=\"16\" height=\"16\" rx=\"5\" fill=\"url(#paint0_linear_406_2)\"/>\n<g filter=\"url(#filter0_f_406_2)\">\n<path d=\"M5 8L7.14984 10.3034C7.24894 10.4096 7.41736 10.4092 7.51604 10.3027L11.5 6\" stroke=\"#B7FF00\" stroke-opacity=\"0.64\" stroke-width=\"2.5\" stroke-linecap=\"round\"/>\n</g>\n<g filter=\"url(#filter1_d_406_2)\">\n<path d=\"M5 8L7.14984 10.3034C7.24894 10.4096 7.41736 10.4092 7.51604 10.3027L11.5 6\" stroke=\"white\" stroke-width=\"2.5\" stroke-linecap=\"round\"/>\n</g>\n</g>\n<defs>\n<filter id=\"filter0_f_406_2\" x=\"-0.250004\" y=\"0.75\" width=\"17\" height=\"14.8828\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/>\n<feGaussianBlur stdDeviation=\"2\" result=\"effect1_foregroundBlur_406_2\"/>\n</filter>\n<filter id=\"filter1_d_406_2\" x=\"0.749996\" y=\"3.75\" width=\"15\" height=\"12.8828\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feColorMatrix in=\"SourceAlpha\" type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0\" result=\"hardAlpha\"/>\n<feOffset dy=\"2\"/>\n<feGaussianBlur stdDeviation=\"1.5\"/>\n<feComposite in2=\"hardAlpha\" operator=\"out\"/>\n<feColorMatrix type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.32 0\"/>\n<feBlend mode=\"normal\" in2=\"BackgroundImageFix\" result=\"effect1_dropShadow_406_2\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"effect1_dropShadow_406_2\" result=\"shape\"/>\n</filter>\n<linearGradient id=\"paint0_linear_406_2\" x1=\"1.5\" y1=\"17\" x2=\"17\" y2=\"-4\" gradientUnits=\"userSpaceOnUse\">\n<stop stop-color=\"#0AC800\"/>\n<stop offset=\"1\" stop-color=\"#089A00\"/>\n</linearGradient>\n<clipPath id=\"clip0_406_2\">\n<rect width=\"16\" height=\"16\" fill=\"white\"/>\n</clipPath>\n</defs>\n</svg>\n",
+              "encoding": "utf8"
+            },
+            "hidden": false,
+            "observe": false,
+            "requiresConfirmation": false
+          }
+        ],
+        "skills": [
+          {
+            "name": "plan",
+            "aliases": [],
+            "title": "Plan First",
+            "description": "Draft a step-by-step plan and wait for confirmation before executing.",
+            "body": "Before doing any work: draft a step-by-step plan using the planning tools ({tools}), present it to me, and wait for my explicit confirmation before executing.",
+            "tools": [
+              "plan_start",
+              "plan_update",
+              "plan_read",
+              "plan_finalize",
+              "plan_list"
+            ],
+            "phase": "composer",
+            "model_invocable": true,
+            "user_invocable": true,
+            "metadata": {},
+            "degraded": []
+          }
+        ],
+        "displayOrder": 20,
+        "hidden": false,
+        "tags": [
+          "builtin",
+          "planning",
+          "workflow"
+        ],
+        "artifactKinds": []
+      },
+      {
+        "toolkitId": "agent_reach",
+        "toolkitName": "Agent Reach",
+        "toolkitDescription": "Read-only Agent-Reach helpers for status checks, web pages, and YouTube metadata.",
+        "toolkitIcon": {
+          "type": "emoji",
+          "emoji": "\ud83d\udc41\ufe0f"
+        },
+        "source": "builtin",
+        "toolCount": 3,
+        "defaultEnabled": false,
+        "tools": [
+          {
+            "name": "agent_reach_status",
+            "title": "Agent Reach Status",
+            "description": "Check Agent-Reach channel availability.",
+            "icon": {
+              "type": "emoji",
+              "emoji": "\ud83d\udc41\ufe0f"
+            },
+            "hidden": false,
+            "observe": false,
+            "requiresConfirmation": false
+          },
+          {
+            "name": "agent_reach_read_web",
+            "title": "Read Web Page",
+            "description": "Read a web page through Agent-Reach's Jina Reader channel.",
+            "icon": {
+              "type": "emoji",
+              "emoji": "\ud83d\udc41\ufe0f"
+            },
+            "hidden": false,
+            "observe": false,
+            "requiresConfirmation": false
+          },
+          {
+            "name": "agent_reach_youtube_metadata",
+            "title": "YouTube Metadata",
+            "description": "Fetch YouTube metadata with yt-dlp without downloading media.",
+            "icon": {
+              "type": "emoji",
+              "emoji": "\ud83d\udc41\ufe0f"
+            },
+            "hidden": false,
+            "observe": false,
+            "requiresConfirmation": false
+          }
+        ],
+        "skills": [],
+        "displayOrder": 50,
+        "hidden": false,
+        "tags": [
+          "builtin",
+          "agent-reach",
+          "web",
+          "youtube"
+        ],
+        "artifactKinds": []
+      }
+    ],
+    "artifactKinds": [
+      {
+        "kind": "file_diff",
+        "displayName": "Files changed",
+        "description": "Immutable snapshots of file changes produced by tools.",
+        "icon": {
+          "type": "builtin",
+          "name": "file_edit"
+        },
+        "fallbackRenderer": "json",
+        "toolkitId": "builtin"
+      },
+      {
+        "kind": "plan",
+        "displayName": "Plan",
+        "description": "Plan snapshots produced by PlanToolkit.",
+        "icon": {
+          "type": "builtin",
+          "name": "check_list"
+        },
+        "fallbackRenderer": "markdown",
+        "toolkitId": "builtin"
+      },
+      {
+        "kind": "markdown",
+        "displayName": "Markdown",
+        "description": "Markdown artifact snapshots.",
+        "icon": {
+          "type": "builtin",
+          "name": "markdown"
+        },
+        "fallbackRenderer": "markdown",
+        "toolkitId": "builtin"
+      },
+      {
+        "kind": "table",
+        "displayName": "Table",
+        "description": "Tabular artifact snapshots.",
+        "icon": {
+          "type": "builtin",
+          "name": "data"
+        },
+        "fallbackRenderer": "table",
+        "toolkitId": "builtin"
+      },
+      {
+        "kind": "kv",
+        "displayName": "Metadata",
+        "description": "Key-value artifact snapshots.",
+        "icon": {
+          "type": "builtin",
+          "name": "information"
+        },
+        "fallbackRenderer": "kv",
+        "toolkitId": "builtin"
+      },
+      {
+        "kind": "log",
+        "displayName": "Log",
+        "description": "Log artifact snapshots.",
+        "icon": {
+          "type": "builtin",
+          "name": "terminal"
+        },
+        "fallbackRenderer": "log",
+        "toolkitId": "builtin"
+      },
+      {
+        "kind": "link",
+        "displayName": "Link",
+        "description": "Link artifact snapshots.",
+        "icon": {
+          "type": "builtin",
+          "name": "link"
+        },
+        "fallbackRenderer": "link",
+        "toolkitId": "builtin"
+      }
+    ],
+    "count": 3,
+    "source": ""
+  },
+  "shapes": [
+    {
+      "case": "0",
+      "document": {
+        "schema_version": 1,
+        "kind": "agent",
+        "id": "native-tools-shape-0",
+        "name": "native-tools-shape-0",
+        "nodes": [
+          {
+            "id": "start",
+            "type": "start",
+            "config": {
+              "execution": {
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "agent",
+            "type": "agent",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "end",
+            "type": "end",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "tools",
+            "type": "toolkit_pool",
+            "config": {
+              "toolkits": [],
+              "merge_with_user_selected": false
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "flow-start-agent",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "agent",
+            "target_port_id": "in"
+          },
+          {
+            "id": "flow-agent-end",
+            "kind": "flow",
+            "source_node_id": "agent",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          },
+          {
+            "id": "attach-tools",
+            "kind": "attach",
+            "source_node_id": "agent",
+            "source_port_id": "attach_top",
+            "target_node_id": "tools",
+            "target_port_id": "attach_top"
+          }
+        ]
+      },
+      "saved": true,
+      "roundtrip_equal": true,
+      "configured_execution_structure_admitted": true,
+      "refusal": null,
+      "configured_document": {
+        "schema_version": 1,
+        "kind": "agent",
+        "id": "native-tools-shape-0",
+        "name": "native-tools-shape-0",
+        "nodes": [
+          {
+            "id": "start",
+            "type": "start",
+            "config": {
+              "execution": {
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "agent",
+            "type": "agent",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              },
+              "kernel": {
+                "history": "root",
+                "json_schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "root_a": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "root_a"
+                  ],
+                  "type": "object"
+                },
+                "max_iterations": 4,
+                "output_tokens": 512,
+                "overflow": "error",
+                "profile": {
+                  "capabilities": {
+                    "files": false,
+                    "images": true,
+                    "json_schema": true
+                  },
+                  "context_window": 1050000,
+                  "credential_ref": "independent.openai.owner",
+                  "endpoint": "https://api.openai.com/v1",
+                  "id": "openai:gpt-6-luna",
+                  "model": "gpt-6-luna",
+                  "output_limit": 128000,
+                  "protocol": "openai-responses",
+                  "provider": "openai"
+                },
+                "prompt": "Authored OpenAI owner",
+                "schema_version": 1
+              }
+            }
+          },
+          {
+            "id": "end",
+            "type": "end",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "tools",
+            "type": "toolkit_pool",
+            "config": {
+              "toolkits": [],
+              "merge_with_user_selected": false
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "flow-start-agent",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "agent",
+            "target_port_id": "in"
+          },
+          {
+            "id": "flow-agent-end",
+            "kind": "flow",
+            "source_node_id": "agent",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          },
+          {
+            "id": "attach-tools",
+            "kind": "attach",
+            "source_node_id": "agent",
+            "source_port_id": "attach_top",
+            "target_node_id": "tools",
+            "target_port_id": "attach_top"
+          }
+        ]
+      }
+    },
+    {
+      "case": "1",
+      "document": {
+        "schema_version": 1,
+        "kind": "agent",
+        "id": "native-tools-shape-1",
+        "name": "native-tools-shape-1",
+        "nodes": [
+          {
+            "id": "start",
+            "type": "start",
+            "config": {
+              "execution": {
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "agent",
+            "type": "agent",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "end",
+            "type": "end",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "tools",
+            "type": "toolkit_pool",
+            "config": {
+              "toolkits": [],
+              "merge_with_user_selected": false
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "flow-start-agent",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "agent",
+            "target_port_id": "in"
+          },
+          {
+            "id": "flow-agent-end",
+            "kind": "flow",
+            "source_node_id": "agent",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          },
+          {
+            "id": "attach-tools",
+            "kind": "attach",
+            "source_node_id": "agent",
+            "source_port_id": "attach_top",
+            "target_node_id": "tools",
+            "target_port_id": "attach_bot"
+          }
+        ]
+      },
+      "saved": true,
+      "roundtrip_equal": true,
+      "configured_execution_structure_admitted": true,
+      "refusal": null,
+      "configured_document": {
+        "schema_version": 1,
+        "kind": "agent",
+        "id": "native-tools-shape-1",
+        "name": "native-tools-shape-1",
+        "nodes": [
+          {
+            "id": "start",
+            "type": "start",
+            "config": {
+              "execution": {
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "agent",
+            "type": "agent",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              },
+              "kernel": {
+                "history": "root",
+                "json_schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "root_a": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "root_a"
+                  ],
+                  "type": "object"
+                },
+                "max_iterations": 4,
+                "output_tokens": 512,
+                "overflow": "error",
+                "profile": {
+                  "capabilities": {
+                    "files": false,
+                    "images": true,
+                    "json_schema": true
+                  },
+                  "context_window": 1050000,
+                  "credential_ref": "independent.openai.owner",
+                  "endpoint": "https://api.openai.com/v1",
+                  "id": "openai:gpt-6-luna",
+                  "model": "gpt-6-luna",
+                  "output_limit": 128000,
+                  "protocol": "openai-responses",
+                  "provider": "openai"
+                },
+                "prompt": "Authored OpenAI owner",
+                "schema_version": 1
+              }
+            }
+          },
+          {
+            "id": "end",
+            "type": "end",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "tools",
+            "type": "toolkit_pool",
+            "config": {
+              "toolkits": [],
+              "merge_with_user_selected": false
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "flow-start-agent",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "agent",
+            "target_port_id": "in"
+          },
+          {
+            "id": "flow-agent-end",
+            "kind": "flow",
+            "source_node_id": "agent",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          },
+          {
+            "id": "attach-tools",
+            "kind": "attach",
+            "source_node_id": "agent",
+            "source_port_id": "attach_top",
+            "target_node_id": "tools",
+            "target_port_id": "attach_bot"
+          }
+        ]
+      }
+    },
+    {
+      "case": "2",
+      "document": {
+        "schema_version": 1,
+        "kind": "agent",
+        "id": "native-tools-shape-2",
+        "name": "native-tools-shape-2",
+        "nodes": [
+          {
+            "id": "start",
+            "type": "start",
+            "config": {
+              "execution": {
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "agent",
+            "type": "agent",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "end",
+            "type": "end",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "tools",
+            "type": "toolkit_pool",
+            "config": {
+              "toolkits": [],
+              "merge_with_user_selected": false
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "flow-start-agent",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "agent",
+            "target_port_id": "in"
+          },
+          {
+            "id": "flow-agent-end",
+            "kind": "flow",
+            "source_node_id": "agent",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          },
+          {
+            "id": "attach-tools",
+            "kind": "attach",
+            "source_node_id": "agent",
+            "source_port_id": "attach_bot",
+            "target_node_id": "tools",
+            "target_port_id": "attach_top"
+          }
+        ]
+      },
+      "saved": true,
+      "roundtrip_equal": true,
+      "configured_execution_structure_admitted": true,
+      "refusal": null,
+      "configured_document": {
+        "schema_version": 1,
+        "kind": "agent",
+        "id": "native-tools-shape-2",
+        "name": "native-tools-shape-2",
+        "nodes": [
+          {
+            "id": "start",
+            "type": "start",
+            "config": {
+              "execution": {
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "agent",
+            "type": "agent",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              },
+              "kernel": {
+                "history": "root",
+                "json_schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "root_a": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "root_a"
+                  ],
+                  "type": "object"
+                },
+                "max_iterations": 4,
+                "output_tokens": 512,
+                "overflow": "error",
+                "profile": {
+                  "capabilities": {
+                    "files": false,
+                    "images": true,
+                    "json_schema": true
+                  },
+                  "context_window": 1050000,
+                  "credential_ref": "independent.openai.owner",
+                  "endpoint": "https://api.openai.com/v1",
+                  "id": "openai:gpt-6-luna",
+                  "model": "gpt-6-luna",
+                  "output_limit": 128000,
+                  "protocol": "openai-responses",
+                  "provider": "openai"
+                },
+                "prompt": "Authored OpenAI owner",
+                "schema_version": 1
+              }
+            }
+          },
+          {
+            "id": "end",
+            "type": "end",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "tools",
+            "type": "toolkit_pool",
+            "config": {
+              "toolkits": [],
+              "merge_with_user_selected": false
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "flow-start-agent",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "agent",
+            "target_port_id": "in"
+          },
+          {
+            "id": "flow-agent-end",
+            "kind": "flow",
+            "source_node_id": "agent",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          },
+          {
+            "id": "attach-tools",
+            "kind": "attach",
+            "source_node_id": "agent",
+            "source_port_id": "attach_bot",
+            "target_node_id": "tools",
+            "target_port_id": "attach_top"
+          }
+        ]
+      }
+    },
+    {
+      "case": "3",
+      "document": {
+        "schema_version": 1,
+        "kind": "agent",
+        "id": "native-tools-shape-3",
+        "name": "native-tools-shape-3",
+        "nodes": [
+          {
+            "id": "start",
+            "type": "start",
+            "config": {
+              "execution": {
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "agent",
+            "type": "agent",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "end",
+            "type": "end",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "tools",
+            "type": "toolkit_pool",
+            "config": {
+              "toolkits": [],
+              "merge_with_user_selected": false
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "flow-start-agent",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "agent",
+            "target_port_id": "in"
+          },
+          {
+            "id": "flow-agent-end",
+            "kind": "flow",
+            "source_node_id": "agent",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          },
+          {
+            "id": "attach-tools",
+            "kind": "attach",
+            "source_node_id": "agent",
+            "source_port_id": "attach_bot",
+            "target_node_id": "tools",
+            "target_port_id": "attach_bot"
+          }
+        ]
+      },
+      "saved": true,
+      "roundtrip_equal": true,
+      "configured_execution_structure_admitted": true,
+      "refusal": null,
+      "configured_document": {
+        "schema_version": 1,
+        "kind": "agent",
+        "id": "native-tools-shape-3",
+        "name": "native-tools-shape-3",
+        "nodes": [
+          {
+            "id": "start",
+            "type": "start",
+            "config": {
+              "execution": {
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "agent",
+            "type": "agent",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              },
+              "kernel": {
+                "history": "root",
+                "json_schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "root_a": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "root_a"
+                  ],
+                  "type": "object"
+                },
+                "max_iterations": 4,
+                "output_tokens": 512,
+                "overflow": "error",
+                "profile": {
+                  "capabilities": {
+                    "files": false,
+                    "images": true,
+                    "json_schema": true
+                  },
+                  "context_window": 1050000,
+                  "credential_ref": "independent.openai.owner",
+                  "endpoint": "https://api.openai.com/v1",
+                  "id": "openai:gpt-6-luna",
+                  "model": "gpt-6-luna",
+                  "output_limit": 128000,
+                  "protocol": "openai-responses",
+                  "provider": "openai"
+                },
+                "prompt": "Authored OpenAI owner",
+                "schema_version": 1
+              }
+            }
+          },
+          {
+            "id": "end",
+            "type": "end",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "tools",
+            "type": "toolkit_pool",
+            "config": {
+              "toolkits": [],
+              "merge_with_user_selected": false
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "flow-start-agent",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "agent",
+            "target_port_id": "in"
+          },
+          {
+            "id": "flow-agent-end",
+            "kind": "flow",
+            "source_node_id": "agent",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          },
+          {
+            "id": "attach-tools",
+            "kind": "attach",
+            "source_node_id": "agent",
+            "source_port_id": "attach_bot",
+            "target_node_id": "tools",
+            "target_port_id": "attach_bot"
+          }
+        ]
+      }
+    },
+    {
+      "case": "4",
+      "document": {
+        "schema_version": 1,
+        "kind": "agent",
+        "id": "native-tools-shape-4",
+        "name": "native-tools-shape-4",
+        "nodes": [
+          {
+            "id": "start",
+            "type": "start",
+            "config": {
+              "execution": {
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "agent",
+            "type": "agent",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "end",
+            "type": "end",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "tools",
+            "type": "toolkit_pool",
+            "config": {
+              "toolkits": [],
+              "merge_with_user_selected": false
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "flow-start-agent",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "agent",
+            "target_port_id": "in"
+          },
+          {
+            "id": "flow-agent-end",
+            "kind": "flow",
+            "source_node_id": "agent",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          },
+          {
+            "id": "attach-tools",
+            "kind": "attach",
+            "source_node_id": "tools",
+            "source_port_id": "attach_top",
+            "target_node_id": "agent",
+            "target_port_id": "attach_top"
+          }
+        ]
+      },
+      "saved": true,
+      "roundtrip_equal": true,
+      "configured_execution_structure_admitted": true,
+      "refusal": null,
+      "configured_document": {
+        "schema_version": 1,
+        "kind": "agent",
+        "id": "native-tools-shape-4",
+        "name": "native-tools-shape-4",
+        "nodes": [
+          {
+            "id": "start",
+            "type": "start",
+            "config": {
+              "execution": {
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "agent",
+            "type": "agent",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              },
+              "kernel": {
+                "history": "root",
+                "json_schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "root_a": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "root_a"
+                  ],
+                  "type": "object"
+                },
+                "max_iterations": 4,
+                "output_tokens": 512,
+                "overflow": "error",
+                "profile": {
+                  "capabilities": {
+                    "files": false,
+                    "images": true,
+                    "json_schema": true
+                  },
+                  "context_window": 1050000,
+                  "credential_ref": "independent.openai.owner",
+                  "endpoint": "https://api.openai.com/v1",
+                  "id": "openai:gpt-6-luna",
+                  "model": "gpt-6-luna",
+                  "output_limit": 128000,
+                  "protocol": "openai-responses",
+                  "provider": "openai"
+                },
+                "prompt": "Authored OpenAI owner",
+                "schema_version": 1
+              }
+            }
+          },
+          {
+            "id": "end",
+            "type": "end",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "tools",
+            "type": "toolkit_pool",
+            "config": {
+              "toolkits": [],
+              "merge_with_user_selected": false
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "flow-start-agent",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "agent",
+            "target_port_id": "in"
+          },
+          {
+            "id": "flow-agent-end",
+            "kind": "flow",
+            "source_node_id": "agent",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          },
+          {
+            "id": "attach-tools",
+            "kind": "attach",
+            "source_node_id": "tools",
+            "source_port_id": "attach_top",
+            "target_node_id": "agent",
+            "target_port_id": "attach_top"
+          }
+        ]
+      }
+    },
+    {
+      "case": "5",
+      "document": {
+        "schema_version": 1,
+        "kind": "agent",
+        "id": "native-tools-shape-5",
+        "name": "native-tools-shape-5",
+        "nodes": [
+          {
+            "id": "start",
+            "type": "start",
+            "config": {
+              "execution": {
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "agent",
+            "type": "agent",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "end",
+            "type": "end",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "tools",
+            "type": "toolkit_pool",
+            "config": {
+              "toolkits": [],
+              "merge_with_user_selected": false
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "flow-start-agent",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "agent",
+            "target_port_id": "in"
+          },
+          {
+            "id": "flow-agent-end",
+            "kind": "flow",
+            "source_node_id": "agent",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          },
+          {
+            "id": "attach-tools",
+            "kind": "attach",
+            "source_node_id": "tools",
+            "source_port_id": "attach_top",
+            "target_node_id": "agent",
+            "target_port_id": "attach_bot"
+          }
+        ]
+      },
+      "saved": true,
+      "roundtrip_equal": true,
+      "configured_execution_structure_admitted": true,
+      "refusal": null,
+      "configured_document": {
+        "schema_version": 1,
+        "kind": "agent",
+        "id": "native-tools-shape-5",
+        "name": "native-tools-shape-5",
+        "nodes": [
+          {
+            "id": "start",
+            "type": "start",
+            "config": {
+              "execution": {
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "agent",
+            "type": "agent",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              },
+              "kernel": {
+                "history": "root",
+                "json_schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "root_a": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "root_a"
+                  ],
+                  "type": "object"
+                },
+                "max_iterations": 4,
+                "output_tokens": 512,
+                "overflow": "error",
+                "profile": {
+                  "capabilities": {
+                    "files": false,
+                    "images": true,
+                    "json_schema": true
+                  },
+                  "context_window": 1050000,
+                  "credential_ref": "independent.openai.owner",
+                  "endpoint": "https://api.openai.com/v1",
+                  "id": "openai:gpt-6-luna",
+                  "model": "gpt-6-luna",
+                  "output_limit": 128000,
+                  "protocol": "openai-responses",
+                  "provider": "openai"
+                },
+                "prompt": "Authored OpenAI owner",
+                "schema_version": 1
+              }
+            }
+          },
+          {
+            "id": "end",
+            "type": "end",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "tools",
+            "type": "toolkit_pool",
+            "config": {
+              "toolkits": [],
+              "merge_with_user_selected": false
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "flow-start-agent",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "agent",
+            "target_port_id": "in"
+          },
+          {
+            "id": "flow-agent-end",
+            "kind": "flow",
+            "source_node_id": "agent",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          },
+          {
+            "id": "attach-tools",
+            "kind": "attach",
+            "source_node_id": "tools",
+            "source_port_id": "attach_top",
+            "target_node_id": "agent",
+            "target_port_id": "attach_bot"
+          }
+        ]
+      }
+    },
+    {
+      "case": "6",
+      "document": {
+        "schema_version": 1,
+        "kind": "agent",
+        "id": "native-tools-shape-6",
+        "name": "native-tools-shape-6",
+        "nodes": [
+          {
+            "id": "start",
+            "type": "start",
+            "config": {
+              "execution": {
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "agent",
+            "type": "agent",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "end",
+            "type": "end",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "tools",
+            "type": "toolkit_pool",
+            "config": {
+              "toolkits": [],
+              "merge_with_user_selected": false
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "flow-start-agent",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "agent",
+            "target_port_id": "in"
+          },
+          {
+            "id": "flow-agent-end",
+            "kind": "flow",
+            "source_node_id": "agent",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          },
+          {
+            "id": "attach-tools",
+            "kind": "attach",
+            "source_node_id": "tools",
+            "source_port_id": "attach_bot",
+            "target_node_id": "agent",
+            "target_port_id": "attach_top"
+          }
+        ]
+      },
+      "saved": true,
+      "roundtrip_equal": true,
+      "configured_execution_structure_admitted": true,
+      "refusal": null,
+      "configured_document": {
+        "schema_version": 1,
+        "kind": "agent",
+        "id": "native-tools-shape-6",
+        "name": "native-tools-shape-6",
+        "nodes": [
+          {
+            "id": "start",
+            "type": "start",
+            "config": {
+              "execution": {
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "agent",
+            "type": "agent",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              },
+              "kernel": {
+                "history": "root",
+                "json_schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "root_a": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "root_a"
+                  ],
+                  "type": "object"
+                },
+                "max_iterations": 4,
+                "output_tokens": 512,
+                "overflow": "error",
+                "profile": {
+                  "capabilities": {
+                    "files": false,
+                    "images": true,
+                    "json_schema": true
+                  },
+                  "context_window": 1050000,
+                  "credential_ref": "independent.openai.owner",
+                  "endpoint": "https://api.openai.com/v1",
+                  "id": "openai:gpt-6-luna",
+                  "model": "gpt-6-luna",
+                  "output_limit": 128000,
+                  "protocol": "openai-responses",
+                  "provider": "openai"
+                },
+                "prompt": "Authored OpenAI owner",
+                "schema_version": 1
+              }
+            }
+          },
+          {
+            "id": "end",
+            "type": "end",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "tools",
+            "type": "toolkit_pool",
+            "config": {
+              "toolkits": [],
+              "merge_with_user_selected": false
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "flow-start-agent",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "agent",
+            "target_port_id": "in"
+          },
+          {
+            "id": "flow-agent-end",
+            "kind": "flow",
+            "source_node_id": "agent",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          },
+          {
+            "id": "attach-tools",
+            "kind": "attach",
+            "source_node_id": "tools",
+            "source_port_id": "attach_bot",
+            "target_node_id": "agent",
+            "target_port_id": "attach_top"
+          }
+        ]
+      }
+    },
+    {
+      "case": "7",
+      "document": {
+        "schema_version": 1,
+        "kind": "agent",
+        "id": "native-tools-shape-7",
+        "name": "native-tools-shape-7",
+        "nodes": [
+          {
+            "id": "start",
+            "type": "start",
+            "config": {
+              "execution": {
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "agent",
+            "type": "agent",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "end",
+            "type": "end",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "tools",
+            "type": "toolkit_pool",
+            "config": {
+              "toolkits": [],
+              "merge_with_user_selected": false
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "flow-start-agent",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "agent",
+            "target_port_id": "in"
+          },
+          {
+            "id": "flow-agent-end",
+            "kind": "flow",
+            "source_node_id": "agent",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          },
+          {
+            "id": "attach-tools",
+            "kind": "attach",
+            "source_node_id": "tools",
+            "source_port_id": "attach_bot",
+            "target_node_id": "agent",
+            "target_port_id": "attach_bot"
+          }
+        ]
+      },
+      "saved": true,
+      "roundtrip_equal": true,
+      "configured_execution_structure_admitted": true,
+      "refusal": null,
+      "configured_document": {
+        "schema_version": 1,
+        "kind": "agent",
+        "id": "native-tools-shape-7",
+        "name": "native-tools-shape-7",
+        "nodes": [
+          {
+            "id": "start",
+            "type": "start",
+            "config": {
+              "execution": {
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "agent",
+            "type": "agent",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              },
+              "kernel": {
+                "history": "root",
+                "json_schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "root_a": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "root_a"
+                  ],
+                  "type": "object"
+                },
+                "max_iterations": 4,
+                "output_tokens": 512,
+                "overflow": "error",
+                "profile": {
+                  "capabilities": {
+                    "files": false,
+                    "images": true,
+                    "json_schema": true
+                  },
+                  "context_window": 1050000,
+                  "credential_ref": "independent.openai.owner",
+                  "endpoint": "https://api.openai.com/v1",
+                  "id": "openai:gpt-6-luna",
+                  "model": "gpt-6-luna",
+                  "output_limit": 128000,
+                  "protocol": "openai-responses",
+                  "provider": "openai"
+                },
+                "prompt": "Authored OpenAI owner",
+                "schema_version": 1
+              }
+            }
+          },
+          {
+            "id": "end",
+            "type": "end",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "tools",
+            "type": "toolkit_pool",
+            "config": {
+              "toolkits": [],
+              "merge_with_user_selected": false
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "flow-start-agent",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "agent",
+            "target_port_id": "in"
+          },
+          {
+            "id": "flow-agent-end",
+            "kind": "flow",
+            "source_node_id": "agent",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          },
+          {
+            "id": "attach-tools",
+            "kind": "attach",
+            "source_node_id": "tools",
+            "source_port_id": "attach_bot",
+            "target_node_id": "agent",
+            "target_port_id": "attach_bot"
+          }
+        ]
+      }
+    },
+    {
+      "case": "8",
+      "document": {
+        "schema_version": 1,
+        "kind": "agent",
+        "id": "native-tools-shape-8",
+        "name": "native-tools-shape-8",
+        "nodes": [
+          {
+            "id": "start",
+            "type": "start",
+            "config": {
+              "execution": {
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "agent",
+            "type": "agent",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "end",
+            "type": "end",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "tools",
+            "type": "toolkit_pool",
+            "config": {
+              "toolkits": [],
+              "merge_with_user_selected": false
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "flow-start-agent",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "agent",
+            "target_port_id": "in"
+          },
+          {
+            "id": "flow-agent-end",
+            "kind": "flow",
+            "source_node_id": "agent",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          }
+        ]
+      },
+      "saved": true,
+      "roundtrip_equal": true,
+      "configured_execution_structure_admitted": false,
+      "refusal": {
+        "code": "pool_attachment_required",
+        "path": [
+          "document",
+          "nodes",
+          3
+        ]
+      },
+      "configured_document": {
+        "schema_version": 1,
+        "kind": "agent",
+        "id": "native-tools-shape-8",
+        "name": "native-tools-shape-8",
+        "nodes": [
+          {
+            "id": "start",
+            "type": "start",
+            "config": {
+              "execution": {
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "agent",
+            "type": "agent",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              },
+              "kernel": {
+                "history": "root",
+                "json_schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "root_a": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "root_a"
+                  ],
+                  "type": "object"
+                },
+                "max_iterations": 4,
+                "output_tokens": 512,
+                "overflow": "error",
+                "profile": {
+                  "capabilities": {
+                    "files": false,
+                    "images": true,
+                    "json_schema": true
+                  },
+                  "context_window": 1050000,
+                  "credential_ref": "independent.openai.owner",
+                  "endpoint": "https://api.openai.com/v1",
+                  "id": "openai:gpt-6-luna",
+                  "model": "gpt-6-luna",
+                  "output_limit": 128000,
+                  "protocol": "openai-responses",
+                  "provider": "openai"
+                },
+                "prompt": "Authored OpenAI owner",
+                "schema_version": 1
+              }
+            }
+          },
+          {
+            "id": "end",
+            "type": "end",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "tools",
+            "type": "toolkit_pool",
+            "config": {
+              "toolkits": [],
+              "merge_with_user_selected": false
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "flow-start-agent",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "agent",
+            "target_port_id": "in"
+          },
+          {
+            "id": "flow-agent-end",
+            "kind": "flow",
+            "source_node_id": "agent",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          }
+        ]
+      }
+    }
+  ]
+}

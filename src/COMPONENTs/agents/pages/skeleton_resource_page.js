@@ -15,6 +15,7 @@ import {
   diagnostics_are_current,
 } from "./recipes_page/skeleton_resource_session";
 import SkeletonCanvas from "./recipes_page/skeleton_canvas";
+import { apply_graph_command } from "./recipes_page/skeleton_graph_commands";
 import SkeletonDrillBreadcrumb from "./recipes_page/skeleton_drill_breadcrumb";
 import { SESSION_STATUS } from "./recipes_page/skeleton_resource_session";
 import { why_not_a_subagent } from "./recipes_page/skeleton_subagent_eligibility";
@@ -127,15 +128,17 @@ const ROW = (isDark, selected) => ({
     : "transparent",
 });
 
-export default function SkeletonResourcePage({ resourceId, onDrilledChange }) {
+export default function SkeletonResourcePage({ resourceId, newDraft, onDrilledChange }) {
   const cfg = useContext(ConfigContext);
   const isDark = cfg?.onThemeMode === "dark_mode";
   const {
     session,
+    create,
     load,
     openAnother,
     restore,
     edit,
+    editCurrent,
     save,
     keepMine,
     takeTheirs,
@@ -189,12 +192,13 @@ export default function SkeletonResourcePage({ resourceId, onDrilledChange }) {
   useEffect(() => {
     if (!resourceId) return;
     navigate();
-    load(resourceId);
-    setSelectedNodeId(null);
+    if (newDraft) create(newDraft);
+    else load(resourceId);
+    setSelectedNodeId(newDraft ? "agent" : null);
     setDrillStack([]);
     setSteps([]);
     setNotices([]);
-  }, [resourceId, load, navigate]);
+  }, [resourceId, newDraft, create, load, navigate]);
 
   const resource_document = session.document;
   /* Which document the author was handed. A position inside a pool is only
@@ -265,6 +269,25 @@ export default function SkeletonResourcePage({ resourceId, onDrilledChange }) {
     },
     [edit, revision, session.document, steps],
   );
+
+  /* Capture the view's authority now, not when a retained callback fires.
+     Resolve the child inside the hook's latest session so two gestures in
+     one batch cannot overwrite one another or restore an old parent. */
+  const commandNavigation = navigationRef.current;
+  const commandOpen = session.open_id;
+  const commandResource = session.resource_id;
+  const graphCommand = useCallback((command) => {
+    let result = { ok: false, document: null, problem: { code: "view_changed", message: "This view changed. Try the edit in the graph now on screen." } };
+    editCurrent({ open_id: commandOpen, resource_id: commandResource }, (current) => {
+      if (navigationRef.current !== commandNavigation || current.document_revision !== revision) return current.document;
+      const shown = steps.length === 0 ? current.document : embedded_document(current.document, steps, revision);
+      if (!shown) return current.document;
+      result = apply_graph_command(shown, command);
+      if (!result.ok || result.document === shown) return current.document;
+      return steps.length === 0 ? result.document : with_embedded_document(current.document, steps, result.document, revision);
+    });
+    return result;
+  }, [commandNavigation, commandOpen, commandResource, editCurrent, revision, steps]);
 
   /* The draft check reads an embedded graph now, and reports its problems at
      their own full path — a child with no End answers `end_count` at
@@ -600,6 +623,8 @@ export default function SkeletonResourcePage({ resourceId, onDrilledChange }) {
                 revision,
               )}
               document={document}
+              commandScope={`${session.open_id}:${revision}`}
+              onGraphCommand={document?.kind === "agent" && document?.schema_version === 1 ? graphCommand : undefined}
               onSelectNode={setSelectedNodeId}
               onOpenSubagent={open_subagent}
               isDark={isDark}
@@ -641,6 +666,7 @@ export default function SkeletonResourcePage({ resourceId, onDrilledChange }) {
               onChangeSilent={() => {}}
               document={document}
               documentRevision={session.document_revision}
+              rootDocument={session.document}
               diagnostics={diagnostics}
               diagnosticsUnchecked={unchecked}
               onDocumentChange={edit_shown}

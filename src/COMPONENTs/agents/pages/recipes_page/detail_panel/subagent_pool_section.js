@@ -43,6 +43,7 @@ import {
 } from "../skeleton_subagent_eligibility";
 import { is_unavailable, list_resources } from "../skeleton_resources";
 import { identity_of, own, safe_text } from "../document_values";
+import { new_embedded_entry } from "../new_embedded_entry";
 
 /* The Subagent Pool: which Agents this one may call, and how.
  *
@@ -658,6 +659,8 @@ function EntryRow({
 
 export default function SubagentPoolSection({
   document,
+  rootDocument = document,
+  revision,
   node,
   isDark,
   onChange,
@@ -692,6 +695,9 @@ export default function SubagentPoolSection({
     reading: true,
   });
   const [picking, setPicking] = useState(false);
+  const [creationError, setCreationError] = useState(null);
+  const creationScope = identity_of([document.id, node.id, revision]);
+  useEffect(() => { setCreationError(null); }, [creationScope]);
   const alive = useRef(true);
   /* Which read is the current one. `alive` only knows about unmounting, so an
      older request that answered late replaced a newer library — and then
@@ -896,6 +902,24 @@ export default function SubagentPoolSection({
     ]);
   }
 
+  const canCreateEmbedded = !legacy && Array.isArray(held) && document.kind === "agent" &&
+    document.schema_version === 1 && typeof onChange === "function" &&
+    Array.isArray(document.nodes) && document.nodes.filter((candidate) => is_object(candidate) && candidate.id === node.id).length === 1;
+
+  function create_embedded() {
+    if (!canCreateEmbedded) return;
+    const created = new_embedded_entry({ rootDocument, entries });
+    if (!created.ok) {
+      setCreationError({ scope: creationScope, message: created.problem });
+      return;
+    }
+    setCreationError(null);
+    rows.added();
+    set_entries([...entries, created.entry]);
+    /* Opening is a separate action: this render's navigation callback still
+       describes the document before the new row existed. */
+  }
+
   return (
     <div
       data-testid="skeleton-subagent-pool"
@@ -933,6 +957,14 @@ export default function SubagentPoolSection({
       </div>
 
       <span style={CAPTION}>{SECTION_CAPTION}</span>
+
+      {!legacy && <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <Button label="New embedded Agent" disabled={!canCreateEmbedded} onClick={create_embedded}
+          style={{ alignSelf: "flex-start", fontSize: 11, paddingVertical: 3, paddingHorizontal: 8 }} />
+        <span style={CAPTION}>Lives inside this Agent. Open it to choose its model and edit its graph; Save keeps it in the owning Agent.</span>
+        {!canCreateEmbedded && <span style={REFUSED}>A readable entry list and an unambiguous pool in an Agent graph are needed to add an embedded Agent.</span>}
+        {creationError?.scope === creationScope && <span role="alert" style={REFUSED}>{creationError.message}</span>}
+      </div>}
 
       {legacy && (
         <span data-testid="subagent-pool-legacy" style={CAPTION}>

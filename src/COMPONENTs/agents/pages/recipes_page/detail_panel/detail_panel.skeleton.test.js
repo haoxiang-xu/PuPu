@@ -1075,7 +1075,24 @@ describe("the panel header draws a node, not everything stored beside it", () =>
       selectedNodeId: "agent",
     });
     expect(screen.getByText("agent")).toBeInTheDocument();
-    expect(screen.getByText(/Inherits the chat's model/)).toBeInTheDocument();
+    // Ignoring the forbidden override must not promise legacy inheritance:
+    // this native node has no Kernel and is not runnable until configured.
+    expect(screen.getByText("No model configured")).toBeInTheDocument();
+    expect(screen.queryByText("Inherits the chat's model")).toBeNull();
+  });
+
+  test("the native header reads its stored Kernel model", () => {
+    const document = node_with({});
+    document.nodes.find((node) => node.id === "agent").config.kernel = {
+      profile: { model: "stored-model" },
+    };
+    show({ document, onDocumentChange: () => {}, selectedNodeId: "agent" });
+    expect(screen.getByTestId("recipe-detail-panel-header")).toHaveTextContent("stored-model");
+  });
+
+  test("legacy nodes without an override still inherit the chat model", () => {
+    show({ recipe: { name: "R", nodes: [{ id: "a1", type: "agent" }], edges: [] }, selectedNodeId: "a1" });
+    expect(screen.getByText("Inherits the chat's model")).toBeInTheDocument();
   });
 
   test("a legacy recipe node keeps its own label and model, through a text guard", () => {

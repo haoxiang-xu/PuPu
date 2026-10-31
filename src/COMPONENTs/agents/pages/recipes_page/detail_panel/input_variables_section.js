@@ -9,6 +9,7 @@ import {
   with_node_bindings,
 } from "../skeleton_document";
 import { binding_problems, make_binding, ref_expression } from "../skeleton_io";
+import { conditional_sources } from "../skeleton_branch_config";
 
 /* Input Variables: what this node reads, and from where.
  *
@@ -46,11 +47,16 @@ export function binding_sources(document, node_id) {
     ((document && document.nodes) || []).map((node) => [node && node.id, node]),
   );
   const sources = [];
-  upstream_node_ids(document, node_id).forEach((id) => {
+  const upstream = upstream_node_ids(document, node_id);
+  /* Downstream of a branch a source may not have run: some path from Start
+     reaches this node without it (#351). The reference is still offered —
+     binding it, or a first-present of several, is the author's call. */
+  const conditional = conditional_sources(document, node_id, upstream);
+  upstream.forEach((id) => {
     const node = by_id.get(id);
     node_output_mappings(node).forEach((mapping) => {
       if (!mapping || typeof mapping.name !== "string" || !mapping.name) return;
-      sources.push({ node_id: id, node_label: node_label(node), name: mapping.name });
+      sources.push({ node_id: id, node_label: node_label(node), name: mapping.name, conditional: conditional.has(id) });
     });
   });
   return sources;

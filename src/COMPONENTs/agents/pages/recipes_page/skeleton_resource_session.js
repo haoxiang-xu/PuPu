@@ -170,6 +170,23 @@ export function loading(session, resource_id) {
   };
 }
 
+/* A new, locally composed Agent has an identity but no stored version yet.
+ * It is a new sitting just like an open, so replies from an earlier visit
+ * (even to this same id) cannot reach it. It has NOT been diagnosed: an empty
+ * list here is deliberately unchecked until its first successful save. */
+export function draft_created(session, document) {
+  return {
+    ...empty_session(),
+    version: next_version(session),
+    open_id: next_open_id(session),
+    document_revision: next_document_revision(session),
+    status: SESSION_STATUS.READY,
+    resource_id: document.id,
+    document,
+    dirty: true,
+  };
+}
+
 /* `data` is a store result: {id, kind, name, document, edit_token, diagnostics,
    archived, description, draft_digest, source_identity}. */
 export function loaded(session, data, issued) {

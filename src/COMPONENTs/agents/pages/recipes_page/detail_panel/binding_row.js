@@ -32,10 +32,13 @@ const SOURCE_KINDS = [
   { value: "first_present", label: "First of several" },
 ];
 
+/* A source that only exists when its branch ran carries the hollow marker
+   (Remix `circle`) and says so in words, so the mark is not the only signal. */
 function ref_options(sources) {
   return sources.map((source) => ({
     value: `${source.node_id}\u0000${source.name}`,
-    label: `${source.node_label} · ${source.name}`,
+    label: `${source.node_label} · ${source.name}${source.conditional ? " — only if its branch ran" : ""}`,
+    ...(source.conditional ? { icon: "circle" } : {}),
   }));
 }
 

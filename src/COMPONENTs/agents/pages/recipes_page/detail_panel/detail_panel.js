@@ -12,6 +12,10 @@ import KernelSection from "./kernel_section";
 import SkeletonDiagnostics from "./skeleton_diagnostics_notice";
 import OutputSchemaSection from "./output_schema_section";
 import SubagentPoolSection from "./subagent_pool_section";
+import ToolkitPoolSection from "./toolkit_pool_section";
+import BranchSection from "./branch_section";
+import { branch_summary, is_branch_type } from "../skeleton_branch_config";
+import { node_toolkit_refs } from "../toolkit_pool_config";
 import OutputVariablesSection from "./output_variables_section";
 import {
   drawn_node,
@@ -22,6 +26,7 @@ import {
 } from "../skeleton_document";
 import { route_diagnostics } from "../skeleton_diagnostics";
 import { is_toolkit_pool_type } from "../recipe_graph";
+import { safe_text } from "../document_values";
 
 /* The shell: a fixed identity header above a hairline, and a body that is the
  * only thing that scrolls. Every node type sits inside it, so the header no
@@ -48,6 +53,7 @@ export default function DetailPanel({
   onEntryIdRepaired,
   embedded,
   document,
+  rootDocument,
   /* Which handed-over document this is. Several controls below show text the
      document deliberately does not hold — a refused position, a refused
      bound, a refused count, a name another field already has — and each one
@@ -91,6 +97,15 @@ export default function DetailPanel({
      edits it. A legacy recipe node is drawn as it always was; its `label` and
      `override.model` are its own. */
   const identity = node_identity(legacy_node || drawn_node(skeleton_node));
+  // Native Agents run their stored Kernel; the legacy inheritance caption
+  // would promise a fallback that this unfinished new draft does not have.
+  const subtitle = !legacy_node && skeleton_node?.type === "agent"
+    ? safe_text(skeleton_node.config?.kernel?.profile?.model || "No model configured")
+    : !legacy_node && skeleton_node?.type === "toolkit_pool"
+      ? Array.isArray(node_toolkit_refs(skeleton_node)) ? `${node_toolkit_refs(skeleton_node).length} toolkit${node_toolkit_refs(skeleton_node).length === 1 ? "" : "s"}` : "Tool settings incomplete"
+      : !legacy_node && is_branch_type(skeleton_node?.type)
+        ? branch_summary(skeleton_node)
+        : identity?.subtitle;
 
   const shell_style = {
     flex: 1,
@@ -219,7 +234,7 @@ export default function DetailPanel({
                 whiteSpace: "nowrap",
               }}
             >
-              {identity.subtitle}
+              {subtitle}
             </div>
           </div>
         </div>
@@ -251,9 +266,15 @@ export default function DetailPanel({
                 so it carries no execution IO at all — the sections around
                 this one render nothing for it — and what it does carry is
                 invisible to every boundary before Run. */}
+            {skeleton_node.type === "toolkit_pool" && (
+              <ToolkitPoolSection key={JSON.stringify([document.id, skeleton_node.id, documentRevision])}
+                document={document} node={skeleton_node} isDark={isDark} onChange={onDocumentChange} />
+            )}
             {skeleton_node.type === "subagent_pool" && (
               <SubagentPoolSection
                 document={document}
+                rootDocument={rootDocument}
+                revision={documentRevision}
                 node={skeleton_node}
                 isDark={isDark}
                 onChange={onDocumentChange}
@@ -272,6 +293,13 @@ export default function DetailPanel({
               isDark={isDark}
               onChange={onDocumentChange}
             />
+            {/* A branch decides where the flow goes from what it was given, so
+                its condition or switch sits right under the inputs it reads.
+                It exports nothing: the outputs section renders nothing for it. */}
+            {is_branch_type(skeleton_node.type) && (
+              <BranchSection key={JSON.stringify([document.id, skeleton_node.id, documentRevision])}
+                document={document} node={skeleton_node} isDark={isDark} onChange={onDocumentChange} />
+            )}
             {/* Between them, and only for an Agent: the model it thinks with,
                 then a schema declaring what its result holds — which is what
                 the output rows below offer as sources. Read downwards it is

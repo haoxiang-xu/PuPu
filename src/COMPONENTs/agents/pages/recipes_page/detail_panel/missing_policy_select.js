@@ -1,6 +1,7 @@
 import React from "react";
 import Select from "../../../../../BUILTIN_COMPONENTs/select/select";
 import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
+import { safe_text } from "../document_values";
 import {
   MISSING_POLICIES,
   binding_default,
@@ -29,6 +30,16 @@ const CAPTION = {
 export default function MissingPolicySelect({ binding, onChange, isDark }) {
   const value = binding && binding.missing;
   const chosen = missing_policy(value);
+  const storedDefault = binding_default(binding);
+  const hasStoredJsonDefault = storedDefault !== undefined && typeof storedDefault !== "string";
+  let storedJsonText = "";
+  if (hasStoredJsonDefault) {
+    try {
+      storedJsonText = JSON.stringify(storedDefault) ?? safe_text(storedDefault);
+    } catch (_error) {
+      storedJsonText = safe_text(storedDefault);
+    }
+  }
 
   function set_policy(next) {
     onChange(with_missing_policy(binding, next));
@@ -66,13 +77,11 @@ export default function MissingPolicySelect({ binding, onChange, isDark }) {
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <span style={{ ...CAPTION, flexShrink: 0 }}>Default</span>
           <Input
-            value={
-              binding_default(binding) === undefined
-                ? ""
-                : String(binding_default(binding))
-            }
+            value={typeof storedDefault === "string" ? storedDefault : ""}
             set_value={set_default}
-            placeholder="Substituted only when nothing arrives"
+            placeholder={hasStoredJsonDefault
+              ? "Enter text to replace the stored JSON value"
+              : "Substituted only when nothing arrives"}
             style={{
               flex: 1,
               minWidth: 0,
@@ -86,6 +95,13 @@ export default function MissingPolicySelect({ binding, onChange, isDark }) {
             }}
           />
         </div>
+      )}
+
+      {hasStoredJsonDefault && (
+        <span data-testid="stored-json-default" style={{ ...CAPTION, overflowWrap: "anywhere" }}>
+          Stored JSON default: <code>{storedJsonText}</code>. It stays unchanged
+          until you enter replacement text.
+        </span>
       )}
 
       {chosen && (
