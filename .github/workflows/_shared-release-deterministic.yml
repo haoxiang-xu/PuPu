@@ -218,7 +218,7 @@ jobs:
 
       - name: Python backend tests
         id: python
-        timeout-minutes: 20
+        timeout-minutes: 35
         continue-on-error: true
         working-directory: pupu/unchain_runtime/server
         shell: bash

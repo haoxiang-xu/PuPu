@@ -1988,14 +1988,17 @@ def test_delegate_resume_projects_child_end_into_parent_provider_input(tmp_path,
         if item.get("type") == "function_call_output" and item.get("call_id") == "subagent-call-delegate":
             delegate_receipts.append(item)
         content = item.get("content")
-        if type(content) is str and content.startswith("[MEMORY_V2_UNTRUSTED_HISTORY]"):
+        if type(content) is str and content.startswith("[MEMORY_V2_EVIDENCE_HISTORY]"):
             history = json.loads(content[content.index("{"):])
             delegate_receipts.extend(
                 exchange for exchange in history.get("tool_exchanges", ())
                 if exchange.get("call_id") == "subagent-call-delegate"
             )
-    assert delegate_receipts
-    assert any("child done" in json.dumps(item) for item in delegate_receipts)
+    assert len(delegate_receipts) == 1
+    assert delegate_receipts[0]["tool_name"] == "delegate_to_subagent"
+    assert delegate_receipts[0]["result"]["schema"] == "unchain.skeleton_child_completion.v1"
+    assert delegate_receipts[0]["result"]["status"] == "completed"
+    assert delegate_receipts[0]["result"]["outputs"]["message"] == '{"answer":"child done"}'
 
 
 def test_handoff_child_failure_after_approval_fails_parent_without_stale_wait(tmp_path, monkeypatch):
