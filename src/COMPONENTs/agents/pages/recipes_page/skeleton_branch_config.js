@@ -75,8 +75,11 @@ function is_path(value) {
 /* ── which inputs this node has, and what type each can be proved to be ── */
 
 const SCHEMA_TYPES = { string: "string", integer: "number", number: "number", boolean: "boolean", array: "array", object: "object", null: "null" };
+/* A Tool Call's `error` is null when the call succeeded and `{code}` when it
+   did not (tool_runtime.py `_execute`), so it has no one type to prove; its
+   `result` is whatever the tool returned. Only `ok` is fixed. */
 const CLOSED_RESULT_TYPES = {
-  tool_call: { ok: "boolean", error: "string" },
+  tool_call: { ok: "boolean" },
   skill_read: { content: "string", name: "string" },
 };
 
@@ -88,7 +91,7 @@ function unique_node(document, node_id) {
 
 /* What a node's result holds at `path`, when the runtime fixes it: an Agent's
    message is text and its context an object; a JSON-schema root field has the
-   type its schema declares; a Tool Call's ok/error and a Skill Read's fields
+   type its schema declares; a Tool Call's ok and a Skill Read's fields
    are closed. A Start's result is whatever the caller sent, and anything one
    level further in is not claimed. */
 function result_type(node, path) {

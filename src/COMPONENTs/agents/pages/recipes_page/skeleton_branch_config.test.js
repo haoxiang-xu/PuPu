@@ -60,6 +60,30 @@ describe("value types the editor can prove, and the ones it will not guess", () 
   });
 });
 
+/* A Tool Call's result is closed `{result, ok, error}` (tool_runtime.py
+   `_execute`): `ok` is always true or false, `error` is null or `{code}` —
+   never text — and `result` is whatever the tool returned. */
+describe("a Tool Call's result fields", () => {
+  const toolGraph = () => ({
+    schema_version: 1, kind: "agent", id: "t", name: "t",
+    nodes: [
+      { id: "tool", type: "tool_call", config: { execution: { inputs: [], outputs: [
+        output("ok", "result", ["ok"]), output("error", "result", ["error"]), output("page", "result", ["result"]),
+        output("code", "result", ["error", "code"]),
+      ] }, tool: { name: "read", on_error: "continue", approval_timeout_ms: 1000 } } },
+      { id: "if", type: "if_else", config: { execution: { inputs: [
+        binding("ok", ref("tool", ["ok"])), binding("error", ref("tool", ["error"])),
+        binding("page", ref("tool", ["page"])), binding("code", ref("tool", ["code"])),
+      ] } } },
+    ],
+    edges: [],
+  });
+  test.each([[["ok"], "boolean"], [["error"], null], [["page"], null], [["code"], null]])("%j → %s", (path, type) => {
+    const graph = toolGraph();
+    expect(input_value_type(graph, ifNode(graph), path)).toBe(type);
+  });
+});
+
 describe("operators", () => {
   test("the menu is exactly the runtime's nine, filtered only when the left type is known", () => {
     expect(OPERATORS.map((op) => op.value)).toEqual(["eq", "ne", "gt", "gte", "lt", "lte", "contains", "is_null", "is_not_null"]);
