@@ -132,8 +132,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sudo apt-get install -y --no-install-recommends gnome-keyring libsecret-1-0 dbus-x11
-          dpkg-query -W gnome-keyring libsecret-1-0 dbus-x11 > test-results/deps/keyring-packages.txt
+          sudo apt-get install -y --no-install-recommends gnome-keyring libsecret-1-0 libsecret-tools dbus-x11
+          dpkg-query -W gnome-keyring libsecret-1-0 libsecret-tools dbus-x11 > test-results/deps/keyring-packages.txt
 
       - name: Keep the packaged App's original Chromium sandbox
         shell: bash
@@ -164,7 +164,8 @@ jobs:
               UNCHAIN_PYTHON_BIN="$QA_PYTHON" PYTHONDONTWRITEBYTECODE=1 \
               NODE_OPTIONS=--max-old-space-size=2048 \
               XDG_CURRENT_DESKTOP=GNOME \
-              dbus-run-session -- bash -c "printf \"\" | gnome-keyring-daemon --unlock --components=secrets > /dev/null && exec xvfb-run -a node node_modules/@playwright/test/cli.js test -c e2e/qa357/playwright.config.js"
+              PUPU_357_PASSWORD_STORE=gnome-libsecret \
+              dbus-run-session -- bash -c "printf \"\" | gnome-keyring-daemon --unlock --components=secrets > test-results/keyring-daemon.txt; printf qa357-probe | secret-tool store --label=qa357-probe qa357 probe && secret-tool lookup qa357 probe > test-results/keyring-probe.txt 2>&1; echo probe_exit=\$? >> test-results/keyring-probe.txt; exec xvfb-run -a node node_modules/@playwright/test/cli.js test -c e2e/qa357/playwright.config.js"
           '
 
       - name: Upload the App acceptance evidence

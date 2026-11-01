@@ -78,7 +78,8 @@ const closeDetail = async (page) => {
 };
 const saveNow = async (page) => {
   await expect(page.getByTestId("skeleton-save-state")).toHaveText("Unsaved changes");
-  await page.getByRole("button", { name: "Save", exact: true }).click();
+  // The control center re-renders as the session settles; retry a detached button.
+  await expect(async () => { await page.getByRole("button", { name: "Save", exact: true }).click({ timeout: 5000 }); }).toPass({ timeout: 60000 });
   await expect(page.getByTestId("skeleton-save-state")).toHaveText("Saved");
 };
 const getV2 = (page, id) => page.evaluate((resourceId) => window.unchainAPI.getManagedSkeletonResource(resourceId), id);

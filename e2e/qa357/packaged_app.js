@@ -71,7 +71,11 @@ const test = base.extend({
 
     const launch = async () => {
       const port = await freePort();
-      const child = spawn(EXECUTABLE, [`--remote-debugging-port=${port}`, `--user-data-dir=${userData}`], {
+            /* The control's session keyring (gnome-keyring over its own D-Bus), named
+         explicitly so Chromium does not fall back to basic_text, which Main
+         refuses for credentials. */
+      const store = process.env.PUPU_357_PASSWORD_STORE ? [`--password-store=${process.env.PUPU_357_PASSWORD_STORE}`] : [];
+      const child = spawn(EXECUTABLE, [`--remote-debugging-port=${port}`, `--user-data-dir=${userData}`, ...store], {
         env: { ...process.env, HOME: home, XDG_CONFIG_HOME: path.join(home, ".config"), PUPU_E2E: "1", PUPU_COMPUTER_USE: "0" },
         stdio: ["ignore", "pipe", "pipe"],
       });
