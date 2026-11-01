@@ -1,9 +1,13 @@
 import { act, renderHook } from "@testing-library/react";
+import { api } from "../../../../SERVICEs/api";
+import { install_legacy_store_bridge } from "./legacy_store_test_bridge";
 import useSkeletonResource from "./use_skeleton_resource";
 import { session_token } from "./skeleton_resource_session";
 import { apply_graph_command } from "./skeleton_graph_commands";
 
 jest.mock("../../../../SERVICEs/api", () => ({ api: { unchain: {} } }));
+/* The editor speaks v2 only (#357 G1); these mocks are graph-only. */
+install_legacy_store_bridge(api.unchain);
 const args = { id: "canvas-commands", name: "Commands" };
 const setup = () => {
   const view = renderHook(() => useSkeletonResource());

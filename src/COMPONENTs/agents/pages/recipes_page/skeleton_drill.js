@@ -71,6 +71,28 @@ export const DRILL = Object.freeze({
    never navigable — the same word the design uses. */
 const VIA_LABEL = "Subagent Pool";
 
+/* Where an embedded graph owned by this resource can sit (#357): an embedded
+   entry of a Subagent Pool, or an embedded Workflow of a Hooks Pool — the two
+   addresses the host and `owned_code_nodes` know. A step names its container
+   by `member`; a step without one is a Subagent step, as every step was
+   before Hooks could hold a graph, so those steps, keys and paths are
+   unchanged. */
+const CONTAINERS = Object.freeze({
+  subagents: Object.freeze({ pool: "subagent_pool", member: "subagents", slot: "source", via: VIA_LABEL, gone: "That subagent's graph" }),
+  hooks: Object.freeze({ pool: "hooks_pool", member: "hooks", slot: "workflow", via: "Hooks Pool", gone: "That hook's Workflow" }),
+});
+export const HOOK_MEMBER = "hooks";
+const container_of = (step) =>
+  is_object(step) && step.member === HOOK_MEMBER ? CONTAINERS.hooks : CONTAINERS.subagents;
+function container_entries(node, container) {
+  if (container === CONTAINERS.subagents) return node_subagents(node);
+  const hooks = is_object(node) && is_object(node.config) ? node.config.hooks : null;
+  return Array.isArray(hooks) ? hooks : null;
+}
+/* The graph a found step reaches, read through its own container. */
+const found_graph = (document, found) =>
+  document.nodes[found.node_index].config[found.member][found.entry_index][found.slot].document;
+
 /* What a child view can say about being checked.
  *
  * It used to say that nothing here was reported until the parent ran, which
@@ -263,8 +285,10 @@ function legacy_pool_rows(node) {
  * `invalid_type`, an empty one is `invalid_value` — and this editor never
  * writes it: every document change here rewrites `nodes`. So it is the one
  * thing about an entry that is both always there and never moved. */
-function embedded_graph_id(entry) {
-  const source = entry_source(entry);
+function embedded_graph_id(entry, container = CONTAINERS.subagents) {
+  const source = container === CONTAINERS.subagents
+    ? entry_source(entry)
+    : is_object(entry) && is_object(entry[container.slot]) ? entry[container.slot] : null;
   const document = source && source.kind === "embedded" ? source.document : null;
   const id = is_object(document) ? document.id : null;
   return typeof id === "string" && id ? id : null;
@@ -322,7 +346,7 @@ export function pool_entry_index(entries, step, revision) {
     return {
       index: matches[0],
       ambiguous: false,
-      graph_unique: names_one_graph(entries, matches, matches[0]),
+      graph_unique: names_one_graph(entries, matches, matches[0], container_of(step)),
     };
   }
   /* Only a graph id that named this one entry when the step was taken. */
@@ -331,7 +355,7 @@ export function pool_entry_index(entries, step, revision) {
       ? step.graph_id
       : null;
   const named = graph_id
-    ? matches.filter((index) => embedded_graph_id(entries[index]) === graph_id)
+    ? matches.filter((index) => embedded_graph_id(entries[index], container_of(step)) === graph_id)
     : [];
   if (named.length === 1) {
     return { index: named[0], ambiguous, graph_unique: true };
@@ -360,7 +384,7 @@ export function pool_entry_index(entries, step, revision) {
     ambiguous,
     /* Whether the graph at the answer is named by its own id here, which is
        what a step taken now may rely on later. */
-    graph_unique: names_one_graph(entries, matches, answer),
+    graph_unique: names_one_graph(entries, matches, answer, container_of(step)),
   };
 }
 
@@ -368,11 +392,11 @@ export function pool_entry_index(entries, step, revision) {
    entries sharing this id — the question `drill_step` has to answer at the
    moment of the click, because the answer changes when an entry is removed
    and the step must not change with it. */
-function names_one_graph(entries, matches, index) {
-  const graph_id = embedded_graph_id(entries[index]);
+function names_one_graph(entries, matches, index, container = CONTAINERS.subagents) {
+  const graph_id = embedded_graph_id(entries[index], container);
   if (graph_id === null) return false;
   return (
-    matches.filter((other) => embedded_graph_id(entries[other]) === graph_id)
+    matches.filter((other) => embedded_graph_id(entries[other], container) === graph_id)
       .length === 1
   );
 }
@@ -403,16 +427,45 @@ export function pool_entry_for(document, step, revision) {
  * `graph_unique` is whether that id named this one entry HERE, because an id
  * two entries shared when the author clicked does not become an identity
  * later just because one of them was deleted. */
-export function drill_step({ node_id, entry_id, found, revision }) {
+export function drill_step({ node_id, entry_id, found, revision, member }) {
+  const hooks = member === HOOK_MEMBER;
   return {
     node_id,
     entry_id,
     entry_index: found.index,
     ambiguous: found.ambiguous === true,
-    graph_id: embedded_graph_id(found.entry),
+    graph_id: embedded_graph_id(found.entry, hooks ? CONTAINERS.hooks : CONTAINERS.subagents),
     graph_unique: found.graph_unique === true,
     taken_in: revision,
+    /* Only a Hook step says where it is; a Subagent step keeps its shape. */
+    ...(hooks ? { member: HOOK_MEMBER } : {}),
   };
+}
+
+/* What a Hook's Workflow is: an embedded graph this resource owns and the
+   canvas can draw, or nothing to open. A pinned reference is a published
+   revision, opened read-only from the Workflow Call panel's own control. */
+export function hook_drill_target(entry) {
+  const source = is_object(entry) && is_object(entry.workflow) ? entry.workflow : null;
+  if (source === null || source.kind !== "embedded") {
+    return { kind: DRILL.UNREADABLE, reason: "This hook runs a pinned Workflow, not one of its own." };
+  }
+  if (!is_object(source.document)) return { kind: DRILL.UNREADABLE, reason: NOT_A_DOCUMENT };
+  if (source.document.kind !== "workflow") {
+    return { kind: DRILL.UNREADABLE, reason: "This hook's embedded graph does not declare itself a Workflow, so there is no Workflow graph to open." };
+  }
+  const refused = undrawable_reason(source.document);
+  return refused === null ? { kind: DRILL.EMBEDDED } : { kind: DRILL.UNREADABLE, reason: refused };
+}
+
+/* The hook a row names, by the same identity rule as a Subagent entry. */
+export function hook_entry_for(document, step, revision) {
+  const node = find_node(document, is_object(step) ? step.node_id : null);
+  if (!node || node.type !== "hooks_pool") return null;
+  const entries = container_entries(node, CONTAINERS.hooks);
+  const found = pool_entry_index(entries, step, revision);
+  if (found === null || found.index === null) return null;
+  return { entry: entries[found.index], index: found.index, ambiguous: found.ambiguous === true, graph_unique: found.graph_unique === true };
 }
 
 /* A step is the pool node and the entry inside it. */
@@ -425,12 +478,21 @@ export function embedded_step_indices(document, step, revision) {
   );
   if (node_index < 0) return null;
   const node = document.nodes[node_index];
+  const container = container_of(step);
+  if (container === CONTAINERS.hooks) {
+    if (node.type !== container.pool) return null;
+    const hooks = container_entries(node, container);
+    const hit = pool_entry_index(hooks, step, revision);
+    if (hit === null || hit.index === null) return null;
+    if (hook_drill_target(hooks[hit.index]).kind !== DRILL.EMBEDDED) return null;
+    return { node_index, entry_index: hit.index, ambiguous: hit.ambiguous, member: container.member, slot: container.slot };
+  }
   if (node.type !== "subagent_pool" || node_pool_is_legacy(node)) return null;
   const entries = node_subagents(node);
   const found = pool_entry_index(entries, step, revision);
   if (found === null || found.index === null) return null;
   if (drill_target(entries[found.index]).kind !== DRILL.EMBEDDED) return null;
-  return { node_index, entry_index: found.index, ambiguous: found.ambiguous };
+  return { node_index, entry_index: found.index, ambiguous: found.ambiguous, member: "subagents", slot: "source" };
 }
 
 /* The path the store addresses this graph by, which is also the prefix every
@@ -447,13 +509,12 @@ export function embedded_path(document, steps, revision) {
       "nodes",
       found.node_index,
       "config",
-      "subagents",
+      found.member,
       found.entry_index,
-      "source",
+      found.slot,
       "document",
     );
-    current = current.nodes[found.node_index].config.subagents[found.entry_index]
-      .source.document;
+    current = found_graph(current, found);
   }
   return path;
 }
@@ -467,8 +528,7 @@ export function embedded_document(document, steps, revision) {
   for (const step of list) {
     const found = embedded_step_indices(current, step, revision);
     if (found === null) return null;
-    current = current.nodes[found.node_index].config.subagents[found.entry_index]
-      .source.document;
+    current = found_graph(current, found);
   }
   return current;
 }
@@ -483,22 +543,23 @@ export function with_embedded_document(document, steps, child, revision) {
   const found = embedded_step_indices(document, step, revision);
   if (found === null) return document;
   const node = document.nodes[found.node_index];
-  const entries = node.config.subagents;
+  const { member, slot } = found;
+  const entries = node.config[member];
   const entry = entries[found.entry_index];
   const inner =
     rest.length === 0
       ? child
-      : with_embedded_document(entry.source.document, rest, child, revision);
+      : with_embedded_document(entry[slot].document, rest, child, revision);
   const next_entries = entries.map((candidate, index) =>
     index === found.entry_index
-      ? { ...candidate, source: { ...candidate.source, document: inner } }
+      ? { ...candidate, [slot]: { ...candidate[slot], document: inner } }
       : candidate,
   );
   return {
     ...document,
     nodes: document.nodes.map((candidate, index) =>
       index === found.node_index
-        ? { ...candidate, config: { ...candidate.config, subagents: next_entries } }
+        ? { ...candidate, config: { ...candidate.config, [member]: next_entries } }
         : candidate,
     ),
   };
@@ -662,8 +723,7 @@ export function drill_layout_key(resource_id, document, steps, revision) {
       return;
     }
     if (found.ambiguous) parts.push(`#${found.entry_index}`);
-    current = current.nodes[found.node_index].config.subagents[found.entry_index]
-      .source.document;
+    current = found_graph(current, found);
   });
   return identity_of(parts);
 }
@@ -714,21 +774,24 @@ export function drill_lost_reason(document, steps, revision) {
   for (const step of list) {
     const found = embedded_step_indices(current, step, revision);
     if (found !== null) {
-      current = current.nodes[found.node_index].config.subagents[found.entry_index]
-        .source.document;
+      current = found_graph(current, found);
       continue;
     }
     /* Asked of the same rule that answered nothing, so the sentence cannot
        disagree with the resolution it is about. */
-    const node = pool_node_for(current, is_object(step) ? step.node_id : null);
+    const container = container_of(step);
+    const candidate = find_node(current, is_object(step) ? step.node_id : null);
+    const node = container === CONTAINERS.subagents
+      ? pool_node_for(current, is_object(step) ? step.node_id : null)
+      : candidate && candidate.type === container.pool ? candidate : null;
     const answer = pool_entry_index(
-      node ? node_subagents(node) : null,
+      node ? container_entries(node, container) : null,
       step,
       revision,
     );
     return answer && answer.unidentified
       ? UNIDENTIFIED_STEP
-      : gone_message("That subagent's graph");
+      : gone_message(container.gone);
   }
   return null;
 }
@@ -793,11 +856,11 @@ export function drill_obsolete_reason(blocked) {
    session and restoring one would throw them away. */
 export const FRAME = Object.freeze({ RESOURCE: "resource", EMBEDDED: "embedded" });
 
-export function frame_for_embedded_step({ label, steps, selected_node_id }) {
+export function frame_for_embedded_step({ label, steps, selected_node_id, via_label }) {
   return {
     kind: FRAME.EMBEDDED,
     label,
-    via_label: VIA_LABEL,
+    via_label: via_label || VIA_LABEL,
     steps,
     selected_node_id: selected_node_id || null,
   };

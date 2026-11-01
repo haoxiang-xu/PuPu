@@ -350,6 +350,8 @@ const Tooltip = ({
   corner_radius = 6,
   style,
   wrapper_style,
+  /* Interactive viewers share this engine but sit above ordinary hints. */
+  layer = "tooltip",
   open,
   on_open_change,
   /* Keep the bubble on an anchor that MOVES while the bubble is open — an
@@ -1138,7 +1140,7 @@ const Tooltip = ({
                 top: positionStyle.top,
                 left: positionStyle.left,
                 transform: positionStyle.transform,
-                zIndex: Z.TOOLTIP,
+                zIndex: layer === "popover" ? Z.POPOVER : Z.TOOLTIP,
                 width: tooltipWidth,
                 height: tooltipHeight,
                 pointerEvents: isReady ? "auto" : "none",

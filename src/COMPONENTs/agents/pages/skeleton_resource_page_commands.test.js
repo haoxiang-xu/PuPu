@@ -1,4 +1,6 @@
 import React from "react";
+import { pressCanvasNode, openAddNode, openRunMenu } from "./recipes_page/skeleton_canvas_test_helpers";
+import { install_legacy_store_bridge } from "./recipes_page/legacy_store_test_bridge";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import SkeletonResourcePage from "./skeleton_resource_page";
@@ -8,11 +10,13 @@ import { CAPTURED_DUPLICATE_ENTRIES } from "./recipes_page/skeleton_drill_identi
 import { EDIT_CONFLICT_ERROR, RESOURCE_RESULT_KEYS } from "./recipes_page/skeleton_resource_capture";
 
 jest.mock("../../../SERVICEs/api", () => ({ api: { unchain: {} } }));
+/* The editor speaks v2 only (#357 G1); these mocks are graph-only. */
+install_legacy_store_bridge(api.unchain);
 let editor;
 jest.mock("../../../BUILTIN_COMPONENTs/flow_editor", () => ({
   FlowEditor: (props) => {
     editor = props;
-    return <div data-testid="flow-editor">{props.nodes.map((node) => <div key={node.id} data-testid={`draw-${node.id}`}>{props.render_node(node)}</div>)}</div>;
+    return <div data-testid="flow-editor">{props.nodes.map((node) => <div key={node.id} data-testid={`draw-${node.id}`} onClick={() => props.on_select?.(node.id)}>{props.render_node(node)}</div>)}</div>;
   },
 }));
 const copy = (v) => JSON.parse(JSON.stringify(v));
@@ -34,7 +38,7 @@ const show = async (document = seed()) => {
   return view;
 };
 const add = (type = "agent") => {
-  fireEvent.click(screen.getByRole("button", { name: "Add node" }));
+  openAddNode();
   fireEvent.click(screen.getByTestId(`palette-entry-${type}`));
 };
 const save = async () => {
@@ -53,7 +57,7 @@ beforeEach(() => {
 
 test("rapid canvas commands keep one another and panel edits; only explicit Save sends them", async () => {
   await show();
-  fireEvent.click(screen.getByTestId("skeleton-node-agent"));
+  pressCanvasNode(screen.getByTestId("skeleton-node-agent"));
   fireEvent.click(screen.getByText("+ Add input"));
   add();
   const connect = editor.on_connect;

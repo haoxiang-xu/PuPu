@@ -115,7 +115,8 @@ export default function SkillReadSection({ document, node, isDark, onChange }) {
   const [preview, reloadPreview] = usePreview(complete ? identity : null, includeUserDirs);
 
   const unique = Array.isArray(document && document.nodes) && document.nodes.filter((item) => item && item.id === node.id).length === 1;
-  const editable = unique && document.kind === "agent" && document.schema_version === 1 && typeof onChange === "function";
+  const editable = unique && (document.kind === "agent" || document.kind === "workflow") &&
+    document.schema_version === 1 && typeof onChange === "function";
   const commit = (next) => {
     if (editable && next !== document) onChange(next);
   };

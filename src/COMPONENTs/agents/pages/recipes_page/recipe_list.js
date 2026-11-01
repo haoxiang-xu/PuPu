@@ -46,7 +46,7 @@ const PENDING_AGENT_ID = "__new_agent__";
 const ROOT_ORDER_KEY = "__root__";
 const FOLDER_NODE_PREFIX = "folder:";
 
-const RenameRow = ({ isDark, prefixIcon, initialValue, onConfirm, onCancel }) => {
+export const RenameRow = ({ isDark, prefixIcon, initialValue, onConfirm, onCancel }) => {
   const inputRef = useRef(null);
 
   useEffect(() => {

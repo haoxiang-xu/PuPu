@@ -1,5 +1,7 @@
 /* eslint-disable testing-library/no-container, testing-library/no-node-access -- Port gestures use the actual shared editor. */
 import React from "react";
+import { pressCanvasNode, openAddNode, openRunMenu } from "./recipes_page/skeleton_canvas_test_helpers";
+import { install_legacy_store_bridge } from "./recipes_page/legacy_store_test_bridge";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import SkeletonResourcePage from "./skeleton_resource_page";
@@ -10,6 +12,8 @@ import { new_agent_document } from "./recipes_page/skeleton_graph_edits";
 import { CAPTURED_DUPLICATE_ENTRIES } from "./recipes_page/skeleton_drill_identity_capture";
 
 jest.mock("../../../SERVICEs/api", () => ({ api: { unchain: {} } }));
+/* The editor speaks v2 only (#357 G1); these mocks are graph-only. */
+install_legacy_store_bridge(api.unchain);
 const draft = { id: "native-tool-page", name: "Tool authoring" };
 const stored = (document) => ({ ...Object.fromEntries(RESOURCE_RESULT_KEYS.map((key) => [key, key === "diagnostics" ? [] : null])), document, id: document.id, kind: document.kind, name: document.name, edit_token: "saved-token" });
 const show = async () => {
@@ -18,7 +22,7 @@ const show = async () => {
   return view;
 };
 const addPool = async () => {
-  fireEvent.click(screen.getByRole("button", { name: "Add node" }));
+  openAddNode();
   fireEvent.click(screen.getByTestId("palette-entry-toolkit_pool"));
   await screen.findByTestId("native-toolkit-library-ready");
 };
@@ -93,8 +97,8 @@ test("late catalog answer from the previous pool cannot populate the next pool",
   api.unchain.getSkeletonResource = jest.fn().mockResolvedValue(stored(graph));
   api.unchain.listToolModalCatalog.mockReturnValueOnce(new Promise((r) => { first = r; })).mockReturnValueOnce(new Promise((r) => { second = r; }));
   render(<ConfigContext.Provider value={{ theme: {} }}><SkeletonResourcePage resourceId={graph.id} /></ConfigContext.Provider>);
-  fireEvent.click(await screen.findByTestId("skeleton-node-one"));
-  fireEvent.click(screen.getByTestId("skeleton-node-two"));
+  pressCanvasNode(await screen.findByTestId("skeleton-node-one"));
+  pressCanvasNode(screen.getByTestId("skeleton-node-two"));
   await act(async () => { second({ toolkits: [] }); first(capture.catalog); });
   expect(screen.getByText("No toolkits are listed in this library.")).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Add Core" })).not.toBeInTheDocument();

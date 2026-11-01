@@ -34,7 +34,9 @@
  *
  *   code            the author's own payload; the receipt admits any object.
  *   workflow_call   the called graph's exported outputs — declared in *that*
- *                   document, which this editor does not have.
+ *                   document: known once the pinned revision has been read
+ *                   (#357, `workflow_call_result_roots`), closed to its
+ *                   End's exports.
  *   start           whatever the run was called with. The generic Skeleton v1
  *                   document has no run-input schema and cannot gain one:
  *                   `input_schema` is refused in the envelope as an unknown
@@ -46,6 +48,8 @@
 
 import { schema_root_scope } from "./output_schema";
 import { own } from "./document_values";
+import { code_result_roots } from "./code_config";
+import { workflow_call_result_roots } from "./workflow_call_config";
 
 /* The tables below are read with a node's type, out of a draft, so they are
    read through `own`. */
@@ -58,9 +62,6 @@ const CLOSED_ROOTS = {
 };
 
 const UNKNOWN_REASON = {
-  code: "Code returns whatever its own source returns, so its fields are not known here.",
-  workflow_call:
-    "A called Workflow's result is what that Workflow exports, which is declared in its own document.",
   start:
     "A Start's result is whatever the run was called with. The document declares no shape for it, and the same graph can be called from different places.",
 };
@@ -103,6 +104,12 @@ function agent_result_roots(node) {
 export function result_roots_for(node) {
   const type = node && node.type;
   if (type === "agent") return agent_result_roots(node);
+  /* Code (#357) is the one node where the author declares the result: its
+     fields are the Result schema's root fields, closed when the schema closes
+     them. The runtime validates `main()`'s return against that schema and
+     publishes it as the node's result; an error is published beside it. */
+  if (type === "code") return code_result_roots(node);
+  if (type === "workflow_call") return workflow_call_result_roots(node);
   const closed = own(CLOSED_ROOTS, type);
   if (closed) return closed_on(closed);
   return {

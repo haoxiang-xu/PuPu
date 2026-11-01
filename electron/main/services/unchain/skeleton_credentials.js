@@ -3,6 +3,8 @@
 const QUERY_SCHEMA = "pupu.skeleton_credential_query.v1";
 const REQUIREMENTS_SCHEMA = "pupu.skeleton_credential_requirements.v1";
 const SCOPE_SCHEMA = "pupu.skeleton_credential_scope.v1";
+const REQUIREMENTS_SOURCE_SCHEMA = "pupu.skeleton_credential_requirements.v2";
+const SCOPE_SOURCE_SCHEMA = "pupu.skeleton_credential_scope.v2";
 const IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/;
 const DIGEST = /^[a-f0-9]{64}$/;
 const CUSTOM_REF = /^custom\.([a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?)$/;
@@ -104,8 +106,8 @@ const validateQuery = (query) => {
       query.selection !== null || query.recipe_name !== "") fail();
 };
 
-const admittedScope = (scope, query) => {
-  if (!closed(scope, SCOPE_FIELDS) || scope.schema !== SCOPE_SCHEMA ||
+const admittedScope = (scope, query, expectedSchema) => {
+  if (!closed(scope, SCOPE_FIELDS) || scope.schema !== expectedSchema ||
       ["mode", "session_id", "owner_chat_id", "interaction_id"].some((key) => scope[key] !== query[key]) ||
       typeof scope.selection_digest !== "string" || !DIGEST.test(scope.selection_digest) ||
       typeof scope.workflows_digest !== "string" || !DIGEST.test(scope.workflows_digest) ||
@@ -164,14 +166,15 @@ const authorizeProfile = (profile, customProviders) => {
 
 const resolveSkeletonCredentials = (requirements, query, { customProviders = [], readSecret } = {}) => {
   validateQuery(query);
-  if (!isRecord(requirements) || requirements.schema !== REQUIREMENTS_SCHEMA) fail();
+  if (!isRecord(requirements) || ![REQUIREMENTS_SCHEMA, REQUIREMENTS_SOURCE_SCHEMA].includes(requirements.schema)) fail();
   if (requirements.kind === "not_skeleton") {
-    if (!closed(requirements, ["schema", "kind"]) || query.mode !== "resume") fail();
+    if (!closed(requirements, ["schema", "kind"]) || requirements.schema !== REQUIREMENTS_SCHEMA || query.mode !== "resume") fail();
     return null;
   }
   if (!closed(requirements, ["schema", "kind", "scope", "profiles"]) || requirements.kind !== "skeleton" ||
       !Array.isArray(requirements.profiles) || requirements.profiles.length === 0) fail();
-  const scope = admittedScope(requirements.scope, query);
+  const scope = admittedScope(requirements.scope, query,
+    requirements.schema === REQUIREMENTS_SOURCE_SCHEMA ? SCOPE_SOURCE_SCHEMA : SCOPE_SCHEMA);
   const profiles = new Map();
   const targets = new Map();
   const authorized = [];

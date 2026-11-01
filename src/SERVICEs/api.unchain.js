@@ -11,6 +11,11 @@ import {
 } from "./api.shared";
 import { readWorkspaces } from "../COMPONENTs/settings/runtime";
 import { invokeSkeletonBridge } from "./skeleton_resource_errors";
+import { createManagedCodeApi } from "./managed_code_api";
+import { createManagedTransferApi } from "./managed_transfer_api";
+import { createSkeletonHookApi } from "./skeleton_hook_capabilities";
+import { createSkeletonHookToolSetApi } from "./skeleton_hook_tool_set_capabilities";
+import { createSkeletonHookWorkflowApi } from "./skeleton_hook_workflow_capabilities";
 import { readMemorySettings } from "../COMPONENTs/settings/memory/storage";
 import { sanitizeSystemPromptSections } from "./system_prompt_sections";
 import { DEFAULT_SYSTEM_PROMPT_V2_SECTIONS } from "./prompts/defaults";
@@ -1359,6 +1364,11 @@ const normalizeToolConfirmationResponse = (
 
 export const createUnchainApi = () => {
   const unchainApi = {
+    ...createManagedCodeApi(assertBridgeMethod, withTimeout),
+    ...createManagedTransferApi(assertBridgeMethod, withTimeout),
+    ...createSkeletonHookApi(assertBridgeMethod, withTimeout),
+    ...createSkeletonHookToolSetApi(assertBridgeMethod, withTimeout),
+    ...createSkeletonHookWorkflowApi(assertBridgeMethod, withTimeout),
     isBridgeAvailable: () =>
       hasBridgeMethod("unchainAPI", "getStatus") &&
       hasBridgeMethod("unchainAPI", "startStream") &&

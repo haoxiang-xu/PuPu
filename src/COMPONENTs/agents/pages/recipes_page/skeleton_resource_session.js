@@ -17,6 +17,8 @@
  *   - A refused preflight is the FIRST problem, not a list, so it is reported
  *     as one problem and never as "the" set. The set comes from diagnose. */
 
+import { empty_sources, merged_sources, referenced_shas } from "./managed_code_sources";
+
 export const SESSION_STATUS = Object.freeze({
   EMPTY: "empty",
   LOADING: "loading",
@@ -89,6 +91,13 @@ export function empty_session() {
     /* The token the open document was loaded or last saved at. A save sends
        this, never the one that came back from someone else's write. */
     edit_token: null,
+    /* The Code text this sitting can reach, keyed by its digest (#357 G1).
+       A Code node names its text by the digest in its source path, so the
+       table is about bytes, not about nodes: which node a text belongs to is
+       read from the document when Save is built. It holds what the store
+       handed over and what the author typed, and lets a text go once no
+       document the author can still reach names it. */
+    sources: empty_sources(),
     dirty: false,
     /* A write the store performs on the stored document rather than one the
        author composed. Kept apart from `saving` so the save bar never claims
@@ -210,6 +219,10 @@ export function loaded(session, data, issued) {
     resource_id: (data && data.id) || session.resource_id,
     document: (data && data.document) || null,
     edit_token: (data && data.edit_token) || null,
+    /* The text of THIS document, as the store holds it — never carried over
+       from what the sitting held before: a load is somebody's version, and
+       the author's typed text belongs to the document it was typed into. */
+    sources: merged_sources(data && data.managed_sources),
     diagnostics: (data && data.diagnostics) || [],
     /* A load hands over a document and the store's answer about that same
        document, so this is the one place they are current by construction. */
@@ -283,14 +296,114 @@ export function load_failed(session, result, issued) {
    rule: they still describe the version they were checked against, the
    version number moves, and `diagnostics_are_current` is false from here
    until the store answers about this draft. */
-export function edited(session, document) {
+export function edited(session, document, { coalesce = false, sources = null } = {}) {
+  const history = history_of(session);
+  const next_history = {
+    past: coalesce ? history.past : bounded([...history.past, session.document]),
+    future: [],
+  };
+  /* Text typed in this edit joins the table; text no reachable document
+     names any more — not on screen, not one undo away, not held by a
+     conflict — is let go, so a long session of typing does not keep every
+     intermediate copy. */
+  const reachable = referenced_shas([
+    document,
+    ...next_history.past,
+    ...(session && session.conflict ? [session.conflict.document] : []),
+  ]);
+  return {
+    ...session,
+    version: next_version(session),
+    document,
+    sources: merged_sources(session && session.sources, sources, reachable),
+    dirty: true,
+    preflight: null,
+    /* One step back per gesture. A later edit in the same gesture folds into
+       the step the first one recorded, which is what the hook's `coalesce`
+       says. Either way an edit drops what was undone. */
+    history: next_history,
+  };
+}
+
+/* ── Undo and redo ────────────────────────────────────────────────────────
+ *
+ * Part of the sitting, so they go wherever the sitting goes: a drill frame
+ * stashes the whole session and `restored` brings it back with its history.
+ * A document the store hands over (`loaded`, and `conflict_discarded`, which
+ * is a load) is built from `empty_session`, which has none: there is nothing
+ * to step back to in somebody else's version.
+ *
+ * Stepping is an edit like any other — the draft is unsaved, the last check is
+ * gone, the diagnostics stop being current — with two differences.
+ * `document_revision` does NOT move: it counts documents handed over, and a
+ * drill step taken by position stays valid across the author's own edits.
+ * `history_epoch` DOES move, so a control holding text it was typing can let
+ * go of it: the document under it was replaced, not typed into.
+ *
+ * Bounded at the legacy canvas's own limit. Not offered while a save is in
+ * flight, while a conflict waits for a choice, or while the store is
+ * rewriting the stored document. */
+const HISTORY_LIMIT = 50;
+const NO_HISTORY = Object.freeze({ past: Object.freeze([]), future: Object.freeze([]) });
+
+function bounded(list) {
+  return list.length > HISTORY_LIMIT ? list.slice(list.length - HISTORY_LIMIT) : list;
+}
+
+function history_of(session) {
+  const history = session && session.history;
+  return history && Array.isArray(history.past) && Array.isArray(history.future)
+    ? history
+    : NO_HISTORY;
+}
+
+function can_step(session) {
+  return Boolean(
+    session &&
+      session.status === SESSION_STATUS.READY &&
+      session.document &&
+      !session.saving &&
+      !session.converting &&
+      !session.conflict,
+  );
+}
+
+export function can_undo(session) {
+  return can_step(session) && history_of(session).past.length > 0;
+}
+
+export function can_redo(session) {
+  return can_step(session) && history_of(session).future.length > 0;
+}
+
+function stepped(session, document, history) {
   return {
     ...session,
     version: next_version(session),
     document,
     dirty: true,
     preflight: null,
+    history,
+    history_epoch: ((session && session.history_epoch) || 0) + 1,
   };
+}
+
+export function undone(session) {
+  if (!can_undo(session)) return session;
+  const { past, future } = history_of(session);
+  return stepped(session, past[past.length - 1], {
+    past: past.slice(0, -1),
+    future: [...future, session.document],
+  });
+}
+
+export function redone(session) {
+  if (!can_redo(session)) return session;
+  const { past, future } = history_of(session);
+  return stepped(session, future[future.length - 1], {
+    past: bounded([...past, session.document]),
+    future: future.slice(0, -1),
+  });
 }
 
 export function save_started(session) {
@@ -318,6 +431,10 @@ export function save_succeeded(session, data, issued) {
       ? session.document
       : (data && data.document) || session.document,
     edit_token: (data && data.edit_token) || session.edit_token,
+    /* The store's text for what it stored, joined to what the author has
+       typed since: both are reachable — one is the stored version, the other
+       is on screen. */
+    sources: merged_sources(session && session.sources, data && data.managed_sources),
     /* They describe what the store now holds, which is what they always
        describe. */
     diagnostics: (data && data.diagnostics) || [],

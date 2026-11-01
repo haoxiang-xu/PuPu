@@ -1,0 +1,19 @@
+{
+  "runtime_manifest_digest": "sha256:e863d61d98e2636362e7833ed27630c0fe3f81eba33d9c684011569180cc86af",
+  "schema": "pupu.skeleton_hook_workflow_capabilities.v1",
+  "workflow_source": {
+    "document_kind": "workflow",
+    "embedded_fields": [
+      "document",
+      "kind"
+    ],
+    "embedded_kind": "embedded",
+    "field": "workflow",
+    "identity": "embedded-sha256",
+    "reference_fields": [
+      "revision_id",
+      "workflow_id"
+    ],
+    "schema": "unchain.skeleton_hook_workflow.v1"
+  }
+}

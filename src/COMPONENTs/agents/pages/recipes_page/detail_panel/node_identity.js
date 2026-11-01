@@ -74,6 +74,27 @@ const IDENTITY = {
     title: () => "Skill read",
     subtitle: () => "Read one skill when the run gets here",
   },
+  /* Code (#357): graphite, the one step that does nothing clever (design
+     canvas, "Code, Workflow call and Hooks Pool"). The panel header replaces
+     the subtitle with the runtime the node runs with. */
+  code: {
+    icon: "code",
+    gradient: "linear-gradient(135deg, #949cad, #5b6475)",
+    title: () => "Code",
+    subtitle: () => "Python in its own process",
+  },
+  hooks_pool: {
+    icon: "anchor",
+    gradient: "linear-gradient(135deg, #e0759a, #b94a74)",
+    title: () => "Hooks Pool",
+    subtitle: () => "Workflows around this Agent's tool calls",
+  },
+  workflow_call: {
+    icon: "flow_chart",
+    gradient: "linear-gradient(135deg, #7c8cf5, #4f5fd6)",
+    title: () => "Workflow call",
+    subtitle: () => "Run one published Workflow revision",
+  },
 };
 
 function count_label(list, noun) {

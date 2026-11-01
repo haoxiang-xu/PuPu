@@ -795,3 +795,37 @@ describe("an id the graph chose, used as a table key", () => {
     expect(container.querySelector('[data-flow-node-id="end"]')).toBeTruthy();
   });
 });
+
+/* eslint-disable testing-library/no-container, testing-library/no-node-access -- the port dots carry no role; they are found by the data attributes the editor stamps on them. */
+describe("a port that anchors itself along its side (#357)", () => {
+  const { get_port_position } = require("./utils");
+  const dims = { a: { width: 230, height: 150 } };
+
+  test("the edge endpoint and the drawn dot both sit at the anchor, not the fraction", () => {
+    const node = { id: "a", x: 100, y: 50, ports: [
+      { id: "in", side: "left", kind: "in", anchor: 27 },
+      { id: "out", side: "right", kind: "out", anchor: 27 },
+      { id: "top", side: "top", kind: "attach", anchor: 40 },
+    ] };
+    expect(get_port_position(node, "in", dims)).toEqual({ x: 100, y: 77, side: "left" });
+    expect(get_port_position(node, "out", dims)).toEqual({ x: 330, y: 77, side: "right" });
+    expect(get_port_position(node, "top", dims)).toEqual({ x: 140, y: 50, side: "top" });
+    const { container } = render(wrap(<FlowEditor nodes={[node]} edges={[]} />));
+    expect(container.querySelector('[data-node-id="a"][data-port-id="in"]').style.top).toBe("27px");
+    expect(container.querySelector('[data-node-id="a"][data-port-id="out"]').style.top).toBe("27px");
+    expect(container.querySelector('[data-node-id="a"][data-port-id="top"]').style.left).toBe("40px");
+  });
+
+  test("without an anchor, or with one that is not a number, nothing changes", () => {
+    const node = { id: "a", x: 100, y: 50, ports: [
+      { id: "in", side: "left", kind: "in" },
+      { id: "out", side: "right", kind: "out", anchor: "27" },
+    ] };
+    expect(get_port_position(node, "in", dims)).toEqual({ x: 100, y: 125, side: "left" });
+    expect(get_port_position(node, "out", dims)).toEqual({ x: 330, y: 125, side: "right" });
+    const { container } = render(wrap(<FlowEditor nodes={[node]} edges={[]} />));
+    expect(container.querySelector('[data-node-id="a"][data-port-id="in"]').style.top).toBe("50%");
+    expect(container.querySelector('[data-node-id="a"][data-port-id="out"]').style.top).toBe("50%");
+  });
+});
+/* eslint-enable testing-library/no-container, testing-library/no-node-access */

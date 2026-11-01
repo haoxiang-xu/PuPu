@@ -144,11 +144,12 @@ test("Memory V2 stays off the Agent Builder surface when enabled", async () => {
   expect(screen.queryByText("Memory Agent")).not.toBeInTheDocument();
   expect(screen.queryByText("System Agents")).not.toBeInTheDocument();
   const explorerProps = mockExplorerProps.at(-1);
-  expect(explorerProps.root).toEqual(["Default", "Explore"]);
-  expect(Object.keys(explorerProps.data)).toEqual(["Default", "Explore"]);
+  expect(explorerProps.root).toEqual(["group:not-migrated"]);
+  expect(explorerProps.data["group:not-migrated"].children).toEqual(["legacy:Default", "legacy:Explore"]);
+  expect(Object.keys(explorerProps.data).sort()).toEqual(["group:not-migrated", "legacy:Default", "legacy:Explore"]);
 });
 
-test("recipe list uses Explorer drag reorder and the generic add icon", async () => {
+test("native resource list uses Explorer drag reorder and keeps legacy placement separate", async () => {
   window.localStorage.clear();
   mockExplorerProps.length = 0;
   window.localStorage.setItem(
@@ -167,9 +168,11 @@ test("recipe list uses Explorer drag reorder and the generic add icon", async ()
       folderOrder: ["f_team"],
     }),
   );
-  api.unchain.listRecipes.mockResolvedValue({
-    recipes: [{ name: "Alpha" }, { name: "Beta" }],
-  });
+  api.unchain.listRecipes.mockResolvedValue({ recipes: [] });
+  api.unchain.listSkeletonResources = jest.fn().mockResolvedValue({ resources: [
+    { id: "Alpha", name: "Alpha", kind: "agent", archived: false },
+    { id: "Beta", name: "Beta", kind: "agent", archived: false },
+  ] });
   api.unchain.getRecipe.mockImplementation(async (name) => ({
     name,
     nodes: [],
@@ -189,7 +192,7 @@ test("recipe list uses Explorer drag reorder and the generic add icon", async ()
   expect(screen.getByText("add")).toBeInTheDocument();
   expect(screen.queryByText("chat_new")).not.toBeInTheDocument();
 
-  const explorerProps = mockExplorerProps.at(-1);
+  const explorerProps = mockExplorerProps.filter((props) => props.draggable).at(-1);
   expect(explorerProps.draggable).toBe(true);
   expect(typeof explorerProps.on_reorder).toBe("function");
 
@@ -199,16 +202,17 @@ test("recipe list uses Explorer drag reorder and the generic add icon", async ()
         ...explorerProps.data,
         "folder:f_team": {
           ...explorerProps.data["folder:f_team"],
-          children: ["Alpha"],
+          children: ["resource:Alpha"],
         },
       },
-      ["folder:f_team", "Beta"],
+      ["folder:f_team", "resource:Beta"],
     );
   });
 
   expect(JSON.parse(window.localStorage.getItem(STORAGE_KEY))).toMatchObject({
-    recipeFolder: { Alpha: "f_team" },
-    itemOrder: {
+    recipeFolder: {},
+    resourceFolder: { Alpha: "f_team" },
+    resourceOrder: {
       __root__: ["folder:f_team", "Beta"],
       f_team: ["Alpha"],
     },

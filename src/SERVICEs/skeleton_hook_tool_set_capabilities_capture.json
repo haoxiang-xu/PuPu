@@ -1,0 +1,17 @@
+{
+  "schema": "pupu.skeleton_hook_tool_set_capabilities.v1",
+  "runtime_manifest_digest": "sha256:2f680baf8cc1042a0cf5b287a3b03eb87ddb2431298764ebaa8558d8c508b619",
+  "tool_matcher": {
+    "schema": "unchain.skeleton_hook_tool_set.v1",
+    "field": "tool_name",
+    "legacy_types": [
+      "null",
+      "string"
+    ],
+    "set_type": "array",
+    "minimum_size": 1,
+    "duplicates": "reject",
+    "names": "nonblank_exact",
+    "normalization": "none"
+  }
+}

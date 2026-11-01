@@ -1,0 +1,949 @@
+{
+ "manifest": {
+  "wheel_unchain_file": "/Users/red/.codex/artifacts/pupu-356/356-tool-lifecycle-20261023/pair/build-venv/lib/python3.12/site-packages/unchain/__init__.py",
+  "tool": "workflow-call-01/review-fixes-03/tools/capture_03.py",
+  "do_not_edit_by_hand": true
+ },
+ "rev_whole_extra": "rev-1-fbbaf7deba6d59c1",
+ "rows": [
+  {
+   "case": "whole_extra_create",
+   "reply": {
+    "schema": "pupu.skeleton-resource.v2",
+    "resource": {
+     "id": "wf-whole-extra",
+     "kind": "workflow",
+     "name": "Whole and extra",
+     "description": "",
+     "archived": false,
+     "edit_token": "edit-1-4bf56e03ffb8c779f7e108bb",
+     "draft_digest": "fbbaf7deba6d59c1f7e221159c29f373e66ef65a8a7215288701d131025072d5",
+     "source_identity": null,
+     "document": {
+      "edges": [
+       {
+        "id": "flow-start-end",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "end",
+        "target_port_id": "in"
+       }
+      ],
+      "id": "wf-whole-extra",
+      "kind": "workflow",
+      "name": "Whole and extra",
+      "nodes": [
+       {
+        "config": {
+         "execution": {
+          "outputs": [
+           {
+            "name": "all",
+            "source": {
+             "kind": "result",
+             "path": []
+            }
+           },
+           {
+            "name": "x",
+            "source": {
+             "kind": "result",
+             "path": [
+              "extra"
+             ]
+            }
+           }
+          ]
+         }
+        },
+        "id": "start",
+        "type": "start"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [
+           {
+            "missing": "error",
+            "name": "all",
+            "value": {
+             "kind": "ref",
+             "node_id": "start",
+             "path": [
+              "all"
+             ]
+            }
+           },
+           {
+            "missing": "error",
+            "name": "x",
+            "value": {
+             "kind": "ref",
+             "node_id": "start",
+             "path": [
+              "x"
+             ]
+            }
+           }
+          ],
+          "outputs": [
+           {
+            "name": "answer",
+            "source": {
+             "kind": "input",
+             "path": [
+              "all"
+             ]
+            }
+           },
+           {
+            "name": "named",
+            "source": {
+             "kind": "input",
+             "path": [
+              "x"
+             ]
+            }
+           }
+          ]
+         }
+        },
+        "id": "end",
+        "type": "end"
+       }
+      ],
+      "schema_version": 1
+     },
+     "diagnostics": []
+    },
+    "sources_manifest": {
+     "entries": [],
+     "schema": "pupu.skeleton-code-sources.v1"
+    },
+    "contents": [],
+    "content_digest": "4bf56e03ffb8c779f7e108bbbe31370414de3b801ae0b0bb100daf119ec834b1"
+   }
+  },
+  {
+   "case": "whole_extra_publish",
+   "reply": {
+    "schema": "pupu.skeleton-workflow-version.v2",
+    "version": {
+     "workflow_id": "wf-whole-extra",
+     "revision_id": "rev-1-fbbaf7deba6d59c1",
+     "ordinal": 1,
+     "definition_digest": "fbbaf7deba6d59c1f7e221159c29f373e66ef65a8a7215288701d131025072d5",
+     "document": {
+      "edges": [
+       {
+        "id": "flow-start-end",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "end",
+        "target_port_id": "in"
+       }
+      ],
+      "id": "wf-whole-extra",
+      "kind": "workflow",
+      "name": "Whole and extra",
+      "nodes": [
+       {
+        "config": {
+         "execution": {
+          "outputs": [
+           {
+            "name": "all",
+            "source": {
+             "kind": "result",
+             "path": []
+            }
+           },
+           {
+            "name": "x",
+            "source": {
+             "kind": "result",
+             "path": [
+              "extra"
+             ]
+            }
+           }
+          ]
+         }
+        },
+        "id": "start",
+        "type": "start"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [
+           {
+            "missing": "error",
+            "name": "all",
+            "value": {
+             "kind": "ref",
+             "node_id": "start",
+             "path": [
+              "all"
+             ]
+            }
+           },
+           {
+            "missing": "error",
+            "name": "x",
+            "value": {
+             "kind": "ref",
+             "node_id": "start",
+             "path": [
+              "x"
+             ]
+            }
+           }
+          ],
+          "outputs": [
+           {
+            "name": "answer",
+            "source": {
+             "kind": "input",
+             "path": [
+              "all"
+             ]
+            }
+           },
+           {
+            "name": "named",
+            "source": {
+             "kind": "input",
+             "path": [
+              "x"
+             ]
+            }
+           }
+          ]
+         }
+        },
+        "id": "end",
+        "type": "end"
+       }
+      ],
+      "schema_version": 1
+     },
+     "dependencies": []
+    },
+    "sources_manifest": {
+     "entries": [],
+     "schema": "pupu.skeleton-code-sources.v1"
+    },
+    "contents": [],
+    "content_digest": "4bf56e03ffb8c779f7e108bbbe31370414de3b801ae0b0bb100daf119ec834b1"
+   }
+  },
+  {
+   "case": "list_active",
+   "reply": [
+    {
+     "id": "wf-whole-extra",
+     "kind": "workflow",
+     "name": "Whole and extra",
+     "description": "",
+     "archived": false,
+     "edit_token": "edit-1-4bf56e03ffb8c779f7e108bb",
+     "draft_digest": "fbbaf7deba6d59c1f7e221159c29f373e66ef65a8a7215288701d131025072d5",
+     "source_identity": null,
+     "published_revisions": 1
+    }
+   ]
+  },
+  {
+   "case": "caller_save",
+   "reply": {
+    "schema": "pupu.skeleton-resource.v2",
+    "resource": {
+     "id": "caller-whole-extra",
+     "kind": "agent",
+     "name": "caller-whole-extra",
+     "description": "",
+     "archived": false,
+     "edit_token": "edit-1-00052d01ecfc4fca9ea89bfd",
+     "draft_digest": "2219ca63ff26241468837e6a03b6a732dec2742872dcc449ab63e82842a41e54",
+     "source_identity": null,
+     "document": {
+      "edges": [
+       {
+        "id": "flow-start-kernel",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "kernel",
+        "target_port_id": "in"
+       },
+       {
+        "id": "flow-kernel-call",
+        "kind": "flow",
+        "source_node_id": "kernel",
+        "source_port_id": "out",
+        "target_node_id": "call",
+        "target_port_id": "in"
+       },
+       {
+        "id": "flow-call-end",
+        "kind": "flow",
+        "source_node_id": "call",
+        "source_port_id": "out",
+        "target_node_id": "end",
+        "target_port_id": "in"
+       }
+      ],
+      "id": "caller-whole-extra",
+      "kind": "agent",
+      "name": "caller-whole-extra",
+      "nodes": [
+       {
+        "config": {
+         "execution": {
+          "outputs": [
+           {
+            "name": "message",
+            "source": {
+             "kind": "result",
+             "path": [
+              "message"
+             ]
+            }
+           }
+          ]
+         }
+        },
+        "id": "start",
+        "type": "start"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [
+           {
+            "missing": "error",
+            "name": "message",
+            "value": {
+             "kind": "ref",
+             "node_id": "start",
+             "path": [
+              "message"
+             ]
+            }
+           }
+          ],
+          "outputs": [
+           {
+            "name": "message",
+            "source": {
+             "kind": "result",
+             "path": [
+              "message"
+             ]
+            }
+           },
+           {
+            "name": "context",
+            "source": {
+             "kind": "result",
+             "path": [
+              "context"
+             ]
+            }
+           }
+          ]
+         },
+         "kernel": {
+          "history": "root",
+          "json_schema": null,
+          "max_iterations": 8,
+          "output_tokens": 512,
+          "overflow": "error",
+          "profile": {
+           "capabilities": {
+            "files": true,
+            "images": true,
+            "json_schema": true
+           },
+           "context_window": 8192,
+           "credential_ref": "openai",
+           "endpoint": "https://api.openai.com/v1",
+           "id": "openai-profile",
+           "model": "test-model",
+           "output_limit": 2048,
+           "protocol": "openai-responses",
+           "provider": "openai"
+          },
+          "prompt": "resolved builtin",
+          "schema_version": 1
+         }
+        },
+        "id": "kernel",
+        "type": "agent"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [
+           {
+            "missing": "error",
+            "name": "message",
+            "value": {
+             "kind": "ref",
+             "node_id": "start",
+             "path": [
+              "message"
+             ]
+            }
+           },
+           {
+            "missing": "error",
+            "name": "unlisted",
+            "value": {
+             "kind": "literal",
+             "value": 23
+            }
+           },
+           {
+            "missing": "error",
+            "name": "extra",
+            "value": {
+             "kind": "literal",
+             "value": "hello"
+            }
+           }
+          ],
+          "outputs": [
+           {
+            "name": "answer",
+            "source": {
+             "kind": "result",
+             "path": [
+              "answer"
+             ]
+            }
+           }
+          ]
+         },
+         "workflow": {
+          "revision_id": "rev-1-fbbaf7deba6d59c1",
+          "workflow_id": "wf-whole-extra"
+         }
+        },
+        "id": "call",
+        "type": "workflow_call"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [
+           {
+            "missing": "error",
+            "name": "answer",
+            "value": {
+             "kind": "ref",
+             "node_id": "call",
+             "path": [
+              "answer"
+             ]
+            }
+           }
+          ],
+          "outputs": [
+           {
+            "name": "message",
+            "source": {
+             "kind": "input",
+             "path": [
+              "answer"
+             ]
+            }
+           }
+          ]
+         }
+        },
+        "id": "end",
+        "type": "end"
+       }
+      ],
+      "schema_version": 1
+     },
+     "diagnostics": []
+    },
+    "sources_manifest": {
+     "entries": [],
+     "schema": "pupu.skeleton-code-sources.v1"
+    },
+    "contents": [],
+    "content_digest": "00052d01ecfc4fca9ea89bfdb4707b2a5774a5fdd80af28b801d0e755c7639b7"
+   }
+  },
+  {
+   "case": "caller_get",
+   "reply": {
+    "schema": "pupu.skeleton-resource.v2",
+    "resource": {
+     "id": "caller-whole-extra",
+     "kind": "agent",
+     "name": "caller-whole-extra",
+     "description": "",
+     "archived": false,
+     "edit_token": "edit-1-00052d01ecfc4fca9ea89bfd",
+     "draft_digest": "2219ca63ff26241468837e6a03b6a732dec2742872dcc449ab63e82842a41e54",
+     "source_identity": null,
+     "document": {
+      "edges": [
+       {
+        "id": "flow-start-kernel",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "kernel",
+        "target_port_id": "in"
+       },
+       {
+        "id": "flow-kernel-call",
+        "kind": "flow",
+        "source_node_id": "kernel",
+        "source_port_id": "out",
+        "target_node_id": "call",
+        "target_port_id": "in"
+       },
+       {
+        "id": "flow-call-end",
+        "kind": "flow",
+        "source_node_id": "call",
+        "source_port_id": "out",
+        "target_node_id": "end",
+        "target_port_id": "in"
+       }
+      ],
+      "id": "caller-whole-extra",
+      "kind": "agent",
+      "name": "caller-whole-extra",
+      "nodes": [
+       {
+        "config": {
+         "execution": {
+          "outputs": [
+           {
+            "name": "message",
+            "source": {
+             "kind": "result",
+             "path": [
+              "message"
+             ]
+            }
+           }
+          ]
+         }
+        },
+        "id": "start",
+        "type": "start"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [
+           {
+            "missing": "error",
+            "name": "message",
+            "value": {
+             "kind": "ref",
+             "node_id": "start",
+             "path": [
+              "message"
+             ]
+            }
+           }
+          ],
+          "outputs": [
+           {
+            "name": "message",
+            "source": {
+             "kind": "result",
+             "path": [
+              "message"
+             ]
+            }
+           },
+           {
+            "name": "context",
+            "source": {
+             "kind": "result",
+             "path": [
+              "context"
+             ]
+            }
+           }
+          ]
+         },
+         "kernel": {
+          "history": "root",
+          "json_schema": null,
+          "max_iterations": 8,
+          "output_tokens": 512,
+          "overflow": "error",
+          "profile": {
+           "capabilities": {
+            "files": true,
+            "images": true,
+            "json_schema": true
+           },
+           "context_window": 8192,
+           "credential_ref": "openai",
+           "endpoint": "https://api.openai.com/v1",
+           "id": "openai-profile",
+           "model": "test-model",
+           "output_limit": 2048,
+           "protocol": "openai-responses",
+           "provider": "openai"
+          },
+          "prompt": "resolved builtin",
+          "schema_version": 1
+         }
+        },
+        "id": "kernel",
+        "type": "agent"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [
+           {
+            "missing": "error",
+            "name": "message",
+            "value": {
+             "kind": "ref",
+             "node_id": "start",
+             "path": [
+              "message"
+             ]
+            }
+           },
+           {
+            "missing": "error",
+            "name": "unlisted",
+            "value": {
+             "kind": "literal",
+             "value": 23
+            }
+           },
+           {
+            "missing": "error",
+            "name": "extra",
+            "value": {
+             "kind": "literal",
+             "value": "hello"
+            }
+           }
+          ],
+          "outputs": [
+           {
+            "name": "answer",
+            "source": {
+             "kind": "result",
+             "path": [
+              "answer"
+             ]
+            }
+           }
+          ]
+         },
+         "workflow": {
+          "revision_id": "rev-1-fbbaf7deba6d59c1",
+          "workflow_id": "wf-whole-extra"
+         }
+        },
+        "id": "call",
+        "type": "workflow_call"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [
+           {
+            "missing": "error",
+            "name": "answer",
+            "value": {
+             "kind": "ref",
+             "node_id": "call",
+             "path": [
+              "answer"
+             ]
+            }
+           }
+          ],
+          "outputs": [
+           {
+            "name": "message",
+            "source": {
+             "kind": "input",
+             "path": [
+              "answer"
+             ]
+            }
+           }
+          ]
+         }
+        },
+        "id": "end",
+        "type": "end"
+       }
+      ],
+      "schema_version": 1
+     },
+     "diagnostics": []
+    },
+    "sources_manifest": {
+     "entries": [],
+     "schema": "pupu.skeleton-code-sources.v1"
+    },
+    "contents": [],
+    "content_digest": "00052d01ecfc4fca9ea89bfdb4707b2a5774a5fdd80af28b801d0e755c7639b7"
+   }
+  },
+  {
+   "case": "caller_preflight",
+   "reply": {
+    "ok": true,
+    "id": "caller-whole-extra",
+    "kind": "agent",
+    "definition_digest": "2219ca63ff26241468837e6a03b6a732dec2742872dcc449ab63e82842a41e54",
+    "edit_token": "edit-1-00052d01ecfc4fca9ea89bfd",
+    "document": {
+     "edges": [
+      {
+       "id": "flow-start-kernel",
+       "kind": "flow",
+       "source_node_id": "start",
+       "source_port_id": "out",
+       "target_node_id": "kernel",
+       "target_port_id": "in"
+      },
+      {
+       "id": "flow-kernel-call",
+       "kind": "flow",
+       "source_node_id": "kernel",
+       "source_port_id": "out",
+       "target_node_id": "call",
+       "target_port_id": "in"
+      },
+      {
+       "id": "flow-call-end",
+       "kind": "flow",
+       "source_node_id": "call",
+       "source_port_id": "out",
+       "target_node_id": "end",
+       "target_port_id": "in"
+      }
+     ],
+     "id": "caller-whole-extra",
+     "kind": "agent",
+     "name": "caller-whole-extra",
+     "nodes": [
+      {
+       "config": {
+        "execution": {
+         "outputs": [
+          {
+           "name": "message",
+           "source": {
+            "kind": "result",
+            "path": [
+             "message"
+            ]
+           }
+          }
+         ]
+        }
+       },
+       "id": "start",
+       "type": "start"
+      },
+      {
+       "config": {
+        "execution": {
+         "inputs": [
+          {
+           "missing": "error",
+           "name": "message",
+           "value": {
+            "kind": "ref",
+            "node_id": "start",
+            "path": [
+             "message"
+            ]
+           }
+          }
+         ],
+         "outputs": [
+          {
+           "name": "message",
+           "source": {
+            "kind": "result",
+            "path": [
+             "message"
+            ]
+           }
+          },
+          {
+           "name": "context",
+           "source": {
+            "kind": "result",
+            "path": [
+             "context"
+            ]
+           }
+          }
+         ]
+        },
+        "kernel": {
+         "history": "root",
+         "json_schema": null,
+         "max_iterations": 8,
+         "output_tokens": 512,
+         "overflow": "error",
+         "profile": {
+          "capabilities": {
+           "files": true,
+           "images": true,
+           "json_schema": true
+          },
+          "context_window": 8192,
+          "credential_ref": "openai",
+          "endpoint": "https://api.openai.com/v1",
+          "id": "openai-profile",
+          "model": "test-model",
+          "output_limit": 2048,
+          "protocol": "openai-responses",
+          "provider": "openai"
+         },
+         "prompt": "resolved builtin",
+         "schema_version": 1
+        }
+       },
+       "id": "kernel",
+       "type": "agent"
+      },
+      {
+       "config": {
+        "execution": {
+         "inputs": [
+          {
+           "missing": "error",
+           "name": "message",
+           "value": {
+            "kind": "ref",
+            "node_id": "start",
+            "path": [
+             "message"
+            ]
+           }
+          },
+          {
+           "missing": "error",
+           "name": "unlisted",
+           "value": {
+            "kind": "literal",
+            "value": 23
+           }
+          },
+          {
+           "missing": "error",
+           "name": "extra",
+           "value": {
+            "kind": "literal",
+            "value": "hello"
+           }
+          }
+         ],
+         "outputs": [
+          {
+           "name": "answer",
+           "source": {
+            "kind": "result",
+            "path": [
+             "answer"
+            ]
+           }
+          }
+         ]
+        },
+        "workflow": {
+         "revision_id": "rev-1-fbbaf7deba6d59c1",
+         "workflow_id": "wf-whole-extra"
+        }
+       },
+       "id": "call",
+       "type": "workflow_call"
+      },
+      {
+       "config": {
+        "execution": {
+         "inputs": [
+          {
+           "missing": "error",
+           "name": "answer",
+           "value": {
+            "kind": "ref",
+            "node_id": "call",
+            "path": [
+             "answer"
+            ]
+           }
+          }
+         ],
+         "outputs": [
+          {
+           "name": "message",
+           "source": {
+            "kind": "input",
+            "path": [
+             "answer"
+            ]
+           }
+          }
+         ]
+        }
+       },
+       "id": "end",
+       "type": "end"
+      }
+     ],
+     "schema_version": 1
+    },
+    "diagnostics": [],
+    "dependencies": [
+     {
+      "workflow_id": "wf-whole-extra",
+      "revision_id": "rev-1-fbbaf7deba6d59c1",
+      "definition_digest": "fbbaf7deba6d59c1f7e221159c29f373e66ef65a8a7215288701d131025072d5"
+     }
+    ],
+    "subagents": []
+   }
+  },
+  {
+   "case": "run",
+   "inputs": {
+    "message": "m",
+    "unlisted": 23,
+    "extra": "hello"
+   },
+   "reply": {
+    "outputs": {
+     "answer": {
+      "message": "m",
+      "unlisted": 23,
+      "extra": "hello"
+     },
+     "named": "hello"
+    }
+   }
+  }
+ ]
+}

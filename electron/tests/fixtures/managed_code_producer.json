@@ -1,0 +1,793 @@
+{
+  "capabilities": {
+    "bindings": 256,
+    "edit_schema": "pupu.skeleton-edit.v2",
+    "preflight_schema": "pupu.skeleton-preflight.v2",
+    "publication_schema": "pupu.skeleton-publish.v2",
+    "request_bytes": 41943040,
+    "resource_schema": "pupu.skeleton-resource.v2",
+    "runtime_manifest": {
+      "manifest_digest": "sha256:f6daf3894dd947723ee7dc60392277896b88c4890d35373b26442a1833a28101",
+      "protocols": [
+        {
+          "features": [
+            "artifact_handoff",
+            "canonical_journal",
+            "chat_deletion_sqlite_scope_closure",
+            "context_compiler",
+            "context_content_paging_v1",
+            "context_content_read_recovery_v1",
+            "context_contribution_manifest_v1",
+            "generation_rebase_live_interaction_cycles",
+            "interaction_resolution_compat",
+            "long_term_promotion",
+            "memory_curator",
+            "memory_toolkit",
+            "memory_workspace",
+            "tool_output_management_v1"
+          ],
+          "id": "context_memory",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "features": [
+            "cancel_pending",
+            "expected_interaction_id_cas",
+            "fresh_run_lineage",
+            "graph_interaction_lineage_preflight_v1",
+            "host_controlled_resume",
+            "interaction_resolution_atomic_acceptance_v1"
+          ],
+          "id": "durable_interaction",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "features": [
+            "atomic_receipt_cas",
+            "auxiliary_calls",
+            "enforce_mode",
+            "graph_runs",
+            "memory_off",
+            "ollama_reasoning_preview_v1",
+            "provider_response_outcomes_v1",
+            "provider_uncertainty_diagnostics_v1",
+            "subagent_runs"
+          ],
+          "id": "provider_turn_ownership",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "features": [
+            "canonical_metrics",
+            "completion_diagnostics_ref",
+            "context_composition_ref_v1",
+            "continuation_claim",
+            "immutable_pricing_snapshot",
+            "provider_call_set_union",
+            "provider_call_usage_v1",
+            "run_bundle_v1",
+            "run_bundle_v2"
+          ],
+          "id": "run_bundle",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "features": [
+            "code_python_v1",
+            "draft_diagnostics_v1",
+            "durable_exclusive_dag_v2",
+            "end_only_root_completion_v1",
+            "explicit_bindings_v1",
+            "hook_phase_receipts_v1",
+            "kernel_profiles_v1",
+            "legacy_conversion_v1",
+            "non_llm_workflow_v1",
+            "pinned_workflow_calls_v1",
+            "production_host_bindings_v1",
+            "skill_read_v1",
+            "structured_output_v1",
+            "subagent_graphs_v1",
+            "tool_call_v1"
+          ],
+          "id": "skeleton_execution",
+          "major": 1,
+          "minor": 1
+        },
+        {
+          "features": [
+            "active_skills_snapshot_v1",
+            "catalog_v1",
+            "skill_md_registry_v1",
+            "skill_tool_v1",
+            "toolkit_embedded_skills_v1",
+            "user_invocation_v1"
+          ],
+          "id": "skills",
+          "major": 1,
+          "minor": 0
+        }
+      ],
+      "runtime": "unchain",
+      "schema": "unchain.runtime_protocol_manifest.v1"
+    },
+    "schema": "pupu.skeleton-code-capabilities.v1",
+    "source_bytes": 4194304,
+    "total_bytes": 16777216,
+    "version_schema": "pupu.skeleton-workflow-version.v2"
+  },
+  "resource": {
+    "content_digest": "b2c73659449e5ff2297da5a4ee9fc8fe89749729ac6b791faf34a834297c440b",
+    "contents": [
+      {
+        "sha256": "108d15156007fb51bf4a5ef5bcd048a833eb36623666cdfaa8edc72f5d300fc6",
+        "text": "def main(input, context):\n    return {\"message\": \"Stored: \" + input[\"message\"]}\n"
+      }
+    ],
+    "resource": {
+      "archived": false,
+      "description": "",
+      "diagnostics": [],
+      "document": {
+        "edges": [
+          {
+            "id": "a",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "kernel",
+            "target_port_id": "in"
+          },
+          {
+            "id": "b",
+            "kind": "flow",
+            "source_node_id": "kernel",
+            "source_port_id": "out",
+            "target_node_id": "code",
+            "target_port_id": "in"
+          },
+          {
+            "id": "code-end",
+            "kind": "flow",
+            "source_node_id": "code",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          }
+        ],
+        "id": "source-agent",
+        "kind": "agent",
+        "name": "Agent",
+        "nodes": [
+          {
+            "config": {
+              "execution": {
+                "outputs": [
+                  {
+                    "name": "message",
+                    "source": {
+                      "kind": "result",
+                      "path": [
+                        "message"
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "id": "start",
+            "type": "start"
+          },
+          {
+            "config": {
+              "execution": {
+                "inputs": [
+                  {
+                    "missing": "error",
+                    "name": "message",
+                    "value": {
+                      "kind": "ref",
+                      "node_id": "start",
+                      "path": [
+                        "message"
+                      ]
+                    }
+                  }
+                ],
+                "outputs": [
+                  {
+                    "name": "message",
+                    "source": {
+                      "kind": "result",
+                      "path": [
+                        "message"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "context",
+                    "source": {
+                      "kind": "result",
+                      "path": [
+                        "context"
+                      ]
+                    }
+                  }
+                ]
+              },
+              "kernel": {
+                "history": "root",
+                "json_schema": null,
+                "max_iterations": 8,
+                "output_tokens": 512,
+                "overflow": "error",
+                "profile": {
+                  "capabilities": {
+                    "files": true,
+                    "images": true,
+                    "json_schema": true
+                  },
+                  "context_window": 8192,
+                  "credential_ref": "openai",
+                  "endpoint": "https://api.openai.com/v1",
+                  "id": "openai-profile",
+                  "model": "test-model",
+                  "output_limit": 2048,
+                  "protocol": "openai-responses",
+                  "provider": "openai"
+                },
+                "prompt": "resolved builtin",
+                "schema_version": 1
+              }
+            },
+            "id": "kernel",
+            "type": "agent"
+          },
+          {
+            "config": {
+              "execution": {
+                "inputs": [
+                  {
+                    "missing": "error",
+                    "name": "message",
+                    "value": {
+                      "kind": "ref",
+                      "node_id": "code",
+                      "path": [
+                        "message"
+                      ]
+                    }
+                  }
+                ],
+                "outputs": [
+                  {
+                    "name": "message",
+                    "source": {
+                      "kind": "input",
+                      "path": [
+                        "message"
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "id": "end",
+            "type": "end"
+          },
+          {
+            "config": {
+              "code": {
+                "environment_profile_id": "builtin",
+                "max_log_bytes": 10000,
+                "max_result_bytes": 10000,
+                "result_schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ],
+                  "type": "object"
+                },
+                "source": {
+                  "kind": "file",
+                  "path": "__pupu_code__/sha256/108d15156007fb51bf4a5ef5bcd048a833eb36623666cdfaa8edc72f5d300fc6.py"
+                },
+                "timeout_ms": 5000
+              },
+              "execution": {
+                "inputs": [
+                  {
+                    "missing": "error",
+                    "name": "message",
+                    "value": {
+                      "kind": "ref",
+                      "node_id": "kernel",
+                      "path": [
+                        "message"
+                      ]
+                    }
+                  }
+                ],
+                "outputs": [
+                  {
+                    "name": "message",
+                    "source": {
+                      "kind": "result",
+                      "path": [
+                        "message"
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "id": "code",
+            "type": "code"
+          }
+        ],
+        "schema_version": 1
+      },
+      "draft_digest": "37b78962f77e644b358c55ff9cb725fbd8160bbc5bfbd45389a88c320c3b8915",
+      "edit_token": "edit-1-b2c73659449e5ff2297da5a4",
+      "id": "source-agent",
+      "kind": "agent",
+      "name": "Agent",
+      "source_identity": null
+    },
+    "schema": "pupu.skeleton-resource.v2",
+    "sources_manifest": {
+      "entries": [
+        {
+          "node_path": [
+            "nodes",
+            3
+          ],
+          "sha256": "108d15156007fb51bf4a5ef5bcd048a833eb36623666cdfaa8edc72f5d300fc6"
+        }
+      ],
+      "schema": "pupu.skeleton-code-sources.v1"
+    }
+  },
+  "preflight": {
+    "preflight": {
+      "definition_digest": "37b78962f77e644b358c55ff9cb725fbd8160bbc5bfbd45389a88c320c3b8915",
+      "dependencies": [],
+      "diagnostics": [],
+      "document": {
+        "edges": [
+          {
+            "id": "a",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "kernel",
+            "target_port_id": "in"
+          },
+          {
+            "id": "b",
+            "kind": "flow",
+            "source_node_id": "kernel",
+            "source_port_id": "out",
+            "target_node_id": "code",
+            "target_port_id": "in"
+          },
+          {
+            "id": "code-end",
+            "kind": "flow",
+            "source_node_id": "code",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          }
+        ],
+        "id": "source-agent",
+        "kind": "agent",
+        "name": "Agent",
+        "nodes": [
+          {
+            "config": {
+              "execution": {
+                "outputs": [
+                  {
+                    "name": "message",
+                    "source": {
+                      "kind": "result",
+                      "path": [
+                        "message"
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "id": "start",
+            "type": "start"
+          },
+          {
+            "config": {
+              "execution": {
+                "inputs": [
+                  {
+                    "missing": "error",
+                    "name": "message",
+                    "value": {
+                      "kind": "ref",
+                      "node_id": "start",
+                      "path": [
+                        "message"
+                      ]
+                    }
+                  }
+                ],
+                "outputs": [
+                  {
+                    "name": "message",
+                    "source": {
+                      "kind": "result",
+                      "path": [
+                        "message"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "context",
+                    "source": {
+                      "kind": "result",
+                      "path": [
+                        "context"
+                      ]
+                    }
+                  }
+                ]
+              },
+              "kernel": {
+                "history": "root",
+                "json_schema": null,
+                "max_iterations": 8,
+                "output_tokens": 512,
+                "overflow": "error",
+                "profile": {
+                  "capabilities": {
+                    "files": true,
+                    "images": true,
+                    "json_schema": true
+                  },
+                  "context_window": 8192,
+                  "credential_ref": "openai",
+                  "endpoint": "https://api.openai.com/v1",
+                  "id": "openai-profile",
+                  "model": "test-model",
+                  "output_limit": 2048,
+                  "protocol": "openai-responses",
+                  "provider": "openai"
+                },
+                "prompt": "resolved builtin",
+                "schema_version": 1
+              }
+            },
+            "id": "kernel",
+            "type": "agent"
+          },
+          {
+            "config": {
+              "execution": {
+                "inputs": [
+                  {
+                    "missing": "error",
+                    "name": "message",
+                    "value": {
+                      "kind": "ref",
+                      "node_id": "code",
+                      "path": [
+                        "message"
+                      ]
+                    }
+                  }
+                ],
+                "outputs": [
+                  {
+                    "name": "message",
+                    "source": {
+                      "kind": "input",
+                      "path": [
+                        "message"
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "id": "end",
+            "type": "end"
+          },
+          {
+            "config": {
+              "code": {
+                "environment_profile_id": "builtin",
+                "max_log_bytes": 10000,
+                "max_result_bytes": 10000,
+                "result_schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ],
+                  "type": "object"
+                },
+                "source": {
+                  "kind": "file",
+                  "path": "__pupu_code__/sha256/108d15156007fb51bf4a5ef5bcd048a833eb36623666cdfaa8edc72f5d300fc6.py"
+                },
+                "timeout_ms": 5000
+              },
+              "execution": {
+                "inputs": [
+                  {
+                    "missing": "error",
+                    "name": "message",
+                    "value": {
+                      "kind": "ref",
+                      "node_id": "kernel",
+                      "path": [
+                        "message"
+                      ]
+                    }
+                  }
+                ],
+                "outputs": [
+                  {
+                    "name": "message",
+                    "source": {
+                      "kind": "result",
+                      "path": [
+                        "message"
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "id": "code",
+            "type": "code"
+          }
+        ],
+        "schema_version": 1
+      },
+      "edit_token": "edit-1-b2c73659449e5ff2297da5a4",
+      "id": "source-agent",
+      "kind": "agent",
+      "ok": true,
+      "subagents": []
+    },
+    "schema": "pupu.skeleton-preflight.v2"
+  },
+  "edit": {
+    "schema": "pupu.skeleton-edit.v2",
+    "document": {
+      "schema_version": 1,
+      "kind": "agent",
+      "id": "source-agent",
+      "name": "Agent",
+      "nodes": [
+        {
+          "id": "start",
+          "type": "start",
+          "config": {
+            "execution": {
+              "outputs": [
+                {
+                  "name": "message",
+                  "source": {
+                    "kind": "result",
+                    "path": [
+                      "message"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "id": "kernel",
+          "type": "agent",
+          "config": {
+            "execution": {
+              "inputs": [
+                {
+                  "name": "message",
+                  "value": {
+                    "kind": "ref",
+                    "node_id": "start",
+                    "path": [
+                      "message"
+                    ]
+                  },
+                  "missing": "error"
+                }
+              ],
+              "outputs": [
+                {
+                  "name": "message",
+                  "source": {
+                    "kind": "result",
+                    "path": [
+                      "message"
+                    ]
+                  }
+                },
+                {
+                  "name": "context",
+                  "source": {
+                    "kind": "result",
+                    "path": [
+                      "context"
+                    ]
+                  }
+                }
+              ]
+            },
+            "kernel": {
+              "schema_version": 1,
+              "profile": {
+                "id": "openai-profile",
+                "provider": "openai",
+                "model": "test-model",
+                "protocol": "openai-responses",
+                "endpoint": "https://api.openai.com/v1",
+                "credential_ref": "openai",
+                "context_window": 8192,
+                "output_limit": 2048,
+                "capabilities": {
+                  "json_schema": true,
+                  "images": true,
+                  "files": true
+                }
+              },
+              "prompt": "resolved builtin",
+              "max_iterations": 8,
+              "output_tokens": 512,
+              "history": "root",
+              "overflow": "error",
+              "json_schema": null
+            }
+          }
+        },
+        {
+          "id": "end",
+          "type": "end",
+          "config": {
+            "execution": {
+              "inputs": [
+                {
+                  "name": "message",
+                  "value": {
+                    "kind": "ref",
+                    "node_id": "code",
+                    "path": [
+                      "message"
+                    ]
+                  },
+                  "missing": "error"
+                }
+              ],
+              "outputs": [
+                {
+                  "name": "message",
+                  "source": {
+                    "kind": "input",
+                    "path": [
+                      "message"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "id": "code",
+          "type": "code",
+          "config": {
+            "execution": {
+              "inputs": [
+                {
+                  "name": "message",
+                  "value": {
+                    "kind": "ref",
+                    "node_id": "kernel",
+                    "path": [
+                      "message"
+                    ]
+                  },
+                  "missing": "error"
+                }
+              ],
+              "outputs": [
+                {
+                  "name": "message",
+                  "source": {
+                    "kind": "result",
+                    "path": [
+                      "message"
+                    ]
+                  }
+                }
+              ]
+            },
+            "code": {
+              "source": {
+                "kind": "file",
+                "path": "external.py"
+              },
+              "environment_profile_id": "builtin",
+              "timeout_ms": 5000,
+              "max_result_bytes": 10000,
+              "max_log_bytes": 10000,
+              "result_schema": {
+                "type": "object",
+                "properties": {
+                  "message": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "message"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "a",
+          "kind": "flow",
+          "source_node_id": "start",
+          "source_port_id": "out",
+          "target_node_id": "kernel",
+          "target_port_id": "in"
+        },
+        {
+          "id": "b",
+          "kind": "flow",
+          "source_node_id": "kernel",
+          "source_port_id": "out",
+          "target_node_id": "code",
+          "target_port_id": "in"
+        },
+        {
+          "id": "code-end",
+          "kind": "flow",
+          "source_node_id": "code",
+          "source_port_id": "out",
+          "target_node_id": "end",
+          "target_port_id": "in"
+        }
+      ]
+    },
+    "expected_edit_token": null,
+    "managed_sources": [
+      {
+        "node_path": [
+          "nodes",
+          3
+        ],
+        "text": "def main(input, context):\n    return {\"message\": \"Stored: \" + input[\"message\"]}\n"
+      }
+    ]
+  }
+}

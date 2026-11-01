@@ -8,16 +8,30 @@ import React, {
 } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import DetailPanel from "./recipes_page/detail_panel/detail_panel";
-import SkeletonSaveBar from "./recipes_page/skeleton_save_bar";
-import useSkeletonResource from "./recipes_page/use_skeleton_resource";
+import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import {
-  can_convert_legacy_pools,
-  diagnostics_are_current,
-} from "./recipes_page/skeleton_resource_session";
+  AboveControls,
+  CanvasCaptionChip,
+  CanvasControlCenter,
+  CanvasMessageStrip,
+  ControlPopover,
+  FloatingBreadcrumb,
+  FloatingDetailShell,
+  VISUALLY_HIDDEN,
+} from "./recipes_page/canvas_chrome";
+import SkeletonRunMenu, { RunTrigger } from "./recipes_page/skeleton_run_menu";
+import useSkeletonResource from "./recipes_page/use_skeleton_resource";
 import SkeletonCanvas from "./recipes_page/skeleton_canvas";
 import { apply_graph_command } from "./recipes_page/skeleton_graph_commands";
-import SkeletonDrillBreadcrumb from "./recipes_page/skeleton_drill_breadcrumb";
-import { SESSION_STATUS } from "./recipes_page/skeleton_resource_session";
+import {
+  SESSION_STATUS,
+  can_convert_legacy_pools,
+  can_redo,
+  can_save,
+  can_undo,
+  conflict_message,
+  diagnostics_are_current,
+} from "./recipes_page/skeleton_resource_session";
 import { why_not_a_subagent } from "./recipes_page/skeleton_subagent_eligibility";
 import {
   copySkeletonLayout,
@@ -44,6 +58,9 @@ import {
   frame_is_stale,
   gone_message,
   graph_label,
+  HOOK_MEMBER,
+  hook_drill_target,
+  hook_entry_for,
   left_behind_message,
   notices_still_true,
   open_failed_message,
@@ -54,6 +71,16 @@ import {
   unwind_drill_stack,
   with_embedded_document,
 } from "./recipes_page/skeleton_drill";
+import { read_workflow_revision_view } from "./recipes_page/skeleton_resources";
+import {
+  PIN_CHANGED_MESSAGE,
+  pin_still_held,
+  pinned_open_failed_message,
+  pinned_view_caption,
+  pinned_view_crumbs,
+  pinned_view_key,
+  pinned_view_label,
+} from "./recipes_page/pinned_workflow_view";
 
 /* One Skeleton resource, open for editing.
  *
@@ -86,18 +113,52 @@ import {
  * resource: its edits are in the live session, and restoring a session on the
  * way back would throw them away. A reference step did, and its frame carries
  * the whole sitting — the unsaved document, the token, the dirty flag, the
- * selection — because going back is navigation and must not re-read. */
+ * selection — because going back is navigation and must not re-read.
+ *
+ * ── Looking at a pinned Workflow revision ───────────────────────────────
+ *
+ * A Workflow Call runs one published revision, and the author can open it to
+ * see what will run (#357). That is neither kind of frame above: a revision
+ * is not editable anywhere, so nothing is restored on the way back and there
+ * is no session to keep. The view is laid over this sitting instead — the
+ * session, the drill steps, the selection and the panel stay exactly as they
+ * were, merely not shown — and going back simply stops laying it over. */
 
-const PANEL = (isDark) => ({
-  display: "flex",
-  flexDirection: "column",
-  gap: 10,
-  padding: 12,
-  height: "100%",
-  minHeight: 0,
-  boxSizing: "border-box",
+/* The page is the canvas: everything else floats over it (see canvas_chrome). */
+const PAGE = (isDark) => ({
+  position: "absolute",
+  inset: 0,
+  overflow: "hidden",
   color: "var(--pupu-text)",
   backgroundColor: isDark ? "var(--pupu-background)" : "var(--pupu-background)",
+});
+
+const CANVAS_FRAME = {
+  position: "absolute",
+  inset: 0,
+  display: "flex",
+  flexDirection: "column",
+};
+
+/* What stands in for the canvas while there is none: opening, or a resource
+   that could not be opened. */
+const CENTERED = {
+  position: "absolute",
+  inset: 0,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: 24,
+  textAlign: "center",
+  pointerEvents: "none",
+};
+
+/* Used when the page is shown without the Agents page around it (its own
+   tests): a detail panel at the legacy minimum, with nothing to drag. */
+const DEFAULT_CHROME = Object.freeze({
+  crumbTop: 20,
+  crumbLeft: 14,
+  detail: Object.freeze({ width: 300, minWidth: 300, resizing: false }),
 });
 
 /* One frozen list, so an unchecked draft hands the panel the same value every
@@ -106,29 +167,15 @@ const NOTHING_CHECKED = Object.freeze([]);
 
 const NOTE = { fontSize: 11, color: "#86868b", lineHeight: 1.45 };
 
-const NOTICE = {
-  fontSize: 11,
-  lineHeight: 1.5,
-  color: "rgba(176,32,32,0.95)",
-  flexShrink: 0,
-};
-
-const ROW = (isDark, selected) => ({
-  display: "flex",
-  alignItems: "center",
-  gap: 8,
-  padding: "5px 9px",
-  borderRadius: 6,
-  cursor: "pointer",
-  fontSize: 11.5,
-  background: selected
-    ? isDark
-      ? "rgba(255,255,255,0.07)"
-      : "rgba(0,0,0,0.05)"
-    : "transparent",
-});
-
-export default function SkeletonResourcePage({ resourceId, newDraft, onDrilledChange }) {
+export default function SkeletonResourcePage({
+  resourceId,
+  newDraft,
+  onDrilledChange,
+  onDirtyChange,
+  /* Where the shared chrome sits on the Agents page, and the detail panel's
+     width there (one width for both canvases). */
+  chrome = DEFAULT_CHROME,
+}) {
   const cfg = useContext(ConfigContext);
   const isDark = cfg?.onThemeMode === "dark_mode";
   const {
@@ -139,6 +186,8 @@ export default function SkeletonResourcePage({ resourceId, newDraft, onDrilledCh
     restore,
     edit,
     editCurrent,
+    undo,
+    redo,
     save,
     keepMine,
     takeTheirs,
@@ -146,6 +195,10 @@ export default function SkeletonResourcePage({ resourceId, newDraft, onDrilledCh
     convertLegacyPools,
   } = useSkeletonResource();
   const [selectedNodeId, setSelectedNodeId] = useState(null);
+  /* The control center's: Home, the Run menu, and an edit the canvas refused. */
+  const [homeToken, setHomeToken] = useState(0);
+  const [runOpen, setRunOpen] = useState(false);
+  const [canvasProblem, setCanvasProblem] = useState(null);
   /* The graphs left behind, outermost first. */
   const [drillFrames, setDrillStack] = useState([]);
   /* Where inside THIS resource's document the open graph sits: one step per
@@ -154,6 +207,9 @@ export default function SkeletonResourcePage({ resourceId, newDraft, onDrilledCh
      graph. */
   const [drillSteps, setSteps] = useState([]);
   const [notices, setNotices] = useState([]);
+  /* The pinned revision on screen, read-only, or null: `{pin, node_id,
+     version, sources}`. */
+  const [pinned, setPinned] = useState(null);
   /* How many times each resource has been written in this sitting. The same
      Agent can sit at two depths — a graph referencing an Agent that references
      it back — so saving deeper can write the very resource a frame below holds
@@ -198,6 +254,7 @@ export default function SkeletonResourcePage({ resourceId, newDraft, onDrilledCh
     setDrillStack([]);
     setSteps([]);
     setNotices([]);
+    setPinned(null);
   }, [resourceId, newDraft, create, load, navigate]);
 
   const resource_document = session.document;
@@ -235,6 +292,12 @@ export default function SkeletonResourcePage({ resourceId, newDraft, onDrilledCh
   useEffect(() => {
     if (typeof onDrilledChange === "function") onDrilledChange(drilled);
   }, [drilled, onDrilledChange]);
+  /* Whether the open resource holds work the store does not have yet. The
+     Agents explorer asks before renaming or archiving it, because both are
+     writes to the stored version that this editor would then conflict with. */
+  useEffect(() => {
+    if (typeof onDirtyChange === "function") onDirtyChange(Boolean(session.dirty));
+  }, [session.dirty, onDirtyChange]);
 
   /* What is on screen: this resource's own graph, or the embedded graph the
      steps reach. */
@@ -247,13 +310,13 @@ export default function SkeletonResourcePage({ resourceId, newDraft, onDrilledCh
 
   useEffect(() => {
     if (lost === null) return;
+    setPinned(null);
     setSteps([]);
     setDrillStack((frames) => closed_embedded_frames(frames));
     setSelectedNodeId(null);
     setNotices([lost]);
   }, [lost]);
 
-  const nodes = (document && document.nodes) || [];
   const resource_label = graph_label(resource_document, session.resource_id);
   const shown_label = graph_label(document, session.resource_id);
 
@@ -261,10 +324,11 @@ export default function SkeletonResourcePage({ resourceId, newDraft, onDrilledCh
      what makes Save write the parent: there is only ever one document on its
      way to the store. */
   const edit_shown = useCallback(
-    (next) => {
-      if (steps.length === 0) return edit(next);
+    (next, sources = null) => {
+      if (steps.length === 0) return edit(next, sources);
       return edit(
         with_embedded_document(session.document, steps, next, revision),
+        sources,
       );
     },
     [edit, revision, session.document, steps],
@@ -466,6 +530,48 @@ export default function SkeletonResourcePage({ resourceId, newDraft, onDrilledCh
     ],
   );
 
+  /* Opening a hook's own Workflow (#357). It is part of this resource, so it
+     is opened exactly as an embedded subagent is — a step into the document
+     already loaded, edited in the live session and saved with this Agent —
+     and only a hook whose Workflow is its own can be opened this way. */
+  const open_embedded_hook = useCallback(
+    ({ pool_node_id, entry_id, entry_index }) => {
+      navigate();
+      setNotices([]);
+      const blocked = drill_blocked_reason(session);
+      if (blocked) {
+        setNotices([blocked]);
+        return;
+      }
+      const clicked = { node_id: pool_node_id, entry_id, entry_index, taken_in: revision, member: HOOK_MEMBER };
+      const found = hook_entry_for(document, clicked, revision);
+      if (!found) {
+        setNotices([gone_message("That hook")]);
+        return;
+      }
+      const target = hook_drill_target(found.entry);
+      if (target.kind !== DRILL.EMBEDDED) {
+        setNotices([target.reason]);
+        return;
+      }
+      const step = drill_step({ node_id: pool_node_id, entry_id, found, revision, member: HOOK_MEMBER });
+      setDrillStack((frames) =>
+        push_drill_frame(
+          frames,
+          frame_for_embedded_step({
+            label: shown_label,
+            steps,
+            selected_node_id: selectedNodeId,
+            via_label: "Hooks Pool",
+          }),
+        ),
+      );
+      setSteps([...steps, step]);
+      setSelectedNodeId(null);
+    },
+    [document, navigate, revision, selectedNodeId, session, shown_label, steps],
+  );
+
   /* An entry given an id of its own, by the pool panel.
    *
    * The panel writes the document — it owns the pool's edits, and this one
@@ -540,6 +646,61 @@ export default function SkeletonResourcePage({ resourceId, newDraft, onDrilledCh
     return drill_to(stack.length - 1);
   }, [stack, drill_to]);
 
+  /* What the page is showing now, for a read that answers later. */
+  const latestRef = useRef(null);
+  latestRef.current = { session, steps, revision };
+
+  /* Opening the revision a Workflow Call is pinned to. The read is the v2
+     revision read with its Code text; nothing else is read (not the
+     Workflow's draft, not its latest revision) and nothing is written. Its
+     answer is adopted only by the navigation that asked for it, and only
+     while the node on screen still holds that very pin. */
+  const open_pinned_workflow = useCallback(
+    async ({ node_id, workflow_id, revision_id }) => {
+      const request = navigate();
+      const pin = { workflow_id, revision_id };
+      const asked = { open_id: session.open_id, steps };
+      setNotices([]);
+      const result = await read_workflow_revision_view(workflow_id, revision_id);
+      if (navigationRef.current !== request) return { ok: false, obsolete: true };
+      const now = latestRef.current;
+      if (now.session.open_id !== asked.open_id || now.steps !== asked.steps) {
+        return { ok: false, obsolete: true };
+      }
+      const shown = now.steps.length === 0
+        ? now.session.document
+        : embedded_document(now.session.document, now.steps, now.revision);
+      if (!pin_still_held(shown, node_id, pin)) {
+        setNotices([PIN_CHANGED_MESSAGE]);
+        return { ok: false };
+      }
+      if (!result.ok) {
+        setNotices([pinned_open_failed_message(result)]);
+        return { ok: false };
+      }
+      setRunOpen(false);
+      setPinned({ pin, node_id, version: result.data.version, sources: result.data.sources });
+      return { ok: true };
+    },
+    [navigate, session.open_id, steps],
+  );
+
+  /* Going back from the revision is only that: the sitting under it never
+     moved. A read still in flight for another open is no longer wanted. */
+  const close_pinned = useCallback(() => {
+    if (!pinned) return false;
+    navigate();
+    setPinned(null);
+    setNotices([]);
+    return true;
+  }, [navigate, pinned]);
+
+  /* Another resource, or another document version taken over this one, is
+     not the sitting the view was opened from. */
+  useEffect(() => {
+    setPinned(null);
+  }, [session.open_id, revision]);
+
   /* Escape goes up one drill level before anything else sees it. Registered on
      `document`, where a bubble listener still precedes the Agents modal's
      `window` one, so stopping propagation here shadows it — the same mechanism
@@ -552,6 +713,19 @@ export default function SkeletonResourcePage({ resourceId, newDraft, onDrilledCh
       if (event.key !== "Escape") return;
       const tag = window.document.activeElement?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
+      /* A pinned revision on screen is the nearest graph to leave. */
+      if (close_pinned() === true) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+      /* An open Run menu is the nearest thing to close. */
+      if (runOpen) {
+        setRunOpen(false);
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
       if (drill_up() === true) {
         event.preventDefault();
         event.stopPropagation();
@@ -559,126 +733,274 @@ export default function SkeletonResourcePage({ resourceId, newDraft, onDrilledCh
     };
     window.document.addEventListener("keydown", onKey);
     return () => window.document.removeEventListener("keydown", onKey);
-  }, [drill_up]);
+  }, [close_pinned, drill_up, runOpen]);
 
-  const crumbs = drilled ? drill_crumbs(stack, shown_label) : [];
+  /* Undo and redo, from the keyboard as well as the control center — the
+     legacy canvas's keys. A field being typed in keeps its own. */
+  useEffect(() => {
+    const onKey = (event) => {
+      const active = window.document.activeElement;
+      const tag = active?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || active?.isContentEditable) return;
+      /* The editor is not on screen under a pinned revision. */
+      if (pinned) return;
+      if (!(event.metaKey || event.ctrlKey) || event.altKey) return;
+      const key = typeof event.key === "string" ? event.key.toLowerCase() : "";
+      if (key === "z" && !event.shiftKey) {
+        event.preventDefault();
+        undo();
+      } else if ((key === "z" && event.shiftKey) || (event.ctrlKey && key === "y")) {
+        event.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [pinned, undo, redo]);
+
+  /* What the control center says belongs to the graph on screen: another
+     resource or another graph inside this one starts without it. */
+  useEffect(() => {
+    setRunOpen(false);
+  }, [session.open_id]);
+  useEffect(() => {
+    setCanvasProblem(null);
+  }, [session.open_id, steps]);
+
+  const editor_crumbs = drilled
+    ? drill_crumbs(stack, shown_label)
+    : [{ label: shown_label, depth: null, navigable: false }];
+  const crumbs = pinned
+    ? pinned_view_crumbs(editor_crumbs, stack.length, pinned.node_id, pinned_view_label(pinned.version))
+    : drilled ? editor_crumbs : [];
+  /* From over a pinned revision, the graph it was opened from is at
+     `stack.length`; anything further up is a drill frame, left as usual. */
+  const navigate_crumb = (depth) => {
+    if (!pinned) return drill_to(depth);
+    close_pinned();
+    return depth === stack.length ? true : drill_to(depth);
+  };
   /* The sentence for a graph that has just gone is said in the same render
      that stops showing it, rather than one commit later. */
   const shown_notices = notices_still_true(lost === null ? notices : [lost], session);
 
+  const ready = session.status === SESSION_STATUS.READY;
+  const conflict = conflict_message(session);
+  const detail = (chrome && chrome.detail) || DEFAULT_CHROME.detail;
+  const messages = [
+    session.error
+      ? { text: session.error.message || session.error.code, testId: "skeleton-save-error" }
+      : null,
+    canvasProblem ? { text: canvasProblem, testId: "skeleton-graph-problem" } : null,
+    shown_notices.length > 0
+      ? {
+          testId: "skeleton-drill-notice",
+          text: shown_notices.map((message, index) => <div key={index}>{message}</div>),
+        }
+      : null,
+  ].filter(Boolean);
+  const showRun = runOpen && ready;
+
   return (
-    <div style={PANEL(isDark)} data-testid="skeleton-resource-page">
-      <SkeletonSaveBar
-        session={session}
-        isDark={isDark}
-        onSave={handleSave}
-        onKeepMine={keepMine}
-        onTakeTheirs={takeTheirs}
-        onPreflight={preflight}
-      />
-
-      {drilled && (
-        <SkeletonDrillBreadcrumb
-          crumbs={crumbs}
+    <div style={PAGE(isDark)} data-testid="skeleton-resource-page">
+      {/* The canvas takes its height by growing (`flex: 1`), so it needs a
+          flex column that fills the page to grow into. Without it the graph
+          was drawn 0px tall. */}
+      {ready && pinned && (
+        <div style={CANVAS_FRAME} data-testid="workflow-pinned-view">
+        <SkeletonCanvas
+          resourceId={pinned_view_key(pinned.pin)}
+          document={pinned.version.document}
+          commandScope="pinned"
+          onSelectNode={() => {}}
+          managedSources={pinned.sources}
+          homeToken={homeToken}
+          onProblem={setCanvasProblem}
           isDark={isDark}
-          onNavigate={drill_to}
-          caption={
-            steps.length > 0 ? save_target_caption(resource_label) : null
-          }
-          note={steps.length > 0 ? EMBEDDED_CHECKED_CAPTION : null}
         />
+        </div>
       )}
-
-      {shown_notices.length > 0 && (
-        <div data-testid="skeleton-drill-notice" style={NOTICE}>
-          {shown_notices.map((message, index) => (
-            <div key={index}>{message}</div>
-          ))}
+      {ready && !pinned && (
+        <div style={CANVAS_FRAME}>
+        <SkeletonCanvas
+          resourceId={drill_layout_key(
+            session.resource_id,
+            resource_document,
+            steps,
+            revision,
+          )}
+          document={document}
+          commandScope={`${session.open_id}:${revision}`}
+          onGraphCommand={(document?.kind === "agent" || document?.kind === "workflow") && document?.schema_version === 1 ? graphCommand : undefined}
+          onSelectNode={setSelectedNodeId}
+          onOpenSubagent={open_subagent}
+          managedSources={session.sources}
+          homeToken={homeToken}
+          onProblem={setCanvasProblem}
+          isDark={isDark}
+        />
         </div>
       )}
 
       {session.status === SESSION_STATUS.LOADING && (
-        <span style={NOTE}>Opening…</span>
-      )}
-
-      {session.status === SESSION_STATUS.LOAD_FAILED && (
-        <span data-testid="skeleton-load-failed" style={NOTE}>
-          {(session.error && session.error.message) ||
-            "This Agent could not be opened."}
-        </span>
-      )}
-
-      {session.status === SESSION_STATUS.READY && (
-        <div style={{ display: "flex", gap: 12, flex: 1, minHeight: 0 }}>
-          {/* The graph, and the same nodes as a list beside it. The list is
-              not a fallback for the canvas — it is how a node is reached by
-              name when the graph is large, and it is what a keyboard can
-              use. */}
-          <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
-            <SkeletonCanvas
-              resourceId={drill_layout_key(
-                session.resource_id,
-                resource_document,
-                steps,
-                revision,
-              )}
-              document={document}
-              commandScope={`${session.open_id}:${revision}`}
-              onGraphCommand={document?.kind === "agent" && document?.schema_version === 1 ? graphCommand : undefined}
-              onSelectNode={setSelectedNodeId}
-              onOpenSubagent={open_subagent}
-              isDark={isDark}
-            />
-            <div
-              data-testid="skeleton-node-list"
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 4,
-                paddingTop: 8,
-                flexShrink: 0,
-              }}
-            >
-              {nodes.map((node) => (
-                <div
-                  key={node.id}
-                  data-testid={`skeleton-node-${node.id}`}
-                  onClick={() => setSelectedNodeId(node.id)}
-                  style={ROW(isDark, node.id === selectedNodeId)}
-                >
-                  <span style={{ fontFamily: "ui-monospace, Menlo, monospace" }}>
-                    {node.id}
-                  </span>
-                  <span style={{ marginLeft: 6, fontSize: 10, color: "#86868b" }}>
-                    {node.type}
-                  </span>
-                </div>
-              ))}
-              {nodes.length === 0 && <span style={NOTE}>This graph has no nodes.</span>}
-            </div>
-          </div>
-
-          <div style={{ width: 320, flexShrink: 0, display: "flex", flexDirection: "column" }}>
-            <DetailPanel
-              recipe={null}
-              selectedNodeId={selectedNodeId}
-              onChange={() => {}}
-              onChangeSilent={() => {}}
-              document={document}
-              documentRevision={session.document_revision}
-              rootDocument={session.document}
-              diagnostics={diagnostics}
-              diagnosticsUnchecked={unchecked}
-              onDocumentChange={edit_shown}
-              onOpenSubagent={open_subagent}
-              onEntryIdRepaired={entry_id_repaired}
-              embedded={steps.length > 0}
-              onConvertLegacy={convertLegacyPools}
-              canConvertLegacy={can_convert_legacy_pools(session) && steps.length === 0}
-              convertingLegacy={session.converting}
-            />
-          </div>
+        <div style={CENTERED}>
+          <span style={NOTE}>Opening…</span>
         </div>
+      )}
+      {session.status === SESSION_STATUS.LOAD_FAILED && (
+        <div style={CENTERED}>
+          <span data-testid="skeleton-load-failed" style={NOTE}>
+            {(session.error && session.error.message) ||
+              "This Agent could not be opened."}
+          </span>
+        </div>
+      )}
+      {session.status === SESSION_STATUS.UNAVAILABLE && (
+        <div style={CENTERED}>
+          <span data-testid="skeleton-store-unavailable" style={NOTE}>
+            The Agent library is not reachable in this build, so nothing here can
+            be saved or run.
+          </span>
+        </div>
+      )}
+
+      {(drilled || pinned) && (
+        <FloatingBreadcrumb
+          isDark={isDark}
+          crumbs={crumbs}
+          onNavigate={navigate_crumb}
+          top={chrome.crumbTop}
+          left={chrome.crumbLeft}
+          testId="skeleton-drill-breadcrumb"
+          crumbsTestId="skeleton-drill-crumbs"
+          crumbAriaLabel={(crumb) => `Back to ${crumb.label}`}
+        />
+      )}
+      {/* What a sub-graph is saved with. An empty diagnostics area would
+          otherwise read as "nothing is wrong" here, and it is not what it
+          means: measured on the real store, the draft check answers the same
+          `[]` for an embedded child with no End as for a healthy one. */}
+      {pinned && (
+        <CanvasCaptionChip isDark={isDark} testId="workflow-pinned-caption">
+          <span>{pinned_view_caption(pinned.version)}</span>
+        </CanvasCaptionChip>
+      )}
+      {!pinned && drilled && steps.length > 0 && (
+        <CanvasCaptionChip isDark={isDark} testId="skeleton-drill-caption">
+          <span data-testid="skeleton-drill-save-target">
+            {save_target_caption(resource_label)}
+          </span>
+          <span data-testid="skeleton-drill-unchecked">{EMBEDDED_CHECKED_CAPTION}</span>
+        </CanvasCaptionChip>
+      )}
+
+      {(conflict || showRun || messages.length > 0) && (
+        <AboveControls testId="skeleton-above-controls">
+          {/* A conflict is not offered as "retry". Retrying at the same token
+              fails identically, and retrying at the newer one replaces the
+              other person's work without anyone seeing it happen. The two
+              honest choices are named for what they do. */}
+          {conflict && (
+            <ControlPopover isDark={isDark} testId="skeleton-save-conflict">
+              <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: 0.3 }}>
+                Saved somewhere else
+              </span>
+              <span style={{ fontSize: 11, lineHeight: 1.45 }}>{conflict}</span>
+              <div style={{ display: "flex", gap: 6 }}>
+                <Button
+                  label="Look at theirs"
+                  onClick={takeTheirs}
+                  style={{ fontSize: 11.5, paddingVertical: 4, paddingHorizontal: 10, borderRadius: 6 }}
+                />
+                <Button
+                  label="Keep mine and replace it"
+                  onClick={keepMine}
+                  style={{
+                    fontSize: 11.5,
+                    paddingVertical: 4,
+                    paddingHorizontal: 10,
+                    borderRadius: 6,
+                    color: "#4a5bd8",
+                  }}
+                />
+              </div>
+            </ControlPopover>
+          )}
+          {showRun && (
+            <SkeletonRunMenu session={session} isDark={isDark} onCheck={preflight} />
+          )}
+          <CanvasMessageStrip isDark={isDark} items={messages} role="alert" />
+        </AboveControls>
+      )}
+
+      {ready && !pinned && (
+        <CanvasControlCenter
+          isDark={isDark}
+          testId="skeleton-control-center"
+          onUndo={undo}
+          onRedo={redo}
+          canUndo={can_undo(session)}
+          canRedo={can_redo(session)}
+          onHome={() => setHomeToken((token) => token + 1)}
+          onSave={handleSave}
+          saveLabel={session.saving ? "Saving…" : "Save"}
+          saveDisabled={!can_save(session)}
+          saveActive={Boolean(session.dirty && !session.conflict)}
+          run={<RunTrigger open={runOpen} onToggle={() => setRunOpen((open) => !open)} />}
+        />
+      )}
+      {session.status !== SESSION_STATUS.EMPTY &&
+        session.status !== SESSION_STATUS.UNAVAILABLE && (
+          <span data-testid="skeleton-save-state" role="status" style={VISUALLY_HIDDEN}>
+            {session.dirty ? "Unsaved changes" : "Saved"}
+          </span>
+        )}
+
+      {ready && (
+        <FloatingDetailShell
+          isDark={isDark}
+          open={Boolean(selectedNodeId) && !pinned}
+          width={detail.width}
+          minWidth={detail.minWidth}
+          resizing={Boolean(detail.resizing)}
+          testId="skeleton-detail-panel-shell"
+          handle={
+            typeof detail.onDragStart === "function"
+              ? {
+                  testId: "skeleton-detail-resize-handle",
+                  pillTestId: "skeleton-detail-resize-pill",
+                  onDragStart: detail.onDragStart,
+                  onDrag: detail.onDrag,
+                  onDragEnd: detail.onDragEnd,
+                }
+              : null
+          }
+        >
+          {/* Remounted by undo and redo: the document under a field was
+              replaced, not typed into, so text it was holding has to go. */}
+          <DetailPanel
+            key={`${session.open_id}:${session.history_epoch || 0}`}
+            recipe={null}
+            selectedNodeId={selectedNodeId}
+            onChange={() => {}}
+            onChangeSilent={() => {}}
+            document={document}
+            documentRevision={session.document_revision}
+            rootDocument={session.document}
+            diagnostics={diagnostics}
+            diagnosticsUnchecked={unchecked}
+            onDocumentChange={edit_shown}
+            managedSources={session.sources}
+            onOpenSubagent={open_subagent}
+            onOpenEmbeddedHook={open_embedded_hook}
+            onOpenPinnedWorkflow={open_pinned_workflow}
+            onEntryIdRepaired={entry_id_repaired}
+            embedded={steps.length > 0}
+            onConvertLegacy={convertLegacyPools}
+            canConvertLegacy={can_convert_legacy_pools(session) && steps.length === 0}
+            convertingLegacy={session.converting}
+          />
+        </FloatingDetailShell>
       )}
     </div>
   );

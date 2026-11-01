@@ -1,5 +1,6 @@
 /* eslint-disable testing-library/no-container, testing-library/no-node-access -- Ports and edges are driven on the actual shared editor. */
 import React from "react";
+import { install_legacy_store_bridge } from "./recipes_page/legacy_store_test_bridge";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import SkeletonResourcePage from "./skeleton_resource_page";
@@ -18,6 +19,8 @@ import { openAddNode, pressCanvasNode } from "./recipes_page/skeleton_canvas_tes
  * out for the strict store + runtime consumer (qualify_tool_call_page.py). */
 
 jest.mock("../../../SERVICEs/api", () => ({ api: { unchain: {} } }));
+/* The editor speaks v2 only (#357 G1); these mocks are graph-only. */
+install_legacy_store_bridge(api.unchain);
 
 const profile = capture.rows[1].document.nodes[1].config.kernel.profile;
 const CATALOG = JSON.parse(toolCapture.catalog_v2.body_text);

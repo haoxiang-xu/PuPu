@@ -1,19 +1,23 @@
 import React from "react";
+import { install_legacy_store_bridge } from "./recipes_page/legacy_store_test_bridge";
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import { api } from "../../../SERVICEs/api";
 import SkeletonResourcePage from "./skeleton_resource_page";
 import capture from "./recipes_page/skeleton_native_embedded_capture.json";
 import { RESOURCE_RESULT_KEYS } from "./recipes_page/skeleton_resource_capture";
+import { openAddNode, pressCanvasNode } from "./recipes_page/skeleton_canvas_test_helpers";
 
 jest.mock("../../../SERVICEs/api", () => ({ api: { unchain: {} } }));
+/* The editor speaks v2 only (#357 G1); these mocks are graph-only. */
+install_legacy_store_bridge(api.unchain);
 const draft = { id: "native-embedded-page", name: "Embedded authoring" };
 const kernel = capture.rows[1].document.nodes[1].config.kernel;
 const stored = (document) => ({ ...Object.fromEntries(RESOURCE_RESULT_KEYS.map((key) => [key, key === "diagnostics" ? [] : null])), document, id: document.id, kind: document.kind, name: document.name, edit_token: "embedded-saved", archived: false });
 async function show() {
   render(<ConfigContext.Provider value={{ theme: {} }}><SkeletonResourcePage resourceId={draft.id} newDraft={draft} /></ConfigContext.Provider>);
   await screen.findByTestId("skeleton-node-agent");
-  fireEvent.click(screen.getByRole("button", { name: "Add node", exact: true }));
+  openAddNode();
   fireEvent.click(screen.getByTestId("palette-entry-subagent_pool"));
   await screen.findByTestId("skeleton-subagent-pool");
 }
@@ -23,7 +27,7 @@ async function save() {
   return api.unchain.saveSkeletonResource.mock.calls.at(-1)[0];
 }
 async function chooseModel() {
-  fireEvent.click(screen.getByTestId("skeleton-node-agent"));
+  pressCanvasNode("agent");
   const models = await screen.findByTestId("kernel-model");
   fireEvent.click(within(models).getByRole("combobox"));
   fireEvent.click(screen.getByText("openai · gpt-6-luna", { exact: true }));
@@ -70,7 +74,7 @@ test("two locally-created children keep separate graphs and nested creation save
   expect(entries.map((e) => e.name)).toEqual(["New Agent", "New Agent 2"]);
   expect(new Set(entries.map((e) => e.source.document.id)).size).toBe(2);
   fireEvent.click(screen.getByRole("button", { name: "Open New Agent 2", exact: true }));
-  fireEvent.click(screen.getByRole("button", { name: "Add node", exact: true }));
+  openAddNode();
   fireEvent.click(screen.getByTestId("palette-entry-subagent_pool"));
   fireEvent.click(screen.getByRole("button", { name: "New embedded Agent", exact: true }));
   payload = await save();
@@ -89,9 +93,9 @@ test("a drilled child checks ancestor graph ids supplied by the owning page", as
   let draws = 0;
   jest.spyOn(window.crypto, "getRandomValues").mockImplementation((bytes) => bytes.fill(++draws === 1 ? 7 : 8));
   render(<ConfigContext.Provider value={{ theme: {} }}><SkeletonResourcePage resourceId={parent.id} /></ConfigContext.Provider>);
-  fireEvent.click(await screen.findByTestId("skeleton-node-pool"));
+  pressCanvasNode(await screen.findByTestId("skeleton-node-pool"));
   fireEvent.click(screen.getByRole("button", { name: "Open New Agent", exact: true }));
-  fireEvent.click(screen.getByRole("button", { name: "Add node", exact: true }));
+  openAddNode();
   fireEvent.click(screen.getByTestId("palette-entry-subagent_pool"));
   fireEvent.click(screen.getByRole("button", { name: "New embedded Agent", exact: true }));
   const payload = await save();
