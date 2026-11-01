@@ -1,20 +1,38 @@
 """Real published Hook child waits across old/new after-hook policies."""
 from copy import deepcopy
 from dataclasses import replace
+from hashlib import sha256
 import json
+from pathlib import Path
 
 import pytest
 
 import test_skeleton_agent_runtime as base
 from skeleton_resource_store import SkeletonResourceStore
-from tests.test_skeleton_hook_denial_upgrade import _writer
 from unchain.execution import ExecutionRuntime
 from unchain.memory import JsonFileSessionStore, KernelMemoryRuntime
 from unchain.skeleton import SkeletonToolRuntime
 from unchain.skeleton.agent_preparation import prepare_agent_graph
-from unchain.skeleton.hooks_runtime import SkeletonAfterToolHookDispatcher
+from unchain.skeleton.errors import SkeletonValidationError
+from unchain.skeleton.hooks_runtime import SkeletonAfterToolHookDispatcher, apply_after_decision
 from unchain.tools import Tool
 from unchain.tools.toolkit import Toolkit
+
+
+def _writer(name):
+    # Keep the frozen writer fixture in this suite: wheels ship runtime code,
+    # never the companion repository's tests. Source and hashes are unchanged
+    # from Core 966be76c's hook-denial upgrade qualification.
+    fixture = json.loads((Path(__file__).parent / 'fixtures/hook_denial_upgrade_writers.json').read_text())
+    record = fixture['writers'][name]
+    source = record['source']
+    assert sha256(source.encode()).hexdigest() == record['function_sha256']
+    namespace = {'__name__': 'unchain.skeleton._frozen_test_writer',
+        '__package__': 'unchain.skeleton', 'deepcopy': deepcopy,
+        'SkeletonValidationError': SkeletonValidationError,
+        'apply_after_decision': apply_after_decision}
+    exec(compile(source, 'frozen-' + name + '-after-hook.py', 'exec'), namespace)
+    return namespace['__call__']
 
 
 def _edge(source, target):

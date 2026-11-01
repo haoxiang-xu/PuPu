@@ -147,3 +147,46 @@ One additional process exception is explicit: a test-only `chooseModel` call was
 adapted before its exact symbol query; the parent fixture and canvas had prior
 impact receipts. Its later UNKNOWN result and textual references are retained;
 this is not represented as a pre-edit check.
+
+## Final CI refusal / after-Hook denial follow-up (2026-10-31)
+
+CI41259747839 on80ca7ad2 passed frontend (585 suites /9375 cases), Electron
+(76 suites /1231 cases), build and boundary checks, but its required backend gate
+failed during collection. The Host upgrade regression imported a Core test helper
+that is absent from an installed wheel. Copy the exact frozen writer fixture and
+the minimal hash-checking loader into this Host test suite; never require a sibling
+Core checkout or weaken the seven original cases.
+
+Once collected against canonical wheel520356b8 / manifest827adc56, five denial
+cases fail at projection of the after-Hook's child approval. The approved control
+and explicit corrupt-terminal control pass. Denial intentionally substitutes its
+own deterministic terminal; the projection was incorrectly comparing it with the
+original Tool terminal. This is BC-357-CLOSE-003 / SEQ-357-CLOSE-002 / AC-357-07,
+not new feature scope. Fix only the expected-terminal comparison in an independent
+Core clone (`unchain-357-denial-wait`, base966be76c). Keep route kind, route manifest,
+call binding and exact terminal digest checks. A six-case real durable-runtime
+regression reproduced one legitimate-denial failure with five controls passing.
+
+The previous wheel and all reports remain immutable failing-pair evidence; they
+are not final acceptance. After source tests, deliver the bounded Core fix through
+normal CI/PR, update the Host's exact revision selectors, and build one replacement
+canonical wheel for final pair/App checks. No local App/Main or real-provider
+requests. A mistakenly overlapped local regression family was stopped withSIGTERM
+and retained as an interrupted run; rerun it serially, never count it as passing.
+
+Core PR71 is merged at `e0d2eb5e09976def467da7f32f2b0482b48c2ffd`;
+its tree076b4845 equals tested head9c189c46. CI41261313696 raw result:
+5637 passed,17 skipped,5 xfailed; CodeQL41261313719 passed. Final local
+denial/history controls33/33 and real Host published-child cases7/7 passed.
+The first expanded negative used a derived route property as a dataclass field;
+it was corrected to corrupt the request subject and assert the exact intended
+refusal reason. That interrupted run is not counted as passing. All five Host
+CI selectors now point to the merged dependency, without a production SHA gate.
+
+QA-only branch `codex/ticket-357-pair-control` at12c038fc supplies independent
+installed-wheel provenance/execution cells and one same-wheel Linux binary
+source/profile/pin/import cold-read control. No local binary/App launch. Its
+tool-local qualification verified142 imported modules and refused foreign-module,
+wrong-manifest and wrong-wheel identities; the hand-built graph was accepted and
+published by the real source Store. This is tool qualification, not final-pair or
+App acceptance. Dispatch only after the new canonical artifact is verified.
