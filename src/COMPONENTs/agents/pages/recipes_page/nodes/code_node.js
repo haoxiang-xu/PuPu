@@ -104,10 +104,13 @@ export default function CodeNode({ node, isDark, lowZoom = false, onOpenNode, so
      click pinned it there. */
   const [hoverOpen, setHoverOpen] = useState(false);
   const [pinned, setPinned] = useState(false);
-  /* Closed by Escape or a press while the pointer is still on the button: the
-     engine goes on reporting that hover, so it is not taken again until the
-     pointer has left the button. */
+  /* Closed by Escape, or a press released, while the pointer is ON the
+     button: the engine goes on reporting that hover, so it is not taken again
+     until the pointer has left the button. Closed with the pointer anywhere
+     else, the next hover is free (packaged App run 41329960253). */
   const [dismissed, setDismissed] = useState(false);
+  const overButtonRef = useRef(false);
+  const expandRef = useRef(null);
   const close = () => {
     setHoverOpen(false);
     setPinned(false);
@@ -117,7 +120,11 @@ export default function CodeNode({ node, isDark, lowZoom = false, onOpenNode, so
   const [suppressed, setSuppressed] = useState(false);
   useEffect(() => {
     if (!suppressed) return undefined;
-    const release = () => setSuppressed(false);
+    const release = (event) => {
+      setSuppressed(false);
+      const target = event && event.target;
+      if (expandRef.current && target instanceof window.Node && expandRef.current.contains(target)) setDismissed(true);
+    };
     window.addEventListener("mouseup", release);
     return () => window.removeEventListener("mouseup", release);
   }, [suppressed]);
@@ -125,14 +132,13 @@ export default function CodeNode({ node, isDark, lowZoom = false, onOpenNode, so
   const showBlock = Boolean(preview) && !lowZoom;
   const viewerOpen = (hoverOpen || pinned) && !suppressed && showBlock;
 
-  const expandRef = useRef(null);
   useEffect(() => {
     if (!viewerOpen) return undefined;
     const onKey = (event) => {
       if (event.key !== "Escape") return;
       setHoverOpen(false);
       setPinned(false);
-      setDismissed(true);
+      setDismissed(overButtonRef.current);
       event.preventDefault();
       event.stopPropagation();
     };
@@ -145,6 +151,7 @@ export default function CodeNode({ node, isDark, lowZoom = false, onOpenNode, so
        but the button or the viewer unpins it. */
     const onPress = (event) => {
       const target = event.target;
+      if (!(target instanceof window.Node)) return;
       if (expandRef.current && expandRef.current.contains(target)) return;
       if (target && target.closest && target.closest(`[data-code-viewer="${node.id}"]`)) return;
       setPinned(false);
@@ -163,7 +170,6 @@ export default function CodeNode({ node, isDark, lowZoom = false, onOpenNode, so
       onMouseDownCapture={(event) => {
         if (event.target.closest && event.target.closest("[data-code-expand]")) return;
         setSuppressed(true);
-        setDismissed(true);
         close();
       }}
     >
@@ -225,7 +231,11 @@ export default function CodeNode({ node, isDark, lowZoom = false, onOpenNode, so
                 data-testid={`code-node-${node.id}-expand`}
                 style={{ position: "absolute", top: 4, right: 4, opacity: hovered || viewerOpen ? 1 : 0, transition: "opacity 0.15s ease", pointerEvents: hovered || viewerOpen ? "auto" : "none" }}
                 onMouseDown={(event) => event.stopPropagation()}
-                onMouseLeave={() => setDismissed(false)}
+                onMouseEnter={() => { overButtonRef.current = true; }}
+                onMouseLeave={() => {
+                  overButtonRef.current = false;
+                  setDismissed(false);
+                }}
               >
                 <Tooltip
                   layer="popover"

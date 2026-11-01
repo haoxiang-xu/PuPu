@@ -164,8 +164,8 @@ test("a press on the node closes it and a hover cannot reopen it until the butto
   fireEvent.click(button());
   settle();
   expect(isOpen()).toBe(false);
-  fireEvent.mouseUp(window);
-  /* Released with the pointer still there: no reopening by itself. */
+  fireEvent.mouseUp(button());
+  /* Released with the pointer still on the button: no reopening by itself. */
   settle();
   expect(isOpen()).toBe(false);
   leaveButton();
@@ -185,4 +185,46 @@ test("the viewer opened by hover sits on the popover layer", () => {
   hoverButton();
   expect(bubble().style.zIndex).toBe(String(Z.POPOVER));
   expect(bubble().style.zIndex).not.toBe(String(Z.TOOLTIP));
+});
+
+/* Packaged App, run 41329960253: the press released where it began, over the
+   block and not the button; the next hover must open it. */
+test("a press released over the block, not the button, leaves the next hover free", () => {
+  show();
+  hoverButton();
+  expect(isOpen()).toBe(true);
+  const block = screen.getByTestId("code-node-score-block");
+  fireEvent.mouseDown(block, { button: 0 });
+  settle();
+  expect(isOpen()).toBe(false);
+  /* Over the button while held, then back to the block. */
+  fireEvent.mouseEnter(trigger());
+  fireEvent.mouseMove(window, { clientX: 10, clientY: 10 });
+  settle();
+  expect(isOpen()).toBe(false);
+  fireEvent.mouseMove(window, { clientX: 300, clientY: 400 });
+  settle();
+  fireEvent.mouseUp(block);
+  settle();
+  expect(isOpen()).toBe(false);
+  /* In the App no leave of the button was seen during the held drag; the
+     pointer simply moves away over the canvas and comes back. */
+  fireEvent.mouseMove(window, FAR);
+  settle();
+  hoverButton();
+  expect(isOpen()).toBe(true);
+});
+
+test("Escape with the pinned viewer and the pointer elsewhere leaves the next hover free", () => {
+  show();
+  hoverButton();
+  fireEvent.click(button());
+  leaveButton();
+  expect(isOpen()).toBe(true);
+  fireEvent.keyDown(document.body, { key: "Escape" });
+  settle();
+  expect(isOpen()).toBe(false);
+  /* The pointer comes straight onto the button, with no leave in between. */
+  hoverButton();
+  expect(isOpen()).toBe(true);
 });
