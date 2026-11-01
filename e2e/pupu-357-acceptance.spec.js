@@ -394,7 +394,10 @@ test("#357 Code, Workflow Call and Hooks authoring persist through the real App,
   const names = [await options.nth(0).innerText(), await options.nth(1).innerText()];
   await options.nth(0).click();
   await options.nth(1).click();
-  await page().keyboard.press("Escape");
+  /* Close the list with its own control: an Esc that reaches the Agents modal
+     closes the whole builder (run 41272967179), recorded by the Esc probe. */
+  if (await page().getByRole("listbox").count()) await setPicker.getByRole("combobox").click();
+  await expect(page().getByRole("listbox")).toHaveCount(0);
   step("ui", "pinned hook: Off, order 7, a set of two tools", { picked: names });
   await saveNow(page());
   const pinnedSaved = await getV2(page(), "agent-tool-every");
@@ -446,6 +449,7 @@ test("#357 Code, Workflow Call and Hooks authoring persist through the real App,
   await page().getByRole("button", { name: "Open the Workflow of hook policy" }).click();
   await pressNode(page(), "step");
   await expect(page().getByRole("textbox", { name: "Code of step" })).toHaveValue(hookText);
+  await closeDetail(page());
   await page().keyboard.press("Escape");
   await openResource(page(), "agent-tool-every");
   await pressNode(page(), "hooks");
