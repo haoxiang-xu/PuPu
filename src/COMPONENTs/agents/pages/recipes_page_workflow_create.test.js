@@ -63,7 +63,7 @@ const show = () => render(
 const explorer = () => screen.getByTestId("agent-explorer");
 const menuItem = (label) => within(screen.getByTestId("context-menu")).getByRole("button", { name: label });
 const name = (text) => {
-  const input = within(explorer()).getByRole("textbox");
+  const input = within(explorer()).getByRole("textbox", { name: "" });
   fireEvent.change(input, { target: { value: text } });
   fireEvent.keyDown(input, { key: "Enter" });
 };
