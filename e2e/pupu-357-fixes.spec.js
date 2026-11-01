@@ -293,6 +293,9 @@ test("#357 fixes on the packaged App: the Code viewer by hover, and Escape never
     await page().mouse.up();
     await settleMs(page());
     const released = await viewerOpen(page(), "code");
+    /* A press released where it began is a click on the node, which opens its
+       panel over the right of the canvas; close it before coming back. */
+    if (await page().getByTestId("skeleton-detail-panel-shell").getByRole("textbox").count()) await closeDetail(page());
     await moveAway(page());
     await moveTo(page(), node);
     await moveTo(page(), button);
@@ -388,8 +391,9 @@ test("#357 fixes on the packaged App: the Code viewer by hover, and Escape never
     await editor.getByTestId("hook-0-tool-set-picker").getByRole("combobox").click();
     const options = page().getByRole("listbox").last().getByRole("option");
     const names = [await options.nth(0).innerText(), await options.nth(1).innerText()];
-    await options.nth(0).click();
-    await options.nth(1).click();
+    /* The list settles into place after it opens; retry a moving option. */
+    await expect(async () => { await options.nth(0).click({ timeout: 3000 }); }).toPass({ timeout: 30000 });
+    await expect(async () => { await options.nth(1).click({ timeout: 3000 }); }).toPass({ timeout: 30000 });
     const listsBefore = await page().getByRole("listbox").count();
     await page().keyboard.press("Escape");
     await settleMs(page());
