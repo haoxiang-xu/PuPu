@@ -390,10 +390,20 @@ test("#357 fixes on the packaged App: the Code viewer by hover, and Escape never
     await editor.getByTestId("hook-0-tool").getByText("A set of tools", { exact: true }).click();
     await editor.getByTestId("hook-0-tool-set-picker").getByRole("combobox").click();
     const options = page().getByRole("listbox").last().getByRole("option");
-    const names = [await options.nth(0).innerText(), await options.nth(1).innerText()];
-    /* The list settles into place after it opens; retry a moving option. */
-    await expect(async () => { await options.nth(0).click({ timeout: 3000 }); }).toPass({ timeout: 30000 });
-    await expect(async () => { await options.nth(1).click({ timeout: 3000 }); }).toPass({ timeout: 30000 });
+    await page().waitForTimeout(400);
+    /* In this panel the list opens upward and its first rows sit above the
+       window (run 41329960253; outside this fix, recorded): pick the first two
+       rows a person can see and click. */
+    const visible = [];
+    const count = await options.count();
+    for (let index = 0; index < count && visible.length < 2; index += 1) {
+      const box = await options.nth(index).boundingBox();
+      if (box && box.y >= 0 && box.y + box.height <= (page().viewportSize()?.height || 820)) visible.push(index);
+    }
+    step("ui", "tool list rows on screen", { rows: count, first_visible: visible });
+    const names = [await options.nth(visible[0]).innerText(), await options.nth(visible[1]).innerText()];
+    await expect(async () => { await options.nth(visible[0]).click({ timeout: 3000 }); }).toPass({ timeout: 30000 });
+    await expect(async () => { await options.nth(visible[1]).click({ timeout: 3000 }); }).toPass({ timeout: 30000 });
     const listsBefore = await page().getByRole("listbox").count();
     await page().keyboard.press("Escape");
     await settleMs(page());
