@@ -245,6 +245,36 @@ test("#357 Code, Workflow Call and Hooks authoring persist through the real App,
 
   /* ── AC-02/03: edit Code text, Save, reopen (ui) ───────────────────────── */
   await openResource(page(), "Managed Code");
+  /* Probe (before any node is pressed): a stepped pointer onto the Code node
+     and its expand button, with the DOM events the node saw recorded. */
+  {
+    const node = page().getByTestId("code-node-code");
+    await page().evaluate(() => {
+      const log = (window.__qa357Hover = []);
+      const node = document.querySelector('[data-testid="code-node-code"]');
+      ["mouseover", "mouseenter", "mousemove", "mousedown", "mouseup", "pointerdown", "pointerup"].forEach((type) =>
+        node.addEventListener(type, (event) => log.push({ type, target: event.target.getAttribute && (event.target.getAttribute("aria-label") || event.target.getAttribute("data-testid") || event.target.tagName), t: Math.round(performance.now()) }), true));
+      window.addEventListener("scroll", (event) => log.push({ type: "scroll", target: event.target && (event.target.getAttribute ? event.target.getAttribute("data-testid") || event.target.className || event.target.tagName : "document"), t: Math.round(performance.now()) }), true);
+    });
+    const nodeBox = await node.boundingBox();
+    await page().mouse.move(nodeBox.x + nodeBox.width / 2, nodeBox.y + nodeBox.height / 2, { steps: 8 });
+    const expandBox = await page().getByRole("button", { name: "View the code of code" }).boundingBox();
+    await page().mouse.move(expandBox.x + expandBox.width / 2, expandBox.y + expandBox.height / 2, { steps: 8 });
+    const opened = await expect(node).toHaveAttribute("data-viewer-open", "true", { timeout: 5000 }).then(() => true, () => false);
+    const facts = await page().evaluate(([x, y]) => {
+      const at = document.elementFromPoint(x, y);
+      const expand = document.querySelector('[data-testid="code-node-code-expand"]');
+      return {
+        element_at_pointer: at && (at.getAttribute("aria-label") || at.getAttribute("data-testid") || at.tagName),
+        expand_style: expand && { opacity: getComputedStyle(expand).opacity, pointerEvents: getComputedStyle(expand).pointerEvents },
+        events: window.__qa357Hover.slice(-40),
+      };
+    }, [expandBox.x + expandBox.width / 2, expandBox.y + expandBox.height / 2]);
+    await attachJson(testInfo, "AC-04 probe: fresh hover before any press", { opened, ...facts });
+    await attachShot(testInfo, page(), "AC-04 probe: fresh hover");
+    step("ui", "probe: stepped hover on a freshly opened Code node", { viewer_opened: opened });
+    await page().mouse.move(5, 5, { steps: 4 });
+  }
   await pressNode(page(), "code");
   const codeBox = page().getByRole("textbox", { name: "Code of code" });
   const rootText = "def main(input, context):\n    return {\"rows\": 357}\n";
@@ -338,6 +368,9 @@ test("#357 Code, Workflow Call and Hooks authoring persist through the real App,
   const hookText = "def main(input, context):\n    return {\"decision\": \"continue\", \"require_approval\": True}  # qa-357\n";
   await page().getByRole("textbox", { name: "Code of step" }).fill(hookText);
   step("ui", "opened the hook's own Workflow and typed new Code text");
+  /* Esc from inside a text field is left to the field (skeleton_resource_page
+     onKey); leave it first, as the probe at the end of this test records. */
+  await closeDetail(page());
   await page().keyboard.press("Escape");
   await expect(page().getByTestId("skeleton-node-hooks")).toBeVisible();
   await saveNow(page());
@@ -472,6 +505,35 @@ test("#357 Code, Workflow Call and Hooks authoring persist through the real App,
   });
   expect(cells).toHaveLength(12);
 
+  /* Probe: Esc while the Code field has focus, inside a hook's own Workflow. */
+  {
+    await openResource(page(), "Agent");
+    await pressNode(page(), "hooks");
+    await page().getByRole("button", { name: "Edit hook 1" }).click();
+    await page().getByRole("button", { name: "Open the Workflow of hook policy" }).click();
+    await pressNode(page(), "step");
+    const field = page().getByRole("textbox", { name: "Code of step" });
+    const before = await field.inputValue();
+    await field.fill(`${before}# typed, not saved\n`);
+    await page().keyboard.press("Escape");
+    await page().waitForTimeout(1500);
+    const builderOpen = await page().getByRole("button", { name: "Close builder" }).isVisible();
+    const crumbs = await page().getByTestId("skeleton-drill-crumbs").isVisible().catch(() => false);
+    await attachShot(testInfo, page(), "probe Esc with the Code field focused");
+    const stored = await getV2(page(), "import-owned-hook");
+    step("ui", "probe: Esc with focus in the hook Code field", {
+      builder_still_open: builderOpen, drill_crumbs_visible: crumbs,
+      stored_text_unchanged: textAt(stored, ["nodes", 3, "config", "hooks", 0, "workflow", "document", "nodes", 1]) === before,
+    });
+    if (!builderOpen) {
+      await openAgents(page());
+      await openResource(page(), "Agent");
+      const reopened = await page().getByTestId("skeleton-save-state").textContent();
+      step("ui", "probe: reopened the Agent after Esc", { save_state: reopened });
+      await attachShot(testInfo, page(), "probe reopened after Esc");
+    }
+  }
+
   expect(pupu.pageErrors).toEqual([]);
 });
 
@@ -587,6 +649,16 @@ test("#357 Code, Workflow Call and Hooks execute through the real chat entry (lo
     await expect(preflight).not.toHaveText("", { timeout: 60000 });
     await attachShot(testInfo, page(), "exec check it can run");
     step("ui", "Check it can run", { preflight: await preflight.textContent() });
+
+    /* Seed: a placeholder OpenAI credential through the real settings
+       bridge. It is not a key, and the run has no route out, so the Kernel's
+       request cannot leave the machine; it only lets the run start, so the
+       steps before the Kernel execute. */
+    const credential = await page().evaluate(() => window.settingsStorageAPI.setProviderCredential("provider", "openai", "qa357-placeholder-not-a-key"));
+    step("seed", "placeholder openai credential set via settingsStorageAPI.setProviderCredential (no external route)", { ok: credential && credential.ok });
+    await page().reload();
+    await enterApp(page());
+    await openAgents(page());
 
     /* UI: a new chat that runs this Agent. */
     await page().getByRole("button", { name: "Close builder" }).click();
