@@ -28,3 +28,11 @@ remain failures, even when the always-run upload step succeeds. A successful
 source cell or binary cell alone does not close #357, certify all eight UI items,
 or establish full-release/Memory/real-provider acceptance. The exported binary
 and wheel identity are intended for the subsequent hosted-Linux App control.
+
+For a binary-only replay, optional `binary_run_id` and `binary_sha256` reuse the
+first uploaded ELF unchanged. The workflow verifies its SHA, original candidate,
+wheel/manifest and the earlier 140-case source proof; it does not rerun those
+source cases or build another binary. The earlier job remains failed overall
+when a QA HTTP-reader error stopped it. Health readiness reads the current real
+`contract` v1, `context_memory_v2` manifest/ready flag and session-guard status;
+there is no fallback to the retired `contract_compatibility` field.

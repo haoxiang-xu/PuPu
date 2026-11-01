@@ -14,6 +14,14 @@ on:
       wheel_sha256:
         required: true
         type: string
+      binary_run_id:
+        required: false
+        default: ''
+        type: string
+      binary_sha256:
+        required: false
+        default: ''
+        type: string
 permissions:
   contents: read
   actions: read
@@ -51,12 +59,20 @@ jobs:
         env:
           CORE: ${{ inputs.core_sha }}
           WHEEL_RUN: ${{ inputs.wheel_run_id }}
+          BINARY_RUN: ${{ inputs.binary_run_id }}
+          BINARY_SHA: ${{ inputs.binary_sha256 }}
         run: |
           set -euo pipefail
           [[ "$QA_CANDIDATE" =~ ^[0-9a-f]{40}$ ]]
           [[ "$CORE" =~ ^[0-9a-f]{40}$ ]]
           [[ "$QA_WHEEL_SHA" =~ ^[0-9a-f]{64}$ ]]
           [[ "$WHEEL_RUN" =~ ^[0-9]+$ ]]
+          if [[ -n "$BINARY_RUN" ]]; then
+            [[ "$BINARY_RUN" =~ ^[0-9]+$ ]]
+            [[ "$BINARY_SHA" =~ ^[0-9a-f]{64}$ ]]
+          else
+            test -z "$BINARY_SHA"
+          fi
           test "$(git -C candidate rev-parse HEAD)" = "$QA_CANDIDATE"
           mkdir -p test-results
           git -C candidate rev-parse HEAD HEAD^{tree} > test-results/candidate-identity.txt
@@ -92,14 +108,50 @@ jobs:
           echo "QA_SITE=$(python -c 'import site;print(site.getsitepackages()[0])')" >> "$GITHUB_ENV"
           echo "QA_WHEEL=$WHEEL" >> "$GITHUB_ENV"
       - name: Installed-wheel execution and retained-source boundaries offline
+        if: inputs.binary_run_id == ''
         run: bash control/tools/qa357/run_offline.sh source
       - name: Build one Linux sidecar from the same canonical wheel
+        if: inputs.binary_run_id == ''
         run: |
           set -euo pipefail
           export UNCHAIN_ARTIFACT_PATH="$QA_WHEEL" UNCHAIN_ARTIFACT_EVIDENCE_PATH="$PWD/artifact/unchain-artifact.json"
           export UNCHAIN_BUILD_VENV="$RUNNER_TEMP/357-build-venv" UNCHAIN_PYTHON_BIN="$QA_PYTHON"
           bash candidate/unchain_runtime/scripts/build_unchain_server.sh linux
           sha256sum candidate/unchain_runtime/dist/linux/unchain-server > test-results/sidecar.sha256
+          echo "QA_BINARY_SHA=$(sha256sum candidate/unchain_runtime/dist/linux/unchain-server | cut -d' ' -f1)" >> "$GITHUB_ENV"
+      - uses: actions/download-artifact@v4
+        if: inputs.binary_run_id != ''
+        with:
+          name: 357-pair-backend-evidence
+          path: reused
+          run-id: ${{ inputs.binary_run_id }}
+          github-token: ${{ github.token }}
+      - name: Bind the reused binary to its earlier source qualification
+        if: inputs.binary_run_id != ''
+        env:
+          EXPECTED_BINARY_SHA: ${{ inputs.binary_sha256 }}
+        run: |
+          set -euo pipefail
+          BINARY=reused/candidate/unchain_runtime/dist/linux/unchain-server
+          echo "$EXPECTED_BINARY_SHA  $BINARY" | sha256sum -c -
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          assert Path('reused/test-results/candidate-identity.txt').read_text().splitlines()[0] == os.environ['QA_CANDIDATE']
+          seen = json.loads(Path('reused/test-results/source/imported-runtime.json').read_text())
+          assert seen['errors'] == [] and seen['pytest_exit_before_probe'] == 0
+          assert seen['wheel_sha256'] == os.environ['QA_WHEEL_SHA'] and seen['manifest'] == os.environ['QA_MANIFEST']
+          xml = ET.parse('reused/test-results/source/acceptance.xml').getroot()
+          suites = [xml] if xml.tag == 'testsuite' else list(xml)
+          assert sum(int(s.attrib['tests']) for s in suites) == 140
+          assert all(int(s.attrib.get('errors', 0)) == int(s.attrib.get('failures', 0)) == int(s.attrib.get('skipped', 0)) == 0 for s in suites)
+          PY
+          mkdir -p candidate/unchain_runtime/dist/linux
+          cp "$BINARY" candidate/unchain_runtime/dist/linux/unchain-server
+          chmod 755 candidate/unchain_runtime/dist/linux/unchain-server
+          sha256sum candidate/unchain_runtime/dist/linux/unchain-server > test-results/sidecar.sha256
+          echo "QA_BINARY_SHA=$EXPECTED_BINARY_SHA" >> "$GITHUB_ENV"
       - name: Binary HTTP profile/source/pin/import and cold-read cells offline
         run: bash control/tools/qa357/run_offline.sh binary
       - name: Upload exact-pair evidence and reusable binary

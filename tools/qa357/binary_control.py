@@ -36,8 +36,20 @@ def workflow():
             {'id': 'b', 'kind': 'flow', 'source_node_id': 'code', 'source_port_id': 'out', 'target_node_id': 'end', 'target_port_id': 'in'}]}
 
 
+def health_ready(health):
+    contract = health['contract']
+    assert contract['schema'] == 'pupu.runtime-capabilities' and type(contract['version']) is int and contract['version'] == 1, 'binary_contract_shape_mismatch'
+    context = health['context_memory_v2']
+    assert context['runtime_protocol_manifest']['manifest_digest'] == os.environ['QA_MANIFEST'], 'binary_manifest_mismatch'
+    return (health['status'] == 'ok' and context['runtime_protocol_ready'] is True
+        and health['session_guard_migration']['status'] == 'ready'
+        and contract['capabilities']['runtime_events_v4'] is True
+        and contract['capabilities']['durable_jobs']['available'] is True)
+
+
 def main():
     binary = Path(os.environ['QA_BINARY']).resolve()
+    assert sha256(binary.read_bytes()).hexdigest() == os.environ['QA_BINARY_SHA'], 'binary_sha_mismatch'
     out = Path(os.environ['QA_OUT']).resolve()
     out.mkdir(parents=True, exist_ok=True)
     port, token = 15879, 'qa357-ephemeral-http-sentinel'
@@ -89,15 +101,13 @@ def main():
             assert child.poll() is None, ('Sidecar exited', child.returncode)
             try:
                 status, health = request('GET', '/health')
-                if status == 200:
+                if status == 200 and health_ready(health):
                     break
             except (OSError, http.client.HTTPException):
                 pass
             if time.monotonic() >= deadline:
                 raise AssertionError('Sidecar readiness timeout')
             time.sleep(.2)
-        assert health['contract_compatibility']['ok'] is True
-        assert health['context_memory_v2']['runtime_protocol_manifest']['manifest_digest'] == os.environ['QA_MANIFEST']
         record['process_table'] = subprocess.check_output(['ps', '-eo', 'pid,ppid,lstart,args'], text=True)
 
     def stop():
