@@ -484,12 +484,16 @@ test("#357 Code, Workflow Call and Hooks authoring persist through the real App,
         await page().mouse.move(box.x + (target === "min" ? 3000 : -3000), box.y + box.height / 2, { steps: 12 });
         await page().mouse.up();
         const measured = await page().evaluate(() => {
-          const panelBox = document.querySelector('[data-testid="skeleton-detail-panel-shell"]').getBoundingClientRect();
+          const shellEl = document.querySelector('[data-testid="skeleton-detail-panel-shell"]');
+          const panelBox = shellEl.getBoundingClientRect();
           /* The share is of the Agents canvas (recipes_page's canvasRef); the
              workspace fills it (position absolute, inset 0). */
           const workspace = document.querySelector('[data-testid="skeleton-workspace"]');
           return {
-            panel_width: Math.round(panelBox.width),
+            /* The declared width (content box; PuPu has no global
+               border-box), and the drawn box with the 1px glass border. */
+            panel_width: Math.round(parseFloat(getComputedStyle(shellEl).width)),
+            panel_drawn_width: Math.round(panelBox.width),
             container_width: Math.round(workspace.getBoundingClientRect().width),
             window: { width: window.innerWidth, height: window.innerHeight, dpr: window.devicePixelRatio },
             body_background: getComputedStyle(document.body).backgroundColor,
