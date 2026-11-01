@@ -128,6 +128,12 @@ jobs:
 
       - name: Install Electron system dependencies
         run: node node_modules/@playwright/test/cli.js install-deps chromium
+      - name: Install a session keyring for the App's secure storage (recorded)
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y --no-install-recommends gnome-keyring libsecret-1-0 dbus-x11
+          dpkg-query -W gnome-keyring libsecret-1-0 dbus-x11 > test-results/deps/keyring-packages.txt
 
       - name: Keep the packaged App's original Chromium sandbox
         shell: bash
@@ -157,7 +163,8 @@ jobs:
               PUPU_357_ACCEPTANCE=1 PUPU_357_APP_EXECUTABLE="$PUPU_357_APP_EXECUTABLE" \
               UNCHAIN_PYTHON_BIN="$QA_PYTHON" PYTHONDONTWRITEBYTECODE=1 \
               NODE_OPTIONS=--max-old-space-size=2048 \
-              xvfb-run -a node node_modules/@playwright/test/cli.js test -c e2e/qa357/playwright.config.js
+              XDG_CURRENT_DESKTOP=GNOME \
+              dbus-run-session -- bash -c "printf \"\" | gnome-keyring-daemon --unlock --components=secrets > /dev/null && exec xvfb-run -a node node_modules/@playwright/test/cli.js test -c e2e/qa357/playwright.config.js"
           '
 
       - name: Upload the App acceptance evidence

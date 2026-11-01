@@ -63,7 +63,8 @@ const openAgents = async (page) => {
 const openResource = async (page, name) => {
   const rows = page.getByTestId("agent-explorer").getByText(name, { exact: true });
   await expect(rows).toHaveCount(1);
-  await rows.click();
+  // The explorer re-renders while the library refreshes; retry a detached row.
+  await expect(async () => { await rows.click({ timeout: 5000 }); }).toPass({ timeout: 60000 });
   await expect(page.getByTestId("skeleton-node-start")).toBeVisible();
 };
 
