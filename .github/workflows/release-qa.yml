@@ -13,7 +13,7 @@ permissions:
 jobs:
   app-357:
     runs-on: ubuntu-latest
-    timeout-minutes: 75
+    timeout-minutes: 100
     env:
       CANDIDATE: c60dc5c740b8b05181b4da48e4fc128c8ab7084d
       CORE: e0d2eb5e09976def467da7f32f2b0482b48c2ffd

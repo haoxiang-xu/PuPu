@@ -35,6 +35,7 @@ const PYTHON_BIN = process.env.UNCHAIN_PYTHON_BIN;
 
 const ledger = [];
 const step = (kind, what, detail = {}) => ledger.push({ at: new Date().toISOString(), kind, what, ...detail });
+test.beforeEach(() => { ledger.length = 0; });
 // Attached even when a step fails, so a stopped run still says how far it got.
 test.afterEach(async ({}, testInfo) => {
   await testInfo.attach("ledger (seed vs ui)", { body: Buffer.from(JSON.stringify(ledger, null, 2)), contentType: "application/json" });
@@ -67,6 +68,13 @@ const openResource = async (page, name) => {
 };
 
 const pressNode = async (page, id) => page.getByTestId(`skeleton-node-${id}`).click();
+/* Click an empty stretch of canvas, which clears the selection and closes the
+   floating detail panel that otherwise covers the right of the canvas. */
+const closeDetail = async (page) => {
+  const box = await page.getByTestId("skeleton-workspace").boundingBox();
+  await page.mouse.click(box.x + box.width * 0.35, box.y + box.height * 0.22);
+  await expect(page.getByTestId("skeleton-detail-panel-shell").getByRole("textbox")).toHaveCount(0);
+};
 const saveNow = async (page) => {
   await expect(page.getByTestId("skeleton-save-state")).toHaveText("Unsaved changes");
   await page.getByRole("button", { name: "Save", exact: true }).click();
@@ -249,6 +257,8 @@ test("#357 Code, Workflow Call and Hooks authoring persist through the real App,
   /* ── AC-04: three lines at a fixed height, hover viewer, drag suppression,
      half zoom (ui) ─────────────────────────────────────────────────────── */
   {
+    await closeDetail(page());
+    step("ui", "clicked empty canvas to close the detail panel over the Code node");
     const node = page().getByTestId("code-node-code");
     const block = page().getByTestId("code-node-code-block");
     await expect(block).toBeVisible();
@@ -433,5 +443,158 @@ test("#357 Code, Workflow Call and Hooks authoring persist through the real App,
   });
   expect(cells).toHaveLength(12);
 
+  expect(pupu.pageErrors).toEqual([]);
+});
+
+/* ── Execution (separate App, own user data) ─────────────────────────────────
+ * One stored Agent runs through the real chat entry: composer → preload →
+ * Main → the fixed sidecar → Core, with the Kernel answered by a loopback
+ * Ollama stand-in (e2e/qa357/fake_ollama.js). It exercises, in one run:
+ *   - Workflow Call: a pinned published revision of the Workflow imported in
+ *     the UI, whose Code step is bound to the explicitly registered Python and
+ *     returns rows = len(message);
+ *   - Hooks: a pinned Hook Workflow (continue) and a hook-owned Code Workflow
+ *     that asks for approval, both before the Kernel's tool call;
+ *   - Code: both of the above run as Code in the registered Python.
+ * The Agent document is a SEED composed from the real producer captures
+ * (owned-hook request, caller_complete's call node, every_get's pinned hook,
+ * the native capture's toolkit pool); the ledger names each part. Its Kernel
+ * model, the check, the chat choice, the message and the approval are UI. */
+test("#357 Code, Workflow Call and Hooks execute through the real chat entry with an offline Kernel", async ({ pupu }, testInfo) => {
+  test.setTimeout(20 * 60 * 1000);
+  const { createFakeOllama, MODEL } = require("./qa357/fake_ollama");
+  const fake = createFakeOllama();
+  const listening = await fake.start();
+  await attachJson(testInfo, "fake-ollama-listen", listening);
+  expect(listening.some((row) => row.listening)).toBe(true);
+  const page = () => pupu.appWindow;
+  try {
+    await enterApp(page());
+    await enableAgents(page());
+    const profiles = await page().evaluate(() => window.unchainAPI.listSkeletonKernelProfiles());
+    await attachJson(testInfo, "kernel-profiles (producer reply)", profiles);
+
+    /* UI: import the root Workflow and register the Python, as above. */
+    await openAgents(page());
+    const root = caseOf("root");
+    const rootFile = path.join(process.env.TMPDIR || ROOT, "qa-357-exec-root.json");
+    fs.writeFileSync(rootFile, root.exported.source_json, "utf8");
+    step("seed", "real producer export (managed_hook_source_capture root) written for the dialog");
+    await page().getByRole("button", { name: "Import an Agent or Workflow" }).click();
+    const dialog = page().getByTestId("import-resource-modal");
+    await dialog.getByTestId("import-file-input").setInputFiles(rootFile);
+    await expect(dialog.getByTestId("import-preview")).toBeVisible();
+    await dialog.getByRole("button", { name: "Name a Python…" }).click();
+    await dialog.getByPlaceholder("profile name, e.g. pupu-tools").fill(PYTHON_ID);
+    await dialog.getByPlaceholder("absolute path to its python").fill(PYTHON_BIN);
+    await dialog.getByTestId("import-runtime-add").getByRole("button", { name: "Add" }).click();
+    await expect(dialog.getByTestId("import-runtime-add-state")).toContainText(`${PYTHON_ID} was added`);
+    await pick(page(), dialog.getByTestId("import-runtime-0"), `${PYTHON_ID} ·`);
+    await dialog.getByRole("button", { name: "Import" }).click();
+    await expect(dialog.getByTestId("import-done")).toBeVisible();
+    await dialog.getByRole("button", { name: "Close" }).click();
+    step("ui", "imported the root Workflow with its Code step bound to the registered Python");
+
+    /* Seeds: publish the imported Workflow and the Hook Workflow through the
+       real bridge; compose the Agent from captured parts. */
+    const imported = await getV2(page(), "import-root-code");
+    const rootPublished = await page().evaluate(([id, token]) => window.unchainAPI.publishManagedSkeletonWorkflow(id, token),
+      ["import-root-code", imported.resource.edit_token]);
+    const hookSeed = rowOf(toolSetCapture, "wf-hook-continue_version").version.document;
+    const hookSaved = await page().evaluate((document) => window.unchainAPI.saveManagedSkeletonResource({
+      schema: "pupu.skeleton-edit.v2", document, expected_edit_token: null, managed_sources: [],
+    }), copy(hookSeed));
+    const hookPublished = await page().evaluate(([id, token]) => window.unchainAPI.publishManagedSkeletonWorkflow(id, token),
+      [hookSeed.id, hookSaved.resource.edit_token]);
+    step("seed", "published import-root-code (UI-imported) and wf-hook-continue through the bridge",
+      { root_revision: rootPublished.version.revision_id, hook_revision: hookPublished.version.revision_id });
+
+    const owned = caseOf("owned-hook").request;
+    const agent = copy(owned.document);
+    agent.id = "qa357-exec";
+    agent.name = "QA 357 exec";
+    const hooksNode = agent.nodes.find((node) => node.id === "hooks");
+    hooksNode.config.hooks[0].workflow.document.nodes.find((node) => node.type === "code").config.code.environment_profile_id = PYTHON_ID;
+    const pinned = copy(rowOf(toolSetCapture, "every_get").resource.document.nodes.find((node) => node.id === "hooks").config.hooks[0]);
+    pinned.workflow = { workflow_id: hookSeed.id, revision_id: hookPublished.version.revision_id };
+    hooksNode.config.hooks.push(pinned);
+    const callNode = copy(rowOf(callCapture, "caller_complete_get").resource.document.nodes.find((node) => node.id === "call"));
+    callNode.config.workflow = { workflow_id: "import-root-code", revision_id: rootPublished.version.revision_id };
+    callNode.config.execution.inputs = callNode.config.execution.inputs.filter((input) => input.name === "message");
+    callNode.config.execution.outputs = [{ name: "rows", source: { kind: "result", path: ["rows"] } }];
+    const toolsNode = { id: "tools", type: "toolkit_pool", config: { toolkits: [{ id: "core", enabled_tools: ["read"] }], merge_with_user_selected: false } };
+    agent.nodes.push(callNode, toolsNode);
+    agent.edges = agent.edges.filter((edge) => !(edge.source_node_id === "start" && edge.target_node_id === "kernel"));
+    agent.edges.push(
+      { id: "flow-start-call", kind: "flow", source_node_id: "start", source_port_id: "out", target_node_id: "call", target_port_id: "in" },
+      { id: "flow-call-kernel", kind: "flow", source_node_id: "call", source_port_id: "out", target_node_id: "kernel", target_port_id: "in" },
+      { id: "attach-kernel-tools", kind: "attach", source_node_id: "kernel", source_port_id: "attach_top", target_node_id: "tools", target_port_id: "attach_top" },
+    );
+    const agentSaved = await page().evaluate((request) => window.unchainAPI.saveManagedSkeletonResource(request), {
+      schema: "pupu.skeleton-edit.v2", document: agent, expected_edit_token: null, managed_sources: owned.managed_sources,
+    });
+    await attachJson(testInfo, "exec agent seed request+reply", { document: agent, managed_sources: owned.managed_sources, reply: agentSaved });
+    expect(agentSaved.resource.id).toBe("qa357-exec");
+    step("seed", "composed Agent qa357-exec: owned-hook capture + every_get pinned hook + caller_complete call node (re-pinned) + native capture toolkit pool (core read)");
+
+    /* UI: choose the Kernel model offered by this build, Save, check. */
+    await page().reload();
+    await enterApp(page());
+    await openAgents(page());
+    await openResource(page(), "QA 357 exec");
+    await pressNode(page(), "kernel");
+    await pick(page(), page().getByTestId("kernel-model"), `ollama · ${MODEL}`);
+    step("ui", `Kernel model chosen: ollama · ${MODEL}`);
+    await saveNow(page());
+    const withKernel = await getV2(page(), "qa357-exec");
+    const profile = withKernel.resource.document.nodes.find((node) => node.id === "kernel").config.kernel.profile;
+    await attachJson(testInfo, "exec agent after UI Kernel choice", withKernel);
+    expect(profile.provider).toBe("ollama");
+    await page().getByRole("button", { name: "Open the run menu" }).click();
+    await page().getByRole("button", { name: "Check it can run" }).click();
+    const preflight = page().getByTestId("skeleton-preflight-state");
+    await expect(preflight).not.toHaveText("", { timeout: 60000 });
+    await attachShot(testInfo, page(), "exec check it can run");
+    step("ui", "Check it can run", { preflight: await preflight.textContent() });
+
+    /* UI: a new chat that runs this Agent. */
+    await page().getByRole("button", { name: "Close builder" }).click();
+    await page().getByRole("button", { name: "New chat", exact: true }).click();
+    await page().getByTestId("attach-agent-row").getByRole("combobox").click();
+    await page().getByRole("listbox").last().getByText("QA 357 exec", { exact: false }).first().click();
+    await expect(page().getByTestId("attach-agent-row")).toContainText("QA 357 exec");
+    const message = "QA357 run seven";
+    await page().getByRole("textbox", { name: "Message PuPu..." }).fill(message);
+    await page().getByRole("textbox", { name: "Message PuPu..." }).press("Enter");
+    step("ui", "chose QA 357 exec in the composer and sent a message", { message });
+
+    const allow = page().getByRole("button", { name: "Allow once" });
+    await expect(allow).toBeVisible({ timeout: 180000 });
+    await attachShot(testInfo, page(), "exec hook approval card");
+    await allow.click();
+    step("ui", "allowed the hook-owned Code's approval once");
+    await expect(page().getByText(/QA357_FINAL/).first()).toBeVisible({ timeout: 180000 });
+    await attachShot(testInfo, page(), "exec final answer");
+    step("ui", "final answer shown");
+  } finally {
+    await attachJson(testInfo, "fake-ollama requests (raw)", fake.log);
+    const stored = await page().evaluate(() => {
+      const boot = window.chatStorageAPI.bootstrap();
+      const ids = JSON.stringify(boot || {}).match(/chat-[A-Za-z0-9-]+/g) || [];
+      const messages = {};
+      for (const id of [...new Set(ids)].slice(0, 6)) {
+        try { messages[id] = window.chatStorageAPI.readMessages(id); } catch (error) { messages[id] = { error: error.message }; }
+      }
+      return { boot, messages };
+    }).catch((error) => ({ error: error.message }));
+    await attachJson(testInfo, "chat storage after run", stored);
+    await fake.stop();
+  }
+  /* The effects the run is accepted on, read from the raw requests. */
+  const chats = fake.log.filter((entry) => entry.url === "/api/chat").map((entry) => ({ ...entry, body: JSON.parse(entry.body) }));
+  const toolTurn = chats.find((entry) => entry.reply && entry.reply.kind === "tool_call");
+  expect(toolTurn).toBeTruthy();
+  const after = chats.find((entry) => entry.body.messages.some((row) => row.role === "tool"));
+  expect(after).toBeTruthy();
   expect(pupu.pageErrors).toEqual([]);
 });
