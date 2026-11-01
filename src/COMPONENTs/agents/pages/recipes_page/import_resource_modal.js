@@ -19,8 +19,8 @@ import { import_document, import_occurrences, import_payload, import_refusal, re
  * the existing registration, kept on its own: it adds the Python to the list
  * and selects nothing. */
 
-const LABEL = { fontSize: 11, fontWeight: 600, color: "#86868b", textTransform: "uppercase", letterSpacing: 0.4 };
-const NOTE = { fontSize: 11, color: "#86868b", lineHeight: 1.5 };
+const LABEL = { fontSize: 11, fontWeight: 600, color: "var(--pupu-text-muted)", textTransform: "uppercase", letterSpacing: 0.4 };
+const NOTE = { fontSize: 11, color: "var(--pupu-text-muted)", lineHeight: 1.5 };
 const MONO = { fontFamily: "ui-monospace, Menlo, monospace" };
 const ROW = { display: "flex", alignItems: "center", gap: 8 };
 const FIELD = { width: "100%", fontSize: 11.5, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 5 };
@@ -176,7 +176,7 @@ export default function ImportResourceModal({ open, onClose, onImported, isDark 
   const unchosen = file.occurrences.filter((occurrence) => !choices[occurrence.key]).length;
 
   return (
-    <Modal open={open} onClose={close} style={{ width: 460, maxHeight: "80vh", overflowY: "auto", padding: "22px 24px 20px", backgroundColor: isDark ? "#1e1e1e" : "#ffffff" }}>
+    <Modal open={open} onClose={close} style={{ width: 460, maxHeight: "80vh", overflowY: "auto", padding: "22px 24px 20px", backgroundColor: "var(--pupu-surface)" }}>
       <div data-testid="import-resource-modal" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <div style={{ fontSize: 14, fontWeight: 600, color: isDark ? "rgba(255,255,255,0.9)" : "rgba(0,0,0,0.85)" }}>
           Import an Agent or Workflow
@@ -267,7 +267,7 @@ export default function ImportResourceModal({ open, onClose, onImported, isDark 
                   onClick={() => {
                     startForm({ id: "", executable: "" });
                   }}
-                  style={{ ...SMALL, color: "#4a5bd8" }}
+                  style={{ ...SMALL, color: "var(--pupu-accent)" }}
                 />
               </span>
             )}
@@ -322,7 +322,7 @@ export default function ImportResourceModal({ open, onClose, onImported, isDark 
                 label={submit.status === "working" ? "Importing…" : "Import"}
                 disabled={!ready}
                 onClick={run}
-                style={{ ...SMALL, color: "#4a5bd8" }}
+                style={{ ...SMALL, color: "var(--pupu-accent)" }}
               />
             )}
           </div>

@@ -62,8 +62,8 @@ import {
  *     its id, and each control writes its own key. A stored value the runtime
  *     refuses is shown as stored, with what is wrong and how to fix it. */
 
-const LABEL = { fontSize: 11, fontWeight: 600, color: "#86868b", textTransform: "uppercase", letterSpacing: 0.4 };
-const NOTE = { fontSize: 10.5, color: "#86868b", lineHeight: 1.45 };
+const LABEL = { fontSize: 11, fontWeight: 600, color: "var(--pupu-text-muted)", textTransform: "uppercase", letterSpacing: 0.4 };
+const NOTE = { fontSize: 10.5, color: "var(--pupu-text-muted)", lineHeight: 1.45 };
 const MONO = { fontFamily: "ui-monospace, Menlo, monospace" };
 const ROW = { display: "flex", alignItems: "center", gap: 6 };
 const FIELD = { width: "100%", fontSize: 11.5, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 5 };
@@ -548,7 +548,7 @@ export default function HooksPoolSection({ document, node, isDark, onChange, man
                 commit(with_hooks(latest.current.document, node.id, [...entries, { id: free_hook_id(taken) }]));
                 setOpenLast(true);
               }}
-              style={{ fontSize: 11, paddingVertical: 3, paddingHorizontal: 8, borderRadius: 5, color: "#4a5bd8" }}
+              style={{ fontSize: 11, paddingVertical: 3, paddingHorizontal: 8, borderRadius: 5, color: "var(--pupu-accent)" }}
             />
           )}
         </div>

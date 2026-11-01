@@ -55,8 +55,8 @@ import { managed_path, sha256_text } from "../managed_code_sources";
  * `code` at all, and each control writes its own key the first time it is
  * used. The problems list says what is still missing. */
 
-const LABEL = { fontSize: 11, fontWeight: 600, color: "#86868b", textTransform: "uppercase", letterSpacing: 0.4 };
-const NOTE = { fontSize: 10.5, color: "#86868b", lineHeight: 1.45 };
+const LABEL = { fontSize: 11, fontWeight: 600, color: "var(--pupu-text-muted)", textTransform: "uppercase", letterSpacing: 0.4 };
+const NOTE = { fontSize: 10.5, color: "var(--pupu-text-muted)", lineHeight: 1.45 };
 const MONO = { fontFamily: "ui-monospace, Menlo, monospace" };
 const ROW = { display: "flex", alignItems: "center", gap: 6 };
 const FIELD = { width: "100%", fontSize: 11.5, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 5 };
@@ -358,7 +358,7 @@ export default function CodeSection({ document, node, revision, sources, isDark,
                 setAddState({ status: "idle", result: null });
                 setAdding({ id: "", executable: "" });
               }}
-              style={{ fontSize: 10.5, paddingVertical: 2, paddingHorizontal: 8, borderRadius: 5, color: "#4a5bd8" }}
+              style={{ fontSize: 10.5, paddingVertical: 2, paddingHorizontal: 8, borderRadius: 5, color: "var(--pupu-accent)" }}
             />
           </span>
         )}
@@ -398,7 +398,7 @@ export default function CodeSection({ document, node, revision, sources, isDark,
                 pendingPath.release();
                 setMode(mode === "here" ? "file" : "here");
               }}
-              style={{ fontSize: 10.5, paddingVertical: 1, paddingHorizontal: 6, borderRadius: 5, color: "#4a5bd8" }}
+              style={{ fontSize: 10.5, paddingVertical: 1, paddingHorizontal: 6, borderRadius: 5, color: "var(--pupu-accent)" }}
             />
           )}
         </div>
@@ -533,7 +533,7 @@ export default function CodeSection({ document, node, revision, sources, isDark,
               rows.added();
               set_fields([...fields, new_field(free_field_name(fields.map((field) => (field && field.name) || "")))], declared ? closed : true, root);
             }}
-            style={{ alignSelf: "flex-start", fontSize: 11, paddingVertical: 3, paddingHorizontal: 8, borderRadius: 5, color: "#4a5bd8" }}
+            style={{ alignSelf: "flex-start", fontSize: 11, paddingVertical: 3, paddingHorizontal: 8, borderRadius: 5, color: "var(--pupu-accent)" }}
           />
         )}
         {declared && !as_json && (
@@ -575,7 +575,7 @@ export default function CodeSection({ document, node, revision, sources, isDark,
           <Button
             label={editor.as_json ? "Edit as fields" : "Edit as JSON"}
             onClick={() => setEditor({ as_json: !editor.as_json, of: schema, text: null })}
-            style={{ alignSelf: "flex-start", fontSize: 11, paddingVertical: 3, paddingHorizontal: 8, borderRadius: 5, color: "#4a5bd8" }}
+            style={{ alignSelf: "flex-start", fontSize: 11, paddingVertical: 3, paddingHorizontal: 8, borderRadius: 5, color: "var(--pupu-accent)" }}
           />
         )}
         <span style={NOTE}>

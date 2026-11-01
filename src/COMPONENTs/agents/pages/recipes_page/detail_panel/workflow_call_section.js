@@ -44,8 +44,8 @@ import {
  *     pick from;
  *   - there is no error policy to choose. */
 
-const LABEL = { fontSize: 11, fontWeight: 600, color: "#86868b", textTransform: "uppercase", letterSpacing: 0.4 };
-const NOTE = { fontSize: 10.5, color: "#86868b", lineHeight: 1.45 };
+const LABEL = { fontSize: 11, fontWeight: 600, color: "var(--pupu-text-muted)", textTransform: "uppercase", letterSpacing: 0.4 };
+const NOTE = { fontSize: 10.5, color: "var(--pupu-text-muted)", lineHeight: 1.45 };
 const MONO = { fontFamily: "ui-monospace, Menlo, monospace" };
 const ROW = { display: "flex", alignItems: "center", gap: 6 };
 const FIELD = { width: "100%", fontSize: 11.5, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 5 };
@@ -325,7 +325,7 @@ export default function WorkflowCallSection({ document, node, rowDiagnostics, is
                 label={working && pinState.message === "Publishing…" ? "Publishing…" : pin_here ? "Publish its current draft and pin again" : "Publish its current draft and pin it"}
                 disabled={working}
                 onClick={publishAndPin}
-                style={{ ...SMALL, color: "#4a5bd8" }}
+                style={{ ...SMALL, color: "var(--pupu-accent)" }}
               />
             </div>
             <span style={NOTE}>

@@ -190,3 +190,24 @@ tool-local qualification verified142 imported modules and refused foreign-module
 wrong-manifest and wrong-wheel identities; the hand-built graph was accepted and
 published by the real source Store. This is tool qualification, not final-pair or
 App acceptance. Dispatch only after the new canonical artifact is verified.
+
+### Feature-audit style correction
+
+The full locale scan remains aligned (10 locales, no missing keys or placeholder
+mismatches; 50 dynamic-key blind spots remain disclosed). UI review found fixed
+muted/accent ink in the three new panels and import dialog, plus the dialog's
+literal surface. Reuse existing `--pupu-text-muted`, `--pupu-accent` and
+`--pupu-surface`; do not change the theme engine, widget behavior, persisted fields
+or frozen inputs. The Code viewer uses those same text/accent roles. Decorative
+node glyph gradients retain the selected type palette. Prior impacts are UNKNOWN
+for JSX/style constants; text references bind them to these panels, the canvas
+viewer and Explorer's import modal. Existing seven directed suites /152 cases
+pass. This is a reversible style correction, not a new behavior or a claim that
+the 12 real-App theme/width cells have already run.
+
+Style precommit graph:6 files /48 symbols /33 indexed flows /CRITICAL,
+partial/truncated NOT_RETURNED, unwaived. The changed steps start in the four
+panels; the report also attributes neighboring style-object properties. An
+independent Babel AST comparison of all five JS files is equal after replacing
+only `color`/`backgroundColor` values and removing location/comment metadata.
+This confines the edit; it is not a graph waiver. Changed-file ESLint:0/0.
