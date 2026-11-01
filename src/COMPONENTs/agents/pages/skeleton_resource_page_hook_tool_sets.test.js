@@ -2,6 +2,7 @@ import React from "react";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import SkeletonResourcePage from "./skeleton_resource_page";
+import Modal from "../../../BUILTIN_COMPONENTs/modal/modal";
 import { api } from "../../../SERVICEs/api";
 import capture from "./recipes_page/hook_tool_set_capture.json";
 import enableCapture from "../../../SERVICEs/skeleton_hook_capabilities_capture.json";
@@ -243,4 +244,27 @@ test("a valid U+FEFF single name is shown as the stored choice in One tool", asy
   saved();
   expect(store.save).not.toHaveBeenCalled();
   expect(hooksOf(row("single_bom_get").reply.resource.document)[0].tool_name).toBe("﻿");
+});
+
+/* Escape with the multi Select's list open, inside the real Modal that closes
+   the Agents Builder (#357, run 41272967179): the list is the top layer. */
+test("Escape with the tool list open closes the list only: the Builder, the picks and the draft stay; nothing is saved", async () => {
+  const store = makeStore(["single"]);
+  const before = copy(store.held["agent-tool-single"]);
+  const onClose = jest.fn();
+  view = render(<ConfigContext.Provider value={{ theme: {} }}><Modal open onClose={onClose}><SkeletonResourcePage resourceId="agent-tool-single" /></Modal></ConfigContext.Provider>);
+  await screen.findByTestId("skeleton-node-start");
+  await openHook();
+  await waitFor(() => expect(tool().getByText("A set of tools")).toBeInTheDocument());
+  fireEvent.click(tool().getByText("A set of tools"));
+  toggle(0, "write");
+  expect(screen.queryAllByRole("listbox", { hidden: true }).length).toBeGreaterThan(0);
+  fireEvent.keyDown(document.activeElement || document.body, { key: "Escape" });
+  await waitFor(() => expect(screen.queryAllByRole("listbox", { hidden: true })).toHaveLength(0));
+  expect(onClose).not.toHaveBeenCalled();
+  expect(screen.getByTestId("hook-0-editor")).toBeInTheDocument();
+  expect(screen.getByTestId("hook-row-0")).toHaveTextContent("tools: read, write");
+  expect(screen.getByTestId("skeleton-save-state")).toHaveTextContent("Unsaved changes");
+  expect(store.save).not.toHaveBeenCalled();
+  expect(store.held["agent-tool-single"]).toEqual(before);
 });

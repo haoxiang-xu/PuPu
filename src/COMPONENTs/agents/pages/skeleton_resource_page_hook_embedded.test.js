@@ -2,6 +2,7 @@ import React from "react";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import SkeletonResourcePage from "./skeleton_resource_page";
+import Modal from "../../../BUILTIN_COMPONENTs/modal/modal";
 import { api } from "../../../SERVICEs/api";
 import capture from "../../../SERVICEs/managed_hook_source_capture.json";
 import workflowCapture from "../../../SERVICEs/skeleton_hook_workflow_capabilities_capture.json";
@@ -298,4 +299,88 @@ test("Save as a Workflow under an id the library already has is refused by the s
   expect(await screen.findByTestId("hook-0-save-as-state")).toHaveTextContent("Nothing was saved");
   expect(screen.getByTestId("hook-0-save-as-state")).toHaveTextContent("edit_conflict");
   expect(store.held["import-root-code"]).toEqual(other);
+});
+
+/* ── Escape inside the Builder (#357, packaged App run 41273700851) ─────────
+   The page sits in the real Modal, whose window listener is what closes the
+   Agents Builder. Escape is pressed where a person presses it: on the field
+   that has focus. Nothing blurs the field first. */
+describe("Escape never closes the Builder over an edit", () => {
+  const inModal = (id, onClose) => <ConfigContext.Provider value={{ theme: {} }}><Modal open onClose={onClose}><SkeletonResourcePage resourceId={id} /></Modal></ConfigContext.Provider>;
+  async function openInModal(id, onClose) {
+    view = render(inModal(id, onClose));
+    await screen.findByTestId("skeleton-node-start");
+  }
+  const escapeOn = (element) => fireEvent.keyDown(element, { key: "Escape" });
+  const heldTexts = (store, id) => copy(store.held[id]);
+
+  test("in a Code text box: the Builder, the box and its draft stay; nothing is saved", async () => {
+    const base = caseOf("root");
+    const store = makeStore([base]);
+    const before = heldTexts(store, "import-root-code");
+    const onClose = jest.fn();
+    await openInModal("import-root-code", onClose);
+    pressCanvasNode("code");
+    await screen.findByTestId("code-section");
+    const box = screen.getByRole("textbox", { name: "Code of code" });
+    const draft = "def main(input, context):\n    return {\"rows\": 1}\n";
+    fireEvent.change(box, { target: { value: draft } });
+    box.focus();
+    expect(document.activeElement).toBe(box);
+    escapeOn(box);
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByTestId("skeleton-node-start")).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Code of code" })).toHaveValue(draft);
+    expect(screen.getByTestId("skeleton-save-state")).toHaveTextContent("Unsaved changes");
+    expect(store.save).not.toHaveBeenCalled();
+    expect(heldTexts(store, "import-root-code")).toEqual(before);
+  });
+
+  test("in a hook's own Workflow, in its Code text box: still in the drill, the draft stays; nothing is saved", async () => {
+    const base = caseOf("owned-hook");
+    const store = makeStore([base]);
+    const before = heldTexts(store, "import-owned-hook");
+    const onClose = jest.fn();
+    await openInModal("import-owned-hook", onClose);
+    await openHook();
+    await waitFor(() => expect(source().getByRole("button", { name: "Open the Workflow of hook policy" })).not.toBeDisabled());
+    fireEvent.click(source().getByRole("button", { name: "Open the Workflow of hook policy" }));
+    await screen.findByTestId("skeleton-node-step");
+    const draft = "def main(input, context):\n    return {\"decision\": \"continue\", \"require_approval\": True}  # draft\n";
+    await typeCode(draft);
+    const box = screen.getByRole("textbox", { name: "Code of step" });
+    box.focus();
+    escapeOn(box);
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByTestId("skeleton-drill-crumbs")).toHaveTextContent("Hooks Pool");
+    expect(screen.getByRole("textbox", { name: "Code of step" })).toHaveValue(draft);
+    expect(screen.getByTestId("skeleton-save-state")).toHaveTextContent("Unsaved changes");
+    expect(store.save).not.toHaveBeenCalled();
+    expect(heldTexts(store, "import-owned-hook")).toEqual(before);
+  });
+
+  test("with an unsaved edit and nothing focused: the Builder stays and says why; nothing is saved", async () => {
+    const base = caseOf("root");
+    const store = makeStore([base]);
+    const onClose = jest.fn();
+    await openInModal("import-root-code", onClose);
+    pressCanvasNode("code");
+    await screen.findByTestId("code-section");
+    fireEvent.change(screen.getByRole("textbox", { name: "Code of code" }), { target: { value: "x = 2\n" } });
+    expect(document.activeElement).toBe(document.body);
+    escapeOn(document.body);
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByTestId("skeleton-escape-unsaved")).toHaveTextContent("Unsaved changes");
+    expect(screen.getByRole("textbox", { name: "Code of code" })).toHaveValue("x = 2\n");
+    expect(store.save).not.toHaveBeenCalled();
+  });
+
+  test("control: with nothing unsaved, Escape closes the Builder as before", async () => {
+    makeStore([caseOf("root")]);
+    const onClose = jest.fn();
+    await openInModal("import-root-code", onClose);
+    saved();
+    escapeOn(document.body);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
 });

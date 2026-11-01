@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import PuzzleShape from "./puzzle_shape";
 import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
@@ -17,6 +17,13 @@ import { CODE_PORT_ANCHOR } from "../skeleton_node_catalog";
  * appears on node hover; hovering the button opens a read-only viewer through
  * the Tooltip popover engine — never a modal, never the node growing in place
  * — and the viewer hands editing back to the panel.
+ *
+ * The engine is asked for hover alone. A click pins the viewer, Escape and a
+ * press elsewhere close it, and those are kept here: the engine in controlled
+ * mode does not report a hover once click is also enabled, which left the
+ * viewer opening only on click in the packaged App (#357 run 41273700851).
+ * Escape is taken only while the viewer is open, and stops there, because the
+ * Agents modal also closes on Escape and the viewer is the layer on top.
  *
  * Two rules the hover has to get right. A node drag starts with the pointer
  * on the node, so a press anywhere on it closes the viewer and keeps it shut
@@ -54,6 +61,7 @@ function Viewer({ node, text, total, isDark, onEdit }) {
   return (
     <div
       data-testid={`code-node-${node.id}-viewer`}
+      data-code-viewer={node.id}
       style={{
         width: 440,
         maxHeight: 360,
@@ -92,7 +100,18 @@ export default function CodeNode({ node, isDark, lowZoom = false, onOpenNode, so
   const muted = isDark ? "#a8a8b0" : "#6b6b73";
   const text = isDark ? "#f0f0f3" : "#1d1d22";
   const [hovered, setHovered] = useState(false);
-  const [open, setOpen] = useState(false);
+  /* Two reasons to show it: the pointer is on the button or the viewer, or a
+     click pinned it there. */
+  const [hoverOpen, setHoverOpen] = useState(false);
+  const [pinned, setPinned] = useState(false);
+  /* Closed by Escape or a press while the pointer is still on the button: the
+     engine goes on reporting that hover, so it is not taken again until the
+     pointer has left the button. */
+  const [dismissed, setDismissed] = useState(false);
+  const close = () => {
+    setHoverOpen(false);
+    setPinned(false);
+  };
   /* A press on the node starts a drag; the viewer closes and stays closed
      until the button is released anywhere. */
   const [suppressed, setSuppressed] = useState(false);
@@ -104,7 +123,35 @@ export default function CodeNode({ node, isDark, lowZoom = false, onOpenNode, so
   }, [suppressed]);
 
   const showBlock = Boolean(preview) && !lowZoom;
-  const viewerOpen = open && !suppressed && showBlock;
+  const viewerOpen = (hoverOpen || pinned) && !suppressed && showBlock;
+
+  const expandRef = useRef(null);
+  useEffect(() => {
+    if (!viewerOpen) return undefined;
+    const onKey = (event) => {
+      if (event.key !== "Escape") return;
+      setHoverOpen(false);
+      setPinned(false);
+      setDismissed(true);
+      event.preventDefault();
+      event.stopPropagation();
+    };
+    window.document.addEventListener("keydown", onKey);
+    return () => window.document.removeEventListener("keydown", onKey);
+  }, [viewerOpen]);
+  useEffect(() => {
+    if (!pinned) return undefined;
+    /* Capture, as the engine does for its own click mode: a press anywhere
+       but the button or the viewer unpins it. */
+    const onPress = (event) => {
+      const target = event.target;
+      if (expandRef.current && expandRef.current.contains(target)) return;
+      if (target && target.closest && target.closest(`[data-code-viewer="${node.id}"]`)) return;
+      setPinned(false);
+    };
+    window.document.addEventListener("mousedown", onPress, true);
+    return () => window.document.removeEventListener("mousedown", onPress, true);
+  }, [pinned, node.id]);
 
   return (
     <div
@@ -116,7 +163,8 @@ export default function CodeNode({ node, isDark, lowZoom = false, onOpenNode, so
       onMouseDownCapture={(event) => {
         if (event.target.closest && event.target.closest("[data-code-expand]")) return;
         setSuppressed(true);
-        setOpen(false);
+        setDismissed(true);
+        close();
       }}
     >
       <PuzzleShape tabs={["right"]} cutouts={["left"]} isDark={isDark}>
@@ -172,21 +220,23 @@ export default function CodeNode({ node, isDark, lowZoom = false, onOpenNode, so
               ))}
               <div style={{ color: muted }}>{preview.more > 0 ? `+${preview.more} line${preview.more === 1 ? "" : "s"}` : `${preview.total} line${preview.total === 1 ? "" : "s"}`}</div>
               <span
+                ref={expandRef}
                 data-code-expand="true"
                 data-testid={`code-node-${node.id}-expand`}
                 style={{ position: "absolute", top: 4, right: 4, opacity: hovered || viewerOpen ? 1 : 0, transition: "opacity 0.15s ease", pointerEvents: hovered || viewerOpen ? "auto" : "none" }}
                 onMouseDown={(event) => event.stopPropagation()}
+                onMouseLeave={() => setDismissed(false)}
               >
                 <Tooltip
                   layer="popover"
-                  trigger={["hover", "click"]}
+                  trigger={["hover"]}
                   open={viewerOpen}
-                  /* While a press is held the engine's hover and click still
-                     report, and are ignored: the viewer stays shut until the
-                     button is released and the pointer comes back. */
+                  /* While a press is held the engine's hover still reports,
+                     and is ignored: the viewer stays shut until the button is
+                     released and the pointer comes back. */
                   on_open_change={(next) => {
-                    if (next && suppressed) return;
-                    setOpen(Boolean(next));
+                    if (next && (suppressed || dismissed)) return;
+                    setHoverOpen(Boolean(next));
                   }}
                   open_delay={80}
                   close_delay={80}
@@ -202,7 +252,7 @@ export default function CodeNode({ node, isDark, lowZoom = false, onOpenNode, so
                       total={preview.total}
                       isDark={isDark}
                       onEdit={() => {
-                        setOpen(false);
+                        close();
                         if (typeof onOpenNode === "function") onOpenNode(node.id);
                       }}
                     />
@@ -211,6 +261,10 @@ export default function CodeNode({ node, isDark, lowZoom = false, onOpenNode, so
                   <Button
                     prefix_icon="fullscreen"
                     ariaLabel={`View the code of ${node.id}`}
+                    onClick={() => {
+                      if (suppressed) return;
+                      setPinned((was) => !was);
+                    }}
                     style={{ paddingVertical: 2, paddingHorizontal: 2, borderRadius: 4, content: { icon: { width: 11, height: 11 } } }}
                   />
                 </Tooltip>

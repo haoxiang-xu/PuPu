@@ -3,6 +3,7 @@ import React from "react";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import SkeletonResourcePage from "./skeleton_resource_page";
+import Modal from "../../../BUILTIN_COMPONENTs/modal/modal";
 import { api } from "../../../SERVICEs/api";
 import capture from "./recipes_page/workflow_call_capture.json";
 import codeCapture from "./recipes_page/code_capture.json";
@@ -306,3 +307,29 @@ test("without a pin there is nothing to open", async () => {
   await openCall();
   expect(screen.queryByRole("button", OPEN)).toBeNull();
 });
+
+/* Escape from the pinned read-only view inside the real Modal that closes the
+   Agents Builder (#357): the view is the top layer, even when the value box
+   behind it still has focus. */
+test.each([["nothing focused", false], ["the value box still focused", true]])(
+  "Escape from the pinned view (%s) leaves the view only: the Builder and the unsaved value stay; nothing is saved",
+  async (_label, focusBox) => {
+    const store = makeStore(["caller_complete_rev2_get"]);
+    const onClose = jest.fn();
+    render(<ConfigContext.Provider value={{ theme: {} }}><Modal open onClose={onClose}><SkeletonResourcePage resourceId="caller-complete-rev2" /></Modal></ConfigContext.Provider>);
+    await screen.findByTestId("skeleton-node-start");
+    await openCall();
+    await screen.findByText(`revision 2`, { exact: false });
+    setValue("limit", "7");
+    const box = within(screen.getByTestId("tool-call-argument-limit")).getByPlaceholderText("a value written here");
+    if (focusBox) box.focus();
+    openPinned();
+    await waitFor(() => expect(pinnedView()).not.toBeNull());
+    fireEvent.keyDown(document.activeElement || document.body, { key: "Escape" });
+    await waitFor(() => expect(pinnedView()).toBeNull());
+    expect(onClose).not.toHaveBeenCalled();
+    expect(within(screen.getByTestId("tool-call-argument-limit")).getByPlaceholderText("a value written here")).toHaveValue("7");
+    expect(screen.getByTestId("skeleton-save-state")).toHaveTextContent("Unsaved changes");
+    expect(store.save).not.toHaveBeenCalled();
+  },
+);

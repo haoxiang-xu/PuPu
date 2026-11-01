@@ -207,6 +207,11 @@ export default function SkeletonResourcePage({
      graph. */
   const [drillSteps, setSteps] = useState([]);
   const [notices, setNotices] = useState([]);
+  /* Escape was pressed with nothing above the graph to close and an unsaved
+     edit: the Builder stayed open, and says why, until the edit is saved. */
+  const [escapeHeld, setEscapeHeld] = useState(false);
+  const pageRef = useRef(null);
+  const dirtyRef = useRef(false);
   /* The pinned revision on screen, read-only, or null: `{pin, node_id,
      version, sources}`. */
   const [pinned, setPinned] = useState(null);
@@ -701,39 +706,84 @@ export default function SkeletonResourcePage({
     setPinned(null);
   }, [session.open_id, revision]);
 
-  /* Escape goes up one drill level before anything else sees it. Registered on
-     `document`, where a bubble listener still precedes the Agents modal's
-     `window` one, so stopping propagation here shadows it — the same mechanism
-     the legacy canvas uses. With no drill open nothing is stopped and the key
-     passes through untouched. It lives here rather than on the canvas because
-     the stack outlives the canvas: a drilled-in resource whose re-read failed
-     shows no graph and still has a breadcrumb. */
+  /* Escape is answered by the nearest thing on top, once, and stops there; it
+     reaches the Agents modal (a `window` listener, which closes the whole
+     Builder) only when nothing here takes it. Registered on `document`, where
+     a bubble listener still precedes the modal's, so stopping propagation
+     shadows the modal — the same mechanism the legacy canvas uses. Listeners
+     of others on `document` (an open list, the Code viewer) still run.
+     Nearest first:
+       - a dialog above the Builder (the import dialog) is not ours to answer;
+       - a key something nearer already answered (preventDefault) stops here;
+       - the Code viewer and an open list close themselves;
+       - the pinned read-only revision, then the Run menu;
+       - a text field of this page with focus is left, its text as typed
+         (a field elsewhere keeps Escape, as before);
+       - one drill level up;
+       - an unsaved edit keeps the Builder open: Escape neither discards nor
+         saves it (#357, packaged App run 41273700851);
+       - otherwise the modal closes, as before. */
   useEffect(() => {
     const onKey = (event) => {
       if (event.key !== "Escape") return;
-      const tag = window.document.activeElement?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA") return;
-      /* A pinned revision on screen is the nearest graph to leave. */
-      if (close_pinned() === true) {
+      const doc = window.document;
+      const root = pageRef.current;
+      const hosts = doc.querySelectorAll("[data-pupu-modal-overlay-host]");
+      const top = hosts.length > 0 ? hosts[hosts.length - 1] : null;
+      if (root && top && !top.contains(root)) return;
+      /* Something nearer (an open list's own keys) already answered it. */
+      if (event.defaultPrevented) {
+        event.stopPropagation();
+        return;
+      }
+      const take = () => {
         event.preventDefault();
         event.stopPropagation();
+      };
+      if (root && root.querySelector('[data-viewer-open="true"]')) {
+        event.stopPropagation();
+        return;
+      }
+      if (doc.querySelector('[role="listbox"]')) {
+        event.stopPropagation();
+        return;
+      }
+      /* A pinned revision on screen is the nearest graph to leave. */
+      if (close_pinned() === true) {
+        take();
         return;
       }
       /* An open Run menu is the nearest thing to close. */
       if (runOpen) {
         setRunOpen(false);
-        event.preventDefault();
-        event.stopPropagation();
+        take();
+        return;
+      }
+      const active = doc.activeElement;
+      const tag = active?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || active?.isContentEditable) {
+        /* A field outside this page keeps its own Escape, as before. */
+        if (!root || !root.contains(active)) return;
+        active.blur();
+        take();
         return;
       }
       if (drill_up() === true) {
-        event.preventDefault();
-        event.stopPropagation();
+        take();
+        return;
+      }
+      if (dirtyRef.current) {
+        setEscapeHeld(true);
+        take();
       }
     };
     window.document.addEventListener("keydown", onKey);
     return () => window.document.removeEventListener("keydown", onKey);
   }, [close_pinned, drill_up, runOpen]);
+  dirtyRef.current = Boolean(session.dirty);
+  useEffect(() => {
+    if (!session.dirty) setEscapeHeld(false);
+  }, [session.dirty]);
 
   /* Undo and redo, from the keyboard as well as the control center — the
      legacy canvas's keys. A field being typed in keeps its own. */
@@ -792,6 +842,12 @@ export default function SkeletonResourcePage({
       ? { text: session.error.message || session.error.code, testId: "skeleton-save-error" }
       : null,
     canvasProblem ? { text: canvasProblem, testId: "skeleton-graph-problem" } : null,
+    escapeHeld && session.dirty
+      ? {
+          testId: "skeleton-escape-unsaved",
+          text: "Unsaved changes. Escape does not close the Builder until they are saved.",
+        }
+      : null,
     shown_notices.length > 0
       ? {
           testId: "skeleton-drill-notice",
@@ -802,7 +858,7 @@ export default function SkeletonResourcePage({
   const showRun = runOpen && ready;
 
   return (
-    <div style={PAGE(isDark)} data-testid="skeleton-resource-page">
+    <div ref={pageRef} style={PAGE(isDark)} data-testid="skeleton-resource-page">
       {/* The canvas takes its height by growing (`flex: 1`), so it needs a
           flex column that fills the page to grow into. Without it the graph
           was drawn 0px tall. */}
