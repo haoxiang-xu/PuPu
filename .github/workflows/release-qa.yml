@@ -105,8 +105,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # The candidate's own version, so the build does not change it.
+          export PUPU_BUILD_VERSION="$(node -p 'require("./package.json").version')"
           npm run build:web
           npm run notices
+          git status --porcelain --untracked-files=no > test-results/tracked-changes-after-build.txt
+          cat test-results/tracked-changes-after-build.txt
           npx electron-builder --linux dir --publish never
           PACKED=dist/linux-unpacked/resources/unchain_runtime/dist/linux/unchain-server
           echo "$SIDECAR_SHA  $PACKED" | sha256sum -c -
