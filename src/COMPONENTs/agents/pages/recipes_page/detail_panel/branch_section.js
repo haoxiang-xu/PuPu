@@ -535,7 +535,7 @@ export default function BranchSection({ document, node, isDark, onChange }) {
   const execution = is_record(node.config) && is_record(node.config.execution) ? node.config.execution : null;
   const unique = is_record(document) && Array.isArray(document.nodes) &&
     document.nodes.filter((candidate) => is_record(candidate) && candidate.id === node.id).length === 1;
-  const editable = Boolean(unique && document.kind === "agent" && document.schema_version === 1 &&
+  const editable = Boolean(unique && (document.kind === "agent" || document.kind === "workflow") && document.schema_version === 1 &&
     typeof onChange === "function" && execution);
   const names = input_names(node);
   const identity = `${is_record(document) ? safe_text(document.id) : ""}/${safe_text(node.id)}`;

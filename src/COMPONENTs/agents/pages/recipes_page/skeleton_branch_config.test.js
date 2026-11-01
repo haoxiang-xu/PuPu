@@ -238,8 +238,13 @@ describe("writing a branch's execution", () => {
     expect(with_branch_execution(twice, "if", "condition", compare("is_null", input(["a"])))).toBe(twice);
     const agent = { ...twice, nodes: [{ id: "a", type: "agent", config: { execution: {} } }] };
     expect(with_branch_execution(agent, "a", "condition", 1)).toBe(agent);
+    /* #357 G7: a Workflow's branch is written; a document of any other kind is not. */
+    const foreign = { ...twice, kind: "recipe", nodes: [node] };
+    expect(with_branch_execution(foreign, "if", "condition", 1)).toBe(foreign);
     const workflow = { ...twice, kind: "workflow", nodes: [node] };
-    expect(with_branch_execution(workflow, "if", "condition", 1)).toBe(workflow);
+    const written = with_branch_execution(workflow, "if", "condition", 1);
+    expect(written).not.toBe(workflow);
+    expect(written.nodes[0].config.execution.condition).toBe(1);
   });
 });
 

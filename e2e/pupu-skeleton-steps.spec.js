@@ -24,7 +24,7 @@ const openAgents = async (page) => {
   // Node fields, picking, Save and reopening below use actual pointer input.
   if (await sidebar.isVisible()) await sidebar.dispatchEvent("click");
   await page.getByRole("button", { name: "Agents", exact: true }).click();
-  await expect(page.getByTestId("skeleton-resource-list")).toBeVisible();
+  await expect(page.getByTestId("agent-explorer")).toBeVisible();
 };
 
 test("Tool Call and Skill Read edits persist through real bridges, Store and restart", async ({ pupu }, testInfo) => {
@@ -66,7 +66,7 @@ test("Tool Call and Skill Read edits persist through real bridges, Store and res
   await openAgents(pupu.appWindow);
   for (const row of rows) {
     const page = pupu.appWindow;
-    await page.getByTestId(`skeleton-resource-${row.document.id}`).click();
+    await page.getByTestId("agent-explorer").getByText(row.document.name, { exact: true }).click();
     await page.getByTestId(`skeleton-node-${row.kind}`).click();
     const expected = JSON.parse(JSON.stringify(row.document));
     if (row.kind === "tool") {
@@ -92,7 +92,7 @@ test("Tool Call and Skill Read edits persist through real bridges, Store and res
     expect(after.document).toEqual(expected);
     expect(after.edit_token).not.toBe(row.token);
     expect(after.diagnostics).toEqual([]);
-    await page.getByRole("button", { name: "Check it can run", exact: true }).click();
+    await page.getByRole("button", { name: "Open the run menu", exact: true }).click();
     await expect(page.getByTestId("skeleton-preflight-state")).toHaveText("Ready to run.");
     row.expected = after;
     await testInfo.attach(`steps-${row.kind}-saved`, {
@@ -107,7 +107,7 @@ test("Tool Call and Skill Read edits persist through real bridges, Store and res
     const page = pupu.appWindow;
     const cold = await page.evaluate((id) => window.unchainAPI.getSkeletonResource(id), row.document.id);
     expect(cold).toEqual(row.expected);
-    await page.getByTestId(`skeleton-resource-${row.document.id}`).click();
+    await page.getByTestId("agent-explorer").getByText(row.document.name, { exact: true }).click();
     await page.getByTestId(`skeleton-node-${row.kind}`).click();
     if (row.kind === "tool") {
       await expect(page.getByTestId("tool-call-argument-content").getByPlaceholder("a value written here"))

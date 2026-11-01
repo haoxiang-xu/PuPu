@@ -227,7 +227,9 @@ function FieldName({ field, taken, revision, onChange }) {
   );
 }
 
-function FieldRow({ field, index, taken, revision, isDark, onChange, onRemove }) {
+/* One declared field, as the Agent's JSON Output and the Code node's Result
+   (#357) both draw it: the same row for the same declaration. */
+export function FieldRow({ field, index, taken, revision, isDark, onChange, onRemove }) {
   const bounds = bounds_for(field.type);
   return (
     <div

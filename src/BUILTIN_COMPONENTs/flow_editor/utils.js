@@ -95,6 +95,14 @@ export function get_port_position(node, port_id, node_dimensions) {
     index,
     same_side.length,
   );
+  /* A port that names its own place along its side (`anchor`, in px from
+     the node's top for left/right, from its left for top/bottom) sits there
+     rather than at an even fraction — the drawn dot and the edge's endpoint
+     read the same field, so they cannot disagree. */
+  if (Number.isFinite(port.anchor)) {
+    if (port.side === "left" || port.side === "right") pos.y = node.y + port.anchor;
+    else if (port.side === "top" || port.side === "bottom") pos.x = node.x + port.anchor;
+  }
   return { ...pos, side: port.side };
 }
 

@@ -64,8 +64,11 @@ describe("the inventory is the runtime's, not a guess", () => {
 
 describe("what is genuinely not knowable, and why", () => {
   test.each([
-    ["code", /its own source returns/i],
-    ["workflow_call", /its own document/i],
+    /* #357: a Code node's roots are its declared Result; without one the
+       reason says what to declare rather than that nothing can be known. */
+    ["code", /declare the fields .* in result/i],
+    /* #357: unknowable only until a revision is pinned and read. */
+    ["workflow_call", /pin a published workflow revision/i],
     ["start", /called from different places/i],
   ])("%s gives a reason rather than a shrug", (type, pattern) => {
     const roots = result_roots_for(node(type));
@@ -153,5 +156,26 @@ describe("a draft deep enough to break a recursive reader", () => {
     expect(() => result_roots_for(agent)).not.toThrow();
     expect(result_roots_for(agent).roots).toContain("n");
     expect(result_roots_for(agent).roots).toContain("message");
+  });
+});
+
+describe("a Code node's result is what its Result schema declares (#357)", () => {
+  const capture = require("./code_capture.json");
+  const code = (settings) => ({ id: "score", type: "code", config: { execution: { inputs: [], outputs: [] }, ...(settings ? { code: settings } : {}) } });
+  const complete = capture.rows.find((row) => row.case === "complete").config.code;
+
+  test("closed when the schema closes its field list; `error` is never a field", () => {
+    expect(result_roots_for(code(complete))).toEqual({ known: true, roots: ["rows", "summary"], closed: true, reason: null });
+  });
+
+  test("open when it does not, with the reason", () => {
+    const open = capture.rows.find((row) => row.case === "schema-open").config.code;
+    expect(result_roots_for(code(open))).toMatchObject({ known: true, roots: ["rows"], closed: false });
+    expect(result_roots_for(code(open)).reason).toMatch(/does not close/);
+  });
+
+  test("without settings, or with a schema the editor cannot read, nothing is claimed", () => {
+    expect(result_roots_for(code(null))).toMatchObject({ known: false, roots: [], closed: false });
+    expect(result_roots_for(code({ ...complete, result_schema: "nope" }))).toMatchObject({ known: false, roots: [] });
   });
 });

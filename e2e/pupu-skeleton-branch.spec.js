@@ -21,7 +21,7 @@ const openAgents = async (page) => {
   // sidebar toggle. Branch fields, Save and navigation below use pointer input.
   if (await sidebar.isVisible()) await sidebar.dispatchEvent("click");
   await page.getByRole("button", { name: "Agents", exact: true }).click();
-  await expect(page.getByTestId("skeleton-resource-list")).toBeVisible();
+  await expect(page.getByTestId("agent-explorer")).toBeVisible();
 };
 
 test("Branch conditions persist through real preload/Main/Store and an app restart", async ({ pupu }, testInfo) => {
@@ -54,7 +54,7 @@ test("Branch conditions persist through real preload/Main/Store and an app resta
   await openAgents(pupu.appWindow);
   for (const row of saved) {
     const page = pupu.appWindow;
-    await page.getByTestId(`skeleton-resource-${row.document.id}`).click();
+    await page.getByTestId("agent-explorer").getByText(row.document.name, { exact: true }).click();
     const branchId = row.kind === "if" ? "if" : "switch";
     await page.getByTestId(`skeleton-node-${branchId}`).click();
     const fieldId = row.kind === "if"
@@ -75,7 +75,7 @@ test("Branch conditions persist through real preload/Main/Store and an app resta
     expect(after.document).toEqual(expected);
     expect(after.edit_token).not.toBe(row.token);
     expect(after.diagnostics).toEqual([]);
-    await page.getByRole("button", { name: "Check it can run", exact: true }).click();
+    await page.getByRole("button", { name: "Open the run menu", exact: true }).click();
     await expect(page.getByTestId("skeleton-preflight-state")).toHaveText("Ready to run.");
     row.expected = after;
     row.fieldId = fieldId;
@@ -94,7 +94,7 @@ test("Branch conditions persist through real preload/Main/Store and an app resta
     const page = pupu.appWindow;
     const cold = await page.evaluate((id) => window.unchainAPI.getSkeletonResource(id), row.document.id);
     expect(cold).toEqual(row.expected);
-    await page.getByTestId(`skeleton-resource-${row.document.id}`).click();
+    await page.getByTestId("agent-explorer").getByText(row.document.name, { exact: true }).click();
     await page.getByTestId(`skeleton-node-${row.kind === "if" ? "if" : "switch"}`).click();
     await expect(page.getByTestId(row.fieldId).getByPlaceholder("text", { exact: true })).toHaveValue(row.value);
     await expect(page.getByTestId("skeleton-save-state")).toHaveText("Saved");

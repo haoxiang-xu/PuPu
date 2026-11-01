@@ -182,9 +182,20 @@ describe("the saved Agent library of a chat that is already open", () => {
     /* The production save helper, with the store answering as the store does.
        Nothing about the chat is told what was saved — the announcement carries
        no document, and the row shows what a fresh read of the store says. */
-    window.unchainAPI.saveSkeletonResource = jest.fn(async () => {
+    /* Saving speaks the v2 managed-Code aggregate (#357 G1); the store
+       answers with the whole stored resource. */
+    window.unchainAPI.saveManagedSkeletonResource = jest.fn(async () => {
       listing = [ORIGINAL, NEWLY_SAVED];
-      return { id: "newly-saved-agent", edit_token: "edit-2" };
+      return {
+        schema: "pupu.skeleton-resource.v2",
+        resource: {
+          id: "newly-saved-agent", kind: "agent", name: "Newly saved Agent", description: "", archived: false,
+          edit_token: "edit-2", draft_digest: "d".repeat(64), source_identity: null, document: NEW_DOCUMENT, diagnostics: [],
+        },
+        sources_manifest: { schema: "pupu.skeleton-code-sources.v1", entries: [] },
+        contents: [],
+        content_digest: "c".repeat(64),
+      };
     });
     await act(async () => {
       const reply = await save_draft(NEW_DOCUMENT);
@@ -221,9 +232,9 @@ describe("the saved Agent library of a chat that is already open", () => {
   test("a save the store refused changes nothing", async () => {
     renderChat();
     await waitForReady();
-    window.unchainAPI.saveSkeletonResource = jest.fn(async () => ({
-      error: { code: "edit_conflict", message: "changed elsewhere" },
-    }));
+    window.unchainAPI.saveManagedSkeletonResource = jest.fn(async () => {
+      throw { code: "edit_conflict", path: ["expected_edit_token"], message: "changed elsewhere", status: 409 };
+    });
     await act(async () => {
       const reply = await save_draft(NEW_DOCUMENT, "stale-token");
       expect(reply.ok).toBe(false);

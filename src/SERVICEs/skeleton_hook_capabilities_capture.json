@@ -1,0 +1,19 @@
+{
+  "hook_entry": {
+    "omitted_enabled": true,
+    "optional_fields": [
+      "enabled"
+    ],
+    "required_fields": [
+      "event",
+      "force_approval",
+      "id",
+      "order",
+      "tool_name",
+      "workflow"
+    ],
+    "schema": "unchain.skeleton_hook_entry.v1"
+  },
+  "runtime_manifest_digest": "sha256:9c1d9d8f242683f62fdf93d0e650770e201440985b3fc09f3059569f286c13cd",
+  "schema": "pupu.skeleton_hooks_capabilities.v1"
+}

@@ -28,11 +28,13 @@ from skeleton_runtime_capability import require_skeleton_runtime, validate_skele
 
 
 _SCHEMA = "pupu.skeleton-launch.v1"
+_SCHEMA_V2 = "pupu.skeleton-launch.v2"
 _EVENT = "pupu.skeleton.launch"
 _FIELDS = frozenset({"schema", "session_id", "owner_chat_id", "root_run_id", "graph_id",
     "selection", "workflows", "binding", "workspace_root", "inputs", "attachments",
     "runtime_manifest", "capabilities"})
 _POINTER_FIELDS = frozenset({"schema", "session_id", "root_run_id", "launch_sha256"})
+_FIELDS_V2 = _FIELDS | {"code_sources"}
 
 
 def canonical(value: Any) -> bytes:
@@ -133,7 +135,8 @@ def _restore_workflows(selection, value):
 
 def validate_launch_descriptor(value, *, session_id, root_run_id, expected_owner_chat_id=None):
     """Closed consumer for host-owned bytes; no file or provider side effects."""
-    if type(value) is not dict or set(value) != _FIELDS or value["schema"] != _SCHEMA:
+    if (type(value) is not dict or value.get("schema") not in (_SCHEMA, _SCHEMA_V2)
+            or set(value) != (_FIELDS_V2 if value["schema"] == _SCHEMA_V2 else _FIELDS)):
         _fail()
     if value["session_id"] != _text(session_id) or value["root_run_id"] != _text(root_run_id):
         _fail("skeleton_launch_identity_mismatch")
@@ -148,6 +151,17 @@ def validate_launch_descriptor(value, *, session_id, root_run_id, expected_owner
     _check_preflight(selected, selected["id"])
     selection = FrozenSkeletonChatSelection(canonical(selected))
     workflows = _restore_workflows(selection, value["workflows"])
+    if value["schema"] == _SCHEMA_V2:
+        from skeleton_code_closure import FrozenCodeRuntimeSnapshot
+        snapshot = value["code_sources"]
+        if type(snapshot) is not dict or type(snapshot.get("closure")) is not dict:
+            _fail()
+        selection = FrozenSkeletonChatSelection(selection._canonical_json,
+            canonical(snapshot["closure"]), workflows._canonical_json)
+        try:
+            FrozenCodeRuntimeSnapshot.restore(snapshot, selection, workflows)
+        except Exception:
+            _fail("skeleton_launch_sources_invalid")
     binding = value["binding"]
     from memory_v2_unchain_runtime_context import runtime_context_from_memory_binding_snapshot
     context = runtime_context_from_memory_binding_snapshot(binding)
@@ -217,7 +231,7 @@ def assert_launch_current(launch, snapshot=None):
             _fail("skeleton_launch_identity_mismatch")
 
 
-def save_launch(*, bridge, store, selection, workflows, workspace_root, inputs, attachments, capabilities):
+def save_launch(*, bridge, store, selection, workflows, workspace_root, inputs, attachments, capabilities, code_snapshot=None):
     """Persist fixed bytes before first dispatch; pointer written after receipt."""
     binding = bridge.preparation.binding.canonical_value()
     value = {"schema": _SCHEMA, "session_id": bridge.execution_id,
@@ -226,16 +240,22 @@ def save_launch(*, bridge, store, selection, workflows, workspace_root, inputs, 
         "binding": binding, "workspace_root": str(Path(workspace_root).resolve()) if workspace_root is not None else None,
         "inputs": inputs, "attachments": attachments, "runtime_manifest": require_skeleton_runtime(),
         "capabilities": capabilities}
+    if selection.code_sources is not None:
+        if code_snapshot is None:
+            _fail("skeleton_launch_sources_invalid")
+        value.update(schema=_SCHEMA_V2, code_sources=code_snapshot.to_dict())
+    elif code_snapshot is not None:
+        _fail("skeleton_launch_sources_invalid")
     validate_launch_descriptor(value, session_id=value["session_id"], root_run_id=value["root_run_id"])
     ref, artifact = store.prepare_json(value, key="production.launch")
     digest = sha256(canonical(value)).hexdigest()
-    payload = {"schema": _SCHEMA, "graph_id": store.graph_id, "launch_sha256": digest, "launch_ref": ref}
+    payload = {"schema": value["schema"], "graph_id": store.graph_id, "launch_sha256": digest, "launch_ref": ref}
     operation_id = "skeleton.launch." + sha256(value["root_run_id"].encode()).hexdigest()
     request = JournalAppendRequest(event_id="event." + operation_id, event_type=_EVENT,
         attempt=store.attempt, operation=build_operation_ref(operation_id, domain=_EVENT, payload=payload),
         payload=payload, resource_refs=(ResourceRef.from_dict(ref["ref"]),))
     store.journal.append_with_artifacts(request=request, artifacts=(artifact,))
-    pointer = {"schema": _SCHEMA, "session_id": value["session_id"], "root_run_id": value["root_run_id"],
+    pointer = {"schema": value["schema"], "session_id": value["session_id"], "root_run_id": value["root_run_id"],
         "launch_sha256": digest}
     path = _path(value["session_id"], value["root_run_id"])
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -249,7 +269,7 @@ def load_launch(session_id, root_run_id, *, expected_owner_chat_id=None, allow_t
     if not path.is_file():
         _fail("skeleton_launch_missing")
     pointer = _strict_json(path.read_bytes())
-    if (type(pointer) is not dict or set(pointer) != _POINTER_FIELDS or pointer["schema"] != _SCHEMA
+    if (type(pointer) is not dict or set(pointer) != _POINTER_FIELDS or pointer["schema"] not in (_SCHEMA, _SCHEMA_V2)
             or pointer["session_id"] != session_id or pointer["root_run_id"] != root_run_id):
         _fail()
     from memory_v2_unchain_active_bridge import _open_existing_cold_context_journal
@@ -267,7 +287,7 @@ def load_launch(session_id, root_run_id, *, expected_owner_chat_id=None, allow_t
     event = events[0]
     payload = _thaw_json(event.payload)
     if (set(payload) != {"schema", "graph_id", "launch_sha256", "launch_ref"}
-            or payload["schema"] != _SCHEMA or payload["launch_sha256"] != pointer["launch_sha256"]):
+            or payload["schema"] != pointer["schema"] or payload["launch_sha256"] != pointer["launch_sha256"]):
         _fail()
     if event.operation != build_operation_ref(event.operation.operation_id, domain=_EVENT, payload=payload):
         _fail()
@@ -279,7 +299,8 @@ def load_launch(session_id, root_run_id, *, expected_owner_chat_id=None, allow_t
     if sha256(raw).hexdigest() != pointer["launch_sha256"]:
         _fail()
     value = _strict_json(raw)
-    if type(value) is not dict or raw != canonical(value) or value.get("graph_id") != payload["graph_id"]:
+    if (type(value) is not dict or raw != canonical(value) or value.get("graph_id") != payload["graph_id"]
+            or value.get("schema") != pointer["schema"]):
         _fail()
     selection, workflows, plan = validate_launch_descriptor(value, session_id=session_id,
         root_run_id=root_run_id, expected_owner_chat_id=expected_owner_chat_id)
@@ -322,7 +343,7 @@ def load_active_launch(session_id, *, expected_owner_chat_id=None, allow_termina
     if not path.is_file():
         return None
     pointer = _strict_json(path.read_bytes())
-    if (type(pointer) is not dict or set(pointer) != _POINTER_FIELDS or pointer["schema"] != _SCHEMA
+    if (type(pointer) is not dict or set(pointer) != _POINTER_FIELDS or pointer["schema"] not in (_SCHEMA, _SCHEMA_V2)
             or pointer["session_id"] != session_id):
         _fail()
     launch = load_launch(session_id, pointer["root_run_id"], expected_owner_chat_id=expected_owner_chat_id,

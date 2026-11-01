@@ -32,6 +32,8 @@ from skeleton_runtime_capability import SkeletonRuntimeCompatibilityError, requi
 
 
 _SCHEMA = "pupu.skeleton_resource_store.v1"
+_MANAGED_SCHEMA = "pupu.skeleton_resource_store.v2"
+_MANAGED_SCHEMA_V3 = "pupu.skeleton_resource_store.v3"
 _MIGRATION_STAGES = ("discovered", "written", "validated", "active")
 _RESOURCE_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$")
 
@@ -102,6 +104,13 @@ def _strict_json(raw: str) -> Any:
                                     "legacy source is not valid JSON") from exc
 
 
+def _require_graph_only_row(row) -> None:
+    if (row is not None and any(key in row.keys() and row[key] is not None
+                               for key in ("code_sources_manifest", "code_content_digest"))):
+        _fail("source_api_required", ("resource_id",),
+              "this resource requires the managed-source API", status=409)
+
+
 class SkeletonResourceStore:
     def __init__(self, root: Path | None = None):
         self.root = Path(root) if root is not None else Path.home() / ".pupu" / "skeletons"
@@ -115,6 +124,9 @@ class SkeletonResourceStore:
         connection.execute("PRAGMA foreign_keys=ON")
         connection.execute("PRAGMA busy_timeout=15000")
         connection.execute("PRAGMA journal_mode=WAL")
+        # Schema-v2 triggers deny incomplete writes, including a still-open
+        # connection from an old binary that has no such function at all.
+        connection.create_function("pupu_managed_write", 0, lambda: 0)
         return connection
 
     def _initialize(self) -> None:
@@ -191,8 +203,11 @@ class SkeletonResourceStore:
             schema = connection.execute(
                 "SELECT value FROM store_meta WHERE key='schema'"
             ).fetchone()["value"]
-            if schema != _SCHEMA:
+            if schema not in (_SCHEMA, _MANAGED_SCHEMA, _MANAGED_SCHEMA_V3):
                 _fail("unknown_version", ("store", "schema"), "resource store schema is unsupported")
+            if schema in (_MANAGED_SCHEMA, _MANAGED_SCHEMA_V3):
+                from skeleton_code_source_store import validate_managed_store_schema
+                validate_managed_store_schema(connection)
 
     @staticmethod
     def _token(revision: int, digest: str) -> str:
@@ -200,7 +215,32 @@ class SkeletonResourceStore:
 
     @staticmethod
     def _document(row: sqlite3.Row) -> dict[str, Any]:
+        _require_graph_only_row(row)
         return json.loads(row["draft_json"])
+
+    def save_managed_draft(self, value: Any) -> dict[str, Any]:
+        from skeleton_code_source_store import save_managed_draft
+        return save_managed_draft(self, value)
+
+    def get_managed_resource(self, resource_id: str) -> dict[str, Any]:
+        from skeleton_code_source_store import get_managed_resource
+        return get_managed_resource(self, resource_id)
+
+    def export_managed_resource(self, resource_id: str) -> dict[str, Any]:
+        from skeleton_source_transfer import export_managed_resource
+        return export_managed_resource(self, resource_id)
+
+    def import_managed_resource(self, value: Any) -> dict[str, Any]:
+        from skeleton_source_transfer import import_managed_resource
+        return import_managed_resource(self, value)
+
+    def publish_managed_workflow(self, resource_id, value):
+        from skeleton_code_publication import publish_managed_workflow
+        return publish_managed_workflow(self, resource_id, value)
+
+    def get_managed_workflow_version(self, resource_id, revision_id):
+        from skeleton_code_publication import get_managed_workflow_version
+        return get_managed_workflow_version(self, resource_id, revision_id)
 
     @staticmethod
     def _summary(row: sqlite3.Row) -> dict[str, Any]:
@@ -264,6 +304,18 @@ class SkeletonResourceStore:
             raise SkeletonResourceError(exc.code, exc.path, str(exc)) from exc
         try:
             require_skeleton_runtime()
+            if any(node['type'] == 'hooks_pool' and any('enabled' in hook for hook in node['config']['hooks'])
+                   for node in checked['nodes']):
+                from skeleton_hook_capability import hook_enable_capabilities
+                hook_enable_capabilities()
+            if any(node['type'] == 'hooks_pool' and any(type(hook['tool_name']) is list
+                   for hook in node['config']['hooks']) for node in checked['nodes']):
+                from skeleton_hook_capability import hook_tool_set_capabilities
+                hook_tool_set_capabilities()
+            from skeleton_embedded_hooks import embedded_hook_bodies
+            if any(embedded_hook_bodies(checked, include_disabled=True)):
+                from skeleton_hook_capability import hook_workflow_capabilities
+                hook_workflow_capabilities()
         except SkeletonRuntimeCompatibilityError as exc:
             raise SkeletonResourceError(
                 exc.code, ("runtime_protocol_manifest",), str(exc), status=409,
@@ -305,7 +357,7 @@ class SkeletonResourceStore:
     def _legacy_alias_agent(self, connection, name: str,
                             path: tuple[str | int, ...]) -> tuple[str, dict[str, Any]]:
         rows = connection.execute("""
-            SELECT DISTINCT a.target_id,r.kind,r.archived,r.draft_json
+            SELECT DISTINCT a.target_id,r.*
             FROM legacy_aliases a JOIN resources r ON r.resource_id=a.target_id
             WHERE a.legacy_name=?
         """, (name,)).fetchall()
@@ -320,7 +372,7 @@ class SkeletonResourceStore:
         row = agent_rows[0]
         if row["archived"]:
             _fail("resource_archived", path, "legacy subagent target is archived", status=409)
-        return row["target_id"], json.loads(row["draft_json"])
+        return row["target_id"], self._document(row)
 
     @staticmethod
     def _pool_owner_nodes(document: dict[str, Any], pool_id: str):
@@ -559,6 +611,7 @@ class SkeletonResourceStore:
             current = connection.execute(
                 "SELECT * FROM resources WHERE resource_id=?", (resource_id,),
             ).fetchone()
+            _require_graph_only_row(current)
             if current is None:
                 if expected_edit_token is not None:
                     connection.rollback()
@@ -602,6 +655,7 @@ class SkeletonResourceStore:
             current = connection.execute(
                 "SELECT * FROM resources WHERE resource_id=?", (resource_id,),
             ).fetchone()
+            _require_graph_only_row(current)
             if current is not None:
                 if current["draft_digest"] != digest:
                     connection.rollback(); _fail(
@@ -622,49 +676,51 @@ class SkeletonResourceStore:
 
     def preflight(self, resource_id: str, *, legacy_kernel: dict[str, Any] | None = None) -> dict[str, Any]:
         resource_id = _resource_id(resource_id, ("resource_id",))
-        # Keep all definition rows in one WAL read snapshot. A concurrent editor
-        # may commit, but repeated child references in this admission stay fixed.
         with self._connect() as connection:
             connection.execute("BEGIN")
-            resource = connection.execute(
-                "SELECT * FROM resources WHERE resource_id=?", (resource_id,),
-            ).fetchone()
-            if resource is None:
-                _fail("resource_missing", ("resource_id",),
-                      "Skeleton resource was not found", status=404)
-            if resource["archived"]:
-                _fail("resource_archived", ("resource_id",),
-                      "archived resource cannot start a new execution", status=409)
-            source_document = self._document(resource)
-            document = self._expand_legacy_subagent_pools(
-                connection, source_document, legacy_kernel,
-            )
-            if document["kind"] == "agent" and any(
-                node["type"] == "agent" and "legacy_recipe" in node.get("config", {})
-                or node["type"] == "agent" and "legacy_template" in node.get("config", {})
+            return self._preflight_in_connection(connection, resource_id, legacy_kernel=legacy_kernel)
+
+    def _preflight_in_connection(self, connection, resource_id, *, legacy_kernel=None):
+        """Shared graph algorithm; caller owns its real SQLite read snapshot."""
+        resource = connection.execute(
+            "SELECT * FROM resources WHERE resource_id=?", (resource_id,),
+        ).fetchone()
+        if resource is None:
+            _fail("resource_missing", ("resource_id",),
+                  "Skeleton resource was not found", status=404)
+        if resource["archived"]:
+            _fail("resource_archived", ("resource_id",),
+                  "archived resource cannot start a new execution", status=409)
+        source_document = self._document(resource)
+        document = self._expand_legacy_subagent_pools(
+            connection, source_document, legacy_kernel,
+        )
+        if document["kind"] == "agent" and any(
+            node["type"] == "agent" and "legacy_recipe" in node.get("config", {})
+            or node["type"] == "agent" and "legacy_template" in node.get("config", {})
+            for node in document["nodes"]
+        ):
+            if legacy_kernel is None and any(
+                node["type"] == "agent" and "kernel" not in node.get("config", {})
                 for node in document["nodes"]
             ):
-                if legacy_kernel is None and any(
-                    node["type"] == "agent" and "kernel" not in node.get("config", {})
-                    for node in document["nodes"]
-                ):
-                    _fail("legacy_profile_required", ("legacy_kernel",),
-                          "migrated Agent requires an explicit Kernel configuration")
-                try:
-                    document = materialize_legacy_agent(document, legacy_kernel)
-                except SkeletonValidationError as exc:
-                    raise SkeletonResourceError(exc.code, exc.path, str(exc)) from exc
-            plan = self._validate_execution(document)
-            self._validate_local_profiles(document)
-            subagents = self._resolve_subagent_closure(
-                connection, document, owner_id=resource_id, stack=(resource_id,), depth=0,
-                legacy_kernel=legacy_kernel,
-                source_document=source_document,
-                prepared_identities={document["id"]: execution_definition_digest(plan)},
-            )
-            dependencies = self._resolve_closure(
-                connection, document, resource_id, subagents=subagents,
-            )
+                _fail("legacy_profile_required", ("legacy_kernel",),
+                      "migrated Agent requires an explicit Kernel configuration")
+            try:
+                document = materialize_legacy_agent(document, legacy_kernel)
+            except SkeletonValidationError as exc:
+                raise SkeletonResourceError(exc.code, exc.path, str(exc)) from exc
+        plan = self._validate_execution(document)
+        self._validate_local_profiles(document)
+        subagents = self._resolve_subagent_closure(
+            connection, document, owner_id=resource_id, stack=(resource_id,), depth=0,
+            legacy_kernel=legacy_kernel,
+            source_document=source_document,
+            prepared_identities={document["id"]: execution_definition_digest(plan)},
+        )
+        dependencies = self._resolve_closure(
+            connection, document, resource_id, subagents=subagents,
+        )
         return {"ok": True, "id": resource_id, "kind": resource["kind"],
                 "definition_digest": execution_definition_digest(plan),
                 "edit_token": resource["edit_token"],
@@ -788,11 +844,13 @@ class SkeletonResourceStore:
         return resolved
 
     def _published_row(self, connection, workflow_id: str, revision_id: str):
-        return connection.execute("""
+        row = connection.execute("""
             SELECT v.*,r.archived,r.kind FROM workflow_versions v
             JOIN resources r ON r.resource_id=v.workflow_id
             WHERE v.workflow_id=? AND v.revision_id=?
         """, (workflow_id, revision_id)).fetchone()
+        _require_graph_only_row(row)
+        return row
 
     def _resolve_closure(self, connection, document: dict[str, Any], root_id: str, *,
                          subagents=()):
@@ -807,6 +865,10 @@ class SkeletonResourceStore:
                     yield node["config"]["workflow"], config_path + ("workflow",)
                 elif node["type"] == "hooks_pool":
                     for hook_index, hook in enumerate(node["config"]["hooks"]):
+                        if hook.get("enabled") is False:
+                            continue
+                        if hook['workflow'].get('kind') == 'embedded':
+                            continue
                         yield hook["workflow"], config_path + ("hooks", hook_index, "workflow")
 
         def visit(target_id: str, revision_id: str, *, depth: int,
@@ -885,6 +947,15 @@ class SkeletonResourceStore:
                           "revision id must not contain surrounding whitespace")
                 visit(target_id, revision_id, depth=execution_frames + 1,
                       stack=ancestors, owner_id=owner_id, path=path)
+            from skeleton_embedded_hooks import embedded_hook_bodies
+            for address, embedded in embedded_hook_bodies(body):
+                path = prefix + tuple(address)
+                if embedded['id'] in ancestors + (owner_id,):
+                    _fail('recursive_reference', path + ('id',), 'embedded Hook repeats an ancestor definition id')
+                if execution_frames >= 32:
+                    _fail('limit_depth', path, 'Workflow dependency depth exceeds 32')
+                collect(embedded, (), path, embedded['id'], execution_frames=execution_frames + 1,
+                        ancestors=ancestors + (owner_id,))
             pools = {node["id"]: (index, node) for index, node in enumerate(body["nodes"])
                      if node["type"] == "subagent_pool"}
             for child in children:
@@ -1000,7 +1071,8 @@ class SkeletonResourceStore:
         )
         try:
             result = subprocess.run(
-                [profile.command[0], "-I", "-c", script],
+                # -I ignores PYTHONDONTWRITEBYTECODE, including for bundled resources.
+                [profile.command[0], "-I", "-B", "-c", script],
                 stdin=subprocess.DEVNULL, capture_output=True, check=False,
                 timeout=5,
             )
@@ -1229,6 +1301,9 @@ class SkeletonResourceStore:
 
     def _validate_local_profiles(self, document: dict[str, Any], *,
                                  path_prefix: tuple[str | int, ...] = ("document",)) -> None:
+        from skeleton_embedded_hooks import embedded_hook_bodies
+        for address, body in embedded_hook_bodies(document):
+            self._validate_local_profiles(body, path_prefix=path_prefix + tuple(address))
         for index, node in enumerate(document["nodes"]):
             if node["type"] != "code" or "code" not in node["config"]:
                 continue
@@ -1292,6 +1367,7 @@ class SkeletonResourceStore:
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             row = connection.execute("SELECT * FROM resources WHERE resource_id=?", (resource_id,)).fetchone()
+            _require_graph_only_row(row)
             if row is None:
                 connection.rollback(); _fail("resource_missing", ("resource_id",), "resource was not found", status=404)
             if row["edit_token"] != expected_edit_token:
@@ -1315,6 +1391,7 @@ class SkeletonResourceStore:
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             row = connection.execute("SELECT * FROM resources WHERE resource_id=?", (resource_id,)).fetchone()
+            _require_graph_only_row(row)
             if row is None:
                 connection.rollback(); _fail("resource_missing", ("resource_id",), "resource was not found", status=404)
             if row["edit_token"] != expected_edit_token:
@@ -1361,6 +1438,9 @@ class SkeletonResourceStore:
                 connection.rollback(); _fail("migration_source_changed", ("source_identity",),
                                              "legacy source changed during migration", status=409)
             if row is None:
+                _require_graph_only_row(connection.execute(
+                    "SELECT * FROM resources WHERE resource_id=?", (target_id,),
+                ).fetchone())
                 connection.execute("""
                     INSERT INTO legacy_migrations(source_identity,source_kind,source_sha256,target_id,
                         target_sha256,stage,updated_at_ms) VALUES(?,?,?,?,NULL,'discovered',?)
@@ -1487,6 +1567,7 @@ class SkeletonResourceStore:
                           "active legacy alias changed", status=409)
                 connection.commit()
                 return self.migration_status(source_identity)
+            _require_graph_only_row(target)
             if target["kind"] != "agent" or target["name"] != legacy_name:
                 connection.rollback()
                 _fail("invalid_reference", ("target_id",),

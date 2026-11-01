@@ -145,6 +145,8 @@ class FrozenSkeletonChatSelection:
     """Immutable admitted resource material, not a durable execution locator."""
 
     _canonical_json: bytes
+    _code_sources_json: bytes | None = None
+    _workflows_json: bytes | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return json.loads(self._canonical_json)
@@ -163,7 +165,16 @@ class FrozenSkeletonChatSelection:
 
     @property
     def snapshot_digest(self) -> str:
+        if self._code_sources_json is not None:
+            value = {'schema': 'pupu.skeleton-admission.v2', 'preflight': self.to_dict(),
+                     'code_sources': self.code_sources}
+            return sha256(json.dumps(value, sort_keys=True, separators=(',', ':'),
+                ensure_ascii=False, allow_nan=False).encode('utf-8', 'surrogatepass')).hexdigest()
         return sha256(self._canonical_json).hexdigest()
+
+    @property
+    def code_sources(self):
+        return None if self._code_sources_json is None else json.loads(self._code_sources_json)
 
 
 def prepare_skeleton_chat_selection(options, *, store=None, legacy_kernel=None):
@@ -175,6 +186,14 @@ def prepare_skeleton_chat_selection(options, *, store=None, legacy_kernel=None):
     if not isinstance(options, dict) or "skeleton_selection" not in options:
         return None
     selection = _parse_selection(options)
+    if store is None or type(store) is SkeletonResourceStore:
+        from skeleton_code_admission import prepare_code_execution_material
+        return prepare_code_execution_material(options, store=store, legacy_kernel=legacy_kernel, freeze_legacy=False)[0]
+    return _prepare_selected_agent(selection, store=store, legacy_kernel=legacy_kernel)
+
+
+def _prepare_selected_agent(selection, *, store, legacy_kernel=None):
+    """The original resolver/preflight seam, also used by graph-only stores."""
     try:
         store = SkeletonResourceStore() if store is None else store
         kind = selection["kind"]

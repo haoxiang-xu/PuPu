@@ -1,0 +1,1501 @@
+{
+ "manifest": {
+  "producer": "snapshot unchain_runtime/server (34f8dcc9) v2 store + fixed wheel e6897e7f, offline sandbox",
+  "tool": "hooks-ui-r1-20261029/tools/capture_hooks_unicode_order.py",
+  "wheel_unchain_file": "/Users/red/.codex/artifacts/pupu-357/hooks-contract-closeout-01-20261028/fixed-pair/build-venv/lib/python3.12/site-packages/unchain/__init__.py",
+  "do_not_edit_by_hand": true
+ },
+ "workflow_version": {
+  "schema": "pupu.skeleton-workflow-version.v2",
+  "version": {
+   "workflow_id": "wf-hook-continue",
+   "revision_id": "rev-1-1ad2aedb0d55b14d",
+   "ordinal": 1,
+   "definition_digest": "1ad2aedb0d55b14d2b5fe243aaf6fec5e0ee257909d2c67447b70685f2028352",
+   "document": {
+    "edges": [
+     {
+      "id": "flow-start-end",
+      "kind": "flow",
+      "source_node_id": "start",
+      "source_port_id": "out",
+      "target_node_id": "end",
+      "target_port_id": "in"
+     }
+    ],
+    "id": "wf-hook-continue",
+    "kind": "workflow",
+    "name": "Allow",
+    "nodes": [
+     {
+      "config": {
+       "execution": {
+        "outputs": [
+         {
+          "name": "event",
+          "source": {
+           "kind": "result",
+           "path": [
+            "event"
+           ]
+          }
+         }
+        ]
+       }
+      },
+      "id": "start",
+      "type": "start"
+     },
+     {
+      "config": {
+       "execution": {
+        "inputs": [
+         {
+          "missing": "error",
+          "name": "decision",
+          "value": {
+           "kind": "literal",
+           "value": "continue"
+          }
+         },
+         {
+          "missing": "error",
+          "name": "require_approval",
+          "value": {
+           "kind": "literal",
+           "value": false
+          }
+         }
+        ],
+        "outputs": [
+         {
+          "name": "decision",
+          "source": {
+           "kind": "input",
+           "path": [
+            "decision"
+           ]
+          }
+         },
+         {
+          "name": "require_approval",
+          "source": {
+           "kind": "input",
+           "path": [
+            "require_approval"
+           ]
+          }
+         }
+        ]
+       }
+      },
+      "id": "end",
+      "type": "end"
+     }
+    ],
+    "schema_version": 1
+   },
+   "dependencies": []
+  },
+  "sources_manifest": {
+   "entries": [],
+   "schema": "pupu.skeleton-code-sources.v1"
+  },
+  "contents": [],
+  "content_digest": "ab412431e3aecf5148d61f8d1477578dc9767ce2bfafa89e27e9313b0ceccb77"
+ },
+ "revision": "rev-1-1ad2aedb0d55b14d",
+ "rows": [
+  {
+   "case": "private_use_vs_emoji",
+   "document": {
+    "edges": [
+     {
+      "id": "flow-start-kernel",
+      "kind": "flow",
+      "source_node_id": "start",
+      "source_port_id": "out",
+      "target_node_id": "kernel",
+      "target_port_id": "in"
+     },
+     {
+      "id": "flow-kernel-end",
+      "kind": "flow",
+      "source_node_id": "kernel",
+      "source_port_id": "out",
+      "target_node_id": "end",
+      "target_port_id": "in"
+     },
+     {
+      "id": "attach-hooks",
+      "kind": "attach",
+      "source_node_id": "kernel",
+      "source_port_id": "attach_bot",
+      "target_node_id": "hooks",
+      "target_port_id": "attach_top"
+     }
+    ],
+    "id": "agent-unicode-private-use-vs-emoji",
+    "kind": "agent",
+    "name": "agent-unicode-private-use-vs-emoji",
+    "nodes": [
+     {
+      "config": {
+       "execution": {
+        "outputs": [
+         {
+          "name": "message",
+          "source": {
+           "kind": "result",
+           "path": [
+            "message"
+           ]
+          }
+         }
+        ]
+       }
+      },
+      "id": "start",
+      "type": "start"
+     },
+     {
+      "config": {
+       "execution": {
+        "inputs": [
+         {
+          "missing": "error",
+          "name": "message",
+          "value": {
+           "kind": "ref",
+           "node_id": "start",
+           "path": [
+            "message"
+           ]
+          }
+         }
+        ],
+        "outputs": [
+         {
+          "name": "message",
+          "source": {
+           "kind": "result",
+           "path": [
+            "message"
+           ]
+          }
+         },
+         {
+          "name": "context",
+          "source": {
+           "kind": "result",
+           "path": [
+            "context"
+           ]
+          }
+         }
+        ]
+       },
+       "kernel": {
+        "history": "root",
+        "json_schema": null,
+        "max_iterations": 8,
+        "output_tokens": 512,
+        "overflow": "error",
+        "profile": {
+         "capabilities": {
+          "files": true,
+          "images": true,
+          "json_schema": true
+         },
+         "context_window": 8192,
+         "credential_ref": "openai",
+         "endpoint": "https://api.openai.com/v1",
+         "id": "openai-profile",
+         "model": "test-model",
+         "output_limit": 2048,
+         "protocol": "openai-responses",
+         "provider": "openai"
+        },
+        "prompt": "resolved builtin",
+        "schema_version": 1
+       }
+      },
+      "id": "kernel",
+      "type": "agent"
+     },
+     {
+      "config": {
+       "execution": {
+        "inputs": [
+         {
+          "missing": "error",
+          "name": "message",
+          "value": {
+           "kind": "ref",
+           "node_id": "kernel",
+           "path": [
+            "message"
+           ]
+          }
+         }
+        ],
+        "outputs": [
+         {
+          "name": "message",
+          "source": {
+           "kind": "input",
+           "path": [
+            "message"
+           ]
+          }
+         }
+        ]
+       }
+      },
+      "id": "end",
+      "type": "end"
+     },
+     {
+      "config": {
+       "hooks": [
+        {
+         "event": "before_tool_call",
+         "force_approval": false,
+         "id": "\ud83d\ude00",
+         "order": 0,
+         "tool_name": null,
+         "workflow": {
+          "revision_id": "rev-1-1ad2aedb0d55b14d",
+          "workflow_id": "wf-hook-continue"
+         }
+        },
+        {
+         "event": "before_tool_call",
+         "force_approval": false,
+         "id": "\ue000",
+         "order": 0,
+         "tool_name": null,
+         "workflow": {
+          "revision_id": "rev-1-1ad2aedb0d55b14d",
+          "workflow_id": "wf-hook-continue"
+         }
+        }
+       ]
+      },
+      "id": "hooks",
+      "type": "hooks_pool"
+     }
+    ],
+    "schema_version": 1
+   },
+   "saved_equals": true,
+   "reopen_equals": true,
+   "diagnostics": [],
+   "preflight_ok": true,
+   "run_order": [
+    "\ue000",
+    "\ud83d\ude00"
+   ],
+   "admission": [
+    "\ue000",
+    "\ud83d\ude00"
+   ]
+  },
+  {
+   "case": "bmp_max_vs_astral_min",
+   "document": {
+    "edges": [
+     {
+      "id": "flow-start-kernel",
+      "kind": "flow",
+      "source_node_id": "start",
+      "source_port_id": "out",
+      "target_node_id": "kernel",
+      "target_port_id": "in"
+     },
+     {
+      "id": "flow-kernel-end",
+      "kind": "flow",
+      "source_node_id": "kernel",
+      "source_port_id": "out",
+      "target_node_id": "end",
+      "target_port_id": "in"
+     },
+     {
+      "id": "attach-hooks",
+      "kind": "attach",
+      "source_node_id": "kernel",
+      "source_port_id": "attach_bot",
+      "target_node_id": "hooks",
+      "target_port_id": "attach_top"
+     }
+    ],
+    "id": "agent-unicode-bmp-max-vs-astral-min",
+    "kind": "agent",
+    "name": "agent-unicode-bmp-max-vs-astral-min",
+    "nodes": [
+     {
+      "config": {
+       "execution": {
+        "outputs": [
+         {
+          "name": "message",
+          "source": {
+           "kind": "result",
+           "path": [
+            "message"
+           ]
+          }
+         }
+        ]
+       }
+      },
+      "id": "start",
+      "type": "start"
+     },
+     {
+      "config": {
+       "execution": {
+        "inputs": [
+         {
+          "missing": "error",
+          "name": "message",
+          "value": {
+           "kind": "ref",
+           "node_id": "start",
+           "path": [
+            "message"
+           ]
+          }
+         }
+        ],
+        "outputs": [
+         {
+          "name": "message",
+          "source": {
+           "kind": "result",
+           "path": [
+            "message"
+           ]
+          }
+         },
+         {
+          "name": "context",
+          "source": {
+           "kind": "result",
+           "path": [
+            "context"
+           ]
+          }
+         }
+        ]
+       },
+       "kernel": {
+        "history": "root",
+        "json_schema": null,
+        "max_iterations": 8,
+        "output_tokens": 512,
+        "overflow": "error",
+        "profile": {
+         "capabilities": {
+          "files": true,
+          "images": true,
+          "json_schema": true
+         },
+         "context_window": 8192,
+         "credential_ref": "openai",
+         "endpoint": "https://api.openai.com/v1",
+         "id": "openai-profile",
+         "model": "test-model",
+         "output_limit": 2048,
+         "protocol": "openai-responses",
+         "provider": "openai"
+        },
+        "prompt": "resolved builtin",
+        "schema_version": 1
+       }
+      },
+      "id": "kernel",
+      "type": "agent"
+     },
+     {
+      "config": {
+       "execution": {
+        "inputs": [
+         {
+          "missing": "error",
+          "name": "message",
+          "value": {
+           "kind": "ref",
+           "node_id": "kernel",
+           "path": [
+            "message"
+           ]
+          }
+         }
+        ],
+        "outputs": [
+         {
+          "name": "message",
+          "source": {
+           "kind": "input",
+           "path": [
+            "message"
+           ]
+          }
+         }
+        ]
+       }
+      },
+      "id": "end",
+      "type": "end"
+     },
+     {
+      "config": {
+       "hooks": [
+        {
+         "event": "before_tool_call",
+         "force_approval": false,
+         "id": "\ud800\udc00",
+         "order": 0,
+         "tool_name": null,
+         "workflow": {
+          "revision_id": "rev-1-1ad2aedb0d55b14d",
+          "workflow_id": "wf-hook-continue"
+         }
+        },
+        {
+         "event": "before_tool_call",
+         "force_approval": false,
+         "id": "\uffff",
+         "order": 0,
+         "tool_name": null,
+         "workflow": {
+          "revision_id": "rev-1-1ad2aedb0d55b14d",
+          "workflow_id": "wf-hook-continue"
+         }
+        }
+       ]
+      },
+      "id": "hooks",
+      "type": "hooks_pool"
+     }
+    ],
+    "schema_version": 1
+   },
+   "saved_equals": true,
+   "reopen_equals": true,
+   "diagnostics": [],
+   "preflight_ok": true,
+   "run_order": [
+    "\uffff",
+    "\ud800\udc00"
+   ],
+   "admission": [
+    "\uffff",
+    "\ud800\udc00"
+   ]
+  },
+  {
+   "case": "astral_vs_astral",
+   "document": {
+    "edges": [
+     {
+      "id": "flow-start-kernel",
+      "kind": "flow",
+      "source_node_id": "start",
+      "source_port_id": "out",
+      "target_node_id": "kernel",
+      "target_port_id": "in"
+     },
+     {
+      "id": "flow-kernel-end",
+      "kind": "flow",
+      "source_node_id": "kernel",
+      "source_port_id": "out",
+      "target_node_id": "end",
+      "target_port_id": "in"
+     },
+     {
+      "id": "attach-hooks",
+      "kind": "attach",
+      "source_node_id": "kernel",
+      "source_port_id": "attach_bot",
+      "target_node_id": "hooks",
+      "target_port_id": "attach_top"
+     }
+    ],
+    "id": "agent-unicode-astral-vs-astral",
+    "kind": "agent",
+    "name": "agent-unicode-astral-vs-astral",
+    "nodes": [
+     {
+      "config": {
+       "execution": {
+        "outputs": [
+         {
+          "name": "message",
+          "source": {
+           "kind": "result",
+           "path": [
+            "message"
+           ]
+          }
+         }
+        ]
+       }
+      },
+      "id": "start",
+      "type": "start"
+     },
+     {
+      "config": {
+       "execution": {
+        "inputs": [
+         {
+          "missing": "error",
+          "name": "message",
+          "value": {
+           "kind": "ref",
+           "node_id": "start",
+           "path": [
+            "message"
+           ]
+          }
+         }
+        ],
+        "outputs": [
+         {
+          "name": "message",
+          "source": {
+           "kind": "result",
+           "path": [
+            "message"
+           ]
+          }
+         },
+         {
+          "name": "context",
+          "source": {
+           "kind": "result",
+           "path": [
+            "context"
+           ]
+          }
+         }
+        ]
+       },
+       "kernel": {
+        "history": "root",
+        "json_schema": null,
+        "max_iterations": 8,
+        "output_tokens": 512,
+        "overflow": "error",
+        "profile": {
+         "capabilities": {
+          "files": true,
+          "images": true,
+          "json_schema": true
+         },
+         "context_window": 8192,
+         "credential_ref": "openai",
+         "endpoint": "https://api.openai.com/v1",
+         "id": "openai-profile",
+         "model": "test-model",
+         "output_limit": 2048,
+         "protocol": "openai-responses",
+         "provider": "openai"
+        },
+        "prompt": "resolved builtin",
+        "schema_version": 1
+       }
+      },
+      "id": "kernel",
+      "type": "agent"
+     },
+     {
+      "config": {
+       "execution": {
+        "inputs": [
+         {
+          "missing": "error",
+          "name": "message",
+          "value": {
+           "kind": "ref",
+           "node_id": "kernel",
+           "path": [
+            "message"
+           ]
+          }
+         }
+        ],
+        "outputs": [
+         {
+          "name": "message",
+          "source": {
+           "kind": "input",
+           "path": [
+            "message"
+           ]
+          }
+         }
+        ]
+       }
+      },
+      "id": "end",
+      "type": "end"
+     },
+     {
+      "config": {
+       "hooks": [
+        {
+         "event": "before_tool_call",
+         "force_approval": false,
+         "id": "\ud83d\ude01",
+         "order": 0,
+         "tool_name": null,
+         "workflow": {
+          "revision_id": "rev-1-1ad2aedb0d55b14d",
+          "workflow_id": "wf-hook-continue"
+         }
+        },
+        {
+         "event": "before_tool_call",
+         "force_approval": false,
+         "id": "\ud83d\ude00",
+         "order": 0,
+         "tool_name": null,
+         "workflow": {
+          "revision_id": "rev-1-1ad2aedb0d55b14d",
+          "workflow_id": "wf-hook-continue"
+         }
+        }
+       ]
+      },
+      "id": "hooks",
+      "type": "hooks_pool"
+     }
+    ],
+    "schema_version": 1
+   },
+   "saved_equals": true,
+   "reopen_equals": true,
+   "diagnostics": [],
+   "preflight_ok": true,
+   "run_order": [
+    "\ud83d\ude00",
+    "\ud83d\ude01"
+   ],
+   "admission": [
+    "\ud83d\ude00",
+    "\ud83d\ude01"
+   ]
+  },
+  {
+   "case": "prefix",
+   "document": {
+    "edges": [
+     {
+      "id": "flow-start-kernel",
+      "kind": "flow",
+      "source_node_id": "start",
+      "source_port_id": "out",
+      "target_node_id": "kernel",
+      "target_port_id": "in"
+     },
+     {
+      "id": "flow-kernel-end",
+      "kind": "flow",
+      "source_node_id": "kernel",
+      "source_port_id": "out",
+      "target_node_id": "end",
+      "target_port_id": "in"
+     },
+     {
+      "id": "attach-hooks",
+      "kind": "attach",
+      "source_node_id": "kernel",
+      "source_port_id": "attach_bot",
+      "target_node_id": "hooks",
+      "target_port_id": "attach_top"
+     }
+    ],
+    "id": "agent-unicode-prefix",
+    "kind": "agent",
+    "name": "agent-unicode-prefix",
+    "nodes": [
+     {
+      "config": {
+       "execution": {
+        "outputs": [
+         {
+          "name": "message",
+          "source": {
+           "kind": "result",
+           "path": [
+            "message"
+           ]
+          }
+         }
+        ]
+       }
+      },
+      "id": "start",
+      "type": "start"
+     },
+     {
+      "config": {
+       "execution": {
+        "inputs": [
+         {
+          "missing": "error",
+          "name": "message",
+          "value": {
+           "kind": "ref",
+           "node_id": "start",
+           "path": [
+            "message"
+           ]
+          }
+         }
+        ],
+        "outputs": [
+         {
+          "name": "message",
+          "source": {
+           "kind": "result",
+           "path": [
+            "message"
+           ]
+          }
+         },
+         {
+          "name": "context",
+          "source": {
+           "kind": "result",
+           "path": [
+            "context"
+           ]
+          }
+         }
+        ]
+       },
+       "kernel": {
+        "history": "root",
+        "json_schema": null,
+        "max_iterations": 8,
+        "output_tokens": 512,
+        "overflow": "error",
+        "profile": {
+         "capabilities": {
+          "files": true,
+          "images": true,
+          "json_schema": true
+         },
+         "context_window": 8192,
+         "credential_ref": "openai",
+         "endpoint": "https://api.openai.com/v1",
+         "id": "openai-profile",
+         "model": "test-model",
+         "output_limit": 2048,
+         "protocol": "openai-responses",
+         "provider": "openai"
+        },
+        "prompt": "resolved builtin",
+        "schema_version": 1
+       }
+      },
+      "id": "kernel",
+      "type": "agent"
+     },
+     {
+      "config": {
+       "execution": {
+        "inputs": [
+         {
+          "missing": "error",
+          "name": "message",
+          "value": {
+           "kind": "ref",
+           "node_id": "kernel",
+           "path": [
+            "message"
+           ]
+          }
+         }
+        ],
+        "outputs": [
+         {
+          "name": "message",
+          "source": {
+           "kind": "input",
+           "path": [
+            "message"
+           ]
+          }
+         }
+        ]
+       }
+      },
+      "id": "end",
+      "type": "end"
+     },
+     {
+      "config": {
+       "hooks": [
+        {
+         "event": "before_tool_call",
+         "force_approval": false,
+         "id": "ab",
+         "order": 0,
+         "tool_name": null,
+         "workflow": {
+          "revision_id": "rev-1-1ad2aedb0d55b14d",
+          "workflow_id": "wf-hook-continue"
+         }
+        },
+        {
+         "event": "before_tool_call",
+         "force_approval": false,
+         "id": "a",
+         "order": 0,
+         "tool_name": null,
+         "workflow": {
+          "revision_id": "rev-1-1ad2aedb0d55b14d",
+          "workflow_id": "wf-hook-continue"
+         }
+        }
+       ]
+      },
+      "id": "hooks",
+      "type": "hooks_pool"
+     }
+    ],
+    "schema_version": 1
+   },
+   "saved_equals": true,
+   "reopen_equals": true,
+   "diagnostics": [],
+   "preflight_ok": true,
+   "run_order": [
+    "a",
+    "ab"
+   ],
+   "admission": [
+    "a",
+    "ab"
+   ]
+  },
+  {
+   "case": "combining",
+   "document": {
+    "edges": [
+     {
+      "id": "flow-start-kernel",
+      "kind": "flow",
+      "source_node_id": "start",
+      "source_port_id": "out",
+      "target_node_id": "kernel",
+      "target_port_id": "in"
+     },
+     {
+      "id": "flow-kernel-end",
+      "kind": "flow",
+      "source_node_id": "kernel",
+      "source_port_id": "out",
+      "target_node_id": "end",
+      "target_port_id": "in"
+     },
+     {
+      "id": "attach-hooks",
+      "kind": "attach",
+      "source_node_id": "kernel",
+      "source_port_id": "attach_bot",
+      "target_node_id": "hooks",
+      "target_port_id": "attach_top"
+     }
+    ],
+    "id": "agent-unicode-combining",
+    "kind": "agent",
+    "name": "agent-unicode-combining",
+    "nodes": [
+     {
+      "config": {
+       "execution": {
+        "outputs": [
+         {
+          "name": "message",
+          "source": {
+           "kind": "result",
+           "path": [
+            "message"
+           ]
+          }
+         }
+        ]
+       }
+      },
+      "id": "start",
+      "type": "start"
+     },
+     {
+      "config": {
+       "execution": {
+        "inputs": [
+         {
+          "missing": "error",
+          "name": "message",
+          "value": {
+           "kind": "ref",
+           "node_id": "start",
+           "path": [
+            "message"
+           ]
+          }
+         }
+        ],
+        "outputs": [
+         {
+          "name": "message",
+          "source": {
+           "kind": "result",
+           "path": [
+            "message"
+           ]
+          }
+         },
+         {
+          "name": "context",
+          "source": {
+           "kind": "result",
+           "path": [
+            "context"
+           ]
+          }
+         }
+        ]
+       },
+       "kernel": {
+        "history": "root",
+        "json_schema": null,
+        "max_iterations": 8,
+        "output_tokens": 512,
+        "overflow": "error",
+        "profile": {
+         "capabilities": {
+          "files": true,
+          "images": true,
+          "json_schema": true
+         },
+         "context_window": 8192,
+         "credential_ref": "openai",
+         "endpoint": "https://api.openai.com/v1",
+         "id": "openai-profile",
+         "model": "test-model",
+         "output_limit": 2048,
+         "protocol": "openai-responses",
+         "provider": "openai"
+        },
+        "prompt": "resolved builtin",
+        "schema_version": 1
+       }
+      },
+      "id": "kernel",
+      "type": "agent"
+     },
+     {
+      "config": {
+       "execution": {
+        "inputs": [
+         {
+          "missing": "error",
+          "name": "message",
+          "value": {
+           "kind": "ref",
+           "node_id": "kernel",
+           "path": [
+            "message"
+           ]
+          }
+         }
+        ],
+        "outputs": [
+         {
+          "name": "message",
+          "source": {
+           "kind": "input",
+           "path": [
+            "message"
+           ]
+          }
+         }
+        ]
+       }
+      },
+      "id": "end",
+      "type": "end"
+     },
+     {
+      "config": {
+       "hooks": [
+        {
+         "event": "before_tool_call",
+         "force_approval": false,
+         "id": "a\u0300",
+         "order": 0,
+         "tool_name": null,
+         "workflow": {
+          "revision_id": "rev-1-1ad2aedb0d55b14d",
+          "workflow_id": "wf-hook-continue"
+         }
+        },
+        {
+         "event": "before_tool_call",
+         "force_approval": false,
+         "id": "\u00e0",
+         "order": 0,
+         "tool_name": null,
+         "workflow": {
+          "revision_id": "rev-1-1ad2aedb0d55b14d",
+          "workflow_id": "wf-hook-continue"
+         }
+        },
+        {
+         "event": "before_tool_call",
+         "force_approval": false,
+         "id": "a",
+         "order": 0,
+         "tool_name": null,
+         "workflow": {
+          "revision_id": "rev-1-1ad2aedb0d55b14d",
+          "workflow_id": "wf-hook-continue"
+         }
+        }
+       ]
+      },
+      "id": "hooks",
+      "type": "hooks_pool"
+     }
+    ],
+    "schema_version": 1
+   },
+   "saved_equals": true,
+   "reopen_equals": true,
+   "diagnostics": [],
+   "preflight_ok": true,
+   "run_order": [
+    "a",
+    "a\u0300",
+    "\u00e0"
+   ],
+   "admission": [
+    "a",
+    "a\u0300",
+    "\u00e0"
+   ]
+  },
+  {
+   "case": "ascii",
+   "document": {
+    "edges": [
+     {
+      "id": "flow-start-kernel",
+      "kind": "flow",
+      "source_node_id": "start",
+      "source_port_id": "out",
+      "target_node_id": "kernel",
+      "target_port_id": "in"
+     },
+     {
+      "id": "flow-kernel-end",
+      "kind": "flow",
+      "source_node_id": "kernel",
+      "source_port_id": "out",
+      "target_node_id": "end",
+      "target_port_id": "in"
+     },
+     {
+      "id": "attach-hooks",
+      "kind": "attach",
+      "source_node_id": "kernel",
+      "source_port_id": "attach_bot",
+      "target_node_id": "hooks",
+      "target_port_id": "attach_top"
+     }
+    ],
+    "id": "agent-unicode-ascii",
+    "kind": "agent",
+    "name": "agent-unicode-ascii",
+    "nodes": [
+     {
+      "config": {
+       "execution": {
+        "outputs": [
+         {
+          "name": "message",
+          "source": {
+           "kind": "result",
+           "path": [
+            "message"
+           ]
+          }
+         }
+        ]
+       }
+      },
+      "id": "start",
+      "type": "start"
+     },
+     {
+      "config": {
+       "execution": {
+        "inputs": [
+         {
+          "missing": "error",
+          "name": "message",
+          "value": {
+           "kind": "ref",
+           "node_id": "start",
+           "path": [
+            "message"
+           ]
+          }
+         }
+        ],
+        "outputs": [
+         {
+          "name": "message",
+          "source": {
+           "kind": "result",
+           "path": [
+            "message"
+           ]
+          }
+         },
+         {
+          "name": "context",
+          "source": {
+           "kind": "result",
+           "path": [
+            "context"
+           ]
+          }
+         }
+        ]
+       },
+       "kernel": {
+        "history": "root",
+        "json_schema": null,
+        "max_iterations": 8,
+        "output_tokens": 512,
+        "overflow": "error",
+        "profile": {
+         "capabilities": {
+          "files": true,
+          "images": true,
+          "json_schema": true
+         },
+         "context_window": 8192,
+         "credential_ref": "openai",
+         "endpoint": "https://api.openai.com/v1",
+         "id": "openai-profile",
+         "model": "test-model",
+         "output_limit": 2048,
+         "protocol": "openai-responses",
+         "provider": "openai"
+        },
+        "prompt": "resolved builtin",
+        "schema_version": 1
+       }
+      },
+      "id": "kernel",
+      "type": "agent"
+     },
+     {
+      "config": {
+       "execution": {
+        "inputs": [
+         {
+          "missing": "error",
+          "name": "message",
+          "value": {
+           "kind": "ref",
+           "node_id": "kernel",
+           "path": [
+            "message"
+           ]
+          }
+         }
+        ],
+        "outputs": [
+         {
+          "name": "message",
+          "source": {
+           "kind": "input",
+           "path": [
+            "message"
+           ]
+          }
+         }
+        ]
+       }
+      },
+      "id": "end",
+      "type": "end"
+     },
+     {
+      "config": {
+       "hooks": [
+        {
+         "event": "before_tool_call",
+         "force_approval": false,
+         "id": "z",
+         "order": 0,
+         "tool_name": null,
+         "workflow": {
+          "revision_id": "rev-1-1ad2aedb0d55b14d",
+          "workflow_id": "wf-hook-continue"
+         }
+        },
+        {
+         "event": "before_tool_call",
+         "force_approval": false,
+         "id": "a",
+         "order": 0,
+         "tool_name": null,
+         "workflow": {
+          "revision_id": "rev-1-1ad2aedb0d55b14d",
+          "workflow_id": "wf-hook-continue"
+         }
+        }
+       ]
+      },
+      "id": "hooks",
+      "type": "hooks_pool"
+     }
+    ],
+    "schema_version": 1
+   },
+   "saved_equals": true,
+   "reopen_equals": true,
+   "diagnostics": [],
+   "preflight_ok": true,
+   "run_order": [
+    "a",
+    "z"
+   ],
+   "admission": [
+    "a",
+    "z"
+   ]
+  },
+  {
+   "case": "mixed_orders",
+   "document": {
+    "edges": [
+     {
+      "id": "flow-start-kernel",
+      "kind": "flow",
+      "source_node_id": "start",
+      "source_port_id": "out",
+      "target_node_id": "kernel",
+      "target_port_id": "in"
+     },
+     {
+      "id": "flow-kernel-end",
+      "kind": "flow",
+      "source_node_id": "kernel",
+      "source_port_id": "out",
+      "target_node_id": "end",
+      "target_port_id": "in"
+     },
+     {
+      "id": "attach-hooks",
+      "kind": "attach",
+      "source_node_id": "kernel",
+      "source_port_id": "attach_bot",
+      "target_node_id": "hooks",
+      "target_port_id": "attach_top"
+     }
+    ],
+    "id": "agent-unicode-mixed-orders",
+    "kind": "agent",
+    "name": "agent-unicode-mixed-orders",
+    "nodes": [
+     {
+      "config": {
+       "execution": {
+        "outputs": [
+         {
+          "name": "message",
+          "source": {
+           "kind": "result",
+           "path": [
+            "message"
+           ]
+          }
+         }
+        ]
+       }
+      },
+      "id": "start",
+      "type": "start"
+     },
+     {
+      "config": {
+       "execution": {
+        "inputs": [
+         {
+          "missing": "error",
+          "name": "message",
+          "value": {
+           "kind": "ref",
+           "node_id": "start",
+           "path": [
+            "message"
+           ]
+          }
+         }
+        ],
+        "outputs": [
+         {
+          "name": "message",
+          "source": {
+           "kind": "result",
+           "path": [
+            "message"
+           ]
+          }
+         },
+         {
+          "name": "context",
+          "source": {
+           "kind": "result",
+           "path": [
+            "context"
+           ]
+          }
+         }
+        ]
+       },
+       "kernel": {
+        "history": "root",
+        "json_schema": null,
+        "max_iterations": 8,
+        "output_tokens": 512,
+        "overflow": "error",
+        "profile": {
+         "capabilities": {
+          "files": true,
+          "images": true,
+          "json_schema": true
+         },
+         "context_window": 8192,
+         "credential_ref": "openai",
+         "endpoint": "https://api.openai.com/v1",
+         "id": "openai-profile",
+         "model": "test-model",
+         "output_limit": 2048,
+         "protocol": "openai-responses",
+         "provider": "openai"
+        },
+        "prompt": "resolved builtin",
+        "schema_version": 1
+       }
+      },
+      "id": "kernel",
+      "type": "agent"
+     },
+     {
+      "config": {
+       "execution": {
+        "inputs": [
+         {
+          "missing": "error",
+          "name": "message",
+          "value": {
+           "kind": "ref",
+           "node_id": "kernel",
+           "path": [
+            "message"
+           ]
+          }
+         }
+        ],
+        "outputs": [
+         {
+          "name": "message",
+          "source": {
+           "kind": "input",
+           "path": [
+            "message"
+           ]
+          }
+         }
+        ]
+       }
+      },
+      "id": "end",
+      "type": "end"
+     },
+     {
+      "config": {
+       "hooks": [
+        {
+         "event": "before_tool_call",
+         "force_approval": false,
+         "id": "\ud83d\ude00",
+         "order": 0,
+         "tool_name": null,
+         "workflow": {
+          "revision_id": "rev-1-1ad2aedb0d55b14d",
+          "workflow_id": "wf-hook-continue"
+         }
+        },
+        {
+         "event": "before_tool_call",
+         "force_approval": false,
+         "id": "\ue000",
+         "order": 0,
+         "tool_name": null,
+         "workflow": {
+          "revision_id": "rev-1-1ad2aedb0d55b14d",
+          "workflow_id": "wf-hook-continue"
+         }
+        },
+        {
+         "event": "before_tool_call",
+         "force_approval": false,
+         "id": "z",
+         "order": 1,
+         "tool_name": null,
+         "workflow": {
+          "revision_id": "rev-1-1ad2aedb0d55b14d",
+          "workflow_id": "wf-hook-continue"
+         }
+        }
+       ]
+      },
+      "id": "hooks",
+      "type": "hooks_pool"
+     }
+    ],
+    "schema_version": 1
+   },
+   "saved_equals": true,
+   "reopen_equals": true,
+   "diagnostics": [],
+   "preflight_ok": true,
+   "run_order": [
+    "\ue000",
+    "\ud83d\ude00",
+    "z"
+   ],
+   "admission": [
+    "\ue000",
+    "\ud83d\ude00",
+    "z"
+   ]
+  }
+ ]
+}

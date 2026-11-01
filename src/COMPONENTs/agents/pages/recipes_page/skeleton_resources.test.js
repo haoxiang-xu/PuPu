@@ -3,6 +3,7 @@ import {
   diagnose,
   kernel_profiles,
   list_resources,
+  load_resource,
   edit_conflict_message,
   is_unavailable,
   preflight,
@@ -18,6 +19,28 @@ beforeEach(() => {
   Object.keys(api.unchain).forEach((key) => delete api.unchain[key]);
 });
 
+/* A whole v2 resource aggregate with no Code text, as the store answers one
+   (#357 G1): the editor reads and writes only this shape. */
+const agg = (id, extra = {}) => ({
+  schema: "pupu.skeleton-resource.v2",
+  resource: {
+    id,
+    kind: "agent",
+    name: id,
+    description: "",
+    archived: false,
+    edit_token: "tok-2",
+    draft_digest: "d".repeat(64),
+    source_identity: null,
+    document: { id },
+    diagnostics: [],
+    ...extra,
+  },
+  sources_manifest: { schema: "pupu.skeleton-code-sources.v1", entries: [] },
+  contents: [],
+  content_digest: "c".repeat(64),
+});
+
 describe("a build that cannot reach the store says so", () => {
   test("a missing bridge method is unavailable, not a refusal", () => {
     /* The two must stay apart: "we could not ask" and "it said no" call for
@@ -30,8 +53,8 @@ describe("a build that cannot reach the store says so", () => {
   });
 
   test("the bridge throwing bridge_unavailable is the same verdict", async () => {
-    api.unchain.saveSkeletonResource = jest.fn().mockRejectedValue(
-      Object.assign(new Error("unchainAPI.saveSkeletonResource is unavailable"), {
+    api.unchain.saveManagedSkeletonResource = jest.fn().mockRejectedValue(
+      Object.assign(new Error("unchainAPI.saveManagedSkeletonResource is unavailable"), {
         code: "bridge_unavailable",
       }),
     );
@@ -41,6 +64,21 @@ describe("a build that cannot reach the store says so", () => {
   test("every call answers, so no caller has to guess", async () => {
     expect(is_unavailable(await diagnose({ id: "w" }))).toBe(true);
     expect(is_unavailable(await preflight("w"))).toBe(true);
+    expect(is_unavailable(await load_resource("w"))).toBe(true);
+  });
+
+  test("a host with only the graph-only v1 methods is not used in their place", async () => {
+    /* v1 cannot carry Code text, so a Save through it would drop every source
+       the resource holds. Unavailable, never a quiet fallback. */
+    api.unchain.getSkeletonResource = jest.fn().mockResolvedValue({ id: "w", document: { id: "w" }, edit_token: "t" });
+    api.unchain.saveSkeletonResource = jest.fn().mockResolvedValue({ id: "w", document: { id: "w" }, edit_token: "t2" });
+    api.unchain.preflightSkeletonResource = jest.fn().mockResolvedValue({ ok: true });
+    expect(is_unavailable(await load_resource("w"))).toBe(true);
+    expect(is_unavailable(await save_draft({ id: "w" }, "t"))).toBe(true);
+    expect(is_unavailable(await preflight("w"))).toBe(true);
+    expect(api.unchain.getSkeletonResource).not.toHaveBeenCalled();
+    expect(api.unchain.saveSkeletonResource).not.toHaveBeenCalled();
+    expect(api.unchain.preflightSkeletonResource).not.toHaveBeenCalled();
   });
 });
 
@@ -65,9 +103,7 @@ describe("a save says that the library changed", () => {
   });
 
   test("a stored save announces, with the id the store assigned", async () => {
-    api.unchain.saveSkeletonResource = jest
-      .fn()
-      .mockResolvedValue({ id: "saved-agent", edit_token: "tok-2" });
+    api.unchain.saveManagedSkeletonResource = jest.fn().mockResolvedValue(agg("saved-agent"));
     await save_draft({ id: "saved-agent" });
     expect(announced).toEqual([
       { reason: "resource_saved", resource_id: "saved-agent" },
@@ -75,7 +111,7 @@ describe("a save says that the library changed", () => {
   });
 
   test("a refused save announces nothing", async () => {
-    api.unchain.saveSkeletonResource = jest
+    api.unchain.saveManagedSkeletonResource = jest
       .fn()
       .mockResolvedValue({ error: { code: "edit_conflict" } });
     expect((await save_draft({ id: "w" }, "stale")).ok).toBe(false);
@@ -87,21 +123,20 @@ describe("a save says that the library changed", () => {
     expect(announced).toEqual([]);
   });
 
-  test("an answer with no id still announces: the listing is what gets read", async () => {
-    /* The announcement is not the record. A subscriber asks the store, so an
-     * answer this call cannot name must not leave the row stale either. */
-    api.unchain.saveSkeletonResource = jest.fn().mockResolvedValue({ ok: true });
-    await save_draft({ id: "w" });
-    expect(announced).toEqual([{ reason: "resource_saved", resource_id: "" }]);
+  test("a reply that is not a whole aggregate announces nothing and is refused", async () => {
+    /* The write may have landed, but nothing here can say what was stored;
+       the session keeps its token and the next Save meets the conflict. */
+    api.unchain.saveManagedSkeletonResource = jest.fn().mockResolvedValue({ ok: true });
+    const result = await save_draft({ id: "w" });
+    expect(result).toMatchObject({ ok: false, reason: "refused", error: { code: "managed_source_protocol_error" } });
+    expect(announced).toEqual([]);
   });
 
   test("a subscriber that throws does not fail the save", async () => {
     const off = subscribeSkeletonLibraryRefresh(() => {
       throw new Error("the page blew up while reacting");
     });
-    api.unchain.saveSkeletonResource = jest
-      .fn()
-      .mockResolvedValue({ id: "saved-agent" });
+    api.unchain.saveManagedSkeletonResource = jest.fn().mockResolvedValue(agg("saved-agent"));
     await expect(save_draft({ id: "saved-agent" })).resolves.toMatchObject({
       ok: true,
     });
@@ -110,20 +145,25 @@ describe("a save says that the library changed", () => {
 });
 
 describe("the payloads are the ones the route accepts", () => {
-  test("a save without an edit token omits the field rather than sending null", async () => {
-    /* The route's body is closed, and `expected_edit_token: null` on a resource
-     * that does not exist yet is a 409 rather than a create. */
-    api.unchain.saveSkeletonResource = jest.fn().mockResolvedValue({ ok: true });
+  test("a save without an edit token sends null: the v2 edit is closed and names it", async () => {
+    api.unchain.saveManagedSkeletonResource = jest.fn().mockResolvedValue(agg("w"));
     await save_draft({ id: "w" });
-    expect(api.unchain.saveSkeletonResource).toHaveBeenCalledWith({ document: { id: "w" } });
+    expect(api.unchain.saveManagedSkeletonResource).toHaveBeenCalledWith({
+      schema: "pupu.skeleton-edit.v2",
+      document: { id: "w" },
+      expected_edit_token: null,
+      managed_sources: [],
+    });
   });
 
   test("a save with an edit token sends it as the compare-and-set", async () => {
-    api.unchain.saveSkeletonResource = jest.fn().mockResolvedValue({ ok: true });
+    api.unchain.saveManagedSkeletonResource = jest.fn().mockResolvedValue(agg("w"));
     await save_draft({ id: "w" }, "tok-1");
-    expect(api.unchain.saveSkeletonResource).toHaveBeenCalledWith({
+    expect(api.unchain.saveManagedSkeletonResource).toHaveBeenCalledWith({
+      schema: "pupu.skeleton-edit.v2",
       document: { id: "w" },
       expected_edit_token: "tok-1",
+      managed_sources: [],
     });
   });
 
@@ -138,21 +178,38 @@ describe("the payloads are the ones the route accepts", () => {
     ]);
   });
 
-  test("preflight sends null rather than undefined for no legacy kernel", async () => {
-    api.unchain.preflightSkeletonResource = jest.fn().mockResolvedValue({ ok: true });
-    await preflight("w");
-    expect(api.unchain.preflightSkeletonResource).toHaveBeenCalledWith("w", null);
+  test("preflight sends only the id and answers with the inner verdict", async () => {
+    const verdict = { ok: true, id: "w", definition_digest: "e".repeat(64), edit_token: "t" };
+    api.unchain.preflightManagedSkeletonResource = jest.fn().mockResolvedValue({ schema: "pupu.skeleton-preflight.v2", preflight: verdict });
+    expect(await preflight("w")).toEqual({ ok: true, data: verdict });
+    expect(api.unchain.preflightManagedSkeletonResource).toHaveBeenCalledWith("w");
+  });
+
+  test("a preflight reply that is not the v2 envelope is refused", async () => {
+    api.unchain.preflightManagedSkeletonResource = jest.fn().mockResolvedValue({ ok: true, edit_token: "t" });
+    expect(await preflight("w")).toMatchObject({ ok: false, reason: "refused", error: { code: "managed_source_protocol_error" } });
   });
 });
 
 describe("a refusal is reported as one", () => {
   test("an error body is a refusal, not a success with an error inside", async () => {
-    api.unchain.saveSkeletonResource = jest.fn().mockResolvedValue({
+    api.unchain.saveManagedSkeletonResource = jest.fn().mockResolvedValue({
       error: { code: "edit_conflict", path: ["expected_edit_token"], message: "stale" },
     });
     const result = await save_draft({ id: "w" }, "old");
     expect(result).toMatchObject({ ok: false, reason: "refused" });
     expect(result.error.code).toBe("edit_conflict");
+  });
+
+  test("a thrown store error keeps its code, path and message", async () => {
+    api.unchain.saveManagedSkeletonResource = jest.fn().mockRejectedValue(
+      Object.assign(new Error("Resource changed in another editor."), { code: "edit_conflict", path: ["expected_edit_token"], status: 409 }),
+    );
+    expect(await save_draft({ id: "w" }, "old")).toEqual({
+      ok: false,
+      reason: "refused",
+      error: { code: "edit_conflict", path: ["expected_edit_token"], message: "Resource changed in another editor." },
+    });
   });
 
   test("a thrown store error is a refusal too", async () => {
@@ -170,12 +227,13 @@ describe("a refusal is reported as one", () => {
     expect(edit_conflict_message(null)).toBeNull();
   });
 
-  test("a plain answer is passed through", async () => {
-    api.unchain.saveSkeletonResource = jest.fn().mockResolvedValue({ ok: true, edit_token: "t2" });
-    expect(await save_draft({ id: "w" })).toEqual({
-      ok: true,
-      data: { ok: true, edit_token: "t2" },
-    });
+  test("an admitted answer is the resource plus its text table", async () => {
+    api.unchain.getManagedSkeletonResource = jest.fn().mockResolvedValue(agg("w"));
+    const result = await load_resource("w");
+    expect(result.ok).toBe(true);
+    expect(result.data).toMatchObject({ id: "w", edit_token: "tok-2", document: { id: "w" } });
+    expect(Object.keys(result.data.managed_sources)).toEqual([]);
+    expect(Object.getPrototypeOf(result.data.managed_sources)).toBeNull();
   });
 });
 
@@ -352,5 +410,55 @@ describe("the Kernel profiles this build can offer", () => {
     }));
     const result = await kernel_profiles();
     expect(result).toEqual({ ok: true, data: { profiles: [], unavailable: [] } });
+  });
+});
+
+describe("the Python profiles a Code node can run with (#357)", () => {
+  const { python_profiles, save_python_profile, probe_python_profile, PROFILES_MALFORMED } = require("./skeleton_resources");
+  const capture = require("./code_capture.json");
+
+  test("a build with no bridge method says it could not ask", async () => {
+    expect(is_unavailable(await python_profiles())).toBe(true);
+  });
+
+  test("the store's own list arrives as it was sent", async () => {
+    api.unchain.listSkeletonPythonProfiles = jest.fn(async () => ({ profiles: capture.profiles.list_after }));
+    const result = await python_profiles();
+    expect(result.ok).toBe(true);
+    expect(result.data.profiles).toEqual(capture.profiles.list_after);
+    expect(result.data.profiles.map((profile) => profile.id)).toEqual(["builtin", "pupu-tools"]);
+  });
+
+  test("an answer that is not a list of profiles is refused, never emptied", async () => {
+    for (const answer of [{ profiles: "none" }, { profiles: [{ kind: "venv" }] }, [], null]) {
+      api.unchain.listSkeletonPythonProfiles = jest.fn(async () => answer);
+      const result = await python_profiles();
+      expect(result.ok).toBe(false);
+      expect(result.error.code).toBe(PROFILES_MALFORMED);
+    }
+  });
+
+  test("a refusal is a refusal", async () => {
+    api.unchain.listSkeletonPythonProfiles = jest.fn(async () => ({ error: { code: "unauthorized", message: "no" } }));
+    const result = await python_profiles();
+    expect(result).toMatchObject({ ok: false, error: { code: "unauthorized" } });
+  });
+
+  test("naming a Python sends exactly the id and the executable; the store's refusals come back as they are", async () => {
+    api.unchain.saveSkeletonPythonProfile = jest.fn(async (payload) => ({ ...capture.profiles.save_venv, requested: payload }));
+    const saved = await save_python_profile("pupu-tools", "/Users/someone/.venvs/pupu-tools/bin/python");
+    expect(api.unchain.saveSkeletonPythonProfile).toHaveBeenCalledWith({ profile_id: "pupu-tools", executable: "/Users/someone/.venvs/pupu-tools/bin/python" });
+    expect(saved.ok).toBe(true);
+    expect(saved.data.probe).toEqual(capture.profiles.save_venv.probe);
+    api.unchain.saveSkeletonPythonProfile = jest.fn(async () => ({ error: capture.profiles.save_relative.refusal }));
+    const refused = await save_python_profile("rel", "bin/python");
+    expect(refused).toMatchObject({ ok: false, error: { code: "invalid_path" } });
+  });
+
+  test("a probe answers with the version the interpreter reported", async () => {
+    api.unchain.probeSkeletonPythonProfile = jest.fn(async () => capture.profiles.probe_venv);
+    const result = await probe_python_profile("pupu-tools");
+    expect(api.unchain.probeSkeletonPythonProfile).toHaveBeenCalledWith("pupu-tools");
+    expect(result.data).toMatchObject({ ok: true, version: "3.12.10", implementation: "cpython" });
   });
 });

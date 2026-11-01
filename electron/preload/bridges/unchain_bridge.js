@@ -20,6 +20,26 @@ const invokeSkeletonResource = async (ipcRenderer, command) => {
 };
 
 const createMisoBridge = (ipcRenderer, streamClient) => ({
+  getManagedSkeletonTransferCapabilities: () => invokeSkeletonResource(ipcRenderer, { action: "code_transfer_capabilities", payload: {} }),
+  exportManagedSkeletonResource: (resourceId) => invokeSkeletonResource(ipcRenderer, { action: "code_export", payload: { resource_id: resourceId } }),
+  importManagedSkeletonResource: (payload) => invokeSkeletonResource(ipcRenderer, { action: "code_import", payload }),
+  getSkeletonHookWorkflowCapabilities: () => invokeSkeletonResource(ipcRenderer, { action: "hook_workflow_capabilities", payload: {} }),
+  getSkeletonHookToolSetCapabilities: () => invokeSkeletonResource(ipcRenderer, { action: "hook_tool_set_capabilities", payload: {} }),
+  getSkeletonHookCapabilities: () => invokeSkeletonResource(ipcRenderer, { action: "hook_capabilities", payload: {} }),
+  getManagedCodeCapabilities: () => invokeSkeletonResource(ipcRenderer, { action: "code_capabilities", payload: {} }),
+  getManagedSkeletonResource: (resourceId) => invokeSkeletonResource(ipcRenderer, {
+    action: "code_get", payload: { resource_id: resourceId },
+  }),
+  saveManagedSkeletonResource: (payload) => invokeSkeletonResource(ipcRenderer, { action: "code_save", payload }),
+  preflightManagedSkeletonResource: (resourceId) => invokeSkeletonResource(ipcRenderer, {
+    action: "code_preflight", payload: { resource_id: resourceId },
+  }),
+  publishManagedSkeletonWorkflow: (resourceId, expectedEditToken) => invokeSkeletonResource(ipcRenderer, {
+    action: "code_publish", payload: { resource_id: resourceId, schema: "pupu.skeleton-publish.v2", expected_edit_token: expectedEditToken },
+  }),
+  getManagedSkeletonWorkflowVersion: (resourceId, revisionId) => invokeSkeletonResource(ipcRenderer, {
+    action: "code_get_version", payload: { resource_id: resourceId, revision_id: revisionId },
+  }),
   getStatus: () => ipcRenderer.invoke(CHANNELS.UNCHAIN.GET_STATUS),
   getComputerUseStatus: () =>
     ipcRenderer.invoke(CHANNELS.UNCHAIN.GET_COMPUTER_USE_STATUS),

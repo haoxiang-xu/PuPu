@@ -1,15 +1,18 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FlowEditor } from "../../../../BUILTIN_COMPONENTs/flow_editor";
-import Button from "../../../../BUILTIN_COMPONENTs/input/button";
+import usePresentationPlatform from "../../../../BUILTIN_COMPONENTs/mini_react/use_presentation_platform";
 import ContextMenu from "../../../../BUILTIN_COMPONENTs/context_menu/context_menu";
 import RecipeNodePalette from "./recipe_node_palette";
-import { ADDABLE_NODE_TYPES } from "./skeleton_graph_edits";
+import { addable_node_types } from "./skeleton_graph_edits";
 import { node_toolkit_refs } from "./toolkit_pool_config";
 import { branch_ports, branch_summary, is_branch_type } from "./skeleton_branch_config";
-import { NATIVE_PALETTE_ENTRIES, native_step_ports } from "./skeleton_node_catalog";
+import { NATIVE_PALETTE_ENTRIES, native_pool_ports, native_step_ports } from "./skeleton_node_catalog";
 import BranchNode from "./nodes/branch_node";
 import ToolCallNode from "./nodes/tool_call_node";
+import WorkflowCallNode from "./nodes/workflow_call_node";
+import HooksPoolNode from "./nodes/hooks_pool_node";
 import SkillReadNode from "./nodes/skill_read_node";
+import CodeNode, { CODE_LOW_ZOOM } from "./nodes/code_node";
 import AgentNode from "./nodes/agent_node";
 import EndNode from "./nodes/end_node";
 import StartNode from "./nodes/start_node";
@@ -53,7 +56,7 @@ import {
    of its own, and nothing can be read out of `Object.prototype` instead. */
 const node_table = (from) => Object.assign(Object.create(null), from || undefined);
 
-function renderNode(node, isDark, onOpenSubagent) {
+function renderNode(node, isDark, onOpenSubagent, view = {}) {
   if (node.type === "agent") return <AgentNode node={node} isDark={isDark} />;
   if (node.type === "toolkit_pool") return <ToolPoolNode node={node} isDark={isDark} native toolkits={node_toolkit_refs(node)} />;
   if (node.type === "subagent_pool") {
@@ -88,7 +91,13 @@ function renderNode(node, isDark, onOpenSubagent) {
     return <BranchNode node={node} rows={node.branch.rows} summary={node.branch.summary} isDark={isDark} />;
   }
   if (node.type === "tool_call") return <ToolCallNode node={node} isDark={isDark} />;
+  if (node.type === "workflow_call") return <WorkflowCallNode node={node} isDark={isDark} />;
+  if (node.type === "hooks_pool") return <HooksPoolNode node={node} isDark={isDark} />;
   if (node.type === "skill_read") return <SkillReadNode node={node} isDark={isDark} />;
+  /* A Code node (#357) reads the canvas's zoom — below half it falls back to
+     its header — and its viewer hands editing to the panel, which is what
+     selecting the node opens. */
+  if (node.type === "code") return <CodeNode node={node} isDark={isDark} lowZoom={view.lowZoom === true} onOpenNode={view.onOpenNode} sources={view.sources} />;
   if (node.type === "start") return <StartNode isDark={isDark} />;
   if (node.type === "end") return <EndNode isDark={isDark} />;
   /* A type this build has no drawing for still has to appear: a graph that
@@ -131,17 +140,57 @@ export default function SkeletonCanvas(props) {
   return <GraphDrawing key={JSON.stringify([props.resourceId, props.commandScope])} {...props} />;
 }
 
+/* The palette's entries for finding a node already on the canvas: by id,
+   with its type's name and icon. */
+const TYPE_ENTRIES = Object.assign(
+  Object.create(null),
+  Object.fromEntries(NATIVE_PALETTE_ENTRIES.map((entry) => [entry.type, entry])),
+);
+const FIXED_TYPES = Object.assign(Object.create(null), {
+  start: { label: "Start", icon: "flag" },
+  end: { label: "End", icon: "target" },
+});
+function finder_entries(graph) {
+  return ((graph && graph.nodes) || [])
+    .filter((node) => node && typeof node.id === "string")
+    .map((node) => {
+      const known = (typeof node.type === "string" && (TYPE_ENTRIES[node.type] || FIXED_TYPES[node.type])) || null;
+      return {
+        key: node.id,
+        type: typeof node.type === "string" ? node.type : "",
+        label: node.id,
+        description: known ? known.label : String(node.type),
+        icon: known ? known.icon : "circle",
+      };
+    });
+}
+
 function GraphDrawing({
   resourceId,
   document: graph,
   onSelectNode,
   onOpenSubagent,
   onGraphCommand,
+  /* Bumped by the page's Home control; Home centers this graph's own Start. */
+  homeToken,
+  /* Where a refused edit is said. Without it the canvas says it itself. */
+  onProblem,
+  /* The session's Code text, keyed by digest, for a Code node's preview and
+     viewer (#357 G1). Read only: the canvas never writes text. */
+  managedSources,
   isDark,
 }) {
-  const canEdit = typeof onGraphCommand === "function" && graph?.kind === "agent" && graph?.schema_version === 1;
+  const canEdit = typeof onGraphCommand === "function" && (graph?.kind === "agent" || graph?.kind === "workflow") &&
+    graph?.schema_version === 1;
+  /* A Workflow is offered only what it can hold (#357 G7). */
+  const addableTypes = useMemo(() => addable_node_types(graph?.kind), [graph?.kind]);
   const containerRef = useRef(null);
   const [palette, setPalette] = useState(null);
+  /* Finding a node by name: the palette in its find mode, which is also the
+     keyboard's way to a node (⌘F / Ctrl+F). */
+  const [finder, setFinder] = useState(null);
+  const [focusNodeId, setFocusNodeId] = useState(null);
+  const isMac = usePresentationPlatform() === "darwin";
   const [menu, setMenu] = useState(null);
   const [problem, setProblem] = useState(null);
   const [fitToken, setFitToken] = useState(undefined);
@@ -201,7 +250,7 @@ function GraphDrawing({
           /* A deterministic step (#352) has one way in and one way out; the
              legacy catalog has no entry for it, so its ports come from the
              native catalog. */
-          ports: branch ? branch.ports : native_step_ports(node.type) || (NODE_TYPES.includes(node.type) ? ports_for_type(node.type) : []),
+          ports: branch ? branch.ports : native_step_ports(node.type) || native_pool_ports(node.type) || (NODE_TYPES.includes(node.type) ? ports_for_type(node.type) : []),
           ...(branch ? { branch: { rows: branch.rows, readable: branch.readable, summary: branch_summary(node) } } : {}),
           deletable: canEdit && node.type !== "start" && node.type !== "end",
         };
@@ -228,16 +277,30 @@ function GraphDrawing({
   );
 
   const viewportRef = useRef(stored.viewport || { x: 0, y: 0, zoom: 1 });
+  /* Whether the graph is too small to read code in (#357). The editor keeps
+     the zoom in the ref it was handed, so this is read when a gesture ends —
+     the same moments the viewport is remembered — and after the editor's own
+     fit, reset and zoom-reset moves, which happen in its effects and so have
+     landed by the time the frame after them runs. */
+  const [lowZoom, setLowZoom] = useState(() => (viewportRef.current.zoom || 1) < CODE_LOW_ZOOM);
+  const syncZoom = useCallback(() => {
+    setLowZoom((viewportRef.current.zoom || 1) < CODE_LOW_ZOOM);
+  }, []);
   const rememberViewport = useCallback(() => {
     writeSkeletonViewport(resourceId, viewportRef.current);
-  }, [resourceId]);
+    syncZoom();
+  }, [resourceId, syncZoom]);
 
+  const say = useCallback((message) => {
+    if (typeof onProblem === "function") onProblem(message);
+    else setProblem(message);
+  }, [onProblem]);
   const perform = useCallback((command) => {
     const result = onGraphCommand(command);
-    setProblem(result.ok ? null : result.problem?.message || "This edit was refused.");
+    say(result.ok ? null : result.problem?.message || "This edit was refused.");
     if (result.ok && command.type === "delete" && command.node_ids.length) onSelectNode?.(null);
     return result;
-  }, [onGraphCommand, onSelectNode]);
+  }, [onGraphCommand, onSelectNode, say]);
 
   const openPalette = useCallback((point) => {
     const rect = containerRef.current?.getBoundingClientRect();
@@ -262,6 +325,24 @@ function GraphDrawing({
     }
   }, [onSelectNode, palette, perform, resourceId]);
 
+  const openFinder = useCallback((point) => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    setMenu(null);
+    setPalette(null);
+    setFinder({
+      x: point?.client_x ?? (rect?.left || 0) + 180,
+      y: point?.client_y ?? (rect?.top || 0) + 100,
+    });
+  }, []);
+  /* Opening a found node is what a click does — the page opens its detail
+     panel — and the canvas centers it, the way Home centers Start. */
+  const findNode = useCallback((nodeId) => {
+    setFinder(null);
+    setFocusNodeId(nodeId);
+    setResetToken((token) => token + 1);
+    onSelectNode?.(nodeId);
+  }, [onSelectNode]);
+
   const contextItems = useMemo(() => {
     if (!menu) return [];
     const target = menu.target;
@@ -280,12 +361,14 @@ function GraphDrawing({
       onClick: () => perform({ type: "delete", node_ids: [], edge_ids: [target.id] }) }];
     return [
       { id: "add", label: "Add node…", onClick: () => openPalette(menu) },
+      { id: "find", label: "Find node…", onClick: () => openFinder(menu),
+        ...(isMac ? { trail_icon: "command", trail: "F" } : { trail: "Ctrl+F" }) },
       { type: "separator" },
       { id: "select", label: "Select all", onClick: () => setSelectToken((t) => (t || 0) + 1) },
       { id: "fit", label: "Fit graph", onClick: () => setFitToken((t) => (t || 0) + 1) },
       { id: "zoom", label: "Reset zoom", onClick: () => setZoomToken((t) => (t || 0) + 1) },
     ];
-  }, [edges, menu, nodes, onSelectNode, openPalette, perform]);
+  }, [edges, menu, nodes, onSelectNode, openPalette, openFinder, perform, isMac]);
 
   /* A zoom is a wheel gesture and produces no mouseup, so remembering on
      mouseup alone kept every pan and lost every zoom. Both gestures are
@@ -299,6 +382,11 @@ function GraphDrawing({
     [],
   );
 
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(syncZoom);
+    return () => window.cancelAnimationFrame(frame);
+  }, [fitToken, zoomToken, resetToken, syncZoom]);
+
   /* Home centers this graph's own Start — a sub-graph opened by drilling in
      need not name its start node `start`, so it is found by type. The key is
      bound here as well as the control: the acceptance names Home, and the
@@ -307,18 +395,35 @@ function GraphDrawing({
     () => ((graph && graph.nodes) || []).find((node) => node.type === "start")?.id,
     [graph],
   );
-  const center = useCallback(() => setResetToken((token) => token + 1), []);
+  const center = useCallback(() => {
+    setFocusNodeId(null);
+    setResetToken((token) => token + 1);
+  }, []);
+  /* The page's Home. Skipped on mount, where the editor restores the
+     remembered viewport instead. */
+  const lastHome = useRef(homeToken);
+  useEffect(() => {
+    if (homeToken === lastHome.current) return;
+    lastHome.current = homeToken;
+    center();
+  }, [homeToken, center]);
   useEffect(() => {
     const onKey = (event) => {
-      if (event.key !== "Home") return;
       const tag = window.document.activeElement?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
-      event.preventDefault();
-      center();
+      if (event.key === "Home") {
+        event.preventDefault();
+        center();
+        return;
+      }
+      if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && (event.key === "f" || event.key === "F")) {
+        event.preventDefault();
+        openFinder();
+      }
     };
     window.document.addEventListener("keydown", onKey);
     return () => window.document.removeEventListener("keydown", onKey);
-  }, [center]);
+  }, [center, openFinder]);
 
   return (
     <div
@@ -355,41 +460,30 @@ function GraphDrawing({
         on_delete={canEdit ? (selection) => perform({ type: "delete", ...selection }) : undefined}
         on_reconnect={canEdit ? (selection) => perform({ type: "reconnect", ...selection }) : undefined}
         on_context_menu={canEdit ? (info) => { setPalette(null); setMenu(info); } : undefined}
-        render_node={(node) => renderNode(node, isDark, onOpenSubagent)}
+        /* Each drawn node answers to its id. `display: contents`, so the hook
+           adds no box and the editor measures the node exactly as before. */
+        render_node={(node) => (
+          <div data-testid={`skeleton-node-${node.id}`} style={{ display: "contents" }}>
+            {renderNode(node, isDark, onOpenSubagent, { lowZoom, onOpenNode: onSelectNode, sources: managedSources })}
+          </div>
+        )}
         viewport_out_ref={viewportRef}
         restore_viewport={
           stored.viewport ? { ...stored.viewport, token: resourceId } : undefined
         }
         reset_token={resetToken}
-        reset_focus_node_id={startNodeId}
+        reset_focus_node_id={focusNodeId || startNodeId}
         fit_token={fitToken}
         zoom_reset_token={zoomToken}
         select_all_token={selectToken}
       />
       {problem && <div data-testid="skeleton-graph-problem" role="alert" style={{ position: "absolute", bottom: 8, left: 8, right: 8, padding: "8px 12px", borderRadius: 8, background: "var(--pupu-surface)", fontSize: 12 }}>{problem}</div>}
       <RecipeNodePalette visible={canEdit && !!palette} x={palette?.x || 0} y={palette?.y || 0}
-        allowedTypes={ADDABLE_NODE_TYPES} entries={NATIVE_PALETTE_ENTRIES} onPick={pickNode} onClose={() => setPalette(null)} isDark={isDark} />
+        allowedTypes={addableTypes} entries={NATIVE_PALETTE_ENTRIES} onPick={pickNode} onClose={() => setPalette(null)} isDark={isDark} />
       <ContextMenu visible={canEdit && !!menu} x={menu?.client_x || 0} y={menu?.client_y || 0}
         items={contextItems} onClose={() => setMenu(null)} isDark={isDark} />
-      <span
-        style={{ position: "absolute", top: 8, right: 8, display: "inline-flex", gap: 6 }}
-      >
-        {canEdit && <Button label="Add node…" ariaLabel="Add node" onClick={() => openPalette()} />}
-        <Button label="Fit" ariaLabel="Fit graph" onClick={() => setFitToken((t) => (t || 0) + 1)} />
-        <Button
-          prefix_icon="home"
-          ariaLabel="Center this graph"
-          onClick={center}
-          style={{
-            fontSize: 12,
-            paddingVertical: 5,
-            paddingHorizontal: 8,
-            borderRadius: 7,
-            opacity: 0.7,
-            content: { icon: { width: 13, height: 13 } },
-          }}
-        />
-      </span>
+      <RecipeNodePalette visible={!!finder} x={finder?.x || 0} y={finder?.y || 0} mode="find"
+        entries={finder ? finder_entries(graph) : undefined} onPick={findNode} onClose={() => setFinder(null)} isDark={isDark} />
     </div>
   );
 }

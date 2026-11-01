@@ -3,6 +3,8 @@ const { request: nodeHttpsRequest } = require("https");
 const { Readable } = require("stream");
 const { CHANNELS } = require("../../../shared/channels");
 const { readSkeletonResourceResponse } = require("./skeleton_resource_response");
+const { buildManagedCodeRequest, validateManagedCodeReply, isManagedCodeAction } = require("./managed_code_transport");
+const { buildManagedTransferRequest, isManagedTransferAction, runManagedTransferCommand } = require("./managed_transfer_transport");
 const {
   buildSkeletonCredentialQuery,
   resolveSkeletonCredentials,
@@ -80,6 +82,28 @@ const UNCHAIN_CUSTOM_PROVIDER_TEST_ENDPOINT =
   "/models/custom-providers/test";
 
 const buildSkeletonResourceRequest = (action, payload = {}) => {
+  const transfer = buildManagedTransferRequest(action, payload);
+  if (transfer) return transfer;
+  if (action === "hook_workflow_capabilities") {
+    if (payload === null || typeof payload !== "object" || Array.isArray(payload) || Object.keys(payload).length !== 0) {
+      throw new Error("Hook Workflow capability reads accept no payload fields");
+    }
+    return { method: "GET", path: "/skeleton_hooks/capabilities?contract=embedded_workflow_v1" };
+  }
+  if (action === "hook_tool_set_capabilities") {
+    if (payload === null || typeof payload !== "object" || Array.isArray(payload) || Object.keys(payload).length !== 0) {
+      throw new Error("Hook tool-set capability reads accept no payload fields");
+    }
+    return { method: "GET", path: "/skeleton_hooks/capabilities?contract=tool_set_v1" };
+  }
+  if (action === "hook_capabilities") {
+    if (payload === null || typeof payload !== "object" || Array.isArray(payload) || Object.keys(payload).length !== 0) {
+      throw new Error("Hook capability reads accept no payload fields");
+    }
+    return { method: "GET", path: "/skeleton_hooks/capabilities" };
+  }
+  const managed = buildManagedCodeRequest(action, payload);
+  if (managed) return managed;
   const body =
     payload !== null && typeof payload === "object" && !Array.isArray(payload)
       ? payload
@@ -4605,7 +4629,19 @@ const createUnchainService = ({
 
   const runMisoSkeletonResourceCommand = async (action, payload = {}) => {
     ensureMisoReady();
+    if (isManagedTransferAction(action)) {
+      return runManagedTransferCommand(action, payload, {
+        baseUrl: `http://${UNCHAIN_HOST}:${unchainPort}`, authToken: unchainAuthToken,
+        fetchImpl: (...args) => fetch(...args), readResponse: readSkeletonResourceResponse,
+      });
+    }
     const request = buildSkeletonResourceRequest(action, payload);
+    if (isManagedCodeAction(action) && action !== "code_capabilities") {
+      const handshake = await fetch(`http://${UNCHAIN_HOST}:${unchainPort}/skeleton_resources/v2/capabilities`, {
+        method: "GET", headers: unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {},
+      });
+      validateManagedCodeReply("code_capabilities", await readSkeletonResourceResponse(handshake));
+    }
     const response = await fetch(`http://${UNCHAIN_HOST}:${unchainPort}${request.path}`, {
       method: request.method,
       headers: {
@@ -4614,7 +4650,8 @@ const createUnchainService = ({
       },
       ...(request.body ? { body: JSON.stringify(request.body) } : {}),
     });
-    return readSkeletonResourceResponse(response);
+    const result = await readSkeletonResourceResponse(response);
+    return isManagedCodeAction(action) ? validateManagedCodeReply(action, result) : result;
   };
 
   const previewMisoCharacterDecision = async (payload = {}) => {

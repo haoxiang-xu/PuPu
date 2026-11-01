@@ -93,9 +93,10 @@ describe("the graph is drawn from the document plus a separate layout", () => {
 
   test("a node type this build cannot draw still appears", () => {
     const d = doc();
-    d.nodes.push({ id: "c1", type: "code", config: {} });
+    /* Every native type has a drawing since #357; a type this build does not know still appears. */
+    d.nodes.push({ id: "c1", type: "some_future_step", config: {} });
     show(d);
-    expect(screen.getByTestId("node-c1").textContent).toMatch(/code/);
+    expect(screen.getByTestId("node-c1").textContent).toMatch(/some_future_step/);
   });
 });
 
@@ -483,10 +484,10 @@ describe("Home centers this graph's own Start", () => {
     expect(lastProps.reset_focus_node_id).toBe("entry");
   });
 
-  test("the control asks for it", () => {
-    show(sub());
+  test("the owning control asks through its Home token", () => {
+    const view = show(sub());
     const before = lastProps.reset_token;
-    fireEvent.click(screen.getByLabelText("Center this graph"));
+    view.rerender(<ConfigContext.Provider value={cfg}><SkeletonCanvas resourceId="r" document={sub()} isDark={false} homeToken={1} /></ConfigContext.Provider>);
     expect(lastProps.reset_token).toBe(before + 1);
   });
 

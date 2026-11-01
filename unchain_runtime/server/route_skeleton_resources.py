@@ -357,6 +357,32 @@ def list_skeleton_tool_schemas():
     return _run(operation)
 
 
+@api_blueprint.get("/skeleton_hooks/capabilities")
+def skeleton_hook_capabilities():
+    """Read only: no definition, credentials or machine path is accepted."""
+    denied = _authorized()
+    if denied is not None:
+        return denied
+
+    def operation():
+        if request.args:
+            if set(request.args) != {'contract'}:
+                raise SkeletonResourceError('unknown_field', ('query',), 'Hook capability query contains an unknown field.')
+            if len(request.args.getlist('contract')) != 1:
+                raise SkeletonResourceError('invalid_shape', ('query', 'contract'), 'Hook contract selector must occur once.')
+            if request.args['contract'] not in {'tool_set_v1', 'embedded_workflow_v1'}:
+                raise SkeletonResourceError('unknown_variant', ('query', 'contract'), 'Hook contract selector is unknown.')
+        from skeleton_hook_capability import hook_enable_capabilities, hook_tool_set_capabilities, hook_workflow_capabilities
+        from skeleton_runtime_capability import SkeletonRuntimeCompatibilityError
+        try:
+            if request.args.get('contract') == 'embedded_workflow_v1':
+                return hook_workflow_capabilities()
+            return hook_tool_set_capabilities() if request.args else hook_enable_capabilities()
+        except SkeletonRuntimeCompatibilityError as error:
+            raise SkeletonResourceError(error.code, ('runtime_protocol_manifest',), str(error), status=409) from error
+    return _run(operation)
+
+
 @api_blueprint.get("/skeleton_python_profiles")
 def list_skeleton_python_profiles():
     denied = _authorized()
@@ -400,5 +426,9 @@ def delete_skeleton_python_profile(profile_id: str):
         return {"ok": True}
     return _run(operation)
 
+
+# Register the explicitly versioned source API; the v1 graph-only routes above
+# keep their original field sets and refuse aggregates they cannot preserve.
+import route_skeleton_code_sources  # noqa: E402,F401
 
 __all__ = []

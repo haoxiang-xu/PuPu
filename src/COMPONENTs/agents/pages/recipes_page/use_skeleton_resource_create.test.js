@@ -1,4 +1,5 @@
 import { act, renderHook } from "@testing-library/react";
+import { install_legacy_store_bridge } from "./legacy_store_test_bridge";
 import useSkeletonResource from "./use_skeleton_resource";
 import { can_preflight, can_save, diagnostics_are_current } from "./skeleton_resource_session";
 import { RESOURCE_RESULT_KEYS, EDIT_CONFLICT_ERROR } from "./skeleton_resource_capture";
@@ -6,6 +7,8 @@ import capture from "./skeleton_graph_edits_capture.json";
 import { api } from "../../../../SERVICEs/api";
 
 jest.mock("../../../../SERVICEs/api", () => ({ api: { unchain: {} } }));
+/* The editor speaks v2 only (#357 G1); these mocks are graph-only. */
+install_legacy_store_bridge(api.unchain);
 
 const seed = capture.cases.find((row) => row.case === "seed").document;
 const args = { id: seed.id, name: seed.name };

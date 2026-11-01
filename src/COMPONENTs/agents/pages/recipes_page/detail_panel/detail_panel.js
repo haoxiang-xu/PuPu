@@ -16,6 +16,12 @@ import ToolkitPoolSection from "./toolkit_pool_section";
 import BranchSection from "./branch_section";
 import ToolCallSection from "./tool_call_section";
 import SkillReadSection from "./skill_read_section";
+import CodeSection from "./code_section";
+import WorkflowCallSection from "./workflow_call_section";
+import HooksPoolSection from "./hooks_pool_section";
+import { pinned_reference } from "../workflow_call_config";
+import { useWorkflowVersions } from "../workflow_versions";
+import { code_settings } from "../code_config";
 import { branch_summary, is_branch_type } from "../skeleton_branch_config";
 import { node_toolkit_refs } from "../toolkit_pool_config";
 import OutputVariablesSection from "./output_variables_section";
@@ -53,6 +59,12 @@ export default function DetailPanel({
   /* Passed through: the pool panel writes the repaired entry, and the page
      fixes whatever navigation named the old id. */
   onEntryIdRepaired,
+  /* A hook's own Workflow opens on the canvas, like an embedded subagent:
+     the page holds the drill (#357). */
+  onOpenEmbeddedHook,
+  /* A Workflow Call asks the page to open the revision it is pinned to,
+     read-only (#357). Absent on the legacy recipe page: no button then. */
+  onOpenPinnedWorkflow,
   embedded,
   document,
   rootDocument,
@@ -73,6 +85,10 @@ export default function DetailPanel({
      owns this question, because it owns the session that was checked. */
   diagnosticsUnchecked,
   onDocumentChange,
+  /* The open session's Code text, keyed by digest (#357 G1): what a Code
+     node's source editor shows. An edit that types text hands it back as the
+     second argument of `onDocumentChange`. */
+  managedSources,
 }) {
   const cfg = useContext(ConfigContext);
   const isDark = cfg?.onThemeMode === "dark_mode";
@@ -86,6 +102,11 @@ export default function DetailPanel({
           return is_skeleton_node(candidate) ? candidate : null;
         })()
       : null;
+  /* A Workflow Call's Output Variables pick from its pinned revision's End
+     exports, which arrive after the panel renders; this re-renders the panel
+     when that revision is read (#357). */
+  const call_pin = skeleton_node && skeleton_node.type === "workflow_call" ? pinned_reference(skeleton_node) : null;
+  useWorkflowVersions(call_pin ? [call_pin] : []);
 
   /* A Skeleton page has no legacy recipe at all, so the panel takes its node
      from whichever model it was handed. Deriving it only from the recipe left
@@ -107,7 +128,15 @@ export default function DetailPanel({
       ? Array.isArray(node_toolkit_refs(skeleton_node)) ? `${node_toolkit_refs(skeleton_node).length} toolkit${node_toolkit_refs(skeleton_node).length === 1 ? "" : "s"}` : "Tool settings incomplete"
       : !legacy_node && is_branch_type(skeleton_node?.type)
         ? branch_summary(skeleton_node)
-        : identity?.subtitle;
+        : !legacy_node && skeleton_node?.type === "code"
+          /* The runtime it runs with, the way an Agent's header names its
+             model (#357). */
+          ? (() => {
+              const code = code_settings(skeleton_node);
+              const profile = code && typeof code.environment_profile_id === "string" && code.environment_profile_id;
+              return profile ? `Python · ${safe_text(profile)}` : "Python in its own process · choose a runtime";
+            })()
+          : identity?.subtitle;
 
   const shell_style = {
     flex: 1,
@@ -163,7 +192,9 @@ export default function DetailPanel({
   /* A Tool Call's or a Skill Read's inputs are not drawn as Input Variables
      rows — their own sections take that place and carry no row diagnostics —
      so none is counted, and a store diagnostic about one of them lands in the
-     node notice instead of on a row nobody draws (R-352-04). */
+     node notice instead of on a row nobody draws (R-352-04). A Workflow Call's
+     section draws every stored input row and takes their diagnostics by
+     position, so its rows are counted (R-WFC-04). */
   const input_rows_drawn = skeleton_node && !["tool_call", "skill_read"].includes(skeleton_node.type);
   const routed = skeleton_node
     ? route_diagnostics(diagnostics, document, {
@@ -273,6 +304,13 @@ export default function DetailPanel({
                 so it carries no execution IO at all — the sections around
                 this one render nothing for it — and what it does carry is
                 invisible to every boundary before Run. */}
+            {/* A Hooks Pool attaches to an Agent like the other pools and
+                carries no execution IO (#357). */}
+            {skeleton_node.type === "hooks_pool" && (
+              <HooksPoolSection key={JSON.stringify([document.id, skeleton_node.id, documentRevision])}
+                document={document} node={skeleton_node} isDark={isDark} onChange={onDocumentChange}
+                managedSources={managedSources} onOpenEmbeddedHook={onOpenEmbeddedHook} />
+            )}
             {skeleton_node.type === "toolkit_pool" && (
               <ToolkitPoolSection key={JSON.stringify([document.id, skeleton_node.id, documentRevision])}
                 document={document} node={skeleton_node} isDark={isDark} onChange={onDocumentChange} />
@@ -299,6 +337,13 @@ export default function DetailPanel({
             {skeleton_node.type === "tool_call" ? (
               <ToolCallSection key={JSON.stringify([document.id, skeleton_node.id, documentRevision])}
                 document={document} node={skeleton_node} isDark={isDark} onChange={onDocumentChange} />
+            ) : skeleton_node.type === "workflow_call" ? (
+              /* A Workflow Call's inputs are the called revision's run input,
+                 one per key its Start reads (#357), so its section takes the
+                 place of Input Variables as the Tool Call's does. */
+              <WorkflowCallSection key={JSON.stringify([document.id, skeleton_node.id, documentRevision])}
+                document={document} node={skeleton_node} rowDiagnostics={routed.rows.inputs} isDark={isDark} onChange={onDocumentChange}
+                onOpenPinned={onOpenPinnedWorkflow} />
             ) : skeleton_node.type === "skill_read" ? (
               /* A Skill Read takes no inputs; its section says so and holds
                  the skill picker and the runtime-read preview instead. */
@@ -319,6 +364,13 @@ export default function DetailPanel({
             {is_branch_type(skeleton_node.type) && (
               <BranchSection key={JSON.stringify([document.id, skeleton_node.id, documentRevision])}
                 document={document} node={skeleton_node} isDark={isDark} onChange={onDocumentChange} />
+            )}
+            {/* A Code node (#357): its runtime, source, limits and declared
+                Result sit between what it is given and what it passes on,
+                in the same place an Agent's Kernel and JSON Output sit. */}
+            {skeleton_node.type === "code" && (
+              <CodeSection key={JSON.stringify([document.id, skeleton_node.id, documentRevision])}
+                document={document} revision={documentRevision} node={skeleton_node} sources={managedSources} isDark={isDark} onChange={onDocumentChange} />
             )}
             {/* Between them, and only for an Agent: the model it thinks with,
                 then a schema declaring what its result holds — which is what
