@@ -17,6 +17,7 @@ on:
 permissions:
   contents: read
   actions: read
+cache-mode: read
 jobs:
   pair:
     runs-on: ubuntu-latest
@@ -26,6 +27,13 @@ jobs:
       QA_WHEEL_SHA: ${{ inputs.wheel_sha256 }}
       QA_MANIFEST: sha256:827adc5644e00dbb8e67fe5ecf6f7e88d9f542b1c4aff37744e0311c0acc2fe3
     steps:
+      - name: Verify read-only cache authority
+        run: |
+          case "${ACTIONS_CACHE_MODE:-}" in
+            read|none) echo "Cache authority: $ACTIONS_CACHE_MODE" ;;
+            "") echo "Cache authority enforced by workflow cache-mode: read; runner telemetry unavailable" ;;
+            *) echo "Selected runtime code requires read-only cache authority"; exit 1 ;;
+          esac
       - uses: actions/checkout@v4
         with:
           path: control
