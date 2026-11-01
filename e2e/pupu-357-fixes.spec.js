@@ -287,6 +287,9 @@ test("#357 fixes on the packaged App: the Code viewer by hover, and Escape never
     await page().mouse.move(buttonBox.x + buttonBox.width / 2, buttonBox.y + buttonBox.height / 2, { steps: 6 });
     await settleMs(page());
     const heldOverButton = await viewerOpen(page(), "code");
+    /* Back to where the press began before releasing, so the drag leaves the
+       node where it was (run 41328859394: a moved node sat under End). */
+    await page().mouse.move(blockBox.x + 20, blockBox.y + blockBox.height - 8, { steps: 6 });
     await page().mouse.up();
     await settleMs(page());
     const released = await viewerOpen(page(), "code");
