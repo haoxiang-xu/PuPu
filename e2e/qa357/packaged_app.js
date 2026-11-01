@@ -60,6 +60,10 @@ const test = base.extend({
       throw new Error("PUPU_357_APP_EXECUTABLE must name the packaged App executable");
     }
     const userData = fs.mkdtempSync(path.join(os.tmpdir(), "pupu-357-user-data-"));
+    /* Main's store follows app.getPath("userData"), which comes from HOME /
+       XDG_CONFIG_HOME on Linux (a run showed two tests sharing one store under
+       one HOME). Each fixture gets its own, kept across its restarts. */
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "pupu-357-home-"));
     const logs = [];
     const pageErrors = [];
     const generations = [];
@@ -68,7 +72,7 @@ const test = base.extend({
     const launch = async () => {
       const port = await freePort();
       const child = spawn(EXECUTABLE, [`--remote-debugging-port=${port}`, `--user-data-dir=${userData}`], {
-        env: { ...process.env, PUPU_E2E: "1", PUPU_COMPUTER_USE: "0" },
+        env: { ...process.env, HOME: home, XDG_CONFIG_HOME: path.join(home, ".config"), PUPU_E2E: "1", PUPU_COMPUTER_USE: "0" },
         stdio: ["ignore", "pipe", "pipe"],
       });
       child.stdout.on("data", (chunk) => logs.push(chunk.toString()));
@@ -113,6 +117,16 @@ const test = base.extend({
     }
     await stop();
     await testInfo.attach("packaged-app-generations", { body: Buffer.from(JSON.stringify(generations, null, 2)), contentType: "application/json" });
+    const listing = [];
+    const walk = (dir, depth) => {
+      for (const name of fs.readdirSync(dir)) {
+        const full = path.join(dir, name);
+        listing.push(path.relative(home, full));
+        if (depth < 3 && fs.statSync(full).isDirectory()) walk(full, depth + 1);
+      }
+    };
+    try { walk(home, 0); } catch (_error) { /* listing is evidence only */ }
+    await testInfo.attach("fixture-home-listing", { body: Buffer.from(listing.join("\n")), contentType: "text/plain" });
     await testInfo.attach("packaged-app-log", { body: Buffer.from(logs.join("")), contentType: "text/plain" });
   },
 });

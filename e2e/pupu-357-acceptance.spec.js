@@ -266,6 +266,24 @@ test("#357 Code, Workflow Call and Hooks authoring persist through the real App,
     await expect(block).toContainText("def main(input, context):");
     await node.hover();
     await page().getByRole("button", { name: "View the code of code" }).hover();
+    /* Hover alone is the acceptance path; if it does not open, that is recorded
+       as a failure and the next ways in are tried in order, so the rest of the
+       run still produces evidence. */
+    const hoverOpened = await expect(node).toHaveAttribute("data-viewer-open", "true", { timeout: 8000 }).then(() => true, () => false);
+    step("ui", "hovered the expand button", { viewer_opened_on_hover: hoverOpened });
+    if (!hoverOpened) {
+      await attachShot(testInfo, page(), "AC-04 hover did not open the viewer");
+      expect.soft(hoverOpened, "AC-04: hovering the expand button opens the read-only viewer").toBe(true);
+      await page().mouse.move(5, 5);
+      await node.hover();
+      await page().getByRole("button", { name: "View the code of code" }).hover();
+      const second = await expect(node).toHaveAttribute("data-viewer-open", "true", { timeout: 8000 }).then(() => true, () => false);
+      step("ui", "moved away and hovered again", { viewer_opened: second });
+      if (!second) {
+        await page().getByRole("button", { name: "View the code of code" }).click();
+        step("ui", "clicked the expand button (fallback, not the hover path)");
+      }
+    }
     await expect(node).toHaveAttribute("data-viewer-open", "true");
     await expect(page().getByTestId("code-node-code-viewer")).toContainText("Read-only");
     await attachShot(testInfo, page(), "AC-04 viewer on hover");
