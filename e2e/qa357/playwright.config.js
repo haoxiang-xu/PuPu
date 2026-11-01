@@ -16,5 +16,5 @@ module.exports = defineConfig({
     ["html", { open: "never", outputFolder: "../../playwright-report" }],
     ["json", { outputFile: "../../test-results/playwright/results.json" }],
   ],
-  use: { trace: "retain-on-failure" },
+  use: { trace: "retain-on-failure", actionTimeout: 60000, navigationTimeout: 120000 },
 });

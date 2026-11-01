@@ -105,6 +105,12 @@ const test = base.extend({
         await launch();
       },
     });
+    if (current && testInfo.status !== testInfo.expectedStatus) {
+      // A CDP-attached window carries no trace snapshots; keep what it showed.
+      await testInfo.attach("failure-window", { body: await current.page.screenshot().catch(() => Buffer.from("")), contentType: "image/png" });
+      const tree = await current.page.locator("body").ariaSnapshot().catch((error) => `aria snapshot failed: ${error.message}`);
+      await testInfo.attach("failure-aria", { body: Buffer.from(tree), contentType: "text/plain" });
+    }
     await stop();
     await testInfo.attach("packaged-app-generations", { body: Buffer.from(JSON.stringify(generations, null, 2)), contentType: "application/json" });
     await testInfo.attach("packaged-app-log", { body: Buffer.from(logs.join("")), contentType: "text/plain" });

@@ -35,6 +35,10 @@ const PYTHON_BIN = process.env.UNCHAIN_PYTHON_BIN;
 
 const ledger = [];
 const step = (kind, what, detail = {}) => ledger.push({ at: new Date().toISOString(), kind, what, ...detail });
+// Attached even when a step fails, so a stopped run still says how far it got.
+test.afterEach(async ({}, testInfo) => {
+  await testInfo.attach("ledger (seed vs ui)", { body: Buffer.from(JSON.stringify(ledger, null, 2)), contentType: "application/json" });
+});
 
 const enterApp = async (page) => {
   const gate = page.getByRole("button", { name: "Click anywhere to start" });
@@ -83,13 +87,13 @@ const pick = async (page, container, label) => {
   await lists.last().getByText(label, { exact: false }).first().click();
 };
 
+/* Production builds ignore stored feature flags (src/SERVICEs/feature_flags.js
+   readFeatureFlags), so the packaged App gets enable_user_access_to_agents from
+   its build snapshot (PUPU_BUILD_FEATURE_SNAPSHOT_PATH, recorded by the
+   workflow). This only records that input; nothing is written here. */
 const enableAgents = async (page) => {
   await expect.poll(async () => page.evaluate(() => window.settingsStorageAPI.bootstrap().available)).toBe(true);
-  await page.evaluate(async () => {
-    const result = await window.settingsStorageAPI.setNamespace("feature_flags", { format: 2, flags: { enable_user_access_to_agents: true } });
-    if (result.ok !== true) throw new Error("QA feature selection was not persisted");
-  });
-  step("seed", "feature flag enable_user_access_to_agents (as the #352 control)");
+  step("build", "feature flag enable_user_access_to_agents from the packaged build snapshot (production ignores stored flags)");
 };
 
 const setTheme = async (pupu, mode) => {
@@ -149,8 +153,6 @@ test("#357 Code, Workflow Call and Hooks authoring persist through the real App,
   const page = () => pupu.appWindow;
   await enterApp(page());
   await enableAgents(page());
-  await page().reload();
-  await enterApp(page());
 
   const capabilities = await page().evaluate(async () => ({
     transfer: await window.unchainAPI.getManagedSkeletonTransferCapabilities(),
@@ -431,6 +433,5 @@ test("#357 Code, Workflow Call and Hooks authoring persist through the real App,
   });
   expect(cells).toHaveLength(12);
 
-  await attachJson(testInfo, "ledger (seed vs ui)", ledger);
   expect(pupu.pageErrors).toEqual([]);
 });

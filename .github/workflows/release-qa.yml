@@ -107,7 +107,13 @@ jobs:
           set -euo pipefail
           # The candidate's own version, so the build does not change it.
           export PUPU_BUILD_VERSION="$(node -p 'require("./package.json").version')"
+          # Production builds read feature flags only from this build snapshot,
+          # never from stored settings. Outside the tree; recorded as evidence.
+          export PUPU_BUILD_FEATURE_SNAPSHOT_PATH="$RUNNER_TEMP/qa357-build-feature-flags.json"
+          printf '%s\n' '{"enable_user_access_to_agents":true,"enable_user_access_to_characters":false,"enable_custom_model_providers":true,"enable_computer_use":false}' > "$PUPU_BUILD_FEATURE_SNAPSHOT_PATH"
+          cp "$PUPU_BUILD_FEATURE_SNAPSHOT_PATH" test-results/build-feature-flags.input.json
           npm run build:web
+          cp build/build_feature_flags.json test-results/build-feature-flags.packaged.json
           npm run notices
           git status --porcelain --untracked-files=no > test-results/tracked-changes-after-build.txt
           cat test-results/tracked-changes-after-build.txt
