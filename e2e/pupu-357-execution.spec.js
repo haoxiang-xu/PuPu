@@ -226,6 +226,11 @@ test("#357 Code, Workflow Call and Hooks execute through the real chat entry (qu
     await page().getByTestId("attach-agent-row").getByRole("combobox").click();
     await page().getByRole("listbox").last().getByText("QA 357 exec", { exact: false }).first().click();
     await expect(page().getByTestId("attach-agent-row")).toContainText("QA 357 exec");
+    const executionId = await page().evaluate(() => window.chatStorageAPI.bootstrap().activeChatId);
+    fs.writeFileSync(path.join(process.env.QA_OUT, "actual-app-store.json"), JSON.stringify({
+      schema: "qa357.app-store-locator.v1", user_data: pupu.privateUserData, execution_id: executionId,
+    }));
+    step("seed", "QA-only read-only tool-output oracle bound to this disposable store and chat", { executionId });
     const message = "QA357-APP read the qualification file";
     await page().getByRole("textbox", { name: "Message PuPu..." }).fill(message);
     step("ui", "Enter will send this composer text", { message });

@@ -76,6 +76,8 @@ jobs:
           PY
           python -m pip freeze > test-results/pip-freeze.txt
           echo "QA_PYTHON=$(python -c 'import sys;print(sys.executable)')" >> "$GITHUB_ENV"
+      - name: Qualify the deployed App tool projection adapter
+        run: python -I -B control/tools/qa357/test_app_projection.py > test-results/app-projection-controls.log 2>&1
       - name: Install fresh locked Node and Linux prerequisites
         run: |
           set -euo pipefail

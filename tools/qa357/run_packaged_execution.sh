@@ -43,7 +43,7 @@ export QA357_NETNS=1
 setpriv --reuid="$QA_UID" --regid="$QA_GID" --init-groups env \
   HOME="$QA_HOME" QA357_NETNS=1 QA_WORKSPACE="$QA_WORKSPACE" QA_OUT="$QA_OUT" QA_SCENARIO="$QA_SCENARIO" \
   "$QA_PYTHON" -I -B "$QA_TOOLS/prepare_app_scenario.py" > "$QA_OUT/read-producer.log" 2>&1
-"$QA_PYTHON" -I -B "$QA_TOOLS/tool_fixture.py" \
+"$QA_PYTHON" -I -B "$QA_TOOLS/app_tool_fixture.py" \
   --cert "$QA_PRIVATE/leaf.pem" --key "$QA_PRIVATE/leaf-key.pem" \
   --scenario "$QA_SCENARIO" --output "$QA_OUT/provider-requests.jsonl" \
   --ready "$QA_OUT/provider-ready.json" > "$QA_OUT/provider-server.log" 2>&1 &

@@ -41,3 +41,23 @@ Journal/CAS checks for Code output, Workflow identity, Hook receipt and root
 final/terminal order. GUI final alone is a narrower preliminary gate. Product
 shutdown is not tested; supervisor cleanup is disclosed. Python module/wheel,
 binary, App source and dependency provenance are retained separately.
+## Deployed tool projection qualifier — 2026-11-02
+
+BC-QA357-005 (CLOSED): this App's Core/read result passes through the fixed
+runtime's durable tool-output projection before becoming a native tool-output
+message. The original raw-Core expectation incorrectly refused that legitimate
+projection in run41511224011. Preserve that failed run and the original fixture.
+The new App-only adapter may derive the exact expected string only from the
+already committed native wire snapshot, after verifying the same execution,
+generation, node attempt, call/tool, approved tool receipt, physical artifact,
+known Core/read bytes and the recorded projection. It must never adopt an
+unverified incoming output or accept a foreign reference with matching text.
+
+SEQ-QA357-005: UI records its disposable store locator → initial native snapshot
+binds fixture ownership → approval/tool receipt commits → second native snapshot
+and physical result are checked → exact output comparison → finite final reply.
+AC-QA357-005: replay the real failed request against the corrected expectation;
+wrong identity/content/reference/digest/projection and a changed request must be
+refused before the exchange advances. No product, provider, credential, TLS,
+Chromium, or filesystem-permission rule is relaxed. This qualifier is QA-only,
+not evidence that the real App has completed until the serial rerun succeeds.
