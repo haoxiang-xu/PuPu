@@ -6,12 +6,18 @@ on:
         required: true
         default: 18178a0611f50522f69fbd1d4841965bfbb0d016
         type: string
+      evidence_replay_only:
+        description: Recheck the preserved successful SDK exchange with the corrected qualifier only
+        required: false
+        default: false
+        type: boolean
 permissions:
   contents: read
   actions: read
 cache-mode: read
 jobs:
   qualification:
+    if: ${{ !inputs.evidence_replay_only }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -121,7 +127,7 @@ jobs:
           sha256sum -c test-results/package-lock.sha256
       - name: Pure fixture controls without any socket or App
         run: |
-          python -I -B -c 'import sys,unittest;sys.path.insert(0,"control/tools/qa357");s=unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromName(n) for n in ["test_execution_fixture","test_tool_fixture","test_tool_isolated_import"]);r=unittest.TextTestRunner(verbosity=2).run(s);sys.exit(not r.wasSuccessful())'
+          python -I -B -c 'import sys,unittest;sys.path.insert(0,"control/tools/qa357");s=unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromName(n) for n in ["test_execution_fixture","test_tool_fixture","test_tool_isolated_import","test_tool_projection"]);r=unittest.TextTestRunner(verbosity=2).run(s);sys.exit(not r.wasSuccessful())'
           for file in control/tools/qa357/*.sh; do bash -n "$file"; done
           node --check control/tools/qa357/credential_probe.cjs
       - name: Qualify private real credential service and SDK over loopback TLS
@@ -145,3 +151,64 @@ jobs:
             artifact/unchain-artifact.json
             control/tools/qa357/*
             control/docs/implementation/ticket-357-execution-qa.md
+  replay:
+    if: ${{ inputs.evidence_replay_only }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: control
+      - uses: actions/download-artifact@v4
+        with:
+          name: 357-tool-protocol-evidence
+          path: original-evidence
+          run-id: 41389433333
+          github-token: ${{ github.token }}
+      - name: Bind unchanged real-SDK producer and credential inputs
+        run: |
+          python -I -B - <<'PY'
+          from pathlib import Path
+          import json, hashlib
+          original = Path('original-evidence')
+          assert (original/'test-results/control-identity.txt').read_text().splitlines()[0] == '00490819a290c6591d9c1a0470ac62272a18b7de'
+          assert (original/'test-results/candidate-identity.txt').read_text().splitlines()[0] == '18178a0611f50522f69fbd1d4841965bfbb0d016'
+          names = ['credential_probe.cjs','execution_fixture.py','keyring_session.sh','sdk_probe.py',
+                   'test_execution_fixture.py','run_execution_qualification.sh','run_tool_qualification.sh',
+                   'test_tool_fixture.py','tool_fixture.py','tool_keyring_session.sh','tool_sdk_probe.py',
+                   'test_tool_isolated_import.py']
+          for name in names:
+              assert (original/'control/tools/qa357'/name).read_bytes() == (Path('control/tools/qa357')/name).read_bytes(), name
+          metadata = json.loads((original/'artifact/unchain-artifact.json').read_text())
+          assert metadata['source']['revision'] == 'e0d2eb5e09976def467da7f32f2b0482b48c2ffd'
+          assert metadata['runtime_manifest']['manifest_digest'] == 'sha256:827adc5644e00dbb8e67fe5ecf6f7e88d9f542b1c4aff37744e0311c0acc2fe3'
+          Path('test-results').mkdir()
+          files = {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in original.rglob('*') if p.is_file()}
+          Path('test-results/input-hashes.json').write_text(json.dumps(files, indent=2))
+          PY
+      - name: Pure controls and corrected qualifier against original bytes
+        run: |
+          python -I -B -c 'import sys,unittest;sys.path.insert(0,"control/tools/qa357");s=unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromName(n) for n in ["test_execution_fixture","test_tool_fixture","test_tool_isolated_import","test_tool_projection"]);r=unittest.TextTestRunner(verbosity=2).run(s);sys.exit(not r.wasSuccessful())'
+          python -I -B - <<'PY'
+          from pathlib import Path
+          import importlib.util, json, hashlib
+          spec = importlib.util.spec_from_file_location('independent_verifier', Path('control/tools/qa357/verify_tool_protocol.py'))
+          verifier = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(verifier)
+          result = verifier.verify_tools('original-evidence/test-results/execution')
+          Path('test-results/replayed-verification.json').write_text(json.dumps(result, indent=2))
+          before = json.loads(Path('test-results/input-hashes.json').read_text())
+          after = {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in Path('original-evidence').rglob('*') if p.is_file()}
+          assert before == after
+          print(json.dumps(result))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: 357-tool-protocol-replay-evidence
+          retention-days: 90
+          path: |
+            test-results/**
+            original-evidence/**
+            control/tools/qa357/**
+            control/.github/workflows/release-qa.yml
