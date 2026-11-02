@@ -5375,6 +5375,226 @@ describe("ChatInterface stop flow", () => {
     expect(lastChatInputProps?.isStreaming).toBe(true);
   });
 
+  /* R-357-APP-01 (packaged App, run 41392187416): a native Skeleton approval
+     presented by THIS run, whose finite SSE then ended, was taken for a cold
+     leftover by the passive lookup and sealed with interaction_suspended.
+     Identities follow the evidence (close-01-20261031 out/app-fresh-approval-
+     blocker-33.json, packaged-execution-run-03-review/fresh-parked-approval-
+     fixture.json): root attempt, node attempt and interaction id, and the
+     tool_call frame's payload as persisted. The pending record itself was NOT
+     captured in the App; `freshSkeletonPending` derives one in the shape the
+     Skeleton resume carries and is not presented as a captured reply. */
+  describe("a fresh approval accepted by the current run outlives its finite stream", () => {
+    const ROOT = "unchain-1793596368143-1575681d919598";
+    const NODE = "node-attempt.714f5ae80f4de6b0e4c539859e82791e99cac226798d8c366232dac2842d9c0c";
+    const INTERACTION = "interaction_013940c3274e2a603f2362a016b52d50";
+    const CALL = "call_qa357_app_read_1";
+    const toolCall = {
+      call_id: CALL,
+      confirmation_id: INTERACTION,
+      requires_confirmation: true,
+      toolkit_id: "core",
+      toolkit_name: "Core",
+      tool_name: "read",
+      tool_display_name: "read",
+      arguments: { path: "/tmp/qa357/qualification.txt" },
+      description: "Read a UTF-8 file by absolute path.",
+      interact_type: "confirmation",
+      interact_config: {},
+    };
+    const freshSkeletonPending = ({ sessionId, status = "awaiting_response", rootAttempt = ROOT, interactionId = INTERACTION, outcome = "approved" }) => ({
+      status,
+      session_id: sessionId,
+      interaction_id: interactionId,
+      source_run_id: rootAttempt,
+      active_attempt_id: rootAttempt,
+      kind: "tool_approval",
+      provider: "openai",
+      model: "gpt-6-luna",
+      presentation: {
+        trace_frame: { seq: 0, ts: 100, type: "tool_call", run_id: NODE, stage: "durable_recovery", payload: { ...toolCall, confirmation_id: interactionId } },
+        tool_call: { ...toolCall, confirmation_id: interactionId },
+      },
+      resume_available: true,
+      resume_options: { modelId: "openai:gpt-6-luna", memory_enabled: false, maxTokens: 512 },
+      resume_kind: "skeleton",
+      interaction_source_run_id: NODE,
+      interaction_session_id: sessionId,
+      ...(status === "receipt_recorded"
+        ? {
+            receipt_id: `receipt-${interactionId}`,
+            resolution: outcome === "approved"
+              ? { outcome: "approved", response: { approved: true, reason: "" } }
+              : { outcome: "denied", response: { approved: false, reason: "User denied the operation" } },
+          }
+        : {}),
+    });
+    const sealCalls = () => window.unchainAPI.cancelExecution.mock.calls
+      .map(([payload]) => payload)
+      .filter((payload) => payload?.reason === "interaction_suspended");
+
+    /* Send, present the approval in the live stream, end the stream. */
+    const presentThenEnd = async ({ sessionIdFor = (chatId) => chatId, pendingFor } = {}) => {
+      const chatId = getChatsStore().activeChatId;
+      const sessionId = sessionIdFor(chatId);
+      let authoritative = null;
+      const bridge = installDurableBridge({
+        resolvePending: async (requested) =>
+          requested === sessionId && authoritative ? authoritative : { status: "none", session_id: requested },
+        cancelExecution: async (payload) => {
+          authoritative = { status: "none", session_id: sessionId };
+          return { status: "ok", attempt_id: payload.attempt_id, source_attempt_id: payload.source_attempt_id };
+        },
+      });
+      /* The send runs on the plain stream under the evidence's root attempt;
+         the bridge's V4 stream stays for resumes, put back after the send. */
+      const v4 = window.unchainAPI.startStreamV4;
+      delete window.unchainAPI.startStreamV4;
+      let run = null;
+      window.unchainAPI.startStreamV2.mockImplementation((_payload, handlers = {}) => {
+        run = { handlers };
+        return { attemptId: ROOT, requestId: ROOT, cancel: cancelSpy };
+      });
+      renderChat();
+      await waitForReady();
+      fireEvent.change(screen.getByTestId("chat-input"), { target: { value: "Read the qualification file" } });
+      fireEvent.click(screen.getByTestId("send-button"));
+      await waitFor(() => expect(run).toBeTruthy());
+      window.unchainAPI.startStreamV4 = v4;
+      act(() => {
+        run.handlers.onFrame({ seq: 6, ts: 200, type: "tool_call", run_id: ROOT, payload: { ...toolCall } });
+      });
+      await waitFor(() => expect(lastChatMessagesProps?.pendingToolConfirmationRequests?.[INTERACTION]).toBeDefined());
+      /* The journal now holds the request; the finite SSE ends. */
+      authoritative = (pendingFor || freshSkeletonPending)({ sessionId });
+      act(() => {
+        run.handlers.onDone({ finished_at: Date.now() });
+      });
+      await waitFor(() => expect(window.unchainAPI.getPendingInteraction).toHaveBeenCalled());
+      return { chatId, sessionId, bridge, setPending: (next) => { authoritative = next; } };
+    };
+
+    test("after the stream ends the passive lookup does not seal it, and the card stays actionable", async () => {
+      await presentThenEnd();
+      await waitFor(() => expect(lastChatMessagesProps?.pendingToolConfirmationRequests?.[INTERACTION]).toBeDefined());
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(sealCalls()).toHaveLength(0);
+      expect(window.unchainAPI.cancelExecution).not.toHaveBeenCalled();
+      expect(lastChatMessagesProps.pendingToolConfirmationRequests[INTERACTION]).toBeDefined();
+      expect(lastChatMessagesProps?.toolConfirmationUiStateById?.[INTERACTION]).toEqual(
+        expect.objectContaining({ status: "idle", resolved: false }),
+      );
+      /* No transport is kept or reopened to get there: one send, no resume. */
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1);
+      expect(window.unchainAPI.startStreamV4).not.toHaveBeenCalled();
+    });
+
+    test.each([["approve", true, "approved"], ["deny", false, "denied"]])(
+      "an explicit %s records a receipt and resumes that run once; nothing is sealed",
+      async (_label, approved, outcome) => {
+        const { sessionId, bridge, setPending } = await presentThenEnd();
+        await waitFor(() => expect(lastChatMessagesProps?.pendingToolConfirmationRequests?.[INTERACTION]).toBeDefined());
+        window.unchainAPI.respondToolConfirmation.mockImplementation(async ({ confirmation_id: id, session_id: sid }) => {
+          setPending(freshSkeletonPending({ sessionId, status: "receipt_recorded", outcome }));
+          return { status: "ok", disposition: "receipt_recorded", durable: true, session_id: sid, interaction_id: id, receipt_id: `receipt-${id}` };
+        });
+        await act(async () => {
+          await lastChatMessagesProps.onToolConfirmationDecision({ confirmationId: INTERACTION, approved });
+        });
+        await waitFor(() => expect(bridge.resumeRuns()).toHaveLength(1));
+        expect(bridge.resumeRuns()[0].payload).toEqual(expect.objectContaining({ mode: "resume_interaction" }));
+        expect(sealCalls()).toHaveLength(0);
+        const frames = findConfirmationFrames(lastChatMessagesProps?.messages, INTERACTION).map(({ frame }) => frame.type);
+        expect(frames).toContain(approved ? "tool_confirmed" : "tool_denied");
+      },
+    );
+
+    test("a pending record of another attempt is not this run's: it is sealed as before", async () => {
+      await presentThenEnd({
+        pendingFor: ({ sessionId }) => freshSkeletonPending({ sessionId, rootAttempt: "unchain-older-attempt-0000" }),
+      });
+      await waitFor(() => expect(sealCalls()).toHaveLength(1));
+      expect(sealCalls()[0]).toEqual(expect.objectContaining({ attempt_id: "unchain-older-attempt-0000", interaction_id: INTERACTION }));
+    });
+
+    test("a different interaction under this run's attempt is not the accepted one: it is sealed as before", async () => {
+      await presentThenEnd({
+        pendingFor: ({ sessionId }) => freshSkeletonPending({ sessionId, interactionId: "interaction_not_presented_by_this_run" }),
+      });
+      await waitFor(() => expect(sealCalls()).toHaveLength(1));
+      expect(sealCalls()[0]).toEqual(expect.objectContaining({ interaction_id: "interaction_not_presented_by_this_run" }));
+    });
+
+    test("a new message instead of an answer abandons that run, as before", async () => {
+      const { setPending, sessionId } = await presentThenEnd();
+      await waitFor(() => expect(lastChatMessagesProps?.pendingToolConfirmationRequests?.[INTERACTION]).toBeDefined());
+      await waitFor(() => expect(lastChatInputProps?.sendDisabled).toBe(false));
+      window.unchainAPI.cancelExecution.mockImplementation(async (payload) => {
+        setPending({ status: "none", session_id: sessionId });
+        return { status: "ok", attempt_id: payload.attempt_id, source_attempt_id: payload.source_attempt_id };
+      });
+      fireEvent.change(screen.getByTestId("chat-input"), { target: { value: "Never mind, do something else" } });
+      fireEvent.click(screen.getByTestId("send-button"));
+      await waitFor(() => expect(window.unchainAPI.cancelExecution).toHaveBeenCalledWith(
+        expect.objectContaining({ reason: "interaction_abandoned_for_new_message", attempt_id: ROOT, interaction_id: INTERACTION }),
+      ));
+      expect(sealCalls()).toHaveLength(0);
+    });
+
+    test("another chat's pending record under the same ids is not this chat's run: it is sealed there", async () => {
+      const chatAId = getChatsStore().activeChatId;
+      const chatANodeId = getChatsStore().tree.selectedNodeId;
+      setChatModel(chatAId, { id: "openai:gpt-5" }, { source: "test" });
+      const createdB = createChatInSelectedContext({ title: "Chat B" }, { source: "test" });
+      setChatMessages(createdB.chatId, [
+        { id: "user-chat-b", role: "user", content: "Chat B", createdAt: 2, updatedAt: 2 },
+      ], { source: "test" });
+      setChatModel(createdB.chatId, { id: "openai:gpt-5" }, { source: "test" });
+      act(() => {
+        selectTreeNode({ nodeId: chatANodeId }, { source: "test" });
+      });
+      const pendingB = freshSkeletonPending({ sessionId: createdB.chatId });
+      let sealedB = false;
+      await presentThenEnd({
+        pendingFor: ({ sessionId }) => freshSkeletonPending({ sessionId }),
+      });
+      await waitFor(() => expect(lastChatMessagesProps?.pendingToolConfirmationRequests?.[INTERACTION]).toBeDefined());
+      const resolveA = window.unchainAPI.getPendingInteraction.getMockImplementation();
+      window.unchainAPI.getPendingInteraction.mockImplementation(async (args = {}) =>
+        args.session_id === createdB.chatId
+          ? (sealedB ? { status: "none", session_id: createdB.chatId } : pendingB)
+          : resolveA(args));
+      window.unchainAPI.cancelExecution.mockImplementation(async (payload) => {
+        if (payload.owner_chat_id === createdB.chatId) sealedB = true;
+        return { status: "ok", attempt_id: payload.attempt_id, source_attempt_id: payload.source_attempt_id };
+      });
+      act(() => {
+        selectTreeNode({ nodeId: createdB.nodeId }, { source: "test" });
+      });
+      await waitFor(() => expect(sealCalls()).toEqual([
+        expect.objectContaining({ owner_chat_id: createdB.chatId, session_id: createdB.chatId, interaction_id: INTERACTION }),
+      ]));
+      expect(sealCalls().some((payload) => payload.owner_chat_id === chatAId)).toBe(false);
+      act(() => {
+        selectTreeNode({ nodeId: chatANodeId }, { source: "test" });
+      });
+      await waitFor(() => expect(lastChatMessagesProps?.chatId).toBe(chatAId));
+      await waitFor(() => expect(lastChatMessagesProps?.pendingToolConfirmationRequests?.[INTERACTION]).toBeDefined());
+      expect(sealCalls().some((payload) => payload.owner_chat_id === chatAId)).toBe(false);
+    });
+
+    test("Stop after the stream ended still cancels the run as a user stop", async () => {
+      await presentThenEnd();
+      await waitFor(() => expect(lastChatMessagesProps?.pendingToolConfirmationRequests?.[INTERACTION]).toBeDefined());
+      await waitFor(() => expect(screen.getByTestId("stop-button")).toBeInTheDocument());
+      fireEvent.click(screen.getByTestId("stop-button"));
+      await waitFor(() => expect(window.unchainAPI.cancelExecution).toHaveBeenCalledWith(
+        expect.objectContaining({ reason: "user_stop", interaction_id: INTERACTION }),
+      ));
+      expect(sealCalls()).toHaveLength(0);
+    });
+  });
+
   test("keeps a durable card actionable when confirmation admission fails closed", async () => {
     window.unchainAPI.respondToolConfirmation.mockResolvedValueOnce(null);
 
