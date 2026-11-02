@@ -44,7 +44,7 @@ test("Branch conditions persist through real preload/Main/Store and an app resta
   for (const [kind, fixture] of Object.entries(documents)) {
     const document = JSON.parse(JSON.stringify(fixture));
     document.id = `qa-351-${kind}-${Date.now()}`;
-    document.name = `Branch acceptance ${kind}`;
+    document.name = `Branch acceptance ${kind} ${document.id}`;
     const seed = await pupu.appWindow.evaluate(
       (value) => window.unchainAPI.saveSkeletonResource({ document: value }), document,
     );
@@ -62,7 +62,7 @@ test("Branch conditions persist through real preload/Main/Store and an app resta
     const value = row.kind === "if" ? "acceptance condition" : "acceptance case";
     await page.getByTestId(fieldId).getByPlaceholder("text", { exact: true }).fill(value);
     await expect(page.getByTestId("skeleton-save-state")).toHaveText("Unsaved changes");
-    const before = await page.evaluate((id) => window.unchainAPI.getSkeletonResource(id), row.document.id);
+    const before = await page.evaluate(async (id) => (await window.unchainAPI.getManagedSkeletonResource(id)).resource, row.document.id);
     expect(before.document).toEqual(row.document);
     expect(before.edit_token).toBe(row.token);
     await page.getByRole("button", { name: "Save", exact: true }).click();
@@ -71,7 +71,7 @@ test("Branch conditions persist through real preload/Main/Store and an app resta
     const execution = expected.nodes.find((node) => node.id === branchId).config.execution;
     if (row.kind === "if") execution.condition.right.value = value;
     else execution.cases[0].value = value;
-    const after = await page.evaluate((id) => window.unchainAPI.getSkeletonResource(id), row.document.id);
+    const after = await page.evaluate(async (id) => (await window.unchainAPI.getManagedSkeletonResource(id)).resource, row.document.id);
     expect(after.document).toEqual(expected);
     expect(after.edit_token).not.toBe(row.token);
     expect(after.diagnostics).toEqual([]);
@@ -92,7 +92,7 @@ test("Branch conditions persist through real preload/Main/Store and an app resta
   await openAgents(pupu.appWindow);
   for (const row of saved) {
     const page = pupu.appWindow;
-    const cold = await page.evaluate((id) => window.unchainAPI.getSkeletonResource(id), row.document.id);
+    const cold = await page.evaluate(async (id) => (await window.unchainAPI.getManagedSkeletonResource(id)).resource, row.document.id);
     expect(cold).toEqual(row.expected);
     await page.getByTestId("agent-explorer").getByText(row.document.name, { exact: true }).click();
     await page.getByTestId(`skeleton-node-${row.kind === "if" ? "if" : "switch"}`).click();

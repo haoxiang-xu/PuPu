@@ -211,3 +211,41 @@ panels; the report also attributes neighboring style-object properties. An
 independent Babel AST comparison of all five JS files is equal after replacing
 only `color`/`backgroundColor` values and removing location/comment metadata.
 This confines the edit; it is not a graph waiver. Changed-file ESLint:0/0.
+
+## Final frontend and smoke composition (2026-11-02)
+
+Final integration uses a new independent clone,
+`/Users/red/Desktop/GITRepo/pupu-357-final-delivery`; the earlier delivery clone
+and frozen candidates remain unchanged. Remote dev is still `4ad9d7bc`.
+The reviewed frontend chain above `c60dc5c7` is `75ae5952` → `18178a06` →
+`78ebcab7` → `f2cd66a8` → `261b6007`. The first three correct the Code hover/Esc
+behavior and bound the Hooks tool lists. The last two preserve exact current-run
+approval ownership after a finite native stream ends, including an explicit
+approval or denial whose POST is still in flight. They do not keep streaming on,
+derive ownership from composer choices, or restore an unknown cold interaction.
+Stop/new-generation fencing, failure retry, duplicate submission protection, and
+the existing explicit receipt/resume identity checks remain required.
+
+This is BC-357-CLOSE-003 / SEQ-357-CLOSE-002 / AC-357-06 and AC-357-07. The first
+packaged attempt's requested seq38 → unbidden cancellation seq41 is retained as
+a failure. Independent review of `f2cd66a8` reproduced its eight positives but
+found two POST/SSE overlap failures; all thirteen bounded cases pass on
+`261b6007`, including the original probes and three further controls. The pending
+record in these tests is explicitly derived: the failing App did not separately
+capture its pending HTTP/IPC reply. Graph closure blind spots are not an all-clear.
+
+Hosted App run `41509098049` uses that exact frontend with the unchanged QA control
+`42a6d72a`, wheel `17b04aea…`, ELF `e0162fc1…`, and manifest `827adc56…`. Its actual
+outcome and physical evidence must be reviewed before an audit PASS; dispatch or
+packaging success alone is insufficient. No local App/Main, real provider, or
+real key is part of this qualification.
+
+The two existing Branch/Steps smoke observers must now read the managed v2
+aggregate and explicitly select its `resource`, preserving the original document,
+edit-token, diagnostic, UI-preflight and cold-read assertions. Their seed display
+names include the unique resource id so retry-created rows cannot collide. This
+changes only test observation/setup, not production behavior or an acceptance
+assertion. The initial test-only adapter and the correction to unwrap the real
+v2 envelope are both retained in the evidence. Final required CI, current graph
+change analysis, candidate byte manifest and five-check audit remain mandatory;
+no other ticket or the Release parent is closed by this delivery.

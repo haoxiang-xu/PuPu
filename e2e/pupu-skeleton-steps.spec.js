@@ -55,7 +55,7 @@ test("Tool Call and Skill Read edits persist through real bridges, Store and res
   for (const [kind, fixture] of Object.entries(documents)) {
     const document = JSON.parse(JSON.stringify(fixture));
     document.id = `qa-352-${kind}-${Date.now()}`;
-    document.name = `Deterministic acceptance ${kind}`;
+    document.name = `Deterministic acceptance ${kind} ${document.id}`;
     if (kind === "skill") document.nodes.find((node) => node.id === "skill").config.skill = identities.a;
     const seed = await pupu.appWindow.evaluate(
       (value) => window.unchainAPI.saveSkeletonResource({ document: value }), document,
@@ -83,12 +83,12 @@ test("Tool Call and Skill Read edits persist through real bridges, Store and res
       expected.nodes.find((node) => node.id === "skill").config.skill = identities.b;
     }
     await expect(page.getByTestId("skeleton-save-state")).toHaveText("Unsaved changes");
-    const before = await page.evaluate((id) => window.unchainAPI.getSkeletonResource(id), row.document.id);
+    const before = await page.evaluate(async (id) => (await window.unchainAPI.getManagedSkeletonResource(id)).resource, row.document.id);
     expect(before.document).toEqual(row.document);
     expect(before.edit_token).toBe(row.token);
     await page.getByRole("button", { name: "Save", exact: true }).click();
     await expect(page.getByTestId("skeleton-save-state")).toHaveText("Saved");
-    const after = await page.evaluate((id) => window.unchainAPI.getSkeletonResource(id), row.document.id);
+    const after = await page.evaluate(async (id) => (await window.unchainAPI.getManagedSkeletonResource(id)).resource, row.document.id);
     expect(after.document).toEqual(expected);
     expect(after.edit_token).not.toBe(row.token);
     expect(after.diagnostics).toEqual([]);
@@ -105,7 +105,7 @@ test("Tool Call and Skill Read edits persist through real bridges, Store and res
   await openAgents(pupu.appWindow);
   for (const row of rows) {
     const page = pupu.appWindow;
-    const cold = await page.evaluate((id) => window.unchainAPI.getSkeletonResource(id), row.document.id);
+    const cold = await page.evaluate(async (id) => (await window.unchainAPI.getManagedSkeletonResource(id)).resource, row.document.id);
     expect(cold).toEqual(row.expected);
     await page.getByTestId("agent-explorer").getByText(row.document.name, { exact: true }).click();
     await page.getByTestId(`skeleton-node-${row.kind}`).click();
