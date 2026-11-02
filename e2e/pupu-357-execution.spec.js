@@ -295,8 +295,22 @@ test("#357 Code, Workflow Call and Hooks execute through the real chat entry (qu
     await allow.click();
     await expect(page().getByText("QA357 APP DONE", { exact: true }).last()).toBeVisible({ timeout: 120000 });
     await expect(allowViews).toHaveCount(0);
-    await expect.poll(() => page().locator('button[aria-label="Stop"],button[aria-label="Stop generating"]').count()).toBe(0);
-    step("ui", "actual assistant final visible after approving the saved Hook");
+    /* A final delta can be visible before done/accounting has persisted it.
+       The product's icon-only Stop button has neither guessed aria-label;
+       that old empty selector was not evidence of settlement. Require the
+       real owner record and the recovery banner to finish before teardown. */
+    await expect.poll(async () => page().evaluate(({ chatId, messageId }) => {
+      const owner = window.chatStorageAPI.readMessages(chatId).find((message) => message.id === messageId);
+      return { status: owner?.status, content: owner?.content };
+    }, { chatId: approvalOwner.chatId, messageId: approvalOwner.ownerMessageId }), { timeout: 120000 })
+      .toEqual({ status: "done", content: "QA357 APP DONE" });
+    await expect(page().getByText("Restoring an interrupted Unchain run...", { exact: true })).toHaveCount(0);
+    const settledPending = await page().evaluate((sessionId) =>
+      window.unchainAPI.getPendingInteraction({ session_id: sessionId }), approvalOwner.sessionId);
+    expect(settledPending.status).toBe("none");
+    expect(settledPending.session_id).toBe(approvalOwner.sessionId);
+    await attachJson(testInfo, "actual pending reply after completed persisted owner", settledPending);
+    step("ui", "actual assistant final persisted as done; recovery banner and all approval actions gone");
     await attachShot(testInfo, page(), "actual final after approval");
   } finally {
     const stored = await page().evaluate(() => {
