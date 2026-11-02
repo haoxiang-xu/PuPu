@@ -233,6 +233,12 @@ test("#357 Code, Workflow Call and Hooks execute through the real chat entry (qu
     step("ui", "chose QA 357 exec in the composer and sent a message", { message });
 
     const allow = page().getByRole("button", { name: "Allow once", exact: true });
+    const details = page().getByRole("button", { name: "detail", exact: true }).first();
+    await expect.poll(async () => (await allow.isVisible()) || (await details.isVisible()), { timeout: 60000 }).toBe(true);
+    if (!(await allow.isVisible()) && await details.isVisible()) {
+      await details.click();
+      step("ui", "expanded the message's trace through its visible detail button");
+    }
     await expect(allow).toBeVisible({ timeout: 120000 });
     await attachShot(testInfo, page(), "actual pending hook approval");
     step("ui", "matching approval visible; Allow once will resume the suspended run");

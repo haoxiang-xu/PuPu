@@ -6,7 +6,7 @@ module.exports = {
   workers: 1,
   retries: 0,
   fullyParallel: false,
-  reporter: [["list"], ["json", { outputFile: "test-results/app-execution.json" }]],
-  outputDir: "test-results/app-execution",
+  reporter: [["list"], ["json", { outputFile: path.resolve(__dirname, "../../test-results/app-execution.json") }]],
+  outputDir: path.resolve(__dirname, "../../test-results/app-execution"),
   use: { viewport: { width: 1280, height: 820 }, screenshot: "only-on-failure", trace: "retain-on-failure" },
 };
