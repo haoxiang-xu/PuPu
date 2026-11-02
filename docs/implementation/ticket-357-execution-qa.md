@@ -67,3 +67,37 @@ All new tool symbols and the QA workflow have UNKNOWN index impact (new files or
 non-code workflow). Text binding is explicit: only this branch's dispatch-only
 workflow consumes tools/qa357. No existing product consumer imports them.
 Fresh graph change analysis is still required before a QA delivery commit.
+
+## BC-QA357-003: finite native function-call protocol qualification
+
+The frozen environment foundation remains on branch
+codex/ticket-357-execution-control@865a6543215aadaa1fa78039037843caeae03840.
+This separate QA branch adds a tool protocol qualifier before any App execution.
+Producer is the installed openai==2.7.1 SDK. Consumer is tool_fixture.py in the
+same disposable Linux-only TLS namespace; credential storage is still the real
+unchanged production writer/private GNOME service. No production file changes.
+
+The scenario is CLOSED qa357.tool-fixture.v1, including the exact function name,
+call id, JSON argument object and expected output string. The provider request
+remains OPEN; unknown extensions are retained verbatim. The offered function
+must be unique and match. After the finite function-call SSE, only one matching
+function_call_output advances to the final response. Wrong, missing, duplicate,
+premature or replayed results are refused without advancing state. Optional SDK
+defaults may be added by its typed models; every emitted wire field must match.
+Raw request AND response bytes, digests, timestamps and phase transitions are
+retained before the response is sent. TLS trust/hostname checks remain enabled.
+
+SEQ-QA357-003: initial -> function call -> awaiting output -> rejected missing,
+wrong-id, wrong-output and wrong-tool requests (state unchanged) -> exact output
+-> completed -> replay refusal. No reset/retry/restart claim for this in-memory
+QA conversation; those product paths retain their existing evidence boundaries.
+
+AC-QA357-04: pure controls first fail before implementation, then pass, including
+opaque extension preservation, exact negative reasons, unique call identity and
+argument event consistency. AC-QA357-05: real installed SDK consumes function
+SSE then sends matching output and decodes the exact final JSON; independent
+qualifier rehashes both directions and binds raw events to SDK decoded values.
+Wrong hostname and no-route controls stay mandatory. Original foundation's
+real credential write/cold read/basic refusal controls also run unchanged.
+Actual App/Kernel/Code/Workflow/Hook execution remains NOT_RUN until its separate
+exact-pair run. No simulated protocol result is counted as application success.

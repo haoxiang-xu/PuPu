@@ -1,4 +1,4 @@
-name: 357 offline execution environment (QA only)
+name: 357 offline tool protocol (QA only)
 on:
   workflow_dispatch:
     inputs:
@@ -121,7 +121,7 @@ jobs:
           sha256sum -c test-results/package-lock.sha256
       - name: Pure fixture controls without any socket or App
         run: |
-          python -I -B -c 'import sys,unittest;sys.path.insert(0,"control/tools/qa357");unittest.main(module="test_execution_fixture",verbosity=2)'
+          python -I -B -c 'import sys,unittest;sys.path.insert(0,"control/tools/qa357");s=unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromName(n) for n in ["test_execution_fixture","test_tool_fixture"]);r=unittest.TextTestRunner(verbosity=2).run(s);sys.exit(not r.wasSuccessful())'
           for file in control/tools/qa357/*.sh; do bash -n "$file"; done
           node --check control/tools/qa357/credential_probe.cjs
       - name: Qualify private real credential service and SDK over loopback TLS
@@ -129,39 +129,15 @@ jobs:
           set -euo pipefail
           export QA_OUT="$PWD/test-results/execution"
           export QA_CANDIDATE_ROOT="$PWD/candidate"
-          bash control/tools/qa357/run_execution_qualification.sh
-      - name: Verify exact outcomes and original wire
+          bash control/tools/qa357/run_tool_qualification.sh
+      - name: Verify original request and response bytes independently
         run: |
-          python -I -B - <<'PY'
-          import base64, hashlib, json
-          from pathlib import Path
-          out = Path('test-results/execution')
-          read = lambda name: json.loads((out/name).read_text())
-          write, cold, basic = [read('credential-'+mode+'.json') for mode in ['write','read','basic']]
-          assert write['pid'] != cold['pid'] and write['profile'] == cold['profile']
-          assert write['exact_round_trip'] is cold['exact_round_trip'] is True
-          assert write['backend'] == cold['backend'] == 'gnome_libsecret'
-          assert not write['bootstrap_contains_sentinel'] and not cold['database_contains_sentinel']
-          assert basic['profile'] != cold['profile'] and basic['provider_rows'] == 0
-          assert basic['rejected_code'] == 'secret_storage_unavailable'
-          assert read('keyring-control.json')['private_secret_service_round_trip'] is True
-          sdk = read('sdk-qualification.json')
-          assert len(sdk['controls']) == 7 and all(row['passed'] is True for row in sdk['controls'])
-          wire = [json.loads(row) for row in (out/'provider-requests.jsonl').read_text().splitlines()]
-          assert len(wire) == 5 and sum(row['refusal'] is None for row in wire) == 2
-          assert {row['refusal'] for row in wire if row['refusal']} == {'model','credential','path'}
-          for row in wire:
-              assert row['peer'] == '127.0.0.1'
-              assert hashlib.sha256(base64.b64decode(row['request_base64'])).hexdigest() == row['request_sha256']
-          assert {row['ifname'] for row in read('offline-interfaces.json')} == {'lo'}
-          assert read('offline-routes.json') == []
-          print('QUALIFIED: private credential + real SDK/local protocol only; App execution remains NOT_RUN')
-          PY
-      - name: Upload foundation evidence and exact tools
+          python -I -B control/tools/qa357/verify_tool_protocol.py test-results/execution
+      - name: Upload tool protocol evidence and exact tools
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: 357-execution-environment-evidence
+          name: 357-tool-protocol-evidence
           retention-days: 90
           if-no-files-found: error
           path: |
