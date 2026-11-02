@@ -26,7 +26,7 @@ BASELINE_FEATURES = (
     "end_only_root_completion_v1", "explicit_bindings_v1", "hook_phase_receipts_v1",
     "kernel_profiles_v1", "legacy_conversion_v1", "non_llm_workflow_v1",
     "pinned_workflow_calls_v1", "production_host_bindings_v1", "skill_read_v1", "structured_output_v1",
-    "subagent_graphs_v1", "tool_call_v1",
+    "subagent_graphs_v1", "subagent_tool_settlement_projection_v1", "tool_call_v1",
 )
 DIGEST_DOMAIN = b"unchain.runtime_protocol_manifest.v1\\u0000"
 
@@ -65,6 +65,44 @@ def _without_skeleton(value):
 
 def _skeleton_protocol(value):
     return next(item for item in value["protocols"] if item["id"] == "skeleton_execution")
+
+
+@pytest.mark.parametrize("minor", [0, 4, 5])
+def test_missing_call_bound_projection_capability_is_rejected_even_with_valid_manifest(minor):
+    manifest = _compatible_manifest()
+    protocol = _skeleton_protocol(manifest)
+    protocol["minor"] = minor
+    protocol["features"] = [value for value in protocol["features"] if value != "subagent_tool_settlement_projection_v1"]
+    with pytest.raises(_api().SkeletonRuntimeCompatibilityError) as error:
+        _api().validate_skeleton_runtime_manifest(_signed(manifest))
+    assert error.value.code == "skeleton_runtime_incompatible"
+
+
+def test_projection_feature_on_a_pre_v15_manifest_is_not_accepted():
+    manifest = _compatible_manifest()
+    protocol = _skeleton_protocol(manifest)
+    protocol["minor"] = 4
+    protocol["features"] = sorted(set(protocol["features"]) | {"subagent_tool_settlement_projection_v1"})
+    with pytest.raises(_api().SkeletonRuntimeCompatibilityError) as error:
+        _api().validate_skeleton_runtime_manifest(_signed(manifest))
+    assert error.value.code == "skeleton_runtime_incompatible"
+
+
+def test_missing_projection_capability_blocks_before_profiles_and_preserves_resource(tmp_path, monkeypatch):
+    manifest = _compatible_manifest()
+    protocol = _skeleton_protocol(manifest)
+    protocol["features"] = [value for value in protocol["features"] if value != "subagent_tool_settlement_projection_v1"]
+    monkeypatch.setattr(runtime_protocol, "runtime_protocol_manifest", lambda: _signed(manifest))
+    store = SkeletonResourceStore(tmp_path / "projection-runtime")
+    saved = store.save_draft(workflow("old-projection-runtime"))
+    before = _rows(store)
+    effects = []
+    monkeypatch.setattr(store, "_validate_local_profiles", lambda *_args, **_kwargs: effects.append("profiles"))
+    with pytest.raises(SkeletonResourceError) as error:
+        store.preflight(saved["id"])
+    assert error.value.code == "skeleton_runtime_incompatible"
+    assert error.value.path == ("runtime_protocol_manifest",)
+    assert effects == [] and _rows(store) == before
 
 
 def _rows(store):
@@ -322,8 +360,8 @@ def test_actual_producer_is_admitted_by_independent_consumer_without_parser(monk
     manifest = runtime_protocol.runtime_protocol_manifest()
     assert "skeleton_execution" in {item["id"] for item in manifest["protocols"]}
     assert _skeleton_protocol(manifest) == {
-        "id": "skeleton_execution", "major": 1, "minor": 4,
-        "features": sorted([*BASELINE_FEATURES, "hook_enable_v1", "hook_tool_set_v1", "hook_embedded_workflow_v1"])}
+        "id": "skeleton_execution", "major": 1, "minor": 6,
+        "features": sorted([*BASELINE_FEATURES, "kernel_profile_auth_v1", "hook_enable_v1", "hook_tool_set_v1", "hook_embedded_workflow_v1"])}
     assert _signed(manifest) == manifest
     parser_calls = []
 

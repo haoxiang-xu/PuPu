@@ -14,7 +14,7 @@ EXPECTED = {"schema": "pupu.skeleton_workflow_tool.v1", "field": "workflow_tools
     "entry_fields": ["id", "workflow"], "workflow_fields": ["revision_id", "workflow_id"],
     "id_pattern": "[A-Za-z0-9_-]{1,48}", "function_prefix": "workflow_",
     "arguments_field": "inputs", "returns": "end_exports", "scope": "attached_kernel",
-    "document_kind": "workflow", "version_policy": "published_exact", "minimum_runtime_minor": 4}
+    "document_kind": "workflow", "version_policy": "published_exact", "minimum_runtime_minor": 6}
 
 
 def capability():
@@ -64,7 +64,7 @@ def test_capability_query_has_one_fixed_selector(client, query, code):
     assert response.get_json()["error"]["code"] == code
 
 
-@pytest.mark.parametrize("minor", [0, 3, True])
+@pytest.mark.parametrize("minor", [0, 3, 4, 5, True])
 def test_older_child_runtime_contract_fails_before_exposure(monkeypatch, minor):
     module = importlib.import_module("skeleton_workflow_tools")
     assert callable(getattr(module, "workflow_tool_capabilities", None))

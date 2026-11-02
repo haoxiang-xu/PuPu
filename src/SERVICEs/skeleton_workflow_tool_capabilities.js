@@ -8,7 +8,7 @@ const expected = {
   entry_fields: ["id", "workflow"], workflow_fields: ["revision_id", "workflow_id"],
   id_pattern: "[A-Za-z0-9_-]{1,48}", function_prefix: "workflow_",
   arguments_field: "inputs", returns: "end_exports", scope: "attached_kernel",
-  document_kind: "workflow", version_policy: "published_exact", minimum_runtime_minor: 4,
+  document_kind: "workflow", version_policy: "published_exact", minimum_runtime_minor: 6,
 };
 
 export const checkSkeletonWorkflowToolCapabilities = value => {

@@ -46,8 +46,13 @@ def _prove_cancelled_edge(pending, parent, child, snapshot):
     spawns = [event for event in snapshot.events if event.attempt == consumer
         and event.event_type == "subagent_spawned"
         and event.payload.get("child_run_id") == child.store.attempt.attempt_id]
+    # A fixed Workflow Tool is a direct call, not an Agent spawn. Its pending
+    # chain was independently resolved by _workflow_tool_child; _prove_current
+    # above rechecks those exact cancelled records and their immutable wait.
+    # Keep the native delegate/handoff spawn proof unchanged.
+    needs_spawn = request.get("mode") != "workflow_tool"
     if (len(calls) != 1 or calls[0].payload.get("tool_name") != call["tool_name"]
-            or len(spawns) != 1 or spawns[0].store_seq <= calls[0].store_seq):
+            or needs_spawn and (len(spawns) != 1 or spawns[0].store_seq <= calls[0].store_seq)):
         raise ValueError("cancelled subagent has no unique original call and spawn")
     records = child.store._snapshot(snapshot, plan=child.store.plan)
     terminal = records[-1].event

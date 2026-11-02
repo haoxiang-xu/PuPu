@@ -44,7 +44,8 @@ export function read_toolkit_catalog(payload) {
 export function toolkit_pool_problems(config) {
   if (!record(config)) return ["Toolkit Pool configuration must be an object."];
   const problems = [];
-  if (!shape(config, ["toolkits", "merge_with_user_selected"])) problems.push("Toolkit Pool needs only toolkits and merge_with_user_selected.");
+  const configKeys = own(config, "workflow_tools") ? ["toolkits", "merge_with_user_selected", "workflow_tools"] : ["toolkits", "merge_with_user_selected"];
+  if (!shape(config, configKeys)) problems.push("Toolkit Pool needs toolkits and merge_with_user_selected; workflow_tools is optional.");
   if (typeof config.merge_with_user_selected !== "boolean") problems.push("Include chat-selected toolkits must be on or off.");
   if (!Array.isArray(config.toolkits)) return [...problems, "The stored toolkit list must be a list."];
   const ids = new Set();

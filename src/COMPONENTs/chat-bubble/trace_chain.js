@@ -1601,7 +1601,21 @@ const TraceChain = ({
         const hasTerminalResult = Boolean(
           resultFrame && resultFrame.payload?.status !== "running",
         );
-        const result = resultFrame?.payload?.result;
+        // Headless Workflow tools use the same call-bound child receipt as
+        // delegate/handoff. The original durable wait marker stays untouched;
+        // only the display reads the verified terminal projection.
+        const genericSettlement = SUBAGENT_TOOLS.has(frame.payload?.tool_name)
+          ? null
+          : settlementForToolCall(subagentSettlements, frame, frames);
+        const result = genericSettlement
+          ? {
+              status: genericSettlement.status,
+              ...(genericSettlement.body
+                ? { outputs: genericSettlement.body.outputs,
+                    ...(genericSettlement.body.error ? { error: genericSettlement.body.error } : {}) }
+                : { inline: false, content_bytes: genericSettlement.contentBytes }),
+            }
+          : resultFrame?.payload?.result;
         const internalDelta =
           resultFrame?.ts && frame.ts ? resultFrame.ts - frame.ts : null;
 
@@ -2174,7 +2188,15 @@ const TraceChain = ({
               : spanText,
           status: toolStatus,
           point: toolPointEl,
-          body: interactBody,
+          body: genericSettlement ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <span style={{ fontSize: 11.5, color: "var(--pupu-text-secondary)",
+                fontFamily: "Menlo, Monaco, Consolas, monospace" }}>
+                {genericSettlement.status}
+              </span>
+              {interactBody}
+            </div>
+          ) : interactBody,
           details:
             sections.length > 0 ? (
               <KVPanel sections={sections} isDark={isDark} color={color} />

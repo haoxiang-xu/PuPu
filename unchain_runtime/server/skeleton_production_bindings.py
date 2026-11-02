@@ -153,8 +153,18 @@ class SkeletonProductionBindings:
             _fail("binding_closed", ("binding",), "Skeleton capability bindings are closed.")
 
     def _admit_credentials(self, value):
+        from unchain.skeleton.kernel_config import effective_kernel_auth_mode
+
         if type(value) is not dict:
             _fail("invalid_type", ("options", "skeleton_credentials"), "Credential bindings must be an object.")
+        fixed_targets = {}
+        for profile in self._profiles.values():
+            target = (profile["provider"], profile["endpoint"], profile["protocol"], effective_kernel_auth_mode(profile))
+            ref = profile["credential_ref"]
+            if ref in fixed_targets and fixed_targets[ref] != target:
+                _fail("credential_conflict", ("profile", "credential_ref"),
+                      "One credential reference cannot bind distinct fixed authentication targets.")
+            fixed_targets[ref] = target
         result = {}
         references = {profile["credential_ref"] for profile in self._profiles.values()}
         for ref, item in value.items():
@@ -174,6 +184,8 @@ class SkeletonProductionBindings:
         return result
 
     def bind_profile(self, kernel_config):
+        from unchain.skeleton.kernel_config import effective_kernel_auth_mode
+
         self._active()
         config = validate_kernel_config(kernel_config)
         if config not in self._configs:
@@ -186,7 +198,7 @@ class SkeletonProductionBindings:
             if official is not None and profile["endpoint"] == official[0]:
                 candidates = [self._options.get(key) for key in official[1]] + [os.environ.get(key) for key in official[2]]
                 credential = next((value for value in candidates if type(value) is str and value.strip()), None)
-        if credential is None and profile["protocol"] != "ollama":
+        if credential is None and effective_kernel_auth_mode(profile) != "none":
             _fail("credential_unavailable", ("profile", "credential_ref"),
                   "This provider and endpoint require a dedicated credential binding.")
         if credential is not None:

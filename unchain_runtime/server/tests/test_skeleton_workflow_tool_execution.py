@@ -38,7 +38,7 @@ def _plan():
     return prepare_agent_graph(document)
 
 
-def _fixture(tmp_path, monkeypatch, *, approval=False):
+def _fixture(tmp_path, monkeypatch, *, approval=False, clock=None, callback=None):
     bridge = _bridge(tmp_path, monkeypatch)
     body = workflow()
     writes = []
@@ -68,13 +68,14 @@ def _fixture(tmp_path, monkeypatch, *, approval=False):
     def execution(guard):
         return PupuSkeletonAgentExecution(_plan(), bridge, graph_id="workflow-parent",
             bind_profile=lambda config: _binding(config, client, []),
+            callback=callback,
             durability_runtime=memory, execution_guard=guard,
             workflow_tools_for_node=lambda context: (selected,) if context.node_id == "model" else (),
             root_handlers_factory=lambda _store, _plan: {
                 "code": lambda _context, inputs: __import__("unchain.skeleton", fromlist=["WorkflowNodeCompleted"]).WorkflowNodeCompleted({
                     "message": "parent End", "evidence": inputs["model_answer"]})},
             child_handlers_factory=lambda _store, plan: {"tool_call": SkeletonToolRuntime(
-                plan, toolkit, bridge.execution_id, lambda: 100)},
+                plan, toolkit, bridge.execution_id, clock or (lambda: 100))},
             hook_workflow_resolver=resolve)
     return bridge, client, sessions, writes, execution
 
@@ -94,6 +95,37 @@ def test_model_calls_fixed_workflow_and_parent_alone_commits_root(tmp_path, monk
     assert "child-only-input" in json.dumps(client.requests[1]["input"])
     assert "committed-workflow-End-output" not in json.dumps(client.requests[0])
     assert "committed-workflow-End-output" in json.dumps(client.requests[1]["input"])
+    assert sum(event.event_type == "final_message" and event.attempt == execution.store.attempt
+        for event in execution.store.journal.capture_snapshot().events) == 1
+
+
+def test_two_distinct_workflow_calls_return_their_own_end_before_parent_end(tmp_path, monkeypatch):
+    import sys
+    # Two Tool turns plus the final model answer require three iterations.
+    # The base fixture deliberately allows only two for its one-call cases.
+    document = _plan().snapshot()
+    next(node for node in document["nodes"] if node["type"] == "agent")["config"]["kernel"]["max_iterations"] = 3
+    monkeypatch.setattr(sys.modules[__name__], "_plan", lambda: prepare_agent_graph(document))
+    bridge, client, sessions, writes, build = _fixture(tmp_path, monkeypatch)
+    second = _tool_turn()
+    second.id = "workflow-tool-turn-2"
+    second.output[0].update(call_id="workflow-call-2", arguments='{"inputs":{"value":"second-child-input"}}')
+    client.responses_to_send = [_tool_turn(), second, _final_response("both calls finished")]
+    with ExecutionRuntime(sessions).scope(bridge.execution_id) as guard:
+        execution = build(guard)
+        execution.create({})
+        result, receipt = execution.run(original_task="call this Workflow twice")
+    assert result.status == "completed", result.error
+    assert result.root_committed and receipt is not None and writes == []
+    assert len(client.requests) == 3
+    import json
+    assert "committed-workflow-End-output" not in json.dumps(client.requests[0])
+    assert "committed-workflow-End-output" in json.dumps(client.requests[1]["input"])
+    assert "second-child-input" in json.dumps(client.requests[2]["input"])
+    results = [event for event in execution.store.journal.capture_snapshot().events
+        if event.event_type == "tool_result" and event.payload.get("tool_name") == "workflow_echo"]
+    assert {event.payload["call_id"] for event in results} == {"workflow-call-1", "workflow-call-2"}
+    assert len(results) == 2
     assert sum(event.event_type == "final_message" and event.attempt == execution.store.attempt
         for event in execution.store.journal.capture_snapshot().events) == 1
 
@@ -121,6 +153,48 @@ def test_approval_wait_survives_execution_reconstruction_without_child_redispatc
     import json
     assert "committed-workflow-End-output" not in json.dumps(client.requests[0])
     assert "committed-workflow-End-output" in json.dumps(client.requests[1]["input"])
+
+
+def test_real_workflow_tool_child_settlement_projects_its_exact_receipt(tmp_path, monkeypatch):
+    import json
+    import os
+    from pathlib import Path
+    from unchain.events.bridge import RuntimeEventBridge
+    from unchain.journal.models import _thaw_json
+    callbacks = []
+    bridge, client, sessions, writes, build = _fixture(tmp_path, monkeypatch, approval=True, callback=callbacks.append)
+    with ExecutionRuntime(sessions).scope(bridge.execution_id) as guard:
+        execution = build(guard)
+        execution.create({})
+        waiting, _receipt = execution.run()
+    assert waiting.status == "waiting" and writes == []
+    active = execution.store.load().state["active"]
+    with ExecutionRuntime(sessions).scope(bridge.execution_id) as guard:
+        restored = build(guard)
+        result, receipt = restored.resume_subagent_interaction(active["wait"]["id"], True,
+            node_invocation_id=active["node_invocation_id"])
+    assert result.status == "completed" and receipt is not None
+    assert writes == ["child-only-input"] and len(client.requests) == 2
+    settled = [event for event in callbacks if event.get("type") == "subagent_tool_settled"]
+    assert len(settled) == 1
+    projection = settled[0]["settlement"]
+    assert projection["call_id"] == "workflow-call-1" and projection["tool_name"] == "workflow_echo"
+    journal = restored.store.journal.capture_snapshot().events
+    canonical = [event for event in journal if event.event_type == "skeleton.subagent_tool_settlement"]
+    assert len(canonical) == 1
+    assert projection["cursor"] == {"schema": "unchain.event_cursor.v1",
+        "event_id": canonical[0].event_id, "store_seq": canonical[0].store_seq}
+    assert projection["result"]["content_sha256"] == canonical[0].payload["result_sha256"]
+    normalizer = RuntimeEventBridge(session_id=bridge.execution_id, root_run_id=restored.binding.root_run_id)
+    events = [event.to_dict() for callback in callbacks for event in normalizer.normalize(callback)]
+    projected = [event for event in events if event.get("payload", {}).get("settlement")]
+    assert len(projected) == 1 and projected[0]["payload"]["settlement"] == projection
+    if os.environ.get("WORKFLOW_TOOL_SETTLEMENT_CAPTURE"):
+        Path(os.environ["WORKFLOW_TOOL_SETTLEMENT_CAPTURE"]).write_text(json.dumps({
+            "provenance": "Real Host/Kernel/fixed Workflow/approval/resume/Journal/normalizer; SDK replies substituted. Process-local, not public HTTP or OS cold restart.",
+            "callbacks": callbacks, "v4_events": events, "projection": projection,
+            "journal_settlement": _thaw_json(canonical[0].payload), "tool_effects": writes,
+            "sdk_calls": len(client.requests)}, indent=2) + "\n")
 
 
 def test_workflow_tool_module_respects_borrowed_subagent_tool_policy(tmp_path, monkeypatch):

@@ -210,3 +210,85 @@ producer. BC-356-CLOSE-002 / SEQ-356-CLOSE-002 / AC-356-CLOSE-002 therefore requ
 a new canonical wheel and Host binary. Old evidence remains prior, bounded
 evidence. First combined renderer check:9 suites/219 passed. Core projection and
 Kernel source check:43 passed. Installed/public/binary cells are still pending.
+
+## Explicit projection capability and pre-deployment qualification
+
+BC-356-CLOSE-001/002: the new Core producer advertises
+`subagent_tool_settlement_projection_v1` in Skeleton v1.5. The independent Host
+manifest consumer requires both the minor and feature, before profile/dependency
+work or execution effects. It does not admit by source path, Git SHA, module
+presence or an environment bypass. Five negative cases reproduce the earlier
+missing rejection; Core protocol expectations reproduce three failures before
+the handshake change. Green:38 Core protocol/projection tests and63 Host gate
+tests. Other Core protocol wire values remain exact.
+
+Actual source manifest digest:
+`sha256:31090314d4e60bf98781c2b59f87bd63deadeecaa932c49274cc4024f5b09392`.
+One new wheel/binary pair must still be built/retained and verified; no old-pair
+result is claimed for this changed manifest. The old v1.4 capture remains in
+Git/history and the original evidence.
+
+The Toolkit Pool entry uses the real host capability and existing exact-version
+picker. Reading/opening writes nothing; each entry has its own local function id
+and exact published Workflow reference. No latest/model/inline source fallback.
+New UI tests are real pool controls with only the already-tested version-picker
+seam substituted:3 suites/67 green, not a packaged App/Store claim. Real OpenAI
+SDK serialization and typed SSE parsing pass with HTTPX MockTransport and OS
+network denial; two distinct Workflow calls return each child's actual End
+before the parent End. These are source controls, not installed-wheel evidence.
+
+
+## M3 authentication gap — BC-356-CLOSE-004 / SEQ-356-CLOSE-004
+
+The actual shipped-provider producer declares Anthropic Messages with x-api-key
+for DeepSeek and Bearer for both Kimi endpoints. The original Kernel profile
+could not retain authentication identity, and Main rejected Kimi before vault
+access. This is a product gap, not the owner's live-service exception.
+
+Add optional CLOSED profile field `auth_mode` with a protocol-specific enum:
+OpenAI Responses=bearer, Anthropic=x-api-key|bearer, Gemini=api-key,
+Ollama=none|bearer. Absence keeps the exact historical transport default;
+invalid values never coerce or silently switch. The authentication choice joins
+profile/selection/launch digests and requirements. Main independently compares
+it with the private authoritative registration before reading any secret.
+Credentials remain the existing closed provider/endpoint/api_key map; no key
+enters definitions or snapshots. Official providers cannot change auth mode.
+
+The runtime advertises `kernel_profile_auth_v1` at Skeleton minor6; Host checks
+the actually imported independent strict manifest. Requirements carry the
+optional auth_mode only when present in the selected profile. A shared ref
+cannot bind incompatible endpoint/provider/protocol/auth identities. Authenticated
+SDK construction disables the SDK's alternative credential source (API key
+versus token), pins endpoint/retries and keeps official/default profiles intact.
+No arbitrary headers, header credentials, unsupported transports or silent
+fallback are added.
+
+SEQ: save profile A -> issue exact credential scope -> wait -> registry/profile
+changes -> original launch retains A and only fresh matching credentials can
+bind it; a new selection uses B. AC: real shipped preset -> Main strict reader,
+actual SDK HTTP serialization under a no-network transport, wrong registration
+and unknown-field/value refusal before vault/factory, same reference conflict,
+source/installed/binary fixed-pair replay. No live services are called. This
+extends BC001/002/007/010/012 and AC007/008/011/014 without waiving other M3 rows.
+
+## Retained launch minor compatibility (M2/M8, BC-356-CLOSE-002)
+
+The new current-runtime gate requires Skeleton1.6, but must not apply that
+minimum to the authenticated manifest retained in an old launch. Red control
+proved both a root-only and recursive-child launch from actual held wheel
+17b04aea / manifest827adc are rejected solely by the new minimum (2 failed,
+11 controls passed). The retained launch consumer now strictly normalizes the
+original manifest, requires the original v1 baseline, and proves every retained
+protocol is implemented by the actual admitted current runtime (same major,
+no future minor, feature subset). New auth/projection fields still require
+their originally advertised feature and introduction minor. Current runtime
+admission remains1.6; no Git/path bypass, new-run downgrade, descriptor rewrite
+or digest replacement. New-module tests include protocol drift, digest, old
+current-runtime refusal and recursive-auth/Workflow-tool controls.
+
+Source-only boundary regression165/165 passes including the original frozen
+cold-child callback and after-Hook denial stream. The actual retained1.4
+manifest is captured from the old installed artifact and retained byte-exact in
+tests/fixtures; producer SHA and fixture SHA are in the close evidence. This
+unit reconstructs a launch with that real manifest; installed/binary cold
+resume remains a separate acceptance cell, not claimed by the unit count.

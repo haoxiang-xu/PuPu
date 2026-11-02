@@ -24,7 +24,7 @@ from durable_interaction_host import DurableInteractionHostError, _write_json_at
 from skeleton_chat_selection import FrozenSkeletonChatSelection, _check_preflight
 from skeleton_workflow_snapshot import (FrozenSkeletonWorkflowDependencies,
     _selection_references, _workflow_references)
-from skeleton_runtime_capability import require_skeleton_runtime, validate_skeleton_runtime_manifest
+from skeleton_runtime_capability import require_skeleton_runtime, validate_retained_skeleton_runtime_manifest
 
 
 _SCHEMA = "pupu.skeleton-launch.v1"
@@ -171,8 +171,17 @@ def validate_launch_descriptor(value, *, session_id, root_run_id, expected_owner
             or context.identity.attempt_id != root_run_id or context.identity.parent_run_id is not None
             or context.identity.root_run_id != root_run_id):
         _fail("skeleton_launch_binding_mismatch")
-    validate_skeleton_runtime_manifest(value["runtime_manifest"])
-    require_skeleton_runtime()
+    required_features = set()
+    pending = [selected]
+    while pending:
+        entry = pending.pop()
+        pending.extend(entry["subagents"])
+        for node in entry["document"]["nodes"]:
+            if node["type"] == "agent" and "auth_mode" in node["config"]["kernel"]["profile"]:
+                required_features.add("kernel_profile_auth_v1")
+            if node["type"] == "toolkit_pool" and node.get("config", {}).get("workflow_tools"):
+                required_features.add("subagent_tool_settlement_projection_v1")
+    validate_retained_skeleton_runtime_manifest(value["runtime_manifest"], required_features=required_features)
     if type(value["inputs"]) is not dict or set(value["inputs"]) != {"message", "images", "files"}:
         _fail()
     if (type(value["inputs"]["message"]) is not str or type(value["inputs"]["images"]) is not list

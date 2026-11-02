@@ -102,6 +102,8 @@ def _fixed(selection, workflows):
 
 
 def _profiles(selected):
+    from unchain.skeleton.kernel_config import effective_kernel_auth_mode
+
     documents = {}
     profiles = {}
     targets = {}
@@ -120,7 +122,7 @@ def _profiles(selected):
             if previous is not None and previous != profile:
                 _fail("profile_conflict", ("profile", "id"))
             profiles[profile["id"]] = profile
-            target = (profile["provider"], profile["endpoint"])
+            target = (profile["provider"], profile["endpoint"], profile["protocol"], effective_kernel_auth_mode(profile))
             ref = profile["credential_ref"]
             if ref in targets and targets[ref] != target:
                 _fail("credential_conflict", ("profile", "credential_ref"))
@@ -129,7 +131,8 @@ def _profiles(selected):
             visit(child)
 
     visit(selected)
-    return [{key: profiles[identity][key] for key in _PROFILE_FIELDS}
+    return [{key: profiles[identity][key] for key in _PROFILE_FIELDS +
+             (("auth_mode",) if "auth_mode" in profiles[identity] else ())}
             for identity in sorted(profiles)]
 
 

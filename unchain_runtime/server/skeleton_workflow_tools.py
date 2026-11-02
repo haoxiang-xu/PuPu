@@ -31,23 +31,23 @@ _ENTRY_ID = re.compile(r"[A-Za-z0-9_-]{1,48}\Z", re.ASCII)
 
 
 def workflow_tool_capabilities():
-    """Host-owned adapter contract over the loaded v1.4 durable child APIs."""
+    """Host-owned adapter contract over the loaded v1.6 fixed-profile runtime."""
     from skeleton_runtime_capability import SkeletonRuntimeCompatibilityError
     try:
         manifest = require_skeleton_runtime()
     except SkeletonRuntimeCompatibilityError as error:
         raise SkeletonResourceError(error.code, ("runtime_protocol_manifest",), str(error), status=409) from error
     execution = next(item for item in manifest["protocols"] if item["id"] == "skeleton_execution")
-    if type(execution["minor"]) is not int or execution["minor"] < 4:
+    if type(execution["minor"]) is not int or execution["minor"] < 6:
         raise SkeletonResourceError("workflow_tool_runtime_incompatible", ("runtime_protocol_manifest",),
-            "Workflow Tools require the v1.4 durable child and tool-route contracts.", status=409)
+            "Workflow Tools require the v1.6 fixed-profile and child settlement contracts.", status=409)
     return {"schema": "pupu.skeleton_workflow_tools_capabilities.v1",
         "runtime_manifest_digest": manifest["manifest_digest"], "workflow_tool": {
             "schema": WORKFLOW_TOOL_CONTRACT, "field": "workflow_tools",
             "entry_fields": ["id", "workflow"], "workflow_fields": ["revision_id", "workflow_id"],
             "id_pattern": "[A-Za-z0-9_-]{1,48}", "function_prefix": "workflow_",
             "arguments_field": "inputs", "returns": "end_exports", "scope": "attached_kernel",
-            "document_kind": "workflow", "version_policy": "published_exact", "minimum_runtime_minor": 4}}
+            "document_kind": "workflow", "version_policy": "published_exact", "minimum_runtime_minor": 6}}
 
 
 def _fail(code, path, message):

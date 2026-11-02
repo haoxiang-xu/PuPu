@@ -5,6 +5,7 @@ import { api } from "../../../../../SERVICEs/api";
 import { subscribeToolkitCatalogRefresh } from "../../../../../SERVICEs/toolkit_catalog_refresh";
 import { safe_text } from "../document_values";
 import { read_toolkit_catalog, toolkit_pool_problems, with_toolkit_config } from "../toolkit_pool_config";
+import WorkflowToolsSection from "./workflow_tools_section";
 
 const record = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const own = (v, key) => Object.prototype.hasOwnProperty.call(v, key);
@@ -91,7 +92,7 @@ export default function ToolkitPoolSection({ document, node, onChange, isDark })
   const setEntry = (index, patch) => setEntries(entries.map((entry, at) => at === index ? { ...entry, ...patch } : entry));
   const occupied = new Set(entries.filter(record).map((entry) => entry.id).filter((id) => typeof id === "string"));
   const choices = library.rows.filter((item) => item.hidden !== true && !occupied.has(item.toolkitId) && `${item.toolkitName || item.toolkitId} ${item.toolkitId}`.toLowerCase().includes(search.toLowerCase()));
-  const extra = Object.keys(config).filter((key) => key !== "toolkits" && key !== "merge_with_user_selected");
+  const extra = Object.keys(config).filter((key) => key !== "toolkits" && key !== "merge_with_user_selected" && key !== "workflow_tools");
 
   return <section data-testid="native-toolkit-section" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
     <strong style={{ ...NOTE, textTransform: "uppercase", letterSpacing: 0.4 }}>Tools</strong>
@@ -111,6 +112,7 @@ export default function ToolkitPoolSection({ document, node, onChange, isDark })
       return <ToolkitRow key={index} entry={entry} index={index} info={info} currentInfo={library.status === "ready" ? info : null} reading={library.status !== "ready"} editable={editable} isDark={isDark}
         onSet={(patch) => setEntry(index, patch)} onRemove={() => setEntries(entries.filter((_, at) => at !== index))} />;
     })}
+    <WorkflowToolsSection document={document} node={node} editable={editable} commit={commit} isDark={isDark} />
     {library.status === "loading" && <div style={NOTE}>Reading the tool library…</div>}
     {library.status === "error" && <div data-testid="native-toolkit-library-error" style={problemStyle}>Could not read the tool library. Stored tool settings are kept.</div>}
     {library.status !== "loading" && <Button label="Read tool library again" onClick={readLibrary} />}
