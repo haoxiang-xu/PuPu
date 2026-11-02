@@ -1,226 +1,150 @@
-name: Release QA
-
+name: 357 offline execution environment (QA only)
 on:
-  pull_request:
-    branches:
-      - dev
-      - main
-  push:
-    tags:
-      - "v*"
-      - "!v*-tools.*"
   workflow_dispatch:
     inputs:
-      qa_mode:
-        description: "QA mode"
-        type: choice
-        options:
-          - lite
-          - release
-          - release-candidate
-        default: lite
-      qa_scope:
-        description: "Closed execution scope"
-        type: choice
-        options:
-          - standard
-          - windows-playwright
-        default: standard
-      run_unchain_analysis:
-        description: "Run optional Unchain advisory analysis"
-        type: boolean
-        default: true
-      unchain_ref:
-        description: "Unchain source ref selected once for the immutable release artifact (release-candidate requires a full 40-character revision)"
+      candidate_sha:
+        required: true
+        default: 18178a0611f50522f69fbd1d4841965bfbb0d016
         type: string
-        # #357 pair: Core PR70 + denial-wait fix PR71, retaining #351/#352
-        # and all protocol features with versioned Hook source capabilities.
-        default: e0d2eb5e09976def467da7f32f2b0482b48c2ffd
-
-# Selected runtime source executes in reusable QA jobs. Cap their server-issued
-# cache tokens too: GITHUB_TOKEN permissions do not restrict cache writes.
-cache-mode: read
-
 permissions:
   contents: read
   actions: read
-
+cache-mode: read
 jobs:
-  deterministic-checks:
-    name: Deterministic QA
-    permissions:
-      contents: read
-      actions: read
-    uses: ./.github/workflows/_shared-release-deterministic.yml
-    with:
-      qa_mode: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_scope == 'windows-playwright' && 'release' || (github.event_name == 'workflow_dispatch' && inputs.qa_mode) || (startsWith(github.ref, 'refs/tags/v') && 'release') || 'lite' }}
-      unchain_ref: ${{ github.event.inputs.unchain_ref || 'e0d2eb5e09976def467da7f32f2b0482b48c2ffd' }}
-      source_ref: ${{ github.ref }}
-      source_sha: ${{ github.sha }}
-      release_tag: ${{ github.ref_name }}
-
-  release-candidate-environment-preflight:
-    name: Release candidate environment preflight
-    needs: deterministic-checks
-    if: ${{ always() && (github.event_name != 'workflow_dispatch' || inputs.qa_scope != 'windows-playwright') }}
+  qualification:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     env:
-      QA_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_scope == 'windows-playwright' && 'release' || (github.event_name == 'workflow_dispatch' && inputs.qa_mode) || (startsWith(github.ref, 'refs/tags/v') && 'release') || 'lite' }}
+      QA_MANIFEST: sha256:827adc5644e00dbb8e67fe5ecf6f7e88d9f542b1c4aff37744e0311c0acc2fe3
     steps:
-      - name: Set up Node for release environment verifier
-        if: env.QA_MODE == 'release-candidate'
-        uses: actions/setup-node@v4
+      - name: Verify read-only cache authority
+        run: |
+          case "${ACTIONS_CACHE_MODE:-}" in
+            read|none) echo "Cache authority: $ACTIONS_CACHE_MODE" ;;
+            "") echo "Read authority enforced by workflow cache-mode" ;;
+            *) exit 1 ;;
+          esac
+      - uses: actions/checkout@v4
+        with:
+          path: control
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.candidate_sha }}
+          path: candidate
+      - name: Bind source inputs and tools
+        env:
+          CANDIDATE: ${{ inputs.candidate_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$CANDIDATE" =~ ^[a-f0-9]{40}$ ]]
+          test "$(git -C candidate rev-parse HEAD)" = "$CANDIDATE"
+          mkdir -p test-results/execution
+          git -C candidate rev-parse HEAD HEAD^{tree} > test-results/candidate-identity.txt
+          git -C control rev-parse HEAD HEAD^{tree} > test-results/control-identity.txt
+          sha256sum control/tools/qa357/* > test-results/control-tools.sha256
+          sha256sum candidate/package-lock.json > test-results/package-lock.sha256
+      - uses: actions/setup-node@v4
         with:
           node-version: 24
-
-      - name: Checkout release environment verifier
-        if: env.QA_MODE == 'release-candidate'
-        uses: actions/checkout@v4
-
-      - name: Require protected release-signing Environment
-        if: env.QA_MODE == 'release-candidate'
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          name: unchain-release-artifact
+          path: artifact
+          run-id: 41262234256
+          github-token: ${{ github.token }}
+      - name: Install and verify the existing wheel
         run: |
-          node scripts/release-qa/external-network-retry.mjs --profile github-read -- \
-            gh api "repos/$GITHUB_REPOSITORY/environments/release-signing" \
-            | node scripts/release-qa/verify-github-environment.mjs --environment release-signing
-
-  playwright-electron:
-    name: Playwright Electron (${{ matrix.os }})
-    needs: deterministic-checks
-    strategy:
-      fail-fast: false
-      matrix:
-        os: ${{ fromJSON((github.event_name == 'workflow_dispatch' && inputs.qa_scope == 'windows-playwright') && '["windows-latest"]' || (((github.event_name == 'workflow_dispatch' && inputs.qa_mode != 'lite') || (github.event_name != 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/v'))) && '["ubuntu-latest","macos-latest","windows-latest"]' || '["ubuntu-latest"]')) }}
-    permissions:
-      contents: read
-      actions: read
-    uses: ./.github/workflows/_shared-release-playwright.yml
-    with:
-      qa_mode: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_scope == 'windows-playwright' && 'release' || (github.event_name == 'workflow_dispatch' && inputs.qa_mode) || (startsWith(github.ref, 'refs/tags/v') && 'release') || 'lite' }}
-      runner_selector: ${{ matrix.os }}
-      source_ref: ${{ github.ref }}
-      source_sha: ${{ github.sha }}
-      release_tag: ${{ github.ref_name }}
-
-  package-macos:
-    name: Package ${{ matrix.name }}
-    needs:
-      - deterministic-checks
-      - release-candidate-environment-preflight
-    if: ${{ needs.deterministic-checks.result == 'success' && needs.release-candidate-environment-preflight.result == 'success' && ((github.event_name == 'workflow_dispatch' && inputs.qa_scope != 'windows-playwright' && inputs.qa_mode != 'lite') || (github.event_name != 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/v'))) }}
-    permissions:
-      contents: read
-      actions: read
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: mac-arm64
-            target_id: macos-arm64
-            signing_platform: macos
-          - name: mac-intel
-            target_id: macos-x64
-            signing_platform: macos
-    uses: ./.github/workflows/_shared-release-package.yml
-    with:
-      qa_mode: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.qa_mode || (startsWith(github.ref, 'refs/tags/v') && 'release') || 'lite' }}
-      target_id: ${{ matrix.target_id }}
-      platform_name: ${{ matrix.name }}
-      signing_platform: ${{ matrix.signing_platform }}
-      unchain_ref: ${{ github.event.inputs.unchain_ref || 'e0d2eb5e09976def467da7f32f2b0482b48c2ffd' }}
-      source_ref: ${{ github.ref }}
-      source_sha: ${{ github.sha }}
-      release_tag: ${{ github.ref_name }}
-    secrets: inherit
-
-  package-linux:
-    name: Package linux
-    needs:
-      - deterministic-checks
-      - release-candidate-environment-preflight
-    if: ${{ needs.deterministic-checks.result == 'success' && needs.release-candidate-environment-preflight.result == 'success' && ((github.event_name == 'workflow_dispatch' && inputs.qa_scope != 'windows-playwright' && inputs.qa_mode != 'lite') || (github.event_name != 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/v'))) }}
-    permissions:
-      contents: read
-      actions: read
-    uses: ./.github/workflows/_shared-release-package.yml
-    with:
-      qa_mode: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.qa_mode || (startsWith(github.ref, 'refs/tags/v') && 'release') || 'lite' }}
-      target_id: linux-x64
-      platform_name: linux
-      signing_platform: linux
-      unchain_ref: ${{ github.event.inputs.unchain_ref || 'e0d2eb5e09976def467da7f32f2b0482b48c2ffd' }}
-      source_ref: ${{ github.ref }}
-      source_sha: ${{ github.sha }}
-      release_tag: ${{ github.ref_name }}
-
-  package-windows:
-    name: Package windows
-    needs:
-      - deterministic-checks
-      - release-candidate-environment-preflight
-    if: ${{ needs.deterministic-checks.result == 'success' && needs.release-candidate-environment-preflight.result == 'success' && ((github.event_name == 'workflow_dispatch' && inputs.qa_scope != 'windows-playwright' && inputs.qa_mode != 'lite') || (github.event_name != 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/v'))) }}
-    permissions:
-      contents: read
-      actions: read
-      id-token: write
-    uses: ./.github/workflows/_shared-release-package.yml
-    with:
-      qa_mode: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.qa_mode || (startsWith(github.ref, 'refs/tags/v') && 'release') || 'lite' }}
-      target_id: windows-x64
-      platform_name: windows
-      signing_platform: windows
-      unchain_ref: ${{ github.event.inputs.unchain_ref || 'e0d2eb5e09976def467da7f32f2b0482b48c2ffd' }}
-      source_ref: ${{ github.ref }}
-      source_sha: ${{ github.sha }}
-      release_tag: ${{ github.ref_name }}
-    secrets: inherit
-
-  package-matrix:
-    name: Package release matrix
-    needs:
-      - deterministic-checks
-      - release-candidate-environment-preflight
-      - package-macos
-      - package-linux
-      - package-windows
-    if: ${{ always() && needs.deterministic-checks.result == 'success' && needs.release-candidate-environment-preflight.result == 'success' && ((github.event_name == 'workflow_dispatch' && inputs.qa_scope != 'windows-playwright' && inputs.qa_mode != 'lite') || (github.event_name != 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/v'))) }}
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - name: Require every package target to pass
-        env:
-          MACOS_RESULT: ${{ needs.package-macos.result }}
-          LINUX_RESULT: ${{ needs.package-linux.result }}
-          WINDOWS_RESULT: ${{ needs.package-windows.result }}
+          set -euo pipefail
+          WHEEL="$PWD/artifact/unchain-0.2.0-py3-none-any.whl"
+          echo "17b04aea25489e72eb4e6ab03a131f470bdcddf65f9e8a4eec757d9bfcbfe47c  $WHEEL" | sha256sum -c -
+          python -m pip install --disable-pip-version-check -r candidate/unchain_runtime/server/requirements.txt
+          python -m pip install --force-reinstall --no-deps "$WHEEL"
+          python -m pip check
+          node candidate/scripts/release-qa/verify-unchain-artifact.mjs --artifact "$WHEEL" \
+            --evidence "$PWD/artifact/unchain-artifact.json" --installed true --python python
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          d = json.loads(Path('artifact/unchain-artifact.json').read_text())
+          assert d['source']['revision'] == 'e0d2eb5e09976def467da7f32f2b0482b48c2ffd'
+          assert d['runtime_manifest']['manifest_digest'] == os.environ['QA_MANIFEST']
+          assert d['build'] == {'built_once': True, 'wheel_count': 1}
+          PY
+          python -m pip freeze > test-results/pip-freeze.txt
+          echo "QA_PYTHON=$(python -c 'import sys;print(sys.executable)')" >> "$GITHUB_ENV"
+      - name: Install fresh locked Node and Linux prerequisites
         run: |
-          if [ "$MACOS_RESULT" != "success" ] || [ "$LINUX_RESULT" != "success" ] || [ "$WINDOWS_RESULT" != "success" ]; then
-            echo "::error title=Package matrix failed::macOS=$MACOS_RESULT Linux=$LINUX_RESULT Windows=$WINDOWS_RESULT"
-            exit 1
-          fi
-
-  final-report:
-    name: Final Release QA Report
-    if: ${{ always() && (github.event_name != 'workflow_dispatch' || inputs.qa_scope != 'windows-playwright') }}
-    needs:
-      - deterministic-checks
-      - playwright-electron
-      - package-matrix
-    permissions:
-      contents: read
-      actions: read
-    uses: ./.github/workflows/_shared-release-report.yml
-    with:
-      qa_mode: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.qa_mode || (startsWith(github.ref, 'refs/tags/v') && 'release') || 'lite' }}
-      source_ref: ${{ github.ref }}
-      source_sha: ${{ github.sha }}
-      release_tag: ${{ github.ref_name }}
-      deterministic_result: ${{ needs.deterministic-checks.result }}
-      playwright_result: ${{ needs.playwright-electron.result }}
-      package_result: ${{ needs.package-matrix.result }}
-      run_unchain_analysis: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.event.inputs.qa_mode == 'release' && github.event.inputs.run_unchain_analysis }}
-    secrets:
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          set -euo pipefail
+          npm --prefix candidate ci
+          sudo apt-get update
+          sudo apt-get install -y dbus-x11 gnome-keyring libsecret-tools xvfb openssl
+          candidate/node_modules/.bin/playwright install-deps chromium
+          node <<'JS'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const assert = require('node:assert/strict');
+          const binary = require('./candidate/node_modules/electron');
+          assert.equal(binary, path.resolve('candidate/node_modules/electron/dist/electron'));
+          assert(fs.lstatSync(binary).isFile());
+          const helper = path.join(path.dirname(binary), 'chrome-sandbox');
+          assert(fs.lstatSync(helper).isFile());
+          fs.accessSync(helper, fs.constants.X_OK);
+          fs.appendFileSync(process.env.GITHUB_ENV, `QA_ELECTRON=${binary}\n`);
+          JS
+          sudo chown root:root candidate/node_modules/electron/dist/chrome-sandbox
+          sudo chmod 4755 candidate/node_modules/electron/dist/chrome-sandbox
+          npm --prefix candidate ls --all --json > test-results/npm-ls.json
+          sha256sum -c test-results/package-lock.sha256
+      - name: Pure fixture controls without any socket or App
+        run: |
+          python -I -B -c 'import sys,unittest;sys.path.insert(0,"control/tools/qa357");unittest.main(module="test_execution_fixture",verbosity=2)'
+          for file in control/tools/qa357/*.sh; do bash -n "$file"; done
+          node --check control/tools/qa357/credential_probe.cjs
+      - name: Qualify private real credential service and SDK over loopback TLS
+        run: |
+          set -euo pipefail
+          export QA_OUT="$PWD/test-results/execution"
+          export QA_CANDIDATE_ROOT="$PWD/candidate"
+          bash control/tools/qa357/run_execution_qualification.sh
+      - name: Verify exact outcomes and original wire
+        run: |
+          python -I -B - <<'PY'
+          import base64, hashlib, json
+          from pathlib import Path
+          out = Path('test-results/execution')
+          read = lambda name: json.loads((out/name).read_text())
+          write, cold, basic = [read('credential-'+mode+'.json') for mode in ['write','read','basic']]
+          assert write['pid'] != cold['pid'] and write['profile'] == cold['profile']
+          assert write['exact_round_trip'] is cold['exact_round_trip'] is True
+          assert write['backend'] == cold['backend'] == 'gnome_libsecret'
+          assert not write['bootstrap_contains_sentinel'] and not cold['database_contains_sentinel']
+          assert basic['profile'] != cold['profile'] and basic['provider_rows'] == 0
+          assert basic['rejected_code'] == 'secret_storage_unavailable'
+          assert read('keyring-control.json')['private_secret_service_round_trip'] is True
+          sdk = read('sdk-qualification.json')
+          assert len(sdk['controls']) == 7 and all(row['passed'] is True for row in sdk['controls'])
+          wire = [json.loads(row) for row in (out/'provider-requests.jsonl').read_text().splitlines()]
+          assert len(wire) == 5 and sum(row['refusal'] is None for row in wire) == 2
+          assert {row['refusal'] for row in wire if row['refusal']} == {'model','credential','path'}
+          for row in wire:
+              assert row['peer'] == '127.0.0.1'
+              assert hashlib.sha256(base64.b64decode(row['request_base64'])).hexdigest() == row['request_sha256']
+          assert {row['ifname'] for row in read('offline-interfaces.json')} == {'lo'}
+          assert read('offline-routes.json') == []
+          print('QUALIFIED: private credential + real SDK/local protocol only; App execution remains NOT_RUN')
+          PY
+      - name: Upload foundation evidence and exact tools
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: 357-execution-environment-evidence
+          retention-days: 90
+          if-no-files-found: error
+          path: |
+            test-results/**
+            artifact/unchain-artifact.json
+            control/tools/qa357/*
+            control/docs/implementation/ticket-357-execution-qa.md
