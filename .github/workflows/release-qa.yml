@@ -202,6 +202,9 @@ jobs:
           name: 357-packaged-execution-evidence
           retention-days: 90
           if-no-files-found: error
+          # The disposable App store is .pupu below the bounded test-results
+          # copy. No CA keys/private keyring directory is copied into this root.
+          include-hidden-files: true
           path: |
             test-results/**
             candidate/test-results/**
