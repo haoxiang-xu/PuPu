@@ -232,7 +232,8 @@ test("#357 Code, Workflow Call and Hooks execute through the real chat entry (qu
     await page().getByRole("textbox", { name: "Message PuPu..." }).press("Enter");
     step("ui", "chose QA 357 exec in the composer and sent a message", { message });
 
-    const allow = page().getByRole("button", { name: "Allow once", exact: true });
+    const allowViews = page().getByRole("button", { name: "Allow once", exact: true });
+    const allow = allowViews.first();
     const details = page().getByRole("button", { name: "detail", exact: true }).first();
     await expect.poll(async () => (await allow.isVisible()) || (await details.isVisible()), { timeout: 60000 }).toBe(true);
     if (!(await allow.isVisible()) && await details.isVisible()) {
@@ -240,11 +241,55 @@ test("#357 Code, Workflow Call and Hooks execute through the real chat entry (qu
       step("ui", "expanded the message's trace through its visible detail button");
     }
     await expect(allow).toBeVisible({ timeout: 120000 });
+    /* The finite-stream recovery may show both the stream's root-owned card
+       and its node-owned pending projection. Before selecting either visible
+       view, require ONE exact durable interaction and the same sole identity
+       in this new chat's persisted confirmation frames. Do not guess between
+       distinct approvals or loosen the later no-actions/final-output gates. */
+    const approvalOwner = await page().evaluate(async () => {
+      const boot = window.chatStorageAPI.bootstrap();
+      const chatId = boot.activeChatId;
+      const messages = window.chatStorageAPI.readMessages(chatId);
+      const assistant = messages.filter((message) => message.role === "assistant");
+      if (assistant.length !== 1) throw new Error("Expected one owner message in the new qualification chat");
+      const owner = assistant[0];
+      const sessionId = owner.meta?.executionSessionId;
+      if (typeof sessionId !== "string" || !sessionId) throw new Error("The owner has no exact execution session");
+      const pending = await window.unchainAPI.getPendingInteraction({ session_id: sessionId });
+      const confirmations = (owner.traceFrames || []).filter((frame) =>
+        frame.type === "tool_call" && frame.payload?.requires_confirmation === true);
+      return { chatId, sessionId, ownerMessageId: owner.id, ownerAttempt: owner.meta?.attemptId,
+        confirmations, pending };
+    });
+    await attachJson(testInfo, "actual pending reply and visible approval ownership", approvalOwner);
+    const pending = approvalOwner.pending;
+    expect(pending.status).toBe("awaiting_response");
+    expect(pending.session_id).toBe(approvalOwner.sessionId);
+    expect(pending.active_attempt_id).toBe(approvalOwner.ownerAttempt);
+    expect(pending.source_run_id).toBe(approvalOwner.ownerAttempt);
+    expect(pending.kind).toBe("tool_approval");
+    expect(pending.interaction_id).toMatch(/^interaction_[a-f0-9]+$/);
+    const presented = pending.presentation.tool_call;
+    expect(presented.confirmation_id).toBe(pending.interaction_id);
+    expect(presented.call_id).toBe("call_qa357_app_read_1");
+    expect(presented.tool_name).toBe("read");
+    expect(presented.arguments).toEqual({ path: path.join(process.env.QA_WORKSPACE, "qualification.txt") });
+    expect(approvalOwner.confirmations.length).toBeGreaterThan(0);
+    expect([...new Set(approvalOwner.confirmations.map((frame) => frame.payload.confirmation_id))])
+      .toEqual([pending.interaction_id]);
+    expect(approvalOwner.confirmations.every((frame) => frame.payload.call_id === presented.call_id &&
+      frame.payload.tool_name === presented.tool_name && frame.session_id === pending.session_id &&
+      [pending.active_attempt_id, pending.interaction_source_run_id].includes(frame.run_id))).toBe(true);
+    const approvalViewCount = await allowViews.count();
+    expect([1, 2]).toContain(approvalViewCount);
+    step("observation", "visible approval views share the sole exact pending interaction", {
+      interaction_id: pending.interaction_id, call_id: presented.call_id, approvalViewCount,
+    });
     await attachShot(testInfo, page(), "actual pending hook approval");
     step("ui", "matching approval visible; Allow once will resume the suspended run");
     await allow.click();
     await expect(page().getByText("QA357 APP DONE", { exact: true }).last()).toBeVisible({ timeout: 120000 });
-    await expect(allow).toBeHidden();
+    await expect(allowViews).toHaveCount(0);
     await expect.poll(() => page().locator('button[aria-label="Stop"],button[aria-label="Stop generating"]').count()).toBe(0);
     step("ui", "actual assistant final visible after approving the saved Hook");
     await attachShot(testInfo, page(), "actual final after approval");
