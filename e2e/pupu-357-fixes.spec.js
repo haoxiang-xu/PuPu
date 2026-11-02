@@ -3,7 +3,7 @@ const path = require("node:path");
 const { test, expect } = require("./qa357/packaged_app");
 
 
-/* #357 App fixes, narrow re-run on the packaged Linux App (fix 75ae5952 on
+/* #357 App fixes, narrow re-run on the packaged Linux App (fixes to 78ebcab7 on
  * candidate c60dc5c7): AC-04's viewer and Escape in the Builder. The twelve
  * layout cells and the rest of the acceptance stand from run 41273700851.
  *
@@ -385,25 +385,49 @@ test("#357 fixes on the packaged App: the Code viewer by hover, and Escape never
     await openResource(page(), "agent-tool-every");
     const before = await getV2(page(), "agent-tool-every");
     await pressNode(page(), "hooks");
+    /* The narrowest panel, where the list overflowed: drag the handle right. */
+    const handle = page().getByTestId("skeleton-detail-resize-handle");
+    const hb = await handle.boundingBox();
+    await page().mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2);
+    await page().mouse.down();
+    await page().mouse.move(hb.x + 3000, hb.y + hb.height / 2, { steps: 12 });
+    await page().mouse.up();
+    const panelWidth = await page().evaluate(() => Math.round(parseFloat(getComputedStyle(document.querySelector('[data-testid="skeleton-detail-panel-shell"]')).width)));
+    step("ui", "dragged the panel to its narrowest", { panel_width: panelWidth });
+    expect.soft(panelWidth, "the panel is at its 300px minimum").toBe(300);
     await page().getByRole("button", { name: "Edit hook 1" }).click();
     const editor = page().getByTestId("hook-0-editor");
     await editor.getByTestId("hook-0-tool").getByText("A set of tools", { exact: true }).click();
     await editor.getByTestId("hook-0-tool-set-picker").getByRole("combobox").click();
     const options = page().getByRole("listbox").last().getByRole("option");
     await page().waitForTimeout(400);
-    /* In this panel the list opens upward and its first rows sit above the
-       window (run 41329960253; outside this fix, recorded): pick the first two
-       rows a person can see and click. */
-    const visible = [];
-    const count = await options.count();
-    for (let index = 0; index < count && visible.length < 2; index += 1) {
-      const box = await options.nth(index).boundingBox();
-      if (box && box.y >= 0 && box.y + box.height <= (page().viewportSize()?.height || 820)) visible.push(index);
-    }
-    step("ui", "tool list rows on screen", { rows: count, first_visible: visible });
-    const names = [await options.nth(visible[0]).innerText(), await options.nth(visible[1]).innerText()];
-    await expect(async () => { await options.nth(visible[0]).click({ timeout: 3000 }); }).toPass({ timeout: 30000 });
-    await expect(async () => { await options.nth(visible[1]).click({ timeout: 3000 }); }).toPass({ timeout: 30000 });
+    /* The list must open inside the window (78ebcab7 bounds it), and its
+       first rows must be the ones a person can click. */
+    const geometry = await page().evaluate(() => {
+      const lists = document.querySelectorAll('[role="listbox"]');
+      const list = lists[lists.length - 1];
+      const box = list.getBoundingClientRect();
+      const bubble = list.closest('[role="tooltip"]');
+      const outer = bubble ? bubble.getBoundingClientRect() : box;
+      return {
+        window: { width: window.innerWidth, height: window.innerHeight },
+        list: { top: Math.round(box.top), bottom: Math.round(box.bottom), height: Math.round(box.height) },
+        bubble: { top: Math.round(outer.top), bottom: Math.round(outer.bottom), left: Math.round(outer.left), right: Math.round(outer.right) },
+        max_height: getComputedStyle(list).maxHeight,
+        overflow_y: getComputedStyle(list).overflowY,
+        scrolls: list.scrollHeight > list.clientHeight,
+      };
+    });
+    const inside = geometry.bubble.top >= 0 && geometry.bubble.bottom <= geometry.window.height
+      && geometry.bubble.left >= 0 && geometry.bubble.right <= geometry.window.width;
+    await attachShot(testInfo, page(), "tool list open in the 300px panel");
+    step("ui", "tool list opened", { ...geometry, inside });
+    expect.soft(inside, "the tool list opens inside the window").toBe(true);
+    const firstBox = await options.nth(0).boundingBox();
+    expect.soft(Boolean(firstBox && firstBox.y >= 0), "its first row is on screen").toBe(true);
+    const names = [await options.nth(0).innerText(), await options.nth(1).innerText()];
+    await expect(async () => { await options.nth(0).click({ timeout: 3000 }); }).toPass({ timeout: 30000 });
+    await expect(async () => { await options.nth(1).click({ timeout: 3000 }); }).toPass({ timeout: 30000 });
     const listsBefore = await page().getByRole("listbox").count();
     await page().keyboard.press("Escape");
     await settleMs(page());

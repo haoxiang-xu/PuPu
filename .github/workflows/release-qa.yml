@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 100
     env:
-      CANDIDATE: 18178a0611f50522f69fbd1d4841965bfbb0d016
+      CANDIDATE: 78ebcab7e7a2a46ff5ee93df90e5cab6541e3263
       CORE: e0d2eb5e09976def467da7f32f2b0482b48c2ffd
       WHEEL_RUN: "41262234256"
       WHEEL_SHA: 17b04aea25489e72eb4e6ab03a131f470bdcddf65f9e8a4eec757d9bfcbfe47c
