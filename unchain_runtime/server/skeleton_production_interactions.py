@@ -863,6 +863,7 @@ def _cancel_execution(*, session_id, attempt_id, source_attempt_id, owner_chat_i
             kernel_cancelled = cancelled is not None
             cancelled_receipt = cancelled.receipt
         context_reconciled = False
+        subagent_settlements = []
         if pending is not None:
             # Reload the committed canceled graph chain. Acceptance proves these
             # exact states inside the same transaction as its semantic receipt.
@@ -888,10 +889,13 @@ def _cancel_execution(*, session_id, attempt_id, source_attempt_id, owner_chat_i
                     HostResolvedInteractionInput(_attempt(canceled_pending), canceled_pending.request.interaction_id,
                         response, "user"), precondition=accept_cancellation)
             context_reconciled = True
+            from skeleton_cancelled_subagents import settle_cancelled_subagents
+            subagent_settlements = settle_cancelled_subagents(canceled_pending)
         return {"status": "ok", "execution_id": session_id, "attempt_id": attempt_id, "source_attempt_id": root_run,
             "disposition": "cancelled", "state": "cancelled", "execution": None,
             "cancellation": {"requested_at_ms": int(time.time() * 1000), "fencing_token": None, "reason": reason},
-            "durable_interaction_cancelled": bool(pending) or kernel_cancelled, "context_interaction_reconciled": context_reconciled}
+            "durable_interaction_cancelled": bool(pending) or kernel_cancelled, "context_interaction_reconciled": context_reconciled,
+            "subagent_settlements": subagent_settlements}
 
 
 __all__ = ["SkeletonPendingInteraction", "SkeletonGraphWait", "resolve_pending_skeleton_interaction",

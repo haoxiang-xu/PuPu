@@ -43,6 +43,11 @@ import { resolveToolCallOwnerForRequest } from "../../../SERVICEs/runtime_events
 import { mergePendingConfirmationTraceState } from "../../../COMPONENTs/chat-bubble/pending_confirmation_trace_frames";
 import observedBatchFixture from "../../../SERVICEs/runtime_events/fixtures/ticket_384_observed_batch.json";
 
+import settlementFixture from "../../../COMPONENTs/chat-bubble/__fixtures__/ticket_357_subagent_settlement.json";
+import coldMetadataFixture from "./fixtures/ticket_357_cold_child_metadata.json";
+import cancelledSubagentProducer from "../../../COMPONENTs/chat-bubble/__fixtures__/ticket_357_cancelled_subagent_producer.json";
+import { collectSubagentSettlements, settlementForToolCall } from "../../../SERVICEs/runtime_events/subagent_settlement";
+
 const pendingToolInteraction = (sessionId, attemptId, interactionId) => {
   const toolCall = {
     call_id: "pending-call", confirmation_id: interactionId, requires_confirmation: true,
@@ -652,6 +657,216 @@ describe("Memory V2 P0 payload seams", () => {
     expect(window.unchainAPI.respondToolConfirmation).not.toHaveBeenCalled();
   });
 
+  const stopPendingApproval357 = async (durable, label) => {
+    const attemptId = `attempt-cancelled-approval-357-${label}`;
+    startRuntimeV4(attemptId);
+    window.unchainAPI.cancelExecution = jest.fn(async (payload) => ({
+      status: "ok",
+      execution_id: payload.session_id,
+      attempt_id: payload.attempt_id,
+      source_attempt_id: payload.attempt_id,
+      state: "cancelled",
+      disposition: "cancelled",
+      durable_interaction_cancelled: durable,
+      cancellation: { reason: "user_stop" },
+    }));
+    renderChat();
+    await waitForReady();
+    sendText("write the file");
+    await waitForRuntimeRun();
+    const chatId = getChatsStore().activeChatId;
+    const interactionId = `interaction-stop-357-${label}`;
+    const callId = `call-stop-357-${label}`;
+    await act(async () => {
+      streamHandlers.onRuntimeEvent({
+        schema_version: "v4",
+        event_id: `event-stop-approval-357-${label}`,
+        type: "interaction.requested",
+        timestamp: "2026-10-26T00:00:00.000Z",
+        session_id: chatId,
+        run_id: attemptId,
+        agent_id: "developer",
+        turn_id: `${attemptId}:turn-0`,
+        seq: 1,
+        links: { interaction_id: interactionId, tool_call_id: callId },
+        surface: { slot: "trace_inline", scope: "turn" },
+        visibility: "user",
+        metadata: {},
+        payload: {
+          interaction_id: interactionId,
+          kind: "confirmation",
+          title: "Write",
+          prompt: "Allow write?",
+          target: { tool_call_id: callId, tool_name: "write" },
+          config: {},
+        },
+      });
+    });
+    fireEvent.click(screen.getByTestId("stop-button"));
+    await waitFor(() => expect(window.unchainAPI.cancelExecution).toHaveBeenCalled());
+    const cancelledFrames = () => getChatMessages(chatId)
+      .find((message) => message.role === "assistant")
+      .traceFrames.filter((frame) => frame.type === "interaction_cancelled");
+    return { attemptId, interactionId, callId, cancelledFrames };
+  };
+
+  /* Delegate cancel settlement: the real producer reply (delegate, waiting),
+     with its execution, root attempt and consumer generation rebound to this
+     test chat (constructed); call, consumer node attempt and child run kept. */
+  test("#357: Stop records the producer's delegate settlement and a cold read still binds it", async () => {
+    const row = cancelledSubagentProducer.rows[0];
+    const attemptId = "attempt-delegate-cancel-357";
+    const consumer = row.consumer_node_attempt;
+    const call = row.parent_wait.parent_tool_call;
+    startRuntimeV4(attemptId);
+    let reply;
+    window.unchainAPI.cancelExecution = jest.fn(async (payload) => {
+      reply = JSON.parse(JSON.stringify(row.response));
+      reply.execution_id = payload.session_id;
+      reply.attempt_id = payload.attempt_id;
+      reply.source_attempt_id = payload.attempt_id;
+      for (const ref of [reply.subagent_settlements[0].consumer_attempt, reply.subagent_settlements[0].source_attempt]) {
+        ref.generation.execution_id = payload.session_id;
+      }
+      return reply;
+    });
+    renderChat();
+    await waitForReady();
+    sendText("delegate the review");
+    await waitForRuntimeRun();
+    const chatId = getChatsStore().activeChatId;
+    const interactionId = "interaction-delegate-cancel-357";
+    await act(async () => {
+      streamHandlers.onRuntimeEvent({
+        schema_version: "v4", event_id: "event-delegate-call-357", type: "step.started",
+        timestamp: "2026-10-27T00:00:00.000Z", session_id: chatId, run_id: consumer,
+        agent_id: "developer", turn_id: `${consumer}:turn-0`, seq: 1,
+        links: { step_id: `tool:${call.call_id}`, tool_call_id: call.call_id },
+        surface: { slot: "trace_inline", scope: "turn" }, visibility: "user", metadata: {},
+        payload: { step_id: `tool:${call.call_id}`, step_type: "tool", tool_name: call.tool_name,
+          call_id: call.call_id, arguments: { target: "Reviewer", task: "review" } },
+      });
+      streamHandlers.onRuntimeEvent({
+        schema_version: "v4", event_id: "event-delegate-child-approval-357", type: "interaction.requested",
+        timestamp: "2026-10-27T00:00:01.000Z", session_id: chatId, run_id: attemptId,
+        agent_id: "developer", turn_id: `${attemptId}:turn-0`, seq: 2,
+        links: { interaction_id: interactionId, tool_call_id: "child-approval-call" },
+        surface: { slot: "trace_inline", scope: "turn" }, visibility: "user", metadata: {},
+        payload: { interaction_id: interactionId, kind: "confirmation", title: "Write", prompt: "Allow?",
+          target: { tool_call_id: "child-approval-call", tool_name: "dangerous_tool" }, config: {} },
+      });
+    });
+    fireEvent.click(screen.getByTestId("stop-button"));
+    await waitFor(() => expect(window.unchainAPI.cancelExecution).toHaveBeenCalled());
+    const stored = () => getChatMessages(chatId).find((message) => message.role === "assistant");
+    await waitFor(() => expect(stored().traceFrames.filter((frame) => frame.type === "subagent_settlement")).toHaveLength(1));
+    // Cold read: the chat store alone binds the delegate call to its settlement.
+    const message = stored();
+    const settlements = collectSubagentSettlements([message.traceFrames, ...Object.values(message.subagentFrames || {})]);
+    const delegate = message.traceFrames.find((frame) => frame.type === "tool_call" && frame.payload?.call_id === call.call_id);
+    expect(delegate.run_id).toBe(consumer);
+    expect(settlementForToolCall(settlements, delegate, message.traceFrames)).toEqual(expect.objectContaining({
+      status: "cancelled", consumerAttemptId: consumer,
+      sourceAttemptId: reply.subagent_settlements[0].source_attempt.attempt_id,
+    }));
+  });
+
+  test("#357: stop records cancelled-before-run when the backend proves the durable interaction was cancelled", async () => {
+    const { attemptId, interactionId, callId, cancelledFrames } = await stopPendingApproval357(true, "proved");
+    await waitFor(() => expect(cancelledFrames()).toHaveLength(1));
+    expect(cancelledFrames()[0].payload).toEqual(expect.objectContaining({
+      call_id: callId, confirmation_id: interactionId, attempt_id: attemptId,
+      durable_interaction_cancelled: true,
+    }));
+    await waitFor(() => {
+      const shown = lastChatMessagesProps.messages.find((message) => message.role === "assistant");
+      expect(shown.traceFrames.some((frame) => frame.type === "interaction_cancelled")).toBe(true);
+    });
+  });
+
+  test("#357: stop records nothing when the backend only reports the run cancelled", async () => {
+    const { cancelledFrames } = await stopPendingApproval357(false, "unproved");
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 50)); });
+    expect(cancelledFrames()).toHaveLength(0);
+  });
+
+  /* #357 cold child settlement: the producer's real V4 child run.completed,
+     with only its execution id rebound to this test chat (constructed). */
+  const settlementEventFor = (chatId) => {
+    const event = JSON.parse(JSON.stringify(settlementFixture.reprojection.v4_event));
+    event.session_id = chatId;
+    const { settlement } = event.payload;
+    settlement.consumer_attempt.generation.execution_id = chatId;
+    settlement.source_attempt.generation.execution_id = chatId;
+    return event;
+  };
+
+  test("#357: a child settlement is stored with the message and survives a cold reopen", async () => {
+    startRuntimeV4("attempt-settlement-357");
+    renderChat();
+    await waitForReady();
+    sendText("resume the reviewer");
+    await waitForRuntimeRun();
+    const chatId = getChatsStore().activeChatId;
+    const event = settlementEventFor(chatId);
+    await act(async () => {
+      streamHandlers.onRuntimeEvent(event);
+      await new Promise((resolve) => setTimeout(resolve, 80));
+      streamHandlers.onDone({ status: "completed" });
+      await new Promise((resolve) => setTimeout(resolve, 80));
+    });
+    const storedSettlement = () => {
+      const assistant = getChatMessages(chatId).find((message) => message.role === "assistant");
+      return Object.values(assistant?.subagentFrames || {})
+        .flat()
+        .filter((frame) => frame?.payload?.settlement);
+    };
+    await waitFor(() => expect(storedSettlement()).toHaveLength(1));
+    expect(storedSettlement()[0]).toEqual(expect.objectContaining({
+      type: "subagent_completed",
+      run_id: event.run_id,
+      session_id: chatId,
+      links: expect.objectContaining({
+        parent_run_id: event.links.parent_run_id,
+        tool_call_id: event.links.tool_call_id,
+      }),
+    }));
+    expect(storedSettlement()[0].payload.settlement).toEqual(event.payload.settlement);
+    // Cold reopen reads the same chat store and admits the same settlement.
+    const reopened = getChatMessages(chatId).find((message) => message.role === "assistant");
+    const settlements = collectSubagentSettlements([
+      reopened.traceFrames || [],
+      ...Object.values(reopened.subagentFrames || {}),
+    ]);
+    expect([...settlements.values()].map((entry) => entry.status)).toEqual(["completed"]);
+  });
+
+  test("#357: a late settlement from an earlier stream does not reach the successor turn", async () => {
+    startRuntimeV4("attempt-settlement-first-357");
+    renderChat();
+    await waitForReady();
+    sendText("first turn");
+    await waitForRuntimeRun();
+    const chatId = getChatsStore().activeChatId;
+    const firstHandlers = streamHandlers;
+    await act(async () => {
+      firstHandlers.onDone({ status: "completed" });
+      await new Promise((resolve) => setTimeout(resolve, 40));
+    });
+    window.unchainAPI.startStreamV4.mockClear();
+    startRuntimeV4("attempt-settlement-second-357");
+    sendText("second turn");
+    await waitFor(() => expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(1));
+    await act(async () => {
+      firstHandlers.onRuntimeEvent(settlementEventFor(chatId));
+      await new Promise((resolve) => setTimeout(resolve, 80));
+    });
+    const assistants = getChatMessages(chatId).filter((message) => message.role === "assistant");
+    const successor = assistants[assistants.length - 1];
+    expect(Object.values(successor?.subagentFrames || {}).flat()
+      .some((frame) => frame?.payload?.settlement)).toBe(false);
+  });
+
   test("#384: stop preserves two V4 calls when one result was projected before stop", async () => {
     startRuntimeV4("attempt-visible-384");
     renderChat();
@@ -1082,6 +1297,177 @@ describe("Memory V2 P0 payload seams", () => {
     await waitFor(() => expect(lastChatMessagesProps?.pendingToolConfirmationRequests[interactionId]).toBeDefined());
     return { chatId, interactionId, replacePending: (value) => { pending = value; }, decision: { confirmationId: interactionId, approved: true, userResponse: { value: "__other__", other_text: "/tmp/中文 项目" } } };
   };
+
+  // The current contract requires this interaction to have been presented by
+  // a real live stream before its finite SSE ends. Only resume calls are counted
+  // below; the initial live request has already completed during this setup.
+  const prepareSettlementResume = async () => {
+    const prepared = await prepareLiveHumanInput();
+    await act(async () => {
+      streamHandlers.onDone({ status: "completed" });
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    });
+    window.unchainAPI.startStreamV4.mockClear();
+    return prepared;
+  };
+
+  /* R-SETTLE-01: a resumed stream must keep the child's history already saved
+     on the message, whichever child event arrives first. The saved child
+     frames are constructed; the settlement is the real producer event with
+     only its execution id rebound to this chat. */
+  const resumeWithSavedChildren = async (sequence, { settlementAlreadySaved = false } = {}) => {
+    const { chatId, decision } = await prepareSettlementResume();
+    const first = settlementEventFor(chatId);
+    const second = JSON.parse(JSON.stringify(first));
+    const secondRun = `${first.run_id}-second`;
+    second.run_id = secondRun;
+    second.agent_id = secondRun;
+    second.event_id = "evt-second-child-settlement";
+    second.links.tool_call_id = "second-delegate";
+    second.payload.settlement.call_id = "second-delegate";
+    second.payload.settlement.source_attempt.attempt_id = secondRun;
+    const savedFor = (runId, seq) => ({
+      seq, ts: 100 + seq, type: "response_received", run_id: runId, session_id: chatId,
+      stage: "runtime_event", event_id: `saved-${runId}-${seq}`, payload: { content: `saved ${seq}` },
+    });
+    const saved = {
+      [first.run_id]: [savedFor(first.run_id, 1), savedFor(first.run_id, 2)],
+      [secondRun]: [savedFor(secondRun, 1)],
+    };
+    if (settlementAlreadySaved) {
+      // An earlier delivery of the same settlement event, already saved.
+      saved[first.run_id].push({
+        seq: 3, ts: 103, type: "subagent_completed", run_id: first.run_id, session_id: chatId,
+        stage: "runtime_event", event_id: first.event_id, links: first.links,
+        payload: { status: "completed", settlement: first.payload.settlement },
+      });
+    }
+    // The assistant message the paused run already saved (constructed).
+    const prior = getChatMessages(chatId);
+    const pending = await window.unchainAPI.getPendingInteraction();
+    const currentOwner = prior.find((message) => message.role === "assistant" && message.meta?.attemptId === "attempt-path");
+    expect(currentOwner).toBeDefined();
+    const owner = {
+      ...currentOwner,
+      id: currentOwner.id, role: "assistant", content: "", status: "done",
+      createdAt: 2, updatedAt: 3,
+      meta: { attemptId: "attempt-path", executionSessionId: chatId },
+      traceFrames: [pending.presentation.trace_frame],
+      subagentFrames: saved,
+      subagentMetaByRunId: {
+        [first.run_id]: { subagentId: "reviewer.1", template: "Reviewer", mode: "delegate", status: "running" },
+        [secondRun]: { subagentId: "reviewer.2", template: "Reviewer", mode: "delegate", status: "running" },
+      },
+    };
+    await act(async () => setChatMessages(chatId, prior.map((message) => message.id === owner.id ? owner : message), { source: "test" }));
+    await waitFor(() => expect(lastChatMessagesProps.messages.find((m) => m.id === owner.id)?.subagentFrames?.[first.run_id]).toEqual(saved[first.run_id]));
+    await act(async () => lastChatMessagesProps.onToolConfirmationDecision(decision));
+    await waitFor(() => expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(1));
+    const handlers = window.unchainAPI.startStreamV4.mock.calls[0][1];
+    const started = (event) => ({ ...event, event_id: `${event.event_id}-started`, type: "run.started", seq: 1, payload: {} });
+    await act(async () => {
+      sequence({ first, second, started }).forEach((event) => handlers.onRuntimeEvent(event));
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      handlers.onDone({ status: "completed" });
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    });
+    return { chatId, ownerId: owner.id, first, second, saved };
+  };
+
+  test.each([
+    ["terminal only", ({ first }) => [first]],
+    ["started before the settlement", ({ first, started }) => [started(first), first]],
+    ["a repeated started and settlement", ({ first, started }) => [started(first), first, started(first), first]],
+    ["two children interleaved", ({ first, second, started }) => [started(first), started(second), second, first]],
+    ["a settlement already saved from an earlier delivery", ({ first, started }) => [started(first), first], true],
+  ])("#357 R-SETTLE-01: %s keeps saved child history and one settlement after reopen", async (_label, sequence, settlementAlreadySaved = false) => {
+    const { chatId, ownerId, first, second, saved } = await resumeWithSavedChildren(sequence, { settlementAlreadySaved });
+    // Cold reopen: read the chat store, not the live view.
+    const stored = getChatMessages(chatId).find((message) => message.id === ownerId);
+    const usedSecond = sequence({ first, second, started: (event) => event }).includes(second);
+    [[first, saved[first.run_id]], ...(usedSecond ? [[second, saved[second.run_id]]] : [])].forEach(([event, history]) => {
+      const frames = stored.subagentFrames[event.run_id];
+      expect(frames.slice(0, history.length)).toEqual(history);
+      expect(frames.filter((frame) => frame.payload?.settlement)).toHaveLength(1);
+      expect(new Set(frames.map((frame) => frame.event_id)).size).toBe(frames.length);
+    });
+    // A child the resumed stream never mentioned keeps exactly its saved history.
+    const untouched = usedSecond ? null : stored.subagentFrames[second.run_id];
+    expect(untouched).toEqual(usedSecond ? null : saved[second.run_id]);
+  });
+
+  /* R-SETTLE-03: the actual desktop sparse child run.completed (status +
+     settlement only) must not erase metadata the message saved for that
+     child before the cold restart. Real before-message and real event from
+     cold-settlement-desktop-03; only the chat/execution ids and the owner's
+     attempt binding are rebound to this test chat (constructed). */
+  const resumeWithSavedMetadata = async ({ withSavedMeta = true, mutateEvent = (event) => event } = {}) => {
+    const { chatId, decision } = await prepareSettlementResume();
+    const real = JSON.parse(JSON.stringify(coldMetadataFixture));
+    const runId = real.source_run_id;
+    const event = real.resume_runtime_event;
+    event.session_id = chatId;
+    for (const ref of [event.payload.settlement.consumer_attempt, event.payload.settlement.source_attempt]) {
+      ref.generation.execution_id = chatId;
+    }
+    const prior = getChatMessages(chatId);
+    const pending = await window.unchainAPI.getPendingInteraction();
+    const currentOwner = prior.find((message) => message.role === "assistant" && message.meta?.attemptId === "attempt-path");
+    expect(currentOwner).toBeDefined();
+    const owner = {
+      ...real.before_message,
+      id: currentOwner.id,
+      meta: { attemptId: "attempt-path", executionSessionId: chatId },
+      // The harness's own paused interaction, so recovery resumes this message.
+      traceFrames: [...real.before_message.traceFrames, pending.presentation.trace_frame],
+      ...(withSavedMeta ? {} : { subagentMetaByRunId: {} }),
+    };
+    await act(async () => setChatMessages(chatId, prior.map((message) => message.id === owner.id ? owner : message), { source: "test" }));
+    await act(async () => lastChatMessagesProps.onToolConfirmationDecision(decision));
+    await waitFor(() => expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(1));
+    const handlers = window.unchainAPI.startStreamV4.mock.calls[0][1];
+    await act(async () => {
+      handlers.onRuntimeEvent(mutateEvent(event));
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      handlers.onDone({ status: "completed" });
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    });
+    // Cold reopen: the chat store, not the live view.
+    const stored = getChatMessages(chatId).find((message) => message.id === owner.id);
+    return { stored, runId, saved: real.before_message.subagentMetaByRunId[runId], event };
+  };
+
+  test("#357 R-SETTLE-03: a sparse settlement keeps the child's saved metadata and updates only status", async () => {
+    const { stored, runId, saved } = await resumeWithSavedMetadata();
+    expect(saved).toEqual(expect.objectContaining({
+      subagentId: "kernel.reviewer.1", mode: "delegate", template: "Reviewer",
+      parentId: "kernel", lineage: ["kernel", "kernel.reviewer.1"], status: "running",
+    }));
+    expect(stored.subagentMetaByRunId[runId]).toEqual({ ...saved, status: "completed" });
+    expect(stored.subagentFrames[runId].filter((frame) => frame.payload?.settlement)).toHaveLength(1);
+  });
+
+  test("#357 R-SETTLE-03: a child with no saved metadata still gets the existing defaults", async () => {
+    const { stored, runId, event } = await resumeWithSavedMetadata({ withSavedMeta: false });
+    expect(stored.subagentMetaByRunId[runId]).toEqual(expect.objectContaining({
+      subagentId: runId, parentId: event.links.parent_run_id, status: "completed",
+    }));
+  });
+
+  test("#357 R-SETTLE-03: fields the event explicitly provides still replace the saved ones", async () => {
+    const { stored, runId, saved } = await resumeWithSavedMetadata({
+      mutateEvent: (event) => ({
+        ...event,
+        agent_id: "kernel.reviewer.9",
+        payload: { ...event.payload, mode: "handoff", template: "Auditor", parent_id: "kernel-2",
+          lineage: ["kernel-2", "kernel.reviewer.9"] },
+      }),
+    });
+    expect(stored.subagentMetaByRunId[runId]).toEqual({
+      ...saved, subagentId: "kernel.reviewer.9", mode: "handoff", template: "Auditor",
+      parentId: "kernel-2", lineage: ["kernel-2", "kernel.reviewer.9"], status: "completed",
+    });
+  });
 
   test("explicit answer to a live human-input request resumes once without sealing the receipt", async () => {
     const { chatId, interactionId, decision } = await prepareLiveHumanInput();

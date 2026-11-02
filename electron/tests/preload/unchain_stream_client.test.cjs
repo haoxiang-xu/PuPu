@@ -1,4 +1,5 @@
 const { CHANNELS } = require("../../shared/channels");
+const cancelledSubagentProducer = require("../../../src/COMPONENTs/chat-bubble/__fixtures__/ticket_357_cancelled_subagent_producer.json");
 const {
   createMisoStreamClient,
 } = require("../../preload/stream/unchain_stream_client");
@@ -380,6 +381,26 @@ describe("unchain stream preload client", () => {
     );
     currentHandle.detach();
     expect(client.__debug.getActiveListenerCount()).toBe(0);
+  });
+
+  test("#357: cancelExecution returns the producer's subagent_settlements unchanged", async () => {
+    const ipcRenderer = createMockIpcRenderer();
+    // The real host producer's cancel reply (delegate, waiting).
+    const reply = JSON.parse(JSON.stringify(cancelledSubagentProducer.rows[0].response));
+    ipcRenderer.invoke.mockResolvedValue(reply);
+    const client = createMisoStreamClient(ipcRenderer);
+    const handle = client.startStreamV4({ threadId: reply.execution_id }, {});
+
+    const result = await client.cancelExecution({
+      requestId: handle.requestId,
+      executionId: handle.executionId,
+      attemptId: handle.attemptId,
+      reason: "user_stop",
+    });
+    expect(result).toBe(reply);
+    expect(result).toEqual(cancelledSubagentProducer.rows[0].response);
+    expect(result.subagent_settlements).toHaveLength(1);
+    handle.disconnect();
   });
 
   test("cancelExecution invokes semantic cancel without cleaning the listener", async () => {

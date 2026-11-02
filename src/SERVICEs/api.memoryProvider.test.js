@@ -1,5 +1,6 @@
 import { api } from "./api";
 import skeletonPendingCapture from "./test_bridge/fixtures/skeleton_child_pending.json";
+import cancelledSubagentProducer from "../COMPONENTs/chat-bubble/__fixtures__/ticket_357_cancelled_subagent_producer.json";
 
 const writeSettings = (settings) => {
   window.localStorage.setItem("settings", JSON.stringify(settings || {}));
@@ -206,6 +207,22 @@ describe("api.unchain.startStreamV2 memory/provider options", () => {
       approved: true,
       reason: "",
     });
+  });
+
+  test("#357: returns the producer's cancel reply with subagent_settlements unchanged", async () => {
+    // The real host producer's cancel reply (delegate, waiting).
+    const reply = JSON.parse(JSON.stringify(cancelledSubagentProducer.rows[0].response));
+    window.unchainAPI.cancelExecution.mockResolvedValueOnce(reply);
+    const result = await api.unchain.cancelExecution({
+      ownerChatId: reply.execution_id,
+      sessionId: reply.execution_id,
+      attemptId: reply.attempt_id,
+      sourceAttemptId: reply.source_attempt_id,
+      interactionId: "interaction-1",
+      reason: "user_stop",
+    });
+    expect(result).toEqual(cancelledSubagentProducer.rows[0].response);
+    expect(result.subagent_settlements).toHaveLength(1);
   });
 
   test("forwards an exact execution cancellation identity", async () => {

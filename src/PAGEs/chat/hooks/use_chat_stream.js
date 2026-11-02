@@ -155,6 +155,11 @@ import {
   stop as progressStop,
 } from "../../../SERVICEs/progress_bus";
 import { getChatsStore } from "../../../SERVICEs/chat_storage";
+import {
+  admitDurableInteractionCancellation,
+  settleCancelledInteraction,
+} from "../../../SERVICEs/runtime_events/cancelled_interaction_settlement";
+import { recordCancelledSubagentSettlements } from "../../../SERVICEs/runtime_events/cancelled_subagent_settlement";
 
 const CHAT_STREAM_PROGRESS_ID = "chat_stream_active";
 const STREAM_REATTACH_FLUSH_MS = 100;
@@ -3284,6 +3289,44 @@ export const useChatStream = ({
     trackedExecutionCancellationsRef.current.set(key, tracked);
     return tracked.promise;
   }, []);
+  /* A terminal cancel reply that proves the pending approval itself was
+     cancelled settles that one call; the record is kept with the message.
+     The same admitted reply may carry the producer's settlement for each
+     delegate child it committed as cancelled; each settles only its own call. */
+  const recordCancelledInteraction = useCallback(
+    (chatId, response, target) => {
+      const evidence = admitDurableInteractionCancellation(response, target || {});
+      if (!chatId || !evidence) {
+        return;
+      }
+      const isActive = activeChatIdRef.current === chatId;
+      const current = isActive
+        ? messagesRef.current
+        : storageApi.getChatMessages(chatId);
+      const settled = settleCancelledInteraction(current, evidence);
+      const delegates = recordCancelledSubagentSettlements(
+        settled.messages,
+        response,
+        target || {},
+      );
+      const nextMessages = delegates.messages;
+      if (!settled.changed && !delegates.changed) {
+        return;
+      }
+      if (activeChatIdRef.current === chatId) {
+        messagesRef.current = nextMessages;
+        setMessages(nextMessages);
+      }
+      storageApi.setChatMessages(chatId, nextMessages, {
+        source: "execution-cancel-settlement",
+      });
+    },
+    [activeChatIdRef, messagesRef, setMessages, storageApi],
+  );
+
+  // The outbox drain effect must not restart when this callback changes.
+  const recordCancelledInteractionRef = useRef(recordCancelledInteraction);
+  recordCancelledInteractionRef.current = recordCancelledInteraction;
 
   const cancelCurrentStreamAndSettleMessages = useCallback(() => {
     const currentChatId = activeChatIdRef.current;
@@ -3371,6 +3414,11 @@ export const useChatStream = ({
           queuedCancellation.attemptId,
           queuedCancellation.interactionId,
         );
+        recordCancelledInteraction(
+          currentChatId,
+          result.response,
+          queuedCancellation,
+        );
       }
     });
     cancelBackgroundPersist(currentChatId);
@@ -3417,6 +3465,7 @@ export const useChatStream = ({
     invalidateRunGeneration,
     materializeStreamingMessages,
     messagesRef,
+    recordCancelledInteraction,
     setMessages,
     requestTrackedExecutionCancellation,
     setStreamErrorForChat,
@@ -3459,6 +3508,11 @@ export const useChatStream = ({
             entry.sessionId,
             entry.attemptId,
             entry.interactionId,
+          );
+          recordCancelledInteractionRef.current(
+            entry.ownerChatId,
+            result.response,
+            entry,
           );
         } else if (result?.retryBlocked && !reported.has(key)) {
           reported.add(key);
@@ -6025,13 +6079,63 @@ export const useChatStream = ({
         (renderRuntime.subagentMetaByRunId.has(runId) ||
           renderRuntime.subagentFramesByRunId.has(runId));
 
+      /* The first time this stream sees a child, its live frame list starts
+         from the frames already saved for that child on this message, so a
+         resumed stream appends to the child's history instead of replacing
+         it when the frames are flushed back. */
+      const adoptChildFrames = (childRunId) => {
+        if (renderRuntime.subagentFramesByRunId.has(childRunId)) {
+          return renderRuntime.subagentFramesByRunId.get(childRunId);
+        }
+        const owner = streamMessages.find(
+          (message) => message.id === assistantMessageId,
+        );
+        const saved = owner?.subagentFrames?.[childRunId];
+        const frames = Array.isArray(saved) ? [...saved] : [];
+        renderRuntime.subagentFramesByRunId.set(childRunId, frames);
+        return frames;
+      };
+      /* A replayed event must not add its frame twice. */
+      const appendChildFrame = (childRunId, frame) => {
+        const frames = adoptChildFrames(childRunId);
+        const eventId =
+          typeof frame?.event_id === "string" ? frame.event_id : "";
+        if (
+          eventId &&
+          frames.some(
+            (existing) =>
+              existing?.event_id === eventId && existing?.type === frame.type,
+          )
+        ) {
+          return false;
+        }
+        frames.push(frame);
+        dirtySubagentFrameRunIds.add(childRunId);
+        return true;
+      };
+
+      /* Metadata this message saved for a child before a cold restart; the
+         first update in a resumed stream starts from it instead of from an
+         empty record, so a sparse event cannot erase it. */
+      const savedChildMeta = (childRunId) => {
+        const owner = streamMessages.find(
+          (message) => message.id === assistantMessageId,
+        );
+        const saved = owner?.subagentMetaByRunId?.[childRunId];
+        return saved && typeof saved === "object" && !Array.isArray(saved)
+          ? saved
+          : null;
+      };
+
       const upsertSubagentMeta = (childRunId, updates) => {
         if (typeof childRunId !== "string" || !childRunId.trim()) {
           return null;
         }
 
         const previousMeta =
-          renderRuntime.subagentMetaByRunId.get(childRunId) || {};
+          renderRuntime.subagentMetaByRunId.get(childRunId) ||
+          savedChildMeta(childRunId) ||
+          {};
         const nextMeta = {
           subagentId:
             typeof updates?.subagentId === "string"
@@ -6079,9 +6183,7 @@ export const useChatStream = ({
         };
 
         renderRuntime.subagentMetaByRunId.set(childRunId, nextMeta);
-        if (!renderRuntime.subagentFramesByRunId.has(childRunId)) {
-          renderRuntime.subagentFramesByRunId.set(childRunId, []);
-        }
+        adoptChildFrames(childRunId);
         dirtySubagentMetaRunIds.add(childRunId);
         return nextMeta;
       };
@@ -7763,6 +7865,16 @@ export const useChatStream = ({
                   typeof frame.payload?.child_run_id === "string"
                     ? frame.payload.child_run_id
                     : "";
+                /* A child terminal event that carries a settlement is kept as
+                   a frame (validated when shown), appended to that child's
+                   frames already saved on this message, so a reopened chat
+                   still has the evidence. */
+                const carriesSettlement =
+                  (frame.type === "subagent_completed" ||
+                    frame.type === "subagent_failed") &&
+                  frame.payload !== null &&
+                  typeof frame.payload === "object" &&
+                  Object.prototype.hasOwnProperty.call(frame.payload, "settlement");
                 if (childRunId) {
                   const lifecycleStatus =
                     frame.type === "subagent_spawned"
@@ -7790,32 +7902,55 @@ export const useChatStream = ({
                                     childRunId,
                                   ).status
                                 : "";
+                  /* A sparse event (e.g. a cold settlement carrying only
+                     status) leaves out fields; the projection then fills
+                     subagent_id with the run id and parent_id with the parent
+                     run link. Those stand-ins and empty values only fill a
+                     gap: they never replace a value already known for this
+                     child. Values the event really provides still apply. */
+                  const knownMeta =
+                    renderRuntime.subagentMetaByRunId.get(childRunId) ||
+                    savedChildMeta(childRunId) ||
+                    {};
+                  const provided = (value, standIn, known) => {
+                    const text = typeof value === "string" ? value : "";
+                    const isStandIn = text === "" || text === standIn;
+                    return isStandIn && typeof known === "string" && known
+                      ? undefined
+                      : text;
+                  };
                   upsertSubagentMeta(childRunId, {
-                    subagentId:
-                      typeof frame.payload?.subagent_id === "string"
-                        ? frame.payload.subagent_id
+                    subagentId: provided(
+                      frame.payload?.subagent_id,
+                      childRunId,
+                      knownMeta.subagentId,
+                    ),
+                    mode: provided(frame.payload?.mode, "", knownMeta.mode),
+                    template: provided(
+                      frame.payload?.template,
+                      "",
+                      knownMeta.template,
+                    ),
+                    batchId: provided(
+                      frame.payload?.batch_id,
+                      "",
+                      knownMeta.batchId,
+                    ),
+                    parentId: provided(
+                      frame.payload?.parent_id,
+                      typeof frame.links?.parent_run_id === "string"
+                        ? frame.links.parent_run_id
                         : "",
-                    mode:
-                      typeof frame.payload?.mode === "string"
-                        ? frame.payload.mode
-                        : "",
-                    template:
-                      typeof frame.payload?.template === "string"
-                        ? frame.payload.template
-                        : "",
-                    batchId:
-                      typeof frame.payload?.batch_id === "string"
-                        ? frame.payload.batch_id
-                        : "",
-                    parentId:
-                      typeof frame.payload?.parent_id === "string"
-                        ? frame.payload.parent_id
-                        : "",
+                      knownMeta.parentId,
+                    ),
                     lineage: Array.isArray(frame.payload?.lineage)
                       ? frame.payload.lineage
                       : undefined,
                     status: lifecycleStatus,
                   });
+                  if (carriesSettlement) {
+                    appendChildFrame(childRunId, frame);
+                  }
                   syncAssistantSubagentState(patchTime, {
                     immediate:
                       frame.type === "subagent_completed" ||
@@ -8047,12 +8182,9 @@ export const useChatStream = ({
                      frames are also routed here. */
                   upsertSubagentMeta(frameRunId, { status: "running" });
                 }
-                if (!renderRuntime.subagentFramesByRunId.has(frameRunId)) {
-                  renderRuntime.subagentFramesByRunId.set(frameRunId, []);
-                }
+                adoptChildFrames(frameRunId);
                 processChildToolInteractionSideEffects();
-                renderRuntime.subagentFramesByRunId.get(frameRunId).push(frame);
-                dirtySubagentFrameRunIds.add(frameRunId);
+                appendChildFrame(frameRunId, frame);
 
                 if (
                   frame.type === "error" &&

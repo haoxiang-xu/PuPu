@@ -198,3 +198,15 @@ read-only test/evidence inventory may become suitable after the matrix is settle
 the root retains all interpretation, implementation and review decisions. No
 worker has been dispatched at this point. This close request already authorizes
 scope-preserving fixes and delivery; it is not another CP-by-CP permission loop.
+
+## Frozen runtime/UI delivery dependency (2026-11-02)
+
+Current dev did not include the accepted 3532f350..6f7f7eef UI child/cancel
+consumers, 6f8fc64d..db34dea0 Host cancellation producer, or Core
+25918480..2bf67b21 child callback/projection. Integrate those increments,
+preserving newer dev approval/Hook behavior; do not transplant cumulative trees.
+The held 17b04aea wheel lacks events.subagent_settlement: it cannot qualify this
+producer. BC-356-CLOSE-002 / SEQ-356-CLOSE-002 / AC-356-CLOSE-002 therefore require
+a new canonical wheel and Host binary. Old evidence remains prior, bounded
+evidence. First combined renderer check:9 suites/219 passed. Core projection and
+Kernel source check:43 passed. Installed/public/binary cells are still pending.

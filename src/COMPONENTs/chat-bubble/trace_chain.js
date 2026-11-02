@@ -62,6 +62,12 @@ import {
   groupToolTimelineItems,
 } from "./trace_tool_grouping";
 import { projectToolCallLifecycle } from "../../SERVICEs/runtime_events/tool_call_projection";
+import { subagentDisplayResult } from "./subagent_display_result";
+import { cancelledInteractionIds } from "../../SERVICEs/runtime_events/cancelled_interaction_settlement";
+import {
+  collectSubagentSettlements,
+  settlementForToolCall,
+} from "../../SERVICEs/runtime_events/subagent_settlement";
 
 const coalesceToolCallProjectionFrames = (frames, projection) => {
   if (!projection?.calls?.length) return frames;
@@ -1005,10 +1011,24 @@ const TraceChain = ({
 
   const isStreaming = status === "streaming";
   const isCancelled = status === "cancelled" || status === "canceled";
+  // Approvals the backend proved it cancelled before they were decided.
+  const cancelledApprovalIds = useMemo(
+    () => cancelledInteractionIds(frames),
+    [frames],
+  );
   const effectiveSubagentFrames = useMemo(
     () =>
       subagentFrames && typeof subagentFrames === "object" ? subagentFrames : {},
     [subagentFrames],
+  );
+  // Child terminal events that carry a verified, call-bound settlement.
+  const subagentSettlements = useMemo(
+    () =>
+      collectSubagentSettlements([
+        frames,
+        ...Object.values(effectiveSubagentFrames),
+      ]),
+    [frames, effectiveSubagentFrames],
   );
   const effectiveSubagentMetaByRunId = useMemo(
     () =>
@@ -1590,6 +1610,27 @@ const TraceChain = ({
           const isDelegate = frame.payload.tool_name === "delegate_to_subagent";
           const isBatch = frame.payload.tool_name === "spawn_worker_batch";
           const isHandoff = frame.payload.tool_name === "handoff_to_subagent";
+          /* A verified settlement for exactly this call supersedes the
+             original wait marker; its child is its source attempt. */
+          const settlement =
+            isDelegate || isHandoff
+              ? settlementForToolCall(subagentSettlements, frame, frames)
+              : null;
+          const settledMeta = settlement
+            ? effectiveSubagentMetaByRunId[settlement.sourceAttemptId]
+            : null;
+          const result = settlement
+            ? {
+                status: settlement.status,
+                summary: settlement.body?.summary || "",
+                ...(settlement.body?.error ? { error: settlement.body.error } : {}),
+                ...(typeof settledMeta?.subagentId === "string" &&
+                settledMeta.subagentId &&
+                settledMeta.subagentId !== settlement.sourceAttemptId
+                  ? { agent_name: settledMeta.subagentId }
+                  : {}),
+              }
+            : subagentDisplayResult(resultFrame?.payload?.result);
           const target = args?.target || "worker";
           const task = args?.task || args?.reason || "";
           const batchTasks =
@@ -1632,9 +1673,11 @@ const TraceChain = ({
                     typeof result?.agent_name === "string"
                       ? result.agent_name
                       : "";
-                  const candidates = agentName
-                    ? childRunIdsBySubagentId.get(agentName) || []
-                    : [];
+                  const candidates = settlement
+                    ? [settlement.sourceAttemptId]
+                    : agentName
+                      ? childRunIdsBySubagentId.get(agentName) || []
+                      : [];
                   const childRunId =
                     candidates.find((id) => !usedRunIds.has(id)) || "";
                   if (childRunId) usedRunIds.add(childRunId);
@@ -1644,7 +1687,7 @@ const TraceChain = ({
                   const childFrames = childRunId
                     ? effectiveSubagentFrames[childRunId]
                     : [];
-                  if (!agentName && !resultFrame) {
+                  if (!agentName && !resultFrame && !settlement) {
                     return [];
                   }
                   return [
@@ -2032,8 +2075,14 @@ const TraceChain = ({
         let toolStatus = callStatus;
 
         if (isInlineInteraction) {
+          const unsettled =
+            !isResolved && !uiResolved && !hasTerminalResult;
+          const provedCancelled =
+            unsettled && cancelledApprovalIds.has(confirmationId);
           let statusLabel = "Pending";
-          if (resolvedDecision === "approved") {
+          if (provedCancelled) {
+            statusLabel = "Cancelled · not run";
+          } else if (resolvedDecision === "approved") {
             statusLabel = isSelectionInteraction ? "Selected" : "Approved";
           } else if (resolvedDecision === "denied") {
             statusLabel = "Denied";
@@ -2053,6 +2102,7 @@ const TraceChain = ({
             !isSubmitting &&
             !hasTerminalResult &&
             !isCancelled &&
+            !provedCancelled &&
             typeof onToolConfirmationDecision === "function";
 
           /* approved / denied / pending are success, danger and neutral —
@@ -2525,6 +2575,8 @@ const TraceChain = ({
     onStopStream,
     isStreaming,
     isCancelled,
+    cancelledApprovalIds,
+    subagentSettlements,
     bubbleOwnsLiveText,
     messageId,
     lifecycleCallKeyForFrame,
