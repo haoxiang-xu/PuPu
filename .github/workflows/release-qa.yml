@@ -62,6 +62,7 @@ jobs:
           echo "17b04aea25489e72eb4e6ab03a131f470bdcddf65f9e8a4eec757d9bfcbfe47c  $WHEEL" | sha256sum -c -
           python -m pip install --disable-pip-version-check -r candidate/unchain_runtime/server/requirements.txt
           python -m pip install --force-reinstall --no-deps "$WHEEL"
+          python -m pip install --constraint candidate/unchain_runtime/server/requirements.txt "$WHEEL"
           python -m pip check
           node candidate/scripts/release-qa/verify-unchain-artifact.mjs --artifact "$WHEEL" \
             --evidence "$PWD/artifact/unchain-artifact.json" --installed true --python python
