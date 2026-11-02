@@ -268,3 +268,24 @@ test("Escape with the tool list open closes the list only: the Builder, the pick
   expect(store.save).not.toHaveBeenCalled();
   expect(store.held["agent-tool-single"]).toEqual(before);
 });
+
+/* The tool library is open-ended. In a 300px Hooks panel the unbounded list
+   opened upward past the window's top edge (packaged App run 41329960253), so
+   both tool pickers carry the bound the Builder's other library pickers use
+   (Kernel model, Skill Read, Tool Call): min(280px, 40vh), scrolling inside. */
+test.each([["A set of tools", "tool-set-picker"], ["One tool", "tool-picker"]])(
+  "%s: the list of the tool library is bounded and scrolls inside",
+  async (mode, picker) => {
+    makeStore(["single"]);
+    await open("agent-tool-single");
+    await openHook();
+    await waitFor(() => expect(tool().getByText("A set of tools")).toBeInTheDocument());
+    fireEvent.click(tool().getByText(mode));
+    const box = await screen.findByTestId(`hook-0-${picker}`);
+    fireEvent.click(within(box).getAllByRole("combobox")[0]);
+    const lists = screen.getAllByRole("listbox", { hidden: true });
+    const list = lists[lists.length - 1];
+    expect(list.style.maxHeight).toBe("min(280px, 40vh)");
+    expect(list.style.overflowY).toBe("auto");
+  },
+);

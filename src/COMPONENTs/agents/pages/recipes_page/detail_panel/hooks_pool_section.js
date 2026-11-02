@@ -211,6 +211,11 @@ function IdInput({ entry, editable, isDark, testid, about, onWrite }) {
   );
 }
 
+/* The tool library is open-ended: bounded like the Builder's other library
+   pickers (Kernel model, Skill Read, Tool Call), so a long list scrolls inside
+   instead of opening past the window in a narrow panel (#357). */
+const TOOL_LIST = { maxHeight: "min(280px, 40vh)" };
+
 function HookEditor({ entry, index, rowId, nodeId, parentId, siblings, scopeDuplicates, toolNames, capability, toolSetCapability, workflowCapability, managedSources, onOpenEmbedded, editable, isDark, write, writeEnabled, remove }) {
   const set = (key, value) => write({ ...entry, [key]: value });
   const stored_kind = tool_matcher_kind(entry);
@@ -310,6 +315,7 @@ function HookEditor({ entry, index, rowId, nodeId, parentId, siblings, scopeDupl
               filterable
               placeholder={toolNames.status === "loading" ? "reading the tool library…" : "the tool's exact name"}
               disabled={!editable}
+              dropdown_style={TOOL_LIST}
               style={FIELD}
             />
           </span>
@@ -333,6 +339,7 @@ function HookEditor({ entry, index, rowId, nodeId, parentId, siblings, scopeDupl
               filterable
               placeholder={toolNames.status === "loading" ? "reading the tool library…" : "pick the tools"}
               disabled={!editable}
+              dropdown_style={TOOL_LIST}
               style={FIELD}
             />
           </span>
