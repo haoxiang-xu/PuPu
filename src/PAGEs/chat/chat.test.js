@@ -5583,6 +5583,179 @@ describe("ChatInterface stop flow", () => {
       expect(sealCalls().some((payload) => payload.owner_chat_id === chatAId)).toBe(false);
     });
 
+    /* R-357-APP-01a: the reviewer's probe, inserted verbatim
+       (approval-f2-review-01/independent-inflight-post-probe.js.txt). */
+    test.each([["approve", true, "approved"], ["deny", false, "denied"]])(
+      "independent APP-01: %s submitted before finite SSE end keeps ownership while the POST is in flight",
+      async (label, approved, outcome) => {
+        const chatId = getChatsStore().activeChatId;
+        const sessionId = chatId;
+        let authoritative = null;
+        const bridge = installDurableBridge({
+          resolvePending: async (requested) => requested === sessionId && authoritative
+            ? authoritative : { status: "none", session_id: requested },
+          cancelExecution: async (payload) => {
+            authoritative = { status: "none", session_id: sessionId };
+            return { status: "ok", attempt_id: payload.attempt_id, source_attempt_id: payload.source_attempt_id };
+          },
+        });
+        const v4 = window.unchainAPI.startStreamV4;
+        delete window.unchainAPI.startStreamV4;
+        let run = null;
+        window.unchainAPI.startStreamV2.mockImplementation((_payload, handlers = {}) => {
+          run = { handlers };
+          return { attemptId: ROOT, requestId: ROOT, cancel: cancelSpy };
+        });
+        renderChat();
+        await waitForReady();
+        fireEvent.change(screen.getByTestId("chat-input"), { target: { value: "Read the qualification file" } });
+        fireEvent.click(screen.getByTestId("send-button"));
+        await waitFor(() => expect(run).toBeTruthy());
+        window.unchainAPI.startStreamV4 = v4;
+        act(() => run.handlers.onFrame({ seq: 6, ts: 200, type: "tool_call", run_id: ROOT, payload: { ...toolCall } }));
+        await waitFor(() => expect(lastChatMessagesProps?.pendingToolConfirmationRequests?.[INTERACTION]).toBeDefined());
+        authoritative = freshSkeletonPending({ sessionId });
+        let resolvePost;
+        window.unchainAPI.respondToolConfirmation.mockImplementation(() => new Promise((resolve) => { resolvePost = resolve; }));
+        let decisionPromise;
+        await act(async () => {
+          decisionPromise = lastChatMessagesProps.onToolConfirmationDecision({ confirmationId: INTERACTION, approved });
+        });
+        expect(window.unchainAPI.respondToolConfirmation).toHaveBeenCalledTimes(1);
+        expect(lastChatMessagesProps.toolConfirmationUiStateById[INTERACTION].status).toBe("submitting");
+        act(() => run.handlers.onDone({ finished_at: Date.now() }));
+        await act(async () => { await new Promise((resolve) => setTimeout(resolve, 70)); });
+        const beforeReceipt = {
+          seals: sealCalls(),
+          card: lastChatMessagesProps?.toolConfirmationUiStateById?.[INTERACTION] || null,
+        };
+        authoritative = freshSkeletonPending({ sessionId, status: "receipt_recorded", outcome });
+        await act(async () => {
+          resolvePost({ status: "ok", disposition: "receipt_recorded", durable: true, session_id: sessionId,
+            interaction_id: INTERACTION, receipt_id: `receipt-${INTERACTION}` });
+          await decisionPromise;
+        });
+        await act(async () => { await new Promise((resolve) => setTimeout(resolve, 70)); });
+        const observation = { label, beforeReceipt, allSeals: sealCalls(), resumeCount: bridge.resumeRuns().length };
+        if (process.env.QA_OBSERVATIONS) require("fs").appendFileSync(process.env.QA_OBSERVATIONS, JSON.stringify(observation) + "\n");
+        expect(beforeReceipt.seals).toHaveLength(0);
+        expect(observation.allSeals).toHaveLength(0);
+        expect(observation.resumeCount).toBe(1);
+      },
+    );
+
+    /* R-357-APP-01a: an answer whose POST is still out when the run's finite
+       stream ends. Same derived pending shape as above. */
+    const submitThenEnd = async ({ approved = true } = {}) => {
+      const { sessionId, bridge, setPending } = await presentAnswerBeforeEnd();
+      let resolvePost;
+      let rejectPost;
+      window.unchainAPI.respondToolConfirmation.mockImplementation(() => new Promise((resolve, reject) => {
+        resolvePost = resolve;
+        rejectPost = reject;
+      }));
+      let decision;
+      await act(async () => {
+        decision = lastChatMessagesProps.onToolConfirmationDecision({ confirmationId: INTERACTION, approved });
+      });
+      expect(lastChatMessagesProps.toolConfirmationUiStateById[INTERACTION].status).toBe("submitting");
+      act(() => currentRun.handlers.onDone({ finished_at: Date.now() }));
+      await act(async () => { await new Promise((resolve) => setTimeout(resolve, 70)); });
+      return {
+        sessionId, bridge, setPending,
+        resolve: async (reply) => { await act(async () => { resolvePost(reply); await decision; }); },
+        reject: async (error) => { await act(async () => { rejectPost(error); await decision; }); },
+      };
+    };
+    let currentRun = null;
+    const presentAnswerBeforeEnd = async () => {
+      const chatId = getChatsStore().activeChatId;
+      const sessionId = chatId;
+      let authoritative = null;
+      const bridge = installDurableBridge({
+        resolvePending: async (requested) => requested === sessionId && authoritative
+          ? authoritative : { status: "none", session_id: requested },
+        cancelExecution: async (payload) => {
+          authoritative = { status: "none", session_id: sessionId };
+          return { status: "ok", attempt_id: payload.attempt_id, source_attempt_id: payload.source_attempt_id };
+        },
+      });
+      const v4 = window.unchainAPI.startStreamV4;
+      delete window.unchainAPI.startStreamV4;
+      currentRun = null;
+      window.unchainAPI.startStreamV2.mockImplementation((_payload, handlers = {}) => {
+        currentRun = { handlers };
+        return { attemptId: ROOT, requestId: ROOT, cancel: cancelSpy };
+      });
+      renderChat();
+      await waitForReady();
+      fireEvent.change(screen.getByTestId("chat-input"), { target: { value: "Read the qualification file" } });
+      fireEvent.click(screen.getByTestId("send-button"));
+      await waitFor(() => expect(currentRun).toBeTruthy());
+      window.unchainAPI.startStreamV4 = v4;
+      act(() => currentRun.handlers.onFrame({ seq: 6, ts: 200, type: "tool_call", run_id: ROOT, payload: { ...toolCall } }));
+      await waitFor(() => expect(lastChatMessagesProps?.pendingToolConfirmationRequests?.[INTERACTION]).toBeDefined());
+      authoritative = freshSkeletonPending({ sessionId });
+      return { sessionId, bridge, setPending: (next) => { authoritative = next; } };
+    };
+    const receiptReply = (sessionId) => ({ status: "ok", disposition: "receipt_recorded", durable: true, session_id: sessionId,
+      interaction_id: INTERACTION, receipt_id: `receipt-${INTERACTION}` });
+
+    test("while the answer is being posted the card stays, submitting and not clickable; one POST, one resume", async () => {
+      const { sessionId, bridge, setPending, resolve } = await submitThenEnd();
+      expect(lastChatMessagesProps?.pendingToolConfirmationRequests?.[INTERACTION]).toBeDefined();
+      expect(lastChatMessagesProps.toolConfirmationUiStateById[INTERACTION]).toEqual(
+        expect.objectContaining({ status: "submitting", resolved: false }),
+      );
+      /* A second press while submitting posts nothing. */
+      await act(async () => {
+        await lastChatMessagesProps.onToolConfirmationDecision({ confirmationId: INTERACTION, approved: true });
+      });
+      expect(window.unchainAPI.respondToolConfirmation).toHaveBeenCalledTimes(1);
+      expect(sealCalls()).toHaveLength(0);
+      setPending(freshSkeletonPending({ sessionId, status: "receipt_recorded", outcome: "approved" }));
+      await resolve(receiptReply(sessionId));
+      await waitFor(() => expect(bridge.resumeRuns()).toHaveLength(1));
+      await act(async () => { await new Promise((r) => setTimeout(r, 70)); });
+      expect(bridge.resumeRuns()).toHaveLength(1);
+      expect(window.unchainAPI.respondToolConfirmation).toHaveBeenCalledTimes(1);
+      expect(sealCalls()).toHaveLength(0);
+    });
+
+    test("a failed POST leaves the card for an explicit retry, which then resumes once", async () => {
+      const { sessionId, bridge, setPending, reject } = await submitThenEnd();
+      await reject(Object.assign(new Error("network down"), { code: "network_error" }));
+      await waitFor(() => expect(lastChatMessagesProps?.toolConfirmationUiStateById?.[INTERACTION]).toEqual(
+        expect.objectContaining({ status: "error", resolved: false }),
+      ));
+      expect(lastChatMessagesProps?.pendingToolConfirmationRequests?.[INTERACTION]).toBeDefined();
+      expect(sealCalls()).toHaveLength(0);
+      expect(bridge.resumeRuns()).toHaveLength(0);
+      window.unchainAPI.respondToolConfirmation.mockImplementation(async () => {
+        setPending(freshSkeletonPending({ sessionId, status: "receipt_recorded", outcome: "approved" }));
+        return receiptReply(sessionId);
+      });
+      await act(async () => {
+        await lastChatMessagesProps.onToolConfirmationDecision({ confirmationId: INTERACTION, approved: true });
+      });
+      await waitFor(() => expect(bridge.resumeRuns()).toHaveLength(1));
+      expect(sealCalls()).toHaveLength(0);
+    });
+
+    test("Stop while the answer is being posted: the late receipt resumes nothing", async () => {
+      const { sessionId, bridge, setPending, resolve } = await submitThenEnd();
+      await waitFor(() => expect(screen.getByTestId("stop-button")).toBeInTheDocument());
+      fireEvent.click(screen.getByTestId("stop-button"));
+      await waitFor(() => expect(window.unchainAPI.cancelExecution).toHaveBeenCalledWith(
+        expect.objectContaining({ reason: "user_stop" }),
+      ));
+      setPending(freshSkeletonPending({ sessionId, status: "receipt_recorded", outcome: "approved" }));
+      await resolve(receiptReply(sessionId));
+      await act(async () => { await new Promise((r) => setTimeout(r, 120)); });
+      expect(bridge.resumeRuns()).toHaveLength(0);
+      expect(sealCalls()).toHaveLength(0);
+    });
+
     test("Stop after the stream ended still cancels the run as a user stop", async () => {
       await presentThenEnd();
       await waitFor(() => expect(lastChatMessagesProps?.pendingToolConfirmationRequests?.[INTERACTION]).toBeDefined());

@@ -1254,6 +1254,11 @@ export const useChatStream = ({
   const reattachingChatIdsRef = useRef(new Set());
   const runContextByChatIdRef = useRef(new Map());
   const humanInputSubmissionByChatIdRef = useRef(new Map());
+  /* A tool approval or denial whose POST has not answered yet: chat ->
+     {interactionId, sessionId, runGeneration}. Like a human-input
+     submission, it keeps its interaction out of passive recovery until the
+     reply decides (#357 R-357-APP-01a). */
+  const toolDecisionSubmissionByChatIdRef = useRef(new Map());
   const durableResumeStartedKeysRef = useRef(new Set());
   const durableResumeStartedKeysByChatIdRef = useRef(new Map());
   const durableResumeRetryTimersRef = useRef(new Map());
@@ -3210,17 +3215,23 @@ export const useChatStream = ({
         pendingToolConfirmationRequestsByChatIdRef.current[normalizedChatId] || {};
       const uiStates =
         toolConfirmationUiStateByChatIdRef.current[normalizedChatId] || {};
+      /* An answer still being posted stays this run's too, but only the
+         exact one the POST carries. */
+      const inFlight =
+        toolDecisionSubmissionByChatIdRef.current.get(normalizedChatId) || null;
+      const isInFlight = (interactionId) => Boolean(
+        inFlight &&
+          inFlight.interactionId === interactionId &&
+          inFlight.sessionId === normalizedSessionId &&
+          inFlight.runGeneration === runGeneration,
+      );
       const interactionIds = new Set(
         Object.keys(requests).filter((interactionId) => {
           const request = requests[interactionId];
           const ui = uiStates[interactionId] || {};
-          return (
-            request &&
-            request.sessionId === normalizedSessionId &&
-            ui.resolved !== true &&
-            ui.status !== "submitting" &&
-            ui.status !== "submitted"
-          );
+          if (!request || request.sessionId !== normalizedSessionId) return false;
+          if (ui.status === "submitting") return isInFlight(interactionId);
+          return ui.resolved !== true && ui.status !== "submitted";
         }),
       );
       const attemptIds = new Set(
@@ -3236,6 +3247,15 @@ export const useChatStream = ({
         attemptIds,
         interactionIds,
       });
+      /* The card of an answer still being posted stays on screen, as
+         submitting, so it is neither lost nor clickable again. */
+      const keep = [...interactionIds].filter(isInFlight);
+      return keep.length === 0
+        ? null
+        : {
+            requests: Object.fromEntries(keep.map((id) => [id, requests[id]])),
+            uiStates: Object.fromEntries(keep.map((id) => [id, uiStates[id]])),
+          };
     },
     [],
   );
@@ -4142,6 +4162,12 @@ export const useChatStream = ({
       if (humanInputSubmission) {
         humanInputSubmissionByChatIdRef.current.set(targetChatId, humanInputSubmission);
       }
+      const toolDecisionSubmission = toolName !== HUMAN_INPUT_TOOL_NAME
+        ? { interactionId: normalizedConfirmationId, sessionId, runGeneration }
+        : null;
+      if (toolDecisionSubmission) {
+        toolDecisionSubmissionByChatIdRef.current.set(targetChatId, toolDecisionSubmission);
+      }
 
       try {
         const payload = {
@@ -4162,6 +4188,9 @@ export const useChatStream = ({
         }
         if (response?.disposition !== "receipt_recorded" && humanInputSubmissionByChatIdRef.current.get(targetChatId) === humanInputSubmission) {
           humanInputSubmissionByChatIdRef.current.delete(targetChatId);
+        }
+        if (response?.disposition !== "receipt_recorded" && toolDecisionSubmissionByChatIdRef.current.get(targetChatId) === toolDecisionSubmission) {
+          toolDecisionSubmissionByChatIdRef.current.delete(targetChatId);
         }
         if (shouldCacheSessionDecision) {
           let allowedTools = sessionAutoApproveRef.current.get(targetChatId);
@@ -4210,6 +4239,9 @@ export const useChatStream = ({
       } catch (error) {
         if (humanInputSubmissionByChatIdRef.current.get(targetChatId) === humanInputSubmission) {
           humanInputSubmissionByChatIdRef.current.delete(targetChatId);
+        }
+        if (toolDecisionSubmissionByChatIdRef.current.get(targetChatId) === toolDecisionSubmission) {
+          toolDecisionSubmissionByChatIdRef.current.delete(targetChatId);
         }
         if (!isRunGenerationCurrent(targetChatId, runGeneration)) {
           return;
@@ -8662,12 +8694,22 @@ export const useChatStream = ({
                 next.delete(targetChatId);
                 return next;
               });
-              rememberAcceptedInteractions(
+              const inFlightCards = rememberAcceptedInteractions(
                 targetChatId,
                 activeRunGeneration,
                 effectiveThreadId,
               );
               clearAllPendingToolConfirmations(targetChatId);
+              if (inFlightCards) {
+                updatePendingToolConfirmationRequests(
+                  targetChatId,
+                  inFlightCards.requests,
+                );
+                updateToolConfirmationUiState(
+                  targetChatId,
+                  inFlightCards.uiStates,
+                );
+              }
               if (isDurableResume) {
                 const retryTimer = durableResumeRetryTimersRef.current.get(
                   targetChatId,
@@ -10135,11 +10177,15 @@ export const useChatStream = ({
 
         // A passive lookup may race the POST that is recording this answer.
         // Leave the current submission in charge until its receipt starts resume.
-        const activeSubmission = humanInputSubmissionByChatIdRef.current.get(normalizedChatId);
-        if (!authoritativeReceipt && activeSubmission &&
+        const inFlightSubmissions = [
+          humanInputSubmissionByChatIdRef.current.get(normalizedChatId),
+          toolDecisionSubmissionByChatIdRef.current.get(normalizedChatId),
+        ];
+        if (!authoritativeReceipt && inFlightSubmissions.some((activeSubmission) =>
+            activeSubmission &&
             activeSubmission.runGeneration === activeRunGeneration &&
             activeSubmission.sessionId === pending.sessionId &&
-            activeSubmission.interactionId === pending.interactionId) {
+            activeSubmission.interactionId === pending.interactionId)) {
           return pending;
         }
 
