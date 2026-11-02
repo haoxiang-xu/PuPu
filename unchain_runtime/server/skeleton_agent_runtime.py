@@ -9,6 +9,7 @@ from copy import deepcopy
 from functools import partial
 from hashlib import sha256
 from inspect import Parameter, signature
+import json
 from threading import RLock
 from types import SimpleNamespace
 
@@ -64,7 +65,7 @@ class PupuSkeletonAgentExecution:
                  other_handlers=None, callback=None, interject_options=None,
                  subagent_manifests=None, child_handlers_factory=None,
                  hook_workflow_resolver=None, host_modules_for_node=None,
-                 root_handlers_factory=None):
+                 root_handlers_factory=None, workflow_tools_for_node=None):
         if type(plan) is not PreparedAgentPlan or type(bridge) is not PupuUnchainActiveBridge:
             raise TypeError("Skeleton chat requires an Agent plan and active PuPu bridge")
         from unchain.execution import ExecutionGuard
@@ -90,6 +91,9 @@ class PupuSkeletonAgentExecution:
             raise ValueError("provide root_handlers_factory or other_handlers, not both")
         self._root_handlers_factory = root_handlers_factory
         self._child_handlers_factory = child_handlers_factory or root_handlers_factory
+        if workflow_tools_for_node is not None and not callable(workflow_tools_for_node):
+            raise TypeError("workflow_tools_for_node must be callable")
+        self._workflow_tools_for_node = workflow_tools_for_node
         state = RunState()
         state.session_state.session_id = bridge.execution_id
         self.factory.context_module.runtime.bind_context(HarnessContext(
@@ -173,8 +177,32 @@ class PupuSkeletonAgentExecution:
             raise ValueError("Kernel Hook dependencies were not admitted before execution")
         return runtime
 
-    def _kernel_handler_arguments(self, plan):
+    def _kernel_handler_arguments(self, plan, *, store=None, execution_guard=None,
+                                  modules_for_node=None, tools_for_node=None, workflow_policy=None):
         arguments = dict(self._kernel_arguments)
+        if modules_for_node is not None:
+            arguments["modules_for_node"] = modules_for_node
+        if tools_for_node is not None:
+            arguments["tools_for_node"] = tools_for_node
+        if self._workflow_tools_for_node is not None:
+            from skeleton_workflow_tools import build_workflow_tool
+            parent_store = self.store if store is None else store
+            parent_guard = arguments["execution_guard"] if execution_guard is None else execution_guard
+            ordinary_tools = arguments["tools_for_node"]
+            existing_modules = arguments["modules_for_node"]
+            workflow_tools = (self._workflow_tools_for_node if workflow_policy is None else
+                SkeletonSubagentRuntime.tools_for_child(workflow_policy, self._workflow_tools_for_node))
+            def modules(context):
+                selected = tuple(ordinary_tools(context))
+                workflows = tuple(workflow_tools(context))
+                names = [tool.name for tool in selected] + [binding.name for binding in workflows]
+                if len(names) != len(set(names)):
+                    raise ValueError("Workflow Tool names conflict in this fixed Kernel scope")
+                return tuple(existing_modules(context)) + tuple(build_workflow_tool(binding,
+                    partial(self._run_workflow_tool_from, parent_store, context, parent_guard),
+                    session_id=parent_guard.lease.execution_id,
+                    node_attempt_id=context.node_attempt_id) for binding in workflows)
+            arguments["modules_for_node"] = modules
         arguments["hook_runtime"] = self._hook_runtime_for(plan)
         arguments["hook_workflow_runner"] = _PinnedHookWorkflowRunner(self)
         arguments["hook_workflow_canceller"] = self._cancel_active_hook
@@ -543,6 +571,56 @@ class PupuSkeletonAgentExecution:
     def _run_subagent_child(self, adapter, messages, kwargs):
         return self._run_subagent_child_from(self.store, adapter, messages, kwargs)
 
+    def _workflow_tool_binding(self, parent_store, kernel_node_id, entry_id):
+        from skeleton_workflow_tools import WorkflowToolBinding
+        if self._workflow_tools_for_node is None:
+            raise ValueError("Workflow Tool binding is not available in this fixed launch")
+        context = SimpleNamespace(document_id=parent_store.plan.document_id, node_id=kernel_node_id)
+        candidates = [binding for binding in self._workflow_tools_for_node(context)
+            if type(binding) is WorkflowToolBinding and binding.entry_id == entry_id]
+        if len(candidates) != 1:
+            raise ValueError("Workflow Tool is not uniquely attached to this Kernel")
+        return candidates[0]
+
+    def _run_workflow_tool_from(self, parent_store, context, guard, binding, inputs, call, execution_context):
+        """Run one ordinary Tool call as an explicitly bound non-LLM child."""
+        from unchain.execution import _borrow_execution_guard
+        from unchain.skeleton.errors import SkeletonValidationError
+        context.assert_current()
+        guard.assert_active()
+        current = self._workflow_tool_binding(parent_store, context.node_id, binding.entry_id)
+        if current != binding or execution_context.run_id != context.node_attempt_id:
+            raise ValueError("Workflow Tool changed its fixed binding")
+        identity = json.dumps([context.node_attempt_id, call["call_id"], binding.entry_id],
+            ensure_ascii=False, separators=(",", ":"))
+        suffix = sha256(identity.encode("utf-8")).hexdigest()
+        run_id = "workflow-tool." + suffix
+        session = parent_store.attempt.generation.execution_id + ":workflow-tool:" + suffix
+        child_guard = _borrow_execution_guard(guard, session_id=session)
+        _graph_id, child_store, _nested, runner = self._child_runner(
+            parent_store, binding, run_id, execution_guard=child_guard)
+        parent = parent_store.load()
+        active = parent.state["active"] if parent is not None else None
+        if active is None or active["node_invocation_id"] != context.node_invocation_id:
+            raise ValueError("Workflow Tool no longer owns the parent invocation")
+        frames = [dict(frame) for frame in parent.state["call_stack"]]
+        frames[-1]["caller_node_invocation_id"] = context.node_invocation_id
+        frames.append({"execution_id": child_store.attempt.generation.execution_id,
+            "graph_invocation_id": child_store.graph_id, "attempt_id": run_id,
+            "definition_id": binding.plan.document_id, "definition_digest": binding.definition_digest})
+        runner.create(deepcopy(inputs), call_stack=frames)
+        result = runner.run()
+        context.assert_current()
+        if result.status == "completed":
+            return deepcopy(result.outputs)
+        if result.status == "waiting":
+            request = self._subagent_wait_request(parent_store, binding, child_store, session,
+                mode="workflow_tool", runner=runner)
+            request = self._request_with_parent_tool_call(request, call)
+            raise SubagentWaitSignal(self._subagent_wait_identity(request), request)
+        raise SkeletonValidationError("child_" + result.status, ("workflow_tool", binding.local_id),
+            "Workflow Tool did not reach its End safely")
+
     def _child_runner(self, parent_store, adapter, run_id, *, execution_guard=None,
                       run_bundle_identity=None):
         basis = "\x00".join((parent_store.graph_id, run_id, adapter.entry_id))
@@ -552,11 +630,36 @@ class PupuSkeletonAgentExecution:
         child_store = WorkflowExecutionStore(
             parent_store.journal, adapter.plan, graph_id=graph_id, attempt=attempt,
         )
+        from skeleton_workflow_tools import WorkflowToolBinding
+        if type(adapter) is WorkflowToolBinding:
+            from unchain.skeleton.workflow_runtime import SkeletonWorkflowCallRuntime
+            parent = parent_store.load()
+            active = parent.state["active"] if parent is not None else None
+            if active is None or execution_guard is None:
+                raise ValueError("Workflow Tool requires its live parent invocation and guard")
+            invocation = active["node_invocation_id"]
+            def assert_parent():
+                execution_guard.assert_active()
+                current = parent_store.load()
+                current_active = current.state["active"] if current is not None else None
+                if (current_active is None or current_active["node_invocation_id"] != invocation
+                        or current.state["status"] not in {"running", "waiting"}):
+                    raise ValueError("Workflow Tool parent invocation is no longer current")
+            handlers = self._handlers_for_child(child_store, adapter.plan)
+            handlers.pop("agent", None)
+            handlers["workflow_call"] = SkeletonWorkflowCallRuntime(
+                child_store, self._hook_workflow_resolver, handlers=handlers)
+            return graph_id, child_store, None, DurableWorkflowRunner(
+                child_store, handlers, ancestor_assert_current=assert_parent)
         nested = SkeletonSubagentRuntime(
             adapter.child_manifests,
             run_child=partial(self._run_subagent_child_from, child_store),
         )
-        arguments = self._kernel_handler_arguments(adapter.plan)
+        arguments = self._kernel_handler_arguments(adapter.plan, store=child_store,
+            execution_guard=execution_guard, workflow_policy=adapter,
+            tools_for_node=SkeletonSubagentRuntime.tools_for_child(
+                adapter, self._kernel_arguments["tools_for_node"]),
+            modules_for_node=self._modules_for_node(nested, adapter))
         if execution_guard is not None:
             arguments["execution_guard"] = execution_guard
         if run_bundle_identity is not None:
@@ -565,11 +668,6 @@ class PupuSkeletonAgentExecution:
                 raise TypeError("Skeleton child requires an exact run bundle identity")
             arguments["run_bundle_root_id"] = run_bundle_identity.root_run_id
             arguments["run_bundle_parent_id"] = run_bundle_identity.parent_run_id
-        arguments["tools_for_node"] = SkeletonSubagentRuntime.tools_for_child(
-            adapter,
-            self._kernel_arguments["tools_for_node"],
-        )
-        arguments["modules_for_node"] = self._modules_for_node(nested, adapter)
         handlers = self._handlers_for_child(child_store, adapter.plan, adapter)
         handlers.pop("agent", None)
         handlers["agent"] = SkeletonKernelHandler(child_store, **arguments)
@@ -791,9 +889,22 @@ class PupuSkeletonAgentExecution:
                 or request["parent_node_invocation_id"] != parent.state["active"]["node_invocation_id"]
                 or request["parent_kernel_node_id"] != parent.state["active"]["node_id"]):
             raise ValueError("subagent wait parent identity changed")
-        adapter = runtime.agent_for_attachment(
-            request["parent_kernel_node_id"], request["entry_id"],
-        )
+        if request["mode"] == "workflow_tool":
+            adapter = self._workflow_tool_binding(parent_store, request["parent_kernel_node_id"], request["entry_id"])
+            if (request.get("schema") != _SUBAGENT_WAIT_SCHEMA
+                    or request.get("parent_tool_call", {}).get("tool_name") != adapter.name):
+                raise ValueError("Workflow Tool wait has no matching original call")
+            identity = json.dumps([parent.state["active"]["node_attempt_id"],
+                request["parent_tool_call"]["call_id"], adapter.entry_id],
+                ensure_ascii=False, separators=(",", ":"))
+            suffix = sha256(identity.encode("utf-8")).hexdigest()
+            if (request["child_attempt_id"] != "workflow-tool." + suffix
+                    or request["child_guard_session_id"] != parent_store.attempt.generation.execution_id + ":workflow-tool:" + suffix):
+                raise ValueError("Workflow Tool wait changed its call-bound attempt or session")
+        else:
+            adapter = runtime.agent_for_attachment(
+                request["parent_kernel_node_id"], request["entry_id"],
+            )
         from unchain.execution import _borrow_execution_guard
         child_guard = _borrow_execution_guard(
             self._kernel_arguments["execution_guard"],

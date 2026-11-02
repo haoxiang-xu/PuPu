@@ -1,0 +1,24 @@
+{
+  "runtime_manifest_digest": "sha256:827adc5644e00dbb8e67fe5ecf6f7e88d9f542b1c4aff37744e0311c0acc2fe3",
+  "schema": "pupu.skeleton_workflow_tools_capabilities.v1",
+  "workflow_tool": {
+    "arguments_field": "inputs",
+    "document_kind": "workflow",
+    "entry_fields": [
+      "id",
+      "workflow"
+    ],
+    "field": "workflow_tools",
+    "function_prefix": "workflow_",
+    "id_pattern": "[A-Za-z0-9_-]{1,48}",
+    "minimum_runtime_minor": 4,
+    "returns": "end_exports",
+    "schema": "pupu.skeleton_workflow_tool.v1",
+    "scope": "attached_kernel",
+    "version_policy": "published_exact",
+    "workflow_fields": [
+      "revision_id",
+      "workflow_id"
+    ]
+  }
+}

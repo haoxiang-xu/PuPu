@@ -249,7 +249,8 @@ class SkeletonProductionBindings:
         config = node["config"]
         if "legacy_fields" in config:
             config = config["legacy_fields"]
-        elif set(config) != {"toolkits", "merge_with_user_selected"}:
+        elif (not {"toolkits", "merge_with_user_selected"} <= set(config)
+                or set(config) - {"toolkits", "merge_with_user_selected", "workflow_tools"}):
             _fail("invalid_shape", ("document", "nodes", node["id"], "config"), "Toolkit Pool config is invalid.")
         if type(config) is not dict or type(config.get("toolkits")) is not list or type(config.get("merge_with_user_selected")) is not bool:
             _fail("invalid_shape", ("document", "nodes", node["id"], "config"), "Toolkit Pool requires toolkits and merge_with_user_selected.")
@@ -292,8 +293,11 @@ class SkeletonProductionBindings:
         return tools
 
     def _admit_toolkits(self):
+        from skeleton_workflow_tools import attached_workflow_tools, resolve_workflow_tool
+        self._workflow_tools_by_scope = {}
         global_toolkits = [self._toolkit(value) for value in self._user_toolkit_ids]
         for document_id, document in self._documents.items():
+            workflow_scopes = attached_workflow_tools(document)
             pools = {node["id"]: self._pool_toolkits(node) for node in document["nodes"] if node["type"] == "toolkit_pool"}
             global_toolkits.extend(toolkit for pool in pools.values() for toolkit in pool.values())
             for node in document["nodes"]:
@@ -313,6 +317,12 @@ class SkeletonProductionBindings:
                 values = tuple(selected.values())
                 key = (document_id, node["id"])
                 self._tools_by_scope[key] = tuple(self._flatten(values).values())
+                workflow_tools = tuple(resolve_workflow_tool(pool_id, entry, self._workflows.resolve)
+                    for pool_id, entry in workflow_scopes.get(node["id"], ()))
+                if {tool.name for tool in workflow_tools}.intersection(tool.name for tool in self._tools_by_scope[key]):
+                    _fail("duplicate_identity", ("document", "nodes", node["id"]),
+                        "A Workflow Tool shadows a selected Toolkit tool.")
+                self._workflow_tools_by_scope[key] = workflow_tools
                 self._metadata_by_scope[key] = (
                     tuple(section for toolkit in values for section in toolkit.prompt_sections),
                     tuple(skill for toolkit in values for skill in toolkit.skills))
@@ -332,6 +342,9 @@ class SkeletonProductionBindings:
 
     def tools_for_node(self, context):
         return self._tools_by_scope[self._scope(context)]
+
+    def workflow_tools_for_node(self, context):
+        return self._workflow_tools_by_scope[self._scope(context)]
 
     def tool_presentation(self, name):
         """Snapshot the identity of the actual resolved Tool, not a guessed owner."""
@@ -380,7 +393,9 @@ class SkeletonProductionBindings:
                 refs = ([node["config"]["workflow"]] if node["type"] == "workflow_call" else
                         [hook["workflow"] for hook in node["config"]["hooks"]
                          if hook.get("enabled") is not False]
-                        if node["type"] == "hooks_pool" else [])
+                        if node["type"] == "hooks_pool" else
+                        [entry["workflow"] for entry in node["config"].get("workflow_tools", [])]
+                        if node["type"] == "toolkit_pool" and "legacy_fields" not in node["config"] else [])
                 for ref in refs:
                     if ref.get('kind') == 'embedded':
                         visit(prepare_workflow(ref['document']).snapshot())
