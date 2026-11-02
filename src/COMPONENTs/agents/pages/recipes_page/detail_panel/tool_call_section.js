@@ -119,7 +119,7 @@ function LiteralField({ row, binding, onSet, editable, isDark, testid }) {
   );
 }
 
-function ArgumentRow({ row, sources, toolName, editable, onSet, isDark }) {
+export function ArgumentRow({ row, sources, toolName, editable, onSet, isDark }) {
   const binding = row.binding;
   const testid = `tool-call-argument-${row.name}`;
   const stored_mode = !binding ? null : binding.value && binding.value.kind === "literal" ? "value" : "variable";
@@ -286,7 +286,8 @@ export default function ToolCallSection({ document, node, isDark, onChange }) {
   const parameters = schema ? schema.parameters : null;
 
   const unique = Array.isArray(document && document.nodes) && document.nodes.filter((item) => item && item.id === node.id).length === 1;
-  const editable = unique && document.kind === "agent" && document.schema_version === 1 && typeof onChange === "function";
+  const editable = unique && (document.kind === "agent" || document.kind === "workflow") &&
+    document.schema_version === 1 && typeof onChange === "function";
   const commit = (next) => {
     if (editable && next !== document) onChange(next);
   };

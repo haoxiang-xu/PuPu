@@ -43,6 +43,19 @@ _SUBAGENT_WAIT_FIELDS = {
 _SUBAGENT_WAIT_V2_FIELDS = _SUBAGENT_WAIT_FIELDS | {"parent_tool_call"}
 
 
+class _PinnedHookWorkflowRunner:
+    """Read the same child's fixed input without running or creating that child."""
+
+    def __init__(self, execution):
+        self._execution = execution
+
+    def __call__(self, **kwargs):
+        return self._execution._run_hook_workflow(**kwargs)
+
+    def read_pinned_inputs(self, **kwargs):
+        return self._execution._read_hook_workflow_inputs(**kwargs)
+
+
 class PupuSkeletonAgentExecution:
     """One fixed graph attempt with scoped events and End-only chat delivery."""
 
@@ -163,7 +176,7 @@ class PupuSkeletonAgentExecution:
     def _kernel_handler_arguments(self, plan):
         arguments = dict(self._kernel_arguments)
         arguments["hook_runtime"] = self._hook_runtime_for(plan)
-        arguments["hook_workflow_runner"] = self._run_hook_workflow
+        arguments["hook_workflow_runner"] = _PinnedHookWorkflowRunner(self)
         arguments["hook_workflow_canceller"] = self._cancel_active_hook
         return arguments
 
@@ -239,16 +252,9 @@ class PupuSkeletonAgentExecution:
             handlers[kind] = clone(plan) if callable(clone) else handler
         return handlers
 
-    def _run_hook_workflow(self, *, binding, inputs, parent_context, parent_store,
-                           hook_resume=None):
-        """Execute one pinned non-LLM Hook as a scoped durable child graph.
-
-        The Context authority owns tool selection and parent approval.  This
-        adapter receives only the fixed Hook Workflow and its event input; a
-        Hook Workflow cannot gain the enclosing Hook Pool by this route.
-        """
+    def _hook_workflow_store(self, *, binding, inputs, parent_context, parent_store):
+        """One identity derivation for both read-only replay and child execution."""
         from unchain.skeleton.errors import SkeletonValidationError
-        from unchain.skeleton.workflow_runtime import SkeletonWorkflowCallRuntime
 
         if parent_store is None or parent_context is None:
             raise TypeError("Hook Workflow requires its parent execution scope")
@@ -299,6 +305,28 @@ class PupuSkeletonAgentExecution:
             graph_id=graph_id,
             attempt=attempt,
         )
+        return parent, store
+
+    def _read_hook_workflow_inputs(self, *, binding, inputs, parent_context, parent_store):
+        _parent, store = self._hook_workflow_store(binding=binding, inputs=inputs,
+            parent_context=parent_context, parent_store=parent_store)
+        record = store.load()
+        return None if record is None else deepcopy(store.read_json(record.state["inputs_ref"]))
+
+    def _run_hook_workflow(self, *, binding, inputs, parent_context, parent_store,
+                           hook_resume=None):
+        """Execute one pinned non-LLM Hook as a scoped durable child graph.
+
+        Fixed inputs are still checked by runner.create; read-only historical
+        selection never grants tool authority or retries a failed invocation.
+        """
+        from unchain.skeleton.errors import SkeletonValidationError
+        from unchain.skeleton.workflow_runtime import SkeletonWorkflowCallRuntime
+
+        parent, store = self._hook_workflow_store(binding=binding, inputs=inputs,
+            parent_context=parent_context, parent_store=parent_store)
+        hook, call_id = binding.hook, inputs["call_id"]
+        graph_id, attempt = store.graph_id, store.attempt
         handlers = self._handlers_for_child(store, binding.plan)
         handlers.pop("agent", None)
         handlers["workflow_call"] = SkeletonWorkflowCallRuntime(

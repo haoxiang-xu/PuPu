@@ -1183,6 +1183,13 @@ export const useChatStream = ({
 
   const streamHandlesRef = useRef(new Map());
   const executionIdentityByChatIdRef = useRef(new Map());
+  /* Interactions this run presented and the user has not answered, kept past
+     the end of a finite stream (a parked Skeleton graph ends its SSE while
+     its approval waits): chat -> {runGeneration, sessionId, attemptIds,
+     interactionIds}. A later lookup treats exactly these as the current run's,
+     not as a cold leftover; a new generation (Stop, a new send) makes it
+     stale by itself (#357 R-357-APP-01). */
+  const acceptedInteractionsByChatIdRef = useRef(new Map());
   const fallbackStreamingMessageStoreRef = useRef(null);
   if (!fallbackStreamingMessageStoreRef.current) {
     fallbackStreamingMessageStoreRef.current = createStreamingMessageStore();
@@ -1247,6 +1254,11 @@ export const useChatStream = ({
   const reattachingChatIdsRef = useRef(new Set());
   const runContextByChatIdRef = useRef(new Map());
   const humanInputSubmissionByChatIdRef = useRef(new Map());
+  /* A tool approval or denial whose POST has not answered yet: chat ->
+     {interactionId, sessionId, runGeneration}. Like a human-input
+     submission, it keeps its interaction out of passive recovery until the
+     reply decides (#357 R-357-APP-01a). */
+  const toolDecisionSubmissionByChatIdRef = useRef(new Map());
   const durableResumeStartedKeysRef = useRef(new Set());
   const durableResumeStartedKeysByChatIdRef = useRef(new Map());
   const durableResumeRetryTimersRef = useRef(new Map());
@@ -3180,6 +3192,74 @@ export const useChatStream = ({
     ],
   );
 
+  /* At the end of a finite stream: the interactions this run presented in it
+     and the user has not answered yet, with the run's exact identity. Only
+     requests carried by this run's stream under its own session count. */
+  const rememberAcceptedInteractions = useCallback(
+    (targetChatId, runGeneration, sessionId) => {
+      const normalizedChatId =
+        typeof targetChatId === "string" ? targetChatId.trim() : "";
+      const normalizedSessionId =
+        typeof sessionId === "string" ? sessionId.trim() : "";
+      acceptedInteractionsByChatIdRef.current.delete(normalizedChatId);
+      if (!normalizedChatId || !normalizedSessionId) return;
+      const identity = executionIdentityByChatIdRef.current.get(normalizedChatId);
+      if (
+        !identity ||
+        identity.runGeneration !== runGeneration ||
+        identity.sessionId !== normalizedSessionId
+      ) {
+        return;
+      }
+      const requests =
+        pendingToolConfirmationRequestsByChatIdRef.current[normalizedChatId] || {};
+      const uiStates =
+        toolConfirmationUiStateByChatIdRef.current[normalizedChatId] || {};
+      /* An answer still being posted stays this run's too, but only the
+         exact one the POST carries. */
+      const inFlight =
+        toolDecisionSubmissionByChatIdRef.current.get(normalizedChatId) || null;
+      const isInFlight = (interactionId) => Boolean(
+        inFlight &&
+          inFlight.interactionId === interactionId &&
+          inFlight.sessionId === normalizedSessionId &&
+          inFlight.runGeneration === runGeneration,
+      );
+      const interactionIds = new Set(
+        Object.keys(requests).filter((interactionId) => {
+          const request = requests[interactionId];
+          const ui = uiStates[interactionId] || {};
+          if (!request || request.sessionId !== normalizedSessionId) return false;
+          if (ui.status === "submitting") return isInFlight(interactionId);
+          return ui.resolved !== true && ui.status !== "submitted";
+        }),
+      );
+      const attemptIds = new Set(
+        [identity.attemptId, identity.sourceAttemptId]
+          .filter((value) => typeof value === "string")
+          .map((value) => value.trim())
+          .filter(Boolean),
+      );
+      if (interactionIds.size === 0 || attemptIds.size === 0) return;
+      acceptedInteractionsByChatIdRef.current.set(normalizedChatId, {
+        runGeneration,
+        sessionId: normalizedSessionId,
+        attemptIds,
+        interactionIds,
+      });
+      /* The card of an answer still being posted stays on screen, as
+         submitting, so it is neither lost nor clickable again. */
+      const keep = [...interactionIds].filter(isInFlight);
+      return keep.length === 0
+        ? null
+        : {
+            requests: Object.fromEntries(keep.map((id) => [id, requests[id]])),
+            uiStates: Object.fromEntries(keep.map((id) => [id, uiStates[id]])),
+          };
+    },
+    [],
+  );
+
   const requestTrackedExecutionCancellation = useCallback((options) => {
     const identity = normalizedExecutionIdentity(options.identity);
     if (!identity) return requestExecutionCancellationAndDisconnect(options);
@@ -3940,7 +4020,7 @@ export const useChatStream = ({
   );
 
   const continueFromRecordedReceipt = useCallback(
-    (targetChatId, sessionId, response, runGeneration, submittedHumanInputId = "") => {
+    (targetChatId, sessionId, response, runGeneration, submittedHumanInputId = "", submittedApprovalId = "") => {
       if (
         response?.disposition !== "receipt_recorded" ||
         !isRunGenerationCurrent(targetChatId, runGeneration)
@@ -3954,6 +4034,7 @@ export const useChatStream = ({
           runGeneration,
           authoritativeReceipt: response,
           submittedHumanInputId,
+          submittedApprovalId,
         });
       }
     },
@@ -4081,6 +4162,12 @@ export const useChatStream = ({
       if (humanInputSubmission) {
         humanInputSubmissionByChatIdRef.current.set(targetChatId, humanInputSubmission);
       }
+      const toolDecisionSubmission = toolName !== HUMAN_INPUT_TOOL_NAME
+        ? { interactionId: normalizedConfirmationId, sessionId, runGeneration }
+        : null;
+      if (toolDecisionSubmission) {
+        toolDecisionSubmissionByChatIdRef.current.set(targetChatId, toolDecisionSubmission);
+      }
 
       try {
         const payload = {
@@ -4101,6 +4188,9 @@ export const useChatStream = ({
         }
         if (response?.disposition !== "receipt_recorded" && humanInputSubmissionByChatIdRef.current.get(targetChatId) === humanInputSubmission) {
           humanInputSubmissionByChatIdRef.current.delete(targetChatId);
+        }
+        if (response?.disposition !== "receipt_recorded" && toolDecisionSubmissionByChatIdRef.current.get(targetChatId) === toolDecisionSubmission) {
+          toolDecisionSubmissionByChatIdRef.current.delete(targetChatId);
         }
         if (shouldCacheSessionDecision) {
           let allowedTools = sessionAutoApproveRef.current.get(targetChatId);
@@ -4142,10 +4232,16 @@ export const useChatStream = ({
           toolName === HUMAN_INPUT_TOOL_NAME && approved
             ? normalizedConfirmationId
             : "",
+          /* An approval or denial of a tool call; the lookup resumes only one
+             this run presented and the stream it rode has ended. */
+          toolName !== HUMAN_INPUT_TOOL_NAME ? normalizedConfirmationId : "",
         );
       } catch (error) {
         if (humanInputSubmissionByChatIdRef.current.get(targetChatId) === humanInputSubmission) {
           humanInputSubmissionByChatIdRef.current.delete(targetChatId);
+        }
+        if (toolDecisionSubmissionByChatIdRef.current.get(targetChatId) === toolDecisionSubmission) {
+          toolDecisionSubmissionByChatIdRef.current.delete(targetChatId);
         }
         if (!isRunGenerationCurrent(targetChatId, runGeneration)) {
           return;
@@ -8598,7 +8694,22 @@ export const useChatStream = ({
                 next.delete(targetChatId);
                 return next;
               });
+              const inFlightCards = rememberAcceptedInteractions(
+                targetChatId,
+                activeRunGeneration,
+                effectiveThreadId,
+              );
               clearAllPendingToolConfirmations(targetChatId);
+              if (inFlightCards) {
+                updatePendingToolConfirmationRequests(
+                  targetChatId,
+                  inFlightCards.requests,
+                );
+                updateToolConfirmationUiState(
+                  targetChatId,
+                  inFlightCards.uiStates,
+                );
+              }
               if (isDurableResume) {
                 const retryTimer = durableResumeRetryTimersRef.current.get(
                   targetChatId,
@@ -9891,6 +10002,7 @@ export const useChatStream = ({
         authoritativePending = null,
         authoritativeReceipt = null,
         submittedHumanInputId = "",
+        submittedApprovalId = "",
         speculative = false,
       } = {},
     ) => {
@@ -10033,13 +10145,47 @@ export const useChatStream = ({
             ].some((attemptId) => pendingAttemptIds.has(attemptId)),
         );
 
+        /* Presented by this run and still unanswered when its finite stream
+           ended: the run's, not a cold leftover, with every identity exact.
+           Nothing here reads the composer's current choice. */
+        const accepted =
+          acceptedInteractionsByChatIdRef.current.get(normalizedChatId) || null;
+        const pendingAcceptedByCurrentRun = Boolean(
+          !pendingOwnedByLiveExecution &&
+            accepted &&
+            accepted.runGeneration === activeRunGeneration &&
+            accepted.sessionId === pending.sessionId &&
+            accepted.interactionIds.has(pending.interactionId) &&
+            [...accepted.attemptIds].some((attemptId) =>
+              pendingAttemptIds.has(attemptId),
+            ),
+        );
+        const pendingOwnedByCurrentRun =
+          pendingOwnedByLiveExecution || pendingAcceptedByCurrentRun;
+        /* The user's own answer to that approval resumes the parked run, as an
+           explicit human-input answer does. */
+        const resolutionOutcomeForResume = pending.resolution?.outcome;
+        const acceptedApprovalSubmission = Boolean(
+          pendingAcceptedByCurrentRun &&
+            hasAuthoritativeRecordedReceipt &&
+            submittedApprovalId &&
+            submittedApprovalId === pending.interactionId &&
+            pending.kind !== "human_input" &&
+            (resolutionOutcomeForResume === "approved" ||
+              resolutionOutcomeForResume === "denied"),
+        );
+
         // A passive lookup may race the POST that is recording this answer.
         // Leave the current submission in charge until its receipt starts resume.
-        const activeSubmission = humanInputSubmissionByChatIdRef.current.get(normalizedChatId);
-        if (!authoritativeReceipt && activeSubmission &&
+        const inFlightSubmissions = [
+          humanInputSubmissionByChatIdRef.current.get(normalizedChatId),
+          toolDecisionSubmissionByChatIdRef.current.get(normalizedChatId),
+        ];
+        if (!authoritativeReceipt && inFlightSubmissions.some((activeSubmission) =>
+            activeSubmission &&
             activeSubmission.runGeneration === activeRunGeneration &&
             activeSubmission.sessionId === pending.sessionId &&
-            activeSubmission.interactionId === pending.interactionId) {
+            activeSubmission.interactionId === pending.interactionId)) {
           return pending;
         }
 
@@ -10175,7 +10321,7 @@ export const useChatStream = ({
 
         const keepPendingActionable =
           pending.status !== "receipt_recorded" &&
-          pendingOwnedByLiveExecution;
+          pendingOwnedByCurrentRun;
         const resolutionOutcome = pending.resolution?.outcome;
         const recoveredDecision =
           resolutionOutcome === "approved" ||
@@ -10230,7 +10376,7 @@ export const useChatStream = ({
            live, observing a durable receipt alone must not resume it. Only
            an identity-matched explicit human-input submission may do so. */
         if (
-          !hasAuthoritativeRecordedReceipt && pendingOwnedByLiveExecution
+          !hasAuthoritativeRecordedReceipt && pendingOwnedByCurrentRun
         ) {
           return pendingWithOwner;
         }
@@ -10269,12 +10415,13 @@ export const useChatStream = ({
             feedbackAcknowledged: true,
           });
 
-          if (submittedHumanInputId) {
+          if (submittedHumanInputId || acceptedApprovalSubmission) {
             if (
-              !hasAuthoritativeRecordedReceipt ||
+              submittedHumanInputId &&
+              (!hasAuthoritativeRecordedReceipt ||
               submittedHumanInputId !== pending.interactionId ||
               pending.kind !== "human_input" ||
-              pending.resolution?.outcome !== "submitted"
+              pending.resolution?.outcome !== "submitted")
             ) {
               const error = new Error("The submitted answer does not match the suspended interaction.");
               error.code = "durable_interaction_receipt_identity_mismatch";
@@ -10319,6 +10466,9 @@ export const useChatStream = ({
               }
             }
             if (!started) return null;
+            if (acceptedApprovalSubmission) {
+              acceptedInteractionsByChatIdRef.current.delete(normalizedChatId);
+            }
             return pendingWithOwner;
           }
         }

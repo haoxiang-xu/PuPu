@@ -1,11 +1,13 @@
 import { fireEvent, screen } from "@testing-library/react";
 
-/* Test-only controls for the delivered dev canvas. Its selectable node is a
- * click target; the later frozen shell's mouse-down handler is not on dev. */
+/* The real editor opens a node on release, after ruling out a drag. Send the
+ * complete pointer sequence; click also serves lightweight drawing probes. */
 
 export function pressCanvasNode(nodeOrId) {
   const element =
     typeof nodeOrId === "string" ? screen.getByTestId(`skeleton-node-${nodeOrId}`) : nodeOrId;
+  fireEvent.mouseDown(element, { button: 0, clientX: 100, clientY: 100 });
+  fireEvent.mouseUp(window, { button: 0, clientX: 100, clientY: 100 });
   fireEvent.click(element);
 }
 

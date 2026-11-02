@@ -21,6 +21,8 @@ from skeleton_workflow_snapshot import (FrozenSkeletonWorkflowDependencies,
 _QUERY_SCHEMA = "pupu.skeleton_credential_query.v1"
 _RESULT_SCHEMA = "pupu.skeleton_credential_requirements.v1"
 _SCOPE_SCHEMA = "pupu.skeleton_credential_scope.v1"
+_RESULT_SCHEMA_V2 = "pupu.skeleton_credential_requirements.v2"
+_SCOPE_SCHEMA_V2 = "pupu.skeleton_credential_scope.v2"
 _QUERY_FIELDS = frozenset({"schema", "mode", "session_id", "owner_chat_id",
     "interaction_id", "source_attempt_id", "selection", "recipe_name", "memory_agent_config"})
 _SCOPE_FIELDS = frozenset({"schema", "mode", "session_id", "owner_chat_id",
@@ -93,6 +95,9 @@ def _fixed(selection, workflows):
     restored = _restore_workflows(selection, workflows.to_dict())
     if restored.snapshot_digest != workflows.snapshot_digest:
         _fail(path=("workflows",))
+    if selection.code_sources is not None:
+        from skeleton_code_closure import FrozenSkeletonCodeClosure
+        FrozenSkeletonCodeClosure.restore(selection.code_sources, selection, workflows)
     return selected
 
 
@@ -167,12 +172,14 @@ def requirements_from_frozen(selection, workflows, *, mode, session_id, owner_ch
     if mode == "resume":
         source_attempt_id, launch_digest = _launch_scope(launch, selection, workflows,
             session_id=session_id, owner_chat_id=owner_chat_id, source_attempt_id=source_attempt_id)
-    scope = {"schema": _SCOPE_SCHEMA, "mode": mode, "session_id": session_id,
+    source_aware = selection.code_sources is not None
+    scope = {"schema": _SCOPE_SCHEMA_V2 if source_aware else _SCOPE_SCHEMA, "mode": mode, "session_id": session_id,
         "owner_chat_id": owner_chat_id, "interaction_id": interaction_id,
         "source_attempt_id": source_attempt_id, "selection_digest": selection.snapshot_digest,
         "workflows_digest": workflows.snapshot_digest, "launch_digest": launch_digest,
         "memory_provider": memory_provider}
-    return {"schema": _RESULT_SCHEMA, "kind": "skeleton", "scope": scope, "profiles": profiles}
+    return {"schema": _RESULT_SCHEMA_V2 if source_aware else _RESULT_SCHEMA,
+        "kind": "skeleton", "scope": scope, "profiles": profiles}
 
 
 @_safe_boundary
@@ -208,7 +215,8 @@ def requirements_for_resume(query, *, memory_provider, pending_resolver=None):
 
 def _checked_scope(value):
     path = ("options", "skeleton_credential_scope")
-    if type(value) is not dict or set(value) != _SCOPE_FIELDS or value.get("schema") != _SCOPE_SCHEMA:
+    if (type(value) is not dict or set(value) != _SCOPE_FIELDS
+            or value.get("schema") not in (_SCOPE_SCHEMA, _SCOPE_SCHEMA_V2)):
         _fail("skeleton_credential_scope_invalid", path)
     if value["mode"] not in ("start", "resume"):
         _fail("skeleton_credential_scope_invalid", path)
@@ -233,6 +241,8 @@ def assert_credential_scope(options, selection, workflows, *, mode, session_id, 
     if type(options) is not dict:
         _fail("skeleton_credential_scope_invalid", ("options",))
     if "skeleton_credential_scope" not in options:
+        if selection.code_sources is not None:
+            _fail("skeleton_credential_scope_invalid", ("options", "skeleton_credential_scope"))
         return
     issued = _checked_scope(options["skeleton_credential_scope"])
     memory_config = options.get("_memory_v2_memory_agent_config")

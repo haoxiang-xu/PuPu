@@ -105,3 +105,47 @@ describe("Skill Read", () => {
     ]);
   });
 });
+
+/* Code (#357), measured the same way (code-01/out/code-store-capture.json,
+ * "seed"): the seed `code {execution: {inputs: [], outputs: []}}` saves, its
+ * draft check says nothing and preflight passes it — the runtime admits
+ * `config.code` only when it is present — so it fails at run start. Nothing
+ * is chosen for the author: no runtime, no source, no limit, no schema. */
+describe("Code", () => {
+  test("is addable, after the two deterministic steps", () => {
+    expect(ADDABLE_NODE_TYPES).toContain("code");
+    expect(ADDABLE_NODE_TYPES.indexOf("code")).toBeGreaterThan(ADDABLE_NODE_TYPES.indexOf("skill_read"));
+  });
+
+  test("a new Code node carries exactly the measured seed and nothing invented", () => {
+    const added = ok(add_node(seed(), { type: "code" }));
+    expect(added.nodes.at(-1)).toStrictEqual({ id: "code", type: "code", config: { execution: { inputs: [], outputs: [] } } });
+    expect(ok(add_node(added, { type: "code" })).nodes.at(-1).id).toBe("code-2");
+  });
+
+  test("it is an ordinary flow step between Start and an Agent, with no outlet but `out`", () => {
+    const added = ok(add_node(seed(), { type: "code" }));
+    expect(flow_outlets(added.nodes.at(-1))).toStrictEqual({ ok: true, outlets: ["out"], problem: null });
+    const unwired = { ...added, edges: added.edges.filter((edge) => edge.source_node_id !== "start") };
+    const wired = ok(connect_nodes(ok(connect_nodes(unwired, flow("start", "code"))), flow("code", "agent")));
+    expect(wired.edges.filter((edge) => edge.kind === "flow").map((edge) => `${edge.source_node_id}>${edge.target_node_id}`))
+      .toEqual(expect.arrayContaining(["start>code", "code>agent"]));
+    expect(connect_nodes(wired, { ...flow("code", "agent"), source_port_id: "true" }).ok).toBe(false);
+    const withPool = ok(add_node(wired, { type: "toolkit_pool" }));
+    expect(connect_nodes(withPool, {
+      kind: "attach", source_node_id: "tools", source_port_id: "attach_top", target_node_id: "code", target_port_id: "attach_bot",
+    }).ok).toBe(false);
+  });
+
+  test("the native palette offers it for both graph kinds, with the step ports", () => {
+    expect(NATIVE_PALETTE_ENTRIES.find((item) => item.type === "code")).toMatchObject({
+      type: "code", label: "Code", group: "steps", icon: "code", graph_kinds: ["agent", "workflow"],
+    });
+    /* Level with the header, not centred: the node grows below it. */
+    expect(native_step_ports("code")).toStrictEqual([
+      { id: "in", side: "left", kind: "in", anchor: 27 },
+      { id: "out", side: "right", kind: "out", anchor: 27 },
+    ]);
+    expect(native_step_ports("tool_call")[0]).not.toHaveProperty("anchor");
+  });
+});

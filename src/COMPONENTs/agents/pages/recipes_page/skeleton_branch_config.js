@@ -388,7 +388,7 @@ export function move_case(cases, from, to) {
 }
 
 function editable_branch(document, node_id) {
-  if (!is_record(document) || document.kind !== "agent" || document.schema_version !== 1 ||
+  if (!is_record(document) || (document.kind !== "agent" && document.kind !== "workflow") || document.schema_version !== 1 ||
       !Array.isArray(document.nodes) || !Array.isArray(document.edges)) return null;
   const node = unique_node(document, node_id);
   if (!node || !is_branch_type(node.type) || !is_record(node.config) || !is_record(node.config.execution)) return null;

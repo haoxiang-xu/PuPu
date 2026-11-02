@@ -396,19 +396,21 @@ describe("a result root the producer does not have", () => {
     expect(screen.queryByTestId("output-row-0-problem-0")).not.toBeInTheDocument();
   });
 
-  test("a Code node's result is not second-guessed", () => {
+  test("a Code node's result is not second-guessed until its Result is declared (#357)", () => {
     show(node("code", { outputs: [mapping("a", "result", ["anything"])] }));
     expect(screen.queryByTestId("output-row-0-problem-0")).not.toBeInTheDocument();
     expect(screen.getByTestId("output-row-0-result-unknown").textContent).toMatch(
-      /whatever its own source returns/i,
+      /declare the fields main\(\) returns in result/i,
     );
   });
 
-  test("a called Workflow's result is not second-guessed, and says why", () => {
+  test("a called Workflow's result is not second-guessed before a revision is pinned, and says why", () => {
+    /* #357: once a pinned revision has been read its End's exports are the
+       closed list (workflow_call_config.test.js); with none pinned, a reason. */
     show(node("workflow_call", { outputs: [mapping("a", "result", ["whatever"])] }));
     expect(screen.queryByTestId("output-row-0-problem-0")).not.toBeInTheDocument();
     expect(screen.getByTestId("output-row-0-result-unknown").textContent).toMatch(
-      /declared in its own document/i,
+      /pin a published workflow revision/i,
     );
   });
 

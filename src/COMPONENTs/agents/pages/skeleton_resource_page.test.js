@@ -1,4 +1,6 @@
 import React from "react";
+import { pressCanvasNode, openAddNode, openRunMenu } from "./recipes_page/skeleton_canvas_test_helpers";
+import { install_legacy_store_bridge } from "./recipes_page/legacy_store_test_bridge";
 import { render, screen, fireEvent, waitFor, act, within } from "@testing-library/react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import SkeletonResourcePage from "./skeleton_resource_page";
@@ -10,6 +12,8 @@ import {
 } from "./recipes_page/skeleton_resource_capture";
 
 jest.mock("../../../SERVICEs/api", () => ({ api: { unchain: {} } }));
+/* The editor speaks v2 only (#357 G1); these mocks are graph-only. */
+install_legacy_store_bridge(api.unchain);
 
 const cfg = { theme: {}, onThemeMode: "light_mode" };
 
@@ -58,7 +62,7 @@ describe("opening a resource through the real facade", () => {
   test("it asks the store by the method the bridge exposes", async () => {
     api.unchain.getSkeletonResource = jest.fn().mockResolvedValue(result({ document: doc(), edit_token: "t1" }));
     show();
-    await waitFor(() => expect(screen.getByTestId("skeleton-node-list")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId("skeleton-canvas")).toBeInTheDocument());
     expect(api.unchain.getSkeletonResource).toHaveBeenCalledWith("life");
   });
 
@@ -66,7 +70,7 @@ describe("opening a resource through the real facade", () => {
     api.unchain.getSkeletonResource = jest.fn().mockResolvedValue(result({ document: doc(), edit_token: "t1" }));
     show();
     await waitFor(() => expect(screen.getByTestId("skeleton-node-end")).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId("skeleton-node-end"));
+    pressCanvasNode(screen.getByTestId("skeleton-node-end"));
     expect(screen.getByText("Input Variables")).toBeInTheDocument();
   });
 
@@ -96,7 +100,7 @@ describe("edit and save at the token it was opened at", () => {
       .mockResolvedValue(result({ document: doc("renamed"), edit_token: "t2" }));
     show();
     await waitFor(() => expect(screen.getByTestId("skeleton-node-end")).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId("skeleton-node-end"));
+    pressCanvasNode(screen.getByTestId("skeleton-node-end"));
   };
 
   test("adding an input marks it unsaved and enables Save", async () => {
@@ -133,7 +137,7 @@ describe("another editor got there first", () => {
 
     show();
     await waitFor(() => expect(screen.getByTestId("skeleton-node-end")).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId("skeleton-node-end"));
+    pressCanvasNode(screen.getByTestId("skeleton-node-end"));
     fireEvent.click(screen.getByText("+ Add input"));
     await act(async () => {
       fireEvent.click(screen.getByText("Save").closest("button"));
@@ -166,10 +170,10 @@ describe("the run check, in the page", () => {
 
     show();
     await waitFor(() => expect(screen.getByTestId("skeleton-node-end")).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId("skeleton-node-end"));
+    pressCanvasNode(screen.getByTestId("skeleton-node-end"));
 
     act(() => {
-      fireEvent.click(screen.getByText("Check it can run").closest("button"));
+      openRunMenu();
     });
     fireEvent.click(screen.getByText("+ Add input"));
 
@@ -190,7 +194,7 @@ describe("the run check, in the page", () => {
     show();
     await waitFor(() => expect(screen.getByTestId("skeleton-node-end")).toBeInTheDocument());
     await act(async () => {
-      fireEvent.click(screen.getByText("Check it can run").closest("button"));
+      openRunMenu();
     });
     expect(screen.getByTestId("skeleton-preflight-state").textContent).toMatch(/not ready to run/i);
   });
@@ -218,7 +222,7 @@ describe("typing after choosing to take theirs, in the page", () => {
 
     show();
     await waitFor(() => expect(screen.getByTestId("skeleton-node-end")).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId("skeleton-node-end"));
+    pressCanvasNode(screen.getByTestId("skeleton-node-end"));
     /* One row to start with, then a second, then save into a conflict. */
     fireEvent.click(screen.getByText("+ Add input"));
     await act(async () => {
@@ -254,7 +258,7 @@ describe("typing after choosing to take theirs, in the page", () => {
 
     show();
     await waitFor(() => expect(screen.getByTestId("skeleton-node-end")).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId("skeleton-node-end"));
+    pressCanvasNode(screen.getByTestId("skeleton-node-end"));
     fireEvent.click(screen.getByText("+ Add input"));
     await act(async () => {
       fireEvent.click(screen.getByText("Save").closest("button"));
@@ -289,7 +293,7 @@ describe("editing an output on the real page", () => {
     await waitFor(() =>
       expect(screen.getByTestId("skeleton-node-end")).toBeInTheDocument(),
     );
-    fireEvent.click(screen.getByTestId("skeleton-node-end"));
+    pressCanvasNode(screen.getByTestId("skeleton-node-end"));
   };
 
   test("the End has an outputs section and it starts empty", async () => {
@@ -357,7 +361,7 @@ describe("editing an output on the real page", () => {
 
   test("a Start's output is editable too, on its result side", async () => {
     await open_end();
-    fireEvent.click(screen.getByTestId("skeleton-node-start"));
+    pressCanvasNode(screen.getByTestId("skeleton-node-start"));
     expect(screen.getByTestId("output-row-0")).toBeInTheDocument();
     expect(screen.getByTestId("output-row-0-fixed-kind").textContent).toMatch(
       /what the run was called with/i,
@@ -366,7 +370,7 @@ describe("editing an output on the real page", () => {
 
   test("an output the author removes is gone from what is sent", async () => {
     await open_end();
-    fireEvent.click(screen.getByTestId("skeleton-node-start"));
+    pressCanvasNode(screen.getByTestId("skeleton-node-start"));
     fireEvent.click(screen.getByLabelText("Remove text"));
     await act(async () => {
       fireEvent.click(screen.getByText("Save").closest("button"));
@@ -388,7 +392,7 @@ describe("the whole-value and result-root choices on the real page", () => {
     await waitFor(() =>
       expect(screen.getByTestId("skeleton-node-end")).toBeInTheDocument(),
     );
-    fireEvent.click(screen.getByTestId("skeleton-node-end"));
+    pressCanvasNode(screen.getByTestId("skeleton-node-end"));
   };
 
   test("a saved empty input path is not shown as nothing chosen", async () => {
@@ -405,7 +409,7 @@ describe("the whole-value and result-root choices on the real page", () => {
     await waitFor(() =>
       expect(screen.getByTestId("skeleton-node-end")).toBeInTheDocument(),
     );
-    fireEvent.click(screen.getByTestId("skeleton-node-end"));
+    pressCanvasNode(screen.getByTestId("skeleton-node-end"));
     expect(screen.getByTestId("output-row-0")).toBeInTheDocument();
     expect(screen.getByTestId("output-row-0").textContent).toMatch(
       /Everything it was given/i,
@@ -427,7 +431,7 @@ describe("the whole-value and result-root choices on the real page", () => {
     await waitFor(() =>
       expect(screen.getByTestId("skeleton-node-end")).toBeInTheDocument(),
     );
-    fireEvent.click(screen.getByTestId("skeleton-node-end"));
+    pressCanvasNode(screen.getByTestId("skeleton-node-end"));
     expect(screen.getByTestId("output-row-0-unreadable")).toBeInTheDocument();
     expect(screen.getByTestId("skeleton-save-state")).toBeInTheDocument();
   });
@@ -442,7 +446,7 @@ describe("the whole-value and result-root choices on the real page", () => {
     await waitFor(() =>
       expect(screen.getByTestId("skeleton-node-end")).toBeInTheDocument(),
     );
-    fireEvent.click(screen.getByTestId("skeleton-node-end"));
+    pressCanvasNode(screen.getByTestId("skeleton-node-end"));
   };
 
   test("a named first step offers deeper steps", async () => {
@@ -459,7 +463,7 @@ describe("the whole-value and result-root choices on the real page", () => {
 
   test("a result naming a field the producer does not have is said on the row", async () => {
     await open_end();
-    fireEvent.click(screen.getByTestId("skeleton-node-start"));
+    pressCanvasNode(screen.getByTestId("skeleton-node-start"));
     /* A Start's result is the caller's, so nothing is claimed about it. */
     expect(screen.getByTestId("output-row-0-result-unknown")).toBeInTheDocument();
     expect(screen.queryByTestId("output-row-0-problem-0")).not.toBeInTheDocument();
@@ -560,7 +564,7 @@ describe("taking their version, with something unstored on screen", () => {
       expect(screen.getByTestId("skeleton-node-brain")).toBeInTheDocument(),
     );
     await act(async () => {
-      fireEvent.click(screen.getByTestId("skeleton-node-brain"));
+      pressCanvasNode(screen.getByTestId("skeleton-node-brain"));
     });
 
     fireEvent.change(screen.getByPlaceholderText("what this Agent is for"), {
@@ -623,7 +627,7 @@ describe("taking their version, with something unstored on screen", () => {
       expect(screen.getByTestId("skeleton-node-brain")).toBeInTheDocument(),
     );
     await act(async () => {
-      fireEvent.click(screen.getByTestId("skeleton-node-brain"));
+      pressCanvasNode(screen.getByTestId("skeleton-node-brain"));
     });
 
     /* Something to save, so the store is asked at all. */
@@ -738,7 +742,7 @@ describe("a legacy inline subagent, converted on the real page", () => {
       .mockResolvedValue(result({ document, edit_token: "edit-1" }));
     show();
     await waitFor(() => expect(screen.getByTestId("skeleton-node-pool")).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId("skeleton-node-pool"));
+    pressCanvasNode(screen.getByTestId("skeleton-node-pool"));
     await act(async () => {});
   };
 
@@ -769,7 +773,7 @@ describe("a legacy inline subagent, converted on the real page", () => {
       .fn()
       .mockResolvedValue({ ok: true, definition_digest: "sha256:abc" });
     await act(async () => {
-      fireEvent.click(screen.getByText("Check it can run"));
+      openRunMenu();
     });
     /* This Agent's node carries its own Kernel and its pool is attached to
        that node, so the check is answerable out of the document alone. */
@@ -878,7 +882,7 @@ describe("drilling into a subagent's own graph", () => {
       </ConfigContext.Provider>,
     );
     await waitFor(() => expect(screen.getByTestId("skeleton-node-pool")).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId("skeleton-node-pool"));
+    pressCanvasNode(screen.getByTestId("skeleton-node-pool"));
     await act(async () => {});
   };
 
@@ -920,11 +924,11 @@ describe("drilling into a subagent's own graph", () => {
     await open_parent();
     api.unchain.saveSkeletonResource = jest.fn();
     /* An edit to the parent, left unsaved. */
-    fireEvent.click(screen.getByTestId("skeleton-node-end"));
+    pressCanvasNode(screen.getByTestId("skeleton-node-end"));
     fireEvent.click(screen.getByText("+ Add input"));
     expect(screen.getByTestId("skeleton-save-state").textContent).toMatch(/unsaved/i);
 
-    fireEvent.click(screen.getByTestId("skeleton-node-pool"));
+    pressCanvasNode(screen.getByTestId("skeleton-node-pool"));
     await act(async () => {
       fireEvent.click(screen.getByLabelText("Open Summarizer"));
     });
@@ -939,7 +943,7 @@ describe("drilling into a subagent's own graph", () => {
     expect(screen.getByTestId("skeleton-node-pool")).toBeInTheDocument();
     expect(screen.getByTestId("skeleton-save-state").textContent).toMatch(/unsaved/i);
     /* The selection comes back with it. */
-    fireEvent.click(screen.getByTestId("skeleton-node-end"));
+    pressCanvasNode(screen.getByTestId("skeleton-node-end"));
     expect(screen.getByTestId("binding-row-0")).toBeInTheDocument();
     expect(screen.queryByTestId("binding-row-1")).toBeNull();
     expect(api.unchain.saveSkeletonResource).not.toHaveBeenCalled();
@@ -979,7 +983,7 @@ describe("drilling into a subagent's own graph", () => {
     await act(async () => {
       fireEvent.click(screen.getByLabelText("Open Summarizer"));
     });
-    fireEvent.click(screen.getByTestId("skeleton-node-sum-end"));
+    pressCanvasNode(screen.getByTestId("skeleton-node-sum-end"));
     fireEvent.click(screen.getByText("+ Add input"));
     await act(async () => {
       fireEvent.click(screen.getByText("Save").closest("button"));
@@ -1012,7 +1016,7 @@ describe("drilling into a subagent's own graph", () => {
     expect(note).toMatch(/pools reference are only read then/i);
     expect(note).not.toMatch(/does not look inside/i);
 
-    fireEvent.click(screen.getByTestId("skeleton-node-inner-end"));
+    pressCanvasNode(screen.getByTestId("skeleton-node-inner-end"));
     fireEvent.click(screen.getByText("+ Add input"));
     await act(async () => {
       fireEvent.click(screen.getByText("Save").closest("button"));
@@ -1042,13 +1046,13 @@ describe("drilling into a subagent's own graph", () => {
         },
       ],
     });
-    fireEvent.click(screen.getByTestId("skeleton-node-a1"));
+    pressCanvasNode(screen.getByTestId("skeleton-node-a1"));
     expect(screen.getByTestId("skeleton-diagnostics-notice")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId("skeleton-node-pool"));
+    pressCanvasNode(screen.getByTestId("skeleton-node-pool"));
     fireEvent.click(screen.getByLabelText("Open Shortener"));
     await act(async () => {});
-    fireEvent.click(screen.getByTestId("skeleton-node-inner-end"));
+    pressCanvasNode(screen.getByTestId("skeleton-node-inner-end"));
     expect(screen.queryByTestId("skeleton-diagnostics-notice")).toBeNull();
     expect(screen.queryByTestId("skeleton-elsewhere-notice")).toBeNull();
   });
@@ -1110,7 +1114,7 @@ describe("drilling into a subagent's own graph", () => {
     });
     fireEvent.click(screen.getByLabelText("Open Shortener"));
     await act(async () => {});
-    fireEvent.click(screen.getByTestId("skeleton-node-inner-pool"));
+    pressCanvasNode(screen.getByTestId("skeleton-node-inner-pool"));
     fireEvent.click(screen.getByLabelText("Open Deepest"));
     await act(async () => {});
     expect(crumbs()).toBe(
@@ -1135,10 +1139,10 @@ describe("drilling into a subagent's own graph", () => {
     api.unchain.saveSkeletonResource = jest.fn(
       () => new Promise((resolve) => { land = resolve; }),
     );
-    fireEvent.click(screen.getByTestId("skeleton-node-end"));
+    pressCanvasNode(screen.getByTestId("skeleton-node-end"));
     fireEvent.click(screen.getByText("+ Add input"));
     fireEvent.click(screen.getByText("Save").closest("button"));
-    fireEvent.click(screen.getByTestId("skeleton-node-pool"));
+    pressCanvasNode(screen.getByTestId("skeleton-node-pool"));
     await act(async () => {
       fireEvent.click(screen.getByLabelText("Open Summarizer"));
     });
@@ -1175,7 +1179,7 @@ describe("drilling into a subagent's own graph", () => {
     api.unchain.saveSkeletonResource = jest
       .fn()
       .mockResolvedValue({ error: { code: "edit_conflict", message: "stale token" } });
-    fireEvent.click(screen.getByTestId("skeleton-node-inner-end"));
+    pressCanvasNode(screen.getByTestId("skeleton-node-inner-end"));
     fireEvent.click(screen.getByText("+ Add input"));
     await act(async () => {
       fireEvent.click(screen.getByText("Save").closest("button"));
@@ -1244,7 +1248,7 @@ describe("drilling into a subagent's own graph", () => {
     );
     const view = render(page("life"));
     await waitFor(() => expect(screen.getByTestId("skeleton-node-pool")).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId("skeleton-node-pool"));
+    pressCanvasNode(screen.getByTestId("skeleton-node-pool"));
     await act(async () => {});
     fireEvent.click(screen.getByLabelText("Open Summarizer"));
 
@@ -1252,7 +1256,7 @@ describe("drilling into a subagent's own graph", () => {
        it. */
     view.rerender(page("other"));
     await waitFor(() => expect(screen.getByTestId("skeleton-node-elsewhere")).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId("skeleton-node-end"));
+    pressCanvasNode(screen.getByTestId("skeleton-node-end"));
     fireEvent.click(screen.getByText("+ Add input"));
     expect(screen.getByTestId("skeleton-save-state").textContent).toMatch(/unsaved/i);
 
@@ -1278,9 +1282,9 @@ describe("drilling into a subagent's own graph", () => {
     api.unchain.saveSkeletonResource = jest.fn(
       () => new Promise((resolve) => { land_save = resolve; }),
     );
-    fireEvent.click(screen.getByTestId("skeleton-node-end"));
+    pressCanvasNode(screen.getByTestId("skeleton-node-end"));
     fireEvent.click(screen.getByText("+ Add input"));
-    fireEvent.click(screen.getByTestId("skeleton-node-pool"));
+    pressCanvasNode(screen.getByTestId("skeleton-node-pool"));
     /* Open, then Save before the read lands: the limit on the button cannot
        see this one, because nothing was being written when it was clicked. */
     fireEvent.click(screen.getByLabelText("Open Summarizer"));

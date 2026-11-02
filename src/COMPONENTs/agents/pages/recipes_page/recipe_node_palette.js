@@ -48,10 +48,17 @@ export default function RecipeNodePalette({
      catalog's (the native canvas adds the branch steps). Absent, the palette
      searches the legacy catalog exactly as before. */
   entries,
+  /* "find" lists the nodes already on the canvas instead of node types to
+     add: each entry carries its node's `key`, which is what a pick hands
+     back, and there is nothing to group or to exclude. The same box, so
+     finding a node by name reads like adding one. */
+  mode = "add",
   onPick,
   onClose,
   isDark,
 }) {
+  const finding = mode === "find";
+  const pick_value = (entry) => (finding ? entry.key : entry.type);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const inputRef = useRef(null);
@@ -64,8 +71,8 @@ export default function RecipeNodePalette({
     return flowOnly ? found.filter((e) => is_flow_step_type(e.type)) : found;
   }, [visible, query, graphKind, flowOnly, allowedTypes, entries]);
   const excluded = useMemo(
-    () => (visible ? excluded_nodes(graphKind) : []),
-    [visible, graphKind],
+    () => (visible && !finding ? excluded_nodes(graphKind) : []),
+    [visible, graphKind, finding],
   );
 
   useEffect(() => {
@@ -102,7 +109,7 @@ export default function RecipeNodePalette({
       if (e.key === "Enter") {
         e.preventDefault();
         const entry = results[active];
-        if (entry) onPick?.(entry.type);
+        if (entry) onPick?.(finding ? entry.key : entry.type);
       }
     };
     const onMouseDown = (e) => {
@@ -114,7 +121,7 @@ export default function RecipeNodePalette({
       document.removeEventListener("keydown", onKey);
       document.removeEventListener("mousedown", onMouseDown);
     };
-  }, [visible, results, active, onPick, onClose]);
+  }, [visible, results, active, onPick, onClose, finding]);
 
   if (!visible) return null;
 
@@ -126,10 +133,12 @@ export default function RecipeNodePalette({
   const left = Math.min(x, window.innerWidth - PALETTE_W - 8);
   const top = Math.min(y, window.innerHeight - MAX_H - 8);
 
-  const grouped = NODE_GROUPS.map((group) => ({
-    group,
-    entries: results.filter((entry) => entry.group === group),
-  })).filter((g) => g.entries.length > 0);
+  const grouped = finding
+    ? results.length > 0 ? [{ group: null, entries: results }] : []
+    : NODE_GROUPS.map((group) => ({
+        group,
+        entries: results.filter((entry) => entry.group === group),
+      })).filter((g) => g.entries.length > 0);
 
   let index = -1;
 
@@ -176,8 +185,8 @@ export default function RecipeNodePalette({
           ref={inputRef}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search nodes"
-          aria-label="Search nodes"
+          placeholder={finding ? "Find a node" : "Search nodes"}
+          aria-label={finding ? "Find a node" : "Search nodes"}
           style={{
             flex: 1,
             minWidth: 0,
@@ -194,7 +203,9 @@ export default function RecipeNodePalette({
       <div style={{ overflowY: "auto", padding: 4, flex: 1 }}>
         {grouped.length === 0 ? (
           <div style={{ padding: "14px 12px", fontSize: 11.5, lineHeight: 1.5, color: muted }}>
-            {flowOnly ? (
+            {finding ? (
+              <>{query.trim() ? `No node matches “${query}”.` : "This graph has no nodes."}</>
+            ) : flowOnly ? (
               <>
                 {query.trim()
                   ? `No node matches “${query}”. `
@@ -214,8 +225,8 @@ export default function RecipeNodePalette({
           </div>
         ) : (
           grouped.map(({ group, entries }) => (
-            <div key={group}>
-              <div
+            <div key={group || "found"}>
+              {group && <div
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -236,18 +247,18 @@ export default function RecipeNodePalette({
                   />
                 )}
                 {NODE_GROUP_LABELS[group] || group}
-              </div>
+              </div>}
               {entries.map((entry) => {
                 index += 1;
                 const i = index;
                 return (
                   <div
-                    key={entry.type}
+                    key={pick_value(entry)}
                     role="button"
                     tabIndex={-1}
-                    data-testid={`palette-entry-${entry.type}`}
+                    data-testid={finding ? `palette-node-${entry.key}` : `palette-entry-${entry.type}`}
                     onMouseEnter={() => setActive(i)}
-                    onClick={() => onPick?.(entry.type)}
+                    onClick={() => onPick?.(pick_value(entry))}
                     style={{
                       display: "flex",
                       alignItems: "center",
@@ -308,7 +319,11 @@ export default function RecipeNodePalette({
           flexShrink: 0,
         }}
       >
-        <span>{flowOnly ? "Wired in where you right-clicked" : "Added where you right-clicked"}</span>
+        <span>
+          {finding
+            ? "Opens it and centers it on the canvas"
+            : flowOnly ? "Wired in where you right-clicked" : "Added where you right-clicked"}
+        </span>
         <Icon
           src="corner_down_left"
           color={muted}

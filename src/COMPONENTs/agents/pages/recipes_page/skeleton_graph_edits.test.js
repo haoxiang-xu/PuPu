@@ -219,8 +219,9 @@ describe("factory and commands reproduce each real-store roundtrip exactly", () 
   });
 });
 
-describe("only the supported Agent document protocol can be edited", () => {
-  test("a real stored Workflow is refused rather than given a forbidden Agent", () => {
+describe("only the supported Agent and Workflow document protocol can be edited", () => {
+  /* #357 G7: a Workflow is editable now; a model node in it is still refused. */
+  test("a real stored Workflow is refused a forbidden Agent", () => {
     const workflow = admissionCapture.cases.find((row) => row.case === "workflow-no-agent");
     const withAgent = admissionCapture.cases.find((row) => row.case === "workflow-with-agent");
     expect(workflow.saved).toBe(true);
@@ -228,11 +229,10 @@ describe("only the supported Agent document protocol can be edited", () => {
       code: "invalid_value",
       path: ["document", "nodes", 2, "type"],
     });
-    refused(add_node(workflow.document, { type: "agent" }), workflow.document, "invalid_document");
+    refused(add_node(workflow.document, { type: "agent" }), workflow.document, "not_allowed_in_workflow");
   });
 
   test.each([
-    ["Workflow", { kind: "workflow" }],
     ["unknown kind", { kind: "future-kind" }],
     ["unreadable kind", { kind: { toString: null } }],
     ["future version", { schema_version: 2 }],
@@ -328,7 +328,8 @@ describe("add_node", () => {
   test("offers exactly the native types with business editors", () => {
     /* #351 adds If / Else and Switch / Case together with their editors
        (branch_section.js); the list stays exact. */
-    expect([...ADDABLE_NODE_TYPES]).toEqual(["toolkit_pool", "agent", "subagent_pool", "if_else", "switch_case", "tool_call", "skill_read"]);
+    /* #352 adds Tool Call and Skill Read, #357 adds Code, Workflow Call and Hooks Pool; the list stays exact. */
+    expect([...ADDABLE_NODE_TYPES]).toEqual(["toolkit_pool", "agent", "subagent_pool", "if_else", "switch_case", "tool_call", "skill_read", "code", "workflow_call", "hooks_pool"]);
     expect(Object.isFrozen(ADDABLE_NODE_TYPES)).toBe(true);
   });
 
@@ -346,7 +347,7 @@ describe("add_node", () => {
     const base = seed();
     refused(add_node(base, { type: "start" }), base, "protected_node_type");
     refused(add_node(base, { type: "end" }), base, "protected_node_type");
-    ["workflow", "hooks_pool", "branch", "code", "__proto__", "constructor", ""].forEach(
+    ["workflow", "branch", "some_future_step", "__proto__", "constructor", ""].forEach(
       (type) => refused(add_node(base, { type }), base, "unsupported_node_type"),
     );
     refused(add_node(base, { type: { toString: null } }), base, "invalid_command");

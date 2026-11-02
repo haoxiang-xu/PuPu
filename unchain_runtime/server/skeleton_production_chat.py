@@ -204,7 +204,7 @@ def _stream_worker(*, host, bridge, durability, bindings, plan, selection, workf
                 save_launch(bridge=bridge, store=execution.store, selection=selection, workflows=workflows,
                     workspace_root=bindings.workspace_root, inputs=inputs, attachments=[row.to_dict() for row in resolved],
                     capabilities={"toolkits": list(bindings._user_toolkit_ids), "include_user_dirs": bindings._include_user_dirs,
-                        "workspace_roots": list(bindings.workspace_roots)})
+                        "workspace_roots": list(bindings.workspace_roots)}, code_snapshot=bindings._code_snapshot)
                 result, _receipt = execution.run(original_task=inputs["message"])
             else:
                 assert_launch_current(launch)
@@ -391,7 +391,8 @@ def resume_skeleton_chat_events(*, session_id, interaction_id, options=None, att
         worker_started = False
         try:
             bindings = SkeletonProductionBindings(selection, workflows, options, session_id=session_id,
-                workspace_root=launch.descriptor["workspace_root"], workspace_roots=options["workspace_roots"])
+                workspace_root=launch.descriptor["workspace_root"], workspace_roots=options["workspace_roots"],
+                code_snapshot=launch.descriptor.get("code_sources"))
             bridge, durability = _bridge(selection, options=options, session_id=session_id, root_run_id=root_run_id,
                 message="", history=(), attachments=(), launch=launch)
             worker_started = True

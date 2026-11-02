@@ -65,7 +65,7 @@ class SkeletonProductionBindings:
 
     def __init__(self, selection: FrozenSkeletonChatSelection,
                  workflows: FrozenSkeletonWorkflowDependencies, options: dict, *,
-                 session_id, workspace_root, resource_store=None, workspace_roots=None):
+                 session_id, workspace_root, resource_store=None, workspace_roots=None, code_snapshot=None):
         if type(selection) is not FrozenSkeletonChatSelection:
             _fail("invalid_type", ("selection",), "An admitted Skeleton selection is required.")
         if type(workflows) is not FrozenSkeletonWorkflowDependencies:
@@ -101,6 +101,14 @@ class SkeletonProductionBindings:
         self.workspace_roots = tuple(admitted_roots)
         self.workspace_root = self.workspace_roots[0] if self.workspace_roots else None
         self.resource_store = resource_store if resource_store is not None else SkeletonResourceStore()
+        self._code_snapshot = None
+        if selection.code_sources is not None:
+            from skeleton_code_closure import FrozenSkeletonCodeClosure, FrozenCodeRuntimeSnapshot
+            closure = FrozenSkeletonCodeClosure.restore(selection.code_sources, selection, workflows)
+            self._code_snapshot = (FrozenCodeRuntimeSnapshot.prepare(closure, workspace_root=self.workspace_root)
+                if code_snapshot is None else FrozenCodeRuntimeSnapshot.restore(code_snapshot, selection, workflows))
+        elif code_snapshot is not None:
+            _fail("managed_source_invalid", ("code_sources",), "Source snapshot does not belong to this selection.")
         self._options = deepcopy(options)
         self._workflows = workflows
         self._documents = {}
@@ -370,9 +378,13 @@ class SkeletonProductionBindings:
             documents.append(document)
             for node in document["nodes"]:
                 refs = ([node["config"]["workflow"]] if node["type"] == "workflow_call" else
-                        [hook["workflow"] for hook in node["config"]["hooks"]]
+                        [hook["workflow"] for hook in node["config"]["hooks"]
+                         if hook.get("enabled") is not False]
                         if node["type"] == "hooks_pool" else [])
                 for ref in refs:
+                    if ref.get('kind') == 'embedded':
+                        visit(prepare_workflow(ref['document']).snapshot())
+                        continue
                     key = (ref["workflow_id"], ref["revision_id"])
                     if key in visited:
                         continue
@@ -393,10 +405,11 @@ class SkeletonProductionBindings:
                           skills=self._toolkit_catalog.skills if permitted("skill") else ())
         handlers = {}
         if "code" in kinds:
-            if self.workspace_root is None:
+            if self.workspace_root is None and self._code_snapshot is None:
                 _fail("workspace_unavailable", ("workspace_root",), "Code requires an authorized workspace.")
             handlers["code"] = SkeletonCodeRuntime(plan,
-                source_resolver=FileCodeSourceResolver(self.workspace_root),
+                source_resolver=(self._code_snapshot.resolver if self._code_snapshot is not None
+                    else FileCodeSourceResolver(self.workspace_root)),
                 profile_resolver=self.resource_store.resolve_python_profile,
                 staging_root=self.resource_store.root / "code-runs")
         if "tool_call" in kinds:

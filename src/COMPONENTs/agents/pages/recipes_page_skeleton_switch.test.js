@@ -1,6 +1,8 @@
 import React, { useState } from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import RecipesPage from "./recipes_page";
+import { pressCanvasNode } from "./recipes_page/skeleton_canvas_test_helpers";
+import { install_legacy_store_bridge } from "./recipes_page/legacy_store_test_bridge";
 
 jest.mock("../../../SERVICEs/api", () => ({
   api: {
@@ -13,13 +15,25 @@ jest.mock("../../../SERVICEs/api", () => ({
     },
   },
 }));
+/* The editor speaks v2 only (#357 G1); these mocks are graph-only. */
+install_legacy_store_bridge(require("../../../SERVICEs/api").api.unchain);
 
 jest.mock("../../side-menu/side_menu_utils", () => ({ getRuntimePlatform: () => "darwin" }));
 jest.mock("../../../SERVICEs/bridges/window_state_bridge", () => ({
   windowStateBridge: { isListenerAvailable: () => false, onWindowStateChange: () => () => {} },
 }));
+/* Draws each node and answers a press on it with `on_select`, the way the real
+   editor reports a click. */
 jest.mock("../../../BUILTIN_COMPONENTs/flow_editor", () => ({
-  FlowEditor: () => <div data-testid="flow-editor" />,
+  FlowEditor: (props) => (
+    <div data-testid="flow-editor">
+      {(props.nodes || []).map((node) => (
+        <div key={node.id} data-testid={`flow-node-${node.id}`} onMouseDown={() => props.on_select?.(node.id)}>
+          {props.render_node ? props.render_node(node) : null}
+        </div>
+      ))}
+    </div>
+  ),
 }));
 
 const { api } = require("../../../SERVICEs/api");
@@ -66,12 +80,19 @@ beforeEach(() => {
   });
 });
 
+/* Rows of the Agents explorer, found by their label. This store has no legacy
+   resolver, so the recipe cannot be proven migrated and stays under "Not
+   migrated", where it opens in the old editor. */
+const agentRow = (label) => within(screen.getByTestId("agent-explorer")).getByText(label);
+
 describe("switching from a legacy Recipe to a Skeleton Agent", () => {
   const openSkeleton = async () => {
     render(<Harness />);
+    await waitFor(() => expect(agentRow("OldRecipe")).toBeInTheDocument());
+    fireEvent.click(agentRow("OldRecipe"));
     await waitFor(() => expect(screen.getByTestId("recipe-detail-panel")).toBeInTheDocument());
-    await waitFor(() => expect(screen.getByTestId("skeleton-resource-rev")).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId("skeleton-resource-rev"));
+    await waitFor(() => expect(agentRow("Reviewer")).toBeInTheDocument());
+    fireEvent.click(agentRow("Reviewer"));
     await waitFor(() => expect(screen.getByTestId("skeleton-resource-page")).toBeInTheDocument());
   };
 
@@ -89,11 +110,37 @@ describe("switching from a legacy Recipe to a Skeleton Agent", () => {
 
   test("the legacy panel is there again when a Recipe is chosen", async () => {
     await openSkeleton();
-    fireEvent.click(screen.getByText("OldRecipe"));
+    fireEvent.click(agentRow("OldRecipe"));
     await waitFor(() =>
       expect(screen.getByTestId("recipe-detail-panel-shell")).toBeInTheDocument(),
     );
     expect(screen.queryByTestId("skeleton-resource-page")).not.toBeInTheDocument();
+  });
+});
+
+describe("undo while a Skeleton Agent is open", () => {
+  test("the keys step the open editor, never the legacy recipe left behind", async () => {
+    /* The legacy history kept listening while the native page was on screen,
+       so ⌘Z there also stepped a recipe nobody was looking at. */
+    render(<Harness />);
+    await waitFor(() => expect(agentRow("OldRecipe")).toBeInTheDocument());
+    fireEvent.click(agentRow("OldRecipe"));
+    /* Open the legacy agent on its own canvas, once the recipe is read. */
+    fireEvent.mouseDown(await screen.findByTestId("flow-node-a1"));
+    await waitFor(() => expect(within(screen.getByTestId("recipe-detail-panel")).getByText("Prompt")).toBeInTheDocument());
+    const fields = () => within(screen.getByTestId("recipe-detail-panel")).queryAllByRole("textbox").length;
+    const before = fields();
+    fireEvent.click(screen.getByText("+ Add field"));
+    const edited = fields();
+    expect(edited).toBeGreaterThan(before);
+
+    fireEvent.click(agentRow("Reviewer"));
+    expect(await screen.findByTestId("skeleton-resource-page")).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: "z", metaKey: true });
+
+    fireEvent.click(agentRow("OldRecipe"));
+    await waitFor(() => expect(within(screen.getByTestId("recipe-detail-panel")).getByText("Prompt")).toBeInTheDocument());
+    expect(fields()).toBe(edited);
   });
 });
 
@@ -140,13 +187,13 @@ describe("drilling into a subagent of a Skeleton Agent", () => {
       draft_digest: null, source_identity: null,
     });
     render(<Harness />);
-    await waitFor(() => expect(screen.getByTestId("skeleton-resource-rev")).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId("skeleton-resource-rev"));
+    await waitFor(() => expect(agentRow("Reviewer")).toBeInTheDocument());
+    fireEvent.click(agentRow("Reviewer"));
     await waitFor(() => expect(screen.getByTestId("skeleton-node-pool")).toBeInTheDocument());
     const shell = screen.getByTestId("recipe-list-panel-shell");
     expect(shell.style.opacity).toBe("1");
 
-    fireEvent.click(screen.getByTestId("skeleton-node-pool"));
+    pressCanvasNode("pool");
     await waitFor(() => expect(screen.getByLabelText("Open Shortener")).toBeInTheDocument());
     fireEvent.click(screen.getByLabelText("Open Shortener"));
     await waitFor(() => expect(screen.getByTestId("skeleton-drill-crumbs")).toBeInTheDocument());

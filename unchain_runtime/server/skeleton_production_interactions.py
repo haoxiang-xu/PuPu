@@ -270,10 +270,21 @@ def _hook_chain(parent, launch, request, raw, chain, *, allow_cancelled=False, a
         and edge["source_node_id"] == active["node_id"]}
     hooks = [hook for node in snapshot["nodes"] if node["id"] in pool_ids and node["type"] == "hooks_pool"
         for hook in node["config"]["hooks"] if hook["id"] == raw["hook_id"]]
-    if len(hooks) != 1 or hooks[0]["workflow"] != {"workflow_id": raw["workflow_id"], "revision_id": raw["revision_id"]}:
+    if len(hooks) != 1 or hooks[0].get('enabled') is False:
         _fail()
-    published = launch.workflows.resolve(raw["workflow_id"], raw["revision_id"])
-    plan = prepare_workflow(published.document)
+    source = hooks[0]['workflow']
+    if source.get('kind') == 'embedded':
+        # The admitted parent's fixed bytes own this child. A later library
+        # edit, or a published resource with the same id, is not its authority.
+        plan = prepare_workflow(source['document'])
+        digest = execution_definition_digest(plan)
+        if raw['workflow_id'] != plan.document_id or raw['revision_id'] != 'embedded-sha256-' + digest:
+            _fail()
+    else:
+        if source != {"workflow_id": raw["workflow_id"], "revision_id": raw["revision_id"]}:
+            _fail()
+        published = launch.workflows.resolve(raw["workflow_id"], raw["revision_id"])
+        plan = prepare_workflow(published.document)
     if execution_definition_digest(plan) != raw["definition_digest"]:
         _fail()
     basis = "\0".join((parent.store.graph_id, active["node_invocation_id"], call["call_id"],

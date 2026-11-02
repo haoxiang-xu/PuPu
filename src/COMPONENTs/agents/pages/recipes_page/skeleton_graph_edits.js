@@ -1,8 +1,9 @@
 /* Native Skeleton graph authoring — the pure command core.
  *
- * Five commands turn one native Agent document into the next one:
+ * Six commands turn one native Agent or Workflow document into the next one:
  *
  *   new_agent_document({id, name})
+ *   new_workflow_document({id, name})
  *   add_node(document, {type, id?})
  *   delete_node(document, node_id)
  *   connect_nodes(document, {kind, source_node_id, source_port_id,
@@ -23,7 +24,7 @@
  * The wire it writes is the CLOSED native shape the fixed runtime accepts
  * (`unchain/skeleton/schema.py`, mirrored by `skeleton_document.js`):
  *
- *   document = {schema_version: 1, kind: "agent", id, name, nodes, edges}
+ *   document = {schema_version: 1, kind: "agent" | "workflow", id, name, nodes, edges}
  *   node     = {id, type, config}
  *   edge     = {id, kind, source_node_id, source_port_id,
  *               target_node_id, target_port_id}
@@ -32,7 +33,14 @@
  * is Start → Agent → End with empty execution IO: the real store saves it
  * and the real preflight refuses it at `nodes[1].config` for having no
  * Kernel (native-seed-capture.json, case "seed"). That is the intended
- * unfinished draft, not a runnable one.
+ * unfinished draft, not a runnable one. A fresh Workflow is Start → End with
+ * empty execution IO: the real store saves it, diagnoses it clean and
+ * preflights it (workflow_authoring_capture.json, "wf_seed_*").
+ *
+ * A Workflow holds no model node and no pool, so it has no attachment either:
+ * the runtime refuses `agent`, `toolkit_pool`, `subagent_pool` and `hooks_pool`
+ * in a Workflow (`schema.py`), and an attach edge there can join nothing it
+ * accepts (capture "wf_attach_edge_diagnose"). Both are refused here first.
  *
  * Successful commands touch only what the command names. Every other node,
  * edge, config, binding, default, missing-policy and unknown top-level key
@@ -49,6 +57,7 @@ const FACTORY_NODE_AGENT = "agent";
 const FACTORY_NODE_END = "end";
 const FACTORY_EDGE_START_AGENT = "flow-start-agent";
 const FACTORY_EDGE_AGENT_END = "flow-agent-end";
+const FACTORY_EDGE_START_END = "flow-start-end";
 
 /* The node types this slice can add, with the id base used when the caller
  * does not name the node and the config a brand-new node of that type
@@ -84,9 +93,36 @@ const ADDABLE = new Map([
   /* Likewise refused at `config.skill` until a skill is picked
      (steps-352/probe/skill-read-store-01, "seed"). It takes no inputs. */
   ["skill_read", { id_base: "skill", config: () => ({ execution: { inputs: [], outputs: [] } }) }],
+  /* Code (#357): the same unfinished seed. Measured on the fixed pair
+     (code-01/out/code-store-capture.json, "seed"): the store saves it, its
+     draft check says nothing, and — unlike the two above — preflight passes
+     it too, because the runtime admits `config.code` only when it is there;
+     the node then fails at run start. No runtime, source, limit or schema is
+     chosen here; the panel says what is missing. */
+  ["code", { id_base: "code", config: () => ({ execution: { inputs: [], outputs: [] } }) }],
+  /* Workflow Call (#357): the same unfinished seed, refused by preflight with
+     `missing_field` at `config.workflow` (workflow-call-01, "caller_seed")
+     until a published revision is pinned. Nothing is pinned here. */
+  ["workflow_call", { id_base: "call", config: () => ({ execution: { inputs: [], outputs: [] } }) }],
+  /* Hooks Pool (#357): an attach pool with no hooks yet. Measured
+     (hooks-pool-01, "seed"): the store saves it and its draft check passes;
+     preflight refuses it with `missing_value` at `config.hooks` until a hook
+     is added. No hook is invented here. */
+  ["hooks_pool", { id_base: "hooks", config: () => ({ hooks: [] }) }],
 ]);
 
 export const ADDABLE_NODE_TYPES = Object.freeze([...ADDABLE.keys()]);
+
+const AGENT_KIND = "agent";
+const WORKFLOW_KIND = "workflow";
+const WORKFLOW_FORBIDDEN_TYPES = new Set(["agent", "toolkit_pool", "subagent_pool", "hooks_pool"]);
+
+/* Which node types a graph of this kind can be given here. */
+export function addable_node_types(kind) {
+  if (kind === AGENT_KIND) return ADDABLE_NODE_TYPES;
+  if (kind === WORKFLOW_KIND) return ADDABLE_NODE_TYPES.filter((type) => !WORKFLOW_FORBIDDEN_TYPES.has(type));
+  return [];
+}
 
 const PROTECTED_NODE_TYPES = new Set([FACTORY_NODE_START, FACTORY_NODE_END]);
 
@@ -106,8 +142,8 @@ const BRANCH_IF = "if_else";
 const BRANCH_SWITCH = "switch_case";
 const IF_OUTLETS = Object.freeze(["true", "false"]);
 const SWITCH_DEFAULT_OUTLET = "default";
-const FLOW_SOURCE_TYPES = new Set([FACTORY_NODE_START, "agent", BRANCH_IF, BRANCH_SWITCH, "tool_call", "skill_read"]);
-const FLOW_TARGET_TYPES = new Set(["agent", FACTORY_NODE_END, BRANCH_IF, BRANCH_SWITCH, "tool_call", "skill_read"]);
+const FLOW_SOURCE_TYPES = new Set([FACTORY_NODE_START, "agent", BRANCH_IF, BRANCH_SWITCH, "tool_call", "skill_read", "code", "workflow_call"]);
+const FLOW_TARGET_TYPES = new Set(["agent", FACTORY_NODE_END, BRANCH_IF, BRANCH_SWITCH, "tool_call", "skill_read", "code", "workflow_call"]);
 
 /* Attach joins one Agent and one Subagent Pool through attach_top /
  * attach_bot. Top and bottom are placement, not execution order, so the
@@ -115,7 +151,7 @@ const FLOW_TARGET_TYPES = new Set(["agent", FACTORY_NODE_END, BRANCH_IF, BRANCH_
  * ports is admitted, including top-to-top and bottom-to-bottom. */
 const ATTACH_PORTS = new Set(["attach_top", "attach_bot"]);
 const ATTACH_AGENT_TYPE = "agent";
-const ATTACH_POOL_TYPES = new Set(["subagent_pool", "toolkit_pool"]);
+const ATTACH_POOL_TYPES = new Set(["subagent_pool", "toolkit_pool", "hooks_pool"]);
 
 const NEW_DOCUMENT_KEYS = new Set(["id", "name"]);
 const ADD_NODE_REQUIRED = new Set(["type"]);
@@ -155,7 +191,9 @@ const has_own = (record, key) => Object.prototype.hasOwnProperty.call(record, ke
 function document_issue(document) {
   if (!is_record(document)) return "document must be an object";
   if (document.schema_version !== 1) return "only schema_version 1 can be edited here";
-  if (document.kind !== "agent") return "only Agent documents can be edited here";
+  if (document.kind !== AGENT_KIND && document.kind !== WORKFLOW_KIND) {
+    return "only Agent and Workflow documents can be edited here";
+  }
   if (!Array.isArray(document.nodes)) return "document.nodes must be an array";
   if (!Array.isArray(document.edges)) return "document.edges must be an array";
   return null;
@@ -360,7 +398,7 @@ function attach_issue(document, command, source, target) {
   if (!agent_to_pool && !pool_to_agent) {
     return {
       code: "invalid_attachment",
-      message: `attach edges join one ${ATTACH_AGENT_TYPE} and one subagent_pool or toolkit_pool; "${source_node_id}" and "${target_node_id}" are not such a pair`,
+      message: `attach edges join one ${ATTACH_AGENT_TYPE} and one subagent_pool, toolkit_pool or hooks_pool; "${source_node_id}" and "${target_node_id}" are not such a pair`,
     };
   }
   if (!ATTACH_PORTS.has(source_port_id)) {
@@ -438,6 +476,36 @@ export function new_agent_document(args) {
 }
 
 /**
+ * A fresh Workflow: Start → End, nothing else. Same arguments and refusals
+ * as `new_agent_document`.
+ */
+export function new_workflow_document(args) {
+  const shape = command_issue(args, NEW_DOCUMENT_KEYS, NO_KEYS);
+  if (shape) return refuse(null, "invalid_command", shape);
+  if (typeof args.id !== "string" || !RESOURCE_ID_PATTERN.test(args.id)) {
+    return refuse(
+      null,
+      "invalid_resource_id",
+      "resource id must be a string matching ^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$",
+    );
+  }
+  if (!is_nonempty_string(args.name)) {
+    return refuse(null, "invalid_resource_name", "resource name must be a non-empty string");
+  }
+  return accept({
+    schema_version: 1,
+    kind: WORKFLOW_KIND,
+    id: args.id,
+    name: args.name,
+    nodes: [
+      { id: FACTORY_NODE_START, type: "start", config: { execution: { outputs: [] } } },
+      { id: FACTORY_NODE_END, type: "end", config: { execution: { inputs: [], outputs: [] } } },
+    ],
+    edges: [flow_edge(FACTORY_EDGE_START_END, FACTORY_NODE_START, FACTORY_NODE_END)],
+  });
+}
+
+/**
  * Append one node of an addable type. With no `id` the node is named
  * `agent`/`pool`, then `-2`, `-3`, … past whatever the document holds.
  */
@@ -455,6 +523,13 @@ export function add_node(document, command) {
       document,
       "protected_node_type",
       `"${type}" is created by the factory exactly once and cannot be added`,
+    );
+  }
+  if (document.kind === WORKFLOW_KIND && WORKFLOW_FORBIDDEN_TYPES.has(type)) {
+    return refuse(
+      document,
+      "not_allowed_in_workflow",
+      `a Workflow cannot hold a "${type}" node; it runs no model and has no pools`,
     );
   }
   const addable = ADDABLE.get(type);
@@ -528,6 +603,9 @@ export function connect_nodes(document, command) {
   }
   if (!EDGE_KINDS.has(kind)) {
     return refuse(document, "unknown_edge_kind", `edge kind "${kind}" is not flow or attach`);
+  }
+  if (kind === "attach" && document.kind === WORKFLOW_KIND) {
+    return refuse(document, "not_allowed_in_workflow", "a Workflow has no pools, so nothing can be attached");
   }
   for (const key of ["source_node_id", "source_port_id", "target_node_id", "target_port_id"]) {
     if (!is_nonempty_string(command[key])) {

@@ -43,7 +43,7 @@ function remove(graph, nodeIds, edgeIds) {
 }
 
 export function apply_graph_command(graph, command) {
-  if (!record(command) || !record(graph) || graph.schema_version !== 1 || graph.kind !== "agent" ||
+  if (!record(command) || !record(graph) || graph.schema_version !== 1 || (graph.kind !== "agent" && graph.kind !== "workflow") ||
       !Array.isArray(graph.nodes) || !Array.isArray(graph.edges)) {
     return refuse(graph, "This graph cannot be edited here.");
   }

@@ -6,7 +6,7 @@ import {
   save_draft,
 } from "./skeleton_resources";
 import { legacy_conversion_plan } from "./legacy_conversion";
-import { new_agent_document } from "./skeleton_graph_edits";
+import { new_agent_document, new_workflow_document } from "./skeleton_graph_edits";
 import {
   can_save,
   can_convert_legacy_pools,
@@ -17,6 +17,8 @@ import {
   conflict_overridden,
   draft_created,
   edited,
+  redone,
+  undone,
   empty_session,
   load_failed,
   loaded,
@@ -72,8 +74,10 @@ export default function useSkeletonResource() {
     [apply],
   );
 
+  /* A new draft is an Agent unless the caller asks for a Workflow (#357 G7). */
   const create = useCallback((args) => {
-    const result = new_agent_document(args);
+    const { kind, ...named } = args && typeof args === "object" ? args : {};
+    const result = kind === "workflow" ? new_workflow_document(named) : new_agent_document(args);
     if (result.ok) apply((current) => draft_created(current, result.document));
     return result;
   }, [apply]);
@@ -156,10 +160,30 @@ export default function useSkeletonResource() {
     [apply],
   );
 
+  /* One gesture is one step back: edits after the first in the same tick fold
+     into the step it recorded — the rule the legacy history uses, so a canvas
+     command that touches several things undoes as one. */
+  const gestureRef = useRef(false);
+  const record = useCallback(() => {
+    const coalesce = gestureRef.current;
+    if (!coalesce) {
+      gestureRef.current = true;
+      queueMicrotask(() => {
+        gestureRef.current = false;
+      });
+    }
+    return { coalesce };
+  }, []);
+
+  /* `sources` is the Code text an edit typed, keyed by the digest the edit
+     wrote into the node's source path (#357 G1); every other edit has none. */
   const edit = useCallback(
-    (document) => apply((current) => edited(current, document)),
-    [apply],
+    (document, sources = null) => apply((current) => edited(current, document, { ...record(), sources })),
+    [apply, record],
   );
+
+  const undo = useCallback(() => apply((current) => undone(current)), [apply]);
+  const redo = useCallback(() => apply((current) => redone(current)), [apply]);
 
   /* A semantic canvas command must be evaluated against the current ref,
      including earlier commands in the same React batch. The issued sitting
@@ -168,15 +192,17 @@ export default function useSkeletonResource() {
   const editCurrent = useCallback((issued, transform) => apply((current) => {
     if (!same_open(current, issued) || current.status !== "ready" || !current.document) return current;
     const next = transform(current);
-    return next && next !== current.document ? edited(current, next) : current;
-  }), [apply]);
+    return next && next !== current.document ? edited(current, next, record()) : current;
+  }), [apply, record]);
 
   const save = useCallback(async () => {
     const current = ref.current;
     if (!current.document || !can_save(current)) return current;
     const issued = session_token(current);
     apply(save_started(current));
-    const result = await save_draft(current.document, current.edit_token);
+    /* The text goes with the document it belongs to, from the same session:
+       the set is built from where each Code node is in THIS document. */
+    const result = await save_draft(current.document, current.edit_token, current.sources);
     return apply((latest) =>
       result.ok
         ? save_succeeded(latest, result.data, issued)
@@ -269,6 +295,8 @@ export default function useSkeletonResource() {
     restore,
     edit,
     editCurrent,
+    undo,
+    redo,
     save,
     keepMine: () => resolve_conflict("mine"),
     takeTheirs: () => resolve_conflict("theirs"),

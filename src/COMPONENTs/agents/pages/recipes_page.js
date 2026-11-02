@@ -11,14 +11,19 @@ import {
   AGENTS_MODAL_Z,
   useTopStripCenter,
 } from "../top_strip";
-import RecipeList, {
-  RECIPE_PANEL_HEADER,
-} from "./recipes_page/recipe_list";
-import SkeletonResourceList from "./recipes_page/skeleton_resource_list";
+import AgentExplorer from "./recipes_page/agent_explorer";
+import { RECIPE_PANEL_HEADER } from "./recipes_page/recipe_list";
 import SkeletonResourcePage from "./skeleton_resource_page";
 import RecipeCanvas from "./recipes_page/recipe_canvas";
 import DetailPanel from "./recipes_page/detail_panel/detail_panel";
 import PanelResizeHandle from "./recipes_page/panel_resize_handle";
+import {
+  CanvasMessageStrip,
+  FloatingBreadcrumb,
+  FloatingDetailShell,
+  HANDLE_GAP,
+  PANEL_INSET,
+} from "./recipes_page/canvas_chrome";
 import { to_save_payload } from "./recipes_page/recipe_save_payload";
 import useRecipeHistory from "./recipes_page/use_recipe_history";
 import {
@@ -37,14 +42,6 @@ import {
   unwind_drill_stack,
 } from "./recipes_page/subagent_drill";
 
-// Floating panels sit PANEL_INSET px from the page edge; each resize pill's
-// hit area starts HANDLE_GAP px past the panel's inner edge (the pill itself
-// is centered inside that hit area, so it clears the panel visibly).
-const PANEL_INSET = 6;
-const HANDLE_GAP = 2;
-// The native workspace includes its Save bar, so it must clear both the
-// floating library and its resize strip rather than sit underneath them.
-const SKELETON_LIST_CLEARANCE = 24;
 
 export default function RecipesPage({
   isDark,
@@ -89,6 +86,11 @@ export default function RecipesPage({
      would let a name be used as an id. */
   const [skeletonResourceId, setSkeletonResourceId] = useState(null);
   const [newSkeletonDraft, setNewSkeletonDraft] = useState(null);
+  /* Whether the open Skeleton resource has unsaved work, and a counter that
+     re-opens it from the store after the explorer renamed, archived or
+     restored it (the stored version moved; a clean editor simply re-reads). */
+  const [skeletonDirty, setSkeletonDirty] = useState(false);
+  const [skeletonReload, setSkeletonReload] = useState(0);
   /* A Skeleton Agent drilled into one of its subagents: the resource list is
      not the graph being edited, and offering a switch from there would drop
      the drill stack's unsaved parent. The Skeleton page owns that stack and
@@ -219,7 +221,10 @@ export default function RecipesPage({
         const { recipes: list } = await api.unchain.listRecipes();
         const known = Array.isArray(list) ? list : [];
         setRecipes(known);
-        if (known.length > 0) setActiveName(known[0].name);
+        /* With a native library the explorer opens the chat's default Agent;
+           only a build without one falls back to the first legacy recipe. */
+        const nativeLibrary = typeof api?.unchain?.listSkeletonResources === "function";
+        if (known.length > 0 && !nativeLibrary) setActiveName(known[0].name);
       } catch (error) {
         setNotices([library_unavailable_message(error)]);
       }
@@ -369,7 +374,10 @@ export default function RecipesPage({
   };
 
   useEffect(() => {
-    if (!activeRecipe) return undefined;
+    /* The legacy history only while its canvas is the one on screen: with a
+       native Agent open these keys are that editor's, and answering here too
+       stepped a recipe nobody was looking at. */
+    if (!activeRecipe || skeletonResourceId) return undefined;
     const onKey = (e) => {
       const tag = document.activeElement?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
@@ -388,7 +396,7 @@ export default function RecipesPage({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [activeRecipe, undo, redo]);
+  }, [activeRecipe, skeletonResourceId, undo, redo]);
 
   const handleSave = async () => {
     if (!activeRecipe) return;
@@ -478,18 +486,28 @@ export default function RecipesPage({
         }}
       >
         {skeletonResourceId ? (
-          <div data-testid="skeleton-workspace" style={{
-            position: "absolute", inset: 0,
-            left: !listHidden
-              ? PANEL_INSET + panelWidths.list + SKELETON_LIST_CLEARANCE
-              : listCollapsed && !drilled && !skeletonDrilled
-                ? headerLeft + RECIPE_PANEL_HEADER.HEIGHT + PANEL_INSET
-                : 0,
-          }}>
+          /* Full-bleed like the legacy canvas: the library, the detail panel
+             and the control center float over the graph, and nothing of the
+             native page sits outside them. */
+          <div data-testid="skeleton-workspace" style={{ position: "absolute", inset: 0 }}>
           <SkeletonResourcePage
+            key={skeletonReload}
             resourceId={skeletonResourceId}
             newDraft={newSkeletonDraft}
             onDrilledChange={setSkeletonDrilled}
+            onDirtyChange={setSkeletonDirty}
+            chrome={{
+              crumbTop: topStripCenter,
+              crumbLeft: topStripLeft,
+              detail: {
+                width: panelWidths.detail,
+                minWidth: RECIPE_PANEL_LIMITS.detail.min,
+                resizing: resizingPanel === "detail",
+                onDragStart: () => beginResize("detail"),
+                onDrag: handleDetailResize,
+                onDragEnd: () => endResize("detail"),
+              },
+            }}
           />
           </div>
         ) : (
@@ -534,27 +552,27 @@ export default function RecipesPage({
           pointerEvents: listHidden ? "none" : "auto",
         }}
       >
-        <SkeletonResourceList
+        <AgentExplorer
+          recipes={recipes}
           activeId={skeletonResourceId}
+          activeLegacyName={skeletonResourceId ? null : activeName}
+          newDraft={newSkeletonDraft}
+          activeDirty={skeletonDirty}
+          autoSelectDefault={!skeletonResourceId && !activeName}
           onSelect={(id) => {
             setNewSkeletonDraft(null);
             setSkeletonResourceId(id);
+          }}
+          onSelectLegacy={(name) => {
+            setNewSkeletonDraft(null);
+            setSkeletonResourceId(null);
+            handleSelectRecipe(name);
           }}
           onCreate={(args) => {
             setNewSkeletonDraft(args);
             setSkeletonResourceId(args.id);
           }}
-          isDark={isDark}
-        />
-        <RecipeList
-          recipes={recipes}
-          activeName={activeName}
-          onSelect={(name) => {
-            setNewSkeletonDraft(null);
-            setSkeletonResourceId(null);
-            handleSelectRecipe(name);
-          }}
-          onListChange={setRecipes}
+          onActiveChanged={() => setSkeletonReload((n) => n + 1)}
           onCollapse={() => setListCollapsed(true)}
           isDark={isDark}
           headerLeadingPad={headerLeadingPad}
@@ -594,175 +612,54 @@ export default function RecipesPage({
         />
       )}
 
-      {/* ── Drill breadcrumb ── */}
+      {/* ── Drill breadcrumb (top left, where the expand button would be) ── */}
       {drilled && (
-        <div
-          data-testid="recipe-drill-breadcrumb"
-          style={{
-            position: "absolute",
-            top: topStripCenter,
-            left: "50%",
-            transform: "translate(-50%, -50%)",
-            zIndex: AGENTS_MODAL_Z.PANEL_CONTROL,
-            display: "flex",
-            alignItems: "center",
-            gap: 4,
-            maxWidth: "min(560px, 60%)",
-            padding: "5px 10px",
-            borderRadius: 8,
-            backgroundColor: overlayBg,
-            border: overlayBorder,
-            backdropFilter: overlayBackdrop,
-            WebkitBackdropFilter: overlayBackdrop,
-            boxShadow: overlayShadow,
-            fontSize: 11.5,
-            WebkitAppRegion: "no-drag",
-          }}
-        >
-          {crumbs.map((crumb, i) => (
-            <span
-              key={i}
-              style={{ display: "flex", alignItems: "center", gap: 4 }}
-            >
-              {i > 0 && (
-                <span
-                  aria-hidden="true"
-                  style={{ opacity: 0.4, fontSize: 10 }}
-                >
-                  ›
-                </span>
-              )}
-              {crumb.navigable ? (
-                <Button
-                  label={crumb.label}
-                  onClick={() => handleDrillTo(crumb.depth)}
-                  style={{
-                    fontSize: 11.5,
-                    paddingVertical: 2,
-                    paddingHorizontal: 6,
-                    borderRadius: 5,
-                    color: isDark ? "#c9c9d1" : "#55555d",
-                  }}
-                />
-              ) : (
-                <span
-                  style={{
-                    padding: "2px 6px",
-                    color: isDark ? "#f0f0f3" : "#1d1d22",
-                    opacity: i === crumbs.length - 1 ? 1 : 0.55,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {crumb.label}
-                </span>
-              )}
-            </span>
-          ))}
-        </div>
+        <FloatingBreadcrumb
+          isDark={isDark}
+          crumbs={crumbs}
+          onNavigate={handleDrillTo}
+          top={topStripCenter}
+          left={topStripLeft}
+          testId="recipe-drill-breadcrumb"
+        />
       )}
 
-      {messages.length > 0 && (
-        <div
-          data-testid="recipe-message-banner"
-          style={{
-            position: "absolute",
-            left: "50%",
-            bottom: 62,
-            transform: "translateX(-50%)",
-            zIndex: AGENTS_MODAL_Z.PANEL_MESSAGE,
-            maxWidth: 520,
-            padding: "8px 12px",
-            borderRadius: 8,
-            background: isDark ? "rgba(90, 30, 30, 0.92)" : "#fff2f0",
-            border: isDark
-              ? "1px solid rgba(255,120,120,0.28)"
-              : "1px solid rgba(220,70,70,0.22)",
-            color: isDark ? "#ffd6d6" : "#9f1d1d",
-            fontSize: 12,
-            lineHeight: 1.5,
-            boxShadow: overlayShadow,
-            display: "flex",
-            flexDirection: "column",
-            gap: 4,
-          }}
-        >
-          {messages.map((message, i) => (
-            <div key={i}>{message}</div>
-          ))}
-        </div>
-      )}
+      <CanvasMessageStrip
+        isDark={isDark}
+        items={messages}
+        testId="recipe-message-banner"
+        standalone
+      />
 
       {/* ── Floating inspector (right detail panel) ── */}
       {/* The legacy inspector belongs to the recipe canvas. With a Skeleton
           Agent open it was still mounted and still editable behind the new
           page, so a click there wrote to a recipe the author had left. */}
       {!skeletonResourceId && (
-      <div
-        data-testid="recipe-detail-panel-shell"
-        style={{
-          ...overlayPanel,
-          top: PANEL_INSET,
-          right: PANEL_INSET,
-          bottom: PANEL_INSET,
-          width: panelWidths.detail,
-          minWidth: RECIPE_PANEL_LIMITS.detail.min,
-          opacity: selectedNodeId ? 1 : 0,
-          transform: selectedNodeId ? "translateX(0)" : "translateX(12px)",
-          transition:
-            resizingPanel === "detail"
-              ? "none"
-              : "opacity 0.25s cubic-bezier(0.32,1,0.32,1), transform 0.25s cubic-bezier(0.32,1,0.32,1)",
-          pointerEvents: selectedNodeId ? "auto" : "none",
-        }}
-      >
-        {/* Mirrors the list's toggle: this icon closes the panel, while the
-            modal's own close button only ever closes the modal. */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            flexShrink: 0,
-            padding: `${
-              RECIPE_PANEL_HEADER.INSET - RECIPE_PANEL_HEADER.BORDER
-            }px ${RECIPE_PANEL_HEADER.INSET - RECIPE_PANEL_HEADER.BORDER}px 0`,
+        <FloatingDetailShell
+          isDark={isDark}
+          open={Boolean(selectedNodeId)}
+          width={panelWidths.detail}
+          minWidth={RECIPE_PANEL_LIMITS.detail.min}
+          resizing={resizingPanel === "detail"}
+          testId="recipe-detail-panel-shell"
+          handle={{
+            testId: "recipe-detail-resize-handle",
+            pillTestId: "recipe-detail-resize-pill",
+            onDragStart: () => beginResize("detail"),
+            onDrag: handleDetailResize,
+            onDragEnd: () => endResize("detail"),
           }}
         >
-          <Button
-            prefix_icon="side_menu_right"
-            ariaLabel="Hide details"
-            onClick={() => onSelectNode(null)}
-            style={headerButtonStyle}
+          <DetailPanel
+            recipe={activeRecipe}
+            selectedNodeId={selectedNodeId}
+            onChange={handleRecipeChange}
+            onChangeSilent={handleRecipeChangeSilent}
+            recipes={recipes}
+            onDrillIn={handleDrillIn}
           />
-        </div>
-        <DetailPanel
-          recipe={activeRecipe}
-          selectedNodeId={selectedNodeId}
-          onChange={handleRecipeChange}
-          onChangeSilent={handleRecipeChangeSilent}
-          recipes={recipes}
-          onDrillIn={handleDrillIn}
-        />
-      </div>
-      )}
-
-      {/* ── Detail resize pill (floats just outside the panel's left edge) ── */}
-      {!skeletonResourceId && (
-      <PanelResizeHandle
-        testId="recipe-detail-resize-handle"
-        isDark={isDark}
-        pillTestId="recipe-detail-resize-pill"
-        visible={Boolean(selectedNodeId)}
-        style={{
-          top: PANEL_INSET,
-          bottom: PANEL_INSET,
-          right: PANEL_INSET + panelWidths.detail + HANDLE_GAP,
-        }}
-        onDragStart={() => beginResize("detail")}
-        onDrag={handleDetailResize}
-        onDragEnd={() => endResize("detail")}
-      />
+        </FloatingDetailShell>
       )}
     </div>
   );

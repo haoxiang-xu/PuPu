@@ -100,6 +100,8 @@ const PRODUCER_LABEL = {
   agent: "An Agent",
   tool_call: "A Tool Call",
   skill_read: "A Skill Read",
+  code: "This Code node's Result",
+  workflow_call: "The called Workflow's End",
 };
 
 /* What the runtime will refuse, said earlier.

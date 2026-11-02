@@ -1,4 +1,5 @@
 import { renderHook, act } from "@testing-library/react";
+import { install_legacy_store_bridge } from "./legacy_store_test_bridge";
 import useSkeletonResource from "./use_skeleton_resource";
 import { SESSION_STATUS } from "./skeleton_resource_session";
 import {
@@ -9,6 +10,8 @@ import {
 import { api } from "../../../../SERVICEs/api";
 
 jest.mock("../../../../SERVICEs/api", () => ({ api: { unchain: {} } }));
+/* The editor speaks v2 only (#357 G1); these mocks are graph-only. */
+install_legacy_store_bridge(api.unchain);
 
 const result = (overrides) => {
   const base = {};
@@ -18,10 +21,12 @@ const result = (overrides) => {
   return { ...base, id: "life", kind: "workflow", name: "life", ...overrides };
 };
 
-const doc = (tag) => ({
+/* A stored document names its own resource: the v2 reply is refused
+   otherwise (#357 G1), so a resource other than "life" carries its id. */
+const doc = (tag, id = "life") => ({
   schema_version: 1,
   kind: "workflow",
-  id: "life",
+  id,
   name: "life",
   nodes: [],
   edges: [],
@@ -265,7 +270,7 @@ describe("a preflight reply that arrives late", () => {
     });
     api.unchain.getSkeletonResource = jest
       .fn()
-      .mockResolvedValue(result({ id: "other", document: doc("Z"), edit_token: "z1" }));
+      .mockResolvedValue(result({ id: "other", document: doc("Z", "other"), edit_token: "z1" }));
     await act(async () => {
       await hook.result.current.load("other");
     });
@@ -364,9 +369,9 @@ describe("a reply that arrives after the author moved to another resource", () =
     api.unchain.getSkeletonResource = jest
       .fn()
       .mockImplementationOnce(() => new Promise((resolve) => {
-        release = () => resolve(result({ id: "A", document: doc("A"), edit_token: "ta" }));
+        release = () => resolve(result({ id: "A", document: doc("A", "A"), edit_token: "ta" }));
       }))
-      .mockResolvedValue(result({ id: "B", document: doc("B"), edit_token: "tb" }));
+      .mockResolvedValue(result({ id: "B", document: doc("B", "B"), edit_token: "tb" }));
 
     const hook = renderHook(() => useSkeletonResource());
     let first;
@@ -382,7 +387,7 @@ describe("a reply that arrives after the author moved to another resource", () =
     });
 
     expect(hook.result.current.session.resource_id).toBe("B");
-    expect(hook.result.current.session.document).toEqual(doc("B"));
+    expect(hook.result.current.session.document).toEqual(doc("B", "B"));
     expect(hook.result.current.session.edit_token).toBe("tb");
   });
 
@@ -390,11 +395,11 @@ describe("a reply that arrives after the author moved to another resource", () =
     let release;
     api.unchain.getSkeletonResource = jest
       .fn()
-      .mockResolvedValueOnce(result({ id: "A", document: doc("A"), edit_token: "ta" }))
-      .mockResolvedValue(result({ id: "B", document: doc("B"), edit_token: "tb" }));
+      .mockResolvedValueOnce(result({ id: "A", document: doc("A", "A"), edit_token: "ta" }))
+      .mockResolvedValue(result({ id: "B", document: doc("B", "B"), edit_token: "tb" }));
     api.unchain.saveSkeletonResource = jest.fn().mockImplementation(
       () => new Promise((resolve) => {
-        release = () => resolve(result({ id: "A", document: doc("A2"), edit_token: "ta2" }));
+        release = () => resolve(result({ id: "A", document: doc("A2", "A"), edit_token: "ta2" }));
       }),
     );
 
@@ -402,7 +407,7 @@ describe("a reply that arrives after the author moved to another resource", () =
     await act(async () => {
       await hook.result.current.load("A");
     });
-    act(() => hook.result.current.edit(doc("A2")));
+    act(() => hook.result.current.edit(doc("A2", "A")));
     let pending;
     act(() => {
       pending = hook.result.current.save();
@@ -417,7 +422,7 @@ describe("a reply that arrives after the author moved to another resource", () =
 
     expect(hook.result.current.session.resource_id).toBe("B");
     expect(hook.result.current.session.edit_token).toBe("tb");
-    expect(hook.result.current.session.document).toEqual(doc("B"));
+    expect(hook.result.current.session.document).toEqual(doc("B", "B"));
     expect(hook.result.current.session.saving).toBe(false);
   });
 
@@ -425,8 +430,8 @@ describe("a reply that arrives after the author moved to another resource", () =
     let release;
     api.unchain.getSkeletonResource = jest
       .fn()
-      .mockResolvedValueOnce(result({ id: "A", document: doc("A"), edit_token: "ta" }))
-      .mockResolvedValue(result({ id: "B", document: doc("B"), edit_token: "tb" }));
+      .mockResolvedValueOnce(result({ id: "A", document: doc("A", "A"), edit_token: "ta" }))
+      .mockResolvedValue(result({ id: "B", document: doc("B", "B"), edit_token: "tb" }));
     api.unchain.saveSkeletonResource = jest.fn().mockImplementation(
       () => new Promise((resolve) => {
         release = () => resolve({ error: EDIT_CONFLICT_ERROR });
@@ -437,7 +442,7 @@ describe("a reply that arrives after the author moved to another resource", () =
     await act(async () => {
       await hook.result.current.load("A");
     });
-    act(() => hook.result.current.edit(doc("A2")));
+    act(() => hook.result.current.edit(doc("A2", "A")));
     let pending;
     act(() => {
       pending = hook.result.current.save();
@@ -463,18 +468,18 @@ describe("a conflict choice that lands after the author moved on", () => {
     let release;
     api.unchain.getSkeletonResource = jest
       .fn()
-      .mockResolvedValueOnce(result({ id: "A", document: doc("A"), edit_token: "ta" }))
+      .mockResolvedValueOnce(result({ id: "A", document: doc("A", "A"), edit_token: "ta" }))
       .mockImplementationOnce(() => new Promise((resolve) => {
-        release = () => resolve(result({ id: "A", document: doc("A-theirs"), edit_token: "ta9" }));
+        release = () => resolve(result({ id: "A", document: doc("A-theirs", "A"), edit_token: "ta9" }));
       }))
-      .mockResolvedValue(result({ id: "B", document: doc("B"), edit_token: "tb" }));
+      .mockResolvedValue(result({ id: "B", document: doc("B", "B"), edit_token: "tb" }));
     api.unchain.saveSkeletonResource = jest.fn().mockResolvedValue({ error: EDIT_CONFLICT_ERROR });
 
     const hook = renderHook(() => useSkeletonResource());
     await act(async () => {
       await hook.result.current.load("A");
     });
-    act(() => hook.result.current.edit(doc("A-mine")));
+    act(() => hook.result.current.edit(doc("A-mine", "A")));
     await act(async () => {
       await hook.result.current.save();
     });
@@ -488,7 +493,7 @@ describe("a conflict choice that lands after the author moved on", () => {
     await act(async () => {
       await hook.result.current.load("B");
     });
-    act(() => hook.result.current.edit(doc("B-edited")));
+    act(() => hook.result.current.edit(doc("B-edited", "B")));
     await act(async () => {
       release();
       await pending;
@@ -499,7 +504,7 @@ describe("a conflict choice that lands after the author moved on", () => {
   test("taking theirs cannot replace the Agent now open", async () => {
     const hook = await conflicted_then_left("theirs");
     expect(hook.result.current.session.resource_id).toBe("B");
-    expect(hook.result.current.session.document).toEqual(doc("B-edited"));
+    expect(hook.result.current.session.document).toEqual(doc("B-edited", "B"));
     expect(hook.result.current.session.edit_token).toBe("tb");
   });
 
@@ -512,7 +517,7 @@ describe("a conflict choice that lands after the author moved on", () => {
     const hook = await conflicted_then_left("mine");
     expect(hook.result.current.session.resource_id).toBe("B");
     expect(hook.result.current.session.edit_token).toBe("tb");
-    expect(hook.result.current.session.document).toEqual(doc("B-edited"));
+    expect(hook.result.current.session.document).toEqual(doc("B-edited", "B"));
   });
 });
 
@@ -526,8 +531,8 @@ describe("reopening the same Agent is a different sitting", () => {
       .fn()
       .mockImplementation(async (id) =>
         id === "B"
-          ? result({ id: "B", document: doc("B"), edit_token: "tb" })
-          : result({ id: "A", document: doc("A"), edit_token: "ta2" }),
+          ? result({ id: "B", document: doc("B", "B"), edit_token: "tb" })
+          : result({ id: "A", document: doc("A", "A"), edit_token: "ta2" }),
       );
     api.unchain.saveSkeletonResource = jest.fn().mockImplementation(
       () => new Promise((resolve) => { release = () => resolve(makeSave()); }),
@@ -537,7 +542,7 @@ describe("reopening the same Agent is a different sitting", () => {
     await act(async () => {
       await hook.result.current.load("A");
     });
-    act(() => hook.result.current.edit(doc("A-edited")));
+    act(() => hook.result.current.edit(doc("A-edited", "A")));
     let pending;
     act(() => {
       pending = hook.result.current.save();
@@ -556,9 +561,9 @@ describe("reopening the same Agent is a different sitting", () => {
   };
 
   test("an old save cannot roll the token back", async () => {
-    const hook = await reopened(() => result({ id: "A", document: doc("A-old"), edit_token: "ta1" }));
+    const hook = await reopened(() => result({ id: "A", document: doc("A-old", "A"), edit_token: "ta1" }));
     expect(hook.result.current.session.edit_token).toBe("ta2");
-    expect(hook.result.current.session.document).toEqual(doc("A"));
+    expect(hook.result.current.session.document).toEqual(doc("A", "A"));
   });
 
   test("an old refusal cannot raise a conflict that is not happening", async () => {
@@ -1431,7 +1436,7 @@ describe("opening another resource, for a drill-in", () => {
     });
     act(() => hook.result.current.restore(answer.left));
     await act(async () => {
-      land(result({ id: "sum", document: doc("stored"), edit_token: "sum-2" }));
+      land(result({ id: "sum", document: doc("stored", "sum"), edit_token: "sum-2" }));
       await saving;
     });
     expect(hook.result.current.session.resource_id).toBe("life");

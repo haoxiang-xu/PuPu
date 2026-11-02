@@ -5,6 +5,7 @@ import { ConfigContext } from "../../../../CONTAINERs/config/context";
 import SkeletonCanvas from "./skeleton_canvas";
 import { new_agent_document } from "./skeleton_graph_edits";
 import { apply_graph_command } from "./skeleton_graph_commands";
+import { openAddNode } from "./skeleton_canvas_test_helpers";
 
 const seed = () => new_agent_document({ id: "commands", name: "Commands" }).document;
 let current;
@@ -25,7 +26,7 @@ function Harness({ initial = seed(), scope = "one", readOnly = false }) {
   /></ConfigContext.Provider>;
 }
 const add = (type) => {
-  fireEvent.click(screen.getByRole("button", { name: "Add node" }));
+  openAddNode();
   fireEvent.click(screen.getByTestId(`palette-entry-${type}`));
 };
 const node = (container, id) => container.querySelector(`[data-flow-node-id="${id}"]`);
@@ -42,8 +43,8 @@ beforeEach(() => { localStorage.clear(); commands = []; selected = jest.fn(); })
 
 test("palette adds native Agent and Pool, selects them, never offers unsupported types", () => {
   render(<Harness />);
-  fireEvent.click(screen.getByRole("button", { name: "Add node" }));
-  expect(screen.queryByTestId("palette-entry-code")).not.toBeInTheDocument();
+  openAddNode();
+  expect(screen.queryByTestId("palette-entry-some_future_step")).not.toBeInTheDocument();
   fireEvent.click(screen.getByTestId("palette-entry-agent"));
   add("subagent_pool");
   expect(current.nodes.map((n) => n.id)).toEqual(["start", "agent", "end", "agent-2", "pool"]);
@@ -109,7 +110,7 @@ test("a cancelled reconnect leaves the original edge and explains why", () => {
 
 test("external view scope change closes an open palette; a local render keeps it", () => {
   const view = render(<Harness />);
-  fireEvent.click(screen.getByRole("button", { name: "Add node" }));
+  openAddNode();
   view.rerender(<Harness scope="one" />);
   expect(screen.getByTestId("recipe-node-palette")).toBeInTheDocument();
   view.rerender(<Harness scope="two" />);
@@ -118,7 +119,8 @@ test("external view scope change closes an open palette; a local render keeps it
 
 test("read-only canvas has no add action or graph mutation controls", () => {
   const { container } = render(<Harness readOnly />);
-  expect(screen.queryByRole("button", { name: "Add node" })).not.toBeInTheDocument();
+  openAddNode();
+  expect(screen.queryByTestId("recipe-node-palette")).not.toBeInTheDocument();
   fireEvent.click(container.querySelector("[data-flow-edge-id]"));
   expect(container.querySelector("[data-edge-reconnect-target]")).toBeNull();
 });

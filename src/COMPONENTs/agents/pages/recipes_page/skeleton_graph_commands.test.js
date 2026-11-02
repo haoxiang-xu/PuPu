@@ -12,7 +12,8 @@ test("adds only native supported nodes without drawing fields", () => {
   const result = command(seed(), "add_node", { node_type: "subagent_pool" });
   expect(result.ok).toBe(true);
   expect(result.document.nodes.at(-1)).toStrictEqual({ id: "pool", type: "subagent_pool", config: { subagents: [] } });
-  expect(command(seed(), "add_node", { node_type: "code" }).ok).toBe(false);
+  /* Every native type is addable since #357; an unknown one is not. */
+  expect(command(seed(), "add_node", { node_type: "some_future_step" }).ok).toBe(false);
 });
 
 test("a reverse inlet drag becomes the same native flow as an outlet drag", () => {

@@ -1,5 +1,7 @@
 /* eslint-disable testing-library/no-container, testing-library/no-node-access -- Ports and edges are driven on the actual shared editor. */
 import React from "react";
+import { pressCanvasNode, openAddNode, openRunMenu } from "./recipes_page/skeleton_canvas_test_helpers";
+import { install_legacy_store_bridge } from "./recipes_page/legacy_store_test_bridge";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import SkeletonResourcePage from "./skeleton_resource_page";
@@ -15,6 +17,8 @@ import { RESOURCE_RESULT_KEYS } from "./recipes_page/skeleton_resource_capture";
  * for the strict store + runtime consumer (qualify_branch_page.py). */
 
 jest.mock("../../../SERVICEs/api", () => ({ api: { unchain: {} } }));
+/* The editor speaks v2 only (#357 G1); these mocks are graph-only. */
+install_legacy_store_bridge(api.unchain);
 
 const profile = capture.rows[1].document.nodes[1].config.kernel.profile;
 const ref = (node_id, path) => ({ kind: "ref", node_id, path });
@@ -40,7 +44,7 @@ async function open(record) {
   await screen.findByTestId("skeleton-node-router");
 }
 const add = async (type) => {
-  fireEvent.click(screen.getByRole("button", { name: "Add node" }));
+  openAddNode();
   fireEvent.click(screen.getByTestId(`palette-entry-${type}`));
 };
 const port = (node, id) => view.container.querySelector(`[data-node-id="${node}"][data-port-id="${id}"]`);
@@ -65,7 +69,7 @@ const choose = (container, label, which = 0) => {
   const lists = screen.getAllByRole("listbox", { hidden: true });
   fireEvent.click(within(lists[lists.length - 1]).getByText(label, { exact: true }));
 };
-const select = (id) => fireEvent.click(screen.getByTestId(`skeleton-node-${id}`));
+const select = (id) => pressCanvasNode(screen.getByTestId(`skeleton-node-${id}`));
 const save = async () => {
   fireEvent.click(screen.getByRole("button", { name: "Save", exact: true }));
   await waitFor(() => expect(screen.getByTestId("skeleton-save-state")).toHaveTextContent(/^Saved$/));

@@ -66,15 +66,28 @@ def _dependency_metadata(value: Any, path: tuple) -> dict[tuple[str, str], str]:
 def _workflow_references(document: dict) -> set[tuple[str, str]]:
     # Documents have already passed actual core graph/config admission. Scan the
     # bodies independently of the Store's metadata collector.
-    result = set()
+    return {key for key, _depth, _ancestors in _workflow_placements(document)}
+
+
+def _workflow_placements(document, *, execution_frames=1, ancestors=()):
+    """Keep the extra child frame of an embedded body in closure admission."""
+    owner = document['id']
+    if execution_frames > 32 or owner in ancestors:
+        _snapshot_conflict(('document', 'id'))
+    placement = (execution_frames + 1, ancestors + (owner,))
     for node in document["nodes"]:
         references = []
         if node["type"] == "workflow_call":
             references.append(node["config"]["workflow"])
         elif node["type"] == "hooks_pool":
-            references.extend(hook["workflow"] for hook in node["config"]["hooks"])
-        result.update((ref["workflow_id"], ref["revision_id"]) for ref in references)
-    return result
+            references.extend(hook["workflow"] for hook in node["config"]["hooks"]
+                              if hook.get("enabled") is not False and hook['workflow'].get('kind') != 'embedded')
+        for ref in references:
+            yield (ref['workflow_id'], ref['revision_id']), *placement
+    from skeleton_embedded_hooks import embedded_hook_bodies
+    for _address, body in embedded_hook_bodies(document):
+        yield from _workflow_placements(body, execution_frames=execution_frames + 1,
+                                       ancestors=ancestors + (owner,))
 
 
 def _selection_references(value: dict, *, execution_frames: int = 1,
@@ -82,8 +95,10 @@ def _selection_references(value: dict, *, execution_frames: int = 1,
     # Every selected graph contributes a runtime frame, including embedded
     # Agent graphs whose ids need not be resource-store identities.
     owner_id = value["document"]["id"]
-    placement = (execution_frames + 1, ancestors + (owner_id,))
-    result = {key: {placement} for key in _workflow_references(value["document"])}
+    result = {}
+    for key, depth, owners in _workflow_placements(value['document'],
+            execution_frames=execution_frames, ancestors=ancestors):
+        result.setdefault(key, set()).add((depth, owners))
     for child in value["subagents"]:
         for key, placements in _selection_references(
                 child, execution_frames=execution_frames + 1,
@@ -130,6 +145,9 @@ def freeze_skeleton_workflow_dependencies(selection, *, store=None):
     try:
         if type(selection) is not FrozenSkeletonChatSelection:
             _snapshot_invalid(("selection",))
+        if selection._workflows_json is not None:
+            from skeleton_production_state import _restore_workflows
+            return _restore_workflows(selection, json.loads(selection._workflows_json))
         selected = selection.to_dict()
         try:
             _check_preflight(selected, selection.resource_id)

@@ -1,4 +1,5 @@
 import React from "react";
+import { install_legacy_store_bridge } from "./recipes_page/legacy_store_test_bridge";
 import { render, screen, fireEvent, waitFor, act, within } from "@testing-library/react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import SkeletonResourcePage from "./skeleton_resource_page";
@@ -41,6 +42,8 @@ import {
  * payload and the layout service. */
 
 jest.mock("../../../SERVICEs/api", () => ({ api: { unchain: {} } }));
+/* The editor speaks v2 only (#357 G1); these mocks are graph-only. */
+install_legacy_store_bridge(api.unchain);
 
 let editor = null;
 jest.mock("../../../BUILTIN_COMPONENTs/flow_editor", () => ({
@@ -49,7 +52,8 @@ jest.mock("../../../BUILTIN_COMPONENTs/flow_editor", () => ({
     return (
       <div data-testid="flow-editor">
         {(props.nodes || []).map((node) => (
-          <div key={node.id} data-testid={`flow-node-${node.id}`} data-x={node.x}>
+          <div key={node.id} data-testid={`flow-node-${node.id}`} data-x={node.x}
+            onClick={() => props.on_select?.(node.id)}>
             {props.render_node(node)}
           </div>
         ))}
@@ -706,7 +710,7 @@ describe("a reference read issued from a graph that is then closed", () => {
     expect(screen.queryByTestId("skeleton-drill-breadcrumb")).toBeNull();
     expect(screen.getByTestId("skeleton-node-pool-a")).toBeInTheDocument();
     /* Still this resource, still its own graph. */
-    expect(screen.getByTestId("skeleton-node-list").textContent).not.toMatch(
+    expect(screen.getByTestId("skeleton-canvas").textContent).not.toMatch(
       /inner-ref-pool/,
     );
     /* And nothing new was said about the graph the author decided against. */
@@ -1556,7 +1560,9 @@ describe("an answer about a draft that has changed", () => {
     await open_sibling_isolation();
     api.unchain.saveSkeletonResource = jest.fn(async (payload) => {
       sent.push(copy(payload));
-      return { ok: true, data: { ...payload, edit_token: "edit-2", diagnostics: [] } };
+      /* The stored resource, as the store answers it: the v2 reply is refused
+         unless it carries its own document (#357 G1). */
+      return { id: payload.document.id, document: payload.document, edit_token: "edit-2", diagnostics: [] };
     });
     await remove_first_entry();
     await act(async () => {
