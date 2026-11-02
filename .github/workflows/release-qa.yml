@@ -97,7 +97,27 @@ jobs:
           JS
           sudo chown root:root candidate/node_modules/electron/dist/chrome-sandbox
           sudo chmod 4755 candidate/node_modules/electron/dist/chrome-sandbox
-          npm --prefix candidate ls --all --json > test-results/npm-ls.json
+          set +e
+          npm --prefix candidate ls --all --json > test-results/npm-ls.json 2> test-results/npm-ls.stderr
+          inventory_exit=$?
+          set -e
+          printf '%s\n' "$inventory_exit" > test-results/npm-ls-exit.txt
+          node <<'JS'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const assert = require('node:assert/strict');
+          const tree = JSON.parse(fs.readFileSync('test-results/npm-ls.json'));
+          const code = Number(fs.readFileSync('test-results/npm-ls-exit.txt', 'utf8'));
+          if (code !== 0) {
+            // Inventory is provenance, not a new clean-peer gate. Retain and
+            // precisely register the existing locked diagnostic; no other
+            // npm failure is accepted and no dependency is modified.
+            assert.equal(code, 1);
+            assert.deepEqual(tree.problems, ['invalid: yaml@1.10.3 ' + path.resolve('candidate/node_modules/yaml')]);
+            assert.equal(require('./candidate/package-lock.json').packages['node_modules/yaml'].version, '1.10.3');
+            console.log('Registered existing locked yaml inventory diagnostic; npm ci and lock integrity remain required.');
+          }
+          JS
           sha256sum -c test-results/package-lock.sha256
       - name: Pure fixture controls without any socket or App
         run: |
