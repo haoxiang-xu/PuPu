@@ -1,11 +1,17 @@
 """QA-only finite tool exchange; no production consumer or real credentials."""
 import copy
+import importlib.util
 import json
+from pathlib import Path
 
-from execution_fixture import (
-    FixtureRefusal, SCHEMA, completed_response, response_events,
-    validate_request, validate_scenario,
-)
+# -I deliberately omits the script directory from sys.path. Bind this exact
+# shipped sibling instead of weakening isolation or searching ambient modules.
+_spec = importlib.util.spec_from_file_location("qa357_base_fixture", Path(__file__).with_name("execution_fixture.py"))
+_base = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_base)
+FixtureRefusal, SCHEMA = _base.FixtureRefusal, _base.SCHEMA
+completed_response, response_events = _base.completed_response, _base.response_events
+validate_request, validate_scenario = _base.validate_request, _base.validate_scenario
 
 
 def base_scenario(value):

@@ -3,8 +3,7 @@ import copy
 import json
 import unittest
 
-from execution_fixture import FixtureRefusal
-from tool_fixture import ToolSequence, tool_events, validate_tool_scenario
+from tool_fixture import FixtureRefusal, ToolSequence, tool_events, validate_tool_scenario
 
 
 class ToolControls(unittest.TestCase):

@@ -121,7 +121,7 @@ jobs:
           sha256sum -c test-results/package-lock.sha256
       - name: Pure fixture controls without any socket or App
         run: |
-          python -I -B -c 'import sys,unittest;sys.path.insert(0,"control/tools/qa357");s=unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromName(n) for n in ["test_execution_fixture","test_tool_fixture"]);r=unittest.TextTestRunner(verbosity=2).run(s);sys.exit(not r.wasSuccessful())'
+          python -I -B -c 'import sys,unittest;sys.path.insert(0,"control/tools/qa357");s=unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromName(n) for n in ["test_execution_fixture","test_tool_fixture","test_tool_isolated_import"]);r=unittest.TextTestRunner(verbosity=2).run(s);sys.exit(not r.wasSuccessful())'
           for file in control/tools/qa357/*.sh; do bash -n "$file"; done
           node --check control/tools/qa357/credential_probe.cjs
       - name: Qualify private real credential service and SDK over loopback TLS
