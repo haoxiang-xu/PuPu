@@ -3,9 +3,9 @@ on:
   workflow_dispatch:
     inputs:
       qa_scope:
-        description: Serial Linux pair or native platform package smoke
+        description: Full Linux pair, unfinished Host/App cells, or serial native package smoke
         type: choice
-        options: [pair, platforms]
+        options: [pair, host-pair, platforms]
         default: pair
       candidate_sha:
         required: true
@@ -150,9 +150,10 @@ jobs:
           echo "QA_SITE=$(python -c 'import site;print(site.getsitepackages()[0])')" >> "$GITHUB_ENV"
           echo "QA_WHEEL=$WHEEL" >> "$GITHUB_ENV"
       - name: Core contract matrix against the installed canonical wheel offline
+        if: inputs.qa_scope == 'pair'
         run: bash control/tools/qa356/run_offline.sh core
       - name: Preserve the completed installed Core cell before later stages
-        if: always()
+        if: always() && inputs.qa_scope == 'pair'
         uses: actions/upload-artifact@v4
         with:
           name: 356-installed-core
