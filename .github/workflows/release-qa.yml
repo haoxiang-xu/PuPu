@@ -20,6 +20,7 @@ on:
         description: Build and verify one sidecar after source acceptance
         type: boolean
         default: false
+cache-mode: read
 permissions:
   contents: read
   actions: read
@@ -47,6 +48,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Install pinned bootstrap dependencies before reading the wheel manifest
+        run: python -m pip install --disable-pip-version-check -r candidate/unchain_runtime/server/requirements.txt
       - name: Bind the immutable candidate and QA control
         env:
           CORE: ${{ inputs.core_sha }}
@@ -67,7 +70,7 @@ jobs:
       - uses: actions/download-artifact@v4
         if: inputs.wheel_run_id != ''
         with:
-          name: unchain-release-artifact
+          name: ${{ inputs.wheel_run_id == '41550715702' && '356-runtime-pair-evidence' || 'unchain-release-artifact' }}
           path: artifact
           run-id: ${{ inputs.wheel_run_id }}
           github-token: ${{ github.token }}
@@ -77,6 +80,26 @@ jobs:
           ref: ${{ inputs.core_sha }}
           path: runtime-source
           persist-credentials: false
+      - name: Complete evidence for the retained failed-bootstrap wheel without rebuilding
+        if: inputs.wheel_run_id == '41550715702'
+        env:
+          CORE: ${{ inputs.core_sha }}
+        run: |
+          set -euo pipefail
+          test "$CORE" = 29e83c4b0df38089fd8c2e1b0e45dd92f2a6a1dd
+          test "$QA_WHEEL_SHA" = 949a89475894b13ac324b90671c714ccd3125509cf6b313df739c66dc8292de6
+          test "$(git -C runtime-source rev-parse HEAD)" = "$CORE"
+          cp artifact/artifact/unchain-0.2.0-py3-none-any.whl artifact/unchain-0.2.0-py3-none-any.whl
+          echo "$QA_WHEEL_SHA  artifact/unchain-0.2.0-py3-none-any.whl" | sha256sum -c -
+          node --input-type=module - <<'JS'
+          import fs from 'node:fs';
+          import {buildUnchainArtifactEvidence, inspectRuntimeManifestFromWheel} from './candidate/scripts/release-qa/unchain-artifact.mjs';
+          const artifactPath='artifact/unchain-0.2.0-py3-none-any.whl';
+          const runtimeManifest=inspectRuntimeManifestFromWheel({artifactPath,python:'python'});
+          const evidence=buildUnchainArtifactEvidence({artifactPath,runtimeManifest,source:{repository:'haoxiang-xu/unchain',ref:process.env.CORE,revision:process.env.CORE,dirty:false}});
+          fs.writeFileSync('artifact/unchain-artifact.json',JSON.stringify(evidence,null,2)+'\n');
+          fs.writeFileSync('test-results/wheel-bootstrap-recovery.json',JSON.stringify({original_run:41550715702,wheel_sha256:process.env.QA_WHEEL_SHA,rebuild:false,original_failure:'manifest import lacked bootstrap httpx; wheel was built and retained',cache_read_control_omission:'disclosed, not waived; restored for this run'},null,2)+'\n');
+          JS
       - name: Build one canonical wheel only when no existing artifact is supplied
         if: inputs.wheel_run_id == ''
         env:
@@ -88,12 +111,14 @@ jobs:
           node candidate/scripts/release-qa/build-unchain-artifact.mjs --source "$PWD/runtime-source" --source-ref "$CORE" --out-dir "$PWD/artifact" --python python
           echo "QA_WHEEL_SHA=$(python -c "import json;print(json.load(open('artifact/unchain-artifact.json'))['artifact']['sha256'])")" >> "$GITHUB_ENV"
       - name: Retain the one canonical wheel even when later acceptance fails
-        if: inputs.wheel_run_id == ''
+        if: inputs.wheel_run_id == '' || inputs.wheel_run_id == '41550715702'
         uses: actions/upload-artifact@v4
         with:
           name: unchain-release-artifact
           if-no-files-found: error
-          path: artifact/*
+          path: |
+            artifact/unchain-0.2.0-py3-none-any.whl
+            artifact/unchain-artifact.json
       - name: Install and verify the canonical wheel without rebuilding it
         env:
           CORE: ${{ inputs.core_sha }}
@@ -101,7 +126,6 @@ jobs:
           set -euo pipefail
           WHEEL="$PWD/artifact/unchain-0.2.0-py3-none-any.whl"
           echo "$QA_WHEEL_SHA  $WHEEL" | sha256sum -c -
-          python -m pip install --disable-pip-version-check -r candidate/unchain_runtime/server/requirements.txt
           python -m pip install --disable-pip-version-check --constraint candidate/unchain_runtime/server/requirements.txt "$WHEEL" pytest==9.2.0
           python -m pip check
           node candidate/scripts/release-qa/verify-unchain-artifact.mjs --artifact "$WHEEL" --evidence "$PWD/artifact/unchain-artifact.json" --installed true --python python
