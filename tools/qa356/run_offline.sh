@@ -32,7 +32,7 @@ if [[ "$mode" == core || "$mode" == source ]]; then
   mapfile -t test_files < <(find tests -maxdepth 1 -name 'test_skeleton_*.py' -type f | sort)
   test "${#test_files[@]}" -ge "$minimum"
   printf '%s\n' "${test_files[@]}" > "$QA_OUT/test-files.txt"
-  command=("$QA_PYTHON" -B -m pytest -q -p no:cacheprovider -p qa356_runtime_probe
+  command=("$QA_PYTHON" -B -m pytest -vv --durations=40 -p no:cacheprovider -p qa356_runtime_probe
     -o faulthandler_timeout=90 --basetemp="$QA_OUT/pytest-data"
     --junitxml="$QA_OUT/acceptance.xml" "${test_files[@]}")
 elif [[ "$mode" == binary ]]; then

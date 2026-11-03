@@ -33,7 +33,9 @@ jobs:
   pair:
     if: inputs.qa_scope != 'platforms'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # The complete installed suites precede binary/App builds. Keep their
+    # completed evidence independently; a package timeout must not erase it.
+    timeout-minutes: 105
     env:
       QA_CANDIDATE: ${{ inputs.candidate_sha }}
       QA_WHEEL_SHA: ${{ inputs.wheel_sha256 }}
@@ -149,8 +151,28 @@ jobs:
           echo "QA_WHEEL=$WHEEL" >> "$GITHUB_ENV"
       - name: Core contract matrix against the installed canonical wheel offline
         run: bash control/tools/qa356/run_offline.sh core
+      - name: Preserve the completed installed Core cell before later stages
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: 356-installed-core
+          if-no-files-found: error
+          path: |
+            test-results/core/**
+            test-results/*identity.txt
+            artifact/unchain-artifact.json
       - name: Installed-wheel execution and retained-source boundaries offline
         run: bash control/tools/qa356/run_offline.sh source
+      - name: Preserve installed Host evidence before binary/App builds
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: 356-installed-host
+          if-no-files-found: error
+          path: |
+            test-results/source/**
+            test-results/*identity.txt
+            artifact/unchain-artifact.json
       - name: Build one Linux sidecar from the same canonical wheel
         if: inputs.build_binary
         run: |
