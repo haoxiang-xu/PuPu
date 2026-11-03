@@ -188,6 +188,31 @@ jobs:
       - name: Binary HTTP profile/source/pin/import and cold-read cells offline
         if: inputs.build_binary
         run: bash control/tools/qa356/run_offline.sh binary
+      - name: Read the frozen v1.4 producer binary without rebuilding it
+        if: inputs.build_binary
+        uses: actions/download-artifact@v4
+        with:
+          name: 357-pair-backend-evidence
+          path: legacy-artifact
+          run-id: 41263562114
+          github-token: ${{ github.token }}
+      - name: Bind historical producer and resume through the current binary offline
+        if: inputs.build_binary
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from hashlib import sha256
+          import os
+          matches=list(Path('legacy-artifact').rglob('unchain-server'))
+          assert len(matches)==1, matches
+          binary=matches[0].resolve()
+          assert sha256(binary.read_bytes()).hexdigest()=='e0162fc116e3f2970c67bc6c5458d1a305e6404dbb11b6e22db25897cad77ff6'
+          binary.chmod(0o755)
+          with open(os.environ['GITHUB_ENV'],'a') as stream: stream.write('QA_OLD_BINARY='+str(binary)+'\n')
+          PY
+      - name: Real v1.4 launch cold-resumes A, while the next run uses saved B
+        if: inputs.build_binary
+        run: bash control/tools/qa356/run_offline.sh chat
       - name: Install the candidate's locked App dependencies and runtime resources
         if: inputs.build_binary
         working-directory: candidate

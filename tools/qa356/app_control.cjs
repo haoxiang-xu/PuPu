@@ -102,6 +102,7 @@ async function run_packaged_workflow_tool_control() {
   fs.mkdirSync(home, { recursive: true });
   assert.ok(fs.statSync(app).isFile());
   let current = null;
+  const lifecycle = require('./app_lifecycle.cjs').createLifecycleControl({ out, write, mark, expect, until, agent, port });
   const server = http.createServer(async (request, response) => {
     const chunks = [];
     try {
@@ -112,6 +113,14 @@ async function run_packaged_workflow_tool_control() {
       const record = { index, method: request.method, url: request.url, headers: request.headers,
         request_text: bytes.toString('utf8'), body, at_ns: process.hrtime.bigint().toString() };
       wires.push(record); write('provider-wires.json', wires);
+      const lifecycleFrame = lifecycle.responseFor(body);
+      if (lifecycleFrame) {
+        assert.equal(request.method, 'POST'); assert.equal(request.url, '/api/chat');
+        assert.equal(request.headers.authorization, undefined);
+        record.scenario = 'lifecycle'; record.response = lifecycleFrame; write('provider-wires.json', wires);
+        response.writeHead(200, { 'Content-Type': 'application/x-ndjson' });
+        response.end(`${JSON.stringify(lifecycleFrame)}\n`); return;
+      }
       assert.ok(index < 4, 'unexpected extra provider request');
       assert.equal(request.method, 'POST'); assert.equal(request.url, '/api/chat');
       assert.equal(request.headers.authorization, undefined);
@@ -266,7 +275,14 @@ async function run_packaged_workflow_tool_control() {
       mark('ui', 'root reply visible', { turn, content: final(turn) });
     }
     assert.equal(wires.length, 4); assert.deepEqual(errors, []);
+    write('normal-chat.json', await page.evaluate(() => {
+      const chatId = window.chatStorageAPI.bootstrap().activeChatId;
+      return { chatId, messages: window.chatStorageAPI.readMessages(chatId) };
+    }));
+    await lifecycle.run({ getPage: () => page, stop, launch });
+    assert.equal(wires.length, 10); assert.deepEqual(errors, []);
     write('functional-result.json', { verdict: 'APP_ENTRY_ACCEPTED', roots: 2, offline_provider_requests: wires.length,
+      lifecycle_cases: 3,
       real_provider_requests: 0, source: 'real v2 seed; GUI edit/save/picker/Enter; loopback provider transport',
       product_renderer_sandbox: false, product_quit_acceptance: 'NOT_RUN' });
   } finally {
