@@ -47,6 +47,32 @@ def health_ready(health):
         and contract['capabilities']['durable_jobs']['available'] is True)
 
 
+def workflow_tool_agent(workflow_id, revision_id):
+    def export(name, kind, path):
+        return {'name': name, 'source': {'kind': kind, 'path': path}}
+    def binding(node):
+        return {'name': 'message', 'value': {'kind': 'ref', 'node_id': node, 'path': ['message']}, 'missing': 'error'}
+    return {'schema_version': 1, 'kind': 'agent', 'id': 'pair-workflow-tool-agent', 'name': 'Pair Workflow Tool Agent',
+        'nodes': [
+            {'id': 'start', 'type': 'start', 'config': {'execution': {'outputs': [export('message', 'result', ['message'])]}}},
+            {'id': 'kernel', 'type': 'agent', 'config': {'execution': {'inputs': [binding('start')],
+                'outputs': [export('message', 'result', ['message'])]}, 'kernel': {'schema_version': 1,
+                'profile': {'id': 'pair-ollama', 'provider': 'ollama', 'model': 'pair-offline-model', 'protocol': 'ollama',
+                    'endpoint': 'http://127.0.0.1:11434', 'credential_ref': 'ollama', 'auth_mode': 'none',
+                    'context_window': 8192, 'output_limit': 512,
+                    'capabilities': {'json_schema': True, 'images': False, 'files': False}},
+                'prompt': 'Pair fixture', 'max_iterations': 2, 'output_tokens': 64, 'history': 'root',
+                'overflow': 'error', 'json_schema': None}}},
+            {'id': 'end', 'type': 'end', 'config': {'execution': {'inputs': [binding('kernel')],
+                'outputs': [export('message', 'input', ['message'])]}}},
+            {'id': 'tools', 'type': 'toolkit_pool', 'config': {'toolkits': [], 'merge_with_user_selected': False,
+                'workflow_tools': [{'id': 'code', 'workflow': {'workflow_id': workflow_id, 'revision_id': revision_id}}]}}],
+        'edges': [
+            {'id': 'a', 'kind': 'flow', 'source_node_id': 'start', 'source_port_id': 'out', 'target_node_id': 'kernel', 'target_port_id': 'in'},
+            {'id': 'b', 'kind': 'flow', 'source_node_id': 'kernel', 'source_port_id': 'out', 'target_node_id': 'end', 'target_port_id': 'in'},
+            {'id': 'c', 'kind': 'attach', 'source_node_id': 'kernel', 'source_port_id': 'attach_bot', 'target_node_id': 'tools', 'target_port_id': 'attach_top'}]}
+
+
 def main():
     binary = Path(os.environ['QA_BINARY']).resolve()
     assert sha256(binary.read_bytes()).hexdigest() == os.environ['QA_BINARY_SHA'], 'binary_sha_mismatch'
@@ -148,6 +174,14 @@ def main():
         assert request('GET', '/skeleton_resources/v2/capabilities', authenticated=False)[0] == 401
         assert request('GET', '/skeleton_resources/v2/capabilities')[1]['edit_schema'] == 'pupu.skeleton-edit.v2'
         assert request('GET', '/skeleton_resources/v2/transfer/capabilities')[0] == 200
+        capability_path = '/skeleton_workflow_tools/capabilities?contract=workflow_tool_v1'
+        assert request('GET', capability_path, authenticated=False)[0] == 401
+        capability = request('GET', capability_path)
+        assert capability[0] == 200
+        assert capability[1]['runtime_manifest_digest'] == os.environ['QA_MANIFEST']
+        assert capability[1]['workflow_tool']['minimum_runtime_minor'] == 6
+        assert request('GET', capability_path + '&contract=workflow_tool_v1')[0] == 400
+        assert request('GET', capability_path + '&resource_id=caller-controlled')[0] == 400
         status, profile = request('POST', '/skeleton_python_profiles', {
             'profile_id': 'origin-python', 'executable': sys.executable, 'expected_edit_token': None})
         assert status == 200 and profile['available'] is True
@@ -163,6 +197,19 @@ def main():
         status, version_a = request('POST', path + '/publish', {'schema': 'pupu.skeleton-publish.v2',
             'expected_edit_token': saved_a['resource']['edit_token']})
         assert status == 200 and version_a['contents'][0]['text'] == source_a
+        tool_agent = workflow_tool_agent(identity, version_a['version']['revision_id'])
+        status, saved_agent = request('POST', '/skeleton_resources/v2', {'schema': 'pupu.skeleton-edit.v2',
+            'document': tool_agent, 'expected_edit_token': None, 'managed_sources': []})
+        assert status == 200 and saved_agent['resource']['document'] == tool_agent
+        agent_path = '/skeleton_resources/v2/' + tool_agent['id']
+        assert request('POST', agent_path + '/preflight', {})[1]['preflight']['ok'] is True
+        credential_query = {'schema': 'pupu.skeleton_credential_query.v1', 'mode': 'start',
+            'session_id': 'pair-thread', 'owner_chat_id': 'pair-owner', 'interaction_id': '', 'source_attempt_id': '',
+            'selection': {'schema': 'pupu.skeleton_chat_selection.v1', 'kind': 'resource', 'resource_id': tool_agent['id']},
+            'recipe_name': '', 'memory_agent_config': None}
+        status, required_a = request('POST', '/skeleton_credentials/requirements', credential_query)
+        assert status == 200 and required_a['kind'] == 'skeleton'
+        assert required_a['profiles'][0]['auth_mode'] == 'none'
         body_b = {'schema': 'pupu.skeleton-edit.v2', 'document': saved_a['resource']['document'],
             'expected_edit_token': saved_a['resource']['edit_token'], 'managed_sources': [{'node_path': ['nodes', 1], 'text': source_b}]}
         status, saved_b = request('POST', '/skeleton_resources/v2', body_b)
@@ -185,6 +232,9 @@ def main():
         assert request('GET', path) == (200, saved_b)
         assert request('GET', path + '/versions/' + version_a['version']['revision_id']) == (200, version_a)
         assert request('GET', path + '/versions/' + version_b['version']['revision_id']) == (200, version_b)
+        assert request('GET', agent_path) == (200, saved_agent)
+        assert request('POST', agent_path + '/preflight', {})[1]['preflight']['ok'] is True
+        assert request('POST', '/skeleton_credentials/requirements', credential_query) == (200, required_a)
         assert any(row['id'] == 'origin-python' and row['available'] for row in request('GET', '/skeleton_python_profiles')[1]['profiles'])
         stop()
 
