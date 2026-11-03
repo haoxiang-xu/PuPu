@@ -14,8 +14,11 @@ import pytest
 import app as pupu_app
 import unchain_adapter as adapter
 from unchain.skeleton import prepare_workflow
-from test_skeleton_production_bindings import _execution, _host, _offline_sdk_clients  # noqa: F401
-from test_skeleton_resource_store import output, workflow
+from skeleton_resource_store import SkeletonResourceStore
+from skeleton_workflow_snapshot import freeze_skeleton_workflow_dependencies
+from test_skeleton_production_bindings import (_api, _call_step, _execution, _host, _offline_sdk_clients,  # noqa: F401
+                                               _publish, _select, _tool_leaf)
+from test_skeleton_resource_store import agent, output, workflow
 
 SCHEMA = "pupu.skeleton_tool_schemas.v1"
 
@@ -33,11 +36,11 @@ def client(tmp_path):
 def _runtime_ui_schemas(tmp_path):
     """The deterministic Tool host the production bindings build for a run
     whose chat selected Core, and what it hands a UI host."""
-    host, _store, _selected = _host(tmp_path, options={"toolkits": ["CoreToolkit"]})
-    document = workflow("schema-reference")
-    document["nodes"][1]["type"] = "tool_call"
-    document["nodes"][1]["config"] = {"execution": {"inputs": [], "outputs": [output("value", "result", ["ok"])]},
-                                      "tool": {"name": "read", "on_error": "stop", "approval_timeout_ms": 1000}}
+    document = _tool_leaf("schema-reference")
+    store = SkeletonResourceStore(tmp_path / "resources")
+    selected = _select(store, _call_step(agent("root"), _publish(store, document)))
+    host = _api()(selected, freeze_skeleton_workflow_dependencies(selected, store=store),
+                  {"toolkits": ["CoreToolkit"]}, session_id="session", workspace_root=str(tmp_path), resource_store=store)
     plan = prepare_workflow(document)
     handlers = host.child_handlers_factory(_execution(tmp_path, plan), plan)
     return {entry["name"]: entry for entry in handlers["tool_call"].tool_schemas()}

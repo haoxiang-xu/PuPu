@@ -307,7 +307,14 @@ class SkeletonProductionBindings:
     def _admit_toolkits(self):
         from skeleton_workflow_tools import attached_workflow_tools, resolve_workflow_tool
         self._workflow_tools_by_scope = {}
-        global_toolkits = [self._toolkit(value) for value in self._user_toolkit_ids]
+        # The user's selection reaches a Kernel only through a merging pool. The
+        # catalog itself is read by Tool Call and Skill Read, including those in
+        # fixed Workflow, Hook and Workflow Tool closures, so it is built here,
+        # before any model call, only when one of them can actually run.
+        kinds = {node["type"] for document in self._reachable_documents(self._documents.values())
+                 for node in document["nodes"]}
+        global_toolkits = ([self._toolkit(value) for value in self._user_toolkit_ids]
+                           if kinds.intersection(("tool_call", "skill_read")) else [])
         for document_id, document in self._documents.items():
             workflow_scopes = attached_workflow_tools(document)
             pools = {node["id"]: self._pool_toolkits(node) for node in document["nodes"] if node["type"] == "toolkit_pool"}
@@ -388,14 +395,8 @@ class SkeletonProductionBindings:
                                     include_user_dirs=self._include_user_dirs, extra_skills=self._pack_skills)
         return metadata, SkillsModule(config)
 
-    def handlers_for_store(self, store, plan, *, allowed_tools=None, disabled_tools=()):
-        self._active()
-        plan = checked_execution_plan(plan)
-        if type(store) is not WorkflowExecutionStore or execution_definition_digest(store.plan) != execution_definition_digest(plan):
-            _fail("identity_conflict", ("store",), "Handler plan differs from the execution store.")
-        # Workflow Call clones each provided host onto its child plan. Include
-        # the reachable children's capabilities even if the caller itself has
-        # no Code/Tool/Skill node; otherwise a valid call fails at child Start.
+    def _reachable_documents(self, roots):
+        """Every document a run can enter from roots through fixed Workflow references."""
         documents = []
         visited = set()
 
@@ -419,7 +420,19 @@ class SkeletonProductionBindings:
                     child = self._workflows.resolve(*key)
                     visit(prepare_workflow(child.document).snapshot())
 
-        visit(plan.snapshot())
+        for document in roots:
+            visit(document)
+        return documents
+
+    def handlers_for_store(self, store, plan, *, allowed_tools=None, disabled_tools=()):
+        self._active()
+        plan = checked_execution_plan(plan)
+        if type(store) is not WorkflowExecutionStore or execution_definition_digest(store.plan) != execution_definition_digest(plan):
+            _fail("identity_conflict", ("store",), "Handler plan differs from the execution store.")
+        # Workflow Call clones each provided host onto its child plan. Include
+        # the reachable children's capabilities even if the caller itself has
+        # no Code/Tool/Skill node; otherwise a valid call fails at child Start.
+        documents = self._reachable_documents((plan.snapshot(),))
         kinds = {node["type"] for document in documents for node in document["nodes"]}
         allowed = None if allowed_tools is None else self._policy_names(allowed_tools, ("allowed_tools",))
         disabled = self._policy_names(disabled_tools, ("disabled_tools",))
