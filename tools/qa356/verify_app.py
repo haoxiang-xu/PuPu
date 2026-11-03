@@ -8,10 +8,12 @@ import shutil
 import sqlite3
 
 from skeleton_production_state import canonical, validate_launch_descriptor
-from unchain.journal import ArtifactRef
+from skeleton_workflow_tools import resolve_workflow_tool
+from unchain.journal import ArtifactRef, AttemptRef
 from unchain.journal.models import _thaw_json
 from unchain.persistence.sqlite_v2 import open_existing_execution_journal_readonly
 from unchain.skeleton.durable_store import WorkflowExecutionStore
+from unchain.skeleton.workflow_runtime import PublishedWorkflow
 
 
 def verify_packaged_workflow_tool():
@@ -101,32 +103,36 @@ def verify_packaged_workflow_tool():
         assert not [row for row in events if row.attempt == event.attempt and row.event_type == "run_failed"]
         kernel = [row for row in state["completed"] if row["node_id"] == "kernel"]
         assert len(kernel) == 1
-        settlements = [row for row in events if row.event_type == "skeleton.subagent_tool_settlement"
-            and row.attempt.generation == event.attempt.generation
-            and row.attempt.attempt_id == kernel[0]["node_attempt_id"]]
-        assert len(settlements) == 1
-        settlement = _thaw_json(settlements[0].payload)
-        assert settlement["status"] == "completed" and settlement["call_id"] == f"workflow-call-{turn}"
-        assert settlement["tool_name"] == "workflow_echo_run"
-        ref = settlement["full_output_ref"]
-        with sqlite3.connect(f"file:{database}?mode=ro", uri=True) as connection:
-            descriptors = connection.execute("SELECT artifact_json FROM artifacts WHERE execution_id=? AND artifact_id=? AND revision=?",
-                (execution_ids[0], ref["id"], ref["revision"])).fetchall()
-        assert len(descriptors) == 1
-        child_artifact = ArtifactRef.from_dict(json.loads(descriptors[0][0]))
-        child_bytes = journal.read_full_verified(artifact=child_artifact)
-        assert sha256(child_bytes).hexdigest() == settlement["result_sha256"]
-        assert len(child_bytes) == settlement["result_bytes"]
-        completion = json.loads(child_bytes)
-        assert completion["outputs"] == settlement["outputs"]
-        assert completion["outputs"]["receipt"] == "committed-workflow-End-only"
-        worker = Path(completion["outputs"]["interpreter"])
+        versions = [row for row in descriptor["workflows"]["workflows"]
+            if row["workflow_id"] == tool["workflow"]["workflow_id"]
+            and row["revision_id"] == tool["workflow"]["revision_id"]]
+        assert len(versions) == 1
+        version = versions[0]
+        binding = resolve_workflow_tool("tools", tool, lambda wid, rev:
+            PublishedWorkflow(wid, rev, version["document"]))
+        # This immediate child never parks, so it has no waiting-tool settlement
+        # receipt. Verify its actual durable graph and End instead of inventing one.
+        identity = json.dumps([kernel[0]["node_attempt_id"], f"workflow-call-{turn}", binding.entry_id],
+            ensure_ascii=False, separators=(",", ":"))
+        child_run = "workflow-tool." + sha256(identity.encode()).hexdigest()
+        suffix = sha256("\0".join((descriptor["graph_id"], child_run, binding.entry_id)).encode()).hexdigest()
+        child_store = WorkflowExecutionStore(journal, binding.plan,
+            graph_id=f"{descriptor['graph_id']}.subagent.{suffix}",
+            attempt=AttemptRef(event.attempt.generation, child_run))
+        child_state = child_store.load().state
+        assert child_state["status"] == "completed" and not child_state["error"] and not child_state["active"]
+        child_ends = [row for row in child_state["completed"] if row["node_id"] == "end"]
+        assert len(child_ends) == 1
+        child_output = child_store.read_json(child_ends[0]["output_ref"])
+        assert child_output["receipt"] == "committed-workflow-End-only"
+        worker = Path(child_output["interpreter"])
         relative_worker = worker.relative_to(app_root)
         assert str(relative_worker).startswith("resources/mcp_runtime/python/")
         assert sha256(worker.read_bytes()).hexdigest() == expected_files[str(relative_worker)]
         roots.append({"attempt": event.attempt.to_dict(), "final_seq": final[0].store_seq,
             "terminal_seq": terminal[0].store_seq, "state": deepcopy(state), "End": result,
-            "child_completion": completion, "bundled_worker_sha256": expected_files[str(relative_worker)]})
+            "child_state": child_state, "child_End": child_output,
+            "bundled_worker_sha256": expected_files[str(relative_worker)]})
     (out / "raw-verification.json").write_text(json.dumps({"verdict": "RAW_APP_ENTRY_ACCEPTED", "roots": roots,
         "wheel_sha256": os.environ["QA_WHEEL_SHA"], "manifest": os.environ["QA_MANIFEST"],
         "sidecar_sha256": os.environ["QA_BINARY_SHA"], "database_source": str(source),
