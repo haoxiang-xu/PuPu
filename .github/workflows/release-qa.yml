@@ -5,7 +5,7 @@ on:
       qa_scope:
         description: Full Linux pair, unfinished Host/App cells, or serial native package smoke
         type: choice
-        options: [pair, host-pair, platforms]
+        options: [pair, host-pair, platforms, windows-guard]
         default: pair
       candidate_sha:
         required: true
@@ -30,8 +30,27 @@ permissions:
   contents: read
   actions: read
 jobs:
+  windows-guard:
+    if: inputs.qa_scope == 'windows-guard'
+    runs-on: windows-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Diagnose the exact native QA rule without starting product processes
+        run: python -B tools/qa356/windows_guard_diagnostic.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: 356-windows-guard-diagnostic
+          path: test-results/windows-guard.json
+          if-no-files-found: error
   pair:
-    if: inputs.qa_scope != 'platforms'
+    if: inputs.qa_scope == 'pair' || inputs.qa_scope == 'host-pair'
     runs-on: ubuntu-latest
     # The complete installed suites precede binary/App builds. Keep their
     # completed evidence independently; a package timeout must not erase it.

@@ -1,0 +1,44 @@
+"""Record the exact failing native QA rule; no product or network probe runs."""
+import base64
+import json
+from pathlib import Path
+import subprocess
+import sys
+import uuid
+
+
+def diagnose_windows_guard():
+    assert sys.platform == "win32"
+    out = Path("test-results/windows-guard.json")
+    out.parent.mkdir(exist_ok=True)
+    evidence = {"product_started": False, "external_probes": 0, "commands": []}
+    name = "qa356-" + uuid.uuid4().hex
+
+    def record_powershell(source):
+        encoded = base64.b64encode(source.encode("utf-16le")).decode()
+        result = subprocess.run(["powershell.exe", "-NoProfile", "-NonInteractive",
+            "-EncodedCommand", encoded], capture_output=True, text=True, timeout=35)
+        row = {"source": source, "exit": result.returncode,
+               "stdout": result.stdout, "stderr": result.stderr}
+        evidence["commands"].append(row)
+        out.write_text(json.dumps(evidence, indent=2) + "\n")
+        print(json.dumps(row))
+        return result
+
+    try:
+        record_powershell("$ErrorActionPreference='Stop';Get-Service MpsSvc,BFE | ConvertTo-Json -Depth 3;"
+            "([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent())"
+            ".IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)")
+        quoted = str(Path(sys.executable).resolve()).replace("'", "''")
+        result = record_powershell("$ErrorActionPreference='Stop';New-NetFirewallRule -DisplayName '" + name
+            + "' -Direction Outbound -Action Block -Program '" + quoted
+            + "' -Profile Any -Enabled True -RemoteAddress @('0.0.0.0-127.0.0.0','127.0.0.2-255.255.255.255','::/0') | ConvertTo-Json -Depth 3")
+        evidence["rule_created"] = result.returncode == 0
+    finally:
+        record_powershell("$ErrorActionPreference='Stop';Get-NetFirewallRule -DisplayName '" + name
+            + "' -ErrorAction SilentlyContinue | Remove-NetFirewallRule")
+        out.write_text(json.dumps(evidence, indent=2) + "\n")
+
+
+if __name__ == "__main__":
+    diagnose_windows_guard()
