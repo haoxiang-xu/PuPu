@@ -204,6 +204,9 @@ def run_retained_binary_chat():
         stop()
         # Inspect only after server shutdown, with the real current readers.
         os.environ['UNCHAIN_DATA_DIR'] = str(data)
+        # Same store owner the sidecars ran with (launch env above); the
+        # current cold readers refuse the pupu_legacy default.
+        os.environ['PUPU_CONTEXT_V2_STORE_OWNER'] = 'unchain'
         from skeleton_production_state import load_launch
         roots = []
         for attempt, tag in ((original, 'A'), ('qa356-new-root', 'B')):
