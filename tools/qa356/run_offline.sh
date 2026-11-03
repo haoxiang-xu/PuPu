@@ -3,19 +3,19 @@ set -euo pipefail
 
 if [[ "$1" != --inside ]]; then
   mode="$1"
-  [[ "$mode" == core || "$mode" == source || "$mode" == binary || "$mode" == chat || "$mode" == app ]]
+  [[ "$mode" == core || "$mode" == source || "$mode" == binary || "$mode" == chat || "$mode" == rebind || "$mode" == app ]]
   export QA_UID="$(id -u)" QA_GID="$(id -g)"
   export QA_HOME="$RUNNER_TEMP/356-$mode-home" QA_TMP="$RUNNER_TEMP/356-$mode-tmp"
   export QA_SERVER="$PWD/candidate/unchain_runtime/server" QA_CONTROL="$PWD/control/tools/qa356"
   export QA_CORE_TESTS="$PWD/runtime-source"
   export QA_OUT="$PWD/test-results/$mode" QA_BINARY="$PWD/candidate/unchain_runtime/dist/linux/unchain-server"
   mkdir -p "$QA_HOME" "$QA_TMP" "$QA_OUT"
-  exec sudo --preserve-env=PATH,QA_UID,QA_GID,QA_HOME,QA_TMP,QA_SERVER,QA_CONTROL,QA_CORE_TESTS,QA_OUT,QA_BINARY,QA_BINARY_SHA,QA_OLD_BINARY,QA_PYTHON,QA_SITE,QA_WHEEL,QA_WHEEL_SHA,QA_MANIFEST,QA_CANDIDATE,QA_APP,QA_CANDIDATE_ROOT \
+  exec sudo --preserve-env=PATH,QA_UID,QA_GID,QA_HOME,QA_TMP,QA_SERVER,QA_CONTROL,QA_CORE_TESTS,QA_OUT,QA_BINARY,QA_BINARY_SHA,QA_OLD_BINARY,QA_PREV_BINARY,QA_PREV_BINARY_SHA,QA_PYTHON,QA_SITE,QA_WHEEL,QA_WHEEL_SHA,QA_MANIFEST,QA_CANDIDATE,QA_APP,QA_CANDIDATE_ROOT \
     unshare --net /bin/bash "$0" --inside "$mode"
 fi
 
 mode="$2"
-[[ "$mode" == core || "$mode" == source || "$mode" == binary || "$mode" == chat || "$mode" == app ]]
+[[ "$mode" == core || "$mode" == source || "$mode" == binary || "$mode" == chat || "$mode" == rebind || "$mode" == app ]]
 ip link set lo up
 test "$(ip -j route show | tr -d '[:space:]')" = '[]'
 ip -j address show > "$QA_OUT/offline-interfaces.json"
@@ -39,6 +39,8 @@ elif [[ "$mode" == binary ]]; then
   command=("$QA_PYTHON" -B "$QA_CONTROL/binary_control.py")
 elif [[ "$mode" == chat ]]; then
   command=("$QA_PYTHON" -B "$QA_CONTROL/binary_chat_control.py")
+elif [[ "$mode" == rebind ]]; then
+  command=("$QA_PYTHON" -B "$QA_CONTROL/rebind_control.py")
 else
   command=(dbus-run-session -- /bin/bash "$QA_CONTROL/run_app.sh")
 fi
@@ -47,6 +49,6 @@ exec setpriv --reuid="$QA_UID" --regid="$QA_GID" --init-groups env -i \
   PYTHONPATH="$QA_PYTHONPATH" UNCHAIN_SOURCE_PATH="$QA_SITE" \
   QA_OUT="$QA_OUT" QA_SITE="$QA_SITE" QA_WHEEL="$QA_WHEEL" QA_WHEEL_SHA="$QA_WHEEL_SHA" \
   QA_MANIFEST="$QA_MANIFEST" QA_BINARY="$QA_BINARY" QA_BINARY_SHA="${QA_BINARY_SHA:-}" QA_CANDIDATE="$QA_CANDIDATE" \
-  QA_OLD_BINARY="${QA_OLD_BINARY:-}" \
+  QA_OLD_BINARY="${QA_OLD_BINARY:-}" QA_PREV_BINARY="${QA_PREV_BINARY:-}" QA_PREV_BINARY_SHA="${QA_PREV_BINARY_SHA:-}" \
   QA_APP="${QA_APP:-}" QA_CANDIDATE_ROOT="${QA_CANDIDATE_ROOT:-}" QA_CONTROL="$QA_CONTROL" QA_PYTHON="$QA_PYTHON" \
   GITHUB_ACTIONS=true RUNNER_OS=Linux XDG_CURRENT_DESKTOP=GNOME NODE_OPTIONS=--max-old-space-size=2048 "${command[@]}"
