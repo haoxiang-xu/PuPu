@@ -96,7 +96,7 @@ jobs:
           assert evidence['source']['dirty'] is False
           assert evidence['build'] == {'built_once': True, 'wheel_count': 1}
           assert evidence['runtime_manifest']['manifest_digest'] == os.environ['QA_MANIFEST']
-          assert evidence['artifact']['sha256'] == os.environ['QA_WHEEL_SHA']
+          assert evidence['artifact']['sha256'] == 'sha256:' + os.environ['QA_WHEEL_SHA']
           PY
           echo "QA_PYTHON=$(python -c 'import sys;print(sys.executable)')" >> "$GITHUB_ENV"
           echo "QA_SITE=$(python -c 'import site;print(site.getsitepackages()[0])')" >> "$GITHUB_ENV"
