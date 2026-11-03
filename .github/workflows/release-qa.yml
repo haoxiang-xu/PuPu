@@ -2,6 +2,11 @@ name: 356 runtime exact-pair acceptance (QA only)
 on:
   workflow_dispatch:
     inputs:
+      qa_scope:
+        description: Serial Linux pair or native platform package smoke
+        type: choice
+        options: [pair, platforms]
+        default: pair
       candidate_sha:
         required: true
         type: string
@@ -26,6 +31,7 @@ permissions:
   actions: read
 jobs:
   pair:
+    if: inputs.qa_scope != 'platforms'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -215,3 +221,91 @@ jobs:
             control/tools/qa356/*
             candidate/build/static/js/*.map
             candidate/unchain_runtime/dist/linux/unchain-server
+  platforms:
+    if: inputs.qa_scope == 'platforms'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 50
+    strategy:
+      max-parallel: 1
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-latest
+            target: darwin-arm64
+            arch: arm64
+          - runner: macos-15-intel
+            target: darwin-x64
+            arch: x64
+          - runner: windows-latest
+            target: win32-x64
+            arch: x64
+    env:
+      QA_CANDIDATE: ${{ inputs.candidate_sha }}
+      QA_WHEEL_SHA: ${{ inputs.wheel_sha256 }}
+      QA_MANIFEST: sha256:ba8943695d80993066a3ad1a25f62cb0086fa9f6ca2f66d676f559841f4e8e5d
+      QA_RUNTIME_TARGET: ${{ matrix.target }}
+      QA_ARCH: ${{ matrix.arch }}
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: control
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.candidate_sha }}
+          path: candidate
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          name: unchain-release-artifact
+          path: artifact
+          run-id: ${{ inputs.wheel_run_id }}
+          github-token: ${{ github.token }}
+      - name: Install the exact retained wheel and candidate dependencies
+        shell: bash
+        env:
+          CORE: ${{ inputs.core_sha }}
+        run: |
+          set -euo pipefail
+          test "$(git -C candidate rev-parse HEAD)" = "$QA_CANDIDATE"
+          python - <<'PY'
+          from pathlib import Path
+          from hashlib import sha256
+          import json,os
+          wheel=Path('artifact/unchain-0.2.0-py3-none-any.whl')
+          assert sha256(wheel.read_bytes()).hexdigest()==os.environ['QA_WHEEL_SHA']
+          evidence=json.loads(Path('artifact/unchain-artifact.json').read_text())
+          assert evidence['artifact']['sha256']==os.environ['QA_WHEEL_SHA']
+          assert evidence['source']['revision']==os.environ['CORE']
+          assert evidence['runtime_manifest']['manifest_digest']==os.environ['QA_MANIFEST']
+          PY
+          python -m pip install --disable-pip-version-check -r candidate/unchain_runtime/server/requirements.txt
+          python -m pip install --disable-pip-version-check --constraint candidate/unchain_runtime/server/requirements.txt artifact/unchain-0.2.0-py3-none-any.whl
+          python -m pip check
+          node candidate/scripts/release-qa/verify-unchain-artifact.mjs --artifact artifact/unchain-0.2.0-py3-none-any.whl --evidence artifact/unchain-artifact.json --installed true --python python
+          echo "QA_PYTHON=$(python -c 'import sys;print(sys.executable)')" >> "$GITHUB_ENV"
+          echo "QA_SITE=$(python -c 'import site;print(site.getsitepackages()[0])')" >> "$GITHUB_ENV"
+          echo "QA_WHEEL=$(python -c 'from pathlib import Path;print(Path("artifact/unchain-0.2.0-py3-none-any.whl").resolve())')" >> "$GITHUB_ENV"
+      - name: Install the candidate's locked JavaScript dependencies
+        working-directory: candidate
+        run: npm ci
+      - name: Build native sidecar and unsigned package around the same wheel
+        run: node control/tools/qa356/platform_build.cjs
+      - name: Qualify egress, profile API and the physically packaged worker
+        run: python -B control/tools/qa356/platform_smoke.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: 356-native-${{ matrix.target }}
+          if-no-files-found: error
+          path: |
+            test-results/platform/**
+            artifact/unchain-artifact.json
+            control/tools/qa356/platform_*

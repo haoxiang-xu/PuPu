@@ -56,6 +56,8 @@ def verify_packaged_workflow_tool():
         assert int(enter[0]["at_ns"]) < int(wires[(turn - 1) * 2]["at_ns"])
         assert int(wires[turn * 2 - 1]["at_ns"]) < int(done[0]["at_ns"])
         assert f"Desktop Workflow Tool root reply {turn}" in (out / f"turn-{turn}-aria.txt").read_text()
+    aria = (out / "turn-2-aria.txt").read_text()
+    assert aria.index("Desktop Workflow Tool root reply 1") < aria.index("Desktop Workflow Tool root reply 2"), "visible_root_reply_order_changed"
     databases = list((out / "home").rglob("context_v2.sqlite3"))
     assert len(databases) == 1, "ambiguous_context_database"
     source = databases[0]
