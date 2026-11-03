@@ -32,6 +32,12 @@ def diagnose_windows_guard():
             "([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent())"
             ".IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)")
         quoted = str(Path(sys.executable).resolve()).replace("'", "''")
+        addresses_reply = record_powershell("$ErrorActionPreference='Stop';Get-NetIPAddress -AddressFamily IPv4 | Where-Object {$_.AddressState -eq 'Preferred' -and $_.IPAddress -notlike '127.*'} | Select-Object -ExpandProperty IPAddress | ConvertTo-Json")
+        local_addresses = json.loads(addresses_reply.stdout)
+        if isinstance(local_addresses, str):
+            local_addresses = [local_addresses]
+        assert local_addresses, 'no_non_loopback_local_address'
+        record_powershell("Get-NetFirewallProfile | Select-Object Name,Enabled | ConvertTo-Json")
         cases = ["@('0.0.0.0-127.0.0.0')", "@('127.0.0.2-255.255.255.255')",
                  "@('::/0')", "@('0.0.0.0/1','128.0.0.0/1')", "@('::/1','8000::/1')", "@('Any')"]
         for addresses in cases:
@@ -42,7 +48,7 @@ def diagnose_windows_guard():
                 + "' -Profile Any -Enabled True -RemoteAddress " + addresses + " | Select-Object Name,Enabled | ConvertTo-Json")
             if result.returncode == 0 and addresses == "@('Any')":
                 evidence["loopback_under_block_any"] = []
-                for address in ("127.0.0.1", "127.0.0.2"):
+                for address in ("127.0.0.1", "127.0.0.2", *local_addresses):
                     listener = socket.socket()
                     listener.bind((address, 0)); listener.listen(); listener.settimeout(4)
                     port = listener.getsockname()[1]
