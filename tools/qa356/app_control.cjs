@@ -236,9 +236,59 @@ async function run_packaged_workflow_tool_control() {
       return { builtin, saved, published, root, capabilities: await api.getSkeletonWorkflowToolCapabilities() };
     }, { wf, codeSource, agent: agent('temporary-never-dispatched') });
     write('seed-v2-bridge.json', seeded); mark('seed', 'workflow publish and Agent save through real v2 bridge');
+    // The labelled "Open sidebar" button lives in the width-0, overflow-hidden
+    // side menu while it is closed; a pointer at its laid-out position reaches
+    // the title-bar toggle instead. Read-only hit test, then one real pointer
+    // click at the hit control's own centre; no force/dispatchEvent/DOM writes.
+    const hitTest = (el) => {
+      const describe = (node) => {
+        if (!node) return null;
+        const r = node.getBoundingClientRect(), s = getComputedStyle(node);
+        return { tag: node.tagName.toLowerCase(), aria_label: node.getAttribute('aria-label'),
+          text: (node.textContent || '').trim().slice(0, 60),
+          rect: { x: r.x, y: r.y, width: r.width, height: r.height },
+          width: s.width, overflow: s.overflow, z_index: s.zIndex, app_region: s.webkitAppRegion || s.getPropertyValue('-webkit-app-region') };
+      };
+      const chain = [];
+      for (let node = el.parentElement; node && chain.length < 4; node = node.parentElement) chain.push(describe(node));
+      const r = el.getBoundingClientRect();
+      const probe = { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+      const hit = document.elementFromPoint(probe.x, probe.y);
+      const target = hit && hit.closest('button');
+      let click = null, confirm = null;
+      if (target) {
+        const t = target.getBoundingClientRect();
+        click = { x: t.x + t.width / 2, y: t.y + t.height / 2 };
+        const again = document.elementFromPoint(click.x, click.y);
+        confirm = { element: describe(again), same_button: Boolean(again && again.closest('button') === target) };
+      }
+      return { labelled: describe(el), ancestors: chain, probe, hit: describe(hit), target: describe(target),
+        target_is_labelled: target === el, click, confirm, viewport: { width: innerWidth, height: innerHeight } };
+    };
     const sidebar = page.getByRole('button', { name: 'Open sidebar', exact: true });
-    if (await sidebar.isVisible()) await sidebar.click();
-    await page.getByRole('button', { name: 'Agents', exact: true }).click();
+    await expect(sidebar).toHaveCount(1);
+    await page.screenshot({ path: path.join(out, 'sidebar-before.png') });
+    fs.writeFileSync(path.join(out, 'sidebar-before-aria.txt'), await page.locator('body').ariaSnapshot());
+    const sidebarHit = await sidebar.evaluate(hitTest);
+    write('sidebar-hit-test.json', sidebarHit);
+    assert.ok(sidebarHit.target, 'no button under the laid-out Open sidebar position');
+    assert.equal(sidebarHit.confirm.same_button, true);
+    mark('ui', 'pointer click sidebar toggle', { at: sidebarHit.click, target: sidebarHit.target });
+    await page.mouse.click(sidebarHit.click.x, sidebarHit.click.y);
+    await expect(page.getByRole('button', { name: 'Close sidebar', exact: true })).toBeVisible();
+    const agents = page.getByRole('button', { name: 'Agents', exact: true });
+    await expect(agents).toBeVisible();
+    // Side menu opens with a 0.3 s width transition; poll the read-only hit test.
+    let agentsHit;
+    const agentsReached = await until(async () => {
+      agentsHit = await agents.evaluate(hitTest);
+      return agentsHit.target_is_labelled;
+    }, 10000).catch(() => false);
+    write('agents-hit-test.json', agentsHit);
+    await page.screenshot({ path: path.join(out, 'sidebar-after.png') });
+    fs.writeFileSync(path.join(out, 'sidebar-after-aria.txt'), await page.locator('body').ariaSnapshot());
+    assert.equal(agentsReached, true, 'Agents is not the element a pointer reaches');
+    await agents.click();
     await page.getByTestId('agent-explorer').getByText('Desktop Workflow Tool Agent', { exact: true }).click();
     await page.getByTestId('skeleton-node-tools').click();
     const section = page.getByTestId('native-workflow-tools-ready');

@@ -4,7 +4,8 @@ name: "#356 B4 packaged App on the fixed pair (QA only, non-delivery)"
 # dispatched. Not for merge. The current Linux sidecar (712039ef) and the
 # canonical wheel (949a8947, manifest ba894369) are the ones retained by run
 # 41562427104 and are never rebuilt. Only the candidate App is packaged, then
-# the prepared app_control.cjs / app_lifecycle.cjs / verify_app.py run unchanged
+# the prepared app_control.cjs (sidebar locator only, checkpoint 6) /
+# app_lifecycle.cjs / verify_app.py run
 # in a loopback-only namespace with the Chromium setuid sandbox kept on.
 # Host/Core/B3 cells do not run here.
 on:
