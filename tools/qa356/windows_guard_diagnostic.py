@@ -2,8 +2,10 @@
 import base64
 import json
 from pathlib import Path
+import socket
 import subprocess
 import sys
+import threading
 import uuid
 
 
@@ -12,7 +14,7 @@ def diagnose_windows_guard():
     out = Path("test-results/windows-guard.json")
     out.parent.mkdir(exist_ok=True)
     evidence = {"product_started": False, "external_probes": 0, "commands": []}
-    name = "qa356-" + uuid.uuid4().hex
+    names = []
 
     def record_powershell(source):
         encoded = base64.b64encode(source.encode("utf-16le")).decode()
@@ -26,17 +28,44 @@ def diagnose_windows_guard():
         return result
 
     try:
-        record_powershell("$ErrorActionPreference='Stop';Get-Service MpsSvc,BFE | ConvertTo-Json -Depth 3;"
+        record_powershell("$ErrorActionPreference='Stop';Get-Service MpsSvc,BFE | Select-Object Name,Status | ConvertTo-Json;"
             "([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent())"
             ".IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)")
         quoted = str(Path(sys.executable).resolve()).replace("'", "''")
-        result = record_powershell("$ErrorActionPreference='Stop';New-NetFirewallRule -DisplayName '" + name
-            + "' -Direction Outbound -Action Block -Program '" + quoted
-            + "' -Profile Any -Enabled True -RemoteAddress @('0.0.0.0-127.0.0.0','127.0.0.2-255.255.255.255','::/0') | ConvertTo-Json -Depth 3")
-        evidence["rule_created"] = result.returncode == 0
+        cases = ["@('0.0.0.0-127.0.0.0')", "@('127.0.0.2-255.255.255.255')",
+                 "@('::/0')", "@('0.0.0.0/1','128.0.0.0/1')", "@('::/1','8000::/1')", "@('Any')"]
+        for addresses in cases:
+            name = "qa356-" + uuid.uuid4().hex
+            names.append(name)
+            result = record_powershell("$ErrorActionPreference='Stop';New-NetFirewallRule -DisplayName '" + name
+                + "' -Direction Outbound -Action Block -Program '" + quoted
+                + "' -Profile Any -Enabled True -RemoteAddress " + addresses + " | Select-Object Name,Enabled | ConvertTo-Json")
+            if result.returncode == 0 and addresses == "@('Any')":
+                evidence["loopback_under_block_any"] = []
+                for address in ("127.0.0.1", "127.0.0.2"):
+                    listener = socket.socket()
+                    listener.bind((address, 0)); listener.listen(); listener.settimeout(4)
+                    port = listener.getsockname()[1]
+                    received = []
+                    def serve():
+                        try:
+                            connection, _ = listener.accept()
+                            received.append(True); connection.sendall(b"ok"); connection.close()
+                        except OSError:
+                            pass
+                    thread = threading.Thread(target=serve); thread.start()
+                    code = ("import socket\ntry:\n s=socket.create_connection((" + repr(address) + ","
+                        + str(port) + "),timeout=2);print(s.recv(2).decode());s.close()\nexcept OSError:\n print('blocked')")
+                    child = subprocess.run([sys.executable, "-I", "-B", "-c", code],
+                        capture_output=True, text=True, timeout=8)
+                    listener.close(); thread.join(timeout=5)
+                    evidence["loopback_under_block_any"].append({"address": address, "exit": child.returncode,
+                        "stdout": child.stdout, "stderr": child.stderr, "fixture_received": bool(received)})
+            record_powershell("$ErrorActionPreference='Stop';Remove-NetFirewallRule -DisplayName '" + name + "' -ErrorAction SilentlyContinue")
     finally:
-        record_powershell("$ErrorActionPreference='Stop';Get-NetFirewallRule -DisplayName '" + name
-            + "' -ErrorAction SilentlyContinue | Remove-NetFirewallRule")
+        for name in names:
+            record_powershell("$ErrorActionPreference='Stop';Get-NetFirewallRule -DisplayName '" + name
+                + "' -ErrorAction SilentlyContinue | Remove-NetFirewallRule")
         out.write_text(json.dumps(evidence, indent=2) + "\n")
 
 
