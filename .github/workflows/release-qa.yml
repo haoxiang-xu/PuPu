@@ -161,6 +161,7 @@ jobs:
             test-results/core/**
             test-results/*identity.txt
             artifact/unchain-artifact.json
+            !test-results/**/pytest-data/**
       - name: Installed-wheel execution and retained-source boundaries offline
         run: bash control/tools/qa356/run_offline.sh source
       - name: Preserve installed Host evidence before binary/App builds
@@ -173,6 +174,7 @@ jobs:
             test-results/source/**
             test-results/*identity.txt
             artifact/unchain-artifact.json
+            !test-results/**/pytest-data/**
       - name: Build one Linux sidecar from the same canonical wheel
         if: inputs.build_binary
         run: |
@@ -243,6 +245,7 @@ jobs:
             control/tools/qa356/*
             candidate/build/static/js/*.map
             candidate/unchain_runtime/dist/linux/unchain-server
+            !test-results/**/pytest-data/**
   platforms:
     if: inputs.qa_scope == 'platforms'
     runs-on: ${{ matrix.runner }}
