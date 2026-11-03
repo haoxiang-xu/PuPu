@@ -179,6 +179,7 @@ def test_new_wire_requires_its_real_runtime_feature_even_when_off(tmp_path, monk
     from unchain.runtime import runtime_protocol
     from test_skeleton_runtime_capability import _signed
     manifest = deepcopy(runtime_protocol.runtime_protocol_manifest())
+    current_manifest = deepcopy(manifest)
     protocol = next(p for p in manifest["protocols"] if p["id"] == "skeleton_execution")
     if mode == "missing-feature": protocol["features"].remove("hook_embedded_workflow_v1")
     else: protocol["minor"] = 3
@@ -187,12 +188,19 @@ def test_new_wire_requires_its_real_runtime_feature_even_when_off(tmp_path, monk
     store = SkeletonResourceStore(tmp_path/"resources"); doc = document(enabled=False)
     saved = store.save_managed_draft(edit(doc))
     with pytest.raises(SkeletonResourceError) as error: select(store)
-    assert error.value.code == "skeleton_hook_workflow_unavailable"
+    assert error.value.code == ("skeleton_runtime_incompatible" if mode == "old-minor"
+                                else "skeleton_hook_workflow_unavailable")
     assert error.value.status == 409
     assert store.get_managed_resource(doc["id"]) == saved
-    # The old representation does not acquire the new optional capability.
+    # A globally unsupported runtime cannot be admitted through the old wire.
     legacy = hooked(False)
     store.save_managed_draft(edit(legacy, saved["resource"]["edit_token"]))
+    if mode == "old-minor":
+        with pytest.raises(SkeletonResourceError) as legacy_error:
+            select(store)
+        assert legacy_error.value.code == "skeleton_runtime_incompatible"
+        monkeypatch.setattr(runtime_protocol, "runtime_protocol_manifest", lambda: deepcopy(current_manifest))
+    # On a supported runtime the old representation needs no embedded feature.
     assert select(store)[1].dependencies == []
 
 
