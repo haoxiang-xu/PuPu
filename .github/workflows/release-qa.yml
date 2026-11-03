@@ -305,11 +305,11 @@ jobs:
           from hashlib import sha256
           import json,os
           wheel=Path('artifact/unchain-0.2.0-py3-none-any.whl')
-          assert sha256(wheel.read_bytes()).hexdigest()==os.environ['QA_WHEEL_SHA']
+          assert sha256(wheel.read_bytes()).hexdigest()==os.environ['QA_WHEEL_SHA'], 'canonical_wheel_bytes_mismatch'
           evidence=json.loads(Path('artifact/unchain-artifact.json').read_text())
-          assert evidence['artifact']['sha256']==os.environ['QA_WHEEL_SHA']
-          assert evidence['source']['revision']==os.environ['CORE']
-          assert evidence['runtime_manifest']['manifest_digest']==os.environ['QA_MANIFEST']
+          assert evidence['artifact']['sha256']=='sha256:'+os.environ['QA_WHEEL_SHA'], 'canonical_wheel_evidence_digest_mismatch'
+          assert evidence['source']['revision']==os.environ['CORE'], 'canonical_wheel_source_mismatch'
+          assert evidence['runtime_manifest']['manifest_digest']==os.environ['QA_MANIFEST'], 'canonical_wheel_manifest_mismatch'
           PY
           python -m pip install --disable-pip-version-check -r candidate/unchain_runtime/server/requirements.txt
           python -m pip install --disable-pip-version-check --constraint candidate/unchain_runtime/server/requirements.txt artifact/unchain-0.2.0-py3-none-any.whl
