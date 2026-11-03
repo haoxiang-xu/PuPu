@@ -1,12 +1,12 @@
-name: "#356 B1 measurement (QA only, non-delivery)"
+name: "#356 B1 native crash capture (QA only, non-delivery)"
 
-# QA-only branch: replaces release-qa.yml so this one measurement can be
-# dispatched. Not for merge. It runs one test case, A -> B -> A, on one
-# hosted Linux runner, with the same Python and the same third-party set:
-#   A = Host 333643e8 + historical wheel 17b04aea (comparison only)
-#   B = Host 762c44c9 + current fixed wheel 949a8947
-# No wheel is rebuilt, nothing is changed in either Host tree, and the PR CI
-# diagnostic setting (faulthandler_timeout=60) is kept.
+# QA-only branch: replaces release-qa.yml so this one capture can be
+# dispatched. Not for merge. Combination A only (Host 333643e8 + historical
+# wheel 17b04aea, which reproduced exit 139 in run 41580610184), the system
+# Python 3.12.15, the same third-party set as that run, one test case and the
+# PR CI diagnostic setting faulthandler_timeout=60. The test runs under gdb in
+# a loopback-only network namespace. At most three serial attempts; the first
+# captured fatal signal stops the loop. No probe plugin, no product change.
 on:
   workflow_dispatch:
 
@@ -15,16 +15,13 @@ permissions:
   actions: read
 
 jobs:
-  b1:
+  crash:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
       HOST_A: 333643e82efc5a957ec358ca766b34c635ceaa68
-      HOST_B: 762c44c9450166ae94c5d0322b7a016df8caa649
       WHEEL_A_RUN: "41262234256"
       WHEEL_A_SHA: 17b04aea25489e72eb4e6ab03a131f470bdcddf65f9e8a4eec757d9bfcbfe47c
-      WHEEL_B_RUN: "41551271360"
-      WHEEL_B_SHA: 949a89475894b13ac324b90671c714ccd3125509cf6b313df739c66dc8292de6
       CASE: "tests/test_skeleton_hook_approval_regressions.py::test_published_hook_projects_each_distinct_child_approval[1-2-1]"
     steps:
       - uses: actions/checkout@v4
@@ -34,10 +31,6 @@ jobs:
         with:
           ref: ${{ env.HOST_A }}
           path: hostA
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ env.HOST_B }}
-          path: hostB
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12.15"
@@ -47,100 +40,129 @@ jobs:
           path: wheelA
           run-id: ${{ env.WHEEL_A_RUN }}
           github-token: ${{ github.token }}
-      - uses: actions/download-artifact@v4
-        with:
-          name: unchain-release-artifact
-          path: wheelB
-          run-id: ${{ env.WHEEL_B_RUN }}
-          github-token: ${{ github.token }}
 
-      - name: Bind identities and the two retained wheels (not rebuilt)
+      - name: Identities, CPU and the environment (before isolation)
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p out
           test "$(git -C hostA rev-parse HEAD)" = "$HOST_A"
-          test "$(git -C hostB rev-parse HEAD)" = "$HOST_B"
           echo "$WHEEL_A_SHA  wheelA/unchain-0.2.0-py3-none-any.whl" | sha256sum -c -
-          echo "$WHEEL_B_SHA  wheelB/unchain-0.2.0-py3-none-any.whl" | sha256sum -c -
-          cmp hostA/unchain_runtime/server/requirements.txt hostB/unchain_runtime/server/requirements.txt
-          cmp hostA/unchain_runtime/server/tests/test_skeleton_hook_approval_regressions.py hostB/unchain_runtime/server/tests/test_skeleton_hook_approval_regressions.py \
-            && echo "test file identical in A and B" > out/test-file-identity.txt
-          cmp hostA/unchain_runtime/server/tests/conftest.py hostB/unchain_runtime/server/tests/conftest.py \
-            && echo "conftest identical in A and B" >> out/test-file-identity.txt || echo "conftest differs between A and B" >> out/test-file-identity.txt
-          { echo "control=$(git -C control rev-parse HEAD)"; echo "host_a=$HOST_A"; echo "host_b=$HOST_B"; sha256sum wheelA/*.whl wheelB/*.whl; python --version; uname -a; nproc; free -m; } > out/identity.txt
-          cat out/identity.txt
+          python -m venv venvA
+          venvA/bin/python -m pip install --disable-pip-version-check -q --retries 5 --timeout 60 -r control/tools/qa356_b1/third-party-freeze.txt
+          venvA/bin/python -m pip install --disable-pip-version-check -q --no-deps wheelA/unchain-0.2.0-py3-none-any.whl
+          venvA/bin/python -m pip freeze --all > out/freeze-A.txt
+          venvA/bin/python -m pip check > out/pip-check-A.txt 2>&1
+          diff <(grep -v -i '^unchain' out/freeze-A.txt) control/tools/qa356_b1/third-party-freeze.txt > out/third-party-diff.txt \
+            && echo "third-party set identical to run 41580610184" >> out/third-party-diff.txt
+          sha256sum hostA/unchain_runtime/server/tests/test_skeleton_hook_approval_regressions.py hostA/unchain_runtime/server/tests/conftest.py > out/test-files.sha256
+          {
+            echo "control=$(git -C control rev-parse HEAD)"; echo "host_a=$HOST_A"
+            sha256sum wheelA/unchain-0.2.0-py3-none-any.whl
+            echo "python=$(readlink -f venvA/bin/python)"; venvA/bin/python -c 'import sys; print(sys.version)'
+            sha256sum "$(readlink -f venvA/bin/python)"
+            venvA/bin/python -c 'import unchain, pytest; print("unchain", unchain.__file__); print("pytest", pytest.__version__)'
+            uname -a; nproc
+          } > out/identity.txt
+          lscpu > out/lscpu.txt
+          grep -m1 'model name' /proc/cpuinfo > out/cpu-model.txt
+          grep -m1 '^flags' /proc/cpuinfo > out/cpu-flags.txt
+          cat out/identity.txt out/cpu-model.txt out/third-party-diff.txt out/pip-check-A.txt
 
-      - name: Two environments with the same third-party set
+      - name: Prepare gdb and core dumps (before isolation)
         shell: bash
         run: |
           set -euo pipefail
-          python -m venv venvB
-          venvB/bin/python -m pip install --disable-pip-version-check -q --retries 5 --timeout 60 --upgrade pip
-          venvB/bin/python -m pip install --disable-pip-version-check -q --retries 5 --timeout 60 -r hostB/unchain_runtime/server/requirements.txt pytest wheelB/unchain-0.2.0-py3-none-any.whl
-          venvB/bin/python -m pip freeze --all | grep -v -i '^unchain' > out/third-party-freeze.txt
-          python -m venv venvA
-          venvA/bin/python -m pip install --disable-pip-version-check -q --retries 5 --timeout 60 --upgrade pip
-          venvA/bin/python -m pip install --disable-pip-version-check -q --retries 5 --timeout 60 -r out/third-party-freeze.txt
-          venvA/bin/python -m pip install --disable-pip-version-check -q --no-deps wheelA/unchain-0.2.0-py3-none-any.whl
-          for v in A B; do
-            venv$v/bin/python -m pip freeze --all > out/freeze-$v.txt
-            venv$v/bin/python -m pip check > out/pip-check-$v.txt 2>&1 || echo "pip check $v exit $?" >> out/pip-check-$v.txt
-          done
-          diff <(grep -v -i '^unchain' out/freeze-A.txt) <(grep -v -i '^unchain' out/freeze-B.txt) > out/third-party-diff.txt && echo "third-party sets identical" >> out/third-party-diff.txt
-          cat out/third-party-diff.txt out/pip-check-A.txt out/pip-check-B.txt
-          grep -i '^unchain' out/freeze-A.txt out/freeze-B.txt
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends gdb
+          gdb --version | head -1 > out/gdb-version.txt
+          mkdir -p "$RUNNER_TEMP/cores"
+          chmod 777 "$RUNNER_TEMP/cores"
+          # Kernel cores of a crash that happens after gdb lets it continue.
+          sudo sysctl -w kernel.core_pattern="$RUNNER_TEMP/cores/core.%e.%p" > out/core-pattern.txt
+          cat /proc/sys/kernel/core_pattern >> out/core-pattern.txt
+          cat /proc/sys/kernel/yama/ptrace_scope > out/ptrace-scope.txt || true
+          cat out/gdb-version.txt out/core-pattern.txt
 
-      - name: Measure A -> B -> A, serially, one case each
+      - name: Up to three attempts under gdb, loopback-only network
         shell: bash
         run: |
+          set +e
           set -uo pipefail
-          run() {
-            local label="$1" side="$2"
-            local host="$PWD/host$side" venv="$PWD/venv$side" wheel="$PWD/wheel$side/unchain-0.2.0-py3-none-any.whl"
-            ( cd "$host/unchain_runtime/server" && \
-              PYTHONPATH="$GITHUB_WORKSPACE/control/tools/qa356_b1" QA356_B1_OUT="$GITHUB_WORKSPACE/out/$label.json" QA356_B1_WHEEL="$wheel" \
-              "$venv/bin/python" -m pytest "$CASE" -vv --tb=short --durations=25 -o faulthandler_timeout=60 -p qa356_b1_probe -p no:cacheprovider \
-              > "$GITHUB_WORKSPACE/out/$label.log" 2>&1 )
-            echo "$label exit=$?" | tee -a out/exits.txt
-            tail -5 "out/$label.log"
-          }
-          run 1-A A
-          run 2-B B
-          run 3-A A
+          export QA_UID="$(id -u)" QA_GID="$(id -g)" QA_WS="$GITHUB_WORKSPACE" QA_HOME="$HOME"
+          for n in 1 2 3; do
+            cat > "out/attempt-$n.gdb" <<GDB
+          set pagination off
+          set print thread-events off
+          set width 0
+          handle SIGPIPE nostop noprint pass
+          handle SIGSEGV stop print pass
+          handle SIGBUS stop print pass
+          handle SIGABRT stop print pass
+          handle SIGILL stop print pass
+          handle SIGFPE stop print pass
+          run
+          echo \n=== QA356 AFTER RUN ===\n
+          info program
+          p \$_siginfo
+          echo \n=== QA356 FAULTING THREAD ===\n
+          thread
+          bt
+          info registers rip rsp
+          x/6i \$pc-12
+          echo \n=== QA356 ALL THREADS ===\n
+          info threads
+          thread apply all bt
+          generate-core-file $GITHUB_WORKSPACE/out/attempt-$n.gdb.core
+          echo \n=== QA356 CONTINUE TO TERMINATION (signals now passed without stopping) ===\n
+          handle SIGSEGV nostop print pass
+          handle SIGBUS nostop print pass
+          handle SIGABRT nostop print pass
+          handle SIGILL nostop print pass
+          handle SIGFPE nostop print pass
+          continue
+          echo \n=== QA356 TERMINATION ===\n
+          info program
+          p \$_exitcode
+          p \$_exitsignal
+          GDB
+            export QA_GDB="$GITHUB_WORKSPACE/out/attempt-$n.gdb" QA_N="$n"
+            sudo --preserve-env=QA_UID,QA_GID,QA_WS,QA_HOME,QA_GDB,QA_N,CASE,PATH unshare --net /bin/bash -c '
+              ip link set lo up
+              ip -j route show > "$QA_WS/out/attempt-$QA_N-routes.json"
+              ip -j address show > "$QA_WS/out/attempt-$QA_N-interfaces.json"
+              cd "$QA_WS/hostA/unchain_runtime/server"
+              exec setpriv --reuid="$QA_UID" --regid="$QA_GID" --init-groups \
+                env HOME="$QA_HOME" PATH="$PATH" LANG=C.UTF-8 QA_WS="$QA_WS" QA_GDB="$QA_GDB" CASE="$CASE" \
+                bash -c '"'"'ulimit -c unlimited; exec gdb -batch -nx -x "$QA_GDB" --args "$QA_WS/venvA/bin/python" -m pytest "$CASE" -vv --tb=short -o faulthandler_timeout=60 -p no:cacheprovider'"'"'
+            ' > "out/attempt-$n.gdb.log" 2>&1
+            echo "attempt $n gdb_exit=$?" | tee -a out/attempts.txt
+            if grep -q "received signal" "out/attempt-$n.gdb.log"; then
+              echo "attempt $n captured: $(grep -m1 'received signal' "out/attempt-$n.gdb.log")" | tee -a out/attempts.txt
+              break
+            fi
+            grep -E "exited normally|exited with code|passed in|failed in|Timeout" "out/attempt-$n.gdb.log" | tail -4 | tee -a out/attempts.txt
+          done
+          ls -la out > out/out-listing.txt 2>&1
+          cat out/attempts.txt
+          true
 
-      - name: Summary
+      - name: Compress cores
         if: always()
         shell: bash
         run: |
-          python - <<'EOF'
-          import json, glob, os
-          rows = []
-          for path in sorted(glob.glob("out/[0-9]-*.json")):
-              d = json.load(open(path))
-              case = next(iter(d["phases"].values()), {})
-              hb = d["heartbeat_threads"]
-              rows.append({
-                  "run": os.path.basename(path)[:-5],
-                  "exit": d["exitstatus"],
-                  "call_wall_s": case.get("call", {}).get("wall"),
-                  "call_cpu_s": case.get("call", {}).get("process_time"),
-                  "setup_wall_s": case.get("setup", {}).get("wall"),
-                  "teardown_wall_s": case.get("teardown", {}).get("wall"),
-                  "heartbeat_threads_seen": len(hb),
-                  "heartbeat_alive_at_session_finish": len(d["snapshots"][-1]["heartbeat_alive"]),
-                  "heartbeat_alive_after_teardown_2s": next((len(s["heartbeat_alive"]) for s in d["snapshots"] if s["label"] == "after-teardown+2s"), None),
-                  "imported": d["imported_runtime"]["unchain_file"],
-                  "wheel_match": {k: (v if isinstance(v, int) else len(v)) for k, v in d["imported_runtime"]["wheel_match"].items()},
-              })
-          json.dump(rows, open("out/summary.json", "w"), indent=1)
-          print(json.dumps(rows, indent=1))
-          EOF
+          for f in out/*.gdb.core "$RUNNER_TEMP"/cores/core.*; do
+            [ -f "$f" ] || continue
+            sha256sum "$f" >> out/cores.sha256
+            gzip -1 -c "$f" > "out/$(basename "$f").gz"
+            rm -f "$f"
+          done
+          ls -la out
 
-      - name: Upload measurement evidence
+      - name: Upload capture evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: qa356-b1-measurement
+          name: qa356-b1-native-crash
           if-no-files-found: error
           path: out/**
