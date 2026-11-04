@@ -115,6 +115,7 @@ function createLifecycleControl({ out, write, mark, expect, until, agent, port }
       await page.getByTestId('attach-agent-row').getByRole('combobox').click();
       await page.getByRole('listbox').getByText(name, { exact: true }).click();
       await page.getByRole('textbox', { name: 'Message PuPu...', exact: true }).fill(text);
+      await expect(page.getByRole('textbox', { name: 'Message PuPu...', exact: true }).locator('xpath=following::button[2]')).toBeEnabled({ timeout: 30000 });
       mark('ui', 'lifecycle Enter', { name, text });
       await page.getByRole('textbox', { name: 'Message PuPu...', exact: true }).press('Enter');
     }

@@ -318,6 +318,9 @@ async function run_packaged_workflow_tool_control() {
       }
       const input = page.getByRole('textbox', { name: 'Message PuPu...', exact: true });
       await input.fill(`QA356 question ${turn}`); mark('ui', 'composer filled', { turn });
+      // Enter is ignored until the App enables Send; with text present the
+      // composer's buttons are Clear, then Send. A user waits for it too.
+      await expect(input.locator('xpath=following::button[2]')).toBeEnabled({ timeout: 30000 }); mark('ui', 'Send enabled', { turn });
       mark('ui', 'Enter', { turn }); await input.press('Enter');
       await expect(page.getByText(final(turn), { exact: true })).toBeVisible({ timeout: 120000 });
       await expect(page.getByText(final(1), { exact: true })).toBeVisible();
