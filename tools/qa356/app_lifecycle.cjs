@@ -133,7 +133,8 @@ function createLifecycleControl({ out, write, mark, expect, until, agent, port }
       return data;
     }
     async function visibleApproval() {
-      const allow = page.getByRole('button', { name: 'Allow once', exact: true }).first();
+      // `write` carries a code diff, whose card offers Approve and Reject.
+      const allow = page.getByRole('button', { name: 'Approve', exact: true }).first();
       const detail = page.getByRole('button', { name: 'detail', exact: true }).first();
       await until(async () => await allow.isVisible() || await detail.isVisible());
       if (!(await allow.isVisible())) await detail.click();
@@ -150,7 +151,7 @@ function createLifecycleControl({ out, write, mark, expect, until, agent, port }
       document: saved.resource.document, expected_edit_token: saved.resource.edit_token,
       managed_sources: [{ node_path: ['nodes', 2], text }] }), { saved: seeded.saved, text: source('B') });
     mark('seed', 'later draft B saved while A waits; fixed published pin unchanged');
-    await allow.click(); mark('ui', 'Allow once');
+    await allow.click(); mark('ui', 'Approve');
     await expect(page.getByText(reply, { exact: true })).toBeVisible({ timeout: 120000 });
     await expect(page.locator('button[aria-label="Stop"],button[aria-label="Stop generating"]')).toHaveCount(0);
     assert.equal(fs.readFileSync(path.join(workspace, 'approve.txt'), 'utf8'), 'approved-exactly-once');
