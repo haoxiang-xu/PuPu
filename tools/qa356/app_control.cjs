@@ -9,6 +9,8 @@ const path = require('node:path');
 const { createRequire } = require('node:module');
 const { spawn } = require('node:child_process');
 const { createStartupWatch } = require('./app_first_run.cjs');
+const enterControl = process.env.QA_ENTER_CONTROL || '';
+const { installRecorder, observeEnter } = require('./enter_probe.cjs');
 const candidate = path.resolve(process.env.QA_CANDIDATE_ROOT);
 const requireCandidate = createRequire(path.join(candidate, 'package.json'));
 const { chromium } = requireCandidate('playwright');
@@ -212,6 +214,7 @@ async function run_packaged_workflow_tool_control() {
     current.page = page;
     page.on('pageerror', error => { errors.push(String(error)); write('page-errors.json', errors); });
     await page.waitForLoadState('domcontentloaded');
+    if (enterControl && generation === 2) await page.evaluate(installRecorder);
     const startup = createStartupWatch({ page, generation, out, write, mark, sleep });
     const gate = page.getByRole('button', { name: 'Click anywhere to start' });
     await expect(gate).toBeVisible({ timeout: 120000 }); await gate.click();
@@ -312,11 +315,17 @@ async function run_packaged_workflow_tool_control() {
     for (const turn of [1, 2]) {
       if (turn === 2) {
         mark('supervisor', 'cold restart after completed first root'); await stop(); page = await launch();
+        if (enterControl === 'wait2s') await sleep(2000);
         const cold = await page.evaluate(() => window.unchainAPI.getManagedSkeletonResource('desktop-agent356'));
         write('cold-read-agent.json', cold); assert.deepEqual(cold, saved);
         await expect(page.getByText(final(1), { exact: true })).toBeVisible();
       }
       const input = page.getByRole('textbox', { name: 'Message PuPu...', exact: true });
+      if (enterControl && turn === 2) {
+        await observeEnter({ page, out, control: enterControl, mark, wires, sleep, expect, input, text: `QA356 question ${turn}` });
+        write('enter-result.json', { control: enterControl, complete: true });
+        return;
+      }
       await input.fill(`QA356 question ${turn}`); mark('ui', 'composer filled', { turn });
       // Enter is ignored until the App enables Send; with text present the
       // composer's buttons are Clear, then Send. A user waits for it too.

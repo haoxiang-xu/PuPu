@@ -1,17 +1,11 @@
-name: "#356 checkpoint 10 B4 packaged App on the new pair (QA only, non-delivery)"
+name: "#356 checkpoint 11 cold-start Enter location (QA only, non-delivery)"
 
-# QA-only branch: replaces release-qa.yml. Not for merge. Source is the delivery
-# commit 01a60e0b (tree 20d3ef31). The sidecar (74196bc0, run 41743183539) and
-# canonical wheel (949a8947, manifest ba894369) are reused, never rebuilt. The
-# App is packaged once; a rerun passes sealed_run_id and reuses that package.
-# Loopback only, Chromium setuid sandbox kept on, tcpdump only reads lo.
+# QA-only branch: replaces release-qa.yml. Not for merge. Locates the cold-start
+# second Enter only. Reuses the sealed App (run 41746587263), sidecar 74196bc0 and
+# wheel 949a8947; nothing is packaged or rebuilt. One job, two serial controls,
+# one Enter each. Loopback only. The raw pcap is hashed, redacted and not uploaded.
 on:
   workflow_dispatch:
-    inputs:
-      sealed_run_id:
-        description: Run whose sealed App to reuse instead of packaging
-        required: false
-        default: ''
 
 permissions:
   contents: read
@@ -51,13 +45,12 @@ jobs:
           path: pair
           run-id: 41743183539
           github-token: ${{ github.token }}
-      - name: Read the sealed App (rerun only)
-        if: inputs.sealed_run_id != ''
+      - name: Read the sealed App (run 41746587263)
         uses: actions/download-artifact@v4
         with:
           name: 356-cp10-sealed-app
           path: sealed
-          run-id: ${{ inputs.sealed_run_id }}
+          run-id: 41746587263
           github-token: ${{ github.token }}
       - name: Read the retained wheel (run 41562427104)
         uses: actions/download-artifact@v4
@@ -115,55 +108,14 @@ jobs:
           node node_modules/@playwright/test/cli.js install-deps chromium
           sudo apt-get update
           sudo apt-get install -y xvfb dbus-x11 gnome-keyring libsecret-tools tcpdump
-      - name: Package the actual candidate with the retained sidecar, without publishing
-        if: inputs.sealed_run_id == ''
-        working-directory: candidate
-        run: |
-          set -euo pipefail
-          npm run mcp-runtime:prepare -- --target linux-x64
-          export PUPU_BUILD_VERSION="$(node -p 'require("./package.json").version')"
-          export PUPU_BUILD_FEATURE_SNAPSHOT_PATH="$RUNNER_TEMP/356-build-feature-flags.json"
-          printf '%s\n' '{"enable_user_access_to_agents":true,"enable_user_access_to_characters":false,"enable_custom_model_providers":true,"enable_computer_use":false}' > "$PUPU_BUILD_FEATURE_SNAPSHOT_PATH"
-          cp "$PUPU_BUILD_FEATURE_SNAPSHOT_PATH" ../test-results/build-feature-flags.input.json
-          npm run build:web
-          cp build/build_feature_flags.json ../test-results/build-feature-flags.packaged.json
-          npm run notices
-          echo "$QA_BINARY_SHA  unchain_runtime/dist/linux/unchain-server" | sha256sum -c -
-          node node_modules/electron-builder/cli.js --linux dir --publish never
-          PACKED="$PWD/dist/linux-unpacked/resources/unchain_runtime/dist/linux/unchain-server"
-          echo "$QA_BINARY_SHA  $PACKED" | sha256sum -c -
-          echo "$QA_BINARY_SHA  unchain_runtime/dist/linux/unchain-server" | sha256sum -c -
-          git status --porcelain --untracked-files=no > ../test-results/tracked-after-app-build.txt
-          python - <<'PY'
-          from pathlib import Path
-          import hashlib,json
-          root=Path('dist/linux-unpacked')
-          rows={str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(root.rglob('*')) if p.is_file()}
-          Path('../test-results/app-files.json').write_text(json.dumps(rows,indent=2)+'\n')
-          PY
-      - name: Seal the one packaged App
-        if: inputs.sealed_run_id == ''
-        run: |
-          set -euo pipefail
-          mkdir -p sealed
-          cp test-results/app-files.json sealed/app-files.json
-          tar -C candidate/dist -czf sealed/linux-unpacked.tgz linux-unpacked
-          sha256sum sealed/linux-unpacked.tgz sealed/app-files.json > test-results/sealed-app.sha256
-      - name: Preserve the sealed App before running it
-        if: inputs.sealed_run_id == ''
-        uses: actions/upload-artifact@v4
-        with:
-          name: 356-cp10-sealed-app
-          if-no-files-found: error
-          compression-level: 0
-          path: sealed/*
-      - name: Restore the sealed App (rerun only)
-        if: inputs.sealed_run_id != ''
+      - name: Restore the sealed App
         run: |
           set -euo pipefail
           mkdir -p candidate/dist
           tar -C candidate/dist -xzf sealed/linux-unpacked.tgz
           cp sealed/app-files.json test-results/app-files.json
+          echo "8e9ac04acc3f12e196ab32a47ffcbc036ba432373e82fef483d2155279b5279b  sealed/linux-unpacked.tgz" | sha256sum -c -
+          echo "cbda3dcc6e28de1962234c4768588325cd9acc053f94c85d29d569c0ee6451ea  sealed/app-files.json" | sha256sum -c -
           sha256sum sealed/linux-unpacked.tgz sealed/app-files.json > test-results/sealed-app.sha256
           python - <<'PY'
           from pathlib import Path
@@ -185,15 +137,36 @@ jobs:
           test -x "$EXE"
           echo "QA_APP=$EXE" >> "$GITHUB_ENV"
           echo "QA_CANDIDATE_ROOT=$PWD" >> "$GITHUB_ENV"
-      - name: Packaged App edit, execute, cold restart and second message offline
-        run: bash control/tools/qa356/run_offline.sh app
-      - name: Upload B4 evidence
+      - name: Two serial controls, one Enter each, offline
+        run: bash control/tools/qa356/run_offline.sh enter
+      - name: Redact the capture and drop the raw pcap
+        if: always()
+        run: |
+          set -euo pipefail
+          PCAP=test-results/enter/loopback.pcap
+          sha256sum "$PCAP" > test-results/enter/loopback.pcap.sha256
+          stat -c '%s %n' "$PCAP" >> test-results/enter/loopback.pcap.sha256
+          python -I control/tools/qa356/pcap_http.py "$PCAP" test-results/enter/requests-redacted.json
+          python -I - <<'PY'
+          from pathlib import Path
+          import re
+          raw = Path('test-results/enter/loopback.pcap').read_bytes()
+          tokens = set(re.findall(rb'x-unchain-auth: ([^\r\n]+)', raw, re.I))
+          assert tokens, 'no auth header found in the capture'
+          print('auth values:', len(tokens))
+          Path('test-results/enter/loopback.pcap').unlink()
+          leaks = [str(p) for p in Path('test-results').rglob('*') if p.is_file() and '/home/' not in str(p)
+                   and any(t in p.read_bytes() for t in tokens)]
+          assert not leaks, leaks
+          PY
+      - name: Upload evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: 356-b4-app-evidence
+          name: 356-cp11-enter-evidence
           if-no-files-found: error
           path: |
             test-results/**
+            !test-results/**/home/**
+            !test-results/**/loopback.pcap
             control/tools/qa356/*
-            candidate/build/static/js/*.map

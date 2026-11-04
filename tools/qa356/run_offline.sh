@@ -3,7 +3,7 @@ set -euo pipefail
 
 if [[ "$1" != --inside ]]; then
   mode="$1"
-  [[ "$mode" == core || "$mode" == source || "$mode" == binary || "$mode" == chat || "$mode" == app ]]
+  [[ "$mode" == core || "$mode" == source || "$mode" == binary || "$mode" == chat || "$mode" == app || "$mode" == enter ]]
   export QA_UID="$(id -u)" QA_GID="$(id -g)"
   export QA_HOME="$RUNNER_TEMP/356-$mode-home" QA_TMP="$RUNNER_TEMP/356-$mode-tmp"
   export QA_SERVER="$PWD/candidate/unchain_runtime/server" QA_CONTROL="$PWD/control/tools/qa356"
@@ -15,7 +15,7 @@ if [[ "$1" != --inside ]]; then
 fi
 
 mode="$2"
-[[ "$mode" == core || "$mode" == source || "$mode" == binary || "$mode" == chat || "$mode" == app ]]
+[[ "$mode" == core || "$mode" == source || "$mode" == binary || "$mode" == chat || "$mode" == app || "$mode" == enter ]]
 ip link set lo up
 test "$(ip -j route show | tr -d '[:space:]')" = '[]'
 ip -j address show > "$QA_OUT/offline-interfaces.json"
@@ -39,6 +39,8 @@ elif [[ "$mode" == binary ]]; then
   command=("$QA_PYTHON" -B "$QA_CONTROL/binary_control.py")
 elif [[ "$mode" == chat ]]; then
   command=("$QA_PYTHON" -B "$QA_CONTROL/binary_chat_control.py")
+elif [[ "$mode" == enter ]]; then
+  command=(dbus-run-session -- /bin/bash "$QA_CONTROL/run_enter.sh")
 else
   command=(dbus-run-session -- /bin/bash "$QA_CONTROL/run_app.sh")
 fi
@@ -50,7 +52,7 @@ run=(setpriv --reuid="$QA_UID" --regid="$QA_GID" --init-groups env -i \
   QA_OLD_BINARY="${QA_OLD_BINARY:-}" \
   QA_APP="${QA_APP:-}" QA_CANDIDATE_ROOT="${QA_CANDIDATE_ROOT:-}" QA_CONTROL="$QA_CONTROL" QA_PYTHON="$QA_PYTHON" \
   GITHUB_ACTIONS=true RUNNER_OS=Linux XDG_CURRENT_DESKTOP=GNOME NODE_OPTIONS=--max-old-space-size=2048 "${command[@]}")
-[[ "$mode" == app ]] || exec "${run[@]}"
+[[ "$mode" == app || "$mode" == enter ]] || exec "${run[@]}"
 # Passive copy of loopback traffic for the Main -> sidecar payloads. It only
 # reads the interface; the CDP ports are left out as they carry no payload.
 tcpdump -i lo -n -s 0 -U -Z root -w "$QA_OUT/loopback.pcap" 'tcp and not portrange 19220-19229' 2> "$QA_OUT/tcpdump.log" &
