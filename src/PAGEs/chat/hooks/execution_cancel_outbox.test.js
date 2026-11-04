@@ -1,6 +1,7 @@
 import {
   enqueueExecutionCancel,
   readExecutionCancelOutbox,
+  readExecutionCancelOutboxState,
   recordExecutionCancelFailure,
   removeExecutionCancel,
 } from "./execution_cancel_outbox";
@@ -101,6 +102,60 @@ describe("execution cancellation outbox", () => {
   test("fails closed on corrupt storage without inventing identities", () => {
     window.localStorage.setItem("pupu.execution_cancel_outbox.v1", "{broken");
     expect(readExecutionCancelOutbox()).toEqual([]);
+  });
+
+  test("availability state distinguishes missing, unreadable, and malformed stores", () => {
+    expect(readExecutionCancelOutboxState()).toEqual({
+      available: true,
+      entries: [],
+    });
+    expect(readExecutionCancelOutboxState({ getItem: () => { throw new Error("blocked"); } }))
+      .toEqual({ available: false, entries: [] });
+    expect(readExecutionCancelOutboxState({ getItem: () => "{}" }))
+      .toEqual({ available: false, entries: [] });
+    expect(readExecutionCancelOutboxState({
+      getItem: () => JSON.stringify([{ sessionId: "chat-1" }]),
+    })).toEqual({ available: false, entries: [] });
+    const partlyMalformed = JSON.stringify([
+      { sessionId: "chat-1", attemptId: "attempt-1" },
+      { sessionId: "chat-1" },
+    ]);
+    expect(readExecutionCancelOutboxState({ getItem: () => partlyMalformed }))
+      .toEqual({ available: false, entries: [] });
+    expect(readExecutionCancelOutbox({ getItem: () => partlyMalformed })).toHaveLength(1);
+  });
+
+  test("admission state rejects overflow and duplicate identities without changing the legacy reader", () => {
+    const overflow = [
+      { ownerChatId: "target-chat", sessionId: "session-target", attemptId: "root-target" },
+      ...Array.from({ length: 64 }, (_value, index) => ({
+        sessionId: `other-session-${index}`,
+        attemptId: `other-attempt-${index}`,
+      })),
+    ];
+    const overflowStorage = { getItem: () => JSON.stringify(overflow) };
+    expect(readExecutionCancelOutboxState(overflowStorage)).toEqual({
+      available: false,
+      entries: [],
+    });
+    expect(readExecutionCancelOutbox(overflowStorage)).toHaveLength(64);
+    expect(readExecutionCancelOutbox(overflowStorage).some(
+      (entry) => entry.ownerChatId === "target-chat",
+    )).toBe(false);
+
+    const duplicates = [
+      { ownerChatId: "target-chat", sessionId: "session-target", attemptId: "root-target", sourceAttemptId: "root-target" },
+      { ownerChatId: "other-chat", sessionId: "session-target", attemptId: "root-target", sourceAttemptId: "resumed-attempt" },
+    ];
+    const duplicateStorage = { getItem: () => JSON.stringify(duplicates) };
+    expect(readExecutionCancelOutboxState(duplicateStorage)).toEqual({
+      available: false,
+      entries: [],
+    });
+    expect(readExecutionCancelOutbox(duplicateStorage)[0]).toMatchObject({
+      ownerChatId: "other-chat",
+      sourceAttemptId: "resumed-attempt",
+    });
   });
 
   test("storage write failure never blocks the immediate cancel identity", () => {

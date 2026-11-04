@@ -12,7 +12,8 @@ _REQUIRED_FEATURES = frozenset({
     "end_only_root_completion_v1", "explicit_bindings_v1", "hook_phase_receipts_v1",
     "kernel_profile_auth_v1", "kernel_profiles_v1", "legacy_conversion_v1", "non_llm_workflow_v1",
     "pinned_workflow_calls_v1", "production_host_bindings_v1", "skill_read_v1", "structured_output_v1",
-    "subagent_graphs_v1", "subagent_tool_settlement_projection_v1", "tool_call_v1",
+    "subagent_graphs_v1", "subagent_native_observation_v1",
+    "subagent_tool_settlement_projection_v1", "tool_call_v1",
 })
 
 
@@ -34,7 +35,7 @@ def validate_skeleton_runtime_manifest(manifest: object) -> dict[str, Any]:
         ) from None
     protocol = next((item for item in normalized["protocols"]
                      if item["id"] == "skeleton_execution"), None)
-    if (protocol is None or protocol["major"] != 1 or protocol["minor"] < 6
+    if (protocol is None or protocol["major"] != 1 or protocol["minor"] < 7
             or not _REQUIRED_FEATURES.issubset(protocol["features"])):
         raise SkeletonRuntimeCompatibilityError(
             "skeleton_runtime_incompatible", "runtime does not support the required Skeleton protocol",
@@ -75,7 +76,8 @@ def validate_retained_skeleton_runtime_manifest(manifest: object, *, required_fe
     supported = {row["id"]: row for row in current["protocols"]}
     original = {row["id"]: row for row in retained["protocols"]}
     legacy_features = _REQUIRED_FEATURES - {
-        "kernel_profile_auth_v1", "subagent_tool_settlement_projection_v1"}
+        "kernel_profile_auth_v1", "subagent_tool_settlement_projection_v1",
+        "subagent_native_observation_v1"}
     skeleton = original.get("skeleton_execution")
     compatible = skeleton is not None and (legacy_features | set(required_features)).issubset(skeleton["features"])
     for row in retained["protocols"]:
@@ -86,7 +88,8 @@ def validate_retained_skeleton_runtime_manifest(manifest: object, *, required_fe
             compatible = False
     if skeleton is not None:
         for feature, minimum_minor in (("subagent_tool_settlement_projection_v1", 5),
-                ("kernel_profile_auth_v1", 6)):
+                ("kernel_profile_auth_v1", 6),
+                ("subagent_native_observation_v1", 7)):
             if feature in skeleton["features"] and skeleton["minor"] < minimum_minor:
                 compatible = False
     if not compatible:

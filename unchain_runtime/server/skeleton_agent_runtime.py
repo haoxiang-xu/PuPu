@@ -622,7 +622,7 @@ class PupuSkeletonAgentExecution:
             "Workflow Tool did not reach its End safely")
 
     def _child_runner(self, parent_store, adapter, run_id, *, execution_guard=None,
-                      run_bundle_identity=None):
+                      run_bundle_identity=None, inherited_observation_gates=()):
         basis = "\x00".join((parent_store.graph_id, run_id, adapter.entry_id))
         suffix = sha256(basis.encode("utf-8", "surrogatepass")).hexdigest()
         graph_id = f"{parent_store.graph_id}.subagent.{suffix}"
@@ -653,7 +653,8 @@ class PupuSkeletonAgentExecution:
                 child_store, handlers, ancestor_assert_current=assert_parent)
         nested = SkeletonSubagentRuntime(
             adapter.child_manifests,
-            run_child=partial(self._run_subagent_child_from, child_store),
+            run_child=partial(self._run_subagent_child_from, child_store,
+                inherited_observation_gates=tuple(inherited_observation_gates)),
         )
         arguments = self._kernel_handler_arguments(adapter.plan, store=child_store,
             execution_guard=execution_guard, workflow_policy=adapter,
@@ -673,7 +674,18 @@ class PupuSkeletonAgentExecution:
         handlers["agent"] = SkeletonKernelHandler(child_store, **arguments)
         return graph_id, child_store, nested, DurableWorkflowRunner(child_store, handlers)
 
-    def _run_subagent_child_from(self, parent_store, adapter, messages, kwargs):
+    def _run_subagent_child_from(self, parent_store, adapter, messages, kwargs, *,
+                                 inherited_observation_gates=()):
+        from unchain.skeleton.subagent_runtime import SkeletonSubagentAgent
+
+        if type(adapter) is not SkeletonSubagentAgent:
+            raise ValueError("native child observation requires the exact Skeleton facade")
+        gate = kwargs.get("_native_observation_gate")
+        if not callable(gate):
+            raise ValueError("native Skeleton child requires its observation gate")
+        inherited_gates = tuple(inherited_observation_gates)
+        if any(not callable(item) for item in inherited_gates):
+            raise ValueError("native Skeleton ancestor observation gate is invalid")
         run_id = str(kwargs.get("run_id") or "").strip()
         if not run_id:
             raise ValueError("Skeleton subagent requires a fixed child run id")
@@ -682,15 +694,23 @@ class PupuSkeletonAgentExecution:
             raise ValueError("Skeleton subagent requires a borrowed execution guard")
         child_guard_session_id = child_guard.lease.execution_id
         run_bundle_identity = kwargs.get("_run_bundle_identity")
-        graph_id, child_store, nested, runner = self._child_runner(
-            parent_store, adapter, run_id, execution_guard=child_guard,
-            run_bundle_identity=run_bundle_identity,
-        )
         parent = parent_store.load()
         if parent is None or parent.state["active"] is None:
             raise ValueError("parent Skeleton node is unavailable")
+        parent_active = parent.state["active"]
+        parent_invocation_id = parent_active["node_invocation_id"]
+        parent_node_run_id = parent_active["node_attempt_id"]
+        parent_status = parent.state["status"]
+        if parent_status not in {"running", "waiting"}:
+            raise ValueError("parent Skeleton invocation is no longer active")
+        gates = (gate, *inherited_gates)
+        graph_id, child_store, nested, runner = self._child_runner(
+            parent_store, adapter, run_id, execution_guard=child_guard,
+            run_bundle_identity=run_bundle_identity,
+            inherited_observation_gates=gates,
+        )
         frames = [dict(frame) for frame in parent.state["call_stack"]]
-        frames[-1]["caller_node_invocation_id"] = parent.state["active"]["node_invocation_id"]
+        frames[-1]["caller_node_invocation_id"] = parent_invocation_id
         frames.append({
             "execution_id": child_store.attempt.generation.execution_id,
             "graph_invocation_id": graph_id,
@@ -699,11 +719,67 @@ class PupuSkeletonAgentExecution:
             "definition_digest": execution_definition_digest(adapter.plan),
         })
         runner.create(self._child_inputs(adapter.plan, messages), call_stack=frames)
+
+        def assert_parent_current():
+            child_guard.assert_active()
+            current = parent_store.load()
+            active = current.state["active"] if current is not None else None
+            if (active is None or active["node_invocation_id"] != parent_invocation_id
+                    or active["node_attempt_id"] != parent_node_run_id
+                    or current.state["status"] not in {"running", "waiting"}):
+                raise ValueError("native child parent invocation is no longer current")
+
+        def observe_child_event(event):
+            if type(event) is not dict or not isinstance(event.get("run_id"), str):
+                raise ValueError("native child event has no node attempt identity")
+            child = child_store.load()
+            active = child.state["active"] if child is not None else None
+            if (active is None or active.get("node_attempt_id") != event.get("run_id")
+                    or event.get("parent_run_id") != child_store.attempt.attempt_id):
+                raise ValueError("native child event does not belong to the active node")
+            assert_parent_current()
+            for observer_gate in gates:
+                if observer_gate(event) is False:
+                    return
+            assert_parent_current()
+            from skeleton_child_events import ChildNodeAttribution, attach_node_attribution
+            attribution = ChildNodeAttribution(
+                root_run_id=self.binding.root_run_id,
+                parent_run_id=parent_node_run_id,
+                child_run_id=child_store.attempt.attempt_id,
+                graph_id=graph_id,
+                node_run_id=event["run_id"],
+                source_type=str(event.get("type") or ""),
+            )
+            if self.callback is not None:
+                self.callback(attach_node_attribution({**event, "scope": "node"}, attribution))
+
+        handler = runner.handlers.get("agent")
+        if type(handler) is not SkeletonKernelHandler:
+            raise ValueError("native child graph has no exact Kernel observer")
+        handler.callback = observe_child_event
         result = runner.run()
         if result.status == "completed":
             output = result.outputs
             if type(output) is not dict or type(output.get("message")) is not str:
                 raise ValueError("subagent End must export string message")
+            committed = child_store.load()
+            if committed is None or committed.state["status"] != "completed":
+                raise ValueError("native child End is not committed")
+            assert_parent_current()
+            from skeleton_child_events import ChildEndAttribution, attach_end_attribution
+            end_event = attach_end_attribution({
+                "type": "final_message", "scope": "child_end",
+                "run_id": child_store.attempt.attempt_id,
+                "content": output["message"],
+            }, ChildEndAttribution(
+                root_run_id=self.binding.root_run_id,
+                parent_run_id=parent_node_run_id,
+                child_run_id=child_store.attempt.attempt_id,
+                graph_id=graph_id,
+            ))
+            if self.callback is not None:
+                self.callback(end_event)
             return SimpleNamespace(
                 status="completed",
                 messages=[{"role": "user", "content": messages},

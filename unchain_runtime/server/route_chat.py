@@ -1352,6 +1352,8 @@ def chat_stream_v4() -> Response:
             for raw_event in event_source:
                 if not isinstance(raw_event, dict):
                     continue
+                from skeleton_child_events import project_attribution, strip_attribution
+                raw_event, child_attribution = strip_attribution(raw_event)
                 latency.observe(raw_event)
                 if raw_event.get("type") == "stream_summary":
                     final_bundle = _sanitize_v4_completion_bundle(
@@ -1393,6 +1395,9 @@ def chat_stream_v4() -> Response:
                 }
                 for runtime_event in bridge.normalize(normalizer_event):
                     runtime_payload = runtime_event.to_dict()
+                    runtime_payload = project_attribution(
+                        runtime_payload, child_attribution, root_run_id=attempt_id,
+                    )
                     if isinstance(
                         display_sidecar, ToolCallDisplayMetadataSidecar
                     ):

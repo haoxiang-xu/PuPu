@@ -273,18 +273,20 @@ extends BC001/002/007/010/012 and AC007/008/011/014 without waiving other M3 row
 
 ## Retained launch minor compatibility (M2/M8, BC-356-CLOSE-002)
 
-The new current-runtime gate requires Skeleton1.6, but must not apply that
-minimum to the authenticated manifest retained in an old launch. Red control
+The authentication checkpoint raised current-runtime admission to Skeleton1.6;
+the child-observation repair below raises it to1.7. Neither current minimum
+applies to the authenticated manifest retained in an old launch. Red control
 proved both a root-only and recursive-child launch from actual held wheel
 17b04aea / manifest827adc are rejected solely by the new minimum (2 failed,
 11 controls passed). The retained launch consumer now strictly normalizes the
 original manifest, requires the original v1 baseline, and proves every retained
 protocol is implemented by the actual admitted current runtime (same major,
 no future minor, feature subset). New auth/projection fields still require
-their originally advertised feature and introduction minor. Current runtime
-admission remains1.6; no Git/path bypass, new-run downgrade, descriptor rewrite
+their originally advertised feature and introduction minor. At that checkpoint,
+current runtime admission remained1.6; no Git/path bypass, new-run downgrade, descriptor rewrite
 or digest replacement. New-module tests include protocol drift, digest, old
-current-runtime refusal and recursive-auth/Workflow-tool controls.
+current-runtime refusal and recursive-auth/Workflow-tool controls. The historical
+1.6 source result below remains bound to that checkpoint, not the new1.7 pair.
 
 Source-only boundary regression165/165 passes including the original frozen
 cold-child callback and after-Hook denial stream. The actual retained1.4
@@ -292,3 +294,54 @@ manifest is captured from the old installed artifact and retained byte-exact in
 tests/fixtures; producer SHA and fixture SHA are in the close evidence. This
 unit reconstructs a launch with that real manifest; installed/binary cold
 resume remains a separate acceptance cell, not claimed by the unit count.
+
+## 2026-11-04 necessary closure repairs (M2/M8)
+
+These repairs finish existing child trace and cold approval obligations. They
+do not add a new Builder feature or waive a verification cell. Frozen 01a60e0b,
+wheel949 and prior evidence remain immutable; fixes use independent candidates.
+
+**BC-356-CLOSE-005 (VERSIONED/CLOSED):** Core native Subagent plugin observation
+gate -> Host-owned child observer -> existing normalized SSE links -> child
+trace consumer. Skeleton minor7 advertises `subagent_native_observation_v1`.
+The gate retains the original live batch, execution guard, human-input and board
+capture checks without injecting child events into the parent ContextRuntime.
+Direct public native-facade calls without the optional gate remain compatible.
+Host attribution is private and typed, validated against the actual durable
+child store/borrowed guard, stripped before normalization, and never persisted.
+Keep root R, invoking node P, child C, child graph G and child node N distinct.
+Existing nested lifecycle/settlement identity projected by Core remains intact.
+Child End is observed only after typed graph completion, never from model text;
+observation must not enter parent tool results, prompts, progress digest or root
+final. Current producer admission requires the feature; retained historical
+descriptors keep their original digest and validated supported feature subset.
+
+**SEQ-356-CLOSE-005 / AC-356-CLOSE-005:** real parent -> child -> nested/sibling
+events -> child End -> parent continuation; paused child -> cold reconstruction
+-> explicit resume; cancelled/expired ancestor -> refuse observation. Preserve
+legacy callbacks, guard/board behavior, per-node Journal ownership and root-final
+uniqueness. Red evidence must exercise actual composed callbacks, not a forwarding
+stub. After-Hook sentinel A/B proves the observer cannot restore redacted A to
+the downstream request. Test old949 refusal, minor/feature mismatch, retained1.4
+compatibility and exact one-built replacement wheel/Host/App pair. UI tests bind
+direct child-node frames to their own worker and exclude siblings/nested owners.
+
+**BC-356-CLOSE-006 (CLOSED):** stored original root approval request + authoritative
+native pending response -> current-generation retained UI ownership. Admission
+requires exact session/root/interaction/call/tool/arguments and a unique original
+request frame. Synthetic recovery cards are not authority. Cancellation and
+turn-mutation stores must be readable and show no competing fence; unknown is a
+hold, never permission. The same-hook cancellation drain must preserve an
+unavailable/invalid representation before any asynchronous cancel/removal can
+rewrite it and hide a fence from the later pending lookup. A resumed message may have a newer meta attempt while
+its original request frame still proves the root owner. No new persistence schema,
+automatic continuation or backend permission bypass is introduced.
+
+**SEQ-356-CLOSE-006 / AC-356-CLOSE-006:** actual approval wait -> App exit -> cold
+mount -> passive lookup (no cancel, tool effect or resume) -> explicit approve or
+deny -> exactly one receipt-bound resume. Stop, queued cancellation, stale
+generation, foreign session/attempt, duplicate/synthetic/settled requests and
+unreadable stores cannot grant ownership. A later successful read can retry.
+Retain live approval/submitting, generic cold cancellation and sourceA snapshot
+controls. Final packaged App must exercise a real waiting-state cold restart;
+HTTP-only recovery and cold reading completed messages cannot substitute for it.

@@ -35,7 +35,14 @@ import {
   setChatModel,
 } from "../../../SERVICEs/chat_storage";
 import { writeFeatureFlags } from "../../../SERVICEs/feature_flags";
-import { enqueueExecutionCancel, readExecutionCancelOutbox } from "./execution_cancel_outbox";
+import {
+  enqueueExecutionCancel,
+  EXECUTION_CANCEL_OUTBOX_STORAGE_KEY,
+  readExecutionCancelOutbox,
+} from "./execution_cancel_outbox";
+import * as executionCancelOutbox from "./execution_cancel_outbox";
+import * as turnMutationOutbox from "../../../SERVICEs/turn_mutation_outbox";
+import { CHATS_STORAGE_KEY } from "../../../SERVICEs/chat_storage/chat_storage_constants";
 import { normalizePendingInteraction } from "./durable_interaction_recovery";
 import { writeReasoningEffortPref } from "../../../SERVICEs/reasoning_effort_prefs";
 import ollamaPreviewFixture from "../../../SERVICEs/runtime_events/fixtures/ollama_live_preview.json";
@@ -45,6 +52,7 @@ import observedBatchFixture from "../../../SERVICEs/runtime_events/fixtures/tick
 
 import settlementFixture from "../../../COMPONENTs/chat-bubble/__fixtures__/ticket_357_subagent_settlement.json";
 import coldMetadataFixture from "./fixtures/ticket_357_cold_child_metadata.json";
+import nativeColdApprovalCapture from "./fixtures/native_cold_approval.json";
 import cancelledSubagentProducer from "../../../COMPONENTs/chat-bubble/__fixtures__/ticket_357_cancelled_subagent_producer.json";
 import { collectSubagentSettlements, settlementForToolCall } from "../../../SERVICEs/runtime_events/subagent_settlement";
 
@@ -72,6 +80,46 @@ const pendingGraphStepInteraction = (sessionId, graphStepAttemptId, coordinatorA
   graph_step_attempt_id: graphStepAttemptId,
   graph_coordinator_attempt_id: coordinatorAttemptId,
 });
+
+const nativeColdCaptureForChat = (chatId) => {
+  const captured = JSON.parse(JSON.stringify(nativeColdApprovalCapture));
+  captured.chatId = chatId;
+  captured.pending.session_id = chatId;
+  captured.pending.interaction_session_id = chatId;
+  captured.messages[1].meta.executionSessionId = chatId;
+  captured.messages[1].traceFrames = captured.messages[1].traceFrames.map((frame) => ({
+    ...frame,
+    session_id: frame.type === "tool_call" &&
+      frame.payload?.runtime_source_type === "interaction_requested"
+      ? chatId
+      : frame.session_id,
+  }));
+  return captured;
+};
+
+const prepareNativeColdApproval = (chatId, mount) => {
+  const captured = nativeColdCaptureForChat(chatId);
+  let pending = captured.pending;
+  setChatMessages(chatId, captured.messages, { source: "test" });
+  window.unchainAPI.isDurableInteractionBridgeAvailable = jest.fn(() => true);
+  window.unchainAPI.getPendingInteraction = jest.fn(async ({ session_id: sessionId } = {}) =>
+    sessionId === chatId ? pending : { status: "none", session_id: sessionId },
+  );
+  window.unchainAPI.cancelExecution = jest.fn(async () => ({ status: "ok" }));
+  window.unchainAPI.startStreamV4 = jest.fn((payload) => {
+    return {
+      requestId: `native-resume-${payload?.interaction_id || "unknown"}`,
+      attemptId: "native-resume-attempt",
+      disconnect: jest.fn(),
+      cancel: jest.fn(),
+    };
+  });
+  return {
+    captured,
+    setPending: (value) => { pending = value; },
+    mount,
+  };
+};
 
 let lastChatMessagesProps = null;
 let lastChatInputProps = null;
@@ -297,6 +345,355 @@ describe("Memory V2 P0 payload seams", () => {
       expect(lastChatInputProps?.sendDisabled).toBe(false);
     });
   };
+
+  test("localStorage fallback bootstrap restores a native owner before lookup", async () => {
+    const chatId = "native-cold-bootstrap-chat";
+    const captured = nativeColdCaptureForChat(chatId);
+    const nodeId = `chn-${chatId}`;
+    const now = Date.now();
+    window.localStorage.setItem(CHATS_STORAGE_KEY, JSON.stringify({
+      schemaVersion: 2,
+      updatedAt: now,
+      activeChatId: chatId,
+      lruChatIds: [chatId],
+      chatsById: {
+        [chatId]: {
+          id: chatId,
+          title: "Native cold approval",
+          createdAt: now,
+          updatedAt: now,
+          lastMessageAt: now,
+          threadId: chatId,
+          model: { id: "openai:gpt-5" },
+          agentOrchestration: { mode: "default" },
+          selectedToolkits: [],
+          selectedWorkspaceIds: [],
+          systemPromptOverrides: {},
+          draft: { text: "", attachments: [], updatedAt: now },
+          isTransientNewChat: false,
+          hasUnreadGeneratedReply: false,
+          isGenerating: false,
+          stats: { messageCount: captured.messages.length, approxBytes: 1024 },
+          messages: captured.messages,
+        },
+      },
+      tree: {
+        root: [nodeId],
+        nodesById: {
+          [nodeId]: { id: nodeId, entity: "chat", type: "file", chatId, label: "Native cold approval" },
+        },
+        selectedNodeId: nodeId,
+        expandedFolderIds: [],
+      },
+      ui: {},
+    }));
+    window.unchainAPI.isDurableInteractionBridgeAvailable = jest.fn(() => true);
+    window.unchainAPI.getPendingInteraction = jest.fn(async ({ session_id: sessionId } = {}) =>
+      sessionId === chatId ? captured.pending : { status: "none", session_id: sessionId },
+    );
+    window.unchainAPI.cancelExecution = jest.fn(async () => ({ status: "ok" }));
+    window.unchainAPI.startStreamV4 = jest.fn();
+
+    renderChat();
+    await waitFor(() => expect(lastChatMessagesProps?.pendingToolConfirmationRequests?.[
+      captured.pending.interaction_id
+    ]).toBeDefined());
+
+    expect(lastChatMessagesProps.messages).toEqual(captured.messages);
+    expect(window.unchainAPI.getPendingInteraction).toHaveBeenCalledWith({ session_id: chatId });
+    expect(window.unchainAPI.cancelExecution).not.toHaveBeenCalled();
+    expect(window.unchainAPI.startStreamV4).not.toHaveBeenCalled();
+  });
+
+  test("cold lookup retains the original native approval owner without cancelling or resuming", async () => {
+    const chatId = getChatsStore().activeChatId;
+    const { captured, mount } = prepareNativeColdApproval(chatId, renderChat);
+    mount();
+    await waitFor(() => {
+      expect(window.unchainAPI.getStatus).toHaveBeenCalled();
+      expect(window.unchainAPI.getModelCatalog).toHaveBeenCalled();
+    });
+    await waitFor(() => expect(lastChatMessagesProps?.pendingToolConfirmationRequests?.[
+      captured.pending.interaction_id
+    ]).toBeDefined());
+
+    expect(lastChatMessagesProps.messages).toEqual(captured.messages);
+    expect(window.unchainAPI.cancelExecution).not.toHaveBeenCalled();
+    expect(window.unchainAPI.startStreamV4).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    ["cancel", executionCancelOutbox, "readExecutionCancelOutboxState"],
+    ["turn mutation", turnMutationOutbox, "readTurnMutationAdmissionOutboxState"],
+  ])("cold native approval waits on an unavailable %s fence then retries safely", async (_name, module, readerName) => {
+    const chatId = getChatsStore().activeChatId;
+    const { captured, mount } = prepareNativeColdApproval(chatId, renderChat);
+    const originalReader = module[readerName].bind(module);
+    let fenceUnavailable = true;
+    const reader = jest.spyOn(module, readerName).mockImplementation((...args) =>
+      fenceUnavailable
+        ? { available: false, entries: [] }
+        : originalReader(...args),
+    );
+    mount();
+
+    await waitFor(() => expect(window.unchainAPI.getPendingInteraction).toHaveBeenCalled());
+    expect(lastChatMessagesProps?.pendingToolConfirmationRequests?.[
+      captured.pending.interaction_id
+    ]).toBeUndefined();
+    expect(window.unchainAPI.cancelExecution).not.toHaveBeenCalled();
+    expect(window.unchainAPI.startStreamV4).not.toHaveBeenCalled();
+
+    fenceUnavailable = false;
+    await waitFor(() => expect(lastChatMessagesProps?.pendingToolConfirmationRequests?.[
+      captured.pending.interaction_id
+    ]).toBeDefined(), { timeout: 4000 });
+    expect(reader.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(window.unchainAPI.cancelExecution).not.toHaveBeenCalled();
+    expect(window.unchainAPI.startStreamV4).not.toHaveBeenCalled();
+  });
+
+  test("target-first oversized cancellation snapshot cannot be rewritten before native lookup", async () => {
+    const chatId = getChatsStore().activeChatId;
+    const { captured, mount } = prepareNativeColdApproval(chatId, renderChat);
+    const entries = [
+      {
+        ownerChatId: chatId,
+        sessionId: chatId,
+        attemptId: captured.pending.source_run_id,
+        sourceAttemptId: captured.pending.source_run_id,
+        interactionId: captured.pending.interaction_id,
+        reason: "user_stop",
+        createdAt: 1,
+      },
+      ...Array.from({ length: 64 }, (_value, index) => ({
+        ownerChatId: `unrelated-chat-${index}`,
+        sessionId: `unrelated-session-${index}`,
+        attemptId: `unrelated-attempt-${index}`,
+        reason: "user_stop",
+        createdAt: index + 2,
+      })),
+    ];
+    const originalBytes = JSON.stringify(entries);
+    window.localStorage.setItem(EXECUTION_CANCEL_OUTBOX_STORAGE_KEY, originalBytes);
+    let releasePending = null;
+    let releaseSecondCancellation = null;
+    window.unchainAPI.getPendingInteraction = jest.fn(({ session_id: sessionId } = {}) =>
+      new Promise((resolve) => {
+        if (sessionId === chatId) releasePending = resolve;
+        else resolve({ status: "none", session_id: sessionId });
+      }),
+    );
+    window.unchainAPI.cancelExecution = jest.fn((payload) => {
+      const response = {
+        status: "cancelled",
+        execution_id: payload.session_id,
+        attempt_id: payload.attempt_id,
+        state: "cancelled",
+      };
+      if (payload.attempt_id === "unrelated-attempt-0") {
+        return Promise.resolve(response);
+      }
+      if (payload.attempt_id === "unrelated-attempt-1") {
+        return new Promise((resolve) => { releaseSecondCancellation = () => resolve(response); });
+      }
+      return Promise.resolve(response);
+    });
+
+    const rendered = mount();
+    await waitFor(() => expect(releasePending).toEqual(expect.any(Function)));
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 40)));
+    const cancellationCallsBeforePending = window.unchainAPI.cancelExecution.mock.calls.length;
+    const bytesBeforePending = window.localStorage.getItem(EXECUTION_CANCEL_OUTBOX_STORAGE_KEY);
+    await act(async () => releasePending(captured.pending));
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 40)));
+    const actionableOwner = lastChatMessagesProps?.pendingToolConfirmationRequests?.[
+      captured.pending.interaction_id
+    ];
+    rendered.unmount();
+    releaseSecondCancellation?.();
+
+    expect(bytesBeforePending).toBe(originalBytes);
+    expect(actionableOwner).toBeUndefined();
+    expect(cancellationCallsBeforePending).toBe(0);
+    expect(window.unchainAPI.startStreamV4).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    ["root Stop", (chatId, captured) => ({
+      ownerChatId: chatId,
+      sessionId: chatId,
+      attemptId: captured.pending.source_run_id,
+      sourceAttemptId: captured.pending.source_run_id,
+    })],
+    ["resumed-attempt Stop linked to the root", (_chatId, captured) => ({
+      ownerChatId: "foreign-owner",
+      sessionId: "foreign-session",
+      attemptId: "later-resume-attempt",
+      sourceAttemptId: captured.pending.source_run_id,
+    })],
+  ])("cold native approval preserves an unresolved %s fence", async (_label, makeEntry) => {
+    const chatId = getChatsStore().activeChatId;
+    const { captured, setPending, mount } = prepareNativeColdApproval(chatId, renderChat);
+    window.localStorage.setItem(EXECUTION_CANCEL_OUTBOX_STORAGE_KEY, JSON.stringify([{
+      ...makeEntry(chatId, captured),
+      reason: "user_stop",
+      createdAt: 1,
+      retryBlocked: true,
+    }]));
+    window.unchainAPI.cancelExecution.mockImplementation(async (payload) => {
+      const exactTarget =
+        payload.owner_chat_id === chatId &&
+        payload.session_id === chatId &&
+        payload.attempt_id === captured.pending.source_run_id &&
+        payload.reason === "interaction_suspended";
+      if (exactTarget) setPending({ status: "none", session_id: chatId });
+      return {
+        status: exactTarget ? "cancelled" : "ok",
+        execution_id: payload.session_id,
+        attempt_id: payload.attempt_id,
+        source_attempt_id: payload.source_attempt_id,
+        state: exactTarget ? "cancelled" : "accepted",
+      };
+    });
+    mount();
+
+    await waitFor(() => expect(window.unchainAPI.getPendingInteraction).toHaveBeenCalled());
+    await waitFor(() => expect(window.unchainAPI.cancelExecution).toHaveBeenCalled());
+    await waitFor(() => expect(lastChatMessagesProps?.pendingToolConfirmationRequests?.[
+      captured.pending.interaction_id
+    ]).toBeUndefined());
+    expect(window.unchainAPI.startStreamV4).not.toHaveBeenCalled();
+    expect(window.unchainAPI.respondToolConfirmation).not.toHaveBeenCalled();
+  });
+
+  test("a pending turn mutation blocks native cold admission while keeping its own path", async () => {
+    const chatId = getChatsStore().activeChatId;
+    const { captured, setPending, mount } = prepareNativeColdApproval(chatId, renderChat);
+    window.localStorage.setItem(turnMutationOutbox.TURN_MUTATION_OUTBOX_STORAGE_KEY, JSON.stringify([{
+      operationId: "pending-resend-fence",
+      chatId,
+      sessionId: chatId,
+      kind: "resend",
+      targetMessageId: "user-native-captured",
+      originalFingerprint: "original",
+      baseFingerprint: "base",
+      baseMessageCount: 0,
+      text: "preserve the pending resend",
+      createdAt: 1,
+    }]));
+    window.unchainAPI.cancelExecution.mockImplementation(async (payload) => {
+      setPending({ status: "none", session_id: chatId });
+      return { status: "cancelled", execution_id: chatId, attempt_id: payload.attempt_id, state: "cancelled" };
+    });
+    mount();
+
+    await waitFor(() => expect(window.unchainAPI.getPendingInteraction).toHaveBeenCalled());
+    await waitFor(() => expect(lastChatMessagesProps?.pendingToolConfirmationRequests?.[
+      captured.pending.interaction_id
+    ]).toBeUndefined());
+    expect(window.unchainAPI.startStreamV4.mock.calls.some(
+      ([payload]) => payload?.mode === "resume_interaction",
+    )).toBe(false);
+  });
+
+  test("target-first oversized turn-mutation snapshot cannot be rewritten by recovery", async () => {
+    const chatId = getChatsStore().activeChatId;
+    const { captured, mount } = prepareNativeColdApproval(chatId, renderChat);
+    const mutation = (operationId, targetChatId, overrides = {}) => ({
+      operationId,
+      chatId: targetChatId,
+      sessionId: targetChatId,
+      kind: "resend",
+      targetMessageId: "user-native-captured",
+      originalFingerprint: "original",
+      baseFingerprint: "base",
+      baseMessageCount: 0,
+      text: "preserve the pending resend",
+      createdAt: 1,
+      ...overrides,
+    });
+    const rows = [
+      mutation("target-first-native-fence", chatId),
+      ...Array.from({ length: 31 }, (_value, index) =>
+        mutation(`unrelated-mutation-${index}`, `unrelated-chat-${index}`),
+      ),
+      mutation("retained-current-chat-tail", chatId, {
+        retryStatus: "attempting",
+        retryAt: 0,
+      }),
+    ];
+    const originalBytes = JSON.stringify(rows);
+    window.localStorage.setItem(turnMutationOutbox.TURN_MUTATION_OUTBOX_STORAGE_KEY, originalBytes);
+    const rendered = mount();
+    await waitFor(() => expect(window.unchainAPI.getPendingInteraction).toHaveBeenCalled());
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 40)));
+    const storedBytes = window.localStorage.getItem(turnMutationOutbox.TURN_MUTATION_OUTBOX_STORAGE_KEY);
+    const actionableOwner = lastChatMessagesProps?.pendingToolConfirmationRequests?.[
+      captured.pending.interaction_id
+    ];
+    rendered.unmount();
+
+    expect(storedBytes).toBe(originalBytes);
+    expect(actionableOwner).toBeUndefined();
+    expect(window.unchainAPI.cancelExecution).not.toHaveBeenCalled();
+    expect(window.unchainAPI.startStreamV4.mock.calls.some(
+      ([payload]) => payload?.mode === "resume_interaction",
+    )).toBe(false);
+  });
+
+  test.each([true, false])("cold native approval submits %s once with the original root receipt", async (approved) => {
+    const chatId = getChatsStore().activeChatId;
+    const { captured, setPending, mount } = prepareNativeColdApproval(chatId, renderChat);
+    const receiptId = `native-receipt-${approved ? "approved" : "denied"}`;
+    window.unchainAPI.respondToolConfirmation = jest.fn(async (payload) => {
+      const resolvedApproval = payload.approved === true;
+      setPending({
+        ...captured.pending,
+        status: "receipt_recorded",
+        receipt_id: receiptId,
+        resolution: {
+          outcome: resolvedApproval ? "approved" : "denied",
+          response: { approved: resolvedApproval, reason: "" },
+        },
+      });
+      return {
+        status: "ok",
+        durable: true,
+        disposition: "receipt_recorded",
+        session_id: chatId,
+        interaction_id: captured.pending.interaction_id,
+        receipt_id: receiptId,
+      };
+    });
+    window.unchainAPI.isRuntimeEventStreamV4Available.mockReturnValue(true);
+    mount();
+    await waitFor(() => expect(lastChatMessagesProps?.pendingToolConfirmationRequests?.[
+      captured.pending.interaction_id
+    ]).toBeDefined());
+
+    const decision = {
+      confirmationId: captured.pending.interaction_id,
+      approved,
+    };
+    await act(async () => {
+      await lastChatMessagesProps.onToolConfirmationDecision(decision);
+      await lastChatMessagesProps.onToolConfirmationDecision(decision);
+    });
+    await waitFor(() => expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(1));
+
+    expect(window.unchainAPI.respondToolConfirmation).toHaveBeenCalledTimes(1);
+    expect(window.unchainAPI.startStreamV4.mock.calls[0][0]).toEqual(expect.objectContaining({
+      mode: "resume_interaction",
+      threadId: chatId,
+      interaction_id: captured.pending.interaction_id,
+      source_attempt_id: captured.pending.source_run_id,
+      message: "",
+      history: [],
+      attachments: [],
+    }));
+    expect(window.unchainAPI.cancelExecution).not.toHaveBeenCalled();
+  });
 
   const sendText = (text) => {
     fireEvent.change(screen.getByTestId("chat-input"), {

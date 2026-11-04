@@ -64,6 +64,7 @@ import {
   buildRecoveredConfirmationRequest,
   durableInteractionRetryDelayMs,
   ensureDurableInteractionMessage,
+  findRetainedNativeSkeletonApprovalOwner,
   isRetryableDurableInteractionError,
   normalizePendingInteraction,
   prepareDurableInteractionResumeMessages,
@@ -72,6 +73,7 @@ import {
 import {
   enqueueExecutionCancel,
   readExecutionCancelOutbox,
+  readExecutionCancelOutboxState,
   recordExecutionCancelFailure,
   removeExecutionCancel,
 } from "./execution_cancel_outbox";
@@ -116,6 +118,7 @@ import {
   createTurnMutationOperationId,
   enqueueTurnMutation,
   fingerprintTurnMutationMessages,
+  readTurnMutationAdmissionOutboxState,
   readTurnMutationOutbox,
   readTurnMutationOutboxState,
   recordTurnMutationRebaseAck,
@@ -3484,6 +3487,16 @@ export const useChatStream = ({
     const reported = new Set();
 
     const drainCancellationOutbox = async () => {
+      const admissionSnapshot = readExecutionCancelOutboxState();
+      if (!admissionSnapshot.available) {
+        if (!disposed) {
+          retryTimer = setTimeout(
+            drainCancellationOutbox,
+            EXECUTION_CANCEL_OUTBOX_RETRY_MS,
+          );
+        }
+        return;
+      }
       const entries = readExecutionCancelOutbox();
       for (const entry of entries) {
         if (disposed) {
@@ -10364,13 +10377,97 @@ export const useChatStream = ({
         }
 
         clearAllPendingToolConfirmations(normalizedChatId);
-        let sourceMessages =
+        const nativeColdPendingCandidate =
+          pending.resumeKind === "skeleton" &&
+          pending.status === "awaiting_response" &&
+          pending.kind === "tool_approval" &&
+          pending.resumeAvailable === true;
+        let sourceMessages = [];
+        const activeMessages =
           activeChatIdRef.current === normalizedChatId &&
           Array.isArray(messagesRef.current)
             ? messagesRef.current
-            : typeof storageApi.getChatMessages === "function"
+            : null;
+        if (activeMessages?.length > 0 || !nativeColdPendingCandidate) {
+          sourceMessages = activeMessages ||
+            (typeof storageApi.getChatMessages === "function"
               ? storageApi.getChatMessages(normalizedChatId)
-              : [];
+              : []);
+        } else {
+          try {
+            if (typeof storageApi.getChatMessages !== "function") {
+              throw new Error("Persisted chat messages are unavailable.");
+            }
+            sourceMessages = storageApi.getChatMessages(normalizedChatId);
+            if (!Array.isArray(sourceMessages)) {
+              throw new Error("Persisted chat messages are unavailable.");
+            }
+          } catch (_error) {
+            const error = new Error("Persisted chat messages are unavailable.");
+            error.code = "durable_interaction_owner_store_unavailable";
+            throw error;
+          }
+        }
+        if (!Array.isArray(sourceMessages)) {
+          if (nativeColdPendingCandidate) {
+            const error = new Error("Persisted chat messages are unavailable.");
+            error.code = "durable_interaction_owner_store_unavailable";
+            throw error;
+          }
+          sourceMessages = [];
+        }
+        const nativeColdOwnerId = findRetainedNativeSkeletonApprovalOwner(
+          sourceMessages,
+          pending,
+          normalizedChatId,
+        );
+        let nativeColdAdmission = false;
+        if (nativeColdOwnerId && !pendingOwnedByCurrentRun) {
+          const cancelOutboxState = readExecutionCancelOutboxState();
+          const mutationOutboxState = readTurnMutationAdmissionOutboxState();
+          if (!cancelOutboxState.available || !mutationOutboxState.available) {
+            const error = new Error(
+              "Local recovery fences are unavailable; the approval remains pending.",
+            );
+            error.code = "durable_interaction_fence_store_unavailable";
+            throw error;
+          }
+          const competingCancellation = cancelOutboxState.entries.some(
+            (entry) =>
+              entry.ownerChatId === normalizedChatId ||
+              entry.sessionId === pending.sessionId ||
+              entry.attemptId === pending.sourceRunId ||
+              entry.sourceAttemptId === pending.sourceRunId,
+          );
+          const competingMutation = mutationOutboxState.entries.some(
+            (entry) => entry.chatId === normalizedChatId,
+          );
+          const trackedCancellation = [
+            ...trackedExecutionCancellationsRef.current.values(),
+          ].some(
+            (tracked) =>
+              tracked?.pending === true &&
+              (tracked.identity?.ownerChatId === normalizedChatId ||
+                tracked.identity?.sessionId === pending.sessionId),
+          );
+          if (
+            isCurrentLookup() &&
+            !streamingChatIdsRef.current.has(normalizedChatId) &&
+            !streamHandlesRef.current.has(normalizedChatId) &&
+            !stoppedRunChatIdsRef.current.has(normalizedChatId) &&
+            !competingCancellation &&
+            !competingMutation &&
+            !trackedCancellation
+          ) {
+            acceptedInteractionsByChatIdRef.current.set(normalizedChatId, {
+              runGeneration: activeRunGeneration,
+              sessionId: pending.sessionId,
+              attemptIds: new Set([pending.sourceRunId]),
+              interactionIds: new Set([pending.interactionId]),
+            });
+            nativeColdAdmission = true;
+          }
+        }
         const pendingMutationEntry = readTurnMutationOutbox().find(
           (entry) => entry.chatId === normalizedChatId,
         );
@@ -10440,10 +10537,13 @@ export const useChatStream = ({
             releaseTurnMutation(mutationOwner);
           }
         }
-        const ensured = ensureDurableInteractionMessage(
-          sourceMessages,
-          pending,
-        );
+        const ensured = nativeColdAdmission
+          ? {
+              messages: sourceMessages,
+              ownerMessageId: nativeColdOwnerId,
+              created: false,
+            }
+          : ensureDurableInteractionMessage(sourceMessages, pending);
         if (ensured.created) {
           commitForegroundMessages(normalizedChatId, ensured.messages);
           storageApi.setChatMessages(normalizedChatId, ensured.messages, {
@@ -10453,7 +10553,7 @@ export const useChatStream = ({
 
         const keepPendingActionable =
           pending.status !== "receipt_recorded" &&
-          pendingOwnedByCurrentRun;
+          (pendingOwnedByCurrentRun || nativeColdAdmission);
         const resolutionOutcome = pending.resolution?.outcome;
         const recoveredDecision =
           resolutionOutcome === "approved" ||
@@ -10508,7 +10608,8 @@ export const useChatStream = ({
            live, observing a durable receipt alone must not resume it. Only
            an identity-matched explicit human-input submission may do so. */
         if (
-          !hasAuthoritativeRecordedReceipt && pendingOwnedByCurrentRun
+          !hasAuthoritativeRecordedReceipt &&
+          (pendingOwnedByCurrentRun || nativeColdAdmission)
         ) {
           return pendingWithOwner;
         }
@@ -14913,6 +15014,15 @@ export const useChatStream = ({
     const targetChatId =
       typeof chatId === "string" && chatId.trim() ? chatId.trim() : "";
     if (!targetChatId || !hookMountedRef.current) return undefined;
+
+    const admissionOutboxSnapshot = readTurnMutationAdmissionOutboxState();
+    if (!admissionOutboxSnapshot.available) {
+      setStreamErrorForChat(
+        targetChatId,
+        CONTEXT_V2_TURN_MUTATION_MESSAGES.PERSIST,
+      );
+      return undefined;
+    }
 
     const recoveryOutboxSnapshot = readTurnMutationOutboxState();
     if (!recoveryOutboxSnapshot.available) {

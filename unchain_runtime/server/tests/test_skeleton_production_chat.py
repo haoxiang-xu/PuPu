@@ -66,6 +66,47 @@ def test_public_skeleton_chat_runs_and_commits_only_end(production):
     assert "production-test-secret" not in json.dumps(launch.descriptor)
 
 
+def test_stream_worker_preserves_only_typed_committed_child_end_final():
+    from skeleton_child_events import ChildEndAttribution, attach_end_attribution
+    from skeleton_production_chat import _stream_worker_event
+
+    node_final = _stream_worker_event({
+        "type": "final_message", "scope": "node", "run_id": "node-N",
+        "content": "raw model final",
+    })
+    node_lifecycle = _stream_worker_event({
+        "type": "run_completed", "scope": "node", "run_id": "node-N",
+    })
+    child_end = attach_end_attribution({
+        "type": "final_message", "scope": "child_end", "run_id": "child-C",
+        "content": "committed graph End",
+    }, ChildEndAttribution(
+        root_run_id="root-R", parent_run_id="parent-P", child_run_id="child-C",
+        graph_id="child-G",
+    ))
+    untyped_end = {
+        "type": "final_message", "scope": "child_end", "run_id": "child-C",
+        "content": "untyped final",
+    }
+    mapping_attribution_end = {
+        **untyped_end,
+        "_pupu_skeleton_child_attribution": {
+            "child_run_id": "child-C", "root_run_id": "root-R",
+        },
+    }
+    wrong_identity_end = {
+        **child_end,
+        "run_id": "other-child-C",
+    }
+
+    assert node_final["type"] == "workflow_step_final"
+    assert node_lifecycle is None
+    assert _stream_worker_event(child_end) == child_end
+    assert _stream_worker_event(untyped_end) is None
+    assert _stream_worker_event(mapping_attribution_end) is None
+    assert _stream_worker_event(wrong_identity_end) is None
+
+
 def test_second_chat_uses_new_root_and_keeps_prior_root_history(production):
     _store, options, calls = production
     for index, text in enumerate(("first request", "second request"), 1):

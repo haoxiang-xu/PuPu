@@ -1703,6 +1703,70 @@ def test_skeleton_handoff_completes_only_kernel_then_code_and_parent_end(
     assert len(parent_kernel_results) >= 2
 
 
+def test_native_delegate_forwards_child_model_events_without_changing_identity(
+    tmp_path, monkeypatch,
+):
+    execution_id = "skeleton-host-child-observation"
+    bridge = _bridge(tmp_path, monkeypatch, execution_id=execution_id)
+    plan, manifests = _parent_with_pool()
+    client = _StrictOpenAIClient([
+        _subagent_tool_response(
+            "delegate_to_subagent",
+            '{"target":"Reviewer","task":"review this"}',
+            "observe",
+        ),
+        _final_response("F2_CHILD_MODEL"),
+        _final_response("F2_PARENT_MODEL"),
+    ])
+    memory_store = JsonFileSessionStore(tmp_path / "kernel-sessions")
+    memory = KernelMemoryRuntime.from_config(store=memory_store)
+    observed, child_stores = [], []
+
+    def child_handlers(store, _plan):
+        child_stores.append(store)
+        return {"code": lambda _context, inputs: WorkflowNodeCompleted({
+            "message": '{"answer":"F2_CHILD_END"}',
+            "evidence": "child derived " + inputs["model_answer"],
+        })}
+
+    with ExecutionRuntime(memory_store).scope(execution_id) as guard:
+        execution = _host_execution(
+            plan, bridge, client=client, guard=guard, memory=memory,
+            callback=observed.append, subagent_manifests=manifests,
+            child_handlers_factory=child_handlers,
+        )
+        execution.create({})
+        durable, receipt = execution.run(original_task="child observation")
+
+    assert durable.status == "completed"
+    assert receipt is not None
+    assert durable.outputs["message"] == "postprocessed End reply"
+    assert len(client.requests) == 3
+    assert len(child_stores) == 1
+    child_store = child_stores[0]
+    assert child_store.load().state["status"] == "completed"
+    journal = execution.store.journal.capture_snapshot().events
+    child_results = [
+        event for event in journal
+        if event.event_type == "skeleton.kernel_result.saved"
+        and event.payload.get("graph_id") == child_store.graph_id
+    ]
+    assert len(child_results) == 1
+    native_node_run = child_results[0].attempt.attempt_id
+    child_graph_run = child_store.attempt.attempt_id
+    root_graph_run = execution.store.attempt.attempt_id
+    assert len({native_node_run, child_graph_run, root_graph_run}) == 3
+    missing_event_types = [
+        event_type for event_type in ("request_messages", "response_received")
+        if not any(
+            event.get("type") == event_type
+            and event.get("run_id") == native_node_run
+            for event in observed
+        )
+    ]
+    assert missing_event_types == [], (missing_event_types, native_node_run)
+
+
 def test_subagent_approval_cold_resume_does_not_resend_parent_or_commit_child_reply(
     tmp_path, monkeypatch,
 ):

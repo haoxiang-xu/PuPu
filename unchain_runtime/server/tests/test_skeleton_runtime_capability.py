@@ -26,7 +26,8 @@ BASELINE_FEATURES = (
     "end_only_root_completion_v1", "explicit_bindings_v1", "hook_phase_receipts_v1",
     "kernel_profiles_v1", "legacy_conversion_v1", "non_llm_workflow_v1",
     "pinned_workflow_calls_v1", "production_host_bindings_v1", "skill_read_v1", "structured_output_v1",
-    "subagent_graphs_v1", "subagent_tool_settlement_projection_v1", "tool_call_v1",
+    "subagent_graphs_v1", "subagent_native_observation_v1",
+    "subagent_tool_settlement_projection_v1", "tool_call_v1",
 )
 DIGEST_DOMAIN = b"unchain.runtime_protocol_manifest.v1\\u0000"
 
@@ -360,7 +361,7 @@ def test_actual_producer_is_admitted_by_independent_consumer_without_parser(monk
     manifest = runtime_protocol.runtime_protocol_manifest()
     assert "skeleton_execution" in {item["id"] for item in manifest["protocols"]}
     assert _skeleton_protocol(manifest) == {
-        "id": "skeleton_execution", "major": 1, "minor": 6,
+        "id": "skeleton_execution", "major": 1, "minor": 7,
         "features": sorted([*BASELINE_FEATURES, "kernel_profile_auth_v1", "hook_enable_v1", "hook_tool_set_v1", "hook_embedded_workflow_v1"])}
     assert _signed(manifest) == manifest
     parser_calls = []
@@ -378,6 +379,29 @@ def test_actual_producer_is_admitted_by_independent_consumer_without_parser(monk
     assert parser_calls == []
     manifest["protocols"][0]["features"].clear()
     assert normalized["protocols"][0]["features"]
+
+
+@pytest.mark.parametrize("producer_case", ["missing-native-feature", "minor6-native-feature"])
+def test_native_observation_producer_rejections_happen_before_profile_effects(
+        tmp_path, monkeypatch, producer_case):
+    manifest = _compatible_manifest()
+    protocol = _skeleton_protocol(manifest)
+    if producer_case == "missing-native-feature":
+        protocol["features"].remove("subagent_native_observation_v1")
+    else:
+        protocol["minor"] = 6
+    manifest = _signed(manifest)
+    monkeypatch.setattr(runtime_protocol, "runtime_protocol_manifest", lambda: deepcopy(manifest))
+    store = SkeletonResourceStore(tmp_path / producer_case)
+    saved = store.save_draft(workflow("native-observation-" + producer_case))
+    before = _rows(store)
+    effects = []
+    monkeypatch.setattr(store, "_validate_local_profiles", lambda *_args, **_kwargs: effects.append("profiles"))
+    with pytest.raises(SkeletonResourceError) as error:
+        store.preflight(saved["id"])
+    assert error.value.code == "skeleton_runtime_incompatible"
+    assert error.value.path == ("runtime_protocol_manifest",)
+    assert effects == [] and _rows(store) == before
 
 
 @pytest.mark.parametrize("missing_feature", BASELINE_FEATURES)

@@ -739,6 +739,73 @@ class ChatStreamV4RouteTests(unittest.TestCase):
         self.assertEqual(run_artifact["surface"]["scope"], "run")
         self.assertEqual(run_artifact["links"]["workspace_change_set_id"], "wcs_run-1")
 
+    def test_chat_stream_v4_projects_private_native_child_attribution_after_normalization(self) -> None:
+        from skeleton_child_events import ChildEndAttribution, attach_end_attribution, attach_node_attribution, ChildNodeAttribution
+
+        root_run_id = "attempt-native-child"
+        child_run_id = "child-graph-run"
+        node_run_id = "child-node-attempt"
+        end = attach_end_attribution(
+            {
+                "type": "final_message", "scope": "child_end",
+                "run_id": child_run_id, "content": "committed child End",
+            },
+            ChildEndAttribution(
+                root_run_id=root_run_id, parent_run_id="parent-node-attempt",
+                child_run_id=child_run_id, graph_id="child-graph-id",
+            ),
+        )
+        child_node = attach_node_attribution(
+            {
+                "type": "response_received", "run_id": node_run_id,
+                "parent_run_id": child_run_id, "response_id": "child-response",
+            },
+            ChildNodeAttribution(
+                root_run_id=root_run_id, parent_run_id="parent-node-attempt",
+                child_run_id=child_run_id, graph_id="child-graph-id",
+                node_run_id=node_run_id, source_type="response_received",
+            ),
+        )
+        with mock.patch.object(
+            miso_routes, "stream_chat_events",
+            return_value=iter([
+                child_node,
+                end,
+                {"type": "final_message", "run_id": root_run_id, "content": "root final"},
+            ]),
+        ):
+            response = self.client.post(
+                "/chat/stream/v4",
+                json={
+                    "message": "hello", "attempt_id": root_run_id, "history": [],
+                    "options": {"modelId": "openai:gpt-5"}, "trace_level": "minimal",
+                },
+            )
+
+        runtime_events = [
+            payload for name, payload in _parse_sse_blocks(response.get_data(as_text=True))
+            if name == "runtime_event"
+        ]
+        child_model = next(
+            event for event in runtime_events
+            if event.get("run_id") == node_run_id and event.get("type") == "step.completed"
+        )
+        child_end = next(
+            event for event in runtime_events
+            if event.get("run_id") == child_run_id and event.get("type") == "step.completed"
+        )
+        root_finals = [
+            event for event in runtime_events
+            if event.get("run_id") == root_run_id
+            and event.get("type") == "step.completed"
+            and event.get("payload", {}).get("final_text") == "root final"
+        ]
+        self.assertEqual(child_model["links"]["parent_run_id"], child_run_id)
+        self.assertEqual(child_end["links"]["parent_run_id"], "parent-node-attempt")
+        self.assertEqual(child_end["payload"]["final_text"], "committed child End")
+        self.assertEqual(len(root_finals), 1)
+        self.assertTrue(all("_pupu_skeleton_child_attribution" not in event for event in runtime_events))
+
     def test_chat_stream_v4_resume_mode_allows_empty_message(self) -> None:
         mocked_events = iter(
             [

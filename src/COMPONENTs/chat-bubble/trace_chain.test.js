@@ -1,5 +1,5 @@
 import React from "react";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import { createStreamingMessageStore } from "../../SERVICEs/streaming_message_store";
 import {
@@ -77,6 +77,81 @@ const makeRafScheduler = () => {
       });
     },
   };
+};
+
+const timelineRowFor = (element) => {
+  let current = element;
+  while (
+    current &&
+    !(current.style?.flexDirection === "row" && current.style?.alignItems === "stretch")
+  ) {
+    current = current.parentElement;
+  }
+  return current;
+};
+
+const branchToggleFor = (anchorText, name) => {
+  const anchor = screen.getByText(anchorText, { exact: true });
+  const row = timelineRowFor(anchor);
+  if (!row) throw new Error(`branch owner row not found for ${anchorText}`);
+  const owned = within(row)
+    .getAllByRole("button", { name, exact: true })
+    .filter((button) => timelineRowFor(button) === row);
+  if (owned.length !== 1) {
+    throw new Error(`expected one ${name} toggle owned by ${anchorText}, got ${owned.length}`);
+  }
+  return owned[0];
+};
+
+const timelineVisible = (element) => {
+  let current = element;
+  while (current) {
+    if (
+      current.hidden ||
+      current.style?.display === "none" ||
+      current.style?.visibility === "hidden" ||
+      (current.style?.height === "0px" && current.style?.overflow === "hidden")
+    ) {
+      return false;
+    }
+    current = current.parentElement;
+  }
+  return true;
+};
+
+const delegateFrames = () => [
+  frame({ seq: 1, type: "stream_started", payload: {} }),
+  frame({
+    seq: 2,
+    type: "tool_call",
+    payload: {
+      call_id: "root-delegate",
+      tool_name: "delegate_to_subagent",
+      arguments: { target: "root-target", task: "inspect root task" },
+    },
+  }),
+  frame({
+    seq: 3,
+    type: "tool_result",
+    payload: {
+      call_id: "root-delegate",
+      tool_name: "delegate_to_subagent",
+      result: { agent_name: "developer.analyzer.1", template_name: "Reviewer", status: "completed", output: "root worker summary" },
+    },
+  }),
+  frame({ seq: 4, type: "done", payload: {} }),
+];
+
+const delegateMeta = {
+  "child-run-alpha": {
+    subagentId: "developer.analyzer.1",
+    mode: "delegate",
+    template: "Reviewer",
+    batchId: "",
+    parentId: "developer",
+    lineage: ["developer", "developer.analyzer.1"],
+    status: "completed",
+  },
 };
 
 test("bounded retry records do not create a grouped waiting header", () => {
@@ -1312,7 +1387,60 @@ describe("TraceChain final_message draft timeline", () => {
     expect(screen.getByText("Child delegate final output")).toBeInTheDocument();
   });
 
-  test("lazy renders large delegate child timelines until expanded", () => {
+  test("adds only directly owned node-attempt frames to the matching child branch", () => {
+    const frames = delegateFrames();
+    renderTraceChain({
+      frames,
+      status: "done",
+      subagentFrames: {
+        "child-run-alpha": [frame({ seq: 8, type: "final_message", payload: {
+          content: "Child-owned End",
+        } })],
+        "node-attempt-alpha": [{
+          ...frame({ seq: 9, type: "tool_call", payload: {
+            call_id: "direct-node-call", tool_name: "direct-node-tool", arguments: {},
+          } }),
+          run_id: "node-attempt-alpha",
+          links: { parent_run_id: "child-run-alpha" },
+        }],
+        "sibling-node-attempt": [{
+          ...frame({ seq: 10, type: "tool_call", payload: {
+            call_id: "sibling-node-call", tool_name: "sibling-only-tool", arguments: {},
+          } }),
+          run_id: "sibling-node-attempt",
+          links: { parent_run_id: "sibling-child" },
+        }],
+        "nested-child-run": [{
+          ...frame({ seq: 11, type: "subagent_started", payload: {
+            child_run_id: "nested-child-run", subagent_id: "Nested reviewer",
+          } }),
+          run_id: "nested-child-run",
+          links: { parent_run_id: "node-attempt-alpha" },
+        }],
+        "nested-node-attempt": [{
+          ...frame({ seq: 12, type: "tool_call", payload: {
+            call_id: "nested-node-call", tool_name: "nested-only-tool", arguments: {},
+          } }),
+          run_id: "nested-node-attempt",
+          links: { parent_run_id: "nested-child-run" },
+        }],
+      },
+      subagentMetaByRunId: {
+        ...delegateMeta,
+        "node-attempt-alpha": { status: "running" },
+        "nested-child-run": {
+          subagentId: "Nested reviewer", mode: "delegate", status: "running",
+        },
+      },
+    });
+
+    expect(screen.getByText("Child-owned End")).toBeInTheDocument();
+    expect(screen.getByText("direct-node-tool")).toBeInTheDocument();
+    expect(screen.queryByText("sibling-only-tool")).not.toBeInTheDocument();
+    expect(screen.queryByText("nested-only-tool")).not.toBeInTheDocument();
+  });
+
+  test("lazy child timelines use a distinct worker-owned toggle", async () => {
     const frames = [
       frame({ seq: 1, type: "stream_started", payload: {} }),
       frame({
@@ -1322,7 +1450,7 @@ describe("TraceChain final_message draft timeline", () => {
           call_id: "call-1",
           tool_name: "delegate_to_subagent",
           arguments: {
-            target: "analyzer",
+            target: "parent-agent",
             task: "Inspect a large trace",
           },
         },
@@ -1378,13 +1506,25 @@ describe("TraceChain final_message draft timeline", () => {
       },
     });
 
-    expect(
-      screen.queryByText("Large child hidden content"),
-    ).not.toBeInTheDocument();
+    const outerCollapse = branchToggleFor("parent-agent", "Collapse");
+    const workerExpand = branchToggleFor("analyzer.1", "Expand");
+    expect(workerExpand).not.toBe(outerCollapse);
+    expect(screen.queryByText("Large child hidden content")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Expand" }));
+    fireEvent.click(workerExpand);
+    await waitFor(() => expect(screen.getByText("Large child hidden content")).toBeVisible());
+    expect(branchToggleFor("parent-agent", "Collapse")).toBeVisible();
 
-    expect(screen.getByText("Large child hidden content")).toBeInTheDocument();
+    fireEvent.click(branchToggleFor("analyzer.1", "Collapse"));
+    await waitFor(() =>
+      expect(screen.queryByText("Large child hidden content")).not.toBeInTheDocument(),
+    );
+    expect(branchToggleFor("analyzer.1", "Expand")).toBeVisible();
+    expect(branchToggleFor("parent-agent", "Collapse")).toBeVisible();
+
+    fireEvent.click(branchToggleFor("analyzer.1", "Expand"));
+    await waitFor(() => expect(screen.getByText("Large child hidden content")).toBeVisible());
+    expect(outerCollapse).toBeVisible();
   });
 
   test("keeps nested subagent detail panels within the trace width", () => {
@@ -2053,5 +2193,30 @@ describe("TraceChain interject frames", () => {
 
       expect(screen.queryByText(/coalesced/)).not.toBeInTheDocument();
     });
+  });
+
+  describe("subagent branch toggles", () => {
+    test("first outer Collapse hides a completed delegate row with no child frames", async () => {
+      renderTraceChain({
+        frames: delegateFrames(),
+        subagentFrames: {},
+        subagentMetaByRunId: delegateMeta,
+      });
+
+      expect(screen.getByText("analyzer.1")).toBeVisible();
+      const collapse = screen.getByRole("button", { name: "Collapse", exact: true });
+      fireEvent.click(collapse);
+
+      const expand = branchToggleFor("root-target", "Expand");
+      expect(expand).toBeVisible();
+      await waitFor(() =>
+        expect(timelineVisible(screen.getByText("analyzer.1"))).toBe(false),
+      );
+      fireEvent.click(expand);
+      await waitFor(() =>
+        expect(timelineVisible(screen.getByText("analyzer.1"))).toBe(true),
+      );
+    });
+
   });
 });

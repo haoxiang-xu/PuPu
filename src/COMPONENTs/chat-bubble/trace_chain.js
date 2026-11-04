@@ -984,7 +984,7 @@ const TraceChain = ({
     setBranchState((prev) => {
       const next = new Map(prev);
       const cur = next.get(callId) || {
-        expanded: false,
+        expanded: true,
         expandedWorkers: new Set(),
       };
       next.set(callId, { ...cur, expanded: !cur.expanded });
@@ -1017,8 +1017,33 @@ const TraceChain = ({
     [frames],
   );
   const effectiveSubagentFrames = useMemo(
-    () =>
-      subagentFrames && typeof subagentFrames === "object" ? subagentFrames : {},
+    () => {
+      const buckets =
+        subagentFrames && typeof subagentFrames === "object"
+          ? subagentFrames
+          : {};
+      return Object.fromEntries(
+        Object.entries(buckets).map(([childRunId, childFrames]) => {
+          const directNodeFrames = Object.entries(buckets).flatMap(
+            ([nodeRunId, nodeFrames]) =>
+              nodeRunId === childRunId || !Array.isArray(nodeFrames)
+                ? []
+                : nodeFrames.filter(
+                    (frame) =>
+                      frame?.run_id === nodeRunId &&
+                      frame?.links?.parent_run_id === childRunId,
+                  ),
+          );
+          return [
+          childRunId,
+          [
+            ...(Array.isArray(childFrames) ? childFrames : []),
+            ...directNodeFrames,
+          ],
+          ];
+        }),
+      );
+    },
     [subagentFrames],
   );
   // Child terminal events that carry a verified, call-bound settlement.

@@ -144,6 +144,28 @@ def _node_attachments(authorized):
     return resolve
 
 
+def _stream_worker_event(raw):
+    """Keep node events scoped while allowing only a committed child End."""
+    event = dict(raw)
+    from skeleton_child_events import ChildEndAttribution
+    attribution = event.get("_pupu_skeleton_child_attribution")
+    if (type(attribution) is ChildEndAttribution
+            and event.get("type") == "final_message"
+            and event.get("scope") == "child_end"
+            and event.get("run_id") == attribution.child_run_id):
+        return event
+    if type(attribution) is ChildEndAttribution or event.get("scope") == "child_end":
+        return None
+    if event.get("scope") == "node":
+        if event.get("type") == "final_message":
+            event["type"] = "workflow_step_final"
+        elif event.get("type") == "token_delta":
+            event["type"] = "workflow_step_delta"
+        elif event.get("type") in {"run_started", "run_completed", "run_failed", "interaction_requested"}:
+            return None
+    return event
+
+
 def _stream_worker(*, host, bridge, durability, bindings, plan, selection, workflows,
                    session_id, attempt_id, root_run_id, token, cancel_event, launch=None,
                    pending=None, response=None):
@@ -168,15 +190,9 @@ def _stream_worker(*, host, bridge, durability, bindings, plan, selection, workf
         ExecutionRuntime(durability.store).request_cancel(session_id, attempt_id, reason=reason)
         cancellation_requested = True
     def emit(raw):
-        event = dict(raw)
-        if event.get("scope") == "node":
-            # Legacy and v4 clients both reserve final_message/token_delta for
-            # the root answer. Keep node text solely on workflow progress.
-            if event.get("type") == "final_message": event["type"] = "workflow_step_final"
-            elif event.get("type") == "token_delta": event["type"] = "workflow_step_delta"
-            elif event.get("type") in {"run_started", "run_completed", "run_failed"}: return
-            elif event.get("type") == "interaction_requested": return
-        events.put(event)
+        event = _stream_worker_event(raw)
+        if event is not None:
+            events.put(event)
     def work():
         guard = None
         execution = None
