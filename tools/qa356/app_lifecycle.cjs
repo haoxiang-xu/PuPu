@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const copy = value => JSON.parse(JSON.stringify(value));
 const { STOP_ICON } = require('./composer_send.cjs');
+const { checkApprovalResume } = require('./resume_check.cjs');
 
 function createLifecycleControl({ out, write, mark, expect, until, agent, port, sendOnce, sleep }) {
   const workspace = path.join(out, 'lifecycle-workspace');
@@ -29,7 +30,9 @@ function createLifecycleControl({ out, write, mark, expect, until, agent, port, 
         function: { name: 'workflow_mutate', arguments: { inputs: { path: path.join(workspace, label + '.txt') } } } }] }
         : { role: 'assistant', content: reply };
       if (at === 1) {
-        assert.ok(JSON.stringify(body.messages.filter(row => row.role === 'tool')).includes('lifecycle-source-A'));
+        // A parked child's result returns as a derived handoff input, not a tool message.
+        write('approval-resume-check.json', checkApprovalResume(body, { callId: 'approve-workflow-call', toolName: 'workflow_mutate',
+          arguments: { inputs: { path: path.join(workspace, 'approve.txt') } }, sourceA: 'lifecycle-source-A', sourceB: 'lifecycle-source-B' }));
         assert.ok(!JSON.stringify(body.messages).includes('lifecycle-source-B'));
       }
     } else if (body.model === 'qa356-parent') {

@@ -1,4 +1,4 @@
-name: "#356 checkpoint 12 B4 on the sealed App (QA only, non-delivery)"
+name: "#356 checkpoint 13 B4 on the sealed App (QA only, non-delivery)"
 
 # QA-only branch: replaces release-qa.yml. Not for merge. One B4 pass on the
 # sealed App (run 41746587263) with sidecar 74196bc0 and wheel 949a8947; nothing
@@ -163,7 +163,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: 356-cp12-b4-evidence
+          name: 356-cp13-b4-evidence
           if-no-files-found: error
           path: |
             test-results/**

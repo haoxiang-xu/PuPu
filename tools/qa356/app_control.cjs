@@ -11,6 +11,7 @@ const { spawn } = require('node:child_process');
 const { createStartupWatch } = require('./app_first_run.cjs');
 const { installRecorder } = require('./enter_probe.cjs');
 const { sendOnce } = require('./composer_send.cjs');
+const { checkToolPair } = require('./resume_check.cjs');
 const candidate = path.resolve(process.env.QA_CANDIDATE_ROOT);
 const requireCandidate = createRequire(path.join(candidate, 'package.json'));
 const { chromium } = requireCandidate('playwright');
@@ -136,7 +137,10 @@ async function run_packaged_workflow_tool_control() {
       if (index % 2 === 0) {
         assert.equal(toolMessages.length, 0, 'previous tool output leaked into the next root');
         if (turn === 2) assert.ok(JSON.stringify(body.messages).includes(final(1)), 'first root reply missing in second root context');
-      } else assert.ok(toolMessages.some(row => JSON.stringify(row.content).includes(sentinel)), 'committed child End absent from parent input');
+      } else {
+        assert.ok(toolMessages.some(row => JSON.stringify(row.content).includes(sentinel)), 'committed child End absent from parent input');
+        checkToolPair(body, { callId: `workflow-call-${turn}`, toolName: 'workflow_echo_run', sentinel });
+      }
       const message = index % 2 === 0
         ? { role: 'assistant', content: '', tool_calls: [{ id: `workflow-call-${turn}`, type: 'function',
           function: { name: 'workflow_echo_run', arguments: { inputs: { value: `input-${turn}` } } } }] }
