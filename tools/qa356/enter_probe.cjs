@@ -1,9 +1,7 @@
-/* QA-only checkpoint 11: record one cold-start Enter. The page side only adds
- * listeners and a timer that read state; nothing cancels events, writes the
- * DOM or React state, or calls a send function. One Enter, no retry.
+/* QA-only recorder around each send. The page side only adds listeners and a
+ * timer that read state; nothing cancels events, writes the DOM or React state,
+ * or calls a send function.
  */
-const fs = require('node:fs');
-const path = require('node:path');
 
 // Runs in the page, before the boot gate is clicked.
 function installRecorder() {
@@ -57,26 +55,4 @@ function installRecorder() {
   } };
 }
 
-async function observeEnter({ page, out, control, mark, wires, sleep, expect, input, text }) {
-  const node = {};
-  const at = (name) => { node[name] = Date.now(); };
-  const snapshot = (label, withChat = false) => page.evaluate(([name, chat]) => window.__qa356Enter.snapshot(name, chat), [label, withChat]);
-  await snapshot('before_fill', true);
-  at('fill_start'); await input.fill(text); at('fill_done'); mark('ui', 'composer filled', { turn: 2 });
-  await expect(input.locator('xpath=following::button[2]')).toBeEnabled({ timeout: 30000 }); at('send_enabled'); mark('ui', 'Send enabled', { turn: 2 });
-  await snapshot('pre_enter');
-  mark('ui', 'Enter', { turn: 2 }); at('enter_start'); await input.press('Enter'); at('enter_done');
-  await snapshot('post_enter');
-  const started = Date.now();
-  for (const after of [100, 500, 1000, 2000, 5000]) {
-    await sleep(Math.max(0, after - (Date.now() - started)));
-    await snapshot(`post_enter_${after}ms`, after === 5000);
-  }
-  at('observation_end');
-  const rows = await page.evaluate(() => window.__qa356Enter.rows);
-  await page.screenshot({ path: path.join(out, 'after-observation.png') });
-  fs.writeFileSync(path.join(out, 'after-observation-aria.txt'), await page.locator('body').ariaSnapshot());
-  fs.writeFileSync(path.join(out, 'enter-observation.json'), `${JSON.stringify({ control, text, node, rows, provider_wires: wires.length }, null, 2)}\n`);
-}
-
-module.exports = { installRecorder, observeEnter };
+module.exports = { installRecorder };

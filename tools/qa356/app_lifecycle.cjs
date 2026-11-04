@@ -3,8 +3,9 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const copy = value => JSON.parse(JSON.stringify(value));
+const { STOP_ICON } = require('./composer_send.cjs');
 
-function createLifecycleControl({ out, write, mark, expect, until, agent, port }) {
+function createLifecycleControl({ out, write, mark, expect, until, agent, port, sendOnce, sleep }) {
   const workspace = path.join(out, 'lifecycle-workspace');
   fs.mkdirSync(workspace, { recursive: true });
   const counts = {};
@@ -114,10 +115,9 @@ function createLifecycleControl({ out, write, mark, expect, until, agent, port }
       await page.getByRole('button', { name: 'New chat', exact: true }).click();
       await page.getByTestId('attach-agent-row').getByRole('combobox').click();
       await page.getByRole('listbox').getByText(name, { exact: true }).click();
-      await page.getByRole('textbox', { name: 'Message PuPu...', exact: true }).fill(text);
-      await expect(page.getByRole('textbox', { name: 'Message PuPu...', exact: true }).locator('xpath=following::button[2]')).toBeEnabled({ timeout: 30000 });
-      mark('ui', 'lifecycle Enter', { name, text });
-      await page.getByRole('textbox', { name: 'Message PuPu...', exact: true }).press('Enter');
+      const input = page.getByRole('textbox', { name: 'Message PuPu...', exact: true });
+      await input.fill(text);
+      await sendOnce({ page, input, label: name.toLowerCase().replaceAll(' ', '-'), out, mark, sleep, write });
     }
     async function snapshot(label) {
       const data = await page.evaluate(async () => {
@@ -132,6 +132,37 @@ function createLifecycleControl({ out, write, mark, expect, until, agent, port }
       write('lifecycle-' + label + '.json', data);
       return data;
     }
+    // Read each Approve card's own trace frame from React's fiber tree (read
+    // only) and click only the card whose identity matches the real pending.
+    async function provenApproveCard(current, pending) {
+      const cards = await current.evaluate(() => [...document.querySelectorAll('button')]
+        .filter(button => button.textContent.trim() === 'Approve').map((button, index) => {
+          const fiberKey = Object.keys(button).find(key => key.startsWith('__reactFiber$'));
+          const keys = []; let frames = null;
+          for (let fiber = button[fiberKey], depth = 0; fiber && depth < 200 && !frames; fiber = fiber.return, depth += 1) {
+            if (typeof fiber.key === 'string') keys.push(fiber.key);
+            if (Array.isArray(fiber.memoizedProps?.frames)) frames = fiber.memoizedProps.frames;
+          }
+          const seq = keys.map(key => /^(.+)-tool$/.exec(key)?.[1]).find(Boolean) ?? null;
+          const frame = (frames || []).find(row => String(row.seq) === String(seq) && row.type === 'tool_call') || null;
+          const payload = frame?.payload || {};
+          return { index, keys, seq, run_id: frame?.run_id ?? null, session_id: frame?.session_id ?? null, call_id: payload.call_id ?? null,
+            confirmation_id: payload.confirmation_id ?? null, interaction_id: payload.interaction_id ?? null,
+            tool_name: payload.tool_name ?? null, tool_display_name: payload.tool_display_name ?? null };
+        }));
+      const expected = { interaction_id: pending.interaction_id, call_id: pending.presentation?.tool_call?.call_id ?? null,
+        source_run_id: pending.interaction_source_run_id ?? null, active_attempt_id: pending.active_attempt_id ?? null };
+      const matching = cards.filter(card => card.confirmation_id === expected.interaction_id
+        && card.interaction_id === expected.interaction_id && expected.call_id && card.call_id === expected.call_id);
+      const bySource = matching.filter(card => card.run_id === expected.source_run_id);
+      const byAttempt = matching.filter(card => card.run_id === expected.active_attempt_id);
+      const proven = bySource.length === 1 ? bySource[0] : (bySource.length === 0 && byAttempt.length === 1 ? byAttempt[0] : null);
+      write('lifecycle-approve-identity.json', { cards, pending, expected, matching: matching.map(card => card.index), proven_index: proven ? proven.index : null });
+      if (!proven) throw new Error('APPROVAL_CARD_OWNERSHIP_UNPROVEN');
+      const handle = await current.evaluateHandle(index => [...document.querySelectorAll('button')]
+        .filter(button => button.textContent.trim() === 'Approve')[index], proven.index);
+      return handle.asElement();
+    }
     async function visibleApproval() {
       // `write` carries a code diff, whose card offers Approve and Reject.
       const allow = page.getByRole('button', { name: 'Approve', exact: true }).first();
@@ -142,7 +173,7 @@ function createLifecycleControl({ out, write, mark, expect, until, agent, port }
       return allow;
     }
     await begin('QA356 Approval Agent', 'QA356 lifecycle approve');
-    const allow = await visibleApproval();
+    await visibleApproval();
     const waiting = await snapshot('approve-waiting');
     assert.equal(waiting.pending.status, 'awaiting_response');
     assert.equal(waiting.pending.kind, 'tool_approval');
@@ -151,7 +182,7 @@ function createLifecycleControl({ out, write, mark, expect, until, agent, port }
       document: saved.resource.document, expected_edit_token: saved.resource.edit_token,
       managed_sources: [{ node_path: ['nodes', 2], text }] }), { saved: seeded.saved, text: source('B') });
     mark('seed', 'later draft B saved while A waits; fixed published pin unchanged');
-    await allow.click(); mark('ui', 'Approve');
+    await (await provenApproveCard(page, waiting.pending)).click(); mark('ui', 'Approve');
     await expect(page.getByText(reply, { exact: true })).toBeVisible({ timeout: 120000 });
     await expect(page.locator('button[aria-label="Stop"],button[aria-label="Stop generating"]')).toHaveCount(0);
     assert.equal(fs.readFileSync(path.join(workspace, 'approve.txt'), 'utf8'), 'approved-exactly-once');
@@ -161,8 +192,8 @@ function createLifecycleControl({ out, write, mark, expect, until, agent, port }
     await begin('QA356 Cancel Agent', 'QA356 lifecycle cancel');
     await visibleApproval(); const beforeCancel = await snapshot('cancel-waiting');
     assert.equal(beforeCancel.pending.status, 'awaiting_response');
-    const stopButton = page.getByRole('button', { name: /^Stop(?: generating)?$/ }).first();
-    await expect(stopButton).toBeVisible(); await stopButton.click(); mark('ui', 'Stop exact waiting Workflow tool');
+    const stopButton = page.locator(`button:has(path[d^="${STOP_ICON}"])`);
+    await expect(stopButton).toHaveCount(1); await stopButton.click(); mark('ui', 'Stop exact waiting Workflow tool');
     await until(async () => (await snapshot('cancel-after')).pending.status === 'none');
     await expect(page.getByText('Cancelled · not run', { exact: true }).first()).toBeVisible();
     assert.ok(!fs.existsSync(path.join(workspace, 'cancel.txt')));

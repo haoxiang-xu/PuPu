@@ -1,9 +1,9 @@
-name: "#356 checkpoint 11 cold-start Enter location (QA only, non-delivery)"
+name: "#356 checkpoint 12 B4 on the sealed App (QA only, non-delivery)"
 
-# QA-only branch: replaces release-qa.yml. Not for merge. Locates the cold-start
-# second Enter only. Reuses the sealed App (run 41746587263), sidecar 74196bc0 and
-# wheel 949a8947; nothing is packaged or rebuilt. One job, two serial controls,
-# one Enter each. Loopback only. The raw pcap is hashed, redacted and not uploaded.
+# QA-only branch: replaces release-qa.yml. Not for merge. One B4 pass on the
+# sealed App (run 41746587263) with sidecar 74196bc0 and wheel 949a8947; nothing
+# is packaged or rebuilt. Loopback only. The raw pcap is hashed, redacted and not
+# uploaded.
 on:
   workflow_dispatch:
 
@@ -137,25 +137,25 @@ jobs:
           test -x "$EXE"
           echo "QA_APP=$EXE" >> "$GITHUB_ENV"
           echo "QA_CANDIDATE_ROOT=$PWD" >> "$GITHUB_ENV"
-      - name: Two serial controls, one Enter each, offline
-        run: bash control/tools/qa356/run_offline.sh enter
+      - name: Packaged App B4 paths offline
+        run: bash control/tools/qa356/run_offline.sh app
       - name: Redact the capture and drop the raw pcap
         if: always()
         run: |
           set -euo pipefail
-          PCAP=test-results/enter/loopback.pcap
-          sha256sum "$PCAP" > test-results/enter/loopback.pcap.sha256
-          stat -c '%s %n' "$PCAP" >> test-results/enter/loopback.pcap.sha256
-          python -I control/tools/qa356/pcap_http.py "$PCAP" test-results/enter/requests-redacted.json
+          PCAP=test-results/app/loopback.pcap
+          sha256sum "$PCAP" > test-results/app/loopback.pcap.sha256
+          stat -c '%s %n' "$PCAP" >> test-results/app/loopback.pcap.sha256
+          python -I control/tools/qa356/pcap_http.py "$PCAP" test-results/app/requests-redacted.json
           python -I - <<'PY'
           from pathlib import Path
           import re
-          raw = Path('test-results/enter/loopback.pcap').read_bytes()
+          raw = Path('test-results/app/loopback.pcap').read_bytes()
           tokens = set(re.findall(rb'x-unchain-auth: ([^\r\n]+)', raw, re.I))
           assert tokens, 'no auth header found in the capture'
           print('auth values:', len(tokens))
-          Path('test-results/enter/loopback.pcap').unlink()
-          leaks = [str(p) for p in Path('test-results').rglob('*') if p.is_file() and '/home/' not in str(p)
+          Path('test-results/app/loopback.pcap').unlink()
+          leaks = [str(p) for p in Path('test-results').rglob('*') if p.is_file() and '/home/' not in str(p) and 'journal-verification-copy' not in str(p)
                    and any(t in p.read_bytes() for t in tokens)]
           assert not leaks, leaks
           PY
@@ -163,10 +163,11 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: 356-cp11-enter-evidence
+          name: 356-cp12-b4-evidence
           if-no-files-found: error
           path: |
             test-results/**
             !test-results/**/home/**
+            !test-results/**/journal-verification-copy/**
             !test-results/**/loopback.pcap
             control/tools/qa356/*
