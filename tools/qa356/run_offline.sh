@@ -42,11 +42,24 @@ elif [[ "$mode" == chat ]]; then
 else
   command=(dbus-run-session -- /bin/bash "$QA_CONTROL/run_app.sh")
 fi
-exec setpriv --reuid="$QA_UID" --regid="$QA_GID" --init-groups env -i \
+run=(setpriv --reuid="$QA_UID" --regid="$QA_GID" --init-groups env -i \
   PATH="$PATH" HOME="$QA_HOME" TMPDIR="$QA_TMP" LANG=C.UTF-8 PYTHONDONTWRITEBYTECODE=1 \
   PYTHONPATH="$QA_PYTHONPATH" UNCHAIN_SOURCE_PATH="$QA_SITE" \
   QA_OUT="$QA_OUT" QA_SITE="$QA_SITE" QA_WHEEL="$QA_WHEEL" QA_WHEEL_SHA="$QA_WHEEL_SHA" \
   QA_MANIFEST="$QA_MANIFEST" QA_BINARY="$QA_BINARY" QA_BINARY_SHA="${QA_BINARY_SHA:-}" QA_CANDIDATE="$QA_CANDIDATE" \
   QA_OLD_BINARY="${QA_OLD_BINARY:-}" \
   QA_APP="${QA_APP:-}" QA_CANDIDATE_ROOT="${QA_CANDIDATE_ROOT:-}" QA_CONTROL="$QA_CONTROL" QA_PYTHON="$QA_PYTHON" \
-  GITHUB_ACTIONS=true RUNNER_OS=Linux XDG_CURRENT_DESKTOP=GNOME NODE_OPTIONS=--max-old-space-size=2048 "${command[@]}"
+  GITHUB_ACTIONS=true RUNNER_OS=Linux XDG_CURRENT_DESKTOP=GNOME NODE_OPTIONS=--max-old-space-size=2048 "${command[@]}")
+[[ "$mode" == app ]] || exec "${run[@]}"
+# Passive copy of loopback traffic for the Main -> sidecar payloads. It only
+# reads the interface; the CDP ports are left out as they carry no payload.
+tcpdump -i lo -n -s 0 -U -Z root -w "$QA_OUT/loopback.pcap" 'tcp and not portrange 19220-19229' 2> "$QA_OUT/tcpdump.log" &
+capture=$!
+sleep 1
+kill -0 "$capture"
+status=0
+"${run[@]}" || status=$?
+kill -TERM "$capture"
+wait "$capture" || true
+chown "$QA_UID:$QA_GID" "$QA_OUT/loopback.pcap" "$QA_OUT/tcpdump.log"
+exit "$status"
