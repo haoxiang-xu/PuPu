@@ -140,7 +140,7 @@ function createLifecycleControl({ out, write, mark, expect, until, agent, port, 
           const fiberKey = Object.keys(button).find(key => key.startsWith('__reactFiber$'));
           const keys = []; let frames = null;
           for (let fiber = button[fiberKey], depth = 0; fiber && depth < 200 && !frames; fiber = fiber.return, depth += 1) {
-            if (typeof fiber.key === 'string') keys.push(fiber.key);
+            for (const key of [fiber.key, fiber.memoizedProps?.item?.key]) if (typeof key === 'string') keys.push(key);
             if (Array.isArray(fiber.memoizedProps?.frames)) frames = fiber.memoizedProps.frames;
           }
           const seq = keys.map(key => /^(.+)-tool$/.exec(key)?.[1]).find(Boolean) ?? null;
