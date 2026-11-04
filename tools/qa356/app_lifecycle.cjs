@@ -68,10 +68,16 @@ function createLifecycleControl({ out, write, mark, expect, until, agent, port }
 
   async function run({ getPage, stop, launch }) {
     let page = getPage();
-    const seeded = await page.evaluate(async ({ workflow, sourceA, workspace, approve, cancel, parent }) => {
-      const runtime = window.settingsStorageAPI.bootstrap().namespaces.runtime || {};
-      const savedRuntime = window.settingsStorageAPI.setNamespace('runtime', { ...runtime, workspace_root: workspace });
-      if (!(await savedRuntime).ok) throw Error('workspace settings not persisted');
+    // These cases use an explicit Core pool, so they need an authorized workspace.
+    // Set it through the real Workspaces editor: a direct bridge write never
+    // reaches the renderer's settings snapshot that the send path reads.
+    await page.getByRole('button', { name: 'Workspaces', exact: true }).click();
+    const rootInput = page.getByRole('textbox', { name: 'default-workspace-root', exact: true });
+    await rootInput.fill(workspace); await rootInput.press('Enter');
+    await expect(page.getByText('Saved.', { exact: true })).toBeVisible(); mark('ui', 'default workspace saved through the editor');
+    await until(() => page.evaluate(root => window.settingsStorageAPI.bootstrap().namespaces.runtime?.workspace_root === root, workspace), 10000);
+    await rootInput.press('Escape'); await expect(rootInput).toHaveCount(0);
+    const seeded = await page.evaluate(async ({ workflow, sourceA, approve, cancel, parent }) => {
       const api = window.unchainAPI;
       const saved = await api.saveManagedSkeletonResource({ schema: 'pupu.skeleton-edit.v2', document: workflow,
         expected_edit_token: null, managed_sources: [{ node_path: ['nodes', 2], text: sourceA }] });
@@ -87,7 +93,7 @@ function createLifecycleControl({ out, write, mark, expect, until, agent, port }
       resources.push(await api.saveManagedSkeletonResource({ schema: 'pupu.skeleton-edit.v2', document: parent,
         expected_edit_token: null, managed_sources: [] }));
       return { saved, published, resources };
-    }, { workflow, sourceA: source('A'), workspace,
+    }, { workflow, sourceA: source('A'),
       approve: base('qa356-approve-agent', 'qa356-approval', 'QA356 Approval Agent'),
       cancel: base('qa356-cancel-agent', 'qa356-cancel', 'QA356 Cancel Agent'), parent: (() => {
         const parent = base('qa356-parent-agent', 'qa356-parent', 'QA356 Parent Agent');
