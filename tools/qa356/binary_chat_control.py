@@ -113,7 +113,13 @@ def run_retained_binary_chat():
     def launch(which):
         nonlocal current, phase
         phase = which
-        with socket.socket() as probe: assert probe.connect_ex(('127.0.0.1', port)) != 0, 'listener_not_released'
+        # A killed PyInstaller child can outlive the reaped bootloader briefly.
+        released = time.monotonic() + 10
+        while True:
+            with socket.socket() as probe:
+                if probe.connect_ex(('127.0.0.1', port)) != 0: break
+            assert time.monotonic() < released, 'listener_not_released'
+            time.sleep(.1)
         env = {'PATH': os.environ['PATH'], 'HOME': str(home), 'TMPDIR': os.environ['TMPDIR'],
             'PYTHONDONTWRITEBYTECODE': '1', 'UNCHAIN_DATA_DIR': str(data), 'UNCHAIN_HOST': '127.0.0.1',
             'UNCHAIN_PORT': str(port), 'UNCHAIN_AUTH_TOKEN': token, 'PUPU_CONTEXT_V2_STORE_OWNER': 'unchain',

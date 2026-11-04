@@ -1,10 +1,9 @@
-name: "#356 checkpoint 9 new fixed pair and old-launch rebind (QA only, non-delivery)"
+name: "#356 checkpoint 9 B3 cell on the new pair (QA only, non-delivery)"
 
-# QA-only branch: replaces release-qa.yml. Not for merge. Core is unchanged: the
-# canonical wheel (949a8947, manifest ba894369) is the retained one and is never
-# rebuilt. One Host sidecar is built from the delivery commit, whose tree is the
-# frozen 20d3ef31. Then, serially and loopback only: rebind_control.py, and the
-# accepted retained v1.4 B3 cell. No App, Core, Host matrix, B1 or Windows.
+# QA-only branch: replaces release-qa.yml. Not for merge. Rerun of the accepted
+# retained v1.4 B3 cell only. Nothing is rebuilt: the one new sidecar (74196bc0)
+# comes from run 41743183539, the wheel (949a8947) and v1.4 producer (e0162fc1)
+# are the retained ones. Loopback only. No App, Core, Host matrix, B1 or Windows.
 on:
   workflow_dispatch:
 
@@ -20,7 +19,7 @@ jobs:
       QA_CANDIDATE: 01a60e0bb8fdddff13aba7bca54e5119d28b5e20
       QA_CANDIDATE_TREE: 20d3ef312824a60ea91fb22ae94671fd9907471b
       QA_WHEEL_SHA: 949a89475894b13ac324b90671c714ccd3125509cf6b313df739c66dc8292de6
-      QA_PREV_BINARY_SHA: 712039ef7763b06cb5d519a13176200d5af62d83fa285cf3f057e90a103fab57
+      QA_BINARY_SHA: 74196bc044af276f43ff4cb066a6b41039c3d8e77c58570c5b6c75a693d425d1
       QA_V14_BINARY_SHA: e0162fc116e3f2970c67bc6c5458d1a305e6404dbb11b6e22db25897cad77ff6
       QA_MANIFEST: sha256:ba8943695d80993066a3ad1a25f62cb0086fa9f6ca2f66d676f559841f4e8e5d
       CORE: 29e83c4b0df38089fd8c2e1b0e45dd92f2a6a1dd
@@ -47,6 +46,13 @@ jobs:
           path: retained
           run-id: 41562427104
           github-token: ${{ github.token }}
+      - name: Read the one new sidecar (run 41743183539)
+        uses: actions/download-artifact@v4
+        with:
+          name: 356-cp9-pair-evidence
+          path: pair
+          run-id: 41743183539
+          github-token: ${{ github.token }}
       - name: Read the frozen v1.4 producer without rebuilding it (run 41263562114)
         uses: actions/download-artifact@v4
         with:
@@ -65,10 +71,12 @@ jobs:
           git -C control rev-parse HEAD HEAD^{tree} > test-results/control-identity.txt
           sha256sum control/tools/qa356/* > test-results/control-tools.sha256
           echo "$QA_WHEEL_SHA  retained/artifact/unchain-0.2.0-py3-none-any.whl" | sha256sum -c -
-          echo "$QA_PREV_BINARY_SHA  retained/candidate/unchain_runtime/dist/linux/unchain-server" | sha256sum -c -
+          echo "$QA_BINARY_SHA  pair/candidate/unchain_runtime/dist/linux/unchain-server" | sha256sum -c -
           cp retained/artifact/unchain-0.2.0-py3-none-any.whl retained/artifact/unchain-artifact.json artifact/
-          cp retained/candidate/unchain_runtime/dist/linux/unchain-server binaries/previous-unchain-server
-          chmod 0755 binaries/previous-unchain-server
+          mkdir -p candidate/unchain_runtime/dist/linux
+          cp pair/candidate/unchain_runtime/dist/linux/unchain-server candidate/unchain_runtime/dist/linux/unchain-server
+          chmod 0755 candidate/unchain_runtime/dist/linux/unchain-server
+          sha256sum artifact/unchain-0.2.0-py3-none-any.whl candidate/unchain_runtime/dist/linux/unchain-server > test-results/retained-reused.sha256
           python - <<'PY'
           from pathlib import Path
           from hashlib import sha256
@@ -80,7 +88,6 @@ jobs:
           binary.chmod(0o755)
           with open(os.environ['GITHUB_ENV'], 'a') as stream:
               stream.write('QA_OLD_BINARY=' + str(binary) + '\n')
-              stream.write('QA_PREV_BINARY=' + str(Path('binaries/previous-unchain-server').resolve()) + '\n')
           PY
       - name: Install and verify the retained canonical wheel
         run: |
@@ -105,41 +112,14 @@ jobs:
           echo "QA_SITE=$(python -c 'import site;print(site.getsitepackages()[0])')" >> "$GITHUB_ENV"
           echo "QA_WHEEL=$WHEEL" >> "$GITHUB_ENV"
           { python -c 'import sys;print(sys.version)'; node --version; grep -m1 'model name' /proc/cpuinfo; nproc; uname -a; } > test-results/environment.txt
-      - name: Build one Linux sidecar from the delivery commit and the same wheel
-        run: |
-          set -euo pipefail
-          export UNCHAIN_ARTIFACT_PATH="$QA_WHEEL" UNCHAIN_ARTIFACT_EVIDENCE_PATH="$PWD/artifact/unchain-artifact.json"
-          export UNCHAIN_BUILD_VENV="$RUNNER_TEMP/356-build-venv" UNCHAIN_PYTHON_BIN="$QA_PYTHON"
-          test -z "$(ls -A candidate/unchain_runtime/dist/linux 2>/dev/null)"
-          bash candidate/unchain_runtime/scripts/build_unchain_server.sh linux 2>&1 | tee test-results/sidecar-build.log
-          SIDECAR=candidate/unchain_runtime/dist/linux/unchain-server
-          QA_BINARY_SHA="$(sha256sum "$SIDECAR" | cut -d' ' -f1)"
-          test "$QA_BINARY_SHA" != "$QA_PREV_BINARY_SHA"
-          sha256sum "$SIDECAR" > test-results/sidecar.sha256
-          echo "QA_BINARY_SHA=$QA_BINARY_SHA" >> "$GITHUB_ENV"
-          git -C candidate status --porcelain --untracked-files=no > test-results/tracked-after-sidecar-build.txt
-          python - <<'PY'
-          import json, os
-          from pathlib import Path
-          Path('test-results/pair.json').write_text(json.dumps({
-              'schema': 'qa356.cp9.pair.v1', 'base_candidate': '762c44c9450166ae94c5d0322b7a016df8caa649',
-              'source_commit': os.environ['QA_CANDIDATE'], 'source_tree': os.environ['QA_CANDIDATE_TREE'],
-              'core_revision': os.environ['CORE'], 'wheel_sha256': os.environ['QA_WHEEL_SHA'],
-              'manifest_digest': os.environ['QA_MANIFEST'],
-              'sidecar_sha256': Path('test-results/sidecar.sha256').read_text().split()[0],
-              'built_once': True}, indent=2) + '\n')
-          PY
-      - name: Unused Core and previous-sidecar launch rebind, offline
-        run: bash control/tools/qa356/run_offline.sh rebind
       - name: Accepted v1.4 retained launch against the new binary, offline
         run: bash control/tools/qa356/run_offline.sh chat
-      - name: Upload evidence and the one new sidecar
+      - name: Upload evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: 356-cp9-pair-evidence
+          name: 356-cp9-b3-evidence
           if-no-files-found: error
           path: |
             test-results/**
             control/tools/qa356/*
-            candidate/unchain_runtime/dist/linux/unchain-server
