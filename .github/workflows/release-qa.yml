@@ -399,7 +399,7 @@ jobs:
         run: |
           set -euo pipefail
           python -m pip install --disable-pip-version-check -r candidate/unchain_runtime/server/requirements.txt
-          python -m pip install --disable-pip-version-check --no-deps "$QA_WHEEL" pytest==9.2.0
+          python -m pip install --disable-pip-version-check --constraint candidate/unchain_runtime/server/requirements.txt "$QA_WHEEL" pytest==9.2.0
           python -m pip check
           node candidate/scripts/release-qa/verify-unchain-artifact.mjs --artifact "$QA_WHEEL" --evidence artifact/unchain-artifact.json --bytes-only true
           python - <<'PY' >> "$GITHUB_ENV"
@@ -1030,7 +1030,7 @@ jobs:
         run: |
           python -m pip install --disable-pip-version-check -r candidate/unchain_runtime/server/requirements.txt
           if ($LASTEXITCODE -ne 0) { throw 'requirements installation failed' }
-          python -m pip install --disable-pip-version-check --no-deps $env:QA_WHEEL
+          python -m pip install --disable-pip-version-check --constraint candidate/unchain_runtime/server/requirements.txt $env:QA_WHEEL
           if ($LASTEXITCODE -ne 0) { throw 'wheel installation failed' }
           python -m pip check
           if ($LASTEXITCODE -ne 0) { throw 'pip consistency check failed' }
