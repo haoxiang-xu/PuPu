@@ -9,6 +9,11 @@ on:
         type: choice
         options: [source, pair, windows-native]
         default: source
+      allow_provisional_pair:
+        description: Allow provisional Linux pair execution pending exact required CI; final success remains mandatory
+        required: false
+        type: boolean
+        default: false
       candidate_sha:
         description: Full frozen Host source SHA
         required: true
@@ -181,6 +186,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
+      QA_ALLOW_PROVISIONAL_PAIR: ${{ inputs.allow_provisional_pair }}
       QA_EXPECTED_HOST_SHA: 93ea8095c5232d7e409d8af2ca3d0278c2815ba7
       QA_EXPECTED_HOST_TREE: 2d6fadab510b57c09ebd3b62640398cdb606b57f
       QA_CORE_SHA: 82c964f40ddb077cc89f4cd8c16db9afa29952a7
@@ -299,12 +305,26 @@ jobs:
           test "$(git -C core rev-parse HEAD)" = "$QA_CORE_SHA"
           test "$(git -C core rev-parse 'HEAD^{tree}')" = "$QA_CORE_TREE"
           test -z "$(git -C core status --porcelain=v1 --untracked-files=all)"
-          gh run view "$QA_WHEEL_RUN_ID" --repo haoxiang-xu/PuPu --json conclusion,headSha \
+          gh run view "$QA_WHEEL_RUN_ID" --repo haoxiang-xu/PuPu --json databaseId,status,conclusion,headSha \
             > test-results/pair/wheel-run.json
-          python - "$QA_HOST_SHA" <<'PY'
-          import json,sys
+          python - <<'PY'
+          import json,os,pathlib
+          def admission(run, flag):
+              assert flag in ('true','false'), 'invalid provisional boolean'
+              assert isinstance(run,dict) and {'databaseId','status','conclusion','headSha'} <= run.keys(), 'missing CI metadata'
+              assert type(run['databaseId']) is int and run['databaseId']==41976372220, 'wrong CI run'
+              assert type(run['headSha']) is str and run['headSha']=='93ea8095c5232d7e409d8af2ca3d0278c2815ba7', 'wrong CI head'
+              assert type(run['status']) is str and (run['conclusion'] is None or type(run['conclusion']) is str), 'invalid CI metadata type'
+              if run['status']=='completed' and run['conclusion']=='success':
+                  return 'REQUIRED_CI_SUCCESS'
+              if flag=='true' and run['status'] in ('queued','in_progress') and run['conclusion'] in (None,''):
+                  return 'PROVISIONAL_PENDING'
+              raise AssertionError('required CI state is not admissible')
+          assert os.environ['QA_WHEEL_RUN_ID']=='41976372220', 'wrong artifact run'
+          assert os.environ['QA_WHEEL_SHA']=='a93e989eb8de0fedf2b77a99296bdf81af41ad82f0981d0ba19179f329487146', 'wrong wheel identity'
           run=json.load(open('test-results/pair/wheel-run.json'))
-          assert run['conclusion']=='success' and run['headSha']==sys.argv[1], run
+          mode=admission(run,os.environ['QA_ALLOW_PROVISIONAL_PAIR'])
+          pathlib.Path('test-results/pair/required-ci-admission.json').write_text(json.dumps({'admission_mode':mode,'initial_run':run,'qualification_status':'PENDING'},indent=2)+'\n')
           PY
           mapfile -t wheels < <(find artifact -maxdepth 2 -type f -name '*.whl' -print)
           test "${#wheels[@]}" = 1
@@ -771,6 +791,37 @@ jobs:
           QA_OLD_BINARY: ${{ env.QA_LEGACY_BINARY }}
           QA_CANDIDATE_ROOT: ${{ github.workspace }}/candidate
         run: bash control/tools/qa356/run_offline.sh app
+
+      - name: Require final whole-CI success for the exact pair
+        id: required_ci_final
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,pathlib,subprocess,time
+          def admission(run, flag):
+              assert flag in ('true','false'), 'invalid provisional boolean'
+              assert isinstance(run,dict) and {'databaseId','status','conclusion','headSha'} <= run.keys(), 'missing CI metadata'
+              assert type(run['databaseId']) is int and run['databaseId']==41976372220, 'wrong CI run'
+              assert type(run['headSha']) is str and run['headSha']=='93ea8095c5232d7e409d8af2ca3d0278c2815ba7', 'wrong CI head'
+              assert type(run['status']) is str and (run['conclusion'] is None or type(run['conclusion']) is str), 'invalid CI metadata type'
+              if run['status']=='completed' and run['conclusion']=='success':
+                  return 'REQUIRED_CI_SUCCESS'
+              if flag=='true' and run['status'] in ('queued','in_progress') and run['conclusion'] in (None,''):
+                  return 'PROVISIONAL_PENDING'
+              raise AssertionError('required CI state is not admissible')
+          initial=json.loads(pathlib.Path('test-results/pair/required-ci-admission.json').read_text())
+          while True:
+              response=subprocess.run(['gh','run','view','41976372220','--repo','haoxiang-xu/PuPu','--json','databaseId,status,conclusion,headSha'],check=True,capture_output=True,text=True,timeout=30)
+              run=json.loads(response.stdout)
+              state=admission(run,'true')
+              if state=='REQUIRED_CI_SUCCESS':
+                  pathlib.Path('test-results/pair/required-ci-final.json').write_text(json.dumps({'admission_mode':initial['admission_mode'],'final_run':run,'required_ci_status':'SUCCESS'},indent=2)+'\n')
+                  break
+              time.sleep(15)
+          PY
 
       - name: Stop pcap, redact requests and gate every upload on actual auth scan
         id: auth_scan
