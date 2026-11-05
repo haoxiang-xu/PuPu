@@ -14,7 +14,7 @@ const has = (value, key) => record(value) && Object.prototype.hasOwnProperty.cal
 const id_ok = (value) => typeof value === "string" && /^[A-Za-z0-9_-]{1,48}$/.test(value);
 const pin_of = (value) => record(value) && Object.keys(value).length === 2 &&
   ["workflow_id", "revision_id"].every((key) => has(value, key) && typeof value[key] === "string" && value[key] && python_strip(value[key]) === value[key]) ? value : null;
-const NOTE = { fontSize: 11, color: "#86868b", lineHeight: 1.5, overflowWrap: "anywhere" };
+const NOTE = { fontSize: 11, color: "var(--pupu-text-secondary)", lineHeight: 1.5, overflowWrap: "anywhere" };
 const ROW = { display: "flex", gap: 7, alignItems: "center", flexWrap: "wrap" };
 
 // Tool ids are scoped to the Kernels this pool actually supplies. An unrelated
