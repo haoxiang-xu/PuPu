@@ -674,6 +674,177 @@ class PupuSkeletonAgentExecution:
         handlers["agent"] = SkeletonKernelHandler(child_store, **arguments)
         return graph_id, child_store, nested, DurableWorkflowRunner(child_store, handlers)
 
+    def _make_native_child_observer(self, parent_store, child_store, *, child_guard,
+                                    parent_invocation_id, parent_node_run_id,
+                                    observation_gates):
+        gates = tuple(observation_gates)
+        if any(not callable(item) for item in gates):
+            raise ValueError("native child observation gate is invalid")
+        graph_id = child_store.graph_id
+        child_attempt_id = child_store.attempt.attempt_id
+        pending_wait_events = []
+        pending_wait_node_id = None
+        pending_wait_invocation_id = None
+
+        def assert_current(*, require_child_active=True):
+            if require_child_active:
+                child_guard.assert_active()
+            current = parent_store.load()
+            active = current.state["active"] if current is not None else None
+            if (active is None or active.get("node_invocation_id") != parent_invocation_id
+                    or active.get("node_attempt_id") != parent_node_run_id
+                    or current.state.get("status") not in {"running", "waiting"}):
+                raise ValueError("native child parent invocation is no longer current")
+
+        def emit_node(event, *, parked_wait=False):
+            assert_current(require_child_active=not parked_wait)
+            for observer_gate in gates:
+                if observer_gate(event) is False:
+                    return False
+            assert_current(require_child_active=not parked_wait)
+            self._kernel_arguments["execution_guard"].assert_active()
+            from skeleton_child_events import ChildNodeAttribution, attach_node_attribution
+            attribution = ChildNodeAttribution(
+                root_run_id=self.binding.root_run_id,
+                parent_run_id=parent_node_run_id,
+                child_run_id=child_attempt_id,
+                graph_id=graph_id,
+                node_run_id=event["run_id"],
+                source_type=str(event.get("type") or ""),
+            )
+            if self.callback is not None:
+                self.callback(attach_node_attribution({**event, "scope": "node"}, attribution))
+            return True
+
+        def observe_event(event):
+            nonlocal pending_wait_node_id, pending_wait_invocation_id
+            if type(event) is not dict or not isinstance(event.get("run_id"), str):
+                raise ValueError("native child event has no node attempt identity")
+            child = child_store.load()
+            active = child.state["active"] if child is not None else None
+            if (active is None or active.get("node_attempt_id") != event.get("run_id")
+                    or event.get("parent_run_id") != child_attempt_id):
+                raise ValueError("native child event does not belong to the active node")
+            event_type = event.get("type")
+            status = event.get("status")
+            is_wait_response = (
+                event_type == "response_received"
+                and status in {"awaiting_interaction", "awaiting_human_input"}
+            )
+            if pending_wait_events or is_wait_response:
+                if pending_wait_node_id not in (None, event["run_id"]):
+                    raise ValueError("native child wait notifications changed node owner")
+                if is_wait_response:
+                    if pending_wait_events:
+                        raise ValueError("native child emitted duplicate wait response")
+                    assert_current(require_child_active=False)
+                    pending_wait_node_id = event["run_id"]
+                    pending_wait_invocation_id = active.get("node_invocation_id")
+                    if not isinstance(pending_wait_invocation_id, str):
+                        raise ValueError("native child wait has no node invocation identity")
+                    pending_wait_events.append(dict(event))
+                    return
+                expected = ("interaction_requested"
+                            if pending_wait_events[0].get("status") == "awaiting_interaction"
+                            else "human_input_requested")
+                if (event_type != expected or pending_wait_events[-1].get("type") != "response_received"
+                        or len(pending_wait_events) != 1):
+                    raise ValueError("native child emitted an unexpected parked-wait notification")
+                assert_current(require_child_active=False)
+                pending_wait_events.append(dict(event))
+                return
+            emit_node(event)
+
+        def flush_wait(request, runner):
+            if not pending_wait_events:
+                return
+            if not self._valid_subagent_wait_request(request):
+                raise ValueError("native child durable wait receipt has an unknown shape")
+            current_child = child_store.load()
+            active = current_child.state["active"] if current_child is not None else None
+            if (request.get("child_node_invocation_id") != pending_wait_invocation_id
+                    or active is None
+                    or active.get("node_invocation_id") != pending_wait_invocation_id
+                    or active.get("node_attempt_id") != pending_wait_node_id):
+                raise ValueError("native child durable wait belongs to another node invocation")
+            response = pending_wait_events[0]
+            wait_kind = request.get("child_wait_kind")
+            if response.get("status") == "awaiting_interaction":
+                if len(pending_wait_events) != 2 or wait_kind != "interaction":
+                    raise ValueError("native child interaction wait has an invalid notification sequence")
+                if pending_wait_events[1].get("interaction_request") != request.get("interaction_request"):
+                    raise ValueError("native child interaction notification differs from durable wait")
+                assert_current(require_child_active=False)
+                self._kernel_arguments["execution_guard"].assert_active()
+                for event in pending_wait_events:
+                    emit_node(event, parked_wait=True)
+                return
+            if (response.get("status") == "awaiting_human_input"
+                    and len(pending_wait_events) == 2 and wait_kind == "interaction"):
+                if pending_wait_events[1].get("interaction_request") != request.get("interaction_request"):
+                    raise ValueError("native child human-input notification differs from durable wait")
+                assert_current(require_child_active=False)
+                self._kernel_arguments["execution_guard"].assert_active()
+                for event in pending_wait_events:
+                    emit_node(event, parked_wait=True)
+                return
+            if (response.get("status") == "awaiting_human_input"
+                    and len(pending_wait_events) == 1 and wait_kind == "child"):
+                wait = active.get("wait")
+                node_id = active.get("node_id")
+                if (node_id not in runner.nodes or runner.nodes[node_id]["type"] != "agent"
+                        or type(wait) is not dict or wait.get("kind") != "child"
+                        or wait.get("id") != request.get("child_wait_id")):
+                    raise ValueError("native child nested wait no longer matches its active node")
+                nested_request = child_store.read_json(wait["request_ref"])
+                if (not self._valid_subagent_wait_request(nested_request)
+                        or nested_request.get("parent_graph_id") != child_store.graph_id
+                        or nested_request.get("parent_node_invocation_id") != pending_wait_invocation_id
+                        or nested_request.get("parent_kernel_node_id") != node_id
+                        or self._subagent_wait_identity(nested_request) != wait["id"]
+                        or nested_request.get("interaction_request") != request.get("interaction_request")):
+                    raise ValueError("native child nested wait differs from its durable leaf request")
+                emit_node(response)
+                return
+            raise ValueError("native child durable wait has an unsupported notification sequence")
+
+        def emit_committed_end(result):
+            if result.status != "completed" or type(result.outputs) is not dict:
+                raise ValueError("native child End result is not completed")
+            output_message = result.outputs.get("message")
+            committed = child_store.load()
+            if committed is None or committed.state.get("status") != "completed":
+                raise ValueError("native child End is not committed")
+            completed = committed.state.get("completed") or []
+            if not completed:
+                raise ValueError("native child End has no committed output")
+            durable_output = child_store.read_json(completed[-1]["output_ref"])
+            message = durable_output.get("message") if type(durable_output) is dict else None
+            if type(message) is not str or output_message != message:
+                raise ValueError("native child End differs from its committed output")
+            event = {
+                "type": "final_message", "scope": "child_end",
+                "run_id": child_attempt_id, "content": message,
+            }
+            assert_current()
+            for observer_gate in gates:
+                if observer_gate(event) is False:
+                    raise ValueError("native child End was suppressed by an observation gate")
+            assert_current()
+            self._kernel_arguments["execution_guard"].assert_active()
+            from skeleton_child_events import ChildEndAttribution, attach_end_attribution
+            attributed = attach_end_attribution(event, ChildEndAttribution(
+                root_run_id=self.binding.root_run_id,
+                parent_run_id=parent_node_run_id,
+                child_run_id=child_attempt_id,
+                graph_id=graph_id,
+            ))
+            if self.callback is not None:
+                self.callback(attributed)
+            return message
+
+        return observe_event, flush_wait, emit_committed_end
+
     def _run_subagent_child_from(self, parent_store, adapter, messages, kwargs, *,
                                  inherited_observation_gates=()):
         from unchain.skeleton.subagent_runtime import SkeletonSubagentAgent
@@ -720,39 +891,12 @@ class PupuSkeletonAgentExecution:
         })
         runner.create(self._child_inputs(adapter.plan, messages), call_stack=frames)
 
-        def assert_parent_current():
-            child_guard.assert_active()
-            current = parent_store.load()
-            active = current.state["active"] if current is not None else None
-            if (active is None or active["node_invocation_id"] != parent_invocation_id
-                    or active["node_attempt_id"] != parent_node_run_id
-                    or current.state["status"] not in {"running", "waiting"}):
-                raise ValueError("native child parent invocation is no longer current")
-
-        def observe_child_event(event):
-            if type(event) is not dict or not isinstance(event.get("run_id"), str):
-                raise ValueError("native child event has no node attempt identity")
-            child = child_store.load()
-            active = child.state["active"] if child is not None else None
-            if (active is None or active.get("node_attempt_id") != event.get("run_id")
-                    or event.get("parent_run_id") != child_store.attempt.attempt_id):
-                raise ValueError("native child event does not belong to the active node")
-            assert_parent_current()
-            for observer_gate in gates:
-                if observer_gate(event) is False:
-                    return
-            assert_parent_current()
-            from skeleton_child_events import ChildNodeAttribution, attach_node_attribution
-            attribution = ChildNodeAttribution(
-                root_run_id=self.binding.root_run_id,
-                parent_run_id=parent_node_run_id,
-                child_run_id=child_store.attempt.attempt_id,
-                graph_id=graph_id,
-                node_run_id=event["run_id"],
-                source_type=str(event.get("type") or ""),
-            )
-            if self.callback is not None:
-                self.callback(attach_node_attribution({**event, "scope": "node"}, attribution))
+        observe_child_event, flush_child_wait, emit_child_end = self._make_native_child_observer(
+            parent_store, child_store, child_guard=child_guard,
+            parent_invocation_id=parent_invocation_id,
+            parent_node_run_id=parent_node_run_id,
+            observation_gates=gates,
+        )
 
         handler = runner.handlers.get("agent")
         if type(handler) is not SkeletonKernelHandler:
@@ -763,27 +907,11 @@ class PupuSkeletonAgentExecution:
             output = result.outputs
             if type(output) is not dict or type(output.get("message")) is not str:
                 raise ValueError("subagent End must export string message")
-            committed = child_store.load()
-            if committed is None or committed.state["status"] != "completed":
-                raise ValueError("native child End is not committed")
-            assert_parent_current()
-            from skeleton_child_events import ChildEndAttribution, attach_end_attribution
-            end_event = attach_end_attribution({
-                "type": "final_message", "scope": "child_end",
-                "run_id": child_store.attempt.attempt_id,
-                "content": output["message"],
-            }, ChildEndAttribution(
-                root_run_id=self.binding.root_run_id,
-                parent_run_id=parent_node_run_id,
-                child_run_id=child_store.attempt.attempt_id,
-                graph_id=graph_id,
-            ))
-            if self.callback is not None:
-                self.callback(end_event)
+            committed_message = emit_child_end(result)
             return SimpleNamespace(
                 status="completed",
                 messages=[{"role": "user", "content": messages},
-                          {"role": "assistant", "content": output["message"]}],
+                          {"role": "assistant", "content": committed_message}],
                 human_input_request=None,
                 interaction_request=None,
                 run_bundle=None,
@@ -797,6 +925,7 @@ class PupuSkeletonAgentExecution:
                 mode=self._subagent_mode(adapter),
                 runner=runner,
             )
+            flush_child_wait(request, runner)
             wait_id = self._subagent_wait_identity(request)
             raise SubagentWaitSignal(wait_id, request)
         return SimpleNamespace(
@@ -955,7 +1084,8 @@ class PupuSkeletonAgentExecution:
             child_completion=completion_for_parent,
         )
 
-    def _resume_child_request(self, parent_store, runtime, request, response, submitted_by):
+    def _resume_child_request(self, parent_store, runtime, request, response, submitted_by,
+                              *, inherited_observation_gates=()):
         if not self._valid_subagent_wait_request(request):
             raise ValueError("subagent wait receipt has an unknown shape")
         parent = parent_store.load()
@@ -996,9 +1126,39 @@ class PupuSkeletonAgentExecution:
             parent_run_id=parent.state["active"]["node_attempt_id"],
             relation="subagent",
         )
+        observation_gates = tuple(inherited_observation_gates)
+        if any(not callable(item) for item in observation_gates):
+            raise ValueError("native child ancestor observation gate is invalid")
+        from unchain.skeleton.subagent_runtime import SkeletonSubagentAgent
+        cold_wait_gate = None
+        if type(adapter) is SkeletonSubagentAgent:
+            expected_wait_id = self._subagent_wait_identity(request)
+            parent_invocation_id = request["parent_node_invocation_id"]
+            parent_node_run_id = parent.state["active"]["node_attempt_id"]
+
+            def cold_wait_gate(event):
+                self._kernel_arguments["execution_guard"].assert_active()
+                current = parent_store.load()
+                active_parent = current.state["active"] if current is not None else None
+                active_wait = active_parent.get("wait") if active_parent is not None else None
+                if (active_parent is None or current.state.get("status") != "waiting"
+                        or active_parent.get("node_invocation_id") != parent_invocation_id
+                        or active_parent.get("node_attempt_id") != parent_node_run_id
+                        or active_wait is None or active_wait.get("kind") != "child"
+                        or active_wait.get("id") != expected_wait_id):
+                    raise ValueError("cold native child parent wait is no longer current")
+                if type(event) is dict and event.get("type") == "human_input_requested":
+                    return False
+                return True
+
+        child_observation_gates = (
+            (cold_wait_gate, *observation_gates)
+            if cold_wait_gate is not None else observation_gates
+        )
         graph_id, child_store, nested, runner = self._child_runner(
             parent_store, adapter, request["child_attempt_id"], execution_guard=child_guard,
             run_bundle_identity=child_run_bundle_identity,
+            inherited_observation_gates=child_observation_gates,
         )
         if (request["child_graph_id"] != graph_id
                 or request["definition_digest"] != execution_definition_digest(adapter.plan)):
@@ -1006,11 +1166,23 @@ class PupuSkeletonAgentExecution:
         child = child_store.load()
         if child is None:
             raise ValueError("subagent child is unavailable")
+        observer = None
+        flush_wait = None
+        emit_end = None
+        if type(adapter) is SkeletonSubagentAgent:
+            observer, flush_wait, emit_end = self._make_native_child_observer(
+                parent_store, child_store, child_guard=child_guard,
+                parent_invocation_id=parent_invocation_id,
+                parent_node_run_id=parent_node_run_id,
+                observation_gates=(cold_wait_gate, *observation_gates),
+            )
         result = runner.inspect()
         if child.state["status"] in {"completed", "failed", "cancelled", "outcome_unknown"}:
             # A child can commit its terminal state before the parent transaction
             # records the settlement.  On a cold resume, settle that committed
             # result rather than replaying the already-consumed response.
+            if child.state["status"] == "completed" and emit_end is not None:
+                emit_end(result)
             return result, None, self._child_completion(child_store, result)
         if child.state["status"] != "waiting" or child.state["active"] is None:
             raise ValueError("subagent child is not waiting")
@@ -1039,6 +1211,11 @@ class PupuSkeletonAgentExecution:
                 "request": next_request,
             }, None
         node_type = runner.nodes[active["node_id"]]["type"]
+        if observer is not None:
+            handler = runner.handlers.get("agent")
+            if type(handler) is not SkeletonKernelHandler:
+                raise ValueError("cold native child graph has no exact Kernel observer")
+            handler.callback = observer
         if wait["kind"] == "interaction" and node_type == "agent":
             result = runner.resume_kernel_interaction(
                 wait["id"], response, node_invocation_id=active["node_invocation_id"],
@@ -1066,6 +1243,8 @@ class PupuSkeletonAgentExecution:
                 nested_request = child_store.read_json(wait["request_ref"])
                 _nested_result, nested_wait, nested_completion = self._resume_child_request(
                     child_store, nested, nested_request, response, submitted_by,
+                    inherited_observation_gates=(cold_wait_gate, *observation_gates)
+                    if cold_wait_gate is not None else observation_gates,
                 )
                 result = (runner.replace_kernel_child_wait(
                     wait["id"], nested_wait["request"], next_wait_id=nested_wait["id"],
@@ -1092,6 +1271,8 @@ class PupuSkeletonAgentExecution:
                 mode=request["mode"],
                 runner=runner,
             )
+            if flush_wait is not None:
+                flush_wait(next_request, runner)
             if request.get("parent_tool_call") is not None:
                 next_request = self._request_with_parent_tool_call(
                     next_request, request["parent_tool_call"],
@@ -1100,6 +1281,8 @@ class PupuSkeletonAgentExecution:
                 "id": self._subagent_wait_identity(next_request),
                 "request": next_request,
             }, None
+        if result.status == "completed" and emit_end is not None:
+            emit_end(result)
         return result, None, self._child_completion(child_store, result)
 
     def create(self, inputs, *, attachments=None):

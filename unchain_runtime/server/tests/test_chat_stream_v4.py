@@ -740,9 +740,13 @@ class ChatStreamV4RouteTests(unittest.TestCase):
         self.assertEqual(run_artifact["links"]["workspace_change_set_id"], "wcs_run-1")
 
     def test_chat_stream_v4_projects_private_native_child_attribution_after_normalization(self) -> None:
-        from skeleton_child_events import ChildEndAttribution, attach_end_attribution, attach_node_attribution, ChildNodeAttribution
+        from skeleton_child_events import (
+            ChildEndAttribution, attach_end_attribution, attach_node_attribution,
+            bind_transport_attempt, ChildNodeAttribution,
+        )
 
-        root_run_id = "attempt-native-child"
+        canonical_source_run_id = "canonical-native-child-source"
+        transport_attempt_id = "attempt-native-child"
         child_run_id = "child-graph-run"
         node_run_id = "child-node-attempt"
         end = attach_end_attribution(
@@ -751,9 +755,13 @@ class ChatStreamV4RouteTests(unittest.TestCase):
                 "run_id": child_run_id, "content": "committed child End",
             },
             ChildEndAttribution(
-                root_run_id=root_run_id, parent_run_id="parent-node-attempt",
+                root_run_id=canonical_source_run_id, parent_run_id="parent-node-attempt",
                 child_run_id=child_run_id, graph_id="child-graph-id",
             ),
+        )
+        end = bind_transport_attempt(
+            end, root_run_id=canonical_source_run_id,
+            transport_attempt_id=transport_attempt_id,
         )
         child_node = attach_node_attribution(
             {
@@ -761,23 +769,27 @@ class ChatStreamV4RouteTests(unittest.TestCase):
                 "parent_run_id": child_run_id, "response_id": "child-response",
             },
             ChildNodeAttribution(
-                root_run_id=root_run_id, parent_run_id="parent-node-attempt",
+                root_run_id=canonical_source_run_id, parent_run_id="parent-node-attempt",
                 child_run_id=child_run_id, graph_id="child-graph-id",
                 node_run_id=node_run_id, source_type="response_received",
             ),
+        )
+        child_node = bind_transport_attempt(
+            child_node, root_run_id=canonical_source_run_id,
+            transport_attempt_id=transport_attempt_id,
         )
         with mock.patch.object(
             miso_routes, "stream_chat_events",
             return_value=iter([
                 child_node,
                 end,
-                {"type": "final_message", "run_id": root_run_id, "content": "root final"},
+                {"type": "final_message", "run_id": transport_attempt_id, "content": "root final"},
             ]),
         ):
             response = self.client.post(
                 "/chat/stream/v4",
                 json={
-                    "message": "hello", "attempt_id": root_run_id, "history": [],
+                    "message": "hello", "attempt_id": transport_attempt_id, "history": [],
                     "options": {"modelId": "openai:gpt-5"}, "trace_level": "minimal",
                 },
             )
@@ -796,15 +808,84 @@ class ChatStreamV4RouteTests(unittest.TestCase):
         )
         root_finals = [
             event for event in runtime_events
-            if event.get("run_id") == root_run_id
+            if event.get("run_id") == transport_attempt_id
             and event.get("type") == "step.completed"
             and event.get("payload", {}).get("final_text") == "root final"
         ]
+        self.assertNotEqual(canonical_source_run_id, transport_attempt_id)
         self.assertEqual(child_model["links"]["parent_run_id"], child_run_id)
         self.assertEqual(child_end["links"]["parent_run_id"], "parent-node-attempt")
         self.assertEqual(child_end["payload"]["final_text"], "committed child End")
         self.assertEqual(len(root_finals), 1)
         self.assertTrue(all("_pupu_skeleton_child_attribution" not in event for event in runtime_events))
+
+    def test_private_child_binding_keeps_root_and_transport_attempt_distinct(self) -> None:
+        from skeleton_child_events import (
+            ChildEndAttribution, ChildNodeAttribution, attach_end_attribution,
+            attach_node_attribution, bind_transport_attempt,
+            project_attribution, strip_attribution,
+        )
+
+        raw = attach_node_attribution({
+            "type": "response_received", "run_id": "child-N", "parent_run_id": "child-C",
+        }, ChildNodeAttribution(
+            root_run_id="root-R", parent_run_id="parent-P", child_run_id="child-C",
+            graph_id="child-G", node_run_id="child-N", source_type="response_received",
+        ))
+        bound = bind_transport_attempt(
+            raw, root_run_id="root-R", transport_attempt_id="transport-T",
+        )
+        clean, attribution = strip_attribution(bound)
+        self.assertEqual(clean["run_id"], "child-N")
+        self.assertEqual(attribution.root_run_id, "root-R")
+        self.assertEqual(attribution.parent_run_id, "parent-P")
+        self.assertEqual(attribution.child_run_id, "child-C")
+        self.assertEqual(attribution.node_run_id, "child-N")
+        self.assertEqual(attribution.transport_attempt_id, "transport-T")
+
+        projected = project_attribution(
+            {"run_id": "child-N", "links": {}}, attribution,
+            transport_attempt_id="transport-T",
+        )
+        self.assertEqual(projected["links"]["parent_run_id"], "child-C")
+        with self.assertRaisesRegex(ValueError, "transport attempt"):
+            project_attribution(
+                {"run_id": "child-N", "links": {}}, attribution,
+                transport_attempt_id="other-T",
+            )
+        with self.assertRaisesRegex(ValueError, "another root"):
+            bind_transport_attempt(
+                raw, root_run_id="other-R", transport_attempt_id="transport-T",
+            )
+
+        spoof = {
+            **clean,
+            "_pupu_skeleton_child_attribution": {
+                "root_run_id": "root-R", "transport_attempt_id": "transport-T",
+                "node_run_id": "child-N",
+            },
+        }
+        stripped, untrusted = strip_attribution(spoof)
+        self.assertNotIn("_pupu_skeleton_child_attribution", stripped)
+        self.assertIsNone(untrusted)
+
+        end_raw = attach_end_attribution({
+            "type": "final_message", "run_id": "child-C", "content": "committed",
+        }, ChildEndAttribution(
+            root_run_id="root-R", parent_run_id="parent-P", child_run_id="child-C",
+            graph_id="child-G",
+        ))
+        end_bound = bind_transport_attempt(
+            end_raw, root_run_id="root-R", transport_attempt_id="transport-T",
+        )
+        end_clean, end_attribution = strip_attribution(end_bound)
+        self.assertEqual(end_attribution.root_run_id, "root-R")
+        self.assertEqual(end_attribution.transport_attempt_id, "transport-T")
+        end_projected = project_attribution(
+            {"run_id": "child-C", "links": {}}, end_attribution,
+            transport_attempt_id="transport-T",
+        )
+        self.assertEqual(end_projected["links"]["parent_run_id"], "parent-P")
 
     def test_chat_stream_v4_resume_mode_allows_empty_message(self) -> None:
         mocked_events = iter(

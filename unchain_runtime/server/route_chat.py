@@ -1396,7 +1396,7 @@ def chat_stream_v4() -> Response:
                 for runtime_event in bridge.normalize(normalizer_event):
                     runtime_payload = runtime_event.to_dict()
                     runtime_payload = project_attribution(
-                        runtime_payload, child_attribution, root_run_id=attempt_id,
+                        runtime_payload, child_attribution, transport_attempt_id=attempt_id,
                     )
                     if isinstance(
                         display_sidecar, ToolCallDisplayMetadataSidecar

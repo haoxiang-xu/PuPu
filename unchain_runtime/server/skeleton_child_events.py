@@ -6,7 +6,7 @@ RuntimeEventBridge normalization and is never a durable event field.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 
 _KEY = "_pupu_skeleton_child_attribution"
@@ -20,6 +20,7 @@ class ChildNodeAttribution:
     graph_id: str
     node_run_id: str
     source_type: str
+    transport_attempt_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -28,6 +29,7 @@ class ChildEndAttribution:
     parent_run_id: str
     child_run_id: str
     graph_id: str
+    transport_attempt_id: str | None = None
 
 
 def attach_node_attribution(event, attribution):
@@ -67,12 +69,27 @@ def strip_attribution(event):
     return clean, value
 
 
-def project_attribution(payload, attribution, *, root_run_id):
+def bind_transport_attempt(event, *, root_run_id, transport_attempt_id):
+    """Bind a typed canonical-root carrier to its authoritative transport owner."""
+    if (type(root_run_id) is not str or not root_run_id.strip()
+            or type(transport_attempt_id) is not str or not transport_attempt_id.strip()):
+        raise ValueError("native child transport binding requires exact root and attempt IDs")
+    clean, attribution = strip_attribution(event)
+    if attribution is None:
+        return clean
+    if attribution.root_run_id != root_run_id:
+        raise ValueError("native child event belongs to another root attempt")
+    if attribution.transport_attempt_id is not None:
+        raise ValueError("native child event already has a transport attempt binding")
+    return {**clean, _KEY: replace(attribution, transport_attempt_id=transport_attempt_id)}
+
+
+def project_attribution(payload, attribution, *, transport_attempt_id):
     if type(payload) is not dict:
         return payload
     if type(attribution) is ChildNodeAttribution:
-        if attribution.root_run_id != root_run_id:
-            raise ValueError("native child event belongs to another root attempt")
+        if attribution.transport_attempt_id != transport_attempt_id:
+            raise ValueError("native child event belongs to another transport attempt")
         if payload.get("run_id") == attribution.node_run_id:
             links = payload.get("links")
             links = dict(links) if type(links) is dict else {}
@@ -97,7 +114,8 @@ def project_attribution(payload, attribution, *, root_run_id):
         # Preserve the exact Core child identity and parent edge.
         return payload
     if type(attribution) is ChildEndAttribution:
-        if attribution.root_run_id != root_run_id or payload.get("run_id") != attribution.child_run_id:
+        if (attribution.transport_attempt_id != transport_attempt_id
+                or payload.get("run_id") != attribution.child_run_id):
             raise ValueError("native child End belongs to another run")
         links = payload.get("links")
         links = dict(links) if type(links) is dict else {}

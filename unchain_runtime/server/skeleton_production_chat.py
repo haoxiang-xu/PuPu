@@ -192,6 +192,10 @@ def _stream_worker(*, host, bridge, durability, bindings, plan, selection, workf
     def emit(raw):
         event = _stream_worker_event(raw)
         if event is not None:
+            from skeleton_child_events import bind_transport_attempt
+            event = bind_transport_attempt(
+                event, root_run_id=root_run_id, transport_attempt_id=attempt_id,
+            )
             events.put(event)
     def work():
         guard = None

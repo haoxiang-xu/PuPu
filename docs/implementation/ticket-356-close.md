@@ -345,3 +345,59 @@ unreadable stores cannot grant ownership. A later successful read can retry.
 Retain live approval/submitting, generic cold cancellation and sourceA snapshot
 controls. Final packaged App must exercise a real waiting-state cold restart;
 HTTP-only recovery and cold reading completed messages cannot substitute for it.
+
+### Source dependency checkpoint and waiting regression
+
+Core dependency is pinned to `b07c9d67c61c4a6437e9fd08325285530b7b8b6a`
+(tree `e95097a78000717e78b8aa5677314670d1430d9c`, PR #73). Its CI
+41931227851 passed 5688 tests, with 17 skips and 5 existing expected failures;
+CodeQL 41931228095 passed. All five current release-qa defaults/fallbacks use
+that exact source. The final required CI builds the one replacement wheel;
+source checks do not qualify installed, binary or packaged App boundaries.
+
+Host source checkpoint `5cf8674e` is not the final candidate. Its ordinary
+nonwaiting observation controls passed, but the unchanged cold-approval control
+exposed a waiting regression: the Core correctly yields the borrowed child guard
+before its durable-wait notifications, whereas the new observer asked it to remain
+active. The bounded correction defers only those notifications until the actual
+durable waiting result and retained parent/ancestor authority have been verified.
+Ordinary event and completion guard checks remain required. No waiting/cold or
+final artifact acceptance is claimed before the corrected controls pass.
+
+### Bounded source acceptance before the replacement artifact pair
+
+The direct durable-wait regression is corrected. Notifications are delivered only
+after the actual durable wait is established: two direct interaction notifications,
+or the official one-response nested child marker with its persisted leaf linkage.
+Ordinary borrowed-child, root, batch and ancestor authority checks remain intact.
+The observer is reconstructed from durable ownership on cold resume, without
+reviving a prior plugin closure or replaying provider, tool or Code effects.
+
+Heavy source review accepted C1 (cold child node observations), C2 (committed child
+End after interruption before parent settlement), and the current 12-case targeted
+delta/tail run. The earlier complete-file attempt stopped at its 600-second overall
+budget with 62 pass marks; it is partial evidence, never a current 67/67 result.
+The final delivered-head required CI still runs the complete file. Real cancellation,
+higher-fence release/reacquire and actual clock expiry are separate accepted
+authority negatives; release/reacquire is not described as TTL expiry.
+
+Canonical source root R stays immutable. The actual stream worker binds a private
+transport attempt T before queueing; the V4 consumer checks T while preserving
+R/P/C/N/G. This adds no public wire or persistence field. The frozen old API's
+same-R control succeeds while its old T-as-R route rejects a correct cold event,
+establishing behavioral RED independently of the new helper's introduction.
+
+N1 verifies actual nested live/cold identity and request/response gate ordering with
+the original gates. H1 observes committed child audit A while the actual parent
+provider, result and ProgressDigest receive sanitized B and exclude A/raw-model
+text. These tests are source acceptance only. The public cold-native producer and
+real V4 route remain blocked locally by the macOS process-incarnation boundary;
+the exact Linux source handoff is ten selectors/twelve cases, with real /proc
+identity and no guard mock. It must pass before installed/binary/App qualification.
+
+Prior Mac arm64/x64 run 41557020458 retains only its actual packaged Python3.12.15
+Code-worker behavior predicate: relevant source and imported-module byte comparisons
+establish that predicate is unaffected. It is not relabeled as a new Mac pair,
+sidecar/profile contract, or whole-resource equality. The new wheel/manifest and
+changed child/cold/serialization boundaries require the replacement pair's actual
+Linux/Windows and App cells. Frozen evidence and prior failed rounds are preserved.
