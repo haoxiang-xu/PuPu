@@ -7,7 +7,7 @@ on:
         description: Full source checkpoint commit SHA to qualify
         required: true
         type: string
-        default: 38c07a86a9bc9930a0b2c0a7f133a6932d7562bc
+        default: 2e513c6075671e4a821c8312a5e260886ca2bf8c
 
 permissions:
   contents: read
@@ -18,8 +18,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      QA_EXPECTED_CANDIDATE: 38c07a86a9bc9930a0b2c0a7f133a6932d7562bc
-      QA_EXPECTED_CANDIDATE_TREE: 20b32619e3adb6b220e8bca1e2292d8432d8e87e
+      QA_EXPECTED_CANDIDATE: 2e513c6075671e4a821c8312a5e260886ca2bf8c
+      QA_EXPECTED_CANDIDATE_TREE: e7dea34500ce7cb420125f7322b3d7aeb2c968f3
       QA_CANDIDATE_SHA: ${{ inputs.candidate_sha }}
       QA_CORE_SHA: b07c9d67c61c4a6437e9fd08325285530b7b8b6a
       QA_CORE_TREE: e95097a78000717e78b8aa5677314670d1430d9c
