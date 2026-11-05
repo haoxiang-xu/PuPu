@@ -13,6 +13,7 @@ function createLifecycleControl({ out, write, mark, expect, until, agent, port, 
   const cases = [];
   const reply = 'QA356 approval done';
   const childReply = 'QA356 child evidence';
+  const childEnd = 'QA356 committed child End';
   const parentReply = 'QA356 child parent done';
   function responseFor(body) {
     if (!['qa356-approval', 'qa356-cancel', 'qa356-parent', 'qa356-child'].includes(body.model)) return null;
@@ -40,7 +41,10 @@ function createLifecycleControl({ out, write, mark, expect, until, agent, port, 
       message = at === 0 ? { role: 'assistant', content: '', tool_calls: [{ id: 'parent-delegate', type: 'function',
         function: { name: 'delegate_to_subagent', arguments: { target: 'Reviewer', task: 'review once' } } }] }
         : { role: 'assistant', content: parentReply };
-      if (at === 1) assert.ok(JSON.stringify(body.messages).includes(childReply));
+      if (at === 1) {
+        assert.ok(JSON.stringify(body.messages).includes(childEnd), 'parent did not receive committed child End');
+        assert.notEqual(childReply, childEnd);
+      }
     } else {
       assert.equal(at, 0); message = { role: 'assistant', content: childReply };
     }
@@ -102,6 +106,8 @@ function createLifecycleControl({ out, write, mark, expect, until, agent, port, 
       cancel: base('qa356-cancel-agent', 'qa356-cancel', 'QA356 Cancel Agent'), parent: (() => {
         const parent = base('qa356-parent-agent', 'qa356-parent', 'QA356 Parent Agent');
         const child = base('qa356-child-agent', 'qa356-child', 'Reviewer Agent');
+        child.nodes.find(node => node.id === 'end').config.execution.inputs = [{ name: 'message',
+          value: { kind: 'literal', value: childEnd }, missing: 'error' }];
         for (const document of [parent, child]) {
           document.nodes = document.nodes.filter(node => node.id !== 'tools');
           document.edges = document.edges.filter(edge => edge.kind === 'flow');
@@ -130,7 +136,8 @@ function createLifecycleControl({ out, write, mark, expect, until, agent, port, 
         if (assistant.length !== 1) throw Error('one owner message required');
         const session = assistant[0].meta?.executionSessionId;
         if (!session) throw Error('exact owner session missing');
-        return { chatId, messages, pending: await window.unchainAPI.getPendingInteraction({ session_id: session }) };
+        return { chatId, owner_session_id: session, owner_message: assistant[0], messages,
+          pending: await window.unchainAPI.getPendingInteraction({ session_id: session }) };
       });
       write('lifecycle-' + label + '.json', data);
       return data;
@@ -175,20 +182,58 @@ function createLifecycleControl({ out, write, mark, expect, until, agent, port, 
       await expect(allow).toBeVisible({ timeout: 120000 });
       return allow;
     }
+    function pendingIdentity(snapshot) {
+      const pending = snapshot.pending;
+      return { chatId: snapshot.chatId, owner_session_id: snapshot.owner_session_id,
+        owner_message: snapshot.owner_message, status: pending.status, kind: pending.kind,
+        interaction_id: pending.interaction_id,
+        source_run_id: pending.source_run_id ?? null,
+        interaction_source_run_id: pending.interaction_source_run_id,
+        active_attempt_id: pending.active_attempt_id,
+        tool_call: pending.presentation?.tool_call ?? null };
+    }
     await begin('QA356 Approval Agent', 'QA356 lifecycle approve');
     await visibleApproval();
     const waiting = await snapshot('approve-waiting');
     assert.equal(waiting.pending.status, 'awaiting_response');
     assert.equal(waiting.pending.kind, 'tool_approval');
     assert.ok(!fs.existsSync(path.join(workspace, 'approve.txt')));
-    await page.evaluate(async ({ saved, text }) => window.unchainAPI.saveManagedSkeletonResource({ schema: 'pupu.skeleton-edit.v2',
+    const draftB = await page.evaluate(async ({ saved, text }) => window.unchainAPI.saveManagedSkeletonResource({ schema: 'pupu.skeleton-edit.v2',
       document: saved.resource.document, expected_edit_token: saved.resource.edit_token,
       managed_sources: [{ node_path: ['nodes', 2], text }] }), { saved: seeded.saved, text: source('B') });
+    write('lifecycle-draft-B.json', draftB);
     mark('seed', 'later draft B saved while A waits; fixed published pin unchanged');
-    await (await provenApproveCard(page, waiting.pending)).click(); mark('ui', 'Approve');
+    assert.ok(!fs.existsSync(path.join(workspace, 'approve.txt')));
+    const approvalCountBeforeCold = counts['qa356-approval'];
+    await stop(); page = await launch(); mark('supervisor', 'cold restart while exact approval remains pending');
+    const coldWaiting = await snapshot('approve-cold-waiting');
+    assert.equal(coldWaiting.pending.status, 'awaiting_response');
+    assert.equal(coldWaiting.pending.kind, 'tool_approval');
+    assert.deepEqual(pendingIdentity(coldWaiting), pendingIdentity(waiting), 'pending owner or payload changed across App restart');
+    assert.equal(counts['qa356-approval'], approvalCountBeforeCold, 'cold waiting App auto-dispatched or resumed');
+    assert.ok(!fs.existsSync(path.join(workspace, 'approve.txt')), 'approval side effect occurred before explicit click');
+    const coldResource = await page.evaluate(() => window.unchainAPI.getManagedSkeletonResource('qa356-approve-agent'));
+    const pinnedBefore = seeded.resources[0].resource.document.nodes.find(node => node.id === 'tools')
+      .config.workflow_tools[0].workflow.revision_id;
+    assert.equal(coldResource.resource.document.nodes.find(node => node.id === 'tools')
+      .config.workflow_tools[0].workflow.revision_id, pinnedBefore);
+    await visibleApproval();
+    const card = await provenApproveCard(page, coldWaiting.pending);
+    const coldApprovalTool = coldResource.resource.document.nodes.find(node => node.id === 'tools')
+      .config.workflow_tools[0];
+    assert.equal(coldApprovalTool.workflow.revision_id, pinnedBefore);
+    write('lifecycle-approval-cold-check.json', { before: pendingIdentity(waiting), after: pendingIdentity(coldWaiting),
+      approval_provider_count_before_restart: approvalCountBeforeCold, approval_provider_count_after_restart: counts['qa356-approval'],
+      pinned_revision: pinnedBefore, pinned_after: coldApprovalTool.workflow.revision_id,
+      draft_B: draftB, side_effect_absent_before_click: true });
+    await card.click(); mark('ui', 'Approve once after cold restart');
     await expect(page.getByText(reply, { exact: true })).toBeVisible({ timeout: 120000 });
     await expect(page.locator('button[aria-label="Stop"],button[aria-label="Stop generating"]')).toHaveCount(0);
     assert.equal(fs.readFileSync(path.join(workspace, 'approve.txt'), 'utf8'), 'approved-exactly-once');
+    assert.equal(counts['qa356-approval'], 2, 'approval must have one request and one resume only');
+    write('lifecycle-approval-action.json', { interaction_id: coldWaiting.pending.interaction_id,
+      proven_card: JSON.parse(fs.readFileSync(path.join(out, 'lifecycle-approve-identity.json'), 'utf8')),
+      pointer_clicks: 1, provider_count_after_resume: counts['qa356-approval'] });
     const approved = await snapshot('approved'); assert.equal(approved.pending.status, 'none');
     cases.push({ name: 'approved', ...approved, expected: reply });
 
@@ -213,17 +258,125 @@ function createLifecycleControl({ out, write, mark, expect, until, agent, port, 
     const detail = page.getByRole('button', { name: 'detail', exact: true }).first();
     if (await detail.isVisible()) await detail.click();
     await expect(page.getByText(/reviewer\.1/).first()).toBeVisible();
-    // Exercise the real nested trace control, with its own subtree kept in view.
-    const collapse = page.getByRole('button', { name: 'Collapse', exact: true }).last();
-    await expect(collapse).toBeVisible(); await collapse.click(); mark('ui', 'collapse child trace');
-    await page.getByRole('button', { name: 'Expand', exact: true }).last().click(); mark('ui', 'expand child trace');
-    await expect(page.getByText(childReply, { exact: true }).last()).toBeVisible();
+    // Resolve the worker-owned arrow from its own reviewer.1 + completed title,
+    // and distinguish it from the outer Reviewer delegate summary arrow.
+    const childInventory = async () => page.evaluate(() => {
+      const buttons = [...document.querySelectorAll('button[aria-label="Collapse"],button[aria-label="Expand"]')];
+      const describe = (button, index) => {
+        const fiberKey = Object.keys(button).find(key => key.startsWith('__reactFiber$'));
+        const fiber = fiberKey ? button[fiberKey] : null;
+        const component = [];
+        for (let node = fiber, depth = 0; node && depth < 8; node = node.return, depth++) {
+          const name = node.type?.displayName || node.type?.name || node.elementType?.name;
+          if (name) component.push(name);
+        }
+        const ancestors = [];
+        for (let node = button.parentElement, depth = 0; node && depth < 5; node = node.parentElement, depth++)
+          ancestors.push({ tag: node.tagName.toLowerCase(), text: (node.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 180),
+            buttons: node.querySelectorAll('button[aria-label="Collapse"],button[aria-label="Expand"]').length });
+        return { index, label: button.getAttribute('aria-label'), component,
+          react_open: fiber?.return?.memoizedProps?.open ?? fiber?.memoizedProps?.open ?? null, ancestors };
+      };
+      const arrows = buttons.map(describe);
+      const workerSpans = [...document.querySelectorAll('span')].filter(span => {
+        const text = (span.textContent || '').replace(/\s+/g, '');
+        return /reviewer\.1/i.test(text) && /completed/i.test(text) &&
+          span.querySelectorAll('button[aria-label="Collapse"],button[aria-label="Expand"]').length === 1;
+      }).sort((a, b) => a.textContent.length - b.textContent.length);
+      const summarySpans = [...document.querySelectorAll('span')].filter(span => {
+        const text = (span.textContent || '').replace(/\s+/g, '');
+        return /Reviewer/.test(text) && !/reviewer\.1/i.test(text) &&
+          span.querySelectorAll('button[aria-label="Collapse"],button[aria-label="Expand"]').length === 1;
+      }).sort((a, b) => a.textContent.length - b.textContent.length);
+      const choose = candidates => {
+        if (!candidates.length) return { node: null, count: 0 };
+        const shortestLength = candidates[0].textContent.replace(/\s+/g, '').length;
+        const shortest = candidates.filter(span => span.textContent.replace(/\s+/g, '').length === shortestLength);
+        return { node: shortest.length === 1 ? shortest[0] : null, count: shortest.length };
+      };
+      const selectedWorker = choose(workerSpans), selectedSummary = choose(summarySpans);
+      const target = span => span?.querySelector('button[aria-label="Collapse"],button[aria-label="Expand"]') || null;
+      const worker = target(selectedWorker.node), summary = target(selectedSummary.node);
+      return { arrows, worker_matches: selectedWorker.count, summary_matches: selectedSummary.count,
+        worker_index: buttons.indexOf(worker), summary_index: buttons.indexOf(summary),
+        worker_title: selectedWorker.node?.textContent || null, summary_title: selectedSummary.node?.textContent || null };
+    });
+    const captureChildState = async label => {
+      const saved = await snapshot('child-arrow-' + label);
+      const dom = await childInventory();
+      write('lifecycle-child-arrow-' + label + '.json', { dom, owner_message: saved.owner_message,
+        child_frame_counts: Object.fromEntries(Object.entries(saved.owner_message.subagentFrames || {})
+          .map(([run, frames]) => [run, Array.isArray(frames) ? frames.length : 0])),
+        persisted_subagent_meta: saved.owner_message.subagentMetaByRunId || {} });
+      return dom;
+    };
+    const clickArrow = async (kind) => page.evaluateHandle((selection) => {
+      const buttons = [...document.querySelectorAll('button[aria-label="Collapse"],button[aria-label="Expand"]')];
+      const spans = [...document.querySelectorAll('span')];
+      const candidates = spans.filter(span => {
+        const text = (span.textContent || '').replace(/\s+/g, '');
+        const count = span.querySelectorAll('button[aria-label="Collapse"],button[aria-label="Expand"]').length;
+        return selection === 'worker'
+          ? /reviewer\.1/i.test(text) && /completed/i.test(text) && count === 1
+          : /Reviewer/.test(text) && !/reviewer\.1/i.test(text) && count === 1;
+      }).sort((a, b) => a.textContent.length - b.textContent.length);
+      const shortestLength = candidates[0]?.textContent.replace(/\s+/g, '').length;
+      const shortest = candidates.filter(span => span.textContent.replace(/\s+/g, '').length === shortestLength);
+      if (shortest.length !== 1) throw new Error('TRACE_ARROW_TITLE_NOT_UNIQUE:' + selection);
+      const button = shortest[0]?.querySelector('button[aria-label="Collapse"],button[aria-label="Expand"]');
+      if (!button || buttons.indexOf(button) < 0) throw new Error('TRACE_ARROW_OWNER_UNRESOLVED:' + selection);
+      return button;
+    }, kind);
+    const initialArrows = await captureChildState('before-outer-collapse');
+    assert.equal(initialArrows.worker_matches, 1, 'worker title/arrow is not uniquely identifiable');
+    assert.equal(initialArrows.summary_matches, 1, 'outer delegate title/arrow is not uniquely identifiable');
+    assert.notEqual(initialArrows.worker_index, initialArrows.summary_index, 'worker and outer arrows must differ');
+    const outerInitialLabel = initialArrows.arrows[initialArrows.summary_index].label;
+    const outerCollapse = await clickArrow('summary');
+    await outerCollapse.asElement().click(); mark('ui', 'collapse outer delegate summary by pointer');
+    const outerClosed = await captureChildState('after-outer-collapse');
+    assert.ok(outerClosed.summary_index >= 0);
+    assert.equal(outerClosed.arrows[outerClosed.summary_index].label, 'Expand');
+    assert.equal(outerClosed.worker_index, -1, 'worker row should be hidden while outer summary is collapsed');
+    await captureChildState('before-outer-expand');
+    const outerExpand = await clickArrow('summary'); await outerExpand.asElement().click();
+    mark('ui', 'expand outer delegate summary by pointer');
+    const outerOpen = await captureChildState('after-outer-expand');
+    assert.ok(outerOpen.worker_index >= 0);
+    assert.notEqual(outerOpen.worker_index, outerOpen.summary_index);
+    assert.equal(outerOpen.arrows[outerOpen.summary_index].label, outerInitialLabel);
+    let workerState = outerOpen;
+    if (workerState.arrows[workerState.worker_index].label === 'Expand') {
+      await captureChildState('before-worker-expand-initial');
+      const initialExpand = await clickArrow('worker'); await initialExpand.asElement().click();
+      mark('ui', 'expand initially collapsed reviewer.1 worker by pointer');
+      workerState = await captureChildState('after-worker-expand-initial');
+      assert.equal(workerState.arrows[workerState.worker_index].label, 'Collapse');
+    }
+    await captureChildState('before-worker-collapse');
+    const workerCollapse = await clickArrow('worker'); await workerCollapse.asElement().click();
+    mark('ui', 'collapse reviewer.1 worker arrow by pointer');
+    const workerClosed = await captureChildState('after-worker-collapse');
+    assert.ok(workerClosed.worker_index >= 0 && workerClosed.summary_index >= 0);
+    assert.notEqual(workerClosed.worker_index, workerClosed.summary_index);
+    assert.equal(workerClosed.worker_title.replace(/\s+/g, ''), workerState.worker_title.replace(/\s+/g, ''));
+    assert.equal(workerClosed.arrows[workerClosed.worker_index].label, 'Expand');
+    assert.equal(workerClosed.arrows[workerClosed.summary_index].label, outerInitialLabel);
+    await captureChildState('before-worker-expand');
+    const workerExpand = await clickArrow('worker'); await workerExpand.asElement().click();
+    mark('ui', 'expand reviewer.1 worker arrow by pointer');
+    const workerOpen = await captureChildState('after-worker-expand');
+    assert.equal(workerOpen.worker_title.replace(/\s+/g, ''), workerClosed.worker_title.replace(/\s+/g, ''));
+    assert.equal(workerOpen.arrows[workerOpen.worker_index].label, 'Collapse');
+    assert.equal(workerOpen.arrows[workerOpen.summary_index].label, outerInitialLabel);
+    await expect(page.getByText(childEnd, { exact: true })).toBeVisible();
+    await expect(page.getByText(childReply, { exact: true })).toBeVisible();
     const child = await snapshot('child-completed'); cases.push({ name: 'child', ...child, expected: parentReply });
     fs.writeFileSync(path.join(out, 'lifecycle-child-aria.txt'), await page.locator('body').ariaSnapshot());
     await page.screenshot({ path: path.join(out, 'lifecycle-child.png') });
     assert.deepEqual(counts, { 'qa356-approval': 2, 'qa356-cancel': 1, 'qa356-parent': 2, 'qa356-child': 1 });
-    write('lifecycle-result.json', { verdict: 'APP_LIFECYCLE_ACCEPTED', cases, counts,
-      cold_ui_scope: 'completed approval and cancelled messages read verbatim; paused cold resume is tested through actual HTTP separately',
+    write('lifecycle-result.json', { verdict: 'APP_LIFECYCLE_ACCEPTED', cases, counts, childReply, childEnd,
+      cold_ui_scope: 'approval was pending across an actual full App restart before explicit identity-bound Approve; cancelled and completed reads also persisted',
       files: fs.readdirSync(workspace).sort(), real_provider_calls: 0 });
   }
   return { responseFor, run };

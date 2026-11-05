@@ -4,6 +4,7 @@
  */
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const { createHash } = require('node:crypto');
 const http = require('node:http');
 const path = require('node:path');
 const { createRequire } = require('node:module');
@@ -22,7 +23,7 @@ const home = path.join(out, 'home');
 const userData = path.join(home, 'profile');
 const port = 18991;
 const sentinel = 'committed-workflow-End-only';
-const codeSource = `import sys\ndef main(input, context):\n    return {"receipt": "${sentinel}", "interpreter": sys.executable}\n`;
+const codeSource = `import sys\ndef main(input, context):\n    return {"receipt": "raw-code-node-result-not-End", "interpreter": sys.executable}\n`;
 const final = (turn) => `Desktop Workflow Tool root reply ${turn}`;
 const ledger = [], wires = [], generations = [], errors = [];
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -38,6 +39,82 @@ function processIdentity(pid) {
       exe: fs.readlinkSync(`/proc/${pid}/exe`),
       command: fs.readFileSync(`/proc/${pid}/cmdline`, 'utf8').replaceAll('\0', ' ') };
   } catch (_error) { return null; }
+}
+
+function inventoryTree(root) {
+  const rows = [];
+  const visit = directory => {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const full = path.join(directory, entry.name);
+      if (entry.isDirectory()) visit(full);
+      else if (entry.isSymbolicLink()) {
+        const target = fs.readlinkSync(full);
+        rows.push({ path: path.relative(root, full), type: 'symlink', target,
+          sha256: createHash('sha256').update(target).digest('hex'), size: Buffer.byteLength(target) });
+      } else if (entry.isFile()) {
+        const bytes = fs.readFileSync(full);
+        rows.push({ path: path.relative(root, full), type: 'file',
+          sha256: createHash('sha256').update(bytes).digest('hex'), size: bytes.length });
+      }
+    }
+  };
+  visit(root);
+  return rows.sort((a, b) => a.path.localeCompare(b.path));
+}
+
+function captureRawState(shutdownProof) {
+  const raw = path.join(out, 'raw-state');
+  const evidence = { schema: 'qa356.raw-state-capture.v1', source_home_relative: 'home',
+    raw_directory: raw, shutdown_proof: shutdownProof, status: 'NOT_CAPTURED', files: [],
+    auth_scan_required: true, auth_scan_status: 'DEFERRED_TO_FINAL_WORKFLOW_AFTER_CAPTURE_STOPS' };
+  if (!shutdownProof.all_owned_dead) {
+    evidence.reason = 'owned App process shutdown is not proven';
+    return evidence;
+  }
+  const databases = [];
+  const find = directory => {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const full = path.join(directory, entry.name);
+      if (entry.isDirectory()) find(full);
+      else if (entry.isFile() && entry.name === 'context_v2.sqlite3') databases.push(full);
+    }
+  };
+  find(home);
+  if (databases.length !== 1) {
+    evidence.reason = `expected one context_v2.sqlite3, found ${databases.length}`;
+    return evidence;
+  }
+  const sourceDb = databases[0];
+  const sourceDir = path.dirname(sourceDb);
+  const sourceObjects = path.join(sourceDir, 'objects');
+  if (!fs.existsSync(sourceObjects) || !fs.statSync(sourceObjects).isDirectory()) {
+    evidence.reason = 'context object directory missing';
+    return evidence;
+  }
+  fs.mkdirSync(raw, { recursive: false });
+  const copied = [];
+  const dbName = path.basename(sourceDb);
+  for (const suffix of ['', '-wal', '-shm']) {
+    const source = sourceDb + suffix;
+    if (!fs.existsSync(source)) continue;
+    const target = path.join(raw, dbName + suffix);
+    fs.copyFileSync(source, target);
+    copied.push({ source_relative: path.relative(home, source), raw_relative: path.basename(target) });
+  }
+  fs.cpSync(sourceObjects, path.join(raw, 'objects'), { recursive: true, errorOnExist: true, force: false });
+  const sourceInventory = [];
+  for (const row of copied) {
+    const bytes = fs.readFileSync(path.join(home, row.source_relative));
+    sourceInventory.push({ path: row.source_relative, sha256: createHash('sha256').update(bytes).digest('hex'), size: bytes.length });
+  }
+  for (const row of inventoryTree(sourceObjects)) sourceInventory.push({
+    path: path.join(path.relative(home, sourceObjects), row.path), sha256: row.sha256, size: row.size, type: row.type });
+  evidence.raw_inventory = inventoryTree(raw);
+  evidence.source_inventory = sourceInventory.sort((a, b) => a.path.localeCompare(b.path));
+  evidence.copy_map = [...copied.map(row => ({ source: row.source_relative, raw: row.raw_relative })),
+    ...inventoryTree(sourceObjects).map(row => ({ source: path.join(path.relative(home, sourceObjects), row.path), raw: path.join('objects', row.path) }))];
+  evidence.status = 'CAPTURED_AFTER_SHUTDOWN';
+  return evidence;
 }
 
 async function until(read, timeout = 120000) {
@@ -94,7 +171,8 @@ function codeWorkflow() {
       outputs: ['receipt', 'interpreter'].map(name => ({ name, source: { kind: 'result', path: [name] } })) },
   } });
   document.nodes[2].config.execution = {
-    inputs: ['receipt', 'interpreter'].map(name => ({ name, value: { kind: 'ref', node_id: 'step', path: [name] }, missing: 'error' })),
+    inputs: [{ name: 'receipt', value: { kind: 'literal', value: sentinel }, missing: 'error' },
+      { name: 'interpreter', value: { kind: 'ref', node_id: 'step', path: ['interpreter'] }, missing: 'error' }],
     outputs: ['receipt', 'interpreter'].map(name => ({ name, source: { kind: 'input', path: [name] } })),
   };
   document.edges = [['start', 'step'], ['step', 'end']].map(([source, target], index) => ({ id: `flow-${index}`,
@@ -348,9 +426,38 @@ async function run_packaged_workflow_tool_control() {
       await current.page.screenshot({ path: path.join(out, 'last-window.png') }).catch(() => {});
       fs.writeFileSync(path.join(out, 'last-aria.txt'), await current.page.locator('body').ariaSnapshot().catch(String));
     }
-    await stop(); await new Promise(resolve => server.close(resolve));
+    let shutdownError = null;
+    try { await stop(); } catch (error) { shutdownError = String(error.stack || error); }
+    const shutdownProof = { generations: generations.map(row => ({ generation: row.generation,
+      main: row.main, stopped_ns: row.stopped_ns || null, all_owned_dead: row.all_owned_dead === true,
+      owned_processes: row.processes || [] })),
+      all_owned_dead: generations.length > 0 && generations.every(row => row.all_owned_dead === true &&
+        (row.processes || []).every(identity => {
+          const alive = processIdentity(identity.pid);
+          return !alive || alive.start_ticks !== identity.start_ticks;
+        })),
+      stop_error: shutdownError };
+    let rawState;
+    try { rawState = captureRawState(shutdownProof); }
+    catch (error) { rawState = { schema: 'qa356.raw-state-capture.v1', status: 'CAPTURE_ERROR',
+      shutdown_proof: shutdownProof, reason: String(error.stack || error) }; }
+    write('raw-state-capture.json', rawState);
+    const functionalPath = path.join(out, 'functional-result.json');
+    if (fs.existsSync(functionalPath)) {
+      const functional = JSON.parse(fs.readFileSync(functionalPath, 'utf8'));
+      functional.verdict = rawState.status === 'CAPTURED_AFTER_SHUTDOWN'
+        ? 'APP_ENTRY_HARNESS_COMPLETE_AUTH_SCAN_PENDING' : 'APP_ENTRY_HARNESS_FAILED';
+      functional.raw_state_status = rawState.status;
+      functional.auth_scan_required = true;
+      write('functional-result.json', functional);
+    }
+    if (rawState.status !== 'CAPTURED_AFTER_SHUTDOWN') {
+      errors.push(`RAW_STATE_CAPTURE_${rawState.status}: ${rawState.reason || 'unspecified'}`);
+    }
+    await new Promise(resolve => server.close(resolve));
     write('ledger.json', ledger); write('provider-wires.json', wires); write('errors.json', errors);
     write('process-generations.json', generations);
+    if (shutdownError || rawState.status !== 'CAPTURED_AFTER_SHUTDOWN') process.exitCode = 1;
   }
 }
 

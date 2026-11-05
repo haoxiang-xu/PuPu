@@ -3,11 +3,42 @@ name: "#356 Linux source qualification (QA only, non-delivery)"
 on:
   workflow_dispatch:
     inputs:
+      scope:
+        description: One serial qualification lane
+        required: true
+        type: choice
+        options: [source, pair, windows-native]
+        default: source
       candidate_sha:
-        description: Full source checkpoint commit SHA to qualify
+        description: Full frozen Host source SHA
         required: true
         type: string
-        default: 2e513c6075671e4a821c8312a5e260886ca2bf8c
+        default: 89d3d497b57463278724889b9c06997f67ca3254
+      candidate_tree:
+        description: Full frozen Host tree
+        required: true
+        type: string
+        default: 82bfc5a812cf03e02aea5337c1abbabae2a3385a
+      wheel_run_id:
+        description: Canonical successful required-CI run that uploaded the single wheel
+        required: true
+        type: string
+        default: "41969797156"
+      wheel_sha256:
+        description: SHA256 of the one required-CI wheel artifact
+        required: true
+        type: string
+        default: 9d46b7b74ac333c28f3ff99446bb4a8b366e0d6cec9337837f25422702a6abdf
+      legacy_run_id:
+        description: Canonical frozen run holding the old e0162fc1 binary
+        required: true
+        type: string
+        default: "41263562114"
+      legacy_artifact_name:
+        description: Frozen old-binary artifact name
+        required: true
+        type: string
+        default: 357-pair-backend-evidence
 
 permissions:
   contents: read
@@ -15,14 +46,15 @@ permissions:
 
 jobs:
   source:
+    if: inputs.scope == 'source'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      QA_EXPECTED_CANDIDATE: 2e513c6075671e4a821c8312a5e260886ca2bf8c
-      QA_EXPECTED_CANDIDATE_TREE: e7dea34500ce7cb420125f7322b3d7aeb2c968f3
+      QA_EXPECTED_CANDIDATE: 89d3d497b57463278724889b9c06997f67ca3254
+      QA_EXPECTED_CANDIDATE_TREE: 82bfc5a812cf03e02aea5337c1abbabae2a3385a
       QA_CANDIDATE_SHA: ${{ inputs.candidate_sha }}
-      QA_CORE_SHA: b07c9d67c61c4a6437e9fd08325285530b7b8b6a
-      QA_CORE_TREE: e95097a78000717e78b8aa5677314670d1430d9c
+      QA_CORE_SHA: 82c964f40ddb077cc89f4cd8c16db9afa29952a7
+      QA_CORE_TREE: 47a46eb6310c269deaf31a103cb8b7a4c9305f25
       QA_WHEEL_SHA: 949a89475894b13ac324b90671c714ccd3125509cf6b313df739c66dc8292de6
       QA_WHEEL_RUN: "41562427104"
     steps:
@@ -69,7 +101,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: haoxiang-xu/unchain
-          ref: b07c9d67c61c4a6437e9fd08325285530b7b8b6a
+          ref: 82c964f40ddb077cc89f4cd8c16db9afa29952a7
           path: core
           persist-credentials: false
 
@@ -141,3 +173,926 @@ jobs:
           if-no-files-found: error
           path: |
             test-results/source/**
+
+  # Added pair/native lanes are a static draft. The source lane above remains the
+  # reviewed 901 source job and is not replaced until its immutable run is saved.
+  pair:
+    if: inputs.scope == 'pair'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      QA_EXPECTED_HOST_SHA: 89d3d497b57463278724889b9c06997f67ca3254
+      QA_EXPECTED_HOST_TREE: 82bfc5a812cf03e02aea5337c1abbabae2a3385a
+      QA_CORE_SHA: 82c964f40ddb077cc89f4cd8c16db9afa29952a7
+      QA_CORE_TREE: 47a46eb6310c269deaf31a103cb8b7a4c9305f25
+      QA_EXPECTED_MANIFEST: sha256:88d5f8d733e7f3dc94fb1cd20060fcc5f2611c0f94420e327bcb12664368bf2e
+      QA_HOST_SHA: ${{ inputs.candidate_sha }}
+      QA_HOST_TREE: ${{ inputs.candidate_tree }}
+      QA_WHEEL_RUN_ID: ${{ inputs.wheel_run_id }}
+      QA_WHEEL_SHA: ${{ inputs.wheel_sha256 }}
+      QA_LEGACY_RUN_ID: ${{ inputs.legacy_run_id }}
+      QA_LEGACY_ARTIFACT: ${{ inputs.legacy_artifact_name }}
+      QA_LEGACY_SHA: e0162fc116e3f2970c67bc6c5458d1a305e6404dbb11b6e22db25897cad77ff6
+    steps:
+      - name: Fail closed unless the root has frozen final identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$QA_EXPECTED_HOST_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$QA_EXPECTED_HOST_TREE" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$QA_HOST_SHA" == "$QA_EXPECTED_HOST_SHA" ]]
+          [[ "$QA_HOST_TREE" == "$QA_EXPECTED_HOST_TREE" ]]
+          [[ "$QA_CORE_SHA" == 82c964f40ddb077cc89f4cd8c16db9afa29952a7 ]]
+          [[ "$QA_CORE_TREE" == 47a46eb6310c269deaf31a103cb8b7a4c9305f25 ]]
+          [[ "$QA_WHEEL_RUN_ID" =~ ^[0-9]+$ ]]
+          [[ "$QA_WHEEL_SHA" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$QA_LEGACY_RUN_ID" =~ ^[0-9]+$ ]]
+          [[ "$QA_LEGACY_ARTIFACT" == 357-pair-backend-evidence ]]
+          mkdir -p test-results/status test-results/pair test-results/platform reusable
+          printf 'NOT_RUN\n' > test-results/status/qualification.txt
+          date -u +%FT%TZ > test-results/pair/workflow-start.txt
+
+      - name: Check out QA controls
+        uses: actions/checkout@v4
+        with:
+          path: control
+          persist-credentials: false
+      - name: Check out exact Host source
+        uses: actions/checkout@v4
+        with:
+          repository: haoxiang-xu/PuPu
+          ref: ${{ inputs.candidate_sha }}
+          path: candidate
+          persist-credentials: false
+      - name: Check out exact Core source
+        uses: actions/checkout@v4
+        with:
+          repository: haoxiang-xu/unchain
+          ref: 82c964f40ddb077cc89f4cd8c16db9afa29952a7
+          path: core
+          persist-credentials: false
+      - name: Stage byte-identical Core tests and fixtures without Core source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(git -C core status --porcelain=v1 --untracked-files=all)"
+          test ! -e runtime-source
+          mkdir -p runtime-source
+          cp -a core/tests runtime-source/tests
+          for file in pyproject.toml pytest.ini setup.cfg tox.ini conftest.py; do
+            if [[ -f "core/$file" ]]; then cp -a "core/$file" "runtime-source/$file"; fi
+          done
+          python - <<'PY'
+          import hashlib,json,pathlib
+          source=pathlib.Path('core'); staged=pathlib.Path('runtime-source')
+          def inventory(root):
+              result={}
+              for p in sorted(root.rglob('*')):
+                  rel=p.relative_to(root).as_posix()
+                  if p.is_symlink(): result[rel]={'type':'symlink','target':p.readlink().as_posix()}
+                  elif p.is_file(): result[rel]={'type':'file','sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'size':p.stat().st_size}
+              return result
+          expected={k:v for k,v in inventory(source).items() if k.startswith('tests/') or k in {'pyproject.toml','pytest.ini','setup.cfg','tox.ini','conftest.py'}}
+          actual=inventory(staged)
+          assert expected==actual, {'missing':sorted(expected.keys()-actual.keys()),'extra':sorted(actual.keys()-expected.keys())}
+          assert not (staged/'src').exists(), 'Core source must not be on test-only PYTHONPATH'
+          selectors=sorted(p.relative_to(staged).as_posix() for p in (staged/'tests').glob('test_skeleton_*.py'))
+          assert len(selectors)>=40, {'selected_test_files':len(selectors)}
+          pathlib.Path('test-results/pair/core-test-staging.json').write_text(json.dumps({
+              'core_sha':'82c964f40ddb077cc89f4cd8c16db9afa29952a7',
+              'core_tree':'47a46eb6310c269deaf31a103cb8b7a4c9305f25',
+              'source_free_test_root':str(staged.resolve()),'selected_test_files':selectors,
+              'staged_file_count':len(actual),'staged_inventory_sha256':hashlib.sha256(json.dumps(actual,sort_keys=True,separators=(',',':')).encode()).hexdigest()},indent=2)+'\n')
+          PY
+      - name: Set up pinned Node and Python for verification and packaging
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.15"
+
+      - name: Download only the canonical required-CI wheel and frozen legacy sidecar
+        uses: actions/download-artifact@v4
+        with:
+          name: unchain-release-artifact
+          path: artifact
+          run-id: ${{ inputs.wheel_run_id }}
+          github-token: ${{ github.token }}
+      - name: Download the frozen old binary control
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.legacy_artifact_name }}
+          path: legacy
+          run-id: ${{ inputs.legacy_run_id }}
+          github-token: ${{ github.token }}
+      - name: Bind repositories and verify the one wheel against the artifact evidence
+        id: artifact
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(git -C candidate rev-parse HEAD)" = "$QA_HOST_SHA"
+          test "$(git -C candidate rev-parse 'HEAD^{tree}')" = "$QA_HOST_TREE"
+          test -z "$(git -C candidate status --porcelain=v1 --untracked-files=all)"
+          test "$(git -C core rev-parse HEAD)" = "$QA_CORE_SHA"
+          test "$(git -C core rev-parse 'HEAD^{tree}')" = "$QA_CORE_TREE"
+          test -z "$(git -C core status --porcelain=v1 --untracked-files=all)"
+          gh run view "$QA_WHEEL_RUN_ID" --repo haoxiang-xu/PuPu --json conclusion,headSha \
+            > test-results/pair/wheel-run.json
+          python - "$QA_HOST_SHA" <<'PY'
+          import json,sys
+          run=json.load(open('test-results/pair/wheel-run.json'))
+          assert run['conclusion']=='success' and run['headSha']==sys.argv[1], run
+          PY
+          mapfile -t wheels < <(find artifact -maxdepth 2 -type f -name '*.whl' -print)
+          test "${#wheels[@]}" = 1
+          WHEEL="${wheels[0]}"
+          EVIDENCE=artifact/unchain-artifact.json
+          test -f "$EVIDENCE"
+          test "$(python -c 'import json;print(json.load(open("artifact/unchain-artifact.json"))["runtime_manifest"]["manifest_digest"])')" = "$QA_EXPECTED_MANIFEST"
+          echo "$QA_WHEEL_SHA  $WHEEL" | sha256sum -c -
+          node candidate/scripts/release-qa/verify-unchain-artifact.mjs --artifact "$WHEEL" --evidence "$EVIDENCE" --bytes-only true
+          python - "$EVIDENCE" "$WHEEL" <<'PY'
+          import hashlib,json,sys,zipfile,pathlib
+          evidence=json.load(open(sys.argv[1])); wheel=pathlib.Path(sys.argv[2])
+          assert evidence['build']=={'built_once':True,'wheel_count':1}, evidence['build']
+          assert evidence['source']['revision']=='82c964f40ddb077cc89f4cd8c16db9afa29952a7'
+          assert evidence['source']['dirty'] is False
+          assert evidence['artifact']['sha256']=='sha256:'+hashlib.sha256(wheel.read_bytes()).hexdigest()
+          core=pathlib.Path('core/src/unchain')
+          expected={p.relative_to(pathlib.Path('core/src')).as_posix():p.read_bytes() for p in core.rglob('*.py')}
+          with zipfile.ZipFile(wheel) as z:
+              actual={name:z.read(name) for name in z.namelist() if name.startswith('unchain/') and name.endswith('.py')}
+          assert actual.keys()==expected.keys(), {'wheel_only':sorted(actual.keys()-expected.keys()),'source_only':sorted(expected.keys()-actual.keys())}
+          assert all(actual[name]==data for name,data in expected.items()), 'wheel_core_source_bytes_mismatch'
+          print(evidence['runtime_manifest']['manifest_digest'])
+          PY
+          WHEEL="$(realpath "$WHEEL")"
+          cp "$WHEEL" reusable/unchain-0.2.0-py3-none-any.whl
+          cp "$EVIDENCE" reusable/unchain-artifact.json
+          echo "QA_WHEEL=$WHEEL" >> "$GITHUB_ENV"
+          echo "QA_MANIFEST=$(python -c 'import json;print(json.load(open("artifact/unchain-artifact.json"))["runtime_manifest"]["manifest_digest"])')" >> "$GITHUB_ENV"
+          echo "QA_WHEEL_SHA=$QA_WHEEL_SHA" >> "$GITHUB_ENV"
+          mapfile -t oldbins < <(find legacy -type f -name unchain-server -print)
+          test "${#oldbins[@]}" = 1
+          LEGACY_PATH="$(realpath "${oldbins[0]}")"
+          echo "QA_LEGACY_BINARY=$LEGACY_PATH" >> "$GITHUB_ENV"
+          export QA_LEGACY_BINARY="$LEGACY_PATH"
+          test "$(sha256sum "$LEGACY_PATH" | cut -d' ' -f1)" = "$QA_LEGACY_SHA"
+          cp "$EVIDENCE" test-results/pair/unchain-artifact.json
+          export QA_WHEEL="$WHEEL" QA_WHEEL_RUN_ID="$QA_WHEEL_RUN_ID"
+          python - <<'PY'
+          import hashlib,json,os,pathlib
+          evidence=pathlib.Path('artifact/unchain-artifact.json').read_bytes()
+          wheel=pathlib.Path(os.environ['QA_WHEEL']).read_bytes()
+          old=pathlib.Path(os.environ['QA_LEGACY_BINARY']).read_bytes()
+          record={'host_sha':os.environ['QA_HOST_SHA'],'host_tree':os.environ['QA_HOST_TREE'],
+            'core_sha':os.environ['QA_CORE_SHA'],'core_tree':os.environ['QA_CORE_TREE'],
+            'wheel_sha256':hashlib.sha256(wheel).hexdigest(),'manifest':json.loads(evidence)['runtime_manifest']['manifest_digest'],
+            'required_ci_run_id':os.environ['QA_WHEEL_RUN_ID'],'required_ci_run':json.loads(pathlib.Path('test-results/pair/wheel-run.json').read_text()),
+            'legacy_binary_sha256':hashlib.sha256(old).hexdigest()}
+          pathlib.Path('test-results/pair/pair-identity.json').write_text(json.dumps(record,indent=2)+'\n')
+          PY
+
+      - name: Bind the frozen source version without mutating package metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,os,pathlib,re
+          package=pathlib.Path('candidate/package.json'); raw=package.read_bytes()
+          version=json.loads(raw)['version']
+          if not isinstance(version,str) or not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?',version):
+              raise RuntimeError('candidate_package_version_invalid')
+          record={'host_sha':os.environ['QA_HOST_SHA'],'host_tree':os.environ['QA_HOST_TREE'],
+            'package_json_sha256':hashlib.sha256(raw).hexdigest(),'version_from_candidate_package_json':version,
+            'package_version_mutated':False}
+          pathlib.Path('test-results/pair/build-version-input.json').write_text(json.dumps(record,indent=2)+'\n')
+          with open(os.environ['GITHUB_ENV'],'a',encoding='utf-8') as output:
+              output.write('PUPU_BUILD_VERSION='+version+'\n')
+          PY
+
+      - name: Install Python requirements and verified wheel
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check -r candidate/unchain_runtime/server/requirements.txt
+          python -m pip install --disable-pip-version-check --no-deps "$QA_WHEEL" pytest==9.2.0
+          python -m pip check
+          node candidate/scripts/release-qa/verify-unchain-artifact.mjs --artifact "$QA_WHEEL" --evidence artifact/unchain-artifact.json --bytes-only true
+          python - <<'PY' >> "$GITHUB_ENV"
+          import site,sys
+          print('QA_PYTHON='+sys.executable)
+          print('QA_SITE='+site.getsitepackages()[0])
+          PY
+          python -m pip freeze --all > test-results/pair/dependencies-freeze.txt
+
+      - name: Install declared Linux runtime-control tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes tcpdump gnome-keyring dbus-x11 xvfb
+
+      - name: Run installed Host and Core contract cells
+        shell: bash
+        env:
+          QA_CANDIDATE: ${{ inputs.candidate_sha }}
+          QA_CANDIDATE_ROOT: ${{ github.workspace }}/candidate
+          QA_PYTHON: ${{ env.QA_PYTHON }}
+          QA_SITE: ${{ env.QA_SITE }}
+          QA_WHEEL: ${{ env.QA_WHEEL }}
+          QA_WHEEL_SHA: ${{ env.QA_WHEEL_SHA }}
+          QA_MANIFEST: ${{ env.QA_MANIFEST }}
+        run: |
+          set -euo pipefail
+          bash control/tools/qa356/run_offline.sh core
+          bash control/tools/qa356/run_offline.sh source
+
+      - name: Require nonempty installed Host and Core suites, zero skips/errors and exact wheel imports
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,xml.etree.ElementTree as ET
+          from pathlib import Path
+          proofs={}
+          for mode in ('core','source'):
+              root=ET.parse(f'test-results/{mode}/acceptance.xml').getroot()
+              cases=root.findall('.//testcase')
+              assert cases, f'{mode}_suite_empty'
+              assert not root.findall('.//failure') and not root.findall('.//error') and not root.findall('.//skipped'), mode
+              assert all('xfail' not in (node.get('type','').lower()+node.get('message','').lower()) for node in root.findall('.//skipped')), mode
+              files=Path(f'test-results/{mode}/test-files.txt').read_text().splitlines()
+              assert files and all(Path(f).name.startswith('test_skeleton_') for f in files)
+              proof=json.load(open(f'test-results/{mode}/imported-runtime.json'))
+              assert proof['pytest_exit_before_probe']==0 and proof['modules'] and not proof['errors'], mode
+              assert proof['manifest']==os.environ['QA_MANIFEST']
+              proofs[mode]={'cases':len(cases),'test_files':len(files),'imported_modules':len(proof['modules']),'manifest':proof['manifest']}
+          Path('test-results/pair/installed-cells-summary.json').write_text(json.dumps(proofs,indent=2)+'\n')
+          print(json.dumps(proofs))
+          PY
+
+      - name: Scan and preserve only completed installed-cell evidence
+        id: unit_scan
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,pathlib,re
+          allowed=[pathlib.Path(p) for mode in ('core','source') for p in (
+            f'test-results/{mode}/acceptance.xml',f'test-results/{mode}/test-files.txt',f'test-results/{mode}/imported-runtime.json')]
+          allowed += [pathlib.Path('test-results/pair/build-version-input.json'),pathlib.Path('test-results/pair/core-test-staging.json'),pathlib.Path('test-results/pair/installed-cells-summary.json'),pathlib.Path('test-results/pair/dependencies-freeze.txt'),pathlib.Path('test-results/pair/pair-identity.json'),pathlib.Path('test-results/pair/wheel-run.json'),pathlib.Path('test-results/pair/unchain-artifact.json')]
+          pattern=re.compile(rb'(?i)(?:x-unchain-auth|authorization|bearer)\s*[:=]\s*[A-Za-z0-9._~+/-]{16,}')
+          rows=[]
+          for f in allowed:
+              if not f.is_file(): raise RuntimeError('required_unit_evidence_missing:'+f.as_posix())
+              b=f.read_bytes()
+              if pattern.search(b): raise RuntimeError('credential_like_bytes_in_unit_evidence:'+f.as_posix())
+              rows.append({'path':f.as_posix(),'size':len(b),'sha256':hashlib.sha256(b).hexdigest()})
+          out=pathlib.Path('test-results/status/unit-evidence-scan.json'); out.parent.mkdir(parents=True,exist_ok=True)
+          out.write_text(json.dumps({'status':'PASS','files':rows},indent=2)+'\n')
+          PY
+          echo 'pass=true' >> "$GITHUB_OUTPUT"
+
+      - name: Upload completed installed-cell evidence before later App work
+        if: always() && steps.unit_scan.outputs.pass == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: 356-installed-cells-${{ inputs.candidate_sha }}
+          if-no-files-found: error
+          path: |
+            test-results/core/acceptance.xml
+            test-results/core/test-files.txt
+            test-results/core/imported-runtime.json
+            test-results/source/acceptance.xml
+            test-results/source/test-files.txt
+            test-results/source/imported-runtime.json
+            test-results/pair/build-version-input.json
+            test-results/pair/core-test-staging.json
+            test-results/pair/installed-cells-summary.json
+            test-results/pair/dependencies-freeze.txt
+            test-results/pair/pair-identity.json
+            test-results/pair/wheel-run.json
+            test-results/pair/unchain-artifact.json
+            test-results/status/unit-evidence-scan.json
+
+      - name: Build Linux sidecar once from the downloaded wheel and preserve it
+        working-directory: candidate
+        shell: bash
+        env:
+          UNCHAIN_ARTIFACT_PATH: ${{ github.workspace }}/artifact/unchain-0.2.0-py3-none-any.whl
+          UNCHAIN_ARTIFACT_EVIDENCE_PATH: ${{ github.workspace }}/artifact/unchain-artifact.json
+          UNCHAIN_PYTHON_BIN: ${{ env.QA_PYTHON }}
+          UNCHAIN_BUILD_VENV: ${{ runner.temp }}/356-sidecar-venv
+          QA_WHEEL_SHA: ${{ inputs.wheel_sha256 }}
+        run: |
+          set -euo pipefail
+          node scripts/prepare-build-version.cjs
+          bash unchain_runtime/scripts/build_unchain_server.sh linux
+          cd ..
+          BINARY=candidate/unchain_runtime/dist/linux/unchain-server
+          test -f "$BINARY"
+          sha256sum "$BINARY" > reusable/linux-sidecar.sha256
+          echo "QA_BINARY_SHA=$(cut -d' ' -f1 reusable/linux-sidecar.sha256)" >> "$GITHUB_ENV"
+          cp "$BINARY" reusable/unchain-server
+          python - <<'PY' > reusable/linux-sidecar-identity.json
+          import hashlib,json,pathlib,subprocess
+          p=pathlib.Path('candidate/unchain_runtime/dist/linux/unchain-server')
+          print(json.dumps({'path':str(p.resolve()),'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),
+            'wheel_sha256':hashlib.sha256(pathlib.Path('artifact/unchain-0.2.0-py3-none-any.whl').read_bytes()).hexdigest()},indent=2))
+          PY
+
+      - name: Scan and preserve the built one-wheel sidecar
+        id: sidecar_scan
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,pathlib,re
+          paths=[pathlib.Path('reusable/unchain-server'),pathlib.Path('reusable/linux-sidecar.sha256'),pathlib.Path('reusable/linux-sidecar-identity.json')]
+          secret=re.compile(rb'(?i)(?:x-unchain-auth|authorization|bearer)\s*[:=]\s*[A-Za-z0-9._~+/-]{16,}')
+          rows=[]
+          for f in paths:
+              if not f.is_file(): raise RuntimeError('sidecar_evidence_missing:'+f.as_posix())
+              b=f.read_bytes()
+              if secret.search(b): raise RuntimeError('credential_like_bytes_in_sidecar:'+f.as_posix())
+              rows.append({'path':f.as_posix(),'size':len(b),'sha256':hashlib.sha256(b).hexdigest()})
+          pathlib.Path('reusable/linux-sidecar-evidence-scan.json').write_text(json.dumps({'status':'PASS','files':rows},indent=2)+'\n')
+          PY
+          echo 'pass=true' >> "$GITHUB_OUTPUT"
+      - name: Upload reusable sidecar before App setup or execution
+        if: always() && steps.sidecar_scan.outputs.pass == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: 356-reusable-linux-sidecar-${{ inputs.candidate_sha }}
+          if-no-files-found: error
+          path: |
+            reusable/unchain-server
+            reusable/linux-sidecar.sha256
+            reusable/linux-sidecar-identity.json
+            reusable/linux-sidecar-evidence-scan.json
+
+      - name: Run old-binary and new-binary controls in isolated loopback namespaces
+        shell: bash
+        env:
+          QA_OLD_BINARY: ${{ env.QA_LEGACY_BINARY }}
+          QA_BINARY_SHA: ${{ env.QA_BINARY_SHA }}
+          QA_CANDIDATE: ${{ inputs.candidate_sha }}
+          QA_CANDIDATE_ROOT: ${{ github.workspace }}/candidate
+          QA_PYTHON: ${{ env.QA_PYTHON }}
+          QA_SITE: ${{ env.QA_SITE }}
+          QA_WHEEL: ${{ env.QA_WHEEL }}
+          QA_WHEEL_SHA: ${{ env.QA_WHEEL_SHA }}
+          QA_MANIFEST: ${{ env.QA_MANIFEST }}
+        run: |
+          set -euo pipefail
+          bash control/tools/qa356/run_offline.sh binary
+          bash control/tools/qa356/run_offline.sh chat
+
+      - name: Install locked UI dependencies after binary controls
+        working-directory: candidate
+        run: npm ci
+      - name: Install offline-browser runtime dependencies
+        working-directory: candidate
+        run: ./node_modules/.bin/playwright install --with-deps chromium
+      - name: Build the unsigned Linux App once around the preserved sidecar
+        working-directory: candidate
+        shell: bash
+        env:
+          PUPU_BUILD_FEATURE_SNAPSHOT_PATH: ${{ github.workspace }}/test-results/platform/build-feature-flags.json
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          QA_WHEEL_SHA: ${{ env.QA_WHEEL_SHA }}
+          QA_MANIFEST: ${{ env.QA_MANIFEST }}
+          QA_HOST_SHA: ${{ env.QA_HOST_SHA }}
+          QA_HOST_TREE: ${{ env.QA_HOST_TREE }}
+          QA_CORE_SHA: ${{ env.QA_CORE_SHA }}
+          QA_CORE_TREE: ${{ env.QA_CORE_TREE }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/test-results/platform" "$GITHUB_WORKSPACE/reusable"
+          sha256sum package-lock.json > "$GITHUB_WORKSPACE/test-results/platform/package-lock.sha256"
+          npm ls --all --json > "$GITHUB_WORKSPACE/test-results/platform/npm-dependency-tree.json"
+          cat > "$PUPU_BUILD_FEATURE_SNAPSHOT_PATH" <<'JSON'
+          {"enable_user_access_to_agents":true,"enable_user_access_to_characters":false,"enable_custom_model_providers":true,"enable_computer_use":false}
+          JSON
+          node scripts/prepare-build-version.cjs
+          node scripts/prepare-mcp-runtime.cjs --target linux-x64
+          npm run build:web
+          npm run notices:check
+          node_modules/electron-builder/cli.js --linux --x64 --dir --publish never
+          APP="$PWD/dist/linux-unpacked"
+          test -d "$APP"
+          SIDECAR="$APP/resources/unchain_runtime/dist/linux/unchain-server"
+          test -f "$SIDECAR"
+          test "$(sha256sum "$SIDECAR" | cut -d' ' -f1)" = "$(cut -d' ' -f1 "$GITHUB_WORKSPACE/reusable/linux-sidecar.sha256")"
+          sudo chown root:root "$APP/chrome-sandbox"
+          sudo chmod 4755 "$APP/chrome-sandbox"
+          test "$(stat -c '%u:%a' "$APP/chrome-sandbox")" = '0:4755'
+          echo "QA_APP=$APP/PuPu" >> "$GITHUB_ENV"
+          python - "$APP" <<'PY'
+          import hashlib,json,os,pathlib,sys
+          root=pathlib.Path(sys.argv[1]).resolve(); rows={}
+          for p in root.rglob('*'):
+              rel=p.relative_to(root).as_posix()
+              if p.is_symlink():
+                  target=os.readlink(p); resolved=(p.parent/target).resolve()
+                  assert resolved.is_relative_to(root), {'outgoing_link':rel,'target':target}
+                  rows[rel]={'type':'symlink','target':target,'sha256':hashlib.sha256(target.encode()).hexdigest(),'size':len(target.encode())}
+              elif p.is_file():
+                  b=p.read_bytes(); rows[rel]={'type':'file','sha256':hashlib.sha256(b).hexdigest(),'size':len(b)}
+              elif p.is_dir():
+                  rows[rel]={'type':'directory'}
+          compat={p.relative_to(root).as_posix():hashlib.sha256(p.read_bytes()).hexdigest()
+              for p in root.rglob('*') if p.is_file()}
+          (pathlib.Path('..')/'test-results'/'app-files.json').write_text(json.dumps(compat,indent=2)+'\n')
+          (pathlib.Path('..')/'reusable'/'linux-app-file-inventory.json').write_text(json.dumps(rows,indent=2)+'\n')
+          PY
+          tar -czf "$GITHUB_WORKSPACE/reusable/linux-unpacked.tgz" -C dist linux-unpacked
+          sha256sum "$GITHUB_WORKSPACE/reusable/linux-unpacked.tgz" > "$GITHUB_WORKSPACE/reusable/linux-unpacked.tgz.sha256"
+          python - "$APP" <<'PY'
+          import hashlib,json,os,pathlib,sys
+          app=pathlib.Path(sys.argv[1]).resolve(); root=app; resources=app/'resources'
+          compat=json.loads((pathlib.Path('..')/'test-results'/'app-files.json').read_text())
+          sidecars=list(resources.rglob('unchain-server'))
+          pythons=list(resources.rglob('python3.12'))
+          assert len(sidecars)==len(pythons)==1, {'sidecars':len(sidecars),'pythons':len(pythons)}
+          sidecar=sidecars[0]; packaged_python=pythons[0]
+          package={'binary':str(sidecar),'resources':str(resources),
+            'python':str(packaged_python),'binary_sha256':hashlib.sha256(sidecar.read_bytes()).hexdigest(),
+            'python_sha256':hashlib.sha256(packaged_python.read_bytes()).hexdigest(),
+            'platform':'linux','architecture':'x64','target':'linux-x64',
+            'candidate':__import__('os').environ['QA_HOST_SHA'],'candidate_tree':__import__('os').environ['QA_HOST_TREE'],
+            'core':__import__('os').environ['QA_CORE_SHA'],'core_tree':__import__('os').environ['QA_CORE_TREE'],
+            'wheel_sha256':__import__('os').environ['QA_WHEEL_SHA'],'manifest':__import__('os').environ['QA_MANIFEST'],'signed':False,'published':False,'Main_started':False}
+          pathlib.Path('..','test-results','platform','package.json').write_text(json.dumps(package,indent=2)+'\n')
+          platform=pathlib.Path('..','test-results','platform')
+          public_files=sorted(p for p in pathlib.Path('public').rglob('*') if p.is_file())
+          public_bytes={p.as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in public_files}
+          maps={p.relative_to(pathlib.Path('build')).as_posix():hashlib.sha256(p.read_bytes()).hexdigest()
+              for p in pathlib.Path('build').rglob('*.map') if p.is_file()}
+          asars=[p for p in root.rglob('app.asar') if p.is_file()]
+          (platform/'packaging-byte-evidence.json').write_text(json.dumps({
+            'host_sha':os.environ['QA_HOST_SHA'],'host_tree':os.environ['QA_HOST_TREE'],
+            'core_sha':os.environ['QA_CORE_SHA'],'core_tree':os.environ['QA_CORE_TREE'],
+            'package_lock_sha256':hashlib.sha256(pathlib.Path('package-lock.json').read_bytes()).hexdigest(),
+            'npm_tree_sha256':hashlib.sha256((platform/'npm-dependency-tree.json').read_bytes()).hexdigest(),
+            'public_main_preload_and_assets_sha256':public_bytes,
+            'compiled_source_maps_sha256':maps,
+            'packaged_asar_sha256':{str(a.relative_to(root)):hashlib.sha256(a.read_bytes()).hexdigest() for a in asars},
+            'packaged_files_sha256':compat,
+            'feature_snapshot_sha256':hashlib.sha256((platform/'build-feature-flags.json').read_bytes()).hexdigest()
+          },indent=2)+'\n')
+          PY
+
+      - name: Scan and preserve the sealed Linux App before execution
+        id: sealed_app_scan
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,pathlib,posixpath,re,tarfile
+          paths=[pathlib.Path('reusable/linux-unpacked.tgz'),pathlib.Path('reusable/linux-unpacked.tgz.sha256'),
+            pathlib.Path('reusable/linux-app-file-inventory.json'),pathlib.Path('test-results/app-files.json'),
+            pathlib.Path('test-results/platform/package.json'),pathlib.Path('test-results/platform/build-feature-flags.json'),
+            pathlib.Path('test-results/platform/package-lock.sha256'),pathlib.Path('test-results/platform/npm-dependency-tree.json'),
+            pathlib.Path('test-results/platform/packaging-byte-evidence.json')]
+          secret=re.compile(rb'(?i)(?:x-unchain-auth|authorization|bearer)\s*[:=]\s*[A-Za-z0-9._~+/-]{16,}')
+          rows=[]
+          def scan_file(f):
+              digest=hashlib.sha256(); size=0; carry=b''
+              with f.open('rb') as stream:
+                  while True:
+                      chunk=stream.read(1024*1024)
+                      if not chunk: break
+                      block=carry+chunk
+                      if secret.search(block): raise RuntimeError('credential_like_bytes_in_sealed_app:'+f.as_posix())
+                      carry=block[-65536:]; digest.update(chunk); size+=len(chunk)
+              return {'path':f.as_posix(),'size':size,'sha256':digest.hexdigest()}
+          for f in paths:
+              if not f.is_file(): raise RuntimeError('sealed_app_evidence_missing:'+f.as_posix())
+              rows.append(scan_file(f))
+          inventory=json.loads(pathlib.Path('reusable/linux-app-file-inventory.json').read_text())
+          tar_path=pathlib.Path('reusable/linux-unpacked.tgz')
+          seen=set(); dirs=set(); member_count=0; content_bytes=0
+          with tarfile.open(tar_path,'r:gz') as archive:
+              for member in archive:
+                  name=member.name
+                  clean_name=name.rstrip('/')
+                  raw_parts=clean_name.split('/')
+                  if '\\' in name or name.startswith('/') or any(part in ('..','.','') for part in raw_parts):
+                      raise RuntimeError('unsafe_tar_member_path:'+name)
+                  parts=pathlib.PurePosixPath(clean_name).parts
+                  if not parts or parts[0] != 'linux-unpacked': raise RuntimeError('unexpected_tar_root:'+name)
+                  rel='/'.join(parts[1:])
+                  if not rel:
+                      if not member.isdir(): raise RuntimeError('invalid_tar_root_entry')
+                      continue
+                  if rel in seen: raise RuntimeError('duplicate_tar_member:'+rel)
+                  expected=inventory.get(rel)
+                  if expected is None: raise RuntimeError('noninventory_tar_member:'+rel)
+                  if member.isdir():
+                      if expected.get('type')!='directory': raise RuntimeError('tar_directory_inventory_type_mismatch:'+rel)
+                      seen.add(rel); dirs.add(rel); member_count+=1; continue
+                  seen.add(rel); member_count+=1
+                  if member.isfile():
+                      if expected.get('type')!='file' or member.size!=expected.get('size'):
+                          raise RuntimeError('tar_file_inventory_type_or_size_mismatch:'+rel)
+                      source=archive.extractfile(member)
+                      if source is None: raise RuntimeError('unreadable_tar_member:'+rel)
+                      digest=hashlib.sha256(); size=0; carry=b''
+                      while True:
+                          chunk=source.read(1024*1024)
+                          if not chunk: break
+                          size+=len(chunk); content_bytes+=len(chunk); digest.update(chunk)
+                          block=carry+chunk
+                          if secret.search(block): raise RuntimeError('credential_like_bytes_in_tar_member:'+rel)
+                          carry=block[-65536:]
+                      if digest.hexdigest()!=expected.get('sha256') or size!=expected.get('size'):
+                          raise RuntimeError('tar_file_inventory_hash_mismatch:'+rel)
+                  elif member.issym():
+                      target=member.linkname
+                      if expected.get('type')!='symlink' or expected.get('target')!=target:
+                          raise RuntimeError('tar_symlink_inventory_mismatch:'+rel)
+                      if target.startswith('/') or '\\' in target:
+                          raise RuntimeError('unsafe_tar_symlink:'+rel)
+                      resolved=posixpath.normpath(posixpath.join(posixpath.dirname(rel),target))
+                      if resolved in ('..','.') or resolved.startswith('../') or resolved.startswith('/'):
+                          raise RuntimeError('tar_symlink_escape:'+rel)
+                      if hashlib.sha256(target.encode()).hexdigest()!=expected.get('sha256'):
+                          raise RuntimeError('tar_symlink_hash_mismatch:'+rel)
+                  else:
+                      raise RuntimeError('unsupported_tar_member_type:'+rel)
+          if seen!=set(inventory):
+              raise RuntimeError('tar_inventory_member_set_mismatch:'+json.dumps({'missing':sorted(set(inventory)-seen),'extra':sorted(seen-set(inventory))}))
+          pathlib.Path('reusable/linux-app-seal-scan.json').write_text(json.dumps({
+            'status':'PASS','files':rows,'tar_sha256':hashlib.file_digest(tar_path.open('rb'),'sha256').hexdigest(),
+            'tar_members_verified':member_count,'tar_directories_verified':len(dirs),'regular_member_bytes_scanned':content_bytes,
+            'inventory_entries_verified':len(inventory),'unpacked_without_execution':True},indent=2)+'\n')
+          PY
+          echo 'pass=true' >> "$GITHUB_OUTPUT"
+      - name: Upload sealed App before UI execution
+        if: always() && steps.sealed_app_scan.outputs.pass == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: 356-reusable-linux-app-${{ inputs.candidate_sha }}
+          if-no-files-found: error
+          path: |
+            reusable/linux-unpacked.tgz
+            reusable/linux-unpacked.tgz.sha256
+            reusable/linux-app-file-inventory.json
+            reusable/linux-app-seal-scan.json
+            test-results/platform/build-feature-flags.json
+            test-results/platform/package-lock.sha256
+            test-results/platform/npm-dependency-tree.json
+            test-results/platform/packaging-byte-evidence.json
+            test-results/platform/package.json
+            test-results/app-files.json
+            !**/home/**
+            !**/journal-verification-copy/**
+
+      - name: Run retained Linux App lifecycle against the real packaged pair
+        shell: bash
+        env:
+          QA_OUT: ${{ github.workspace }}/test-results/app
+          QA_CONTROL: ${{ github.workspace }}/control/tools/qa356
+          QA_APP: ${{ env.QA_APP }}
+          QA_BINARY_SHA: ${{ env.QA_BINARY_SHA }}
+          QA_WHEEL: ${{ env.QA_WHEEL }}
+          QA_WHEEL_SHA: ${{ env.QA_WHEEL_SHA }}
+          QA_MANIFEST: ${{ env.QA_MANIFEST }}
+          QA_PYTHON: ${{ env.QA_PYTHON }}
+          QA_SITE: ${{ env.QA_SITE }}
+          QA_OLD_BINARY: ${{ env.QA_LEGACY_BINARY }}
+          QA_CANDIDATE_ROOT: ${{ github.workspace }}/candidate
+        run: bash control/tools/qa356/run_offline.sh app
+
+      - name: Stop pcap, redact requests and gate every upload on actual auth scan
+        id: auth_scan
+        if: always()
+        shell: bash
+        run: |
+          set +x
+          mkdir -p test-results/status
+          P=test-results/app/loopback.pcap
+          RESULT=test-results/status/auth-scan-result.json
+          trap 'rm -f "$P"' EXIT
+          if [[ ! -s "$P" ]]; then
+            printf '{"status":"NOT_RUN","reason":"capture_missing","secret_values":0,"scanned_files":0}\n' > "$RESULT"
+            echo "pass=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          sha256sum "$P" > test-results/app/loopback.pcap.sha256
+          if ! python control/tools/qa356/pcap_http.py "$P" test-results/app/redacted-requests.json > test-results/status/redaction-count.txt; then
+            printf '{"status":"FAIL","reason":"pcap_redaction_failed","secret_values":0,"scanned_files":0}\n' > "$RESULT"
+            echo "pass=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          python - "$P" "$RESULT" <<'PY'
+          import hashlib,json,pathlib,re,struct,sys
+          capture=pathlib.Path(sys.argv[1]); raw=capture.read_bytes()
+          magic=struct.unpack('<I',raw[:4])[0]
+          if magic not in (0xa1b2c3d4,0xa1b23c4d) or struct.unpack('<I',raw[20:24])[0] != 1:
+              raise RuntimeError('unsupported_capture_format')
+          streams={}; offset=24
+          while offset < len(raw):
+              sec,frac,size,_=struct.unpack('<IIII',raw[offset:offset+16]); offset+=16
+              frame=raw[offset:offset+size]; offset+=size
+              if len(frame)<54 or struct.unpack('!H',frame[12:14])[0] != 0x0800: continue
+              ip=frame[14:]; ihl=(ip[0]&15)*4
+              if ip[9] != 6: continue
+              tcp=ip[ihl:struct.unpack('!H',ip[2:4])[0]]
+              if len(tcp)<20: continue
+              sport,dport,seq=struct.unpack('!HHI',tcp[:8]); header=(tcp[12]>>4)*4
+              payload=tcp[header:]
+              if payload: streams.setdefault((sport,dport),{}).setdefault(seq,payload)
+          values=set()
+          for parts in streams.values():
+              blob=b''.join(parts[seq] for seq in sorted(parts))
+              for match in re.finditer(rb'(?im)^x-unchain-auth:[ \t]*([^\r\n]+)',blob):
+                  value=match.group(1).strip()
+                  if value: values.add(value)
+          roots=[pathlib.Path('test-results'),pathlib.Path('reusable')]
+          excluded={'home','journal-verification-copy'}; files=[]
+          for root in roots:
+              if not root.exists(): continue
+              for f in root.rglob('*'):
+                  if f.is_file() and not excluded.intersection(f.parts) and f != capture: files.append(f)
+          matches=[]
+          for f in files:
+              content=f.read_bytes()
+              for value in values:
+                  if value in content: matches.append(f.as_posix())
+          status='PASS' if values and not matches else 'FAIL'
+          pathlib.Path(sys.argv[2]).write_text(json.dumps({'status':status,'secret_values':len(values),
+              'scanned_files':len(files),'matches':len(matches),'pcap_sha256':hashlib.sha256(raw).hexdigest()},indent=2)+'\n')
+          if status!='PASS': raise SystemExit(1)
+          PY
+          echo "pass=true" >> "$GITHUB_OUTPUT"
+
+      - name: Record pair qualification result
+        if: always()
+        shell: bash
+        run: |
+          if [[ "${{ steps.auth_scan.outputs.pass }}" == true && "${{ job.status }}" == success ]]; then
+            printf '{"status":"PASS","candidate":"%s","core":"82c964f40ddb077cc89f4cd8c16db9afa29952a7"}\n' "$QA_HOST_SHA" > test-results/status/qualification.txt
+          else
+            printf '{"status":"FAIL_OR_NOT_RUN","job_status":"%s"}\n' "${{ job.status }}" > test-results/status/qualification.txt
+          fi
+
+      - name: Upload complete evidence only after auth scan passes
+        if: always() && steps.auth_scan.outputs.pass == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: 356-linux-pair-${{ inputs.candidate_sha }}
+          if-no-files-found: warn
+          path: |
+            test-results/**
+            reusable/**
+            !**/home/**
+            !**/journal-verification-copy/**
+      - name: Upload safe status only when complete evidence is blocked
+        if: always() && steps.auth_scan.outputs.pass != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: 356-linux-pair-safe-status-${{ inputs.candidate_sha }}
+          if-no-files-found: warn
+          path: test-results/status/**
+
+  windows-native:
+    if: inputs.scope == 'windows-native'
+    runs-on: windows-latest
+    timeout-minutes: 120
+    env:
+      QA_EXPECTED_HOST_SHA: 89d3d497b57463278724889b9c06997f67ca3254
+      QA_EXPECTED_HOST_TREE: 82bfc5a812cf03e02aea5337c1abbabae2a3385a
+      QA_CORE_SHA: 82c964f40ddb077cc89f4cd8c16db9afa29952a7
+      QA_CORE_TREE: 47a46eb6310c269deaf31a103cb8b7a4c9305f25
+      QA_HOST_SHA: ${{ inputs.candidate_sha }}
+      QA_HOST_TREE: ${{ inputs.candidate_tree }}
+      QA_WHEEL_RUN_ID: ${{ inputs.wheel_run_id }}
+      QA_WHEEL_SHA: ${{ inputs.wheel_sha256 }}
+    steps:
+      - name: Fail closed until final Host and wheel are frozen
+        shell: pwsh
+        run: |
+          if ($env:QA_EXPECTED_HOST_SHA -notmatch '^[0-9a-f]{40}$' -or $env:QA_HOST_SHA -ne $env:QA_EXPECTED_HOST_SHA) { throw 'root must freeze exact Host SHA before dispatch' }
+          if ($env:QA_EXPECTED_HOST_TREE -notmatch '^[0-9a-f]{40}$' -or $env:QA_HOST_TREE -ne $env:QA_EXPECTED_HOST_TREE) { throw 'root must freeze exact Host tree before dispatch' }
+          if ($env:QA_WHEEL_RUN_ID -notmatch '^[0-9]+$' -or $env:QA_WHEEL_SHA -notmatch '^[0-9a-f]{64}$') { throw 'required CI wheel identity is incomplete' }
+          if ($env:QA_CORE_SHA -ne '82c964f40ddb077cc89f4cd8c16db9afa29952a7' -or $env:QA_CORE_TREE -ne '47a46eb6310c269deaf31a103cb8b7a4c9305f25') { throw 'Core identity mismatch' }
+          New-Item -ItemType Directory -Force test-results/windows-wfp,test-results/platform,artifact | Out-Null
+      - name: Check out QA controls
+        uses: actions/checkout@v4
+        with:
+          path: control
+          persist-credentials: false
+      - name: Check out exact Host and Core
+        uses: actions/checkout@v4
+        with:
+          repository: haoxiang-xu/PuPu
+          ref: ${{ inputs.candidate_sha }}
+          path: candidate
+          persist-credentials: false
+      - name: Check out exact Core source
+        uses: actions/checkout@v4
+        with:
+          repository: haoxiang-xu/unchain
+          ref: 82c964f40ddb077cc89f4cd8c16db9afa29952a7
+          path: core
+          persist-credentials: false
+      - name: Download the one final required-CI wheel
+        uses: actions/download-artifact@v4
+        with:
+          name: unchain-release-artifact
+          path: artifact
+          run-id: ${{ inputs.wheel_run_id }}
+          github-token: ${{ github.token }}
+      - name: Set up Node and Python
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12.15'
+      - name: Record system Python paths
+        shell: pwsh
+        run: |
+          $pythonPath=(Get-Command python).Source
+          $sitePath=python -c 'import sysconfig;print(sysconfig.get_path("purelib"))'
+          if ($LASTEXITCODE -ne 0 -or -not $sitePath) { throw 'system Python site path query failed' }
+          "QA_PYTHON=$pythonPath" >> $env:GITHUB_ENV
+          "QA_SITE=$($sitePath.Trim())" >> $env:GITHUB_ENV
+      - name: Bind exact source and wheel evidence
+        id: artifact
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $hostSha = git -C candidate rev-parse HEAD
+          if ($LASTEXITCODE -ne 0) { throw 'Host git SHA query failed' }
+          $hostTree = git -C candidate rev-parse 'HEAD^{tree}'
+          if ($LASTEXITCODE -ne 0) { throw 'Host git tree query failed' }
+          $coreSha = git -C core rev-parse HEAD
+          if ($LASTEXITCODE -ne 0) { throw 'Core git SHA query failed' }
+          $coreTree = git -C core rev-parse 'HEAD^{tree}'
+          if ($LASTEXITCODE -ne 0) { throw 'Core git tree query failed' }
+          if ($hostSha.Trim() -ne $env:QA_HOST_SHA -or $hostTree.Trim() -ne $env:QA_HOST_TREE) { throw 'Host identity mismatch' }
+          if ($coreSha.Trim() -ne $env:QA_CORE_SHA -or $coreTree.Trim() -ne $env:QA_CORE_TREE) { throw 'Core identity mismatch' }
+          $hostStatus = git -C candidate status --porcelain=v1 --untracked-files=all
+          if ($LASTEXITCODE -ne 0 -or $hostStatus) { throw 'Host source checkout is dirty' }
+          $coreStatus = git -C core status --porcelain=v1 --untracked-files=all
+          if ($LASTEXITCODE -ne 0 -or $coreStatus) { throw 'Core source checkout is dirty' }
+          $runJson = gh run view $env:QA_WHEEL_RUN_ID --repo haoxiang-xu/PuPu --json conclusion,headSha
+          if ($LASTEXITCODE -ne 0) { throw 'required-CI run lookup failed' }
+          $requiredRun = $runJson | ConvertFrom-Json
+          if ($requiredRun.conclusion -ne 'success' -or $requiredRun.headSha -ne $env:QA_HOST_SHA) { throw 'required-CI run is not successful for exact Host SHA' }
+          $wheels = @(Get-ChildItem artifact -Filter '*.whl' -File -Recurse)
+          if ($wheels.Count -ne 1) { throw "expected exactly one wheel, found $($wheels.Count)" }
+          $evidence = Get-Content artifact/unchain-artifact.json -Raw | ConvertFrom-Json
+          if ($evidence.build.built_once -ne $true -or $evidence.build.wheel_count -ne 1 -or $evidence.source.revision -ne $env:QA_CORE_SHA -or $evidence.source.dirty -ne $false -or $evidence.runtime_manifest.manifest_digest -ne 'sha256:88d5f8d733e7f3dc94fb1cd20060fcc5f2611c0f94420e327bcb12664368bf2e') { throw 'artifact evidence mismatch' }
+          if ((Get-FileHash $wheels[0].FullName -Algorithm SHA256).Hash.ToLower() -ne $env:QA_WHEEL_SHA) { throw 'wheel SHA mismatch' }
+          @'
+          import pathlib,sys,zipfile
+          wheel=pathlib.Path(sys.argv[1]); core=pathlib.Path('core/src/unchain')
+          expected={p.relative_to(pathlib.Path('core/src')).as_posix():p.read_bytes() for p in core.rglob('*.py')}
+          with zipfile.ZipFile(wheel) as archive:
+              actual={name:archive.read(name) for name in archive.namelist() if name.startswith('unchain/') and name.endswith('.py')}
+          assert actual.keys()==expected.keys(), {'wheel_only':sorted(actual.keys()-expected.keys()),'source_only':sorted(expected.keys()-actual.keys())}
+          assert all(actual[name]==data for name,data in expected.items()), 'wheel_core_source_bytes_mismatch'
+          '@ | python - $wheels[0].FullName
+          if ($LASTEXITCODE -ne 0) { throw 'wheel/Core byte comparison failed' }
+          node candidate/scripts/release-qa/verify-unchain-artifact.mjs --artifact $wheels[0].FullName --evidence artifact/unchain-artifact.json --bytes-only true
+          if ($LASTEXITCODE -ne 0) { throw 'artifact byte verification failed' }
+          $canonicalWheel='artifact/unchain-0.2.0-py3-none-any.whl'
+          $sourceWheel=[IO.Path]::GetFullPath($wheels[0].FullName)
+          $targetWheel=[IO.Path]::GetFullPath($canonicalWheel)
+          if (-not $sourceWheel.Equals($targetWheel,[StringComparison]::OrdinalIgnoreCase)) { Copy-Item $sourceWheel $targetWheel -Force }
+          "QA_WHEEL=$((Resolve-Path $canonicalWheel).Path)" >> $env:GITHUB_ENV
+          "QA_MANIFEST=$($evidence.runtime_manifest.manifest_digest)" >> $env:GITHUB_ENV
+      - name: Install exact wheel requirements
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check -r candidate/unchain_runtime/server/requirements.txt
+          if ($LASTEXITCODE -ne 0) { throw 'requirements installation failed' }
+          python -m pip install --disable-pip-version-check --no-deps $env:QA_WHEEL
+          if ($LASTEXITCODE -ne 0) { throw 'wheel installation failed' }
+          python -m pip check
+          if ($LASTEXITCODE -ne 0) { throw 'pip consistency check failed' }
+          node candidate/scripts/release-qa/verify-unchain-artifact.mjs --artifact $env:QA_WHEEL --evidence artifact/unchain-artifact.json --bytes-only true
+          if ($LASTEXITCODE -ne 0) { throw 'artifact byte verification failed' }
+      - name: Compile the reviewed WFP guard before native packaging
+        uses: ilammy/msvc-dev-cmd@v1
+      - name: Compile and hash WFP guard
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force test-results/windows-wfp | Out-Null
+          $source='control/tools/qa356/windows_wfp_guard.c'
+          $guard='test-results/windows-wfp/qa356-wfp-guard.exe'
+          $sourceHash=(Get-FileHash $source -Algorithm SHA256).Hash.ToLower()
+          cl /nologo /W4 /WX /std:c17 /DUNICODE /D_UNICODE $source /link fwpuclnt.lib rpcrt4.lib ws2_32.lib "/OUT:$guard"
+          if ($LASTEXITCODE -ne 0) { throw 'WFP C compile failed' }
+          @{source_sha256=$sourceHash;exe_sha256=(Get-FileHash $guard -Algorithm SHA256).Hash.ToLower();compiler=(Get-Command cl).Source;msvc_version=$env:VCToolsVersion} | ConvertTo-Json | Set-Content test-results/windows-wfp/guard-build.json
+      - name: Install candidate UI dependencies
+        working-directory: candidate
+        shell: pwsh
+        run: |
+          npm ci
+          if ($LASTEXITCODE -ne 0) { throw 'locked UI dependency installation failed' }
+      - name: Build the unsigned Windows directory package from the downloaded wheel once
+        working-directory: .
+        shell: pwsh
+        env:
+          QA_RUNTIME_TARGET: win32-x64
+          QA_ARCH: x64
+          QA_CANDIDATE: ${{ inputs.candidate_sha }}
+          QA_PYTHON: ${{ env.QA_PYTHON }}
+          UNCHAIN_ARTIFACT_PATH: ${{ github.workspace }}\artifact\unchain-0.2.0-py3-none-any.whl
+          UNCHAIN_ARTIFACT_EVIDENCE_PATH: ${{ github.workspace }}\artifact\unchain-artifact.json
+          QA_WHEEL_SHA: ${{ inputs.wheel_sha256 }}
+        run: |
+          node control/tools/qa356/platform_build.cjs
+          if ($LASTEXITCODE -ne 0) { throw 'native package build failed' }
+      - name: Save exact package and find its three WFP images
+        shell: pwsh
+        run: |
+          $pkg=Get-Content test-results/platform/package.json -Raw | ConvertFrom-Json
+          if ((Get-FileHash $pkg.binary -Algorithm SHA256).Hash.ToLower() -ne $pkg.binary_sha256) { throw 'sidecar hash mismatch' }
+          if ((Get-FileHash $pkg.python -Algorithm SHA256).Hash.ToLower() -ne $pkg.python_sha256) { throw 'packaged Python hash mismatch' }
+          "QA_PACKAGED_PYTHON=$($pkg.python)" >> $env:GITHUB_ENV
+          "QA_SIDECAR=$($pkg.binary)" >> $env:GITHUB_ENV
+          "QA_SIDECAR_SHA=$($pkg.binary_sha256)" >> $env:GITHUB_ENV
+          "QA_PACKAGED_PYTHON_SHA=$($pkg.python_sha256)" >> $env:GITHUB_ENV
+          $route=Get-NetRoute -DestinationPrefix '0.0.0.0/0' | Sort-Object RouteMetric | Select-Object -First 1
+          $nic=Get-NetIPAddress -AddressFamily IPv4 -InterfaceIndex $route.InterfaceIndex | Where-Object { $_.IPAddress -notmatch '^(127\.|169\.254\.)' } | Select-Object -First 1
+          if (-not $nic) { throw 'no concrete same-host NIC IPv4 address' }
+          "QA_NIC_IPV4=$($nic.IPAddress)" >> $env:GITHUB_ENV
+      - name: Qualify actual interpreter receiver matrices and guard lifecycle
+        shell: pwsh
+        run: |
+          python control/tools/qa356/windows_wfp_probe.py --guard test-results/windows-wfp/qa356-wfp-guard.exe --packaged-python "$env:QA_PACKAGED_PYTHON" --packaged-python-sha256 "$env:QA_PACKAGED_PYTHON_SHA" --sidecar "$env:QA_SIDECAR" --sidecar-sha256 "$env:QA_SIDECAR_SHA" --nic-ipv4 "$env:QA_NIC_IPV4" --results test-results/windows-wfp
+          if ($LASTEXITCODE -ne 0) { throw 'native WFP qualification failed' }
+      - name: Run packaged profile and Code worker inside the same three-image WFP policy
+        shell: pwsh
+        env:
+          QA_OUT: ${{ github.workspace }}\test-results\platform
+          QA_WHEEL: ${{ env.QA_WHEEL }}
+          QA_WHEEL_SHA: ${{ env.QA_WHEEL_SHA }}
+          QA_MANIFEST: ${{ env.QA_MANIFEST }}
+          QA_SITE: ${{ env.QA_SITE }}
+        run: |
+          python control/tools/qa356/run_windows_native_smoke.r1.py --guard test-results/windows-wfp/qa356-wfp-guard.exe --results test-results/windows-wfp
+          if ($LASTEXITCODE -ne 0) { throw 'guarded native package smoke failed' }
+      - name: Record native auth scan and upload gate
+        id: auth_scan
+        if: always()
+        shell: pwsh
+        run: |
+          $status='FAIL'
+          try {
+            @'
+          import hashlib,json,pathlib,sys
+          root=pathlib.Path('test-results')
+          paths=[]
+          for p in root.rglob('*'):
+              if p.is_file() and not {'home','journal-verification-copy'}.intersection(p.parts): paths.append(p)
+          token=b'sentinel-native-profile-smoke'
+          rows=[]; matches=[]
+          for p in paths:
+              data=p.read_bytes()
+              rows.append({'path':p.as_posix(),'size':len(data),'sha256':hashlib.sha256(data).hexdigest()})
+              if token in data: matches.append(p.as_posix())
+          if not rows: raise RuntimeError('no intended upload files')
+          if matches: raise RuntimeError('native auth sentinel found in upload bytes: '+','.join(matches))
+          pathlib.Path('test-results/windows-wfp/auth-scan-result.json').write_text(json.dumps({'status':'PASS','secret_values':1,'scanned_files':len(rows),'matches':0,'files':rows},indent=2)+'\n')
+          '@ | python -
+            if ($LASTEXITCODE -ne 0) { throw 'native auth byte scan failed' }
+            $status='PASS'
+          } catch {
+            New-Item -ItemType Directory -Force test-results/windows-wfp | Out-Null
+            @{status='FAIL';reason='scan_failed_or_unknown';secret_values=1;scanned_files=0;matches=0} | ConvertTo-Json | Set-Content test-results/windows-wfp/auth-scan-result.json
+            $_ | Out-String | Set-Content test-results/windows-wfp/auth-scan-error.txt
+          }
+          if ($status -eq 'PASS') { 'pass=true' >> $env:GITHUB_OUTPUT }
+          else { 'pass=false' >> $env:GITHUB_OUTPUT; throw 'native auth scan failed; full evidence upload blocked' }
+      - name: Upload full Windows qualification only after auth scan passes
+        if: always() && steps.auth_scan.outputs.pass == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: 356-windows-native-${{ inputs.candidate_sha }}
+          if-no-files-found: warn
+          path: |
+            test-results/**
+            !**/home/**
+            !**/journal-verification-copy/**
+      - name: Upload narrow safe Windows status on any scan failure
+        if: always() && steps.auth_scan.outputs.pass != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: 356-windows-native-safe-status-${{ inputs.candidate_sha }}
+          if-no-files-found: warn
+          path: test-results/windows-wfp/auth-scan-result.json
