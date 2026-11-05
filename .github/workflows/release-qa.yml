@@ -1,173 +1,143 @@
-name: "#356 checkpoint 13 B4 on the sealed App (QA only, non-delivery)"
+name: "#356 Linux source qualification (QA only, non-delivery)"
 
-# QA-only branch: replaces release-qa.yml. Not for merge. One B4 pass on the
-# sealed App (run 41746587263) with sidecar 74196bc0 and wheel 949a8947; nothing
-# is packaged or rebuilt. Loopback only. The raw pcap is hashed, redacted and not
-# uploaded.
 on:
   workflow_dispatch:
+    inputs:
+      candidate_sha:
+        description: Full source checkpoint commit SHA to qualify
+        required: true
+        type: string
+        default: 5cf8674eab821832c0f34990ed548109d126687a
 
 permissions:
   contents: read
   actions: read
 
 jobs:
-  b4:
+  source:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
     env:
-      QA_CANDIDATE: 01a60e0bb8fdddff13aba7bca54e5119d28b5e20
-      QA_CANDIDATE_TREE: 20d3ef312824a60ea91fb22ae94671fd9907471b
+      QA_EXPECTED_CANDIDATE: 5cf8674eab821832c0f34990ed548109d126687a
+      QA_EXPECTED_CANDIDATE_TREE: d9e8a716f0dbda5404cfc27316ab6c8353d7b3e5
+      QA_CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+      QA_CORE_SHA: b07c9d67c61c4a6437e9fd08325285530b7b8b6a
+      QA_CORE_TREE: e95097a78000717e78b8aa5677314670d1430d9c
       QA_WHEEL_SHA: 949a89475894b13ac324b90671c714ccd3125509cf6b313df739c66dc8292de6
-      QA_BINARY_SHA: 74196bc044af276f43ff4cb066a6b41039c3d8e77c58570c5b6c75a693d425d1
-      QA_MANIFEST: sha256:ba8943695d80993066a3ad1a25f62cb0086fa9f6ca2f66d676f559841f4e8e5d
-      CORE: 29e83c4b0df38089fd8c2e1b0e45dd92f2a6a1dd
+      QA_WHEEL_RUN: "41562427104"
     steps:
-      - uses: actions/checkout@v4
+      - name: Validate the approved full candidate SHA and initialize evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p test-results/source
+          date -u +%FT%TZ > test-results/source/workflow-start.txt
+          cat > test-results/source/source-imports.json <<'JSON'
+          {"schema":"qa356.source-imports.v1","status":"NOT_RUN","reason":"runtime_source_import_not_started","modules":[],"errors":[]}
+          JSON
+          cat > test-results/source/process-identity.json <<'JSON'
+          {"status":"NOT_RUN","reason":"source_process_not_started","before":null,"after":null}
+          JSON
+          cat > test-results/source/external-network-proof.json <<'JSON'
+          {"status":"NOT_RUN","reason":"isolated_runtime_not_started","namespace":null,"before":null,"after":null}
+          JSON
+          cat > test-results/source/qualification-result.json <<'JSON'
+          {"schema":"qa356.linux-source-qualification.v1","status":"NOT_RUN","reason":"source_wrapper_not_started","exit_code":null}
+          JSON
+          cat > test-results/source/acceptance.xml <<'XML'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <testsuite name="qa356-harness" tests="1" failures="0" errors="1" skipped="0"><testcase classname="qa356.harness" name="source-tests-not-run"><error message="harness-error/NOT_RUN">The isolated source test runner has not started.</error></testcase></testsuite>
+          XML
+          [[ "$QA_CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$QA_CANDIDATE_SHA" = "$QA_EXPECTED_CANDIDATE"
+
+      - name: Check out the QA control branch
+        uses: actions/checkout@v4
         with:
           path: control
           persist-credentials: false
-      - uses: actions/checkout@v4
+
+      - name: Check out the exact PuPu source checkpoint
+        uses: actions/checkout@v4
         with:
-          ref: ${{ env.QA_CANDIDATE }}
+          repository: haoxiang-xu/PuPu
+          ref: ${{ inputs.candidate_sha }}
           path: candidate
           persist-credentials: false
-      - uses: actions/setup-node@v4
+
+      - name: Check out the exact Core source checkpoint
+        uses: actions/checkout@v4
         with:
-          node-version: 24
-      - uses: actions/setup-python@v5
+          repository: haoxiang-xu/unchain
+          ref: b07c9d67c61c4a6437e9fd08325285530b7b8b6a
+          path: core
+          persist-credentials: false
+
+      - name: Bind source identities and trees
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C candidate rev-parse HEAD)" = "$QA_CANDIDATE_SHA"
+          test "$(git -C candidate rev-parse 'HEAD^{tree}')" = "$QA_EXPECTED_CANDIDATE_TREE"
+          test "$(git -C core rev-parse HEAD)" = "$QA_CORE_SHA"
+          test "$(git -C core rev-parse 'HEAD^{tree}')" = "$QA_CORE_TREE"
+          git -C candidate rev-parse HEAD 'HEAD^{tree}' > test-results/source/candidate-identity.txt
+          git -C core rev-parse HEAD 'HEAD^{tree}' > test-results/source/core-identity.txt
+          sha256sum control/tools/qa356/run_source_offline.sh > test-results/source/control-wrapper.sha256
+          {
+            printf 'candidate=%s\n' "$QA_CANDIDATE_SHA"
+            printf 'candidate_tree=%s\n' "$QA_EXPECTED_CANDIDATE_TREE"
+            printf 'core=%s\n' "$QA_CORE_SHA"
+            printf 'core_tree=%s\n' "$QA_CORE_TREE"
+          } > test-results/source/source-pair.txt
+
+      - name: Set up the pinned Python runtime
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.12.15'
-      - name: Read the one new sidecar (run 41743183539)
-        uses: actions/download-artifact@v4
-        with:
-          name: 356-cp9-pair-evidence
-          path: pair
-          run-id: 41743183539
-          github-token: ${{ github.token }}
-      - name: Read the sealed App (run 41746587263)
-        uses: actions/download-artifact@v4
-        with:
-          name: 356-cp10-sealed-app
-          path: sealed
-          run-id: 41746587263
-          github-token: ${{ github.token }}
-      - name: Read the retained wheel (run 41562427104)
+          python-version: "3.12.15"
+
+      - name: Download the retained dependency wheel (run 41562427104)
         uses: actions/download-artifact@v4
         with:
           name: 356-runtime-pair-evidence
           path: retained
           run-id: 41562427104
           github-token: ${{ github.token }}
-      - name: Bind identities without rebuilding the sidecar or wheel
+
+      - name: Verify retained wheel and prepare test dependencies
+        shell: bash
         run: |
           set -euo pipefail
-          test "$(git -C candidate rev-parse HEAD)" = "$QA_CANDIDATE"
-          test "$(git -C candidate rev-parse HEAD^{tree})" = "$QA_CANDIDATE_TREE"
-          mkdir -p test-results artifact candidate/unchain_runtime/dist/linux
-          git -C candidate rev-parse HEAD HEAD^{tree} > test-results/candidate-identity.txt
-          git -C control rev-parse HEAD HEAD^{tree} > test-results/control-identity.txt
-          sha256sum control/tools/qa356/* > test-results/control-tools.sha256
-          echo "$QA_WHEEL_SHA  retained/artifact/unchain-0.2.0-py3-none-any.whl" | sha256sum -c -
-          echo "$QA_BINARY_SHA  pair/candidate/unchain_runtime/dist/linux/unchain-server" | sha256sum -c -
-          test -z "$(ls -A candidate/unchain_runtime/dist/linux)"
-          cp retained/artifact/unchain-0.2.0-py3-none-any.whl retained/artifact/unchain-artifact.json artifact/
-          cp pair/candidate/unchain_runtime/dist/linux/unchain-server candidate/unchain_runtime/dist/linux/unchain-server
-          chmod 0755 candidate/unchain_runtime/dist/linux/unchain-server
-          sha256sum artifact/unchain-0.2.0-py3-none-any.whl candidate/unchain_runtime/dist/linux/unchain-server > test-results/retained-reused.sha256
-      - name: Install and verify the retained canonical wheel (harness reader only)
-        run: |
-          set -euo pipefail
-          WHEEL="$PWD/artifact/unchain-0.2.0-py3-none-any.whl"
+          mkdir -p dependencies
+          WHEEL="$PWD/retained/artifact/unchain-0.2.0-py3-none-any.whl"
+          echo "$QA_WHEEL_SHA  $WHEEL" | sha256sum -c -
+          cp "$WHEEL" dependencies/unchain-0.2.0-py3-none-any.whl
           python -m pip install --disable-pip-version-check -r candidate/unchain_runtime/server/requirements.txt
-          python -m pip install --disable-pip-version-check --constraint candidate/unchain_runtime/server/requirements.txt "$WHEEL" pytest==9.2.0
+          python -m pip install --disable-pip-version-check --constraint candidate/unchain_runtime/server/requirements.txt dependencies/unchain-0.2.0-py3-none-any.whl pytest==9.2.0
           python -m pip check
-          python -m pip freeze --all > test-results/freeze.txt
-          node candidate/scripts/release-qa/verify-unchain-artifact.mjs --artifact "$WHEEL" --evidence "$PWD/artifact/unchain-artifact.json" --installed true --python python
-          python - <<'PY'
-          import json, os
-          from pathlib import Path
-          evidence = json.loads(Path('artifact/unchain-artifact.json').read_text())
-          assert evidence['source']['revision'] == os.environ['CORE']
-          assert evidence['source']['dirty'] is False
-          assert evidence['build'] == {'built_once': True, 'wheel_count': 1}
-          assert evidence['runtime_manifest']['manifest_digest'] == os.environ['QA_MANIFEST']
-          assert evidence['artifact']['sha256'] == 'sha256:' + os.environ['QA_WHEEL_SHA']
-          PY
-          echo "QA_PYTHON=$(python -c 'import sys;print(sys.executable)')" >> "$GITHUB_ENV"
-          echo "QA_SITE=$(python -c 'import site;print(site.getsitepackages()[0])')" >> "$GITHUB_ENV"
-          echo "QA_WHEEL=$WHEEL" >> "$GITHUB_ENV"
-          { python -c 'import sys;print(sys.version)'; node --version; grep -m1 'model name' /proc/cpuinfo; nproc; uname -a; } > test-results/environment.txt
-      - name: Install the candidate's locked App dependencies and runtime resources
-        working-directory: candidate
-        run: |
-          set -euo pipefail
-          npm ci
-          sha256sum package-lock.json > ../test-results/package-lock.sha256
-          npm ls --all --json > ../test-results/npm-dependencies.json || true
-          node node_modules/@playwright/test/cli.js install-deps chromium
-          sudo apt-get update
-          sudo apt-get install -y xvfb dbus-x11 gnome-keyring libsecret-tools tcpdump
-      - name: Restore the sealed App
-        run: |
-          set -euo pipefail
-          mkdir -p candidate/dist
-          tar -C candidate/dist -xzf sealed/linux-unpacked.tgz
-          cp sealed/app-files.json test-results/app-files.json
-          echo "8e9ac04acc3f12e196ab32a47ffcbc036ba432373e82fef483d2155279b5279b  sealed/linux-unpacked.tgz" | sha256sum -c -
-          echo "cbda3dcc6e28de1962234c4768588325cd9acc053f94c85d29d569c0ee6451ea  sealed/app-files.json" | sha256sum -c -
-          sha256sum sealed/linux-unpacked.tgz sealed/app-files.json > test-results/sealed-app.sha256
-          python - <<'PY'
-          from pathlib import Path
-          import hashlib, json
-          root = Path('candidate/dist/linux-unpacked')
-          rows = {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(root.rglob('*')) if p.is_file()}
-          assert rows == json.loads(Path('sealed/app-files.json').read_text()), 'sealed_app_differs'
-          PY
-      - name: Bind the chrome sandbox and App path
-        working-directory: candidate
-        run: |
-          set -euo pipefail
-          echo "$QA_BINARY_SHA  dist/linux-unpacked/resources/unchain_runtime/dist/linux/unchain-server" | sha256sum -c -
-          SANDBOX="$PWD/dist/linux-unpacked/chrome-sandbox"
-          sudo chown root:root "$SANDBOX"
-          sudo chmod 4755 "$SANDBOX"
-          stat -c '%U %a %n' "$SANDBOX" > ../test-results/chromium-sandbox.txt
-          EXE="$(node -e 'const p=require("./package.json");console.log(require("path").resolve("dist/linux-unpacked",p.build?.linux?.executableName||p.name.toLowerCase()))')"
-          test -x "$EXE"
-          echo "QA_APP=$EXE" >> "$GITHUB_ENV"
-          echo "QA_CANDIDATE_ROOT=$PWD" >> "$GITHUB_ENV"
-      - name: Packaged App B4 paths offline
-        run: bash control/tools/qa356/run_offline.sh app
-      - name: Redact the capture and drop the raw pcap
-        if: always()
-        run: |
-          set -euo pipefail
-          PCAP=test-results/app/loopback.pcap
-          sha256sum "$PCAP" > test-results/app/loopback.pcap.sha256
-          stat -c '%s %n' "$PCAP" >> test-results/app/loopback.pcap.sha256
-          python -I control/tools/qa356/pcap_http.py "$PCAP" test-results/app/requests-redacted.json
-          python -I - <<'PY'
-          from pathlib import Path
-          import re
-          raw = Path('test-results/app/loopback.pcap').read_bytes()
-          tokens = set(re.findall(rb'x-unchain-auth: ([^\r\n]+)', raw, re.I))
-          assert tokens, 'no auth header found in the capture'
-          print('auth values:', len(tokens))
-          Path('test-results/app/loopback.pcap').unlink()
-          leaks = [str(p) for p in Path('test-results').rglob('*') if p.is_file() and '/home/' not in str(p) and 'journal-verification-copy' not in str(p)
-                   and any(t in p.read_bytes() for t in tokens)]
-          assert not leaks, leaks
-          PY
-      - name: Upload evidence
+          python -m pip freeze --all > test-results/source/dependencies-freeze.txt
+          sha256sum dependencies/unchain-0.2.0-py3-none-any.whl > test-results/source/dependency-wheel.sha256
+          {
+            echo "QA_CANDIDATE_ROOT=$GITHUB_WORKSPACE/candidate"
+            echo "QA_CORE_ROOT=$GITHUB_WORKSPACE/core/src"
+            echo "QA_SERVER=$GITHUB_WORKSPACE/candidate/unchain_runtime/server"
+            echo "QA_CONTROL=$GITHUB_WORKSPACE/control/tools/qa356"
+            echo "QA_OUT=$GITHUB_WORKSPACE/test-results/source"
+            echo "QA_PYTHON=$(python -c 'import sys; print(sys.executable)')"
+            echo "QA_SITE=$(python -c 'import site; print(site.getsitepackages()[0])')"
+            echo "QA_WHEEL=$GITHUB_WORKSPACE/dependencies/unchain-0.2.0-py3-none-any.whl"
+            echo "QA_CANDIDATE_TREE=$QA_EXPECTED_CANDIDATE_TREE"
+          } >> "$GITHUB_ENV"
+
+      - name: Run the exact source selectors with real Linux process identity, loopback only
+        shell: bash
+        run: bash control/tools/qa356/run_source_offline.sh
+
+      - name: Upload source qualification evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: 356-cp13-b4-evidence
+          name: 356-linux-source-qualification-${{ inputs.candidate_sha }}
           if-no-files-found: error
           path: |
-            test-results/**
-            !test-results/**/home/**
-            !test-results/**/journal-verification-copy/**
-            !test-results/**/loopback.pcap
-            control/tools/qa356/*
+            test-results/source/**

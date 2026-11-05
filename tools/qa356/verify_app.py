@@ -14,6 +14,7 @@ from unchain.journal.models import _thaw_json
 from unchain.persistence.sqlite_v2 import open_existing_execution_journal_readonly
 from unchain.skeleton.durable_store import WorkflowExecutionStore
 from unchain.skeleton.workflow_runtime import PublishedWorkflow
+from enter_ledger import verify_enter_ledger
 
 
 def verify_packaged_workflow_tool():
@@ -51,12 +52,8 @@ def verify_packaged_workflow_tool():
     assert len(wires) == 10
     assert all(row.get('scenario') != 'lifecycle' for row in wires[:4])
     assert all(row.get('scenario') == 'lifecycle' for row in wires[4:])
+    verify_enter_ledger(ledger, wires)
     for turn in (1, 2):
-        enter = [row for row in ledger if row["action"] == "Enter" and row.get("turn") == turn]
-        done = [row for row in ledger if row["action"] == "root reply visible" and row.get("turn") == turn]
-        assert len(enter) == len(done) == 1
-        assert int(enter[0]["at_ns"]) < int(wires[(turn - 1) * 2]["at_ns"])
-        assert int(wires[turn * 2 - 1]["at_ns"]) < int(done[0]["at_ns"])
         assert f"Desktop Workflow Tool root reply {turn}" in (out / f"turn-{turn}-aria.txt").read_text()
     aria = (out / "turn-2-aria.txt").read_text()
     assert aria.index("Desktop Workflow Tool root reply 1") < aria.index("Desktop Workflow Tool root reply 2"), "visible_root_reply_order_changed"
