@@ -13,22 +13,22 @@ on:
         description: Full frozen Host source SHA
         required: true
         type: string
-        default: 89d3d497b57463278724889b9c06997f67ca3254
+        default: 93ea8095c5232d7e409d8af2ca3d0278c2815ba7
       candidate_tree:
         description: Full frozen Host tree
         required: true
         type: string
-        default: 82bfc5a812cf03e02aea5337c1abbabae2a3385a
+        default: 2d6fadab510b57c09ebd3b62640398cdb606b57f
       wheel_run_id:
         description: Canonical successful required-CI run that uploaded the single wheel
         required: true
         type: string
-        default: "41969797156"
+        default: "41976372220"
       wheel_sha256:
         description: SHA256 of the one required-CI wheel artifact
         required: true
         type: string
-        default: 9d46b7b74ac333c28f3ff99446bb4a8b366e0d6cec9337837f25422702a6abdf
+        default: a93e989eb8de0fedf2b77a99296bdf81af41ad82f0981d0ba19179f329487146
       legacy_run_id:
         description: Canonical frozen run holding the old e0162fc1 binary
         required: true
@@ -50,8 +50,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      QA_EXPECTED_CANDIDATE: 89d3d497b57463278724889b9c06997f67ca3254
-      QA_EXPECTED_CANDIDATE_TREE: 82bfc5a812cf03e02aea5337c1abbabae2a3385a
+      QA_EXPECTED_CANDIDATE: 93ea8095c5232d7e409d8af2ca3d0278c2815ba7
+      QA_EXPECTED_CANDIDATE_TREE: 2d6fadab510b57c09ebd3b62640398cdb606b57f
       QA_CANDIDATE_SHA: ${{ inputs.candidate_sha }}
       QA_CORE_SHA: 82c964f40ddb077cc89f4cd8c16db9afa29952a7
       QA_CORE_TREE: 47a46eb6310c269deaf31a103cb8b7a4c9305f25
@@ -181,8 +181,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
-      QA_EXPECTED_HOST_SHA: 89d3d497b57463278724889b9c06997f67ca3254
-      QA_EXPECTED_HOST_TREE: 82bfc5a812cf03e02aea5337c1abbabae2a3385a
+      QA_EXPECTED_HOST_SHA: 93ea8095c5232d7e409d8af2ca3d0278c2815ba7
+      QA_EXPECTED_HOST_TREE: 2d6fadab510b57c09ebd3b62640398cdb606b57f
       QA_CORE_SHA: 82c964f40ddb077cc89f4cd8c16db9afa29952a7
       QA_CORE_TREE: 47a46eb6310c269deaf31a103cb8b7a4c9305f25
       QA_EXPECTED_MANIFEST: sha256:88d5f8d733e7f3dc94fb1cd20060fcc5f2611c0f94420e327bcb12664368bf2e
@@ -869,8 +869,8 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 120
     env:
-      QA_EXPECTED_HOST_SHA: 89d3d497b57463278724889b9c06997f67ca3254
-      QA_EXPECTED_HOST_TREE: 82bfc5a812cf03e02aea5337c1abbabae2a3385a
+      QA_EXPECTED_HOST_SHA: 93ea8095c5232d7e409d8af2ca3d0278c2815ba7
+      QA_EXPECTED_HOST_TREE: 2d6fadab510b57c09ebd3b62640398cdb606b57f
       QA_CORE_SHA: 82c964f40ddb077cc89f4cd8c16db9afa29952a7
       QA_CORE_TREE: 47a46eb6310c269deaf31a103cb8b7a4c9305f25
       QA_HOST_SHA: ${{ inputs.candidate_sha }}
