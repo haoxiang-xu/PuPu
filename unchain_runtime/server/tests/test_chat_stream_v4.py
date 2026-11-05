@@ -793,9 +793,10 @@ class ChatStreamV4RouteTests(unittest.TestCase):
                     "options": {"modelId": "openai:gpt-5"}, "trace_level": "minimal",
                 },
             )
+            payload_text = response.get_data(as_text=True)
 
         runtime_events = [
-            payload for name, payload in _parse_sse_blocks(response.get_data(as_text=True))
+            payload for name, payload in _parse_sse_blocks(payload_text)
             if name == "runtime_event"
         ]
         child_model = next(
