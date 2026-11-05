@@ -77,9 +77,12 @@ selectors = json.loads(r'''[
   "unchain_runtime/server/tests/test_skeleton_runtime_capability.py::test_native_observation_producer_rejections_happen_before_profile_effects",
   "unchain_runtime/server/tests/test_skeleton_launch_manifest.py::test_actual_old_launch_keeps_its_original_manifest_and_digest",
   "unchain_runtime/server/tests/test_skeleton_launch_manifest.py::test_current_launch_still_uses_the_actual_current_manifest",
-  "unchain_runtime/server/tests/test_chat_stream_v4.py::ChatStreamV4RouteTests::test_chat_stream_v4_projects_private_native_child_attribution_after_normalization"
+  "unchain_runtime/server/tests/test_chat_stream_v4.py::ChatStreamV4RouteTests::test_chat_stream_v4_projects_private_native_child_attribution_after_normalization",
+  "unchain_runtime/server/tests/test_skeleton_production_chat.py::test_public_native_child_observations_bind_canonical_root_to_cold_transport",
+  "unchain_runtime/server/tests/test_skeleton_production_chat.py::test_public_twice_approval_freezes_graph_and_cold_resumes_exact_request",
+  "unchain_runtime/server/tests/test_chat_stream_v4.py::ChatStreamV4RouteTests::test_private_child_binding_keeps_root_and_transport_attempt_distinct"
 ]''')
-assert len(selectors) == 7 and all(isinstance(selector, str) for selector in selectors)
+assert len(selectors) == 10 and all(isinstance(selector, str) for selector in selectors)
 
 def write_json(name, value):
     (out / name).write_text(json.dumps(value, indent=2, sort_keys=True) + "\n")
@@ -209,10 +212,10 @@ def record_junit():
         skipped = sum(len(case.findall("skipped")) for case in cases)
         failures = sum(len(case.findall("failure")) for case in cases)
         errors = sum(len(case.findall("error")) for case in cases)
-        junit_info = {"status": "captured", "cases": len(cases), "expected_cases": 9,
+        junit_info = {"status": "captured", "cases": len(cases), "expected_cases": 12,
                       "skipped": skipped, "failures": failures, "errors": errors}
         result["junit"] = junit_info
-        if len(cases) != 9 or skipped != 0 or failures != 0 or errors != 0:
+        if len(cases) != 12 or skipped != 0 or failures != 0 or errors != 0:
             result["errors"].append({"type": "JUnitAcceptanceError", "details": junit_info})
     except BaseException as error:
         junit_info = {"status": "HARNESS_ERROR/INVALID_JUNIT", "reason": str(error)}
@@ -350,15 +353,15 @@ finally:
     result["process_identity_status"] = identity_status
     result["network_proof_status"] = network_status
     result["privilege_fence"] = {"before": privilege_start_ok, "after": privilege_end_ok}
-    result["selectors_expected_cases"] = 9
+    result["selectors_expected_cases"] = 12
     result["pass_criteria"] = {
         "pytest_exit_zero": pytest_status == 0,
-        "exactly_seven_selectors": len(selectors) == 7,
-        "exactly_nine_cases": junit_info.get("cases") == 9,
+        "exactly_ten_selectors": len(selectors) == 10,
+        "exactly_twelve_cases": junit_info.get("cases") == 12,
         "zero_skipped": junit_info.get("skipped") == 0 and result.get("skipped_reports") == 0,
         "zero_xfail": result.get("xfailed_or_xpassed") == 0,
         "zero_failures_or_errors": junit_info.get("failures") == 0 and junit_info.get("errors") == 0,
-        "nine_actual_passes": result.get("passed_call_reports") == 9,
+        "twelve_actual_passes": result.get("passed_call_reports") == 12,
         "source_binding_verified": source_binding_ok,
         "all_loaded_unchain_modules_from_core_source": not import_errors and bool(imported),
         "process_identity_verified": identity_status == "verified",
