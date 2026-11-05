@@ -217,8 +217,38 @@ def test_public_child_request_keeps_original_session_and_source(production, auth
         mode="resume_interaction", interaction_id=pending["interaction_id"], source_attempt_id=source))
     assert effects == ["approved child value"]
     assert len(calls) == 3
-    assert len(_finals(resumed)) == 1
-    assert json.loads(_finals(resumed)[0]) == {"answer": "Child approved End"}
+    parent_node_attempt = actual.chain[0].record.state["active"]["node_attempt_id"]
+    child_run_id = actual.request.source_run_id
+    assert child_run_id == actual.chain[-1].store.graph_id
+    completed_finals = [event for event in resumed
+        if event["type"] == "step.completed" and "final_text" in event["payload"]]
+
+    def final_partition(events):
+        root_rows = [event for event in events if event["run_id"] == source]
+        child_rows = [event for event in events if event["run_id"] == child_run_id]
+        return root_rows, child_rows
+
+    def has_exact_root_and_child(events):
+        root_rows, child_rows = final_partition(events)
+        return (len(root_rows) == 1 and len(child_rows) == 1
+            and child_rows[0]["links"]["parent_run_id"] == parent_node_attempt)
+
+    root_finals, child_finals = final_partition(completed_finals)
+    assert has_exact_root_and_child(completed_finals)
+    assert len(root_finals) == 1
+    assert root_finals[0]["run_id"] == source
+    assert not [event for event in completed_finals if event["run_id"] == "route-child-resume"]
+    assert json.loads(root_finals[0]["payload"]["final_text"]) == {"answer": "Child approved End"}
+    assert len(child_finals) == 1
+    assert child_finals[0]["links"]["parent_run_id"] == parent_node_attempt
+    assert json.loads(child_finals[0]["payload"]["final_text"]) == {"answer": "Child approved End"}
+
+    assert not has_exact_root_and_child(completed_finals + [deepcopy(root_finals[0])])
+    wrong_parent_child = deepcopy(child_finals[0])
+    wrong_parent_child["links"]["parent_run_id"] = "unexpected-parent"
+    without_bound_child = [event for event in completed_finals if event is not child_finals[0]]
+    assert not has_exact_root_and_child([*without_bound_child, wrong_parent_child])
+    assert not has_exact_root_and_child([*completed_finals, wrong_parent_child])
     assert load_launch(session, source).store.load().state["root_committed"] is True
     assert _pending(client, headers, session) == {"status": "none", "session_id": session}
     _assert_native_wire(calls)
