@@ -941,6 +941,19 @@ jobs:
           if ($env:QA_WHEEL_RUN_ID -notmatch '^[0-9]+$' -or $env:QA_WHEEL_SHA -notmatch '^[0-9a-f]{64}$') { throw 'required CI wheel identity is incomplete' }
           if ($env:QA_CORE_SHA -ne '33e9552f35e537a03b9cd73cb154d642481162a8' -or $env:QA_CORE_TREE -ne 'c7b327e243fd8152f869d1349776b066082d5fd9') { throw 'Core identity mismatch' }
           New-Item -ItemType Directory -Force test-results/windows-wfp,test-results/platform,artifact | Out-Null
+      - name: Set exact-source Git line-ending defaults before checkouts
+        shell: pwsh
+        run: |
+          git config --global core.autocrlf false
+          if ($LASTEXITCODE -ne 0) { throw 'global core.autocrlf configuration failed' }
+          git config --global core.eol lf
+          if ($LASTEXITCODE -ne 0) { throw 'global core.eol configuration failed' }
+          $autocrlf=(git config --global --get core.autocrlf).Trim()
+          if ($LASTEXITCODE -ne 0) { throw 'global core.autocrlf readback failed' }
+          $eol=(git config --global --get core.eol).Trim()
+          if ($LASTEXITCODE -ne 0) { throw 'global core.eol readback failed' }
+          if ($autocrlf -ne 'false' -or $eol -ne 'lf') { throw 'global Git line-ending policy did not take effect' }
+          @{phase='before-checkouts';global=@{core_autocrlf=$autocrlf;core_eol=$eol}} | ConvertTo-Json -Depth 4 | Set-Content test-results/platform/git-line-ending-global.json
       - name: Check out QA controls
         uses: actions/checkout@v4
         with:
@@ -1002,6 +1015,30 @@ jobs:
           if ($LASTEXITCODE -ne 0 -or $hostStatus) { throw 'Host source checkout is dirty' }
           $coreStatus = git -C core status --porcelain=v1 --untracked-files=all
           if ($LASTEXITCODE -ne 0 -or $coreStatus) { throw 'Core source checkout is dirty' }
+          $globalAutocrlf=(git config --global --get core.autocrlf).Trim()
+          if ($LASTEXITCODE -ne 0) { throw 'global core.autocrlf readback failed' }
+          $globalEol=(git config --global --get core.eol).Trim()
+          if ($LASTEXITCODE -ne 0) { throw 'global core.eol readback failed' }
+          $repositories=[ordered]@{control='control';candidate='candidate';core='core'}
+          $effective=[ordered]@{}
+          $settingsValid=$true
+          foreach ($entry in $repositories.GetEnumerator()) {
+            $repoPath=$entry.Value
+            $auto=(git -C $repoPath config --get core.autocrlf).Trim()
+            if ($LASTEXITCODE -ne 0) { throw "effective core.autocrlf readback failed for $repoPath" }
+            $eol=(git -C $repoPath config --get core.eol).Trim()
+            if ($LASTEXITCODE -ne 0) { throw "effective core.eol readback failed for $repoPath" }
+            $localAuto=git -C $repoPath config --local --get core.autocrlf 2>$null
+            $localAutoExit=$LASTEXITCODE
+            if ($localAutoExit -ne 0) { $localAuto=$null } else { $localAuto=([string]$localAuto).Trim() }
+            $localEol=git -C $repoPath config --local --get core.eol 2>$null
+            $localEolExit=$LASTEXITCODE
+            if ($localEolExit -ne 0) { $localEol=$null } else { $localEol=([string]$localEol).Trim() }
+            $effective[$entry.Key]=@{path=$repoPath;local=@{core_autocrlf=$localAuto;core_eol=$localEol};effective=@{core_autocrlf=$auto;core_eol=$eol}}
+            if ($auto -ne 'false' -or $eol -ne 'lf') { $settingsValid=$false }
+          }
+          @{phase='after-checkouts';global=@{core_autocrlf=$globalAutocrlf;core_eol=$globalEol};repositories=$effective} | ConvertTo-Json -Depth 8 | Set-Content test-results/platform/git-line-ending-effective.json
+          if (-not $settingsValid) { throw 'one or more checkouts do not have the required effective Git line-ending policy' }
           $runJson = gh run view $env:QA_WHEEL_RUN_ID --repo haoxiang-xu/PuPu --json conclusion,headSha
           if ($LASTEXITCODE -ne 0) { throw 'required-CI run lookup failed' }
           $requiredRun = $runJson | ConvertFrom-Json
@@ -1012,11 +1049,28 @@ jobs:
           if ($evidence.build.built_once -ne $true -or $evidence.build.wheel_count -ne 1 -or $evidence.source.revision -ne $env:QA_CORE_SHA -or $evidence.source.dirty -ne $false -or $evidence.runtime_manifest.manifest_digest -ne 'sha256:88d5f8d733e7f3dc94fb1cd20060fcc5f2611c0f94420e327bcb12664368bf2e') { throw 'artifact evidence mismatch' }
           if ((Get-FileHash $wheels[0].FullName -Algorithm SHA256).Hash.ToLower() -ne $env:QA_WHEEL_SHA) { throw 'wheel SHA mismatch' }
           @'
-          import pathlib,sys,zipfile
+          import hashlib,json,os,pathlib,subprocess,sys,zipfile
           wheel=pathlib.Path(sys.argv[1]); core=pathlib.Path('core/src/unchain')
           expected={p.relative_to(pathlib.Path('core/src')).as_posix():p.read_bytes() for p in core.rglob('*.py')}
           with zipfile.ZipFile(wheel) as archive:
               actual={name:archive.read(name) for name in archive.namelist() if name.startswith('unchain/') and name.endswith('.py')}
+          core_sha=os.environ['QA_CORE_SHA']
+          mismatches=[]; mismatch_count=0
+          for name in sorted(set(expected)|set(actual)):
+              worktree=expected.get(name); member=actual.get(name)
+              if worktree==member: continue
+              mismatch_count+=1
+              if len(mismatches)>=20: continue
+              git_path='src/'+name
+              blob_result=subprocess.run(['git','-C','core','cat-file','blob',f'{core_sha}:{git_path}'],capture_output=True)
+              blob=blob_result.stdout if blob_result.returncode==0 else None
+              oid_result=subprocess.run(['git','-C','core','rev-parse',f'{core_sha}:{git_path}'],capture_output=True,text=True)
+              oid=oid_result.stdout.strip() if oid_result.returncode==0 else None
+              def facts(data):
+                  return None if data is None else {'sha256':hashlib.sha256(data).hexdigest(),'size_bytes':len(data),'crlf_sequences':data.count(b'\r\n')}
+              mismatches.append({'member_path':name,'worktree_path':str(core.joinpath(name.removeprefix('unchain/'))),'wheel_member_path':name,'git_blob_path':git_path,'git_blob_oid':oid,'worktree':facts(worktree),'wheel':facts(member),'git_blob':facts(blob)})
+          diag={'schema':'qa356.windows-wheel-core-byte-diagnostics.v1','classification':'DIAGNOSTIC_ONLY_STRICT_GATE_UNCHANGED','host_sha':os.environ.get('QA_HOST_SHA'),'core_sha':core_sha,'wheel_path':str(wheel),'wheel_sha256':hashlib.sha256(wheel.read_bytes()).hexdigest(),'line_ending_settings':json.loads(pathlib.Path('test-results/platform/git-line-ending-effective.json').read_text()),'worktree_member_count':len(expected),'wheel_member_count':len(actual),'worktree_only_count':len(set(expected)-set(actual)),'wheel_only_count':len(set(actual)-set(expected)),'strict_byte_mismatch_count':mismatch_count,'mismatch_rows_limit':20,'mismatches':mismatches}
+          pathlib.Path('test-results/platform/wheel-core-byte-diagnostics.json').write_text(json.dumps(diag,indent=2)+'\n')
           assert actual.keys()==expected.keys(), {'wheel_only':sorted(actual.keys()-expected.keys()),'source_only':sorted(expected.keys()-actual.keys())}
           assert all(actual[name]==data for name,data in expected.items()), 'wheel_core_source_bytes_mismatch'
           '@ | python - $wheels[0].FullName
@@ -1150,4 +1204,8 @@ jobs:
         with:
           name: 356-windows-native-safe-status-${{ inputs.candidate_sha }}
           if-no-files-found: warn
-          path: test-results/windows-wfp/auth-scan-result.json
+          path: |
+            test-results/windows-wfp/auth-scan-result.json
+            test-results/platform/git-line-ending-global.json
+            test-results/platform/git-line-ending-effective.json
+            test-results/platform/wheel-core-byte-diagnostics.json
