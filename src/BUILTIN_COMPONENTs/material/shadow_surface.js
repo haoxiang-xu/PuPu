@@ -135,7 +135,7 @@ const ShadowSurface = forwardRef(function ShadowSurface({ as: Tag = "div", style
     const resize = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => read(false)) : null;
     resize?.observe(node);
     const observer = new MutationObserver(() => read());
-    for (let parent = node.parentElement; parent; parent = parent.parentElement)
+    for (let parent = node; parent; parent = parent.parentElement)
       observer.observe(parent, { attributes: true, attributeFilter: ["style", "class"] });
     let frame = 0;
     const geometry = () => {

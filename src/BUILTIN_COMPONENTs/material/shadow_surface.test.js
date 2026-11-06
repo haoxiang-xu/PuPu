@@ -1,5 +1,5 @@
 import { createRef } from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import ShadowSurface, { parseResolvedShadows } from "./shadow_surface";
 
 test("parses resolved colours, multiple layers, negative spreads and inset borders", () => {
@@ -40,7 +40,7 @@ test("preserves controlled text input and its ref without a layout wrapper", () 
 });
 
 
-test("active composition keeps the host/ref and releases observers when disabled", () => {
+test("active composition keeps the host/ref and releases observers when disabled", async () => {
   const ua = navigator.userAgent, css = window.CSS, Resize = window.ResizeObserver;
   Object.defineProperty(navigator, "userAgent", { configurable: true, value: "Chrome/144.0" });
   window.CSS = { supports: () => true };
@@ -50,7 +50,7 @@ test("active composition keeps the host/ref and releases observers when disabled
   const remove = jest.spyOn(window, "removeEventListener");
   jest.spyOn(Element.prototype, "getBoundingClientRect").mockReturnValue({ left: 50, top: 50, right: 150, bottom: 150, width: 100, height: 100 });
   jest.spyOn(window, "getComputedStyle").mockImplementation(node => ({
-    boxShadow: "rgba(0, 0, 0, 0.5) 0px 8px 32px 0px", opacity: "1", transform: "none",
+    boxShadow: "rgba(0, 0, 0, 0.5) 0px 8px 32px 0px", opacity: node.style.opacity || "1", transform: "none",
     overflowX: "visible", overflowY: "visible", borderTopLeftRadius: "50%",
     borderTopRightRadius: "50%", borderBottomRightRadius: "50%", borderBottomLeftRadius: "50%",
   }));
@@ -62,6 +62,11 @@ test("active composition keeps the host/ref and releases observers when disabled
     expect(button.style.boxShadow).toBe("none");
     expect(container.querySelector("filter")).not.toBeNull();
     button.focus(); expect(document.activeElement).toBe(button);
+    // Imperative animation libraries change the host style outside React.
+    await act(async () => { button.style.opacity = "0.5"; });
+    expect(container.querySelector("filter")).toBeNull();
+    await act(async () => { button.style.opacity = "1"; });
+    expect(container.querySelector("filter")).not.toBeNull();
     rerender(<ShadowSurface as="button" ref={ref} style={{ boxShadow: "none" }}>Action</ShadowSurface>);
     expect(ref.current).toBe(button);
     expect(container.children).toHaveLength(1);

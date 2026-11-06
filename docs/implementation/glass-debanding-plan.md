@@ -150,4 +150,4 @@ Shared candidate source identities (SHA-256):
 - `surface_dither.js`: `a8e3c16aaa6de21811ffe2a85cab4f3b1215477cf38115160b901b83066873e2`
 - `surface_composite.js`: `15d7923e4303d56c64e1259d86ed59fa13ab9de460a6cefa3657770c8382ebc7`
 - `composited_background.js`: `3a16c542d1307b835e8360bf1439a78b3c18006934014f031720edbf7b42cd2a`
-- `shadow_surface.js`: `9e87af0a5d157642c9d5dd848f1ba6011acc296afd96f2dd648f231948dc8d67`
+- `shadow_surface.js`: `c90364dde7e8eeca47695a71a35efe30e5d45680314eb64b12fae9f521ee0719`
