@@ -796,15 +796,96 @@ jobs:
             pathlib.Path('test-results/platform/packaging-byte-evidence.json')]
           secret=re.compile(rb'(?i)(?:x-unchain-auth|authorization|bearer)\s*[:=]\s*[A-Za-z0-9._~+/-]{16,}')
           rows=[]
+          def byte_classes(raw):
+              def kind(value):
+                  if 65<=value<=90 or 97<=value<=122: return 'ASCII_LETTER'
+                  if 48<=value<=57: return 'DIGIT'
+                  if value in (9,10,11,12,13,32): return 'SPACE'
+                  return {34:'QUOTE',39:'QUOTE',58:'COLON',61:'EQUAL',46:'DOT',44:'COMMA',59:'SEMICOLON',40:'OPEN_BRACKET',91:'OPEN_BRACKET',123:'OPEN_BRACKET',41:'CLOSE_BRACKET',93:'CLOSE_BRACKET',125:'CLOSE_BRACKET'}.get(value,'OTHER')
+              rows=[]
+              for value in raw:
+                  label=kind(value)
+                  if rows and rows[-1][0]==label: rows[-1][1]+=1
+                  else: rows.append([label,1])
+              return rows
+          def captured_hit(block, match, base):
+              parts=re.fullmatch(rb'(?i)(x-unchain-auth|authorization|bearer)\s*[:=]\s*([A-Za-z0-9._~+/-]{16,})',match.group())
+              return {'offset':base+match.start(),'field':parts[1].decode('ascii').lower(),
+                  'match_length':len(match.group()),'match_sha256':hashlib.sha256(match.group()).hexdigest(),
+                  'value_length':len(parts[2]),'value_sha256':hashlib.sha256(parts[2]).hexdigest(),
+                  'begins_at_buffer_boundary':match.start()==0,'ends_at_buffer_boundary':match.end()==len(block),
+                  'capture_kind':'CAPTURED_SEGMENT_RIGHT_OPEN' if match.end()==len(block) else 'CAPTURED_MATCH',
+                  'before_classes':byte_classes(block[max(0,match.start()-32):match.start()]),
+                  'after_classes':byte_classes(block[match.end():match.end()+32])}
+          def reject_with_diagnostic(category, path, hit, actual_hash, actual_size, archive_hash, expected_hash, expected_size, evidence_index=None):
+              try:
+                  record={'status':'REJECTED_SECRET_PATTERN_UNCLASSIFIED','regex_sha256':hashlib.sha256(secret.pattern).hexdigest(),
+                    'host':'56dd76fdd68956a5652ccbd085b99d95db9f5a28','core':'369d86cc9592704c6d45017147904bf6e103a37f',
+                    'wheel_sha256':'95cf58692442f3a3f709ccedd78568e5100309f439ec8785d96ee8e6b5db6ff5',
+                    'qa_base':'68bff0ee65fd1e517b2828ad49e5fb751b61c2c9','qa_head':__import__('os').environ['GITHUB_SHA'],
+                    'run_id':int(__import__('os').environ['GITHUB_RUN_ID']),'job_key':'pair',
+                    'location':{'kind':'TAR_MEMBER' if category=='credential_like_bytes_in_tar_member:' else 'EVIDENCE_FILE',
+                      'known_member':'resources/app.asar' if category=='credential_like_bytes_in_tar_member:' and path=='resources/app.asar' else None,
+                      'path_sha256':hashlib.sha256(path.encode()).hexdigest(),'path_length':len(path.encode()),'evidence_index':evidence_index},
+                    'capture':hit,'archive_sha256':archive_hash,'actual_member_sha256':actual_hash,'actual_member_size':actual_size,
+                    'expected_inventory_sha256':expected_hash,'expected_inventory_size':expected_size,
+                    'inventory_identity_matches':None if expected_hash is None else actual_hash==expected_hash and actual_size==expected_size,
+                    'archive_scan_status':'REJECTED_REMAINDER_NOT_SCANNED','ASAR_entry':'NOT_RESOLVED'}
+                  def exact_keys(value, keys):
+                      assert type(value) is dict and set(value)==set(keys)
+                  def sha(value, length=64):
+                      assert type(value) is str and re.fullmatch('[0-9a-f]{'+str(length)+'}',value)
+                  def number(value):
+                      assert type(value) is int and 0<=value<2**63
+                  exact_keys(record,('status','regex_sha256','host','core','wheel_sha256','qa_base','qa_head','run_id','job_key','location','capture','archive_sha256','actual_member_sha256','actual_member_size','expected_inventory_sha256','expected_inventory_size','inventory_identity_matches','archive_scan_status','ASAR_entry'))
+                  assert record['status']=='REJECTED_SECRET_PATTERN_UNCLASSIFIED' and record['job_key']=='pair' and __import__('os').environ['GITHUB_JOB']=='pair'
+                  assert record['archive_scan_status']=='REJECTED_REMAINDER_NOT_SCANNED' and record['ASAR_entry']=='NOT_RESOLVED'
+                  for key in ('regex_sha256','wheel_sha256','archive_sha256','actual_member_sha256'): sha(record[key])
+                  for key in ('host','core','qa_base','qa_head'): sha(record[key],40)
+                  number(record['run_id']); assert record['run_id']>0; number(actual_size)
+                  if expected_hash is not None: sha(expected_hash);number(expected_size)
+                  else: assert expected_size is None
+                  assert type(record['inventory_identity_matches']) is bool or record['inventory_identity_matches'] is None
+                  location=record['location'];exact_keys(location,('kind','known_member','path_sha256','path_length','evidence_index'))
+                  assert location['kind'] in ('TAR_MEMBER','EVIDENCE_FILE') and location['known_member'] in (None,'resources/app.asar')
+                  sha(location['path_sha256']);number(location['path_length'])
+                  assert (evidence_index is None and location['kind']=='TAR_MEMBER') or (type(evidence_index) is int and 0<=evidence_index<len(paths) and location['kind']=='EVIDENCE_FILE')
+                  exact_keys(hit,('offset','field','match_length','match_sha256','value_length','value_sha256','begins_at_buffer_boundary','ends_at_buffer_boundary','capture_kind','before_classes','after_classes'))
+                  for key in ('offset','match_length','value_length'): number(hit[key])
+                  assert hit['offset']+hit['match_length']<=actual_size and hit['value_length']>=16 and hit['value_length']<=hit['match_length']
+                  for key in ('match_sha256','value_sha256'): sha(hit[key])
+                  assert hit['field'] in ('x-unchain-auth','authorization','bearer')
+                  assert type(hit['begins_at_buffer_boundary']) is bool and type(hit['ends_at_buffer_boundary']) is bool
+                  assert hit['capture_kind'] in ('CAPTURED_MATCH','CAPTURED_SEGMENT_RIGHT_OPEN')
+                  labels={'ASCII_LETTER','DIGIT','SPACE','QUOTE','COLON','EQUAL','DOT','COMMA','SEMICOLON','OPEN_BRACKET','CLOSE_BRACKET','OTHER'}
+                  for key in ('before_classes','after_classes'):
+                      assert type(hit[key]) is list and len(hit[key])<=32
+                      assert all(type(row) is list and len(row)==2 and row[0] in labels and type(row[1]) is int and 1<=row[1]<=32 for row in hit[key])
+                      assert sum(row[1] for row in hit[key])<=32
+                  raw=(json.dumps(record,sort_keys=True,separators=(',',':'))+'\n').encode('ascii')
+                  assert len(raw)<=16384
+                  destination=pathlib.Path('test-results/status/sealed-scan-rejection.json');destination.parent.mkdir(parents=True,exist_ok=True)
+                  destination.write_bytes(raw);assert destination.read_bytes()==raw
+                  with open(__import__('os').environ['GITHUB_OUTPUT'],'a') as output: output.write('diagnostic_ready=true\n')
+              except Exception:
+                  pass
+              raise RuntimeError(category+path)
           def scan_file(f):
-              digest=hashlib.sha256(); size=0; carry=b''
+              digest=hashlib.sha256(); size=0; carry=b''; first_hit=None
               with f.open('rb') as stream:
                   while True:
-                      chunk=stream.read(1024*1024)
+                      try: chunk=stream.read(1024*1024)
+                      except Exception:
+                          if first_hit is not None: raise RuntimeError('credential_like_bytes_in_sealed_app:'+f.as_posix())
+                          raise
                       if not chunk: break
                       block=carry+chunk
-                      if secret.search(block): raise RuntimeError('credential_like_bytes_in_sealed_app:'+f.as_posix())
+                      match=secret.search(block) if first_hit is None else None
+                      if match is not None: first_hit=captured_hit(block,match,size-len(carry))
                       carry=block[-65536:]; digest.update(chunk); size+=len(chunk)
+              if first_hit is not None:
+                  archive_hash=digest.hexdigest() if f==paths[0] else rows[0]['sha256']
+                  reject_with_diagnostic('credential_like_bytes_in_sealed_app:',f.as_posix(),first_hit,digest.hexdigest(),size,archive_hash,None,None,paths.index(f))
               return {'path':f.as_posix(),'size':size,'sha256':digest.hexdigest()}
           for f in paths:
               if not f.is_file(): raise RuntimeError('sealed_app_evidence_missing:'+f.as_posix())
@@ -837,14 +918,20 @@ jobs:
                           raise RuntimeError('tar_file_inventory_type_or_size_mismatch:'+rel)
                       source=archive.extractfile(member)
                       if source is None: raise RuntimeError('unreadable_tar_member:'+rel)
-                      digest=hashlib.sha256(); size=0; carry=b''
+                      digest=hashlib.sha256(); size=0; carry=b''; first_hit=None
                       while True:
-                          chunk=source.read(1024*1024)
+                          try: chunk=source.read(1024*1024)
+                          except Exception:
+                              if first_hit is not None: raise RuntimeError('credential_like_bytes_in_tar_member:'+rel)
+                              raise
                           if not chunk: break
-                          size+=len(chunk); content_bytes+=len(chunk); digest.update(chunk)
                           block=carry+chunk
-                          if secret.search(block): raise RuntimeError('credential_like_bytes_in_tar_member:'+rel)
+                          match=secret.search(block) if first_hit is None else None
+                          if match is not None: first_hit=captured_hit(block,match,size-len(carry))
+                          size+=len(chunk); content_bytes+=len(chunk); digest.update(chunk)
                           carry=block[-65536:]
+                      if first_hit is not None:
+                          reject_with_diagnostic('credential_like_bytes_in_tar_member:',rel,first_hit,digest.hexdigest(),size,rows[0]['sha256'],expected.get('sha256'),expected.get('size'))
                       if digest.hexdigest()!=expected.get('sha256') or size!=expected.get('size'):
                           raise RuntimeError('tar_file_inventory_hash_mismatch:'+rel)
                   elif member.issym():
@@ -868,6 +955,14 @@ jobs:
             'inventory_entries_verified':len(inventory),'unpacked_without_execution':True},indent=2)+'\n')
           PY
           echo 'pass=true' >> "$GITHUB_OUTPUT"
+      - name: Upload bounded hash-only sealed-scan rejection diagnostic
+        if: always() && steps.sealed_app_scan.outcome == 'failure' && steps.sealed_app_scan.outputs.diagnostic_ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: 356-sealed-scan-rejection-${{ inputs.candidate_sha }}
+          path: test-results/status/sealed-scan-rejection.json
+          if-no-files-found: error
+
       - name: Upload sealed App before UI execution
         if: always() && steps.sealed_app_scan.outputs.pass == 'true'
         uses: actions/upload-artifact@v4
