@@ -692,6 +692,7 @@ jobs:
         working-directory: candidate
         shell: bash
         env:
+          UNCHAIN_BUILD_VENV: ${{ runner.temp }}/356-sidecar-venv
           PUPU_BUILD_FEATURE_SNAPSHOT_PATH: ${{ github.workspace }}/test-results/platform/build-feature-flags.json
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
           QA_WHEEL_SHA: ${{ env.QA_WHEEL_SHA }}
