@@ -722,7 +722,7 @@ jobs:
           sudo chown root:root "$APP/chrome-sandbox"
           sudo chmod 4755 "$APP/chrome-sandbox"
           test "$(stat -c '%u:%a' "$APP/chrome-sandbox")" = '0:4755'
-          echo "QA_APP=$APP/PuPu" >> "$GITHUB_ENV"
+          echo "QA_APP=$APP/pupu" >> "$GITHUB_ENV"
           python - "$APP" <<'PY'
           import hashlib,json,os,pathlib,sys
           root=pathlib.Path(sys.argv[1]).resolve(); rows={}
@@ -1097,7 +1097,25 @@ jobs:
           QA_SITE: ${{ env.QA_SITE }}
           QA_OLD_BINARY: ${{ env.QA_LEGACY_BINARY }}
           QA_CANDIDATE_ROOT: ${{ github.workspace }}/candidate
-        run: bash control/tools/qa356/run_offline.sh app
+        run: |
+          python - <<'PY'
+          import hashlib,json,os,pathlib,stat
+          root=pathlib.Path(os.environ['QA_CANDIDATE_ROOT'])/'dist/linux-unpacked'
+          app=pathlib.Path(os.environ['QA_APP'])
+          expected=root.resolve()/'pupu'
+          if not app.is_absolute() or app!=expected or app.is_symlink() or app.resolve()!=app:
+              raise RuntimeError('packaged_app_canonical_path_mismatch')
+          try: info=app.lstat()
+          except OSError: raise RuntimeError('packaged_app_not_regular') from None
+          if not stat.S_ISREG(info.st_mode) or not info.st_mode&0o111 or not os.access(app,os.X_OK):
+              raise RuntimeError('packaged_app_not_regular_executable')
+          entry=json.loads(pathlib.Path('reusable/linux-app-file-inventory.json').read_text()).get('pupu')
+          if type(entry) is not dict or entry.get('type')!='file' or type(entry.get('size')) is not int or entry['size']!=info.st_size:
+              raise RuntimeError('packaged_app_inventory_type_or_size_mismatch')
+          with app.open('rb') as stream: digest=hashlib.file_digest(stream,'sha256').hexdigest()
+          if digest!=entry.get('sha256'): raise RuntimeError('packaged_app_inventory_hash_mismatch')
+          PY
+          bash control/tools/qa356/run_offline.sh app
 
       - name: Require final whole-CI success for the exact pair
         id: required_ci_final
