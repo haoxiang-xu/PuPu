@@ -9,6 +9,7 @@ from pathlib import Path, PurePosixPath
 import shutil
 import stat
 import struct
+import subprocess
 import sys
 import xml.etree.ElementTree as ET
 
@@ -19,8 +20,8 @@ DEFERRED_CLASS = 'tests.test_skeleton_code_runtime'
 DEFERRED_NAME = 'test_real_pupu_bundled_python_runs_the_same_protocol_when_supplied'
 DEFERRED_REASON = 'set PUPU_BUNDLED_PYTHON to the retained PuPu bundled interpreter'
 OLD_SHA = 'e0162fc116e3f2970c67bc6c5458d1a305e6404dbb11b6e22db25897cad77ff6'
-NEW_SHA = 'e93788feeeb173b3e5e54cf92e254e45450e609290ce9a4caf1ef4443ab5014d'
-WHEEL_SHA = '21f5a0794dfeb0f4d28476b3d7d6851453540b8baa4791684bf03beac4e84461'
+NEW_SHA = 'cc9db519df2502130f4bc0bef0757d9c01e295e54989452d007701760919fdce'
+WHEEL_SHA = '95cf58692442f3a3f709ccedd78568e5100309f439ec8785d96ee8e6b5db6ff5'
 MANIFEST = 'sha256:88d5f8d733e7f3dc94fb1cd20060fcc5f2611c0f94420e327bcb12664368bf2e'
 
 
@@ -87,7 +88,7 @@ def json_file(path: Path) -> dict:
 
 def scan_metadata(base: Path) -> dict:
     metadata = base / 'metadata'
-    names = {'source-run.json', 'source-job.json', '13471311808.json', '13471916060.json'}
+    names = {'source-run.json', 'source-job.json', '13529017895.json', '13530035287.json'}
     require(metadata.is_dir() and not metadata.is_symlink(), 'checkpoint_metadata_root_missing_or_symlink')
     require({path.name for path in metadata.iterdir()} == names, 'checkpoint_metadata_file_set_mismatch')
     tokens = [os.environ[name].encode('utf-8') for name in ('GH_TOKEN', 'GITHUB_TOKEN') if os.environ.get(name)]
@@ -114,7 +115,7 @@ def check_api_evidence(base: Path, manifest: dict) -> dict:
     run = json_file(base / 'metadata/source-run.json')
     job = json_file(base / 'metadata/source-job.json')
     require(run.get('id') == cp['run_id'] and run.get('head_sha') == cp['qa_head'] and
-            run.get('head_branch') == 'codex/ticket-356-bundled-env-qa' and
+            run.get('head_branch') == 'codex/ticket-356-string-pair-qa' and
             run.get('status') == 'completed' and run.get('conclusion') == 'failure',
             'checkpoint_run_identity_or_status_mismatch')
     require(job.get('id') == cp['job_id'] and job.get('run_id') == cp['run_id'] and
@@ -149,7 +150,7 @@ def check_test_evidence(installed: dict[str, Path], manifest: dict) -> dict:
                           ('core_tree', 'core_tree'), ('wheel_sha256', 'wheel_sha256'), ('manifest', 'manifest'),
                           ('legacy_binary_sha256', 'legacy_binary_sha256')]:
         require(identity.get(key) == expected_id[expected], 'checkpoint_pair_identity_mismatch:' + key)
-    require(identity.get('required_ci_run_id') == '42138839492' and
+    require(identity.get('required_ci_run_id') == '42264231815' and
             identity.get('required_ci_run', {}).get('headSha') == expected_id['host_sha'] and
             identity.get('required_ci_run', {}).get('status') == 'in_progress',
             'historical_ci_observation_mismatch')
@@ -211,7 +212,7 @@ def check_sidecar(sidecar: dict[str, Path], manifest: dict) -> None:
     actual_scan = {row.get('path'): (row.get('size'), row.get('sha256')) for row in scan['files']}
     require(actual_scan == expected_scan, 'checkpoint_sidecar_scan_file_binding_mismatch')
     binary = sidecar['unchain-server']
-    require(regular_file(binary) and digest(binary) == NEW_SHA and binary.stat().st_size == 78008512,
+    require(regular_file(binary) and digest(binary) == NEW_SHA and binary.stat().st_size == 78010872,
             'checkpoint_sidecar_binary_mismatch')
     with binary.open('rb') as stream:
         elf = stream.read(20)
@@ -251,12 +252,25 @@ def stage_executable(source: Path, destination: Path, expected_sha: str, expecte
             'staged_sha256_after': digest(destination), 'staged_parent_accessible': True}
 
 
+def check_fresh_environment(installed: dict[str, Path], current: dict, freeze: bytes, ci: dict) -> dict:
+    require(type(current) is dict and current.get('version') == [3, 12, 15], 'fresh_python_version_mismatch')
+    for cell in ('core', 'source'):
+        historical = json_file(installed[cell + '/imported-runtime.json'])
+        require(current.get('executable') == historical.get('executable'), 'fresh_python_executable_mismatch:' + cell)
+    require(freeze == installed['pair/dependencies-freeze.txt'].read_bytes(), 'fresh_dependency_freeze_mismatch')
+    require(ci.get('databaseId') == 42264231815 and type(ci.get('databaseId')) is int and
+            ci.get('headSha') == '56dd76fdd68956a5652ccbd085b99d95db9f5a28' and
+            ci.get('status') == 'completed' and ci.get('conclusion') == 'success', 'current_required_ci_not_successful')
+    return {'python': current, 'dependencies_sha256': hashlib.sha256(freeze).hexdigest(),
+            'current_required_ci': ci, 'status': 'CURRENT_ENVIRONMENT_MATCHES_CHECKPOINT'}
+
+
 def main() -> None:
-    require(len(sys.argv) == 2 and sys.argv[1] == 'adopt', 'usage: reuse_pair_checkpoint.py adopt')
-    require(os.environ.get('QA_HOST_SHA') == 'fa162b3d94791fad36da85f4a00ff36ecf758853' and
-            os.environ.get('QA_HOST_TREE') == '9ac15003c6fdabb2928be0e3f5d61ff6d47e386d' and
-            os.environ.get('QA_CORE_SHA') == '33e9552f35e537a03b9cd73cb154d642481162a8' and
-            os.environ.get('QA_CORE_TREE') == 'c7b327e243fd8152f869d1349776b066082d5fd9' and
+    require(len(sys.argv) == 2 and sys.argv[1] == 'adopt-installed', 'usage: reuse_pair_checkpoint.py adopt-installed')
+    require(os.environ.get('QA_HOST_SHA') == '56dd76fdd68956a5652ccbd085b99d95db9f5a28' and
+            os.environ.get('QA_HOST_TREE') == '735607061eb127cc549e0ef76cc94ca6e6b9eb6e' and
+            os.environ.get('QA_CORE_SHA') == '369d86cc9592704c6d45017147904bf6e103a37f' and
+            os.environ.get('QA_CORE_TREE') == '18edaf62bb41ebade4457480f1edc89af4c6780b' and
             os.environ.get('QA_WHEEL_SHA') == WHEEL_SHA and os.environ.get('QA_MANIFEST') == MANIFEST,
             'current_pair_identity_not_approved')
     manifest = json.loads(MANIFEST_PATH.read_text(encoding='utf-8'))
@@ -271,6 +285,13 @@ def main() -> None:
     sidecar = exact_tree(sidecar_root, manifest['sidecar']['artifact_files'])
     cell_summary = check_test_evidence(installed, manifest)
     check_sidecar(sidecar, manifest)
+    python = os.environ['QA_PYTHON']
+    current = json.loads(subprocess.check_output([python, '-c',
+        'import json,sys;print(json.dumps({"version":list(sys.version_info[:3]),"executable":sys.executable}))'], text=True, timeout=30))
+    fresh_freeze = subprocess.check_output([python, '-m', 'pip', 'freeze', '--all'], timeout=60)
+    require(fresh_freeze == (ROOT / 'test-results/pair/dependencies-freeze.txt').read_bytes(), 'fresh_dependency_capture_changed')
+    environment = check_fresh_environment(installed, current, fresh_freeze,
+                                          json_file(ROOT / 'test-results/pair/wheel-run.json'))
 
     # Keep every downloaded artifact intact; only these historical cell files are adopted.
     adopted = []
@@ -286,21 +307,13 @@ def main() -> None:
         adopted.append({'source': str(source.relative_to(ROOT)), 'destination': str(destination.relative_to(ROOT)),
                         'sha256': digest(destination), 'size_bytes': destination.stat().st_size})
 
-    for key in ('unchain-server', 'linux-sidecar.sha256', 'linux-sidecar-identity.json',
-                'linux-sidecar-evidence-scan.json'):
-        destination = ROOT / 'reusable' / key
-        copy_exact(sidecar[key], destination)
-
     old_source = Path(os.environ['QA_LEGACY_BINARY'])
     old_resolved = old_source.resolve(strict=True)
     legacy_root = (ROOT / 'legacy').resolve(strict=True)
     require(old_resolved.is_relative_to(legacy_root) and regular_file(old_source), 'old_binary_outside_download_or_symlink')
     old_stage = base / 'staged/legacy/unchain-server'
-    new_stage = ROOT / 'candidate/unchain_runtime/dist/linux/unchain-server'
     old_record = stage_executable(old_source, old_stage, OLD_SHA,
                                   manifest['identity']['legacy_binary_size_bytes'], 'old-frozen')
-    new_record = stage_executable(sidecar['unchain-server'], new_stage, NEW_SHA,
-                                  manifest['identity']['reused_binary_size_bytes'], 'reused-sidecar')
     provenance = {'schema': 'qa356.reused-installed-cells.v1', 'status': 'REUSED_CHECKPOINT_NOT_EXECUTED_THIS_RUN',
                   'source_run_id': manifest['checkpoint']['run_id'], 'source_run_conclusion': 'failure',
                   'source_job_id': manifest['checkpoint']['job_id'], 'source_job_conclusion': 'failure',
@@ -308,22 +321,22 @@ def main() -> None:
                   'core': manifest['identity']['core_sha'], 'core_tree': manifest['identity']['core_tree'],
                   'wheel_sha256': manifest['identity']['wheel_sha256'], 'manifest': manifest['identity']['manifest'],
                   'prior_required_ci_observation': manifest['checkpoint']['old_required_ci_observation'],
+                  'current_environment': environment, 'historical_sidecar': {'status': 'VALIDATED_NOT_USED_THIS_RUN', 'sha256': NEW_SHA},
                   'historical_cells': cell_summary, 'adopted_files': adopted,
                   'artifact_api_provenance': api, 'source_checkpoint_directory': 'test-results/resume/original',
                   'later_bundled_case': 'NOT_RUN_PENDING_REAL_PACKAGED_INTERPRETER',
                   'first_failure': manifest['checkpoint']['failure_class']}
     (ROOT / 'test-results/pair/reused-cells-provenance.json').write_text(json.dumps(provenance, indent=2) + '\n')
     stage_report = {'schema': 'qa356.reused-binary-stage.v1', 'checkpoint_run_id': manifest['checkpoint']['run_id'],
-                    'old_frozen': old_record, 'reused_sidecar': new_record,
+                    'old_frozen': old_record, 'fresh_sidecar': 'PENDING_NORMAL_BUILD',
                     'binary_bytes_changed': False, 'only_staged_executables_chmodded': True}
     (base / 'staged/binary-stage.json').write_text(json.dumps(stage_report, indent=2) + '\n')
     env_path = os.environ.get('GITHUB_ENV')
     require(env_path, 'GITHUB_ENV_missing')
     with Path(env_path).open('a', encoding='utf-8') as output:
-        output.write('QA_BINARY_SHA=' + NEW_SHA + '\n')
         output.write('QA_LEGACY_BINARY=' + str(old_stage.resolve()) + '\n')
     print(json.dumps({'status': 'CHECKPOINT_ADOPTED_PENDING_CURRENT_QUALIFICATION', 'cells': cell_summary,
-                      'old_binary_sha256': OLD_SHA, 'new_binary_sha256': NEW_SHA}))
+                      'old_binary_sha256': OLD_SHA, 'fresh_sidecar': 'PENDING_NORMAL_BUILD'}))
 
 
 if __name__ == '__main__':

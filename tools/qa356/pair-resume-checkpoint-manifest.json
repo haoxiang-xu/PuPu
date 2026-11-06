@@ -1,49 +1,49 @@
 {
   "schema": "qa356.pair-resume-checkpoint.v1",
   "checkpoint": {
-    "run_id": 42143427536,
+    "run_id": 42265613685,
     "run_status": "completed",
     "run_conclusion": "failure",
-    "qa_head": "d1cc7077dba4447b3fb0e9a8b86269c0bd959353",
-    "qa_tree": "e2e8261ff6fb189b6c626dd15eb30bacbfe1741b",
-    "job_id": 127649056112,
+    "qa_head": "9edece2d79af6878df046d1290a860acfaf6c78c",
+    "qa_tree": "5458e039e217294004d09038c1acdd6b4e75e8b0",
+    "job_id": 128056630386,
     "job_name": "pair",
     "job_conclusion": "failure",
     "installed_source": "PASS",
     "core_status": "DEFERRED",
-    "first_failure_step": "Run old-binary and new-binary controls in isolated loopback namespaces",
-    "failure_class": "PermissionError: [Errno 13] old frozen binary Popen",
+    "first_failure_step": "Build the unsigned Linux App once around the preserved sidecar",
+    "failure_class": "AssertionError: {'sidecars': 1, 'pythons': 3}",
     "artifacts": [
       {
-        "id": 13471311808,
-        "name": "356-installed-cells-fa162b3d94791fad36da85f4a00ff36ecf758853",
-        "zip_sha256": "fc714de4a7b6f93d8d893d0b32adba282a430d12a914d0db123e2fe3cc379231"
+        "id": 13529017895,
+        "name": "356-installed-cells-56dd76fdd68956a5652ccbd085b99d95db9f5a28",
+        "zip_sha256": "a8e87cde76f2a94e1d830898f452283ea9afe9453f1d58973402472f6ac2ca4a"
       },
       {
-        "id": 13471916060,
-        "name": "356-reusable-linux-sidecar-fa162b3d94791fad36da85f4a00ff36ecf758853",
-        "zip_sha256": "1f683b9b4dd13b61c7081565fcaeb75bdb2f28514e2492e2fce6152a5b904762"
+        "id": 13530035287,
+        "name": "356-reusable-linux-sidecar-56dd76fdd68956a5652ccbd085b99d95db9f5a28",
+        "zip_sha256": "5fab1229e889772ab4db4473d8e84c882db0889148bacc6ed6ef8a3448583aad"
       }
     ],
     "old_required_ci_observation": {
-      "run_id": 42138839492,
+      "run_id": 42264231815,
       "status": "in_progress",
-      "head_sha": "fa162b3d94791fad36da85f4a00ff36ecf758853",
+      "head_sha": "56dd76fdd68956a5652ccbd085b99d95db9f5a28",
       "note": "historical observation only; current run must independently require whole-CI success"
     }
   },
   "identity": {
-    "host_sha": "fa162b3d94791fad36da85f4a00ff36ecf758853",
-    "host_tree": "9ac15003c6fdabb2928be0e3f5d61ff6d47e386d",
-    "core_sha": "33e9552f35e537a03b9cd73cb154d642481162a8",
-    "core_tree": "c7b327e243fd8152f869d1349776b066082d5fd9",
-    "wheel_sha256": "21f5a0794dfeb0f4d28476b3d7d6851453540b8baa4791684bf03beac4e84461",
+    "host_sha": "56dd76fdd68956a5652ccbd085b99d95db9f5a28",
+    "host_tree": "735607061eb127cc549e0ef76cc94ca6e6b9eb6e",
+    "core_sha": "369d86cc9592704c6d45017147904bf6e103a37f",
+    "core_tree": "18edaf62bb41ebade4457480f1edc89af4c6780b",
+    "wheel_sha256": "95cf58692442f3a3f709ccedd78568e5100309f439ec8785d96ee8e6b5db6ff5",
     "manifest": "sha256:88d5f8d733e7f3dc94fb1cd20060fcc5f2611c0f94420e327bcb12664368bf2e",
     "legacy_run_id": 41263562114,
     "legacy_artifact_name": "357-pair-backend-evidence",
     "legacy_binary_sha256": "e0162fc116e3f2970c67bc6c5458d1a305e6404dbb11b6e22db25897cad77ff6",
-    "reused_binary_sha256": "e93788feeeb173b3e5e54cf92e254e45450e609290ce9a4caf1ef4443ab5014d",
-    "reused_binary_size_bytes": 78008512,
+    "reused_binary_sha256": "cc9db519df2502130f4bc0bef0757d9c01e295e54989452d007701760919fdce",
+    "reused_binary_size_bytes": 78010872,
     "legacy_binary_size_bytes": 77934304
   },
   "expected_job_steps": [
@@ -59,13 +59,13 @@
     "artifact_files": [
       {
         "path": "core/acceptance.xml",
-        "size_bytes": 137103,
-        "sha256": "6467e018d6f38b451f95ecda261a92bb980d98d81184458dfec1acc8bd9f601c"
+        "size_bytes": 137102,
+        "sha256": "548dbcd2718cc8df06a5b68aca9b57969bfefedf704862ca700ea76ad959e1a1"
       },
       {
         "path": "core/imported-runtime.json",
         "size_bytes": 83822,
-        "sha256": "6ef511b14ad18283deecab85f078d7e98124a975d45b0e679e3947eac1783f95"
+        "sha256": "d4d503ceaf4f014d707ffc6fb1d9c86ee6d1fc539a5b7deec475e2c5ad125211"
       },
       {
         "path": "core/test-files.txt",
@@ -75,17 +75,17 @@
       {
         "path": "pair/build-version-input.json",
         "size_bytes": 300,
-        "sha256": "5b864accd8a0a7f8b7cb51e998a814499cf75ae91988cfaf5f8fc96bd9468d4f"
+        "sha256": "eaedb6a104ce44c1d4690988dfea01eed1f2ebf2383bdfdd2a7e3b521866d6f5"
       },
       {
         "path": "pair/core-test-staging.json",
         "size_bytes": 2565,
-        "sha256": "357c131bcc6e91d5adadd2ecc58c962802601d4b63fd3babb42ac646a3cd6da8"
+        "sha256": "055f30808f126ddbb8b817f54fff37dffd8fa03857f3b6db8472c1f4ddca783f"
       },
       {
         "path": "pair/dependencies-freeze.txt",
         "size_bytes": 1608,
-        "sha256": "5c75e5ac8830a5d1922044fc51ef27f603b3a508b0deea258a63ac72eecc648a"
+        "sha256": "33d7dc745993dffdf77eb4118b057868121142769a8f7b43d0e3eb437ac26b12"
       },
       {
         "path": "pair/installed-cells-summary.json",
@@ -95,27 +95,27 @@
       {
         "path": "pair/pair-identity.json",
         "size_bytes": 713,
-        "sha256": "0b48676cdfe3ed32abb05c465483796854efd83bc9f5ed516ffe8219c197674e"
+        "sha256": "497374e06f474d4344545eaace8567ce694fa99b3a74d422fef17c3fc9358e1c"
       },
       {
         "path": "pair/unchain-artifact.json",
         "size_bytes": 4022,
-        "sha256": "79abbe962d4438f5e8e858d6eacf1626a0605b3caf3f1b5e995fc322bde79de2"
+        "sha256": "7daad20235c6b5fad79afb918fb6e3e199e41a4aee853357e19280bbcaa4755e"
       },
       {
         "path": "pair/wheel-run.json",
         "size_bytes": 119,
-        "sha256": "706342e0ca8b69c63cc407f1a0769362a10626fe6e9ef24705b5881e5e8ad8f4"
+        "sha256": "b4bcec5a23efeed3d411482d9008154c9e74842ae8d4e99d6d62f14ec56767c4"
       },
       {
         "path": "source/acceptance.xml",
-        "size_bytes": 178197,
-        "sha256": "f2f4047bbd7e83c580b6c04252a9f929212f1f4efbdf3131eeb500104cc132f4"
+        "size_bytes": 178185,
+        "sha256": "692c5c080556fe27ef2e280eee9b3f3ee2acbf5cfe5168d12d1c848008e4a313"
       },
       {
         "path": "source/imported-runtime.json",
         "size_bytes": 89794,
-        "sha256": "9747229f5705089a52b5cf2868a929f04bf7f37ff5b0f0bdd65987dd52b1a83c"
+        "sha256": "9ea992a3affe33906af30ca905a6f6889cc039439ffc9a0635734faceb27851a"
       },
       {
         "path": "source/test-files.txt",
@@ -125,27 +125,27 @@
       {
         "path": "status/unit-evidence-scan.json",
         "size_bytes": 2344,
-        "sha256": "774745df27f654eed70d6102e2962400d39a9d96ed6259d8881870979f1b20c5"
+        "sha256": "402b3f33ef2f1b76d312948d4f0ae97af203139c5689f0b1b7023bec19354f73"
       }
     ],
     "source_suite": {
       "name": "pytest",
-      "tests": "1321",
-      "failures": "0",
       "errors": "0",
+      "failures": "0",
       "skipped": "0",
-      "time": "2165.417",
-      "timestamp": "2026-11-06T01:37:59.634424+00:00",
+      "tests": "1321",
+      "time": "1753.049",
+      "timestamp": "2026-11-06T18:00:38.490029+00:00",
       "hostname": "runnervm7aw5e"
     },
     "core_suite": {
       "name": "pytest",
-      "tests": "907",
-      "failures": "0",
       "errors": "0",
+      "failures": "0",
       "skipped": "1",
-      "time": "495.975",
-      "timestamp": "2026-11-06T01:29:42.245965+00:00",
+      "tests": "907",
+      "time": "405.826",
+      "timestamp": "2026-11-06T17:53:51.714792+00:00",
       "hostname": "runnervm7aw5e"
     },
     "source_cases": 1128,
@@ -161,22 +161,22 @@
       {
         "path": "linux-sidecar-evidence-scan.json",
         "size_bytes": 532,
-        "sha256": "9a668ac006366a47b945d20002b23cda842e50a150ca5170432e92840e9a8254"
+        "sha256": "320796e6e3b61932b2a44f4749d6553a24cef2db3a9a26e63e382de4fc94456b"
       },
       {
         "path": "linux-sidecar-identity.json",
         "size_bytes": 262,
-        "sha256": "3da264bf3fc264f867593086c7f8f8bbdd671a8f2fd404cd6f7bb0c7e747fe8c"
+        "sha256": "444ce30d1f794998b497dc5cbf0462c9f97f161b245e9c62b31d09ccecb6fbed"
       },
       {
         "path": "linux-sidecar.sha256",
         "size_bytes": 118,
-        "sha256": "5f4679de4fbd8a581d11e043bf3965f03cba4903a09ec71c8183085f06abfba3"
+        "sha256": "03a2cfc355794e48c304ed614123581500f0be486a3470a42e3a5a9bbd32cbc8"
       },
       {
         "path": "unchain-server",
-        "size_bytes": 78008512,
-        "sha256": "e93788feeeb173b3e5e54cf92e254e45450e609290ce9a4caf1ef4443ab5014d"
+        "size_bytes": 78010872,
+        "sha256": "cc9db519df2502130f4bc0bef0757d9c01e295e54989452d007701760919fdce"
       }
     ]
   },

@@ -7,8 +7,8 @@ on:
         description: One serial qualification lane
         required: true
         type: choice
-        options: [pair]
-        default: pair
+        options: [pair-resume]
+        default: pair-resume
       allow_provisional_pair:
         description: Allow provisional Linux pair execution pending exact required CI; final success remains mandatory
         required: false
@@ -182,7 +182,7 @@ jobs:
   # Added pair/native lanes are a static draft. The source lane above remains the
   # reviewed 901 source job and is not replaced until its immutable run is saved.
   pair:
-    if: inputs.scope == 'pair'
+    if: inputs.scope == 'pair-resume'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
@@ -215,7 +215,7 @@ jobs:
           [[ "$QA_WHEEL_SHA" =~ ^[0-9a-f]{64}$ ]]
           [[ "$QA_LEGACY_RUN_ID" =~ ^[0-9]+$ ]]
           [[ "$QA_LEGACY_ARTIFACT" == 357-pair-backend-evidence ]]
-          [[ "$QA_SCOPE" == pair ]]
+          [[ "$QA_SCOPE" == pair-resume ]]
           if [[ "$QA_SCOPE" == pair-resume && "$QA_ALLOW_PROVISIONAL_PAIR" != false ]]; then
             echo 'pair-resume requires allow_provisional_pair=false' >&2
             exit 1
@@ -305,25 +305,25 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          gh api repos/haoxiang-xu/PuPu/actions/runs/42143427536 > test-results/resume/metadata/source-run.json
-          gh api repos/haoxiang-xu/PuPu/actions/jobs/127649056112 > test-results/resume/metadata/source-job.json
-          gh api repos/haoxiang-xu/PuPu/actions/artifacts/13471311808 > test-results/resume/metadata/13471311808.json
-          gh api repos/haoxiang-xu/PuPu/actions/artifacts/13471916060 > test-results/resume/metadata/13471916060.json
+          gh api repos/haoxiang-xu/PuPu/actions/runs/42265613685 > test-results/resume/metadata/source-run.json
+          gh api repos/haoxiang-xu/PuPu/actions/jobs/128056630386 > test-results/resume/metadata/source-job.json
+          gh api repos/haoxiang-xu/PuPu/actions/artifacts/13529017895 > test-results/resume/metadata/13529017895.json
+          gh api repos/haoxiang-xu/PuPu/actions/artifacts/13530035287 > test-results/resume/metadata/13530035287.json
       - name: Download the exact previously scanned installed-cell checkpoint
         if: inputs.scope == 'pair-resume'
         uses: actions/download-artifact@v4
         with:
-          name: 356-installed-cells-fa162b3d94791fad36da85f4a00ff36ecf758853
+          name: 356-installed-cells-56dd76fdd68956a5652ccbd085b99d95db9f5a28
           path: test-results/resume/original/installed
-          run-id: 42143427536
+          run-id: 42265613685
           github-token: ${{ github.token }}
       - name: Download the exact previously scanned reusable sidecar checkpoint
         if: inputs.scope == 'pair-resume'
         uses: actions/download-artifact@v4
         with:
-          name: 356-reusable-linux-sidecar-fa162b3d94791fad36da85f4a00ff36ecf758853
+          name: 356-reusable-linux-sidecar-56dd76fdd68956a5652ccbd085b99d95db9f5a28
           path: test-results/resume/original/sidecar
-          run-id: 42143427536
+          run-id: 42265613685
           github-token: ${{ github.token }}
       - name: Bind repositories and verify the one wheel against the artifact evidence
         id: artifact
@@ -410,6 +410,7 @@ jobs:
           PY
 
       - name: Stage the admitted legacy executable in an owned runner directory
+        if: inputs.scope == 'pair'
         shell: bash
         run: |
           set -euo pipefail
@@ -492,7 +493,7 @@ jobs:
           QA_LEGACY_BINARY: ${{ env.QA_LEGACY_BINARY }}
         run: |
           set -euo pipefail
-          python control/tools/qa356/reuse_pair_checkpoint.py adopt
+          python control/tools/qa356/reuse_pair_checkpoint.py adopt-installed
           echo 'metadata_scanned=true' >> "$GITHUB_OUTPUT"
           echo 'adopted=true' >> "$GITHUB_OUTPUT"
 
@@ -523,8 +524,8 @@ jobs:
             test-results/resume/original/sidecar/unchain-server
             test-results/resume/metadata/source-run.json
             test-results/resume/metadata/source-job.json
-            test-results/resume/metadata/13471311808.json
-            test-results/resume/metadata/13471916060.json
+            test-results/resume/metadata/13529017895.json
+            test-results/resume/metadata/13530035287.json
             test-results/resume/metadata-scan.json
 
       - name: Run installed Host and Core contract cells
@@ -608,7 +609,6 @@ jobs:
           path: test-results/pair/reused-cells-provenance.json
 
       - name: Build Linux sidecar once from the downloaded wheel and preserve it
-        if: inputs.scope == 'pair'
         working-directory: candidate
         shell: bash
         env:
@@ -745,12 +745,15 @@ jobs:
           sha256sum "$GITHUB_WORKSPACE/reusable/linux-unpacked.tgz" > "$GITHUB_WORKSPACE/reusable/linux-unpacked.tgz.sha256"
           python - "$APP" <<'PY'
           import hashlib,json,os,pathlib,sys
+          sys.path.insert(0,str((pathlib.Path('..')/'control/tools/qa356').resolve()))
+          from packaged_python_selector import select_packaged_python
           app=pathlib.Path(sys.argv[1]).resolve(); root=app; resources=app/'resources'
           compat=json.loads((pathlib.Path('..')/'test-results'/'app-files.json').read_text())
           sidecars=list(resources.rglob('unchain-server'))
-          pythons=list(resources.rglob('python3.12'))
-          assert len(sidecars)==len(pythons)==1, {'sidecars':len(sidecars),'pythons':len(pythons)}
-          sidecar=sidecars[0]; packaged_python=pythons[0]
+          assert len(sidecars)==1, {'sidecars':len(sidecars)}
+          sidecar=sidecars[0]
+          packaged_python=select_packaged_python(resources,pathlib.Path('unchain_runtime/mcp_runtime_pins.json'))
+          assert compat[packaged_python.relative_to(app).as_posix()]==hashlib.sha256(packaged_python.read_bytes()).hexdigest(), 'packaged_python_inventory_hash_mismatch'
           package={'binary':str(sidecar),'resources':str(resources),
             'python':str(packaged_python),'binary_sha256':hashlib.sha256(sidecar.read_bytes()).hexdigest(),
             'python_sha256':hashlib.sha256(packaged_python.read_bytes()).hexdigest(),
@@ -943,7 +946,7 @@ jobs:
           while True:
               response=subprocess.run(['gh','run','view','42264231815','--repo','haoxiang-xu/PuPu','--json','databaseId,status,conclusion,headSha'],check=True,capture_output=True,text=True,timeout=30)
               run=json.loads(response.stdout)
-              state=admission(run,'true')
+              state=admission(run,'false')
               if state=='REQUIRED_CI_SUCCESS':
                   pathlib.Path('test-results/pair/required-ci-final.json').write_text(json.dumps({'admission_mode':initial['admission_mode'],'final_run':run,'required_ci_status':'SUCCESS'},indent=2)+'\n')
                   break

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+from packaged_python_selector import select_packaged_python
 import json
 import os
 from pathlib import Path
@@ -89,8 +90,8 @@ def sealed(root, env):
     require(resources == app / 'resources', 'resources_outside_sealed_app')
     executable = Path(package['python']).resolve()
     require(executable.is_relative_to(resources), 'interpreter_outside_sealed_resources')
-    pythons = list(resources.rglob('python3.12'))
-    require(len(pythons) == 1 and pythons[0].resolve() == executable, 'nonunique_packaged_interpreter')
+    selected = select_packaged_python(resources, root / 'candidate/unchain_runtime/mcp_runtime_pins.json')
+    require(selected == executable, 'nonunique_packaged_interpreter')
     require(executable.is_file() and os.access(executable, os.X_OK), 'packaged_interpreter_not_executable')
     actual_hash = hashlib.sha256(executable.read_bytes()).hexdigest()
     require(actual_hash == package['python_sha256'], 'packaged_interpreter_hash_changed')
