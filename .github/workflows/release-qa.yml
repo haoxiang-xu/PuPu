@@ -18,22 +18,22 @@ on:
         description: Full frozen Host source SHA
         required: true
         type: string
-        default: 0006e12a660de8634f9627bbc1d0082e088b8235
+        default: 56dd76fdd68956a5652ccbd085b99d95db9f5a28
       candidate_tree:
         description: Full frozen Host tree
         required: true
         type: string
-        default: 0912d8aac2af7ab7d5a6c536777bc4f34a4e74ad
+        default: 735607061eb127cc549e0ef76cc94ca6e6b9eb6e
       wheel_run_id:
         description: Canonical successful required-CI run that uploaded the single wheel
         required: true
         type: string
-        default: "42160538615"
+        default: "42264231815"
       wheel_sha256:
         description: SHA256 of the one required-CI wheel artifact
         required: true
         type: string
-        default: 61e570bb1ef13564079adeb036ccd7fa9d5dd64bb56d0fb017408336beb04cdc
+        default: 95cf58692442f3a3f709ccedd78568e5100309f439ec8785d96ee8e6b5db6ff5
       legacy_run_id:
         description: Canonical frozen run holding the old e0162fc1 binary
         required: true
@@ -55,11 +55,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      QA_EXPECTED_CANDIDATE: 0006e12a660de8634f9627bbc1d0082e088b8235
-      QA_EXPECTED_CANDIDATE_TREE: 0912d8aac2af7ab7d5a6c536777bc4f34a4e74ad
+      QA_EXPECTED_CANDIDATE: 56dd76fdd68956a5652ccbd085b99d95db9f5a28
+      QA_EXPECTED_CANDIDATE_TREE: 735607061eb127cc549e0ef76cc94ca6e6b9eb6e
       QA_CANDIDATE_SHA: ${{ inputs.candidate_sha }}
-      QA_CORE_SHA: 33e9552f35e537a03b9cd73cb154d642481162a8
-      QA_CORE_TREE: c7b327e243fd8152f869d1349776b066082d5fd9
+      QA_CORE_SHA: 369d86cc9592704c6d45017147904bf6e103a37f
+      QA_CORE_TREE: 18edaf62bb41ebade4457480f1edc89af4c6780b
       QA_WHEEL_SHA: 949a89475894b13ac324b90671c714ccd3125509cf6b313df739c66dc8292de6
       QA_WHEEL_RUN: "41562427104"
     steps:
@@ -106,7 +106,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: haoxiang-xu/unchain
-          ref: 33e9552f35e537a03b9cd73cb154d642481162a8
+          ref: 369d86cc9592704c6d45017147904bf6e103a37f
           path: core
           persist-credentials: false
 
@@ -188,10 +188,10 @@ jobs:
     env:
       QA_SCOPE: ${{ inputs.scope }}
       QA_ALLOW_PROVISIONAL_PAIR: ${{ inputs.allow_provisional_pair }}
-      QA_EXPECTED_HOST_SHA: 0006e12a660de8634f9627bbc1d0082e088b8235
-      QA_EXPECTED_HOST_TREE: 0912d8aac2af7ab7d5a6c536777bc4f34a4e74ad
-      QA_CORE_SHA: 33e9552f35e537a03b9cd73cb154d642481162a8
-      QA_CORE_TREE: c7b327e243fd8152f869d1349776b066082d5fd9
+      QA_EXPECTED_HOST_SHA: 56dd76fdd68956a5652ccbd085b99d95db9f5a28
+      QA_EXPECTED_HOST_TREE: 735607061eb127cc549e0ef76cc94ca6e6b9eb6e
+      QA_CORE_SHA: 369d86cc9592704c6d45017147904bf6e103a37f
+      QA_CORE_TREE: 18edaf62bb41ebade4457480f1edc89af4c6780b
       QA_EXPECTED_MANIFEST: sha256:88d5f8d733e7f3dc94fb1cd20060fcc5f2611c0f94420e327bcb12664368bf2e
       QA_HOST_SHA: ${{ inputs.candidate_sha }}
       QA_HOST_TREE: ${{ inputs.candidate_tree }}
@@ -209,8 +209,8 @@ jobs:
           [[ "$QA_EXPECTED_HOST_TREE" =~ ^[0-9a-f]{40}$ ]]
           [[ "$QA_HOST_SHA" == "$QA_EXPECTED_HOST_SHA" ]]
           [[ "$QA_HOST_TREE" == "$QA_EXPECTED_HOST_TREE" ]]
-          [[ "$QA_CORE_SHA" == 33e9552f35e537a03b9cd73cb154d642481162a8 ]]
-          [[ "$QA_CORE_TREE" == c7b327e243fd8152f869d1349776b066082d5fd9 ]]
+          [[ "$QA_CORE_SHA" == 369d86cc9592704c6d45017147904bf6e103a37f ]]
+          [[ "$QA_CORE_TREE" == 18edaf62bb41ebade4457480f1edc89af4c6780b ]]
           [[ "$QA_WHEEL_RUN_ID" =~ ^[0-9]+$ ]]
           [[ "$QA_WHEEL_SHA" =~ ^[0-9a-f]{64}$ ]]
           [[ "$QA_LEGACY_RUN_ID" =~ ^[0-9]+$ ]]
@@ -240,7 +240,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: haoxiang-xu/unchain
-          ref: 33e9552f35e537a03b9cd73cb154d642481162a8
+          ref: 369d86cc9592704c6d45017147904bf6e103a37f
           path: core
           persist-credentials: false
       - name: Stage byte-identical Core tests and fixtures without Core source
@@ -271,8 +271,8 @@ jobs:
           selectors=sorted(p.relative_to(staged).as_posix() for p in (staged/'tests').glob('test_skeleton_*.py'))
           assert len(selectors)>=40, {'selected_test_files':len(selectors)}
           pathlib.Path('test-results/pair/core-test-staging.json').write_text(json.dumps({
-              'core_sha':'33e9552f35e537a03b9cd73cb154d642481162a8',
-              'core_tree':'c7b327e243fd8152f869d1349776b066082d5fd9',
+              'core_sha':'369d86cc9592704c6d45017147904bf6e103a37f',
+              'core_tree':'18edaf62bb41ebade4457480f1edc89af4c6780b',
               'source_free_test_root':str(staged.resolve()),'selected_test_files':selectors,
               'staged_file_count':len(actual),'staged_inventory_sha256':hashlib.sha256(json.dumps(actual,sort_keys=True,separators=(',',':')).encode()).hexdigest()},indent=2)+'\n')
           PY
@@ -345,16 +345,16 @@ jobs:
           def admission(run, flag):
               assert flag in ('true','false'), 'invalid provisional boolean'
               assert isinstance(run,dict) and {'databaseId','status','conclusion','headSha'} <= run.keys(), 'missing CI metadata'
-              assert type(run['databaseId']) is int and run['databaseId']==42160538615, 'wrong CI run'
-              assert type(run['headSha']) is str and run['headSha']=='0006e12a660de8634f9627bbc1d0082e088b8235', 'wrong CI head'
+              assert type(run['databaseId']) is int and run['databaseId']==42264231815, 'wrong CI run'
+              assert type(run['headSha']) is str and run['headSha']=='56dd76fdd68956a5652ccbd085b99d95db9f5a28', 'wrong CI head'
               assert type(run['status']) is str and (run['conclusion'] is None or type(run['conclusion']) is str), 'invalid CI metadata type'
               if run['status']=='completed' and run['conclusion']=='success':
                   return 'REQUIRED_CI_SUCCESS'
               if flag=='true' and os.environ.get('QA_SCOPE')=='pair' and run['status'] in ('queued','in_progress') and run['conclusion'] in (None,''):
                   return 'PROVISIONAL_PENDING'
               raise AssertionError('required CI state is not admissible')
-          assert os.environ['QA_WHEEL_RUN_ID']=='42160538615', 'wrong artifact run'
-          assert os.environ['QA_WHEEL_SHA']=='61e570bb1ef13564079adeb036ccd7fa9d5dd64bb56d0fb017408336beb04cdc', 'wrong wheel identity'
+          assert os.environ['QA_WHEEL_RUN_ID']=='42264231815', 'wrong artifact run'
+          assert os.environ['QA_WHEEL_SHA']=='95cf58692442f3a3f709ccedd78568e5100309f439ec8785d96ee8e6b5db6ff5', 'wrong wheel identity'
           run=json.load(open('test-results/pair/wheel-run.json'))
           mode=admission(run,os.environ['QA_ALLOW_PROVISIONAL_PAIR'])
           pathlib.Path('test-results/pair/required-ci-admission.json').write_text(json.dumps({'admission_mode':mode,'initial_run':run,'qualification_status':'PENDING'},indent=2)+'\n')
@@ -371,7 +371,7 @@ jobs:
           import hashlib,json,sys,zipfile,pathlib
           evidence=json.load(open(sys.argv[1])); wheel=pathlib.Path(sys.argv[2])
           assert evidence['build']=={'built_once':True,'wheel_count':1}, evidence['build']
-          assert evidence['source']['revision']=='33e9552f35e537a03b9cd73cb154d642481162a8'
+          assert evidence['source']['revision']=='369d86cc9592704c6d45017147904bf6e103a37f'
           assert evidence['source']['dirty'] is False
           assert evidence['artifact']['sha256']=='sha256:'+hashlib.sha256(wheel.read_bytes()).hexdigest()
           core=pathlib.Path('core/src/unchain')
@@ -931,8 +931,8 @@ jobs:
           def admission(run, flag):
               assert flag in ('true','false'), 'invalid provisional boolean'
               assert isinstance(run,dict) and {'databaseId','status','conclusion','headSha'} <= run.keys(), 'missing CI metadata'
-              assert type(run['databaseId']) is int and run['databaseId']==42160538615, 'wrong CI run'
-              assert type(run['headSha']) is str and run['headSha']=='0006e12a660de8634f9627bbc1d0082e088b8235', 'wrong CI head'
+              assert type(run['databaseId']) is int and run['databaseId']==42264231815, 'wrong CI run'
+              assert type(run['headSha']) is str and run['headSha']=='56dd76fdd68956a5652ccbd085b99d95db9f5a28', 'wrong CI head'
               assert type(run['status']) is str and (run['conclusion'] is None or type(run['conclusion']) is str), 'invalid CI metadata type'
               if run['status']=='completed' and run['conclusion']=='success':
                   return 'REQUIRED_CI_SUCCESS'
@@ -941,7 +941,7 @@ jobs:
               raise AssertionError('required CI state is not admissible')
           initial=json.loads(pathlib.Path('test-results/pair/required-ci-admission.json').read_text())
           while True:
-              response=subprocess.run(['gh','run','view','42160538615','--repo','haoxiang-xu/PuPu','--json','databaseId,status,conclusion,headSha'],check=True,capture_output=True,text=True,timeout=30)
+              response=subprocess.run(['gh','run','view','42264231815','--repo','haoxiang-xu/PuPu','--json','databaseId,status,conclusion,headSha'],check=True,capture_output=True,text=True,timeout=30)
               run=json.loads(response.stdout)
               state=admission(run,'true')
               if state=='REQUIRED_CI_SUCCESS':
@@ -1018,7 +1018,7 @@ jobs:
         shell: bash
         run: |
           if [[ "${{ steps.auth_scan.outputs.pass }}" == true && "${{ job.status }}" == success ]] && python control/tools/qa356/qualify_deferred_core.py final; then
-            printf '{"status":"PASS","candidate":"%s","core":"33e9552f35e537a03b9cd73cb154d642481162a8"}\n' "$QA_HOST_SHA" > test-results/status/qualification.txt
+            printf '{"status":"PASS","candidate":"%s","core":"369d86cc9592704c6d45017147904bf6e103a37f"}\n' "$QA_HOST_SHA" > test-results/status/qualification.txt
           else
             printf '{"status":"FAIL_OR_NOT_RUN","job_status":"%s"}\n' "${{ job.status }}" > test-results/status/qualification.txt
             exit 1
@@ -1050,8 +1050,8 @@ jobs:
     env:
       QA_EXPECTED_HOST_SHA: fa162b3d94791fad36da85f4a00ff36ecf758853
       QA_EXPECTED_HOST_TREE: 9ac15003c6fdabb2928be0e3f5d61ff6d47e386d
-      QA_CORE_SHA: 33e9552f35e537a03b9cd73cb154d642481162a8
-      QA_CORE_TREE: c7b327e243fd8152f869d1349776b066082d5fd9
+      QA_CORE_SHA: 369d86cc9592704c6d45017147904bf6e103a37f
+      QA_CORE_TREE: 18edaf62bb41ebade4457480f1edc89af4c6780b
       QA_HOST_SHA: ${{ inputs.candidate_sha }}
       QA_HOST_TREE: ${{ inputs.candidate_tree }}
       QA_WHEEL_RUN_ID: ${{ inputs.wheel_run_id }}
@@ -1063,7 +1063,7 @@ jobs:
           if ($env:QA_EXPECTED_HOST_SHA -notmatch '^[0-9a-f]{40}$' -or $env:QA_HOST_SHA -ne $env:QA_EXPECTED_HOST_SHA) { throw 'root must freeze exact Host SHA before dispatch' }
           if ($env:QA_EXPECTED_HOST_TREE -notmatch '^[0-9a-f]{40}$' -or $env:QA_HOST_TREE -ne $env:QA_EXPECTED_HOST_TREE) { throw 'root must freeze exact Host tree before dispatch' }
           if ($env:QA_WHEEL_RUN_ID -notmatch '^[0-9]+$' -or $env:QA_WHEEL_SHA -notmatch '^[0-9a-f]{64}$') { throw 'required CI wheel identity is incomplete' }
-          if ($env:QA_CORE_SHA -ne '33e9552f35e537a03b9cd73cb154d642481162a8' -or $env:QA_CORE_TREE -ne 'c7b327e243fd8152f869d1349776b066082d5fd9') { throw 'Core identity mismatch' }
+          if ($env:QA_CORE_SHA -ne '369d86cc9592704c6d45017147904bf6e103a37f' -or $env:QA_CORE_TREE -ne '18edaf62bb41ebade4457480f1edc89af4c6780b') { throw 'Core identity mismatch' }
           New-Item -ItemType Directory -Force test-results/windows-wfp,test-results/platform,artifact | Out-Null
       - name: Set exact-source Git line-ending defaults before checkouts
         shell: pwsh
@@ -1094,7 +1094,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: haoxiang-xu/unchain
-          ref: 33e9552f35e537a03b9cd73cb154d642481162a8
+          ref: 369d86cc9592704c6d45017147904bf6e103a37f
           path: core
           persist-credentials: false
       - name: Download the one final required-CI wheel
