@@ -7,8 +7,8 @@ on:
         description: One serial qualification lane
         required: true
         type: choice
-        options: [source, pair, pair-resume, windows-native]
-        default: source
+        options: [pair]
+        default: pair
       allow_provisional_pair:
         description: Allow provisional Linux pair execution pending exact required CI; final success remains mandatory
         required: false
@@ -18,22 +18,22 @@ on:
         description: Full frozen Host source SHA
         required: true
         type: string
-        default: fa162b3d94791fad36da85f4a00ff36ecf758853
+        default: 0006e12a660de8634f9627bbc1d0082e088b8235
       candidate_tree:
         description: Full frozen Host tree
         required: true
         type: string
-        default: 9ac15003c6fdabb2928be0e3f5d61ff6d47e386d
+        default: 0912d8aac2af7ab7d5a6c536777bc4f34a4e74ad
       wheel_run_id:
         description: Canonical successful required-CI run that uploaded the single wheel
         required: true
         type: string
-        default: "42138839492"
+        default: "42160538615"
       wheel_sha256:
         description: SHA256 of the one required-CI wheel artifact
         required: true
         type: string
-        default: 21f5a0794dfeb0f4d28476b3d7d6851453540b8baa4791684bf03beac4e84461
+        default: 61e570bb1ef13564079adeb036ccd7fa9d5dd64bb56d0fb017408336beb04cdc
       legacy_run_id:
         description: Canonical frozen run holding the old e0162fc1 binary
         required: true
@@ -55,8 +55,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      QA_EXPECTED_CANDIDATE: fa162b3d94791fad36da85f4a00ff36ecf758853
-      QA_EXPECTED_CANDIDATE_TREE: 9ac15003c6fdabb2928be0e3f5d61ff6d47e386d
+      QA_EXPECTED_CANDIDATE: 0006e12a660de8634f9627bbc1d0082e088b8235
+      QA_EXPECTED_CANDIDATE_TREE: 0912d8aac2af7ab7d5a6c536777bc4f34a4e74ad
       QA_CANDIDATE_SHA: ${{ inputs.candidate_sha }}
       QA_CORE_SHA: 33e9552f35e537a03b9cd73cb154d642481162a8
       QA_CORE_TREE: c7b327e243fd8152f869d1349776b066082d5fd9
@@ -182,14 +182,14 @@ jobs:
   # Added pair/native lanes are a static draft. The source lane above remains the
   # reviewed 901 source job and is not replaced until its immutable run is saved.
   pair:
-    if: inputs.scope == 'pair' || inputs.scope == 'pair-resume'
+    if: inputs.scope == 'pair'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
       QA_SCOPE: ${{ inputs.scope }}
       QA_ALLOW_PROVISIONAL_PAIR: ${{ inputs.allow_provisional_pair }}
-      QA_EXPECTED_HOST_SHA: fa162b3d94791fad36da85f4a00ff36ecf758853
-      QA_EXPECTED_HOST_TREE: 9ac15003c6fdabb2928be0e3f5d61ff6d47e386d
+      QA_EXPECTED_HOST_SHA: 0006e12a660de8634f9627bbc1d0082e088b8235
+      QA_EXPECTED_HOST_TREE: 0912d8aac2af7ab7d5a6c536777bc4f34a4e74ad
       QA_CORE_SHA: 33e9552f35e537a03b9cd73cb154d642481162a8
       QA_CORE_TREE: c7b327e243fd8152f869d1349776b066082d5fd9
       QA_EXPECTED_MANIFEST: sha256:88d5f8d733e7f3dc94fb1cd20060fcc5f2611c0f94420e327bcb12664368bf2e
@@ -215,7 +215,7 @@ jobs:
           [[ "$QA_WHEEL_SHA" =~ ^[0-9a-f]{64}$ ]]
           [[ "$QA_LEGACY_RUN_ID" =~ ^[0-9]+$ ]]
           [[ "$QA_LEGACY_ARTIFACT" == 357-pair-backend-evidence ]]
-          [[ "$QA_SCOPE" == pair || "$QA_SCOPE" == pair-resume ]]
+          [[ "$QA_SCOPE" == pair ]]
           if [[ "$QA_SCOPE" == pair-resume && "$QA_ALLOW_PROVISIONAL_PAIR" != false ]]; then
             echo 'pair-resume requires allow_provisional_pair=false' >&2
             exit 1
@@ -345,16 +345,16 @@ jobs:
           def admission(run, flag):
               assert flag in ('true','false'), 'invalid provisional boolean'
               assert isinstance(run,dict) and {'databaseId','status','conclusion','headSha'} <= run.keys(), 'missing CI metadata'
-              assert type(run['databaseId']) is int and run['databaseId']==42138839492, 'wrong CI run'
-              assert type(run['headSha']) is str and run['headSha']=='fa162b3d94791fad36da85f4a00ff36ecf758853', 'wrong CI head'
+              assert type(run['databaseId']) is int and run['databaseId']==42160538615, 'wrong CI run'
+              assert type(run['headSha']) is str and run['headSha']=='0006e12a660de8634f9627bbc1d0082e088b8235', 'wrong CI head'
               assert type(run['status']) is str and (run['conclusion'] is None or type(run['conclusion']) is str), 'invalid CI metadata type'
               if run['status']=='completed' and run['conclusion']=='success':
                   return 'REQUIRED_CI_SUCCESS'
               if flag=='true' and os.environ.get('QA_SCOPE')=='pair' and run['status'] in ('queued','in_progress') and run['conclusion'] in (None,''):
                   return 'PROVISIONAL_PENDING'
               raise AssertionError('required CI state is not admissible')
-          assert os.environ['QA_WHEEL_RUN_ID']=='42138839492', 'wrong artifact run'
-          assert os.environ['QA_WHEEL_SHA']=='21f5a0794dfeb0f4d28476b3d7d6851453540b8baa4791684bf03beac4e84461', 'wrong wheel identity'
+          assert os.environ['QA_WHEEL_RUN_ID']=='42160538615', 'wrong artifact run'
+          assert os.environ['QA_WHEEL_SHA']=='61e570bb1ef13564079adeb036ccd7fa9d5dd64bb56d0fb017408336beb04cdc', 'wrong wheel identity'
           run=json.load(open('test-results/pair/wheel-run.json'))
           mode=admission(run,os.environ['QA_ALLOW_PROVISIONAL_PAIR'])
           pathlib.Path('test-results/pair/required-ci-admission.json').write_text(json.dumps({'admission_mode':mode,'initial_run':run,'qualification_status':'PENDING'},indent=2)+'\n')
@@ -408,6 +408,40 @@ jobs:
             'legacy_binary_sha256':hashlib.sha256(old).hexdigest()}
           pathlib.Path('test-results/pair/pair-identity.json').write_text(json.dumps(record,indent=2)+'\n')
           PY
+
+      - name: Stage the admitted legacy executable in an owned runner directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY_STAGE'
+          import importlib.util,json,os,pathlib,stat
+          def require(condition, reason):
+              if not condition:
+                  raise RuntimeError(reason)
+          root=pathlib.Path.cwd()/'legacy'
+          source=pathlib.Path(os.environ['QA_LEGACY_BINARY'])
+          require(source.is_absolute() and source.is_relative_to(root), 'legacy_source_outside_download_root')
+          require(root.is_dir() and not root.is_symlink() and root.resolve(strict=True)==root, 'legacy_download_root_not_canonical')
+          require(source.resolve(strict=True)==source, 'legacy_source_not_canonical')
+          for parent in (source.parent, *source.parent.parents):
+              require(not parent.is_symlink() and parent.is_dir(), 'legacy_source_parent_not_regular_directory')
+              if parent==root:
+                  break
+          temp=pathlib.Path(os.environ['RUNNER_TEMP'])
+          require(temp.is_absolute() and temp.resolve(strict=True)==temp and temp.is_dir() and not temp.is_symlink(), 'runner_temp_not_canonical')
+          require(temp.stat().st_uid==os.getuid(), 'runner_temp_not_owned')
+          owned=temp/'356-legacy-executable'
+          destination=owned/'unchain-server'
+          require(owned.parent==temp and destination.parent==owned and not os.path.lexists(owned) and not os.path.lexists(destination), 'legacy_destination_not_absent_or_contained')
+          spec=importlib.util.spec_from_file_location('qa356_checkpoint', 'control/tools/qa356/reuse_pair_checkpoint.py')
+          helper=importlib.util.module_from_spec(spec); spec.loader.exec_module(helper)
+          owned.mkdir(mode=0o700)
+          require(owned.stat().st_uid==os.getuid() and not owned.is_symlink(), 'legacy_destination_not_owned')
+          receipt=helper.stage_executable(source,destination,'e0162fc116e3f2970c67bc6c5458d1a305e6404dbb11b6e22db25897cad77ff6',77934304,'old-frozen-fresh-pair')
+          pathlib.Path('test-results/pair/legacy-executable-stage.json').write_text(json.dumps({'status':'STAGED_NOT_EXECUTED',**receipt},indent=2)+'\n')
+          with open(os.environ['GITHUB_ENV'],'a',encoding='utf-8') as output:
+              output.write('QA_LEGACY_BINARY='+str(destination)+'\n')
+          PY_STAGE
 
       - name: Bind the frozen source version without mutating package metadata
         shell: bash
@@ -896,8 +930,8 @@ jobs:
           def admission(run, flag):
               assert flag in ('true','false'), 'invalid provisional boolean'
               assert isinstance(run,dict) and {'databaseId','status','conclusion','headSha'} <= run.keys(), 'missing CI metadata'
-              assert type(run['databaseId']) is int and run['databaseId']==42138839492, 'wrong CI run'
-              assert type(run['headSha']) is str and run['headSha']=='fa162b3d94791fad36da85f4a00ff36ecf758853', 'wrong CI head'
+              assert type(run['databaseId']) is int and run['databaseId']==42160538615, 'wrong CI run'
+              assert type(run['headSha']) is str and run['headSha']=='0006e12a660de8634f9627bbc1d0082e088b8235', 'wrong CI head'
               assert type(run['status']) is str and (run['conclusion'] is None or type(run['conclusion']) is str), 'invalid CI metadata type'
               if run['status']=='completed' and run['conclusion']=='success':
                   return 'REQUIRED_CI_SUCCESS'
@@ -906,7 +940,7 @@ jobs:
               raise AssertionError('required CI state is not admissible')
           initial=json.loads(pathlib.Path('test-results/pair/required-ci-admission.json').read_text())
           while True:
-              response=subprocess.run(['gh','run','view','42138839492','--repo','haoxiang-xu/PuPu','--json','databaseId,status,conclusion,headSha'],check=True,capture_output=True,text=True,timeout=30)
+              response=subprocess.run(['gh','run','view','42160538615','--repo','haoxiang-xu/PuPu','--json','databaseId,status,conclusion,headSha'],check=True,capture_output=True,text=True,timeout=30)
               run=json.loads(response.stdout)
               state=admission(run,'true')
               if state=='REQUIRED_CI_SUCCESS':
