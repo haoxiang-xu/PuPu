@@ -254,7 +254,7 @@ def main():
         audit = result_dir / "family-audit.json"
         child_code = "import os,sys,time; open(sys.argv[1],'w').write(str(os.getpid())); time.sleep(120)"
         root_code = ("import json,os,subprocess,sys,time; p=subprocess.Popen([sys.executable,'-I','-B','-c'," +
-                     repr(child_code) + ",sys.argv[1]); deadline=time.time()+10; "
+                     repr(child_code) + ",sys.argv[1]]); deadline=time.time()+10; "
                      "exec('while not os.path.exists(sys.argv[1]) and time.time()<deadline: time.sleep(.05)'); "
                      "child=int(open(sys.argv[1]).read()); assert child==p.pid; "
                      "open(sys.argv[2],'w').write(json.dumps({'root_pid':os.getpid(),'child_pid':p.pid,'ready_pid':child})); sys.exit(0)")
@@ -263,6 +263,21 @@ def main():
                        subprocess.list2cmdline([system_python, "-I", "-B", "-c", root_code,
                                                 str(ready), str(audit)])]
         family_run = subprocess.run(family_args, capture_output=True, text=True)
+        family_receipt_text = (family_receipt.read_text(encoding="utf-8", errors="replace")
+                               if family_receipt.exists() else None)
+        evidence["family_control_attempt"] = {
+            "argv": family_args,
+            "root_source": root_code,
+            "child_source": child_code,
+            "guard_exit": family_run.returncode,
+            "stdout": family_run.stdout,
+            "stderr": family_run.stderr,
+            "receipt_path": str(family_receipt),
+            "receipt_exists": family_receipt.exists(),
+            "receipt_text": family_receipt_text,
+            "child_ready_marker_exists": ready.exists(),
+            "family_audit_exists": audit.exists(),
+        }
         family = validate_receipt(family_receipt, images, system_python)
         audit_data = json.loads(audit.read_text(encoding="utf-8"))
         if (family_run.returncode != 0 or audit_data["child_pid"] != audit_data["ready_pid"] or
