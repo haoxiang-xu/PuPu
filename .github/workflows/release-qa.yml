@@ -7,7 +7,7 @@ on:
         description: One serial qualification lane
         required: true
         type: choice
-        options: [source, pair, windows-native]
+        options: [source, pair, pair-resume, windows-native]
         default: source
       allow_provisional_pair:
         description: Allow provisional Linux pair execution pending exact required CI; final success remains mandatory
@@ -182,10 +182,11 @@ jobs:
   # Added pair/native lanes are a static draft. The source lane above remains the
   # reviewed 901 source job and is not replaced until its immutable run is saved.
   pair:
-    if: inputs.scope == 'pair'
+    if: inputs.scope == 'pair' || inputs.scope == 'pair-resume'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
+      QA_SCOPE: ${{ inputs.scope }}
       QA_ALLOW_PROVISIONAL_PAIR: ${{ inputs.allow_provisional_pair }}
       QA_EXPECTED_HOST_SHA: fa162b3d94791fad36da85f4a00ff36ecf758853
       QA_EXPECTED_HOST_TREE: 9ac15003c6fdabb2928be0e3f5d61ff6d47e386d
@@ -214,7 +215,12 @@ jobs:
           [[ "$QA_WHEEL_SHA" =~ ^[0-9a-f]{64}$ ]]
           [[ "$QA_LEGACY_RUN_ID" =~ ^[0-9]+$ ]]
           [[ "$QA_LEGACY_ARTIFACT" == 357-pair-backend-evidence ]]
-          mkdir -p test-results/status test-results/pair test-results/platform reusable
+          [[ "$QA_SCOPE" == pair || "$QA_SCOPE" == pair-resume ]]
+          if [[ "$QA_SCOPE" == pair-resume && "$QA_ALLOW_PROVISIONAL_PAIR" != false ]]; then
+            echo 'pair-resume requires allow_provisional_pair=false' >&2
+            exit 1
+          fi
+          mkdir -p test-results/status test-results/pair test-results/platform test-results/resume/metadata reusable
           printf 'NOT_RUN\n' > test-results/status/qualification.txt
           date -u +%FT%TZ > test-results/pair/workflow-start.txt
 
@@ -292,6 +298,33 @@ jobs:
           path: legacy
           run-id: ${{ inputs.legacy_run_id }}
           github-token: ${{ github.token }}
+      - name: Capture the approved installed checkpoint source metadata
+        if: inputs.scope == 'pair-resume'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api repos/haoxiang-xu/PuPu/actions/runs/42143427536 > test-results/resume/metadata/source-run.json
+          gh api repos/haoxiang-xu/PuPu/actions/jobs/127649056112 > test-results/resume/metadata/source-job.json
+          gh api repos/haoxiang-xu/PuPu/actions/artifacts/13471311808 > test-results/resume/metadata/13471311808.json
+          gh api repos/haoxiang-xu/PuPu/actions/artifacts/13471916060 > test-results/resume/metadata/13471916060.json
+      - name: Download the exact previously scanned installed-cell checkpoint
+        if: inputs.scope == 'pair-resume'
+        uses: actions/download-artifact@v4
+        with:
+          name: 356-installed-cells-fa162b3d94791fad36da85f4a00ff36ecf758853
+          path: test-results/resume/original/installed
+          run-id: 42143427536
+          github-token: ${{ github.token }}
+      - name: Download the exact previously scanned reusable sidecar checkpoint
+        if: inputs.scope == 'pair-resume'
+        uses: actions/download-artifact@v4
+        with:
+          name: 356-reusable-linux-sidecar-fa162b3d94791fad36da85f4a00ff36ecf758853
+          path: test-results/resume/original/sidecar
+          run-id: 42143427536
+          github-token: ${{ github.token }}
       - name: Bind repositories and verify the one wheel against the artifact evidence
         id: artifact
         shell: bash
@@ -317,7 +350,7 @@ jobs:
               assert type(run['status']) is str and (run['conclusion'] is None or type(run['conclusion']) is str), 'invalid CI metadata type'
               if run['status']=='completed' and run['conclusion']=='success':
                   return 'REQUIRED_CI_SUCCESS'
-              if flag=='true' and run['status'] in ('queued','in_progress') and run['conclusion'] in (None,''):
+              if flag=='true' and os.environ.get('QA_SCOPE')=='pair' and run['status'] in ('queued','in_progress') and run['conclusion'] in (None,''):
                   return 'PROVISIONAL_PENDING'
               raise AssertionError('required CI state is not admissible')
           assert os.environ['QA_WHEEL_RUN_ID']=='42138839492', 'wrong artifact run'
@@ -416,7 +449,52 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes tcpdump gnome-keyring dbus-x11 xvfb
 
+      - name: Validate and adopt the one approved installed-cell and sidecar checkpoint
+        id: checkpoint_adopt
+        if: inputs.scope == 'pair-resume'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          QA_LEGACY_BINARY: ${{ env.QA_LEGACY_BINARY }}
+        run: |
+          set -euo pipefail
+          python control/tools/qa356/reuse_pair_checkpoint.py adopt
+          echo 'metadata_scanned=true' >> "$GITHUB_OUTPUT"
+          echo 'adopted=true' >> "$GITHUB_OUTPUT"
+
+      - name: Preserve the validated source-run checkpoint before remaining controls
+        if: always() && inputs.scope == 'pair-resume' && steps.checkpoint_adopt.outputs.adopted == 'true' && steps.checkpoint_adopt.outputs.metadata_scanned == 'true' && steps.checkpoint_adopt.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: 356-resume-checkpoint-${{ inputs.candidate_sha }}
+          if-no-files-found: error
+          path: |
+            test-results/resume/original/installed/core/acceptance.xml
+            test-results/resume/original/installed/core/imported-runtime.json
+            test-results/resume/original/installed/core/test-files.txt
+            test-results/resume/original/installed/pair/build-version-input.json
+            test-results/resume/original/installed/pair/core-test-staging.json
+            test-results/resume/original/installed/pair/dependencies-freeze.txt
+            test-results/resume/original/installed/pair/installed-cells-summary.json
+            test-results/resume/original/installed/pair/pair-identity.json
+            test-results/resume/original/installed/pair/unchain-artifact.json
+            test-results/resume/original/installed/pair/wheel-run.json
+            test-results/resume/original/installed/source/acceptance.xml
+            test-results/resume/original/installed/source/imported-runtime.json
+            test-results/resume/original/installed/source/test-files.txt
+            test-results/resume/original/installed/status/unit-evidence-scan.json
+            test-results/resume/original/sidecar/linux-sidecar-evidence-scan.json
+            test-results/resume/original/sidecar/linux-sidecar-identity.json
+            test-results/resume/original/sidecar/linux-sidecar.sha256
+            test-results/resume/original/sidecar/unchain-server
+            test-results/resume/metadata/source-run.json
+            test-results/resume/metadata/source-job.json
+            test-results/resume/metadata/13471311808.json
+            test-results/resume/metadata/13471916060.json
+            test-results/resume/metadata-scan.json
+
       - name: Run installed Host and Core contract cells
+        if: inputs.scope == 'pair'
         shell: bash
         env:
           QA_CANDIDATE: ${{ inputs.candidate_sha }}
@@ -448,6 +526,8 @@ jobs:
           allowed=[pathlib.Path(p) for mode in ('core','source') for p in (
             f'test-results/{mode}/acceptance.xml',f'test-results/{mode}/test-files.txt',f'test-results/{mode}/imported-runtime.json')]
           allowed += [pathlib.Path('test-results/pair/build-version-input.json'),pathlib.Path('test-results/pair/core-test-staging.json'),pathlib.Path('test-results/pair/installed-cells-summary.json'),pathlib.Path('test-results/pair/dependencies-freeze.txt'),pathlib.Path('test-results/pair/pair-identity.json'),pathlib.Path('test-results/pair/wheel-run.json'),pathlib.Path('test-results/pair/unchain-artifact.json')]
+          reused_provenance=pathlib.Path('test-results/pair/reused-cells-provenance.json')
+          if reused_provenance.is_file(): allowed.append(reused_provenance)
           pattern=re.compile(rb'(?i)(?:x-unchain-auth|authorization|bearer)\s*[:=]\s*[A-Za-z0-9._~+/-]{16,}')
           rows=[]; missing=[]
           for f in allowed:
@@ -485,7 +565,16 @@ jobs:
             test-results/pair/unchain-artifact.json
             test-results/status/unit-evidence-scan.json
 
+      - name: Upload validated installed-cell reuse provenance
+        if: always() && inputs.scope == 'pair-resume' && steps.unit_scan.outputs.pass == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: 356-reused-installed-provenance-${{ inputs.candidate_sha }}
+          if-no-files-found: error
+          path: test-results/pair/reused-cells-provenance.json
+
       - name: Build Linux sidecar once from the downloaded wheel and preserve it
+        if: inputs.scope == 'pair'
         working-directory: candidate
         shell: bash
         env:
