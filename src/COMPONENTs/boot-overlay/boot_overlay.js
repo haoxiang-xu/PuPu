@@ -1,3 +1,4 @@
+import CompositedBackground from "../../BUILTIN_COMPONENTs/material/composited_background";
 import { useEffect, useRef, useState, useContext } from "react";
 import usePresentationPlatform from "../../BUILTIN_COMPONENTs/mini_react/use_presentation_platform";
 
@@ -229,16 +230,7 @@ const BootOverlay = () => {
       style={rootStyle}
     >
       {/* faint blurred 3D torus field, theme-derived, ambient only */}
-      <div
-        aria-hidden="true"
-        style={{
-          position: "absolute",
-          inset: 0,
-          filter: "blur(44px)",
-          opacity: 0.32,
-          pointerEvents: "none",
-        }}
-      >
+      <CompositedBackground backgroundColor={background} opacity={0.32} blur={44}>
         <ShaderBlobBackground
           colors={blobScene.colors}
           shape="torus"
@@ -252,6 +244,7 @@ const BootOverlay = () => {
           ao={0}
           sss={isDark ? 0.2 : 0.45}
           blur={0}
+          dither={false}
           lightAzimuth={30}
           lightElevation={55}
           skyTint={blobScene.skyTint}
@@ -265,7 +258,7 @@ const BootOverlay = () => {
              zero visible change. AO off (invisible under the blur). */
           pixelRatio={0.4}
         />
-      </div>
+      </CompositedBackground>
 
       {/* centered "click anywhere to start" prompt, fades in when ready.
           While loading, the faint torus field is the only indicator. */}

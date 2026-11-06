@@ -1,3 +1,5 @@
+import ShadowSurface from "../../../../BUILTIN_COMPONENTs/material/shadow_surface";
+import { useSurfaceComposite } from "../../../../BUILTIN_COMPONENTs/material/surface_composite";
 import React from "react";
 import Button from "../../../../BUILTIN_COMPONENTs/input/button";
 import usePresentationPlatform from "../../../../BUILTIN_COMPONENTs/mini_react/use_presentation_platform";
@@ -83,7 +85,7 @@ export function CanvasControlCenter({
   const undoHint = isMac ? "Undo (⌘Z)" : "Undo (Ctrl+Z)";
   const redoHint = isMac ? "Redo (⌘⇧Z)" : "Redo (Ctrl+Y)";
   return (
-    <div
+    <ShadowSurface
       data-testid={testId}
       style={{
         position: "absolute",
@@ -141,7 +143,7 @@ export function CanvasControlCenter({
           opacity: saveActive ? 1 : 0.5,
         }}
       />
-    </div>
+    </ShadowSurface>
   );
 }
 
@@ -174,7 +176,7 @@ export function AboveControls({ children, testId }) {
 export function ControlPopover({ isDark, testId, children, width = 320 }) {
   const tokens = overlay_tokens(isDark);
   return (
-    <div
+    <ShadowSurface
       data-testid={testId}
       style={{
         width,
@@ -191,7 +193,7 @@ export function ControlPopover({ isDark, testId, children, width = 320 }) {
       }}
     >
       {children}
-    </div>
+    </ShadowSurface>
   );
 }
 
@@ -203,7 +205,7 @@ export function CanvasMessageStrip({ isDark, items, testId, role, standalone = f
   if (list.length === 0) return null;
   const tokens = overlay_tokens(isDark);
   return (
-    <div
+    <ShadowSurface
       data-testid={testId}
       role={role}
       style={{
@@ -239,7 +241,7 @@ export function CanvasMessageStrip({ isDark, items, testId, role, standalone = f
           </div>
         ),
       )}
-    </div>
+    </ShadowSurface>
   );
 }
 
@@ -300,7 +302,7 @@ export function FloatingBreadcrumb({
     </span>
   ));
   return (
-    <div
+    <ShadowSurface
       style={{
         position: "absolute",
         top,
@@ -342,7 +344,7 @@ export function FloatingBreadcrumb({
           {hint}
         </span>
       )}
-    </div>
+    </ShadowSurface>
   );
 }
 
@@ -350,7 +352,7 @@ export function FloatingBreadcrumb({
 export function CanvasCaptionChip({ isDark, children, testId }) {
   const tokens = overlay_tokens(isDark);
   return (
-    <div
+    <ShadowSurface
       data-testid={testId}
       style={{
         position: "absolute",
@@ -371,7 +373,7 @@ export function CanvasCaptionChip({ isDark, children, testId }) {
       }}
     >
       {children}
-    </div>
+    </ShadowSurface>
   );
 }
 
@@ -389,15 +391,20 @@ export function FloatingDetailShell({
   children,
 }) {
   const tokens = overlay_tokens(isDark);
+  const surface = useSurfaceComposite({
+    backgroundColor: tokens.background,
+    backdropFilter: tokens.backdrop,
+  });
   return (
     <>
-      <div
+      <ShadowSurface
         data-testid={testId}
         style={{
           position: "absolute",
           zIndex: AGENTS_MODAL_Z.PANEL,
           borderRadius: 10,
           ...glass(tokens),
+          ...surface.style,
           boxShadow: tokens.shadow,
           overflow: "hidden",
           display: "flex",
@@ -415,8 +422,9 @@ export function FloatingDetailShell({
           pointerEvents: open ? "auto" : "none",
         }}
       >
+        {surface.definition}
         {children}
-      </div>
+      </ShadowSurface>
       {handle && (
         <PanelResizeHandle
           testId={handle.testId}

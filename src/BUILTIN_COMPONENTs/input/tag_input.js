@@ -1,3 +1,4 @@
+import ShadowSurface from "../material/shadow_surface";
 import React, { useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ConfigContext } from "../../CONTAINERs/config/context";
@@ -349,7 +350,7 @@ export default function TagInput({
           : null,
       )}
       {popover && filtered_options.length > 0 && (
-        <div
+        <ShadowSurface
           data-testid="tag-input-popover"
           style={{
             position: "absolute",
@@ -403,7 +404,7 @@ export default function TagInput({
               </React.Fragment>
             );
           })}
-        </div>
+        </ShadowSurface>
       )}
       {is_empty && placeholder && (
         <div

@@ -1,3 +1,6 @@
+import ShadowSurface from "../material/shadow_surface";
+import { useSurfaceComposite } from "../material/surface_composite";
+import { SURFACE_DITHER_STYLE } from "../material/surface_dither";
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 
 /* { Contexts } -------------------------------------------------------------------------------------------------------------- */
@@ -88,6 +91,8 @@ const FloatingTextField = ({
   const padding = style?.padding ?? tf.padding ?? 12;
   const baseColor = style?.color || theme?.color || (isDark ? "#CCC" : "#222");
   const backdropFilter = style?.backdropFilter || tf.backdropFilter || null;
+
+  const surface = useSurfaceComposite({ backgroundColor: bg, backdropFilter });
 
   /* ---- parse border width so we can flush the scrollbar to the outer edge ---- */
   const borderWidth = parseInt(border, 10) || 1;
@@ -285,19 +290,21 @@ const FloatingTextField = ({
       <div style={{ position: "relative" }}>
 
       {/* ── Main container ── */}
-      <div
+      <ShadowSurface
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         style={{
           position: "relative",
           boxSizing: "border-box",
           backgroundColor: bg,
+          ...SURFACE_DITHER_STYLE,
           ...(backdropFilter
             ? {
                 backdropFilter,
                 WebkitBackdropFilter: backdropFilter,
               }
             : {}),
+          ...surface.style,
           border,
           borderRadius,
           boxShadow: hovered || focused ? shadowFocus : shadow,
@@ -307,6 +314,7 @@ const FloatingTextField = ({
           overflow: "hidden",
         }}
       >
+        {surface.definition}
         {/* ── Hidden measurement div ── */}
         <div
           ref={measureRef}
@@ -465,7 +473,7 @@ const FloatingTextField = ({
             {functional_section}
           </div>
         )}
-      </div>
+      </ShadowSurface>
 
       {/* ── Content section (floating label-like) ── */}
       {content_section && (

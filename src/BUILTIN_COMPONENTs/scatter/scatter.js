@@ -1,3 +1,4 @@
+import ShadowSurface from "../material/shadow_surface";
 import {
   useCallback,
   useContext,
@@ -620,7 +621,7 @@ function Scatter({
             })
           ) : (
             <>
-              <div
+              <ShadowSurface
                 style={{
                   backgroundColor: theme.tooltipBackground,
                   border: theme.tooltipBorder,
@@ -699,7 +700,7 @@ function Scatter({
                     </span>
                   </div>
                 )}
-              </div>
+              </ShadowSurface>
               {/* arrow */}
               <div
                 style={{
@@ -742,7 +743,7 @@ function Scatter({
                 gap: 7,
               }}
             >
-              <div
+              <ShadowSurface
                 style={{
                   width: 8,
                   height: 8,

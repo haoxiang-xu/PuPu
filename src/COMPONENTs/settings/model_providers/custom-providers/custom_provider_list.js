@@ -1,3 +1,4 @@
+import ShadowSurface from "../../../../BUILTIN_COMPONENTs/material/shadow_surface";
 import { useContext, useState } from "react";
 import { ConfigContext } from "../../../../CONTAINERs/config/context";
 import Button from "../../../../BUILTIN_COMPONENTs/input/button";
@@ -240,7 +241,7 @@ const CustomProviderRow = ({ provider, isDark, onEdit, onExport, onChanged }) =>
           outline: "none",
         }}
       >
-        <span
+        <ShadowSurface as="span"
           style={{
             position: "absolute",
             top: 2,

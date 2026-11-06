@@ -1,3 +1,5 @@
+import ShadowSurface from "../material/shadow_surface";
+import { parseSurfaceColor } from "../material/surface_composite";
 import {
   useCallback,
   useContext,
@@ -1172,7 +1174,8 @@ const Tooltip = ({
                 }}
               >
                 {tooltipPath ? (
-                  <svg
+                  <ShadowSurface as="svg"
+                    shadowShape={{ path: tooltipPath, shadow: shadowValue, opacity: parseSurfaceColor(bubbleColor)?.[3] ?? 1 }}
                     width={tooltipWidth}
                     height={tooltipHeight}
                     viewBox={`0 0 ${tooltipWidth} ${tooltipHeight}`}
@@ -1185,7 +1188,7 @@ const Tooltip = ({
                     }}
                   >
                     <path d={tooltipPath} fill={bubbleColor} />
-                  </svg>
+                  </ShadowSurface>
                 ) : null}
                 <div
                   ref={content_ref}

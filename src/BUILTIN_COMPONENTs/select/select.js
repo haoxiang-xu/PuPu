@@ -1,3 +1,5 @@
+import ShadowSurface from "../material/shadow_surface";
+import { SURFACE_DITHER_STYLE } from "../material/surface_dither";
 import {
   isValidElement,
   useContext,
@@ -283,7 +285,7 @@ const SinkingSelect = ({
     (typeof selectedIcon === "string" || isValidElement(selectedIcon));
 
   const triggerContent = (
-    <div
+    <ShadowSurface
       ref={triggerRef}
       role="combobox"
       aria-controls={listboxIdRef.current}
@@ -385,11 +387,11 @@ const SinkingSelect = ({
           flex: "none",
         }}
       />
-    </div>
+    </ShadowSurface>
   );
 
   const dropdownContent = (
-    <div
+    <ShadowSurface
       ref={dropdownPanelRef}
       style={{
         display: "flex",
@@ -475,7 +477,7 @@ const SinkingSelect = ({
           isDark={false}
         />
       </div>
-    </div>
+    </ShadowSurface>
   );
 
   return (
@@ -633,7 +635,7 @@ const FloatingSelect = ({
       }}
     >
       {/* card-like container */}
-      <div
+      <ShadowSurface
         style={{
           position: "relative",
           flex: 1,
@@ -740,12 +742,12 @@ const FloatingSelect = ({
             {label}
           </span>
         )}
-      </div>
+      </ShadowSurface>
     </div>
   );
 
   const dropdownContent = (
-    <div
+    <ShadowSurface
       ref={dropdownPanelRef}
       style={{
         display: "flex",
@@ -830,7 +832,7 @@ const FloatingSelect = ({
           isDark={isDark}
         />
       </div>
-    </div>
+    </ShadowSurface>
   );
 
   return (
@@ -1325,7 +1327,7 @@ const Select = ({
   };
 
   const dropdownContent = (
-    <div
+    <ShadowSurface
       ref={dropdownPanelRef}
       style={
         isPalette
@@ -1345,6 +1347,7 @@ const Select = ({
                 ? "1px solid rgba(var(--pupu-text-rgb),0.10)"
                 : "1px solid rgba(var(--pupu-text-rgb),0.09)",
               borderRadius: 22,
+              ...SURFACE_DITHER_STYLE,
               backdropFilter: "blur(20px) saturate(130%)",
               WebkitBackdropFilter: "blur(20px) saturate(130%)",
               boxShadow: isDark
@@ -1373,6 +1376,7 @@ const Select = ({
                 (isDark
                   ? "rgba(var(--pupu-surface-rgb),0.85)"
                   : "rgba(var(--pupu-surface-rgb),0.9)"),
+              ...SURFACE_DITHER_STYLE,
               backdropFilter: "blur(20px) saturate(130%)",
               WebkitBackdropFilter: "blur(20px) saturate(130%)",
               border: isDark
@@ -1684,7 +1688,7 @@ const Select = ({
           {dropdown_footer}
         </div>
       )}
-    </div>
+    </ShadowSurface>
   );
 
   return (

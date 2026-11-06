@@ -1,3 +1,4 @@
+import ShadowSurface from "../material/shadow_surface";
 import React, {
   forwardRef,
   useCallback,
@@ -312,7 +313,7 @@ const SegmentedButton = ({
   }, [isDark, theme, inputTheme]);
 
   return (
-    <div
+    <ShadowSurface
       ref={containerRef}
       style={{
         position: "relative",
@@ -330,7 +331,7 @@ const SegmentedButton = ({
       }}
     >
       {/* ── sliding indicator ────────────────────────── */}
-      <div
+      <ShadowSurface
         style={{
           position: "absolute",
           top: outerPad,
@@ -373,7 +374,7 @@ const SegmentedButton = ({
           />
         );
       })}
-    </div>
+    </ShadowSurface>
   );
 };
 

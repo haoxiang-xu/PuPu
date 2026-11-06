@@ -1,3 +1,4 @@
+import ShadowSurface from "../material/shadow_surface";
 import {
   useCallback,
   useContext,
@@ -114,7 +115,7 @@ const Card = ({
         height,
       }}
     >
-      <div
+      <ShadowSurface
         ref={cardRef}
         onMouseEnter={handleMouseEnter}
         onMouseMove={handleMouseMove}
@@ -178,7 +179,7 @@ const Card = ({
             {children}
           </div>
         </div>
-      </div>
+      </ShadowSurface>
     </div>
   );
 };

@@ -1,3 +1,5 @@
+import ShadowSurface from "../../../BUILTIN_COMPONENTs/material/shadow_surface";
+import { useSurfaceComposite } from "../../../BUILTIN_COMPONENTs/material/surface_composite";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../../SERVICEs/api";
 import {
@@ -454,6 +456,10 @@ export default function RecipesPage({
     ? "1px solid rgba(255,255,255,0.08)"
     : "1px solid rgba(0,0,0,0.08)";
   const overlayBackdrop = "blur(16px) saturate(1.4)";
+  const listSurface = useSurfaceComposite({
+    backgroundColor: overlayBg,
+    backdropFilter: overlayBackdrop,
+  });
   const overlayShadow = isDark
     ? "0 8px 32px rgba(0,0,0,0.5)"
     : "0 8px 32px rgba(0,0,0,0.1)";
@@ -534,10 +540,11 @@ export default function RecipesPage({
       </div>
 
       {/* ── Floating recipe list (left side menu) ── */}
-      <div
+      <ShadowSurface
         data-testid="recipe-list-panel-shell"
         style={{
           ...overlayPanel,
+          ...listSurface.style,
           top: PANEL_INSET,
           left: PANEL_INSET,
           bottom: PANEL_INSET,
@@ -552,6 +559,7 @@ export default function RecipesPage({
           pointerEvents: listHidden ? "none" : "auto",
         }}
       >
+        {listSurface.definition}
         <AgentExplorer
           recipes={recipes}
           activeId={skeletonResourceId}
@@ -577,7 +585,7 @@ export default function RecipesPage({
           isDark={isDark}
           headerLeadingPad={headerLeadingPad}
         />
-      </div>
+      </ShadowSurface>
 
       {/* ── List resize pill (floats just outside the list's right edge) ── */}
       <PanelResizeHandle

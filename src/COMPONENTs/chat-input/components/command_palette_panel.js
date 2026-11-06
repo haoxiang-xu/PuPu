@@ -1,3 +1,5 @@
+import ShadowSurface from "../../../BUILTIN_COMPONENTs/material/shadow_surface";
+import { SURFACE_DITHER_STYLE } from "../../../BUILTIN_COMPONENTs/material/surface_dither";
 import { useEffect, useRef, useState } from "react";
 import CommandMenu, { commandListCapHeight } from "./command_menu";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
@@ -211,7 +213,7 @@ const CommandPalettePanel = ({
       style={{ position: "relative" }}
     >
       {/* the morphing panel — grows upward from the pill's bounds, BEHIND it */}
-      <div
+      <ShadowSurface
         ref={panelRef}
         aria-hidden={!on}
         style={{
@@ -230,6 +232,7 @@ const CommandPalettePanel = ({
           border: on ? panelBorder : "1px solid transparent",
           ...(on
             ? {
+                ...SURFACE_DITHER_STYLE,
                 backdropFilter: "blur(20px) saturate(130%)",
                 WebkitBackdropFilter: "blur(20px) saturate(130%)",
               }
@@ -403,7 +406,7 @@ const CommandPalettePanel = ({
             ) : null}
           </div>
         </div>
-      </div>
+      </ShadowSurface>
 
       {/* the pill row — normal flow, never wrapped/clipped at rest */}
       <div
