@@ -260,7 +260,8 @@ function createLifecycleControl({ out, write, mark, expect, until, agent, port, 
     await expect(page.getByText(/reviewer\.1/).first()).toBeVisible();
     // Resolve the worker-owned arrow from its own reviewer.1 + completed title,
     // and distinguish it from the outer Reviewer delegate summary arrow.
-    const childInventory = async () => page.evaluate(() => {
+    let ownedWorker = null;
+    const childInventory = async () => page.evaluate(ownedWorker => {
       const buttons = [...document.querySelectorAll('button[aria-label="Collapse"],button[aria-label="Expand"]')];
       const describe = (button, index) => {
         const fiberKey = Object.keys(button).find(key => key.startsWith('__reactFiber$'));
@@ -302,10 +303,30 @@ function createLifecycleControl({ out, write, mark, expect, until, agent, port, 
       const selectedWorker = choose(workerSpans), selectedSummary = choose(summarySpans);
       const target = span => span?.querySelector('button[aria-label="Collapse"],button[aria-label="Expand"]') || null;
       const worker = target(selectedWorker.node), summary = target(selectedSummary.node);
+      const ownedTitle = (span, button) => {
+        const text = node => node === button ? '' : node.nodeType === 3 ? node.nodeValue || ''
+          : [...node.childNodes].map(text).join('');
+        return span ? text(span).replace(/\s+/g, ' ').trim() : null;
+      };
+      const clippingAncestors = [];
+      let geometryComplete = !!worker && !!summary;
+      let node = worker?.parentElement;
+      for (let depth = 0; node && depth < 32; node = node.parentElement, depth++) {
+        const style = getComputedStyle(node), height = node.getBoundingClientRect().height;
+        if (!Number.isFinite(height)) geometryComplete = false;
+        if (/^(hidden|clip|scroll|auto)$/.test(style.overflowY) && !node.contains(summary))
+          clippingAncestors.push({ depth, tag: node.tagName.toLowerCase(), height, overflow_y: style.overflowY,
+            contains_worker: node.contains(worker), contains_summary: node.contains(summary) });
+      }
+      const workerHeight = worker?.getBoundingClientRect().height;
+      geometryComplete = geometryComplete && !node && Number.isFinite(workerHeight);
       return { arrows, worker_matches: selectedWorker.count, summary_matches: selectedSummary.count,
         worker_index: buttons.indexOf(worker), summary_index: buttons.indexOf(summary),
-        worker_title: selectedWorker.node?.textContent || null, summary_title: selectedSummary.node?.textContent || null };
-    });
+        worker_title: selectedWorker.node?.textContent || null, summary_title: selectedSummary.node?.textContent || null,
+        worker_owned_title: ownedTitle(selectedWorker.node, worker), worker_is_same: !!ownedWorker && worker === ownedWorker,
+        worker_geometry: { complete: geometryComplete, height: workerHeight ?? null, clipping_ancestors: clippingAncestors,
+          collapsed_clipped: clippingAncestors.some(row => row.height === 0 && row.contains_worker && !row.contains_summary) } };
+    }, ownedWorker);
     const captureChildState = async label => {
       const saved = await snapshot('child-arrow-' + label);
       const dom = await childInventory();
@@ -333,22 +354,48 @@ function createLifecycleControl({ out, write, mark, expect, until, agent, port, 
       if (!button || buttons.indexOf(button) < 0) throw new Error('TRACE_ARROW_OWNER_UNRESOLVED:' + selection);
       return button;
     }, kind);
+    ownedWorker = await clickArrow('worker');
     const initialArrows = await captureChildState('before-outer-collapse');
     assert.equal(initialArrows.worker_matches, 1, 'worker title/arrow is not uniquely identifiable');
     assert.equal(initialArrows.summary_matches, 1, 'outer delegate title/arrow is not uniquely identifiable');
     assert.notEqual(initialArrows.worker_index, initialArrows.summary_index, 'worker and outer arrows must differ');
+    assert.equal(initialArrows.worker_is_same, true);
+    assert.equal(initialArrows.worker_geometry.complete, true);
+    assert.ok(initialArrows.worker_geometry.height > 0);
+    assert.equal(initialArrows.worker_geometry.collapsed_clipped, false);
     const outerInitialLabel = initialArrows.arrows[initialArrows.summary_index].label;
     const outerCollapse = await clickArrow('summary');
     await outerCollapse.asElement().click(); mark('ui', 'collapse outer delegate summary by pointer');
+    await until(async () => {
+      const dom = await childInventory();
+      return dom.worker_matches === 1 && dom.summary_matches === 1 && dom.worker_is_same &&
+        dom.worker_owned_title === initialArrows.worker_owned_title && dom.worker_geometry.complete &&
+        dom.worker_geometry.collapsed_clipped && dom.arrows[dom.summary_index]?.label === 'Expand';
+    }, 10000);
     const outerClosed = await captureChildState('after-outer-collapse');
     assert.ok(outerClosed.summary_index >= 0);
     assert.equal(outerClosed.arrows[outerClosed.summary_index].label, 'Expand');
-    assert.equal(outerClosed.worker_index, -1, 'worker row should be hidden while outer summary is collapsed');
+    assert.equal(outerClosed.worker_matches, 1);
+    assert.equal(outerClosed.worker_is_same, true);
+    assert.equal(outerClosed.worker_owned_title, initialArrows.worker_owned_title);
+    assert.equal(outerClosed.worker_geometry.complete, true);
+    assert.equal(outerClosed.worker_geometry.collapsed_clipped, true, 'retained worker must be clipped by its collapsed branch');
     await captureChildState('before-outer-expand');
     const outerExpand = await clickArrow('summary'); await outerExpand.asElement().click();
     mark('ui', 'expand outer delegate summary by pointer');
+    await until(async () => {
+      const dom = await childInventory();
+      return dom.worker_matches === 1 && dom.summary_matches === 1 && dom.worker_is_same &&
+        dom.worker_owned_title === initialArrows.worker_owned_title && dom.worker_geometry.complete &&
+        dom.worker_geometry.height > 0 && !dom.worker_geometry.collapsed_clipped &&
+        dom.arrows[dom.summary_index]?.label === outerInitialLabel;
+    }, 10000);
     const outerOpen = await captureChildState('after-outer-expand');
     assert.ok(outerOpen.worker_index >= 0);
+    assert.equal(outerOpen.worker_is_same, true);
+    assert.equal(outerOpen.worker_owned_title, initialArrows.worker_owned_title);
+    assert.equal(outerOpen.worker_geometry.complete, true);
+    assert.equal(outerOpen.worker_geometry.collapsed_clipped, false);
     assert.notEqual(outerOpen.worker_index, outerOpen.summary_index);
     assert.equal(outerOpen.arrows[outerOpen.summary_index].label, outerInitialLabel);
     let workerState = outerOpen;
@@ -359,20 +406,23 @@ function createLifecycleControl({ out, write, mark, expect, until, agent, port, 
       workerState = await captureChildState('after-worker-expand-initial');
       assert.equal(workerState.arrows[workerState.worker_index].label, 'Collapse');
     }
+    assert.equal(workerState.worker_owned_title, initialArrows.worker_owned_title);
     await captureChildState('before-worker-collapse');
     const workerCollapse = await clickArrow('worker'); await workerCollapse.asElement().click();
     mark('ui', 'collapse reviewer.1 worker arrow by pointer');
     const workerClosed = await captureChildState('after-worker-collapse');
     assert.ok(workerClosed.worker_index >= 0 && workerClosed.summary_index >= 0);
     assert.notEqual(workerClosed.worker_index, workerClosed.summary_index);
-    assert.equal(workerClosed.worker_title.replace(/\s+/g, ''), workerState.worker_title.replace(/\s+/g, ''));
+    assert.equal(workerClosed.worker_owned_title, workerState.worker_owned_title);
+    assert.equal(workerClosed.worker_is_same, true);
     assert.equal(workerClosed.arrows[workerClosed.worker_index].label, 'Expand');
     assert.equal(workerClosed.arrows[workerClosed.summary_index].label, outerInitialLabel);
     await captureChildState('before-worker-expand');
     const workerExpand = await clickArrow('worker'); await workerExpand.asElement().click();
     mark('ui', 'expand reviewer.1 worker arrow by pointer');
     const workerOpen = await captureChildState('after-worker-expand');
-    assert.equal(workerOpen.worker_title.replace(/\s+/g, ''), workerClosed.worker_title.replace(/\s+/g, ''));
+    assert.equal(workerOpen.worker_owned_title, workerClosed.worker_owned_title);
+    assert.equal(workerOpen.worker_is_same, true);
     assert.equal(workerOpen.arrows[workerOpen.worker_index].label, 'Collapse');
     assert.equal(workerOpen.arrows[workerOpen.summary_index].label, outerInitialLabel);
     await expect(page.getByText(childEnd, { exact: true })).toBeVisible();
