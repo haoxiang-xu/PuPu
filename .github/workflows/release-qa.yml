@@ -973,7 +973,7 @@ jobs:
           node-version: 24
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12.15'
+          python-version: '3.12.10'
       - name: Record system Python paths
         shell: pwsh
         run: |
