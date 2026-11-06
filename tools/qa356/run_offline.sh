@@ -57,8 +57,11 @@ run=(setpriv --reuid="$QA_UID" --regid="$QA_GID" --init-groups env -i \
   PYTHONPATH="$QA_PYTHONPATH" UNCHAIN_SOURCE_PATH="$QA_SITE" \
   QA_OUT="$QA_OUT" QA_SITE="$QA_SITE" QA_WHEEL="$QA_WHEEL" QA_WHEEL_SHA="$QA_WHEEL_SHA" \
   QA_MANIFEST="$QA_MANIFEST" QA_BINARY="$QA_BINARY" QA_BINARY_SHA="${QA_BINARY_SHA:-}" QA_CANDIDATE="$QA_CANDIDATE" \
-  QA_OLD_BINARY="${QA_OLD_BINARY:-}" PUPU_BUNDLED_PYTHON="${PUPU_BUNDLED_PYTHON:-}" \
-  QA_APP="${QA_APP:-}" QA_CANDIDATE_ROOT="${QA_CANDIDATE_ROOT:-}" QA_CONTROL="$QA_CONTROL" QA_PYTHON="$QA_PYTHON" \
+  QA_OLD_BINARY="${QA_OLD_BINARY:-}")
+if [[ "$mode" == bundled-core ]]; then
+  run+=("PUPU_BUNDLED_PYTHON=$PUPU_BUNDLED_PYTHON")
+fi
+run+=(QA_APP="${QA_APP:-}" QA_CANDIDATE_ROOT="${QA_CANDIDATE_ROOT:-}" QA_CONTROL="$QA_CONTROL" QA_PYTHON="$QA_PYTHON" \
   GITHUB_ACTIONS=true RUNNER_OS=Linux XDG_CURRENT_DESKTOP=GNOME NODE_OPTIONS=--max-old-space-size=2048 "${command[@]}")
 [[ "$mode" == app ]] || exec "${run[@]}"
 # Passive copy of loopback traffic for the Main -> sidecar payloads. It only
