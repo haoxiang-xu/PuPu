@@ -131,7 +131,7 @@ static BOOL validate_filter_readback(const FWPM_FILTER0 *filter,
     BOOL permit = role == 0, is_v6 = role == 2;
     const GUID *layer = is_v6 ? &FWPM_LAYER_ALE_AUTH_CONNECT_V6 : &FWPM_LAYER_ALE_AUTH_CONNECT_V4;
     if (!IsEqualGUID(&filter->subLayerKey, sublayer) || !IsEqualGUID(&filter->layerKey, layer) ||
-        filter->action.type != (permit ? FWP_ACTION_PERMIT : FWP_ACTION_BLOCK) ||
+        filter->action.type != (FWP_ACTION_TYPE)(permit ? FWP_ACTION_PERMIT : FWP_ACTION_BLOCK) ||
         filter->weight.type != FWP_UINT64 || !filter->weight.uint64 ||
         *filter->weight.uint64 != (permit ? 10 : 1) ||
         filter->numFilterConditions != (permit ? 4u : 1u)) return FALSE;
