@@ -785,16 +785,43 @@ jobs:
         id: sealed_app_scan
         if: always()
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          node control/tools/qa356/classify_packaged_static_code.cjs candidate reusable/linux-app-file-inventory.json reusable/linux-app-static-code-proof.json
           python - <<'PY'
           import hashlib,json,pathlib,posixpath,re,tarfile
           paths=[pathlib.Path('reusable/linux-unpacked.tgz'),pathlib.Path('reusable/linux-unpacked.tgz.sha256'),
             pathlib.Path('reusable/linux-app-file-inventory.json'),pathlib.Path('test-results/app-files.json'),
             pathlib.Path('test-results/platform/package.json'),pathlib.Path('test-results/platform/build-feature-flags.json'),
             pathlib.Path('test-results/platform/package-lock.sha256'),pathlib.Path('test-results/platform/npm-dependency-tree.json'),
-            pathlib.Path('test-results/platform/packaging-byte-evidence.json')]
+            pathlib.Path('test-results/platform/packaging-byte-evidence.json'),pathlib.Path('reusable/linux-app-static-code-proof.json')]
           secret=re.compile(rb'(?i)(?:x-unchain-auth|authorization|bearer)\s*[:=]\s*[A-Za-z0-9._~+/-]{16,}')
+          import os
+          proof_raw=pathlib.Path('reusable/linux-app-static-code-proof.json').read_bytes()
+          if len(proof_raw)>16384: raise RuntimeError('static_code_proof_too_large')
+          static_proof=json.loads(proof_raw)
+          if static_proof.get('schema')!='qa356.exact-static-code-spans.v1' or static_proof.get('status')!='PROVISIONAL_UNTIL_COMPLETE_TAR_SCAN' or static_proof.get('lock_sha256')!='c8f37cfdcb51380f60242731cd3e51eb7a199a77410c832d556558bf5adefc85' or static_proof.get('asar_path')!='resources/app.asar':
+              raise RuntimeError('static_code_proof_identity_mismatch')
+          audited={
+            'node_modules/builder-util-runtime/out/httpExecutor.js':(23064,'13050c5e047556326a2a17bc991dcf1e0f58b20409e0476486a6fd0ed6c577f6',21788),
+            'node_modules/builder-util-runtime/out/httpExecutor.js.map':(42807,'83ac73f71ec2b611f934a041cfdd60cba331ff30b239bb4053cbe41ea509a95a',41464)}
+          entries=static_proof.get('entries')
+          if type(entries) is not list or len(entries)!=2 or {e.get('path') for e in entries}!=set(audited): raise RuntimeError('static_code_proof_entries_mismatch')
+          allowed={}
+          for entry in entries:
+              size,expected_hash,local=audited[entry['path']]
+              if entry.get('type')!='PACKED_REGULAR_FILE' or entry.get('size')!=size or entry.get('sha256')!=expected_hash or entry.get('local_offset')!=local or entry.get('match_sha256')!='7c47a805c4387c9d3d46377377bc141a951d38289c7bd4d48bd23d487b7ca019' or entry.get('value_sha256')!='65cd5af6a874b71e4a69966efcea8e864678060a562e80418d39f8ebed07fabd' or entry.get('match_length')!=32 or entry.get('value_length')!=16:
+                  raise RuntimeError('static_code_proof_canonical_entry_mismatch')
+              if any(type(entry.get(key)) is not int for key in ('data_offset','start','end')) or entry['start']!=entry['data_offset']+local or entry['end']!=entry['start']+32 or entry['data_offset']<8+static_proof['header_size'] or entry['data_offset']+size>static_proof['asar_size']:
+                  raise RuntimeError('static_code_proof_span_bounds_mismatch')
+              allowed[(entry['start'],entry['end'])]=entry['match_sha256']
+          if len(allowed)!=2: raise RuntimeError('static_code_proof_duplicate_span')
+          known=[os.environ[name].encode() for name in ('GH_TOKEN','GITHUB_TOKEN','UNCHAIN_AUTH_TOKEN') if os.environ.get(name)]
+          known.append(b'sentinel-qa356-retained-http')
+          if any(len(value)>65536 for value in known): raise RuntimeError('known_secret_exceeds_carry_bound')
+          classified=set(); tar_asar_bound=False
           rows=[]
           def byte_classes(raw):
               def kind(value):
@@ -880,8 +907,9 @@ jobs:
                           raise
                       if not chunk: break
                       block=carry+chunk
-                      match=secret.search(block) if first_hit is None else None
-                      if match is not None: first_hit=captured_hit(block,match,size-len(carry))
+                      if any(value in block for value in known): raise RuntimeError('known_secret_bytes_in_sealed_app:'+f.as_posix())
+                      for match in secret.finditer(block):
+                          if first_hit is None: first_hit=captured_hit(block,match,size-len(carry))
                       carry=block[-65536:]; digest.update(chunk); size+=len(chunk)
               if first_hit is not None:
                   archive_hash=digest.hexdigest() if f==paths[0] else rows[0]['sha256']
@@ -926,14 +954,23 @@ jobs:
                               raise
                           if not chunk: break
                           block=carry+chunk
-                          match=secret.search(block) if first_hit is None else None
-                          if match is not None: first_hit=captured_hit(block,match,size-len(carry))
+                          if any(value in block for value in known): raise RuntimeError('known_secret_bytes_in_tar_member:'+rel)
+                          for match in secret.finditer(block):
+                              start=size-len(carry)+match.start(); end=start+len(match.group())
+                              if rel=='resources/app.asar' and allowed.get((start,end))==hashlib.sha256(match.group()).hexdigest():
+                                  classified.add((start,end))
+                              elif first_hit is None:
+                                  first_hit=captured_hit(block,match,size-len(carry))
                           size+=len(chunk); content_bytes+=len(chunk); digest.update(chunk)
                           carry=block[-65536:]
                       if first_hit is not None:
                           reject_with_diagnostic('credential_like_bytes_in_tar_member:',rel,first_hit,digest.hexdigest(),size,rows[0]['sha256'],expected.get('sha256'),expected.get('size'))
                       if digest.hexdigest()!=expected.get('sha256') or size!=expected.get('size'):
                           raise RuntimeError('tar_file_inventory_hash_mismatch:'+rel)
+                      if rel=='resources/app.asar':
+                          if digest.hexdigest()!=static_proof['asar_sha256'] or digest.hexdigest()!=static_proof['inventory_sha256'] or size!=static_proof['asar_size'] or classified!=set(allowed):
+                              raise RuntimeError('tar_asar_static_proof_binding_mismatch')
+                          tar_asar_bound=True
                   elif member.issym():
                       target=member.linkname
                       if expected.get('type')!='symlink' or expected.get('target')!=target:
@@ -949,10 +986,16 @@ jobs:
                       raise RuntimeError('unsupported_tar_member_type:'+rel)
           if seen!=set(inventory):
               raise RuntimeError('tar_inventory_member_set_mismatch:'+json.dumps({'missing':sorted(set(inventory)-seen),'extra':sorted(seen-set(inventory))}))
+          disk_asar=pathlib.Path('candidate/dist/linux-unpacked/resources/app.asar')
+          if not tar_asar_bound or disk_asar.is_symlink() or not disk_asar.is_file() or disk_asar.stat().st_size!=static_proof['asar_size']:
+              raise RuntimeError('final_disk_asar_static_proof_binding_mismatch')
+          with disk_asar.open('rb') as stream: disk_hash=hashlib.file_digest(stream,'sha256').hexdigest()
+          if disk_hash!=static_proof['asar_sha256']: raise RuntimeError('final_disk_asar_static_proof_hash_mismatch')
           pathlib.Path('reusable/linux-app-seal-scan.json').write_text(json.dumps({
             'status':'PASS','files':rows,'tar_sha256':hashlib.file_digest(tar_path.open('rb'),'sha256').hexdigest(),
             'tar_members_verified':member_count,'tar_directories_verified':len(dirs),'regular_member_bytes_scanned':content_bytes,
-            'inventory_entries_verified':len(inventory),'unpacked_without_execution':True},indent=2)+'\n')
+            'inventory_entries_verified':len(inventory),'unpacked_without_execution':True,
+            'static_code':{'proof_sha256':hashlib.sha256(proof_raw).hexdigest(),'entries':entries,'classified_exact_spans':len(classified),'complete_tar_asar_and_final_disk_bound':tar_asar_bound}},indent=2)+'\n')
           PY
           echo 'pass=true' >> "$GITHUB_OUTPUT"
       - name: Upload bounded hash-only sealed-scan rejection diagnostic
@@ -974,6 +1017,7 @@ jobs:
             reusable/linux-unpacked.tgz.sha256
             reusable/linux-app-file-inventory.json
             reusable/linux-app-seal-scan.json
+            reusable/linux-app-static-code-proof.json
             test-results/platform/build-feature-flags.json
             test-results/platform/package-lock.sha256
             test-results/platform/npm-dependency-tree.json
