@@ -1085,6 +1085,7 @@ jobs:
       - name: Run retained Linux App lifecycle against the real packaged pair
         shell: bash
         env:
+          QA_CANDIDATE: ${{ inputs.candidate_sha }}
           QA_OUT: ${{ github.workspace }}/test-results/app
           QA_CONTROL: ${{ github.workspace }}/control/tools/qa356
           QA_APP: ${{ env.QA_APP }}
