@@ -14,8 +14,8 @@ jobs:
     env:
       BASELINE_SHA: 93ea8095c5232d7e409d8af2ca3d0278c2815ba7
       BASELINE_TREE: 2d6fadab510b57c09ebd3b62640398cdb606b57f
-      CANDIDATE_SHA: fcf6160b0c05bf36d458e5d63c999c1737e5b975
-      CANDIDATE_TREE: d7b29221efc7304ea9e9df3880c763ae8177f8f9
+      CANDIDATE_SHA: fa162b3d94791fad36da85f4a00ff36ecf758853
+      CANDIDATE_TREE: 9ac15003c6fdabb2928be0e3f5d61ff6d47e386d
       WHEEL_RUN_ID: "41976372220"
       WHEEL_SHA256: a93e989eb8de0fedf2b77a99296bdf81af41ad82f0981d0ba19179f329487146
       MANIFEST_DIGEST: sha256:88d5f8d733e7f3dc94fb1cd20060fcc5f2611c0f94420e327bcb12664368bf2e
@@ -45,10 +45,10 @@ jobs:
       - name: Check out candidate source
         uses: actions/checkout@v4
         with:
-          ref: fcf6160b0c05bf36d458e5d63c999c1737e5b975
+          ref: fa162b3d94791fad36da85f4a00ff36ecf758853
           path: candidate
           persist-credentials: false
-          fetch-depth: 2
+          fetch-depth: 3
 
       - name: Verify exact source delta and frozen refs
         shell: bash
@@ -59,10 +59,20 @@ jobs:
           test "$(git -C baseline rev-parse 'HEAD^{tree}')" = "$BASELINE_TREE"
           test "$(git -C candidate rev-parse 'HEAD^{tree}')" = "$CANDIDATE_TREE"
           git -C candidate diff --name-only "$BASELINE_SHA" "$CANDIDATE_SHA" > test-results/source-delta.txt
-          test "$(cat test-results/source-delta.txt)" = "unchain_runtime/server/tests/test_skeleton_production_routes.py"
+          expected=$'.github/workflows/release-qa.yml\nunchain_runtime/server/tests/test_skeleton_production_routes.py'
+          test "$(cat test-results/source-delta.txt)" = "$expected"
           git -C baseline diff --quiet
           git -C candidate diff --quiet
-          printf '{"baseline":"%s","baseline_tree":"%s","candidate":"%s","candidate_tree":"%s","changed_paths":["%s"]}\n' "$BASELINE_SHA" "$BASELINE_TREE" "$CANDIDATE_SHA" "$CANDIDATE_TREE" "$(cat test-results/source-delta.txt)" > test-results/source-refs.json
+          python - <<'PY'
+          from pathlib import Path
+          baseline=Path('baseline/.github/workflows/release-qa.yml').read_bytes()
+          candidate=Path('candidate/.github/workflows/release-qa.yml').read_bytes()
+          old=b'82c964f40ddb077cc89f4cd8c16db9afa29952a7'
+          new=b'33e9552f35e537a03b9cd73cb154d642481162a8'
+          assert baseline.count(old)==5, baseline.count(old)
+          assert candidate==baseline.replace(old,new), 'workflow differs beyond the 5 build-only Core pin replacements'
+          PY
+          printf '{"baseline":"%s","baseline_tree":"%s","candidate":"%s","candidate_tree":"%s","changed_paths":[".github/workflows/release-qa.yml","unchain_runtime/server/tests/test_skeleton_production_routes.py"],"core_pins":{"replacement_count":5,"workflow_source":"33e9552f35e537a03b9cd73cb154d642481162a8","diagnostic_wheel_source":"82c964f40ddb077cc89f4cd8c16db9afa29952a7","build_only_not_executed":true}}\n' "$BASELINE_SHA" "$BASELINE_TREE" "$CANDIDATE_SHA" "$CANDIDATE_TREE" > test-results/source-refs.json
 
       - name: Download and verify the canonical wheel
         env:

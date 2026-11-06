@@ -3,7 +3,7 @@ set -euo pipefail
 
 : "${QA_CONTROL:?}" "${QA_OUT:?}" "${QA_VENV_PYTHON:?}" "${QA_BASELINE:?}" "${QA_CANDIDATE:?}"
 [[ "${QA_BASELINE_SHA:?}" == 93ea8095c5232d7e409d8af2ca3d0278c2815ba7 ]]
-[[ "${QA_CANDIDATE_SHA:?}" == fcf6160b0c05bf36d458e5d63c999c1737e5b975 ]]
+[[ "${QA_CANDIDATE_SHA:?}" == fa162b3d94791fad36da85f4a00ff36ecf758853 ]]
 [[ "${QA_WHEEL_SHA:?}" == a93e989eb8de0fedf2b77a99296bdf81af41ad82f0981d0ba19179f329487146 ]]
 
 mkdir -p "$QA_OUT"
