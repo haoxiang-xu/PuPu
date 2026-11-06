@@ -292,7 +292,12 @@ function createLifecycleControl({ out, write, mark, expect, until, agent, port, 
         if (!candidates.length) return { node: null, count: 0 };
         const shortestLength = candidates[0].textContent.replace(/\s+/g, '').length;
         const shortest = candidates.filter(span => span.textContent.replace(/\s+/g, '').length === shortestLength);
-        return { node: shortest.length === 1 ? shortest[0] : null, count: shortest.length };
+        const targets = new Map();
+        for (const span of shortest) {
+          const button = span.querySelector('button[aria-label="Collapse"],button[aria-label="Expand"]');
+          if (button && !targets.has(button)) targets.set(button, span);
+        }
+        return { node: targets.size === 1 ? targets.values().next().value : null, count: targets.size };
       };
       const selectedWorker = choose(workerSpans), selectedSummary = choose(summarySpans);
       const target = span => span?.querySelector('button[aria-label="Collapse"],button[aria-label="Expand"]') || null;
@@ -322,8 +327,9 @@ function createLifecycleControl({ out, write, mark, expect, until, agent, port, 
       }).sort((a, b) => a.textContent.length - b.textContent.length);
       const shortestLength = candidates[0]?.textContent.replace(/\s+/g, '').length;
       const shortest = candidates.filter(span => span.textContent.replace(/\s+/g, '').length === shortestLength);
-      if (shortest.length !== 1) throw new Error('TRACE_ARROW_TITLE_NOT_UNIQUE:' + selection);
-      const button = shortest[0]?.querySelector('button[aria-label="Collapse"],button[aria-label="Expand"]');
+      const targets = new Set(shortest.map(span => span.querySelector('button[aria-label="Collapse"],button[aria-label="Expand"]')).filter(Boolean));
+      if (targets.size !== 1) throw new Error('TRACE_ARROW_TITLE_NOT_UNIQUE:' + selection);
+      const button = targets.values().next().value;
       if (!button || buttons.indexOf(button) < 0) throw new Error('TRACE_ARROW_OWNER_UNRESOLVED:' + selection);
       return button;
     }, kind);
