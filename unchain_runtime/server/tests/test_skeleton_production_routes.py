@@ -218,8 +218,11 @@ def test_public_child_request_keeps_original_session_and_source(production, auth
     assert effects == ["approved child value"]
     assert len(calls) == 3
     parent_node_attempt = actual.chain[0].record.state["active"]["node_attempt_id"]
-    child_run_id = actual.request.source_run_id
-    assert child_run_id == actual.chain[-1].store.graph_id
+    leaf = actual.chain[-1]
+    child_run_id = leaf.store.attempt.attempt_id
+    assert actual.request.source_run_id == leaf.record.state["active"]["node_attempt_id"]
+    assert child_run_id == actual.chain[0].request_payload["child_attempt_id"]
+    assert leaf.store.graph_id == actual.chain[0].request_payload["child_graph_id"]
     completed_finals = [event for event in resumed
         if event["type"] == "step.completed" and "final_text" in event["payload"]]
 
