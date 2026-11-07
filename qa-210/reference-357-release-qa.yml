@@ -1,0 +1,171 @@
+name: "#357 App fixes narrow re-run: AC-04 and Escape (QA only, non-delivery)"
+
+# QA-only branch: this file replaces release-qa.yml so the control can be
+# dispatched. It is not to be merged. The product tree is the candidate's,
+# checked below to differ only in QA paths.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  app-357:
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    env:
+      CANDIDATE: 78ebcab7e7a2a46ff5ee93df90e5cab6541e3263
+      CORE: e0d2eb5e09976def467da7f32f2b0482b48c2ffd
+      WHEEL_RUN: "41262234256"
+      WHEEL_SHA: 17b04aea25489e72eb4e6ab03a131f470bdcddf65f9e8a4eec757d9bfcbfe47c
+      SIDECAR_RUN: "41263562114"
+      SIDECAR_SHA: e0162fc116e3f2970c67bc6c5458d1a305e6404dbb11b6e22db25897cad77ff6
+      MANIFEST: sha256:827adc5644e00dbb8e67fe5ecf6f7e88d9f542b1c4aff37744e0311c0acc2fe3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Bind the candidate (QA paths are the only difference)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p test-results/deps
+          git cat-file -e "$CANDIDATE^{commit}"
+          git merge-base --is-ancestor "$CANDIDATE" HEAD
+          git diff --name-only "$CANDIDATE" HEAD | sort > test-results/qa-overlay-paths.txt
+          cat test-results/qa-overlay-paths.txt
+          if grep -v -E '^(e2e/qa357/[^/]+|e2e/pupu-357-fixes\.spec\.js|\.github/workflows/release-qa\.yml)$' test-results/qa-overlay-paths.txt; then
+            echo "::error::the QA branch changes product paths"; exit 1
+          fi
+          { echo "candidate=$CANDIDATE"; echo "candidate_tree=$(git rev-parse "$CANDIDATE^{tree}")"; echo "qa_head=$(git rev-parse HEAD)"; } > test-results/identity.txt
+          sha256sum e2e/pupu-357-fixes.spec.js e2e/qa357/* >> test-results/identity.txt
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install the candidate's locked dependencies (recorded)
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+          sha256sum package-lock.json > test-results/deps/package-lock.sha256
+          npm ls --all --json > test-results/deps/npm-ls.json || true
+          node --version > test-results/deps/node-version.txt
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: unchain-release-artifact
+          path: .release-qa/unchain-artifact
+          run-id: ${{ env.WHEEL_RUN }}
+          github-token: ${{ github.token }}
+
+      - name: Verify and install the canonical wheel (not rebuilt)
+        shell: bash
+        run: |
+          set -euo pipefail
+          WHEEL=.release-qa/unchain-artifact/unchain-0.2.0-py3-none-any.whl
+          echo "$WHEEL_SHA  $WHEEL" | sha256sum -c -
+          test "$(node -e 'console.log(JSON.parse(require("fs").readFileSync(".release-qa/unchain-artifact/unchain-artifact.json","utf8")).runtime_manifest.manifest_digest)')" = "$MANIFEST"
+          test "$(node -e 'console.log(JSON.parse(require("fs").readFileSync(".release-qa/unchain-artifact/unchain-artifact.json","utf8")).source.revision)')" = "$CORE"
+          python -m pip install --disable-pip-version-check --retries 5 --timeout 60 -r unchain_runtime/server/requirements.txt
+          python -m pip install --disable-pip-version-check --retries 5 --timeout 60 --constraint unchain_runtime/server/requirements.txt "$WHEEL"
+          python -m pip check
+          python -m pip freeze --all > test-results/deps/pip-freeze.txt
+          node scripts/release-qa/verify-unchain-artifact.mjs --artifact "$WHEEL" --evidence .release-qa/unchain-artifact/unchain-artifact.json --python python --installed true
+          echo "QA_PYTHON=$(python -c 'import sys; print(sys.executable)')" >> "$GITHUB_ENV"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: 357-pair-backend-evidence
+          path: .qa-sidecar
+          run-id: ${{ env.SIDECAR_RUN }}
+          github-token: ${{ github.token }}
+
+      - name: Place the fixed sidecar binary (not rebuilt)
+        shell: bash
+        run: |
+          set -euo pipefail
+          SIDECAR=.qa-sidecar/candidate/unchain_runtime/dist/linux/unchain-server
+          echo "$SIDECAR_SHA  $SIDECAR" | sha256sum -c -
+          mkdir -p unchain_runtime/dist/linux
+          cp "$SIDECAR" unchain_runtime/dist/linux/unchain-server
+          chmod 755 unchain_runtime/dist/linux/unchain-server
+          rm -rf .qa-sidecar
+          sha256sum unchain_runtime/dist/linux/unchain-server > test-results/sidecar-placed.sha256
+
+      - name: Package the Linux App around that sidecar (dir target, no publish)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The candidate's own version, so the build does not change it.
+          export PUPU_BUILD_VERSION="$(node -p 'require("./package.json").version')"
+          # Production builds read feature flags only from this build snapshot,
+          # never from stored settings. Outside the tree; recorded as evidence.
+          export PUPU_BUILD_FEATURE_SNAPSHOT_PATH="$RUNNER_TEMP/qa357-build-feature-flags.json"
+          printf '%s\n' '{"enable_user_access_to_agents":true,"enable_user_access_to_characters":false,"enable_custom_model_providers":true,"enable_computer_use":false}' > "$PUPU_BUILD_FEATURE_SNAPSHOT_PATH"
+          cp "$PUPU_BUILD_FEATURE_SNAPSHOT_PATH" test-results/build-feature-flags.input.json
+          npm run build:web
+          cp build/build_feature_flags.json test-results/build-feature-flags.packaged.json
+          npm run notices
+          git status --porcelain --untracked-files=no > test-results/tracked-changes-after-build.txt
+          cat test-results/tracked-changes-after-build.txt
+          npx electron-builder --linux dir --publish never
+          PACKED=dist/linux-unpacked/resources/unchain_runtime/dist/linux/unchain-server
+          echo "$SIDECAR_SHA  $PACKED" | sha256sum -c -
+          EXE="$(node -e 'const p=require("./package.json");console.log(require("path").resolve("dist/linux-unpacked",(p.build&&p.build.linux&&p.build.linux.executableName)||p.name.toLowerCase()))')"
+          if [ ! -x "$EXE" ]; then EXE="$(find "$PWD/dist/linux-unpacked" -maxdepth 1 -type f -perm -u+x ! -name '*.so*' ! -name 'chrome*' | head -1)"; fi
+          test -x "$EXE"
+          echo "PUPU_357_APP_EXECUTABLE=$EXE" >> "$GITHUB_ENV"
+          { echo "executable=$EXE"; sha256sum "$EXE"; sha256sum "$PACKED"; ls -la dist/linux-unpacked; } > test-results/packaged-app.txt
+
+      - name: Install Electron system dependencies
+        run: node node_modules/@playwright/test/cli.js install-deps chromium
+      - name: Keep the packaged App's original Chromium sandbox
+        shell: bash
+        run: |
+          set -euo pipefail
+          SANDBOX=dist/linux-unpacked/chrome-sandbox
+          test -f "$SANDBOX"
+          sudo chown root:root "$SANDBOX"
+          sudo chmod 4755 "$SANDBOX"
+          stat -c '%U %a %n' "$SANDBOX" >> test-results/packaged-app.txt
+
+      - name: Run the #357 App acceptance with only loopback
+        shell: bash
+        run: |
+          set -euo pipefail
+          export QA_UID="$(id -u)" QA_GID="$(id -g)"
+          export QA_HOME="$RUNNER_TEMP/app-357-home" QA_TMP="$RUNNER_TEMP/app-357-tmp"
+          mkdir -p "$QA_HOME" "$QA_TMP"
+          sudo --preserve-env=PATH,QA_UID,QA_GID,QA_HOME,QA_TMP,QA_PYTHON,PUPU_357_APP_EXECUTABLE unshare --net /bin/bash -c '
+            set -euo pipefail
+            ip link set lo up
+            test "$(ip -j route show | tr -d "[:space:]")" = "[]"
+            ip -j address show > test-results/offline-interfaces.json
+            exec setpriv --reuid="$QA_UID" --regid="$QA_GID" --init-groups env -i \
+              PATH="$PATH" HOME="$QA_HOME" TMPDIR="$QA_TMP" LANG=C.UTF-8 \
+              CI=true GITHUB_ACTIONS=true RUNNER_ENVIRONMENT=github-hosted RUNNER_OS=Linux \
+              PUPU_357_ACCEPTANCE=1 PUPU_357_APP_EXECUTABLE="$PUPU_357_APP_EXECUTABLE" \
+              UNCHAIN_PYTHON_BIN="$QA_PYTHON" PYTHONDONTWRITEBYTECODE=1 \
+              NODE_OPTIONS=--max-old-space-size=2048 \
+              xvfb-run -a node node_modules/@playwright/test/cli.js test -c e2e/qa357/playwright.config.js
+          '
+
+      - name: Upload the App acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-357-acceptance-evidence
+          if-no-files-found: error
+          path: |
+            test-results/**
+            playwright-report/**
+            .release-qa/unchain-artifact/unchain-artifact.json
