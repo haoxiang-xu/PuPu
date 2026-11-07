@@ -44,7 +44,9 @@ describe("AgentPanel", () => {
         />,
       ),
     );
-    expect(container.querySelector('[data-var-chip="start.text"]')).toBeTruthy();
+    expect(
+      container.querySelector('[data-var-chip="start.text"]'),
+    ).toBeTruthy();
   });
 
   test("clicking an input variable appends it to the prompt", () => {
@@ -134,10 +136,17 @@ describe("AgentPanel", () => {
       ],
       edges: [],
     };
-    const sized = { theme: { switch: { width: 64, height: 32 } }, onThemeMode: "light_mode" };
+    const sized = {
+      theme: { switch: { width: 64, height: 32 } },
+      onThemeMode: "light_mode",
+    };
     const { container } = render(
       <ConfigContext.Provider value={sized}>
-        <AgentPanel node={recipe.nodes[0]} recipe={recipe} onChange={() => {}} />
+        <AgentPanel
+          node={recipe.nodes[0]}
+          recipe={recipe}
+          onChange={() => {}}
+        />
       </ConfigContext.Provider>,
     );
     const switches = container.querySelectorAll(".mini-ui-switch-track");
@@ -155,7 +164,11 @@ describe("AgentPanel", () => {
         {
           id: "a1",
           type: "agent",
-          override: { model: "m", prompt: "", optimizer: { preset: "default" } },
+          override: {
+            model: "m",
+            prompt: "",
+            optimizer: { preset: "default" },
+          },
           outputs: [],
         },
       ],
@@ -234,8 +247,8 @@ describe("AgentPanel", () => {
 
     const call = onChange.mock.calls[0][0];
     expect(call.nodes[0].override.optimizer.preset).toBe("custom");
-    expect(
-      call.nodes[0].override.optimizer.sliding_window.max_window_pct,
-    ).toBe(0.05);
+    expect(call.nodes[0].override.optimizer.sliding_window.max_window_pct).toBe(
+      0.05,
+    );
   });
 });

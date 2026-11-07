@@ -303,5 +303,31 @@ class ParseRecipeTests(unittest.TestCase):
             parse_recipe_json(data)
 
 
+    def test_a_graph_without_an_agent_node_is_refused(self):
+        """A Workflow — non-LLM, no Kernel Loop — cannot be stored as a recipe.
+
+        The Subagent Pool picker treats a resource that declares no kind as an
+        Agent (src/COMPONENTs/agents/pages/recipes_page/subagent_eligibility.js),
+        and that default is only sound while this refusal holds: nothing the
+        loader can list is agent-less. When #356 makes an agent-less graph valid,
+        this test goes red first, and that default must become fail-closed
+        before the picker may keep offering undeclared resources.
+        """
+        data = self._minimal()
+        data["nodes"] = [
+            {"id": "start", "type": "start", "outputs": [{"name": "text", "type": "string"}]},
+            {"id": "end", "type": "end"},
+        ]
+        data["edges"] = [
+            {"id": "e1", "kind": "flow", "source_node_id": "start", "source_port_id": "out", "target_node_id": "end", "target_port_id": "in"},
+        ]
+
+        with self.assertRaisesRegex(
+            RecipeValidationError,
+            "at least one agent node",
+        ):
+            parse_recipe_json(data)
+
+
 if __name__ == "__main__":
     unittest.main()

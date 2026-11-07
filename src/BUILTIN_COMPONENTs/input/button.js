@@ -1,3 +1,4 @@
+import ShadowSurface from "../material/shadow_surface";
 import { forwardRef, useContext, useState } from "react";
 
 /* { Contexts } -------------------------------------------------------------------------------------------------------------- */
@@ -329,7 +330,7 @@ const Button = forwardRef(({
   };
 
   return (
-    <button
+    <ShadowSurface as="button"
       {...(dom_props || {})}
       ref={ref}
       aria-label={ariaLabel}
@@ -413,7 +414,7 @@ const Button = forwardRef(({
           {children}
         </span>
       )}
-    </button>
+    </ShadowSurface>
   );
 });
 

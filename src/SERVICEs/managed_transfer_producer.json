@@ -1,0 +1,474 @@
+{
+  "provenance": "Actual candidate Flask/Store endpoints with isolated libraries and actual installed Core; profile registered by separate real Store operation; not React or binary evidence",
+  "code_capabilities": {
+    "bindings": 256,
+    "edit_schema": "pupu.skeleton-edit.v2",
+    "preflight_schema": "pupu.skeleton-preflight.v2",
+    "publication_schema": "pupu.skeleton-publish.v2",
+    "request_bytes": 41943040,
+    "resource_schema": "pupu.skeleton-resource.v2",
+    "runtime_manifest": {
+      "manifest_digest": "sha256:2f680baf8cc1042a0cf5b287a3b03eb87ddb2431298764ebaa8558d8c508b619",
+      "protocols": [
+        {
+          "features": [
+            "artifact_handoff",
+            "canonical_journal",
+            "chat_deletion_sqlite_scope_closure",
+            "context_compiler",
+            "context_content_paging_v1",
+            "context_content_read_recovery_v1",
+            "context_contribution_manifest_v1",
+            "generation_rebase_live_interaction_cycles",
+            "interaction_resolution_compat",
+            "long_term_promotion",
+            "memory_curator",
+            "memory_toolkit",
+            "memory_workspace",
+            "tool_output_management_v1"
+          ],
+          "id": "context_memory",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "features": [
+            "cancel_pending",
+            "expected_interaction_id_cas",
+            "fresh_run_lineage",
+            "graph_interaction_lineage_preflight_v1",
+            "host_controlled_resume",
+            "interaction_resolution_atomic_acceptance_v1"
+          ],
+          "id": "durable_interaction",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "features": [
+            "atomic_receipt_cas",
+            "auxiliary_calls",
+            "enforce_mode",
+            "graph_runs",
+            "memory_off",
+            "ollama_reasoning_preview_v1",
+            "provider_response_outcomes_v1",
+            "provider_uncertainty_diagnostics_v1",
+            "subagent_runs"
+          ],
+          "id": "provider_turn_ownership",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "features": [
+            "canonical_metrics",
+            "completion_diagnostics_ref",
+            "context_composition_ref_v1",
+            "continuation_claim",
+            "immutable_pricing_snapshot",
+            "provider_call_set_union",
+            "provider_call_usage_v1",
+            "run_bundle_v1",
+            "run_bundle_v2"
+          ],
+          "id": "run_bundle",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "features": [
+            "code_python_v1",
+            "draft_diagnostics_v1",
+            "durable_exclusive_dag_v2",
+            "end_only_root_completion_v1",
+            "explicit_bindings_v1",
+            "hook_enable_v1",
+            "hook_phase_receipts_v1",
+            "hook_tool_set_v1",
+            "kernel_profiles_v1",
+            "legacy_conversion_v1",
+            "non_llm_workflow_v1",
+            "pinned_workflow_calls_v1",
+            "production_host_bindings_v1",
+            "skill_read_v1",
+            "structured_output_v1",
+            "subagent_graphs_v1",
+            "tool_call_v1"
+          ],
+          "id": "skeleton_execution",
+          "major": 1,
+          "minor": 3
+        },
+        {
+          "features": [
+            "active_skills_snapshot_v1",
+            "catalog_v1",
+            "skill_md_registry_v1",
+            "skill_tool_v1",
+            "toolkit_embedded_skills_v1",
+            "user_invocation_v1"
+          ],
+          "id": "skills",
+          "major": 1,
+          "minor": 0
+        }
+      ],
+      "runtime": "unchain",
+      "schema": "unchain.runtime_protocol_manifest.v1"
+    },
+    "schema": "pupu.skeleton-code-capabilities.v1",
+    "source_bytes": 4194304,
+    "total_bytes": 16777216,
+    "version_schema": "pupu.skeleton-workflow-version.v2"
+  },
+  "capabilities": {
+    "binding_policy": "explicit-all-owned-code-nodes",
+    "export_schema": "pupu.skeleton-export.v2",
+    "file_bytes": 41943040,
+    "identity_policy": "create-or-identical",
+    "import_schema": "pupu.skeleton-import.v2",
+    "native_graph_version": 1,
+    "request_bytes": 100663296,
+    "runtime_manifest_digest": "sha256:2f680baf8cc1042a0cf5b287a3b03eb87ddb2431298764ebaa8558d8c508b619",
+    "schema": "pupu.skeleton-transfer-capabilities.v1",
+    "scope": "one-resource",
+    "source_schema": "pupu.skeleton-code-snapshot.v1"
+  },
+  "export": {
+    "schema": "pupu.skeleton-export.v2",
+    "sha256": "e35e5b064ac4c8929620e4a829c9d7bee1755e117970fac147fd499acf1719a0",
+    "source_json": "{\"content_digest\":\"66bf38f48cdc35a219b360771516d42a296bcc8a4ec1da01d42f816455f15355\",\"contents\":[{\"sha256\":\"36a19b6030c20879452ac6b81a505b3fedef2d3f8e5245ced1aeae7c38e51528\",\"text\":\"# caf\u00e9\\r\\ndef main(input, context):\\r\\n    return {\\\"rows\\\": 9}\\r\\n\"}],\"document\":{\"edges\":[{\"id\":\"a\",\"kind\":\"flow\",\"source_node_id\":\"start\",\"source_port_id\":\"out\",\"target_node_id\":\"code\",\"target_port_id\":\"in\"},{\"id\":\"b\",\"kind\":\"flow\",\"source_node_id\":\"code\",\"source_port_id\":\"out\",\"target_node_id\":\"end\",\"target_port_id\":\"in\"}],\"id\":\"managed-code\",\"kind\":\"workflow\",\"name\":\"Managed Code\",\"nodes\":[{\"config\":{\"execution\":{\"outputs\":[{\"name\":\"message\",\"source\":{\"kind\":\"result\",\"path\":[\"message\"]}}]}},\"id\":\"start\",\"type\":\"start\"},{\"config\":{\"code\":{\"environment_profile_id\":\"foreign-python\",\"max_log_bytes\":10000,\"max_result_bytes\":10000,\"result_schema\":{\"additionalProperties\":false,\"properties\":{\"rows\":{\"type\":\"integer\"}},\"required\":[\"rows\"],\"type\":\"object\"},\"source\":{\"kind\":\"file\",\"path\":\"__pupu_code__/sha256/36a19b6030c20879452ac6b81a505b3fedef2d3f8e5245ced1aeae7c38e51528.py\"},\"timeout_ms\":5000},\"execution\":{\"inputs\":[{\"missing\":\"error\",\"name\":\"value\",\"value\":{\"kind\":\"ref\",\"node_id\":\"start\",\"path\":[\"message\"]}}],\"outputs\":[{\"name\":\"rows\",\"source\":{\"kind\":\"result\",\"path\":[\"rows\"]}}]}},\"id\":\"code\",\"type\":\"code\"},{\"config\":{\"execution\":{\"inputs\":[{\"missing\":\"error\",\"name\":\"rows\",\"value\":{\"kind\":\"ref\",\"node_id\":\"code\",\"path\":[\"rows\"]}}],\"outputs\":[{\"name\":\"rows\",\"source\":{\"kind\":\"input\",\"path\":[\"rows\"]}}]}},\"id\":\"end\",\"type\":\"end\"}],\"schema_version\":1},\"schema\":\"pupu.skeleton-code-snapshot.v1\",\"sources_manifest\":{\"entries\":[{\"node_path\":[\"nodes\",1],\"sha256\":\"36a19b6030c20879452ac6b81a505b3fedef2d3f8e5245ced1aeae7c38e51528\"}],\"schema\":\"pupu.skeleton-code-sources.v1\"}}"
+  },
+  "snapshot": {
+    "content_digest": "66bf38f48cdc35a219b360771516d42a296bcc8a4ec1da01d42f816455f15355",
+    "contents": [
+      {
+        "sha256": "36a19b6030c20879452ac6b81a505b3fedef2d3f8e5245ced1aeae7c38e51528",
+        "text": "# caf\u00e9\r\ndef main(input, context):\r\n    return {\"rows\": 9}\r\n"
+      }
+    ],
+    "document": {
+      "edges": [
+        {
+          "id": "a",
+          "kind": "flow",
+          "source_node_id": "start",
+          "source_port_id": "out",
+          "target_node_id": "code",
+          "target_port_id": "in"
+        },
+        {
+          "id": "b",
+          "kind": "flow",
+          "source_node_id": "code",
+          "source_port_id": "out",
+          "target_node_id": "end",
+          "target_port_id": "in"
+        }
+      ],
+      "id": "managed-code",
+      "kind": "workflow",
+      "name": "Managed Code",
+      "nodes": [
+        {
+          "config": {
+            "execution": {
+              "outputs": [
+                {
+                  "name": "message",
+                  "source": {
+                    "kind": "result",
+                    "path": [
+                      "message"
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "id": "start",
+          "type": "start"
+        },
+        {
+          "config": {
+            "code": {
+              "environment_profile_id": "foreign-python",
+              "max_log_bytes": 10000,
+              "max_result_bytes": 10000,
+              "result_schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "rows": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "rows"
+                ],
+                "type": "object"
+              },
+              "source": {
+                "kind": "file",
+                "path": "__pupu_code__/sha256/36a19b6030c20879452ac6b81a505b3fedef2d3f8e5245ced1aeae7c38e51528.py"
+              },
+              "timeout_ms": 5000
+            },
+            "execution": {
+              "inputs": [
+                {
+                  "missing": "error",
+                  "name": "value",
+                  "value": {
+                    "kind": "ref",
+                    "node_id": "start",
+                    "path": [
+                      "message"
+                    ]
+                  }
+                }
+              ],
+              "outputs": [
+                {
+                  "name": "rows",
+                  "source": {
+                    "kind": "result",
+                    "path": [
+                      "rows"
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "id": "code",
+          "type": "code"
+        },
+        {
+          "config": {
+            "execution": {
+              "inputs": [
+                {
+                  "missing": "error",
+                  "name": "rows",
+                  "value": {
+                    "kind": "ref",
+                    "node_id": "code",
+                    "path": [
+                      "rows"
+                    ]
+                  }
+                }
+              ],
+              "outputs": [
+                {
+                  "name": "rows",
+                  "source": {
+                    "kind": "input",
+                    "path": [
+                      "rows"
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "id": "end",
+          "type": "end"
+        }
+      ],
+      "schema_version": 1
+    },
+    "schema": "pupu.skeleton-code-snapshot.v1",
+    "sources_manifest": {
+      "entries": [
+        {
+          "node_path": [
+            "nodes",
+            1
+          ],
+          "sha256": "36a19b6030c20879452ac6b81a505b3fedef2d3f8e5245ced1aeae7c38e51528"
+        }
+      ],
+      "schema": "pupu.skeleton-code-sources.v1"
+    }
+  },
+  "request": {
+    "schema": "pupu.skeleton-import.v2",
+    "source_json": "{\"content_digest\":\"66bf38f48cdc35a219b360771516d42a296bcc8a4ec1da01d42f816455f15355\",\"contents\":[{\"sha256\":\"36a19b6030c20879452ac6b81a505b3fedef2d3f8e5245ced1aeae7c38e51528\",\"text\":\"# caf\u00e9\\r\\ndef main(input, context):\\r\\n    return {\\\"rows\\\": 9}\\r\\n\"}],\"document\":{\"edges\":[{\"id\":\"a\",\"kind\":\"flow\",\"source_node_id\":\"start\",\"source_port_id\":\"out\",\"target_node_id\":\"code\",\"target_port_id\":\"in\"},{\"id\":\"b\",\"kind\":\"flow\",\"source_node_id\":\"code\",\"source_port_id\":\"out\",\"target_node_id\":\"end\",\"target_port_id\":\"in\"}],\"id\":\"managed-code\",\"kind\":\"workflow\",\"name\":\"Managed Code\",\"nodes\":[{\"config\":{\"execution\":{\"outputs\":[{\"name\":\"message\",\"source\":{\"kind\":\"result\",\"path\":[\"message\"]}}]}},\"id\":\"start\",\"type\":\"start\"},{\"config\":{\"code\":{\"environment_profile_id\":\"foreign-python\",\"max_log_bytes\":10000,\"max_result_bytes\":10000,\"result_schema\":{\"additionalProperties\":false,\"properties\":{\"rows\":{\"type\":\"integer\"}},\"required\":[\"rows\"],\"type\":\"object\"},\"source\":{\"kind\":\"file\",\"path\":\"__pupu_code__/sha256/36a19b6030c20879452ac6b81a505b3fedef2d3f8e5245ced1aeae7c38e51528.py\"},\"timeout_ms\":5000},\"execution\":{\"inputs\":[{\"missing\":\"error\",\"name\":\"value\",\"value\":{\"kind\":\"ref\",\"node_id\":\"start\",\"path\":[\"message\"]}}],\"outputs\":[{\"name\":\"rows\",\"source\":{\"kind\":\"result\",\"path\":[\"rows\"]}}]}},\"id\":\"code\",\"type\":\"code\"},{\"config\":{\"execution\":{\"inputs\":[{\"missing\":\"error\",\"name\":\"rows\",\"value\":{\"kind\":\"ref\",\"node_id\":\"code\",\"path\":[\"rows\"]}}],\"outputs\":[{\"name\":\"rows\",\"source\":{\"kind\":\"input\",\"path\":[\"rows\"]}}]}},\"id\":\"end\",\"type\":\"end\"}],\"schema_version\":1},\"schema\":\"pupu.skeleton-code-snapshot.v1\",\"sources_manifest\":{\"entries\":[{\"node_path\":[\"nodes\",1],\"sha256\":\"36a19b6030c20879452ac6b81a505b3fedef2d3f8e5245ced1aeae7c38e51528\"}],\"schema\":\"pupu.skeleton-code-sources.v1\"}}",
+    "runtime_bindings": [
+      {
+        "node_path": [
+          "nodes",
+          1
+        ],
+        "environment_profile_id": "local-python"
+      }
+    ]
+  },
+  "resource": {
+    "content_digest": "4cbb30d8bf4f818d83083493c14dbce2b0552269e97798795605200c694d48ac",
+    "contents": [
+      {
+        "sha256": "36a19b6030c20879452ac6b81a505b3fedef2d3f8e5245ced1aeae7c38e51528",
+        "text": "# caf\u00e9\r\ndef main(input, context):\r\n    return {\"rows\": 9}\r\n"
+      }
+    ],
+    "resource": {
+      "archived": false,
+      "description": "",
+      "diagnostics": [],
+      "document": {
+        "edges": [
+          {
+            "id": "a",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "code",
+            "target_port_id": "in"
+          },
+          {
+            "id": "b",
+            "kind": "flow",
+            "source_node_id": "code",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          }
+        ],
+        "id": "managed-code",
+        "kind": "workflow",
+        "name": "Managed Code",
+        "nodes": [
+          {
+            "config": {
+              "execution": {
+                "outputs": [
+                  {
+                    "name": "message",
+                    "source": {
+                      "kind": "result",
+                      "path": [
+                        "message"
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "id": "start",
+            "type": "start"
+          },
+          {
+            "config": {
+              "code": {
+                "environment_profile_id": "local-python",
+                "max_log_bytes": 10000,
+                "max_result_bytes": 10000,
+                "result_schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "rows": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "rows"
+                  ],
+                  "type": "object"
+                },
+                "source": {
+                  "kind": "file",
+                  "path": "__pupu_code__/sha256/36a19b6030c20879452ac6b81a505b3fedef2d3f8e5245ced1aeae7c38e51528.py"
+                },
+                "timeout_ms": 5000
+              },
+              "execution": {
+                "inputs": [
+                  {
+                    "missing": "error",
+                    "name": "value",
+                    "value": {
+                      "kind": "ref",
+                      "node_id": "start",
+                      "path": [
+                        "message"
+                      ]
+                    }
+                  }
+                ],
+                "outputs": [
+                  {
+                    "name": "rows",
+                    "source": {
+                      "kind": "result",
+                      "path": [
+                        "rows"
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "id": "code",
+            "type": "code"
+          },
+          {
+            "config": {
+              "execution": {
+                "inputs": [
+                  {
+                    "missing": "error",
+                    "name": "rows",
+                    "value": {
+                      "kind": "ref",
+                      "node_id": "code",
+                      "path": [
+                        "rows"
+                      ]
+                    }
+                  }
+                ],
+                "outputs": [
+                  {
+                    "name": "rows",
+                    "source": {
+                      "kind": "input",
+                      "path": [
+                        "rows"
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "id": "end",
+            "type": "end"
+          }
+        ],
+        "schema_version": 1
+      },
+      "draft_digest": "8ef036d8d65e693b14ace02086346bff55a6f1cd298b9e0a4aa689d7169714fd",
+      "edit_token": "edit-1-4cbb30d8bf4f818d83083493",
+      "id": "managed-code",
+      "kind": "workflow",
+      "name": "Managed Code",
+      "source_identity": null
+    },
+    "schema": "pupu.skeleton-resource.v2",
+    "sources_manifest": {
+      "entries": [
+        {
+          "node_path": [
+            "nodes",
+            1
+          ],
+          "sha256": "36a19b6030c20879452ac6b81a505b3fedef2d3f8e5245ced1aeae7c38e51528"
+        }
+      ],
+      "schema": "pupu.skeleton-code-sources.v1"
+    }
+  },
+  "numeric_source_json": "{\"content_digest\":\"ef4be82dcd81947367c2941fe19c1736ebdccd2a6afbb08479ea3e96122f711e\",\"contents\":[{\"sha256\":\"709a5e91f9803a34b97e0ba763cb3f3c1d1417141dbb27bbdd9f4ff303a85a44\",\"text\":\"def main(input, context):\\n    return {\\\"rows\\\": len(input[\\\"value\\\"])}\\n\"}],\"document\":{\"edges\":[{\"id\":\"a\",\"kind\":\"flow\",\"source_node_id\":\"start\",\"source_port_id\":\"out\",\"target_node_id\":\"code\",\"target_port_id\":\"in\"},{\"id\":\"b\",\"kind\":\"flow\",\"source_node_id\":\"code\",\"source_port_id\":\"out\",\"target_node_id\":\"end\",\"target_port_id\":\"in\"}],\"id\":\"managed-code\",\"kind\":\"workflow\",\"name\":\"Managed Code\",\"nodes\":[{\"config\":{\"execution\":{\"outputs\":[{\"name\":\"message\",\"source\":{\"kind\":\"result\",\"path\":[\"message\"]}}]}},\"id\":\"start\",\"type\":\"start\"},{\"config\":{\"code\":{\"environment_profile_id\":\"builtin\",\"max_log_bytes\":10000,\"max_result_bytes\":10000,\"result_schema\":{\"additionalProperties\":false,\"properties\":{\"rows\":{\"type\":\"integer\"}},\"required\":[\"rows\"],\"type\":\"object\"},\"source\":{\"kind\":\"file\",\"path\":\"__pupu_code__/sha256/709a5e91f9803a34b97e0ba763cb3f3c1d1417141dbb27bbdd9f4ff303a85a44.py\"},\"timeout_ms\":5000},\"execution\":{\"inputs\":[{\"missing\":\"error\",\"name\":\"value\",\"value\":{\"kind\":\"literal\",\"value\":[1.0,-0.0,9007199254740993]}}],\"outputs\":[{\"name\":\"rows\",\"source\":{\"kind\":\"result\",\"path\":[\"rows\"]}}]}},\"id\":\"code\",\"type\":\"code\"},{\"config\":{\"execution\":{\"inputs\":[{\"missing\":\"error\",\"name\":\"rows\",\"value\":{\"kind\":\"ref\",\"node_id\":\"code\",\"path\":[\"rows\"]}}],\"outputs\":[{\"name\":\"rows\",\"source\":{\"kind\":\"input\",\"path\":[\"rows\"]}}]}},\"id\":\"end\",\"type\":\"end\"}],\"schema_version\":1},\"schema\":\"pupu.skeleton-code-snapshot.v1\",\"sources_manifest\":{\"entries\":[{\"node_path\":[\"nodes\",1],\"sha256\":\"709a5e91f9803a34b97e0ba763cb3f3c1d1417141dbb27bbdd9f4ff303a85a44\"}],\"schema\":\"pupu.skeleton-code-sources.v1\"}}"
+}

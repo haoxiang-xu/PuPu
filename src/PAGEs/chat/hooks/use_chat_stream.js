@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../../SERVICEs/api";
+import {
+  skeleton_agent_id,
+  skeleton_selection_payload,
+  skeleton_selection_reason,
+} from "../../../SERVICEs/skeleton_chat_selection";
 import { secureRandomId } from "../../../SERVICEs/secure_random_id";
 import { resyncSkillInventory } from "../../../SERVICEs/plugin_skill_sync";
 import { toast } from "../../../SERVICEs/toast";
@@ -59,6 +64,7 @@ import {
   buildRecoveredConfirmationRequest,
   durableInteractionRetryDelayMs,
   ensureDurableInteractionMessage,
+  findRetainedNativeSkeletonApprovalOwner,
   isRetryableDurableInteractionError,
   normalizePendingInteraction,
   prepareDurableInteractionResumeMessages,
@@ -67,6 +73,7 @@ import {
 import {
   enqueueExecutionCancel,
   readExecutionCancelOutbox,
+  readExecutionCancelOutboxState,
   recordExecutionCancelFailure,
   removeExecutionCancel,
 } from "./execution_cancel_outbox";
@@ -111,6 +118,7 @@ import {
   createTurnMutationOperationId,
   enqueueTurnMutation,
   fingerprintTurnMutationMessages,
+  readTurnMutationAdmissionOutboxState,
   readTurnMutationOutbox,
   readTurnMutationOutboxState,
   recordTurnMutationRebaseAck,
@@ -150,6 +158,11 @@ import {
   stop as progressStop,
 } from "../../../SERVICEs/progress_bus";
 import { getChatsStore } from "../../../SERVICEs/chat_storage";
+import {
+  admitDurableInteractionCancellation,
+  settleCancelledInteraction,
+} from "../../../SERVICEs/runtime_events/cancelled_interaction_settlement";
+import { recordCancelledSubagentSettlements } from "../../../SERVICEs/runtime_events/cancelled_subagent_settlement";
 
 const CHAT_STREAM_PROGRESS_ID = "chat_stream_active";
 const STREAM_REATTACH_FLUSH_MS = 100;
@@ -761,6 +774,11 @@ const snapshotStoredRunContext = (store, targetChatId) => {
       chat.selectedRecipeName.trim()
         ? chat.selectedRecipeName.trim()
         : "Default",
+    /* The stored Skeleton Agent this run uses, by resource id. It rides in the
+       run context for the same reason the Recipe name does: a retry or a
+       durable resume has to go out with what the run was started with, not
+       with whatever the selector shows by the time the answer comes back. */
+    selectedSkeletonAgentId: skeleton_agent_id(chat.selectedSkeletonAgentId),
     agentOrchestration: normalizeAgentOrchestration(chat.agentOrchestration),
     systemPromptOverrides:
       chat.systemPromptOverrides &&
@@ -1036,6 +1054,7 @@ export const useChatStream = ({
   selectedToolkits,
   selectedWorkspaceIds,
   selectedRecipeName,
+  selectedSkeletonAgentId,
   chatKind = "default",
   characterId = "",
   threadIdRef,
@@ -1109,6 +1128,8 @@ export const useChatStream = ({
   draftAttachmentsRef.current = draftAttachments;
   const selectedModelIdRef = useRef(selectedModelId);
   selectedModelIdRef.current = selectedModelId;
+  const selectedSkeletonAgentIdRef = useRef(selectedSkeletonAgentId);
+  selectedSkeletonAgentIdRef.current = selectedSkeletonAgentId;
   const selectedReasoningEffortRef = useRef(selectedReasoningEffort);
   selectedReasoningEffortRef.current = selectedReasoningEffort;
   const selectedContextWindowRef = useRef(selectedContextWindow);
@@ -1170,6 +1191,13 @@ export const useChatStream = ({
 
   const streamHandlesRef = useRef(new Map());
   const executionIdentityByChatIdRef = useRef(new Map());
+  /* Interactions this run presented and the user has not answered, kept past
+     the end of a finite stream (a parked Skeleton graph ends its SSE while
+     its approval waits): chat -> {runGeneration, sessionId, attemptIds,
+     interactionIds}. A later lookup treats exactly these as the current run's,
+     not as a cold leftover; a new generation (Stop, a new send) makes it
+     stale by itself (#357 R-357-APP-01). */
+  const acceptedInteractionsByChatIdRef = useRef(new Map());
   const fallbackStreamingMessageStoreRef = useRef(null);
   if (!fallbackStreamingMessageStoreRef.current) {
     fallbackStreamingMessageStoreRef.current = createStreamingMessageStore();
@@ -1216,6 +1244,13 @@ export const useChatStream = ({
   const trackedExecutionCancellationsRef = useRef(new Map());
   const lastStoppedExecutionByChatIdRef = useRef(new Map());
   const [settlementWaitingChatIds, setSettlementWaitingChatIds] = useState(new Set());
+  /* Operations whose run started, failed, and could not have that failure
+     written down anywhere, mapped to the failure code that would have been
+     recorded. The durable row still reads "untried", so this map is the only
+     thing standing between it and an unbounded replay; it is deliberately
+     session-scoped, because claiming durability for a state the store just
+     refused to accept would be a lie. Retry/Discard clear it. */
+  const turnMutationUnrecordedFailureRef = useRef(new Map());
   /* Legacy V1 rows predate the durable Context V2 retry contract. Keep their
      existing bounded recovery cadence so this V2 rollout does not change
      replaceSessionMemory conflict behavior. */
@@ -1227,6 +1262,11 @@ export const useChatStream = ({
   const reattachingChatIdsRef = useRef(new Set());
   const runContextByChatIdRef = useRef(new Map());
   const humanInputSubmissionByChatIdRef = useRef(new Map());
+  /* A tool approval or denial whose POST has not answered yet: chat ->
+     {interactionId, sessionId, runGeneration}. Like a human-input
+     submission, it keeps its interaction out of passive recovery until the
+     reply decides (#357 R-357-APP-01a). */
+  const toolDecisionSubmissionByChatIdRef = useRef(new Map());
   const durableResumeStartedKeysRef = useRef(new Set());
   const durableResumeStartedKeysByChatIdRef = useRef(new Map());
   const durableResumeRetryTimersRef = useRef(new Map());
@@ -1351,6 +1391,7 @@ export const useChatStream = ({
         typeof selectedRecipeName === "string" && selectedRecipeName.trim()
           ? selectedRecipeName.trim()
           : "Default",
+      selectedSkeletonAgentId: skeleton_agent_id(selectedSkeletonAgentId),
       agentOrchestration: normalizeAgentOrchestration(agentOrchestration),
       systemPromptOverrides:
         systemPromptOverrides &&
@@ -1792,6 +1833,7 @@ export const useChatStream = ({
       if (!target || !clearTurnMutationRetryState(operationId)) return false;
       turnMutationInProgressSeenRef.current.delete(operationId);
       turnMutationStalledAttemptSeenRef.current.delete(operationId);
+      turnMutationUnrecordedFailureRef.current.delete(operationId);
       setStreamErrorForChat(target.chatId, "");
       setTurnMutationVersion((version) => version + 1);
       return true;
@@ -1826,6 +1868,7 @@ export const useChatStream = ({
       if (!removeTurnMutation(operationId)) return false;
       turnMutationInProgressSeenRef.current.delete(operationId);
       turnMutationStalledAttemptSeenRef.current.delete(operationId);
+      turnMutationUnrecordedFailureRef.current.delete(operationId);
       const owner = turnMutationByChatIdRef.current.get(target.chatId);
       if (owner?.operationId === operationId) releaseTurnMutation(owner);
       setStreamErrorForChat(target.chatId, "");
@@ -3157,6 +3200,74 @@ export const useChatStream = ({
     ],
   );
 
+  /* At the end of a finite stream: the interactions this run presented in it
+     and the user has not answered yet, with the run's exact identity. Only
+     requests carried by this run's stream under its own session count. */
+  const rememberAcceptedInteractions = useCallback(
+    (targetChatId, runGeneration, sessionId) => {
+      const normalizedChatId =
+        typeof targetChatId === "string" ? targetChatId.trim() : "";
+      const normalizedSessionId =
+        typeof sessionId === "string" ? sessionId.trim() : "";
+      acceptedInteractionsByChatIdRef.current.delete(normalizedChatId);
+      if (!normalizedChatId || !normalizedSessionId) return;
+      const identity = executionIdentityByChatIdRef.current.get(normalizedChatId);
+      if (
+        !identity ||
+        identity.runGeneration !== runGeneration ||
+        identity.sessionId !== normalizedSessionId
+      ) {
+        return;
+      }
+      const requests =
+        pendingToolConfirmationRequestsByChatIdRef.current[normalizedChatId] || {};
+      const uiStates =
+        toolConfirmationUiStateByChatIdRef.current[normalizedChatId] || {};
+      /* An answer still being posted stays this run's too, but only the
+         exact one the POST carries. */
+      const inFlight =
+        toolDecisionSubmissionByChatIdRef.current.get(normalizedChatId) || null;
+      const isInFlight = (interactionId) => Boolean(
+        inFlight &&
+          inFlight.interactionId === interactionId &&
+          inFlight.sessionId === normalizedSessionId &&
+          inFlight.runGeneration === runGeneration,
+      );
+      const interactionIds = new Set(
+        Object.keys(requests).filter((interactionId) => {
+          const request = requests[interactionId];
+          const ui = uiStates[interactionId] || {};
+          if (!request || request.sessionId !== normalizedSessionId) return false;
+          if (ui.status === "submitting") return isInFlight(interactionId);
+          return ui.resolved !== true && ui.status !== "submitted";
+        }),
+      );
+      const attemptIds = new Set(
+        [identity.attemptId, identity.sourceAttemptId]
+          .filter((value) => typeof value === "string")
+          .map((value) => value.trim())
+          .filter(Boolean),
+      );
+      if (interactionIds.size === 0 || attemptIds.size === 0) return;
+      acceptedInteractionsByChatIdRef.current.set(normalizedChatId, {
+        runGeneration,
+        sessionId: normalizedSessionId,
+        attemptIds,
+        interactionIds,
+      });
+      /* The card of an answer still being posted stays on screen, as
+         submitting, so it is neither lost nor clickable again. */
+      const keep = [...interactionIds].filter(isInFlight);
+      return keep.length === 0
+        ? null
+        : {
+            requests: Object.fromEntries(keep.map((id) => [id, requests[id]])),
+            uiStates: Object.fromEntries(keep.map((id) => [id, uiStates[id]])),
+          };
+    },
+    [],
+  );
+
   const requestTrackedExecutionCancellation = useCallback((options) => {
     const identity = normalizedExecutionIdentity(options.identity);
     if (!identity) return requestExecutionCancellationAndDisconnect(options);
@@ -3181,6 +3292,44 @@ export const useChatStream = ({
     trackedExecutionCancellationsRef.current.set(key, tracked);
     return tracked.promise;
   }, []);
+  /* A terminal cancel reply that proves the pending approval itself was
+     cancelled settles that one call; the record is kept with the message.
+     The same admitted reply may carry the producer's settlement for each
+     delegate child it committed as cancelled; each settles only its own call. */
+  const recordCancelledInteraction = useCallback(
+    (chatId, response, target) => {
+      const evidence = admitDurableInteractionCancellation(response, target || {});
+      if (!chatId || !evidence) {
+        return;
+      }
+      const isActive = activeChatIdRef.current === chatId;
+      const current = isActive
+        ? messagesRef.current
+        : storageApi.getChatMessages(chatId);
+      const settled = settleCancelledInteraction(current, evidence);
+      const delegates = recordCancelledSubagentSettlements(
+        settled.messages,
+        response,
+        target || {},
+      );
+      const nextMessages = delegates.messages;
+      if (!settled.changed && !delegates.changed) {
+        return;
+      }
+      if (activeChatIdRef.current === chatId) {
+        messagesRef.current = nextMessages;
+        setMessages(nextMessages);
+      }
+      storageApi.setChatMessages(chatId, nextMessages, {
+        source: "execution-cancel-settlement",
+      });
+    },
+    [activeChatIdRef, messagesRef, setMessages, storageApi],
+  );
+
+  // The outbox drain effect must not restart when this callback changes.
+  const recordCancelledInteractionRef = useRef(recordCancelledInteraction);
+  recordCancelledInteractionRef.current = recordCancelledInteraction;
 
   const cancelCurrentStreamAndSettleMessages = useCallback(() => {
     const currentChatId = activeChatIdRef.current;
@@ -3268,6 +3417,11 @@ export const useChatStream = ({
           queuedCancellation.attemptId,
           queuedCancellation.interactionId,
         );
+        recordCancelledInteraction(
+          currentChatId,
+          result.response,
+          queuedCancellation,
+        );
       }
     });
     cancelBackgroundPersist(currentChatId);
@@ -3314,6 +3468,7 @@ export const useChatStream = ({
     invalidateRunGeneration,
     materializeStreamingMessages,
     messagesRef,
+    recordCancelledInteraction,
     setMessages,
     requestTrackedExecutionCancellation,
     setStreamErrorForChat,
@@ -3332,6 +3487,16 @@ export const useChatStream = ({
     const reported = new Set();
 
     const drainCancellationOutbox = async () => {
+      const admissionSnapshot = readExecutionCancelOutboxState();
+      if (!admissionSnapshot.available) {
+        if (!disposed) {
+          retryTimer = setTimeout(
+            drainCancellationOutbox,
+            EXECUTION_CANCEL_OUTBOX_RETRY_MS,
+          );
+        }
+        return;
+      }
       const entries = readExecutionCancelOutbox();
       for (const entry of entries) {
         if (disposed) {
@@ -3356,6 +3521,11 @@ export const useChatStream = ({
             entry.sessionId,
             entry.attemptId,
             entry.interactionId,
+          );
+          recordCancelledInteractionRef.current(
+            entry.ownerChatId,
+            result.response,
+            entry,
           );
         } else if (result?.retryBlocked && !reported.has(key)) {
           reported.add(key);
@@ -3917,7 +4087,7 @@ export const useChatStream = ({
   );
 
   const continueFromRecordedReceipt = useCallback(
-    (targetChatId, sessionId, response, runGeneration, submittedHumanInputId = "") => {
+    (targetChatId, sessionId, response, runGeneration, submittedHumanInputId = "", submittedApprovalId = "") => {
       if (
         response?.disposition !== "receipt_recorded" ||
         !isRunGenerationCurrent(targetChatId, runGeneration)
@@ -3931,6 +4101,7 @@ export const useChatStream = ({
           runGeneration,
           authoritativeReceipt: response,
           submittedHumanInputId,
+          submittedApprovalId,
         });
       }
     },
@@ -4058,6 +4229,12 @@ export const useChatStream = ({
       if (humanInputSubmission) {
         humanInputSubmissionByChatIdRef.current.set(targetChatId, humanInputSubmission);
       }
+      const toolDecisionSubmission = toolName !== HUMAN_INPUT_TOOL_NAME
+        ? { interactionId: normalizedConfirmationId, sessionId, runGeneration }
+        : null;
+      if (toolDecisionSubmission) {
+        toolDecisionSubmissionByChatIdRef.current.set(targetChatId, toolDecisionSubmission);
+      }
 
       try {
         const payload = {
@@ -4078,6 +4255,9 @@ export const useChatStream = ({
         }
         if (response?.disposition !== "receipt_recorded" && humanInputSubmissionByChatIdRef.current.get(targetChatId) === humanInputSubmission) {
           humanInputSubmissionByChatIdRef.current.delete(targetChatId);
+        }
+        if (response?.disposition !== "receipt_recorded" && toolDecisionSubmissionByChatIdRef.current.get(targetChatId) === toolDecisionSubmission) {
+          toolDecisionSubmissionByChatIdRef.current.delete(targetChatId);
         }
         if (shouldCacheSessionDecision) {
           let allowedTools = sessionAutoApproveRef.current.get(targetChatId);
@@ -4119,10 +4299,16 @@ export const useChatStream = ({
           toolName === HUMAN_INPUT_TOOL_NAME && approved
             ? normalizedConfirmationId
             : "",
+          /* An approval or denial of a tool call; the lookup resumes only one
+             this run presented and the stream it rode has ended. */
+          toolName !== HUMAN_INPUT_TOOL_NAME ? normalizedConfirmationId : "",
         );
       } catch (error) {
         if (humanInputSubmissionByChatIdRef.current.get(targetChatId) === humanInputSubmission) {
           humanInputSubmissionByChatIdRef.current.delete(targetChatId);
+        }
+        if (toolDecisionSubmissionByChatIdRef.current.get(targetChatId) === toolDecisionSubmission) {
+          toolDecisionSubmissionByChatIdRef.current.delete(targetChatId);
         }
         if (!isRunGenerationCurrent(targetChatId, runGeneration)) {
           return;
@@ -5241,6 +5427,17 @@ export const useChatStream = ({
             : typeof selectedRecipeName === "string"
               ? selectedRecipeName
               : "Default";
+      /* Same precedence as the Recipe name above: what this run was asked
+         with, else what the chat held when it started, else what is on screen.
+         An id the reader refuses is "", which sends no selection rather than
+         an unsendable one. */
+      const runSelectedSkeletonAgentId = skeleton_agent_id(
+        typeof requestedRunContext?.selectedSkeletonAgentId === "string"
+          ? requestedRunContext.selectedSkeletonAgentId
+          : typeof storedRunContext?.selectedSkeletonAgentId === "string"
+            ? storedRunContext.selectedSkeletonAgentId
+            : selectedSkeletonAgentId,
+      );
       const runAgentOrchestration = normalizeAgentOrchestration(
         requestedRunContext?.agentOrchestration ||
           storedRunContext?.agentOrchestration ||
@@ -5280,12 +5477,18 @@ export const useChatStream = ({
               : "";
       const runIsCharacterChat =
         runKind === "character" && Boolean(runCharacterId);
+      /* The wire object, or null. A character chat runs its character and
+         holds no Agent id at all, so it never carries one. */
+      const runSkeletonSelection = runIsCharacterChat
+        ? null
+        : skeleton_selection_payload(runSelectedSkeletonAgentId);
       const effectiveRunContext = {
         modelId: runModelId,
         threadId: runThreadId,
         selectedToolkits: runSelectedToolkits,
         selectedWorkspaceIds: runSelectedWorkspaceIds,
         selectedRecipeName: runSelectedRecipeName,
+        selectedSkeletonAgentId: runSelectedSkeletonAgentId,
         agentOrchestration: runAgentOrchestration,
         systemPromptOverrides: runSystemPromptOverrides,
         kind: runKind,
@@ -5889,13 +6092,83 @@ export const useChatStream = ({
         (renderRuntime.subagentMetaByRunId.has(runId) ||
           renderRuntime.subagentFramesByRunId.has(runId));
 
+      /* The first time this stream sees a child, its live frame list starts
+         from the frames already saved for that child on this message, so a
+         resumed stream appends to the child's history instead of replacing
+         it when the frames are flushed back. */
+      const adoptChildFrames = (childRunId) => {
+        if (renderRuntime.subagentFramesByRunId.has(childRunId)) {
+          return renderRuntime.subagentFramesByRunId.get(childRunId);
+        }
+        const owner = streamMessages.find(
+          (message) => message.id === assistantMessageId,
+        );
+        const saved = owner?.subagentFrames?.[childRunId];
+        const frames = Array.isArray(saved) ? [...saved] : [];
+        renderRuntime.subagentFramesByRunId.set(childRunId, frames);
+        return frames;
+      };
+      /* A replayed event must not add its frame twice. */
+      const appendChildFrame = (childRunId, frame) => {
+        const frames = adoptChildFrames(childRunId);
+        const eventId =
+          typeof frame?.event_id === "string" ? frame.event_id : "";
+        if (
+          eventId &&
+          frames.some(
+            (existing) =>
+              existing?.event_id === eventId && existing?.type === frame.type,
+          )
+        ) {
+          return false;
+        }
+        frames.push(frame);
+        dirtySubagentFrameRunIds.add(childRunId);
+        return true;
+      };
+
+      /* Metadata this message saved for a child before a cold restart; the
+         first update in a resumed stream starts from it instead of from an
+         empty record, so a sparse event cannot erase it. */
+      const savedChildMeta = (childRunId) => {
+        const owner = streamMessages.find(
+          (message) => message.id === assistantMessageId,
+        );
+        const saved = owner?.subagentMetaByRunId?.[childRunId];
+        return saved && typeof saved === "object" && !Array.isArray(saved)
+          ? saved
+          : null;
+      };
+
+      // Native node lifecycle is suppressed. Only a real lifecycle child on
+      // this assistant owner can authorize its normalized node observations.
+      const linkedNativeChildParent = (frame) => {
+        if (frame?.stage !== "runtime_event") return "";
+        const runId = typeof frame.run_id === "string" ? frame.run_id : "";
+        const parentId =
+          typeof frame.links?.parent_run_id === "string"
+            ? frame.links.parent_run_id
+            : "";
+        if (!runId.trim() || !parentId.trim() || runId === parentId) return "";
+        if (!streamMessages.some((message) =>
+          message.id === assistantMessageId && message.role === "assistant",
+        )) return "";
+        const knownLifecycle = [
+          renderRuntime.subagentMetaByRunId.get(parentId),
+          savedChildMeta(parentId),
+        ].some((meta) => typeof meta?.subagentId === "string" && meta.subagentId.trim());
+        return knownLifecycle ? parentId : "";
+      };
+
       const upsertSubagentMeta = (childRunId, updates) => {
         if (typeof childRunId !== "string" || !childRunId.trim()) {
           return null;
         }
 
         const previousMeta =
-          renderRuntime.subagentMetaByRunId.get(childRunId) || {};
+          renderRuntime.subagentMetaByRunId.get(childRunId) ||
+          savedChildMeta(childRunId) ||
+          {};
         const nextMeta = {
           subagentId:
             typeof updates?.subagentId === "string"
@@ -5943,9 +6216,7 @@ export const useChatStream = ({
         };
 
         renderRuntime.subagentMetaByRunId.set(childRunId, nextMeta);
-        if (!renderRuntime.subagentFramesByRunId.has(childRunId)) {
-          renderRuntime.subagentFramesByRunId.set(childRunId, []);
-        }
+        adoptChildFrames(childRunId);
         dirtySubagentMetaRunIds.add(childRunId);
         return nextMeta;
       };
@@ -7282,8 +7553,13 @@ export const useChatStream = ({
             "function" &&
           api.unchain.isDurableInteractionBridgeAvailable() &&
           (runIsCharacterChat ||
-            (!runSelectedRecipeName ||
-              runSelectedRecipeName === "Default")) &&
+            ((!runSelectedRecipeName ||
+              runSelectedRecipeName === "Default") &&
+              /* An explicitly selected Skeleton Agent is an explicit Agent
+                 selection, like a Recipe: the Skeleton path owns its own
+                 durable launch, so this chat's default durable interaction is
+                 not what runs it. */
+              !runSkeletonSelection)) &&
           effectiveAgentOrchestration.mode === "default";
 
         /* Memory V2 P0 payload identity + lazy bootstrap.
@@ -7384,11 +7660,23 @@ export const useChatStream = ({
                 ...(effectiveWorkspaceIds.length > 0 && {
                   selectedWorkspaceIds: effectiveWorkspaceIds,
                 }),
+                /* A Skeleton Agent and a legacy Recipe are two selections and
+                   the server accepts one: `skeleton_selection` beside a
+                   non-empty `recipe_name` is `invalid_shape` by its own
+                   contract. So the Recipe name goes out only when no Skeleton
+                   Agent is selected, and the selection object comes from
+                   `skeleton_selection_payload` — three keys, no more and no
+                   fewer, carrying an id and nothing else: the server resolves
+                   it, preflights it and freezes the material itself. */
                 ...(!runIsCharacterChat &&
+                  !runSkeletonSelection &&
                   runSelectedRecipeName &&
                   runSelectedRecipeName !== "Default" && {
                     recipe_name: runSelectedRecipeName,
                   }),
+                ...(runSkeletonSelection
+                  ? { skeleton_selection: runSkeletonSelection }
+                  : {}),
                 ...(!runIsCharacterChat && {
                   agent_orchestration: effectiveAgentOrchestration,
                 }),
@@ -7610,6 +7898,16 @@ export const useChatStream = ({
                   typeof frame.payload?.child_run_id === "string"
                     ? frame.payload.child_run_id
                     : "";
+                /* A child terminal event that carries a settlement is kept as
+                   a frame (validated when shown), appended to that child's
+                   frames already saved on this message, so a reopened chat
+                   still has the evidence. */
+                const carriesSettlement =
+                  (frame.type === "subagent_completed" ||
+                    frame.type === "subagent_failed") &&
+                  frame.payload !== null &&
+                  typeof frame.payload === "object" &&
+                  Object.prototype.hasOwnProperty.call(frame.payload, "settlement");
                 if (childRunId) {
                   const lifecycleStatus =
                     frame.type === "subagent_spawned"
@@ -7637,32 +7935,55 @@ export const useChatStream = ({
                                     childRunId,
                                   ).status
                                 : "";
+                  /* A sparse event (e.g. a cold settlement carrying only
+                     status) leaves out fields; the projection then fills
+                     subagent_id with the run id and parent_id with the parent
+                     run link. Those stand-ins and empty values only fill a
+                     gap: they never replace a value already known for this
+                     child. Values the event really provides still apply. */
+                  const knownMeta =
+                    renderRuntime.subagentMetaByRunId.get(childRunId) ||
+                    savedChildMeta(childRunId) ||
+                    {};
+                  const provided = (value, standIn, known) => {
+                    const text = typeof value === "string" ? value : "";
+                    const isStandIn = text === "" || text === standIn;
+                    return isStandIn && typeof known === "string" && known
+                      ? undefined
+                      : text;
+                  };
                   upsertSubagentMeta(childRunId, {
-                    subagentId:
-                      typeof frame.payload?.subagent_id === "string"
-                        ? frame.payload.subagent_id
+                    subagentId: provided(
+                      frame.payload?.subagent_id,
+                      childRunId,
+                      knownMeta.subagentId,
+                    ),
+                    mode: provided(frame.payload?.mode, "", knownMeta.mode),
+                    template: provided(
+                      frame.payload?.template,
+                      "",
+                      knownMeta.template,
+                    ),
+                    batchId: provided(
+                      frame.payload?.batch_id,
+                      "",
+                      knownMeta.batchId,
+                    ),
+                    parentId: provided(
+                      frame.payload?.parent_id,
+                      typeof frame.links?.parent_run_id === "string"
+                        ? frame.links.parent_run_id
                         : "",
-                    mode:
-                      typeof frame.payload?.mode === "string"
-                        ? frame.payload.mode
-                        : "",
-                    template:
-                      typeof frame.payload?.template === "string"
-                        ? frame.payload.template
-                        : "",
-                    batchId:
-                      typeof frame.payload?.batch_id === "string"
-                        ? frame.payload.batch_id
-                        : "",
-                    parentId:
-                      typeof frame.payload?.parent_id === "string"
-                        ? frame.payload.parent_id
-                        : "",
+                      knownMeta.parentId,
+                    ),
                     lineage: Array.isArray(frame.payload?.lineage)
                       ? frame.payload.lineage
                       : undefined,
                     status: lifecycleStatus,
                   });
+                  if (carriesSettlement) {
+                    appendChildFrame(childRunId, frame);
+                  }
                   syncAssistantSubagentState(patchTime, {
                     immediate:
                       frame.type === "subagent_completed" ||
@@ -7868,12 +8189,18 @@ export const useChatStream = ({
 
               /* ── Route subagent frames to their sub-timeline ── */
               /* Known subagent: run_id already registered via lifecycle events */
+              const linkedParent = linkedNativeChildParent(frame);
+              // A foreign execution observation must not fall into root final
+              // handling merely because its known child link is inadmissible.
+              if (linkedParent && frame.session_id !== effectiveThreadId) return;
+              const isLinkedNativeChild = Boolean(linkedParent);
               const isKnownChild = isKnownSubagentRunId(frameRunId);
               /* Unknown run_id that differs from parent: likely a subagent whose
                  lifecycle event hasn't arrived yet (race condition) or whose
                  run_id format differs. Register it eagerly. */
               const isUnknownChild =
                 !isKnownChild &&
+                !isLinkedNativeChild &&
                 frameRunId.length > 0 &&
                 renderRuntime.parentRunId &&
                 frameRunId !== renderRuntime.parentRunId;
@@ -7888,18 +8215,15 @@ export const useChatStream = ({
                 });
               }
 
-              if (isKnownChild || isUnknownChild) {
+              if (isKnownChild || isLinkedNativeChild || isUnknownChild) {
                 if (isUnknownChild) {
                   /* Eagerly register this run_id as a subagent so subsequent
                      frames are also routed here. */
                   upsertSubagentMeta(frameRunId, { status: "running" });
                 }
-                if (!renderRuntime.subagentFramesByRunId.has(frameRunId)) {
-                  renderRuntime.subagentFramesByRunId.set(frameRunId, []);
-                }
+                adoptChildFrames(frameRunId);
                 processChildToolInteractionSideEffects();
-                renderRuntime.subagentFramesByRunId.get(frameRunId).push(frame);
-                dirtySubagentFrameRunIds.add(frameRunId);
+                appendChildFrame(frameRunId, frame);
 
                 if (
                   frame.type === "error" &&
@@ -8541,7 +8865,22 @@ export const useChatStream = ({
                 next.delete(targetChatId);
                 return next;
               });
+              const inFlightCards = rememberAcceptedInteractions(
+                targetChatId,
+                activeRunGeneration,
+                effectiveThreadId,
+              );
               clearAllPendingToolConfirmations(targetChatId);
+              if (inFlightCards) {
+                updatePendingToolConfirmationRequests(
+                  targetChatId,
+                  inFlightCards.requests,
+                );
+                updateToolConfirmationUiState(
+                  targetChatId,
+                  inFlightCards.uiStates,
+                );
+              }
               if (isDurableResume) {
                 const retryTimer = durableResumeRetryTimersRef.current.get(
                   targetChatId,
@@ -8641,7 +8980,18 @@ export const useChatStream = ({
                 releaseTokenFlushController();
                 return;
               }
-              const errorMessage = error?.message || "Unknown stream error";
+              /* A refused Agent selection gets this chat's own sentence for
+                 the codes the selection owns — "Skeleton chat resource
+                 admission failed." is the server being precise about its
+                 boundary, not about what the person should do. Every other
+                 code keeps the server's message, which is more specific than
+                 a category of ours would be, and nothing falls back to
+                 running the default Agent. */
+              const errorMessage =
+                (runSkeletonSelection &&
+                  skeleton_selection_reason(error?.code)) ||
+                error?.message ||
+                "Unknown stream error";
               const errorCode = error?.code || "stream_error";
               handleSkillInventoryStaleError(error, tRef.current);
               const hasAdmittedRunAccounting =
@@ -8875,6 +9225,114 @@ export const useChatStream = ({
               activeFlushScheduler.flushSync();
               disposeBufferedTokenFlush();
               releaseTokenFlushController();
+
+              /* A recovered or retried turn whose run STARTED and then failed
+                 has to report that to its durable intent. Without this the
+                 recovery effect reads a pristine entry — no attempt, no
+                 failure code, no retryAt — and dispatches it again the moment
+                 anything bumps the turn-mutation version: no backoff, no
+                 bound, and each new run replaces the refusal banner with the
+                 streaming disclaimer, so the reason never stays visible.
+                 The decision is the existing policy's, not a new one: reserve
+                 the attempt, then ask `resolveContextV2TurnMutationFailure`.
+                 A refusal the selection itself owns is terminal by definition
+                 — re-running the identical frozen selection cannot change the
+                 answer — so it quarantines instead of retrying. Quarantine
+                 keeps the user's intent for explicit review; nothing is
+                 deleted here, and nothing re-executes on its own. */
+              if (
+                turnMutationOperationId &&
+                !wasCancelled &&
+                !hasAdmittedRunAccounting
+              ) {
+                const reservedAfterFailure = reserveTurnMutationRetryAttempt(
+                  turnMutationOperationId,
+                );
+                if (reservedAfterFailure) {
+                  const failureDecision = skeleton_selection_reason(errorCode)
+                    ? {
+                        action: TURN_MUTATION_RETRY_ACTIONS.QUARANTINE,
+                        delayMs: 0,
+                      }
+                    : resolveContextV2TurnMutationFailure({
+                        errorCode,
+                        replayAttempts: reservedAfterFailure.replayAttempts,
+                      });
+                  recordTurnMutationRetryOutcome(turnMutationOperationId, {
+                    action: failureDecision.action,
+                    code: errorCode,
+                    retryAt:
+                      failureDecision.action ===
+                      TURN_MUTATION_RETRY_ACTIONS.RETRY
+                        ? Date.now() + failureDecision.delayMs
+                        : 0,
+                  });
+                  notifyTurnMutationChange(targetChatId);
+                } else {
+                  /* The reservation is itself a WRITE, and a refused write
+                     must not read as "nothing happened": the row stays
+                     pristine, so the recovery effect sees runnable work and
+                     dispatches this same intent again — the original loop one
+                     level down (measured: every answered refusal bought
+                     another run). Tell the two causes apart first. A row that
+                     is gone, already held, or waiting on a recorded backoff
+                     belongs to those fences, so leave it to them. Anything
+                     else means this failure could not be recorded, so hold the
+                     operation with the policy's terminal action and keep the
+                     run's own reason on it.
+                     A snapshot that cannot be read answers "I don't know",
+                     which no fence can be inferred from: the row may well be
+                     the pristine one this run just failed to reserve, and
+                     reads recover sooner than the person does, so deferring
+                     here hands that row straight back to the recovery effect
+                     (measured: one extra run once reads worked again). Treat
+                     an unreadable store as untriaged and settle through the
+                     same path — the write attempt below fails too while the
+                     store stays unreachable, which is exactly what the
+                     in-session hold is for. */
+                  const settledSnapshot = readTurnMutationOutboxState();
+                  const currentRow = settledSnapshot.available
+                    ? settledSnapshot.entries.find(
+                        (candidate) =>
+                          candidate.operationId === turnMutationOperationId,
+                      )
+                    : null;
+                  const ownedByAnotherFence =
+                    settledSnapshot.available &&
+                    (!currentRow ||
+                      currentRow.retryStatus ===
+                        TURN_MUTATION_RETRY_STATUSES.QUARANTINED ||
+                      (currentRow.retryStatus ===
+                        TURN_MUTATION_RETRY_STATUSES.WAITING &&
+                        currentRow.retryAt > Date.now()));
+                  if (!ownedByAnotherFence) {
+                    const heldAfterFailure = recordTurnMutationRetryOutcome(
+                      turnMutationOperationId,
+                      {
+                        action: TURN_MUTATION_RETRY_ACTIONS.QUARANTINE,
+                        code: errorCode || "context_v2_persist_failed",
+                      },
+                    );
+                    if (!heldAfterFailure) {
+                      /* Nothing about this turn can be written at all, so the
+                         only bound left is this session's: hold the operation
+                         in memory so recovery stops dispatching it, and say
+                         that the hold itself could not be saved. Nothing is
+                         deleted, the frozen text and Agent stay, and a reload
+                         honestly finds an intent the store never recorded. */
+                      turnMutationUnrecordedFailureRef.current.set(
+                        turnMutationOperationId,
+                        errorCode || "context_v2_persist_failed",
+                      );
+                      setStreamErrorForChat(
+                        targetChatId,
+                        CONTEXT_V2_TURN_MUTATION_MESSAGES.PERSIST,
+                      );
+                    }
+                    notifyTurnMutationChange(targetChatId);
+                  }
+                }
+              }
 
               const materializedStreamMessages = materializeStreamingMessages(
                 targetChatId,
@@ -9715,6 +10173,7 @@ export const useChatStream = ({
         authoritativePending = null,
         authoritativeReceipt = null,
         submittedHumanInputId = "",
+        submittedApprovalId = "",
         speculative = false,
       } = {},
     ) => {
@@ -9857,13 +10316,47 @@ export const useChatStream = ({
             ].some((attemptId) => pendingAttemptIds.has(attemptId)),
         );
 
+        /* Presented by this run and still unanswered when its finite stream
+           ended: the run's, not a cold leftover, with every identity exact.
+           Nothing here reads the composer's current choice. */
+        const accepted =
+          acceptedInteractionsByChatIdRef.current.get(normalizedChatId) || null;
+        const pendingAcceptedByCurrentRun = Boolean(
+          !pendingOwnedByLiveExecution &&
+            accepted &&
+            accepted.runGeneration === activeRunGeneration &&
+            accepted.sessionId === pending.sessionId &&
+            accepted.interactionIds.has(pending.interactionId) &&
+            [...accepted.attemptIds].some((attemptId) =>
+              pendingAttemptIds.has(attemptId),
+            ),
+        );
+        const pendingOwnedByCurrentRun =
+          pendingOwnedByLiveExecution || pendingAcceptedByCurrentRun;
+        /* The user's own answer to that approval resumes the parked run, as an
+           explicit human-input answer does. */
+        const resolutionOutcomeForResume = pending.resolution?.outcome;
+        const acceptedApprovalSubmission = Boolean(
+          pendingAcceptedByCurrentRun &&
+            hasAuthoritativeRecordedReceipt &&
+            submittedApprovalId &&
+            submittedApprovalId === pending.interactionId &&
+            pending.kind !== "human_input" &&
+            (resolutionOutcomeForResume === "approved" ||
+              resolutionOutcomeForResume === "denied"),
+        );
+
         // A passive lookup may race the POST that is recording this answer.
         // Leave the current submission in charge until its receipt starts resume.
-        const activeSubmission = humanInputSubmissionByChatIdRef.current.get(normalizedChatId);
-        if (!authoritativeReceipt && activeSubmission &&
+        const inFlightSubmissions = [
+          humanInputSubmissionByChatIdRef.current.get(normalizedChatId),
+          toolDecisionSubmissionByChatIdRef.current.get(normalizedChatId),
+        ];
+        if (!authoritativeReceipt && inFlightSubmissions.some((activeSubmission) =>
+            activeSubmission &&
             activeSubmission.runGeneration === activeRunGeneration &&
             activeSubmission.sessionId === pending.sessionId &&
-            activeSubmission.interactionId === pending.interactionId) {
+            activeSubmission.interactionId === pending.interactionId)) {
           return pending;
         }
 
@@ -9910,13 +10403,97 @@ export const useChatStream = ({
         }
 
         clearAllPendingToolConfirmations(normalizedChatId);
-        let sourceMessages =
+        const nativeColdPendingCandidate =
+          pending.resumeKind === "skeleton" &&
+          pending.status === "awaiting_response" &&
+          pending.kind === "tool_approval" &&
+          pending.resumeAvailable === true;
+        let sourceMessages = [];
+        const activeMessages =
           activeChatIdRef.current === normalizedChatId &&
           Array.isArray(messagesRef.current)
             ? messagesRef.current
-            : typeof storageApi.getChatMessages === "function"
+            : null;
+        if (activeMessages?.length > 0 || !nativeColdPendingCandidate) {
+          sourceMessages = activeMessages ||
+            (typeof storageApi.getChatMessages === "function"
               ? storageApi.getChatMessages(normalizedChatId)
-              : [];
+              : []);
+        } else {
+          try {
+            if (typeof storageApi.getChatMessages !== "function") {
+              throw new Error("Persisted chat messages are unavailable.");
+            }
+            sourceMessages = storageApi.getChatMessages(normalizedChatId);
+            if (!Array.isArray(sourceMessages)) {
+              throw new Error("Persisted chat messages are unavailable.");
+            }
+          } catch (_error) {
+            const error = new Error("Persisted chat messages are unavailable.");
+            error.code = "durable_interaction_owner_store_unavailable";
+            throw error;
+          }
+        }
+        if (!Array.isArray(sourceMessages)) {
+          if (nativeColdPendingCandidate) {
+            const error = new Error("Persisted chat messages are unavailable.");
+            error.code = "durable_interaction_owner_store_unavailable";
+            throw error;
+          }
+          sourceMessages = [];
+        }
+        const nativeColdOwnerId = findRetainedNativeSkeletonApprovalOwner(
+          sourceMessages,
+          pending,
+          normalizedChatId,
+        );
+        let nativeColdAdmission = false;
+        if (nativeColdOwnerId && !pendingOwnedByCurrentRun) {
+          const cancelOutboxState = readExecutionCancelOutboxState();
+          const mutationOutboxState = readTurnMutationAdmissionOutboxState();
+          if (!cancelOutboxState.available || !mutationOutboxState.available) {
+            const error = new Error(
+              "Local recovery fences are unavailable; the approval remains pending.",
+            );
+            error.code = "durable_interaction_fence_store_unavailable";
+            throw error;
+          }
+          const competingCancellation = cancelOutboxState.entries.some(
+            (entry) =>
+              entry.ownerChatId === normalizedChatId ||
+              entry.sessionId === pending.sessionId ||
+              entry.attemptId === pending.sourceRunId ||
+              entry.sourceAttemptId === pending.sourceRunId,
+          );
+          const competingMutation = mutationOutboxState.entries.some(
+            (entry) => entry.chatId === normalizedChatId,
+          );
+          const trackedCancellation = [
+            ...trackedExecutionCancellationsRef.current.values(),
+          ].some(
+            (tracked) =>
+              tracked?.pending === true &&
+              (tracked.identity?.ownerChatId === normalizedChatId ||
+                tracked.identity?.sessionId === pending.sessionId),
+          );
+          if (
+            isCurrentLookup() &&
+            !streamingChatIdsRef.current.has(normalizedChatId) &&
+            !streamHandlesRef.current.has(normalizedChatId) &&
+            !stoppedRunChatIdsRef.current.has(normalizedChatId) &&
+            !competingCancellation &&
+            !competingMutation &&
+            !trackedCancellation
+          ) {
+            acceptedInteractionsByChatIdRef.current.set(normalizedChatId, {
+              runGeneration: activeRunGeneration,
+              sessionId: pending.sessionId,
+              attemptIds: new Set([pending.sourceRunId]),
+              interactionIds: new Set([pending.interactionId]),
+            });
+            nativeColdAdmission = true;
+          }
+        }
         const pendingMutationEntry = readTurnMutationOutbox().find(
           (entry) => entry.chatId === normalizedChatId,
         );
@@ -9986,10 +10563,13 @@ export const useChatStream = ({
             releaseTurnMutation(mutationOwner);
           }
         }
-        const ensured = ensureDurableInteractionMessage(
-          sourceMessages,
-          pending,
-        );
+        const ensured = nativeColdAdmission
+          ? {
+              messages: sourceMessages,
+              ownerMessageId: nativeColdOwnerId,
+              created: false,
+            }
+          : ensureDurableInteractionMessage(sourceMessages, pending);
         if (ensured.created) {
           commitForegroundMessages(normalizedChatId, ensured.messages);
           storageApi.setChatMessages(normalizedChatId, ensured.messages, {
@@ -9999,7 +10579,7 @@ export const useChatStream = ({
 
         const keepPendingActionable =
           pending.status !== "receipt_recorded" &&
-          pendingOwnedByLiveExecution;
+          (pendingOwnedByCurrentRun || nativeColdAdmission);
         const resolutionOutcome = pending.resolution?.outcome;
         const recoveredDecision =
           resolutionOutcome === "approved" ||
@@ -10054,7 +10634,8 @@ export const useChatStream = ({
            live, observing a durable receipt alone must not resume it. Only
            an identity-matched explicit human-input submission may do so. */
         if (
-          !hasAuthoritativeRecordedReceipt && pendingOwnedByLiveExecution
+          !hasAuthoritativeRecordedReceipt &&
+          (pendingOwnedByCurrentRun || nativeColdAdmission)
         ) {
           return pendingWithOwner;
         }
@@ -10093,12 +10674,13 @@ export const useChatStream = ({
             feedbackAcknowledged: true,
           });
 
-          if (submittedHumanInputId) {
+          if (submittedHumanInputId || acceptedApprovalSubmission) {
             if (
-              !hasAuthoritativeRecordedReceipt ||
+              submittedHumanInputId &&
+              (!hasAuthoritativeRecordedReceipt ||
               submittedHumanInputId !== pending.interactionId ||
               pending.kind !== "human_input" ||
-              pending.resolution?.outcome !== "submitted"
+              pending.resolution?.outcome !== "submitted")
             ) {
               const error = new Error("The submitted answer does not match the suspended interaction.");
               error.code = "durable_interaction_receipt_identity_mismatch";
@@ -10143,6 +10725,9 @@ export const useChatStream = ({
               }
             }
             if (!started) return null;
+            if (acceptedApprovalSubmission) {
+              acceptedInteractionsByChatIdRef.current.delete(normalizedChatId);
+            }
             return pendingWithOwner;
           }
         }
@@ -12233,8 +12818,17 @@ export const useChatStream = ({
           { code: "chat_config_unavailable" },
         );
       }
+      /* Same rule as the composer's own door: a chat that runs a stored
+         Skeleton Agent has a runnable configuration without a composer model,
+         because the resource's Kernel is what runs. Read from the stored run
+         context, which is this chat's own row, not the visible selector. */
+      const exactSkeletonSelection =
+        exactRunContext.kind === "character"
+          ? null
+          : skeleton_selection_payload(exactRunContext.selectedSkeletonAgentId);
       if (
         exactRunContext.kind !== "character" &&
+        !exactSkeletonSelection &&
         (!exactRunContext.modelId ||
           exactRunContext.modelId === "unchain-unset")
       ) {
@@ -12451,6 +13045,26 @@ export const useChatStream = ({
         isCharacterChat ||
         (normalizedSelectedModelId &&
           normalizedSelectedModelId !== "unchain-unset");
+      /* Whether this send needs a composer model at all.
+         A request that carries a Skeleton selection runs the resource's own
+         stored Kernel — provider, model and context window come out of the
+         saved document on the server — so the pill is not what runs and
+         cannot be required. Resolved with the same precedence the run itself
+         uses (the run context this chat holds, else what the composer shows),
+         so this door and the request it guards cannot disagree: the
+         requirement is lifted exactly when a selection goes out. A legacy
+         Recipe is NOT this case — it runs on the composer's model. */
+      const gateRunContext =
+        runContextByChatIdRef.current.get(currentChatId) || null;
+      const gateSkeletonSelection = isCharacterChat
+        ? null
+        : skeleton_selection_payload(
+            typeof gateRunContext?.selectedSkeletonAgentId === "string"
+              ? gateRunContext.selectedSkeletonAgentId
+              : selectedSkeletonAgentIdRef.current,
+          );
+      const modelRequirementSatisfied =
+        Boolean(hasSelectedModel) || Boolean(gateSkeletonSelection);
       const thisChatsRunActive = isChatRunPending(currentChatId);
       const thisChatHasStreamHandle =
         streamHandlesRef.current.has(currentChatId);
@@ -12637,7 +13251,7 @@ export const useChatStream = ({
         return;
       }
 
-      if (!hasSelectedModel) {
+      if (!modelRequirementSatisfied) {
         setStreamError("Select a model before sending a message.");
         return;
       }
@@ -13673,6 +14287,15 @@ export const useChatStream = ({
           typeof threadIdRef?.current === "string" ? threadIdRef.current : "";
         const capturedModelId =
           typeof modelIdRef?.current === "string" ? modelIdRef.current : "";
+        /* Pin the Agent exactly as the model above is pinned. This mutation
+           still has awaits to go (character config, memory plan, rebase), and
+           the chat's own row can change under it — a retry runs the resource
+           that was selected when it was launched, and an empty capture stays
+           empty rather than inheriting a later choice. */
+        const capturedSkeletonAgentId =
+          typeof selectedSkeletonAgentIdRef?.current === "string"
+            ? selectedSkeletonAgentIdRef.current
+            : "";
         const characterConfig = isCharacterChat
           ? await buildCharacterRunConfig(targetThreadId).catch((error) => {
               setStreamErrorForChat(
@@ -13768,6 +14391,7 @@ export const useChatStream = ({
           text: resendText,
           modelId: targetModelId,
           threadId: targetThreadId,
+          selectedSkeletonAgentId: capturedSkeletonAgentId,
           memoryNamespace: characterConfig?.run_memory_namespace || "",
           forceMemoryEnabled: isCharacterChat,
           expectedSessionRevision,
@@ -13831,7 +14455,11 @@ export const useChatStream = ({
           reuseUserMessage: targetMessage,
           missingAttachmentPayloadMode: "degrade",
           characterAgentConfig: characterConfig,
-          runContext: { modelId: targetModelId, threadId: targetThreadId },
+          runContext: {
+            modelId: targetModelId,
+            threadId: targetThreadId,
+            selectedSkeletonAgentId: capturedSkeletonAgentId,
+          },
           turnMutationOperationId: operationId,
         });
       } finally {
@@ -13951,6 +14579,15 @@ export const useChatStream = ({
           typeof threadIdRef?.current === "string" ? threadIdRef.current : "";
         const capturedModelId =
           typeof modelIdRef?.current === "string" ? modelIdRef.current : "";
+        /* Pin the Agent exactly as the model above is pinned. This mutation
+           still has awaits to go (character config, memory plan, rebase), and
+           the chat's own row can change under it — a retry runs the resource
+           that was selected when it was launched, and an empty capture stays
+           empty rather than inheriting a later choice. */
+        const capturedSkeletonAgentId =
+          typeof selectedSkeletonAgentIdRef?.current === "string"
+            ? selectedSkeletonAgentIdRef.current
+            : "";
         const targetSelectedToolkits = Array.isArray(selectedToolkitsRef.current)
           ? [...selectedToolkitsRef.current]
           : [];
@@ -14080,6 +14717,7 @@ export const useChatStream = ({
           composer: built.composer,
           modelId: targetModelId,
           threadId: targetThreadId,
+          selectedSkeletonAgentId: capturedSkeletonAgentId,
           memoryNamespace: characterConfig?.run_memory_namespace || "",
           forceMemoryEnabled: isCharacterChat,
           expectedSessionRevision,
@@ -14125,7 +14763,11 @@ export const useChatStream = ({
           extraToolkits: built.extraToolkits,
           characterAgentConfig: characterConfig,
           composer: built.composer,
-          runContext: { modelId: targetModelId, threadId: targetThreadId },
+          runContext: {
+            modelId: targetModelId,
+            threadId: targetThreadId,
+            selectedSkeletonAgentId: capturedSkeletonAgentId,
+          },
           turnMutationOperationId: operationId,
         });
       } finally {
@@ -14225,6 +14867,15 @@ export const useChatStream = ({
           typeof threadIdRef?.current === "string" ? threadIdRef.current : "";
         const capturedModelId =
           typeof modelIdRef?.current === "string" ? modelIdRef.current : "";
+        /* Pin the Agent exactly as the model above is pinned. This mutation
+           still has awaits to go (character config, memory plan, rebase), and
+           the chat's own row can change under it — a retry runs the resource
+           that was selected when it was launched, and an empty capture stays
+           empty rather than inheriting a later choice. */
+        const capturedSkeletonAgentId =
+          typeof selectedSkeletonAgentIdRef?.current === "string"
+            ? selectedSkeletonAgentIdRef.current
+            : "";
         const characterConfig = isCharacterChat
           ? await buildCharacterRunConfig(targetThreadId).catch((error) => {
               setStreamErrorForChat(
@@ -14327,6 +14978,7 @@ export const useChatStream = ({
           text: "",
           modelId: targetModelId,
           threadId: targetThreadId,
+          selectedSkeletonAgentId: capturedSkeletonAgentId,
           memoryNamespace: characterConfig?.run_memory_namespace || "",
           forceMemoryEnabled: isCharacterChat,
           expectedCancelAttemptId,
@@ -14389,6 +15041,15 @@ export const useChatStream = ({
       typeof chatId === "string" && chatId.trim() ? chatId.trim() : "";
     if (!targetChatId || !hookMountedRef.current) return undefined;
 
+    const admissionOutboxSnapshot = readTurnMutationAdmissionOutboxState();
+    if (!admissionOutboxSnapshot.available) {
+      setStreamErrorForChat(
+        targetChatId,
+        CONTEXT_V2_TURN_MUTATION_MESSAGES.PERSIST,
+      );
+      return undefined;
+    }
+
     const recoveryOutboxSnapshot = readTurnMutationOutboxState();
     if (!recoveryOutboxSnapshot.available) {
       setStreamErrorForChat(
@@ -14412,6 +15073,36 @@ export const useChatStream = ({
     if (
       entry.retryStatus === TURN_MUTATION_RETRY_STATUSES.QUARANTINED
     ) {
+      return undefined;
+    }
+    if (
+      turnMutationUnrecordedFailureRef.current.has(entry.operationId) &&
+      !hasActiveRetryAttempt
+    ) {
+      /* This operation's run already started and failed in this session, and
+         the store refused every attempt to record that — so the row still
+         reads as untried. Dispatching it again would only repeat the refusal
+         and replace its reason with the streaming disclaimer, so it is held
+         here and the page says the hold could not be saved.
+         The store may since have become writable, so one conversion into the
+         durable hold is attempted per effect run: a QUARANTINED row is what
+         carries the reason across a reload and what gives the person Retry
+         and Discard. Only a successful write bumps the version, so a still
+         failing store cannot turn this into a render loop. */
+      const heldDurably = recordTurnMutationRetryOutcome(entry.operationId, {
+        action: TURN_MUTATION_RETRY_ACTIONS.QUARANTINE,
+        code:
+          turnMutationUnrecordedFailureRef.current.get(entry.operationId) ||
+          "context_v2_persist_failed",
+      });
+      setStreamErrorForChat(
+        targetChatId,
+        CONTEXT_V2_TURN_MUTATION_MESSAGES.PERSIST,
+      );
+      if (heldDurably) {
+        turnMutationUnrecordedFailureRef.current.delete(entry.operationId);
+        setTurnMutationVersion((version) => version + 1);
+      }
       return undefined;
     }
     if (
@@ -14458,8 +15149,10 @@ export const useChatStream = ({
       setTurnMutationVersion((version) => version + 1);
       return undefined;
     }
+    /* A recorded backoff is honoured whatever the entry's memory mode is: a
+       legacy intent's run can fail after it started just as a V2 one can, and
+       the writer above is the only thing that sets WAITING for either. */
     if (
-      entry.memoryMode === TURN_MUTATION_MEMORY_MODES.V2 &&
       entry.retryStatus === TURN_MUTATION_RETRY_STATUSES.WAITING &&
       entry.retryAt > Date.now()
     ) {
@@ -14744,7 +15437,15 @@ export const useChatStream = ({
         extraToolkits: entry.extraToolkits,
         composer: entry.composer,
         characterAgentConfig: characterConfig,
-        runContext: { modelId: entry.modelId, threadId: entry.threadId },
+        runContext: {
+          modelId: entry.modelId,
+          threadId: entry.threadId,
+          /* Omitted for an entry written before this field existed, so it
+             replays against the chat's own row as it did then. */
+          ...(typeof entry.selectedSkeletonAgentId === "string"
+            ? { selectedSkeletonAgentId: entry.selectedSkeletonAgentId }
+            : {}),
+        },
         turnMutationOperationId: entry.operationId,
       });
       const storedMessages = storageApi.getChatMessages?.(targetChatId) || [];

@@ -1,0 +1,257 @@
+{
+  "cases": [
+    {
+      "case": "same-attach_top",
+      "document": {
+        "schema_version": 1,
+        "kind": "agent",
+        "id": "ports-attach_top",
+        "name": "New Agent",
+        "nodes": [
+          {
+            "id": "start",
+            "type": "start",
+            "config": {
+              "execution": {
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "agent",
+            "type": "agent",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "end",
+            "type": "end",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "pool",
+            "type": "subagent_pool",
+            "config": {
+              "subagents": []
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "flow-start-agent",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "agent",
+            "target_port_id": "in"
+          },
+          {
+            "id": "flow-agent-end",
+            "kind": "flow",
+            "source_node_id": "agent",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          },
+          {
+            "id": "attach-agent-pool",
+            "kind": "attach",
+            "source_node_id": "agent",
+            "source_port_id": "attach_top",
+            "target_node_id": "pool",
+            "target_port_id": "attach_top"
+          }
+        ]
+      },
+      "saved": true,
+      "diagnostics": [],
+      "execution_structure_admitted": true
+    },
+    {
+      "case": "same-attach_bot",
+      "document": {
+        "schema_version": 1,
+        "kind": "agent",
+        "id": "ports-attach_bot",
+        "name": "New Agent",
+        "nodes": [
+          {
+            "id": "start",
+            "type": "start",
+            "config": {
+              "execution": {
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "agent",
+            "type": "agent",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "end",
+            "type": "end",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "pool",
+            "type": "subagent_pool",
+            "config": {
+              "subagents": []
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "flow-start-agent",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "agent",
+            "target_port_id": "in"
+          },
+          {
+            "id": "flow-agent-end",
+            "kind": "flow",
+            "source_node_id": "agent",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          },
+          {
+            "id": "attach-agent-pool",
+            "kind": "attach",
+            "source_node_id": "agent",
+            "source_port_id": "attach_bot",
+            "target_node_id": "pool",
+            "target_port_id": "attach_bot"
+          }
+        ]
+      },
+      "saved": true,
+      "diagnostics": [],
+      "execution_structure_admitted": true
+    },
+    {
+      "case": "workflow-no-agent",
+      "document": {
+        "schema_version": 1,
+        "kind": "workflow",
+        "id": "workflow-seed",
+        "name": "New Agent",
+        "nodes": [
+          {
+            "id": "start",
+            "type": "start",
+            "config": {
+              "execution": {
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "end",
+            "type": "end",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "flow-start-end",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          }
+        ]
+      },
+      "saved": true
+    },
+    {
+      "case": "workflow-with-agent",
+      "document": {
+        "schema_version": 1,
+        "kind": "workflow",
+        "id": "workflow-with-agent",
+        "name": "New Agent",
+        "nodes": [
+          {
+            "id": "start",
+            "type": "start",
+            "config": {
+              "execution": {
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "end",
+            "type": "end",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "agent",
+            "type": "agent",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "flow-start-end",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          }
+        ]
+      },
+      "saved": false,
+      "refusal": {
+        "code": "invalid_value",
+        "path": [
+          "document",
+          "nodes",
+          2,
+          "type"
+        ]
+      }
+    }
+  ]
+}

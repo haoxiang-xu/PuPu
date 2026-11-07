@@ -5,6 +5,7 @@ import Button from "../input/button";
 import { Z } from "../layer/z_layers";
 import { windowStateBridge } from "../../SERVICEs/bridges/window_state_bridge";
 import usePresentationPlatform from "../mini_react/use_presentation_platform";
+import useWindowFullscreen from "../mini_react/use_window_fullscreen";
 import WindowControls, { windowControlsInset } from "./window_controls";
 
 const TOP_BAR_HEIGHT = 50;
@@ -20,12 +21,14 @@ const hasElectronWindowControls = () => {
 };
 const TitleBar = () => {
   const { theme, onFragment, setOnFragment } = useContext(ConfigContext);
+  const isFullScreen = useWindowFullscreen();
 
   const isElectron = hasElectronWindowControls();
   /* the PRESENTED platform (#256): a dev override can make a darwin host
      draw the Windows cluster, or a win32 host leave room for traffic lights */
   const platform = usePresentationPlatform();
   const isDarwin = platform === "darwin";
+  const reserveDarwinTrafficLights = isDarwin && !isFullScreen;
   const isLinux = platform === "linux";
 
   if (!isElectron) {
@@ -73,7 +76,7 @@ const TitleBar = () => {
           position: "absolute",
           top: "50%",
           transform: "translate(-50%, -50%)",
-          left: isDarwin ? 90 : 14,
+          left: reserveDarwinTrafficLights ? 90 : 14,
           color: topBarForeground,
           fontSize: 14,
           marginLeft: 12,

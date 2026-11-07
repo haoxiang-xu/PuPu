@@ -1,0 +1,824 @@
+{
+ "source": {
+  "path": "/Users/red/.codex/artifacts/pupu-357/cancel-after-resume-desktop-01-20261027/out/resumed-second-cancel-repro.json",
+  "sha256": "c9c1134a4125d135b5f628952822276c9dcbbef1f23064a2c60ba416604b1898",
+  "sources": [
+   {
+    "path": "out/chat-before-cold-1.db",
+    "sha256": "ac2a3adc7652d2848039b15a0fcea045ea0e6b587bd10d24dccc3c2e00680607"
+   },
+   {
+    "path": "state-readback/profile/chats.db",
+    "sha256": "92159422f3645aab56b165f8449ab024c4f229b142f335cc605fa0cc234d327f"
+   },
+   {
+    "path": "run-01/observations.jsonl",
+    "sha256": "efa8021e58cb7ed59a4b63a7165e3160a7a40c34fda1e1182e36d01dcc63b9a1"
+   },
+   {
+    "path": "run-02/observations.jsonl",
+    "sha256": "a9aa31d4a9515742b146ec9643cb3e26d5c7df1bb3a4ab537f36f41d692688a8"
+   },
+   {
+    "path": "run-02/drive-098-cancelled-resumed.json",
+    "sha256": "888edeb14abd32b7d4f0207e22eb29ba348c0678587588c11e7884c083da0216"
+   }
+  ]
+ },
+ "chat_id": "chat-1793079052692-87a1b51abaea47a81241f731d5a23e73",
+ "owning_message_after_stop": {
+  "id": "assistant-1793079055803-684df441f133de25a75e626229fdfac5",
+  "role": "assistant",
+  "content": "",
+  "createdAt": 1793079055803,
+  "updatedAt": 1793079085630,
+  "status": "done",
+  "traceFrames": [
+   {
+    "seq": 1,
+    "ts": 1793079055829,
+    "type": "stream_started",
+    "run_id": "unchain-1793079055807-f1070b2e724e78",
+    "stage": "runtime_event",
+    "links": {
+     "parent_run_id": null,
+     "parent_event_id": null,
+     "caused_by_event_id": null,
+     "step_id": null,
+     "tool_call_id": null,
+     "interaction_id": null,
+     "artifact_id": null,
+     "workspace_change_set_id": null,
+     "plan_id": null,
+     "channel_id": null,
+     "team_id": null
+    },
+    "event_id": "evt_b5d20d3e1e4a4d08ab31adf5cb6db693",
+    "session_id": "chat-1793079052692-87a1b51abaea47a81241f731d5a23e73",
+    "iteration": null,
+    "payload": {
+     "thread_id": "chat-1793079052692-87a1b51abaea47a81241f731d5a23e73",
+     "model": "ollama:unchain-unset",
+     "trace_level": "minimal",
+     "runtime_event_id": "evt_b5d20d3e1e4a4d08ab31adf5cb6db693"
+    }
+   },
+   {
+    "seq": 2,
+    "ts": 1793079056343,
+    "type": "iteration_started",
+    "run_id": "node-attempt.cde0bf45dd9655932c28af5af0bae4d106bc2e5654b805f9e293f5177a5b20d2",
+    "stage": "runtime_event",
+    "links": {
+     "parent_run_id": null,
+     "parent_event_id": null,
+     "caused_by_event_id": null,
+     "step_id": null,
+     "tool_call_id": null,
+     "interaction_id": null,
+     "artifact_id": null,
+     "workspace_change_set_id": null,
+     "plan_id": null,
+     "channel_id": null,
+     "team_id": null
+    },
+    "event_id": "evt_bdfb8533ed314de9b2ae29f74347ba61",
+    "session_id": "chat-1793079052692-87a1b51abaea47a81241f731d5a23e73",
+    "iteration": 0,
+    "payload": {
+     "iteration": 0,
+     "runtime_event_id": "evt_bdfb8533ed314de9b2ae29f74347ba61"
+    }
+   },
+   {
+    "seq": 4,
+    "ts": 1793079056781,
+    "type": "tool_call",
+    "run_id": "node-attempt.cde0bf45dd9655932c28af5af0bae4d106bc2e5654b805f9e293f5177a5b20d2",
+    "stage": "runtime_event",
+    "links": {
+     "parent_run_id": null,
+     "parent_event_id": null,
+     "caused_by_event_id": null,
+     "step_id": "tool:qa-cancel-after-cold-delegate",
+     "tool_call_id": "qa-cancel-after-cold-delegate",
+     "interaction_id": null,
+     "artifact_id": null,
+     "workspace_change_set_id": null,
+     "plan_id": null,
+     "channel_id": null,
+     "team_id": null
+    },
+    "event_id": "evt_ab10ecb217744a4187aa92fd318e1eb2",
+    "session_id": "chat-1793079052692-87a1b51abaea47a81241f731d5a23e73",
+    "payload": {
+     "step_id": "tool:qa-cancel-after-cold-delegate",
+     "step_type": "tool",
+     "tool_name": "delegate_to_subagent",
+     "call_id": "qa-cancel-after-cold-delegate",
+     "arguments": {
+      "target": "Reviewer",
+      "task": "perform the two approval-gated writes"
+     },
+     "runtime_source_type": "tool_call",
+     "runtime_event_id": "evt_ab10ecb217744a4187aa92fd318e1eb2"
+    }
+   },
+   {
+    "seq": 6,
+    "ts": 1793079058333,
+    "type": "tool_result",
+    "run_id": "node-attempt.cde0bf45dd9655932c28af5af0bae4d106bc2e5654b805f9e293f5177a5b20d2",
+    "stage": "runtime_event",
+    "links": {
+     "parent_run_id": null,
+     "parent_event_id": null,
+     "caused_by_event_id": null,
+     "step_id": "tool:qa-cancel-after-cold-delegate",
+     "tool_call_id": "qa-cancel-after-cold-delegate",
+     "interaction_id": null,
+     "artifact_id": null,
+     "workspace_change_set_id": null,
+     "plan_id": null,
+     "channel_id": null,
+     "team_id": null
+    },
+    "event_id": "evt_df356a2f502b4aa7b966c5ea7d3bb5db",
+    "session_id": "chat-1793079052692-87a1b51abaea47a81241f731d5a23e73",
+    "payload": {
+     "step_id": "tool:qa-cancel-after-cold-delegate",
+     "step_type": "tool",
+     "tool_name": "delegate_to_subagent",
+     "call_id": "qa-cancel-after-cold-delegate",
+     "status": "success",
+     "result": {
+      "content_bytes": 72,
+      "content_sha256": "5bfd9dfda3aeb4126ee3047db025816dbd1f158fcc0ad453803df82ffae49666",
+      "full_output_ref": "unchain://context/v1/eyJmcmFnbWVudCI6IiIsImlkIjoiYXJ0aWZhY3QtMWNhODI1NjE2ZjE1ZmY2ZTgxMjAyMWFlYThjYTcwMzIzNGIzOWI2MDcxMjY5MmI2MGI1ZDIwMmE2NDEwYjQ2NiIsImtpbmQiOiJhcnRpZmFjdCIsInJldmlzaW9uIjoxfQ",
+      "inline": true,
+      "preview": "{\"schema\":\"unchain.skeleton_subagent_wait_marker.v1\",\"status\":\"waiting\"}",
+      "projection": "default",
+      "read_request": {
+       "tool": "context_content_read",
+       "arguments": {
+        "ref": "unchain://context/v1/eyJmcmFnbWVudCI6IiIsImlkIjoiYXJ0aWZhY3QtMWNhODI1NjE2ZjE1ZmY2ZTgxMjAyMWFlYThjYTcwMzIzNGIzOWI2MDcxMjY5MmI2MGI1ZDIwMmE2NDEwYjQ2NiIsImtpbmQiOiJhcnRpZmFjdCIsInJldmlzaW9uIjoxfQ",
+        "offset": 0,
+        "limit": 8192
+       }
+      }
+     },
+     "runtime_source_type": "tool_result",
+     "runtime_event_id": "evt_df356a2f502b4aa7b966c5ea7d3bb5db"
+    }
+   },
+   {
+    "seq": 7,
+    "ts": 1793079058420,
+    "type": "response_received",
+    "run_id": "node-attempt.cde0bf45dd9655932c28af5af0bae4d106bc2e5654b805f9e293f5177a5b20d2",
+    "stage": "runtime_event",
+    "links": {
+     "parent_run_id": null,
+     "parent_event_id": null,
+     "caused_by_event_id": null,
+     "step_id": "model:node-attempt.cde0bf45dd9655932c28af5af0bae4d106bc2e5654b805f9e293f5177a5b20d2:turn-0:response",
+     "tool_call_id": null,
+     "interaction_id": null,
+     "artifact_id": null,
+     "workspace_change_set_id": null,
+     "plan_id": null,
+     "channel_id": null,
+     "team_id": null
+    },
+    "event_id": "evt_0ffc1a41a682413ab2a5d461fc0d047c",
+    "session_id": "chat-1793079052692-87a1b51abaea47a81241f731d5a23e73",
+    "iteration": 0,
+    "payload": {
+     "step_id": "model:node-attempt.cde0bf45dd9655932c28af5af0bae4d106bc2e5654b805f9e293f5177a5b20d2:turn-0:response",
+     "step_type": "model_response",
+     "status": "awaiting_human_input",
+     "response_id": "",
+     "has_tool_calls": true,
+     "usage": {
+      "model": "qa-cancel-parent",
+      "consumed_tokens": 18,
+      "input_tokens": 11,
+      "output_tokens": 7,
+      "last_turn_tokens": 18,
+      "last_turn_input_tokens": 11,
+      "last_turn_output_tokens": 7,
+      "max_context_window_tokens": 8192,
+      "context_window_used_pct": 0.22,
+      "status": "running",
+      "human_input_request": null,
+      "continuation": null,
+      "previous_response_id": null,
+      "iteration": 1
+     },
+     "runtime_event_id": "evt_0ffc1a41a682413ab2a5d461fc0d047c"
+    }
+   },
+   {
+    "seq": 8,
+    "ts": 1793079059264,
+    "type": "tool_call",
+    "run_id": "unchain-1793079055807-f1070b2e724e78",
+    "stage": "runtime_event",
+    "links": {
+     "parent_run_id": null,
+     "parent_event_id": null,
+     "caused_by_event_id": null,
+     "step_id": "tool:qa-cancel-after-cold-write-1",
+     "tool_call_id": "qa-cancel-after-cold-write-1",
+     "interaction_id": "interaction_c978dbda8ecdaf29ed8f42030bafcd80",
+     "artifact_id": null,
+     "workspace_change_set_id": null,
+     "plan_id": null,
+     "channel_id": null,
+     "team_id": null,
+     "input_request_id": "interaction_c978dbda8ecdaf29ed8f42030bafcd80"
+    },
+    "event_id": "evt_37690b0d26894215b4d19798c916e0d1",
+    "session_id": "chat-1793079052692-87a1b51abaea47a81241f731d5a23e73",
+    "payload": {
+     "call_id": "qa-cancel-after-cold-write-1",
+     "confirmation_id": "interaction_c978dbda8ecdaf29ed8f42030bafcd80",
+     "requires_confirmation": true,
+     "tool_name": "write",
+     "description": "Create /Users/red/.codex/artifacts/pupu-357/cancel-after-resume-desktop-01-20261027/run-01/workspace/approved-once.txt",
+     "arguments": {
+      "content": "offline-approved\n",
+      "path": "/Users/red/.codex/artifacts/pupu-357/cancel-after-resume-desktop-01-20261027/run-01/workspace/approved-once.txt"
+     },
+     "interact_type": "code_diff",
+     "interact_config": {
+      "displayed_lines": 4,
+      "fallback_description": "create /Users/red/.codex/artifacts/pupu-357/cancel-after-resume-desktop-01-20261027/run-01/workspace/approved-once.txt (+1 -0)",
+      "operation": "create",
+      "path": "/Users/red/.codex/artifacts/pupu-357/cancel-after-resume-desktop-01-20261027/run-01/workspace/approved-once.txt",
+      "title": "Create /Users/red/.codex/artifacts/pupu-357/cancel-after-resume-desktop-01-20261027/run-01/workspace/approved-once.txt",
+      "total_lines": 4,
+      "truncated": false,
+      "unified_diff": "--- a//Users/red/.codex/artifacts/pupu-357/cancel-after-resume-desktop-01-20261027/run-01/workspace/approved-once.txt\n+++ b//Users/red/.codex/artifacts/pupu-357/cancel-after-resume-desktop-01-20261027/run-01/workspace/approved-once.txt\n@@ -0,0 +1 @@\n+offline-approved\n",
+      "options": []
+     },
+     "interaction_id": "interaction_c978dbda8ecdaf29ed8f42030bafcd80",
+     "runtime_source_type": "interaction_requested",
+     "runtime_event_id": "evt_37690b0d26894215b4d19798c916e0d1"
+    }
+   },
+   {
+    "seq": 8.1,
+    "ts": 1793079080237,
+    "type": "tool_confirmed",
+    "run_id": "unchain-1793079055807-f1070b2e724e78",
+    "stage": "client",
+    "links": {
+     "parent_run_id": null,
+     "parent_event_id": null,
+     "caused_by_event_id": null,
+     "step_id": "tool:qa-cancel-after-cold-write-1",
+     "tool_call_id": "qa-cancel-after-cold-write-1",
+     "interaction_id": "interaction_c978dbda8ecdaf29ed8f42030bafcd80",
+     "artifact_id": null,
+     "workspace_change_set_id": null,
+     "plan_id": null,
+     "channel_id": null,
+     "team_id": null,
+     "input_request_id": "interaction_c978dbda8ecdaf29ed8f42030bafcd80"
+    },
+    "session_id": "chat-1793079052692-87a1b51abaea47a81241f731d5a23e73",
+    "payload": {
+     "tool_name": "write",
+     "call_id": "qa-cancel-after-cold-write-1",
+     "confirmation_id": "interaction_c978dbda8ecdaf29ed8f42030bafcd80",
+     "synthetic": true,
+     "feedback_acknowledged": true
+    }
+   },
+   {
+    "seq": 1,
+    "ts": 1793079080904,
+    "type": "stream_started",
+    "run_id": "unchain-1793079080594-b59010a21f0b4",
+    "stage": "runtime_event",
+    "links": {
+     "parent_run_id": null,
+     "parent_event_id": null,
+     "caused_by_event_id": null,
+     "step_id": null,
+     "tool_call_id": null,
+     "interaction_id": null,
+     "artifact_id": null,
+     "workspace_change_set_id": null,
+     "plan_id": null,
+     "channel_id": null,
+     "team_id": null
+    },
+    "event_id": "evt_de361a32a86941a393b6df75f5f75b7c",
+    "session_id": "chat-1793079052692-87a1b51abaea47a81241f731d5a23e73",
+    "iteration": null,
+    "payload": {
+     "thread_id": "chat-1793079052692-87a1b51abaea47a81241f731d5a23e73",
+     "model": "ollama:qa-environment-decoy",
+     "trace_level": "minimal",
+     "runtime_event_id": "evt_de361a32a86941a393b6df75f5f75b7c"
+    }
+   },
+   {
+    "seq": 2,
+    "ts": 1793079085627,
+    "type": "tool_call",
+    "run_id": "unchain-1793079055807-f1070b2e724e78",
+    "stage": "runtime_event",
+    "links": {
+     "parent_run_id": null,
+     "parent_event_id": null,
+     "caused_by_event_id": null,
+     "step_id": "tool:qa-cancel-after-cold-write-2",
+     "tool_call_id": "qa-cancel-after-cold-write-2",
+     "interaction_id": "interaction_38c9a8bc6cfd7d55d41c0e3a499655cd",
+     "artifact_id": null,
+     "workspace_change_set_id": null,
+     "plan_id": null,
+     "channel_id": null,
+     "team_id": null,
+     "input_request_id": "interaction_38c9a8bc6cfd7d55d41c0e3a499655cd"
+    },
+    "event_id": "evt_94a74e89ea7d43dea497a8b2a7a70ccd",
+    "session_id": "chat-1793079052692-87a1b51abaea47a81241f731d5a23e73",
+    "payload": {
+     "call_id": "qa-cancel-after-cold-write-2",
+     "confirmation_id": "interaction_38c9a8bc6cfd7d55d41c0e3a499655cd",
+     "requires_confirmation": true,
+     "tool_name": "write",
+     "description": "Create /Users/red/.codex/artifacts/pupu-357/cancel-after-resume-desktop-01-20261027/run-01/workspace/cancelled-never.txt",
+     "arguments": {
+      "content": "offline-second-never\n",
+      "path": "/Users/red/.codex/artifacts/pupu-357/cancel-after-resume-desktop-01-20261027/run-01/workspace/cancelled-never.txt"
+     },
+     "interact_type": "code_diff",
+     "interact_config": {
+      "displayed_lines": 4,
+      "fallback_description": "create /Users/red/.codex/artifacts/pupu-357/cancel-after-resume-desktop-01-20261027/run-01/workspace/cancelled-never.txt (+1 -0)",
+      "operation": "create",
+      "path": "/Users/red/.codex/artifacts/pupu-357/cancel-after-resume-desktop-01-20261027/run-01/workspace/cancelled-never.txt",
+      "title": "Create /Users/red/.codex/artifacts/pupu-357/cancel-after-resume-desktop-01-20261027/run-01/workspace/cancelled-never.txt",
+      "total_lines": 4,
+      "truncated": false,
+      "unified_diff": "--- a//Users/red/.codex/artifacts/pupu-357/cancel-after-resume-desktop-01-20261027/run-01/workspace/cancelled-never.txt\n+++ b//Users/red/.codex/artifacts/pupu-357/cancel-after-resume-desktop-01-20261027/run-01/workspace/cancelled-never.txt\n@@ -0,0 +1 @@\n+offline-second-never\n",
+      "options": []
+     },
+     "interaction_id": "interaction_38c9a8bc6cfd7d55d41c0e3a499655cd",
+     "runtime_source_type": "interaction_requested",
+     "runtime_event_id": "evt_94a74e89ea7d43dea497a8b2a7a70ccd"
+    }
+   }
+  ],
+  "subagentMetaByRunId": {
+   "chat-1793079052692-87a1b51abaea47a81241f731d5a23e73:kernel.reviewer.1:417f94c1-716d-512a-bdf7-944ca4953c47": {
+    "subagentId": "kernel.reviewer.1",
+    "mode": "delegate",
+    "template": "Reviewer",
+    "batchId": "",
+    "parentId": "kernel",
+    "lineage": [
+     "kernel",
+     "kernel.reviewer.1"
+    ],
+    "status": "running"
+   }
+  },
+  "meta": {
+   "model": "unchain-unset",
+   "requestId": "unchain-1793079080594-b59010a21f0b4",
+   "attemptId": "unchain-1793079080594-b59010a21f0b4",
+   "executionSessionId": "chat-1793079052692-87a1b51abaea47a81241f731d5a23e73"
+  }
+ },
+ "actual_cancel": {
+  "phase": "run-02",
+  "observed_at_ms": 1793079089868,
+  "status": 200,
+  "request": {
+   "owner_chat_id": "chat-1793079052692-87a1b51abaea47a81241f731d5a23e73",
+   "execution_id": "chat-1793079052692-87a1b51abaea47a81241f731d5a23e73",
+   "attempt_id": "unchain-1793079055807-f1070b2e724e78",
+   "source_attempt_id": "unchain-1793079055807-f1070b2e724e78",
+   "interaction_id": "interaction_38c9a8bc6cfd7d55d41c0e3a499655cd",
+   "reason": "user_stop",
+   "idempotency_key": "stop:unchain-1793079055807-f1070b2e724e78"
+  },
+  "response": {
+   "attempt_id": "unchain-1793079055807-f1070b2e724e78",
+   "cancellation": {
+    "fencing_token": null,
+    "reason": "user_stop",
+    "requested_at_ms": 1793079089863
+   },
+   "context_interaction_reconciled": true,
+   "disposition": "cancelled",
+   "durable_interaction_cancelled": true,
+   "execution": null,
+   "execution_id": "chat-1793079052692-87a1b51abaea47a81241f731d5a23e73",
+   "source_attempt_id": "unchain-1793079055807-f1070b2e724e78",
+   "state": "cancelled",
+   "status": "ok"
+  }
+ },
+ "direct_control_message": {
+  "id": "assistant-1793079047804-6b082f82a5b32a92dde36493cfe3e7e1",
+  "role": "assistant",
+  "content": "",
+  "createdAt": 1793079047804,
+  "updatedAt": 1793079051552,
+  "status": "done",
+  "traceFrames": [
+   {
+    "seq": 1,
+    "ts": 1793079047839,
+    "type": "stream_started",
+    "run_id": "unchain-1793079047811-f28a9eb7478c38",
+    "stage": "runtime_event",
+    "links": {
+     "parent_run_id": null,
+     "parent_event_id": null,
+     "caused_by_event_id": null,
+     "step_id": null,
+     "tool_call_id": null,
+     "interaction_id": null,
+     "artifact_id": null,
+     "workspace_change_set_id": null,
+     "plan_id": null,
+     "channel_id": null,
+     "team_id": null
+    },
+    "event_id": "evt_a7f4e696bc084ee8b2a7d5ba19bb8324",
+    "session_id": "chat-1793079024513-2e695bd37e5f317922e3f95d886af1d7",
+    "iteration": null,
+    "payload": {
+     "thread_id": "chat-1793079024513-2e695bd37e5f317922e3f95d886af1d7",
+     "model": "ollama:qa-environment-decoy",
+     "trace_level": "minimal",
+     "runtime_event_id": "evt_a7f4e696bc084ee8b2a7d5ba19bb8324"
+    }
+   },
+   {
+    "seq": 2,
+    "ts": 1793079048451,
+    "type": "iteration_started",
+    "run_id": "node-attempt.7522f987f3cf898dfc4212fd02ae8b4566a731f3e0696e1ada9a594a321223e1",
+    "stage": "runtime_event",
+    "links": {
+     "parent_run_id": null,
+     "parent_event_id": null,
+     "caused_by_event_id": null,
+     "step_id": null,
+     "tool_call_id": null,
+     "interaction_id": null,
+     "artifact_id": null,
+     "workspace_change_set_id": null,
+     "plan_id": null,
+     "channel_id": null,
+     "team_id": null
+    },
+    "event_id": "evt_d91ffc5d3e9b4e13bd3373f645c63e9b",
+    "session_id": "chat-1793079024513-2e695bd37e5f317922e3f95d886af1d7",
+    "iteration": 0,
+    "payload": {
+     "iteration": 0,
+     "runtime_event_id": "evt_d91ffc5d3e9b4e13bd3373f645c63e9b"
+    }
+   },
+   {
+    "seq": 4,
+    "ts": 1793079048630,
+    "type": "tool_call",
+    "run_id": "node-attempt.7522f987f3cf898dfc4212fd02ae8b4566a731f3e0696e1ada9a594a321223e1",
+    "stage": "runtime_event",
+    "links": {
+     "parent_run_id": null,
+     "parent_event_id": null,
+     "caused_by_event_id": null,
+     "step_id": "tool:qa-cancel-direct-write-1",
+     "tool_call_id": "qa-cancel-direct-write-1",
+     "interaction_id": null,
+     "artifact_id": null,
+     "workspace_change_set_id": null,
+     "plan_id": null,
+     "channel_id": null,
+     "team_id": null
+    },
+    "event_id": "evt_eeb01761e45d43b6b8e88105f44a23e2",
+    "session_id": "chat-1793079024513-2e695bd37e5f317922e3f95d886af1d7",
+    "payload": {
+     "step_id": "tool:qa-cancel-direct-write-1",
+     "step_type": "tool",
+     "tool_name": "write",
+     "call_id": "qa-cancel-direct-write-1",
+     "arguments": {
+      "path": "/Users/red/.codex/artifacts/pupu-357/cancel-after-resume-desktop-01-20261027/run-01/workspace/direct-never.txt",
+      "content": "offline-direct-never\n"
+     },
+     "runtime_source_type": "tool_call",
+     "runtime_event_id": "evt_eeb01761e45d43b6b8e88105f44a23e2"
+    }
+   },
+   {
+    "seq": 5,
+    "ts": 1793079048695,
+    "type": "response_received",
+    "run_id": "node-attempt.7522f987f3cf898dfc4212fd02ae8b4566a731f3e0696e1ada9a594a321223e1",
+    "stage": "runtime_event",
+    "links": {
+     "parent_run_id": null,
+     "parent_event_id": null,
+     "caused_by_event_id": null,
+     "step_id": "model:node-attempt.7522f987f3cf898dfc4212fd02ae8b4566a731f3e0696e1ada9a594a321223e1:turn-0:response",
+     "tool_call_id": null,
+     "interaction_id": null,
+     "artifact_id": null,
+     "workspace_change_set_id": null,
+     "plan_id": null,
+     "channel_id": null,
+     "team_id": null
+    },
+    "event_id": "evt_dc68e8f477c24977aed893a3829dfe34",
+    "session_id": "chat-1793079024513-2e695bd37e5f317922e3f95d886af1d7",
+    "iteration": 0,
+    "payload": {
+     "step_id": "model:node-attempt.7522f987f3cf898dfc4212fd02ae8b4566a731f3e0696e1ada9a594a321223e1:turn-0:response",
+     "step_type": "model_response",
+     "status": "awaiting_interaction",
+     "response_id": "",
+     "has_tool_calls": true,
+     "usage": {
+      "model": "qa-cancel-direct",
+      "consumed_tokens": 18,
+      "input_tokens": 11,
+      "output_tokens": 7,
+      "last_turn_tokens": 18,
+      "last_turn_input_tokens": 11,
+      "last_turn_output_tokens": 7,
+      "max_context_window_tokens": 8192,
+      "context_window_used_pct": 0.22,
+      "status": "running",
+      "human_input_request": null,
+      "continuation": {
+       "consumed_tokens": 18,
+       "context_version_id": "kv_7a582977747c40809a3953ba3bbfe55e",
+       "input_tokens": 11,
+       "interaction_id": "interaction_521f1c8ce7ddd05d904610a3e6b60092",
+       "iteration": 1,
+       "kind": "tool_approval",
+       "last_turn_input_tokens": 11,
+       "last_turn_output_tokens": 7,
+       "last_turn_tokens": 18,
+       "max_context_window_tokens": 8192,
+       "max_iterations": 8,
+       "memory_namespace": null,
+       "model": "qa-cancel-direct",
+       "output_tokens": 7,
+       "paused_call_id": "qa-cancel-direct-write-1",
+       "payload": {
+        "num_ctx": 8192,
+        "num_predict": 128
+       },
+       "previous_response_id": null,
+       "provider": "ollama",
+       "provider_replay_handle": {
+        "id": "provider_replay_6a1a0912a48c4d4f937d9b79bf471dbd",
+        "scope": "process"
+       },
+       "response_format": null,
+       "run_id": "node-attempt.7522f987f3cf898dfc4212fd02ae8b4566a731f3e0696e1ada9a594a321223e1",
+       "session_id": "chat-1793079024513-2e695bd37e5f317922e3f95d886af1d7",
+       "tool_batch_state": {
+        "executed_call_ids": [],
+        "result_messages": [],
+        "should_observe": false
+       },
+       "tool_calls": [
+        {
+         "arguments": {
+          "content": "offline-direct-never\n",
+          "path": "/Users/red/.codex/artifacts/pupu-357/cancel-after-resume-desktop-01-20261027/run-01/workspace/direct-never.txt"
+         },
+         "call_id": "qa-cancel-direct-write-1",
+         "name": "write"
+        }
+       ],
+       "tool_iteration": 0,
+       "type": "tool_approval_continuation",
+       "use_openai_previous_response_chain": false,
+       "workspace_change_state": {}
+      },
+      "previous_response_id": null,
+      "iteration": 1,
+      "interaction_request": {
+       "schema_version": 1,
+       "interaction_id": "interaction_521f1c8ce7ddd05d904610a3e6b60092",
+       "session_id": "chat-1793079024513-2e695bd37e5f317922e3f95d886af1d7",
+       "kind": "tool_approval",
+       "source_run_id": "node-attempt.7522f987f3cf898dfc4212fd02ae8b4566a731f3e0696e1ada9a594a321223e1",
+       "occurrence": "tool:qa-cancel-direct-write-1:0",
+       "payload": {
+        "type": "tool_confirmation_request",
+        "tool_name": "write",
+        "call_id": "qa-cancel-direct-write-1",
+        "arguments": {
+         "content": "offline-direct-never\n",
+         "path": "/Users/red/.codex/artifacts/pupu-357/cancel-after-resume-desktop-01-20261027/run-01/workspace/direct-never.txt"
+        },
+        "description": "Create /Users/red/.codex/artifacts/pupu-357/cancel-after-resume-desktop-01-20261027/run-01/workspace/direct-never.txt",
+        "interact_type": "code_diff",
+        "interact_config": {
+         "title": "Create /Users/red/.codex/artifacts/pupu-357/cancel-after-resume-desktop-01-20261027/run-01/workspace/direct-never.txt",
+         "operation": "create",
+         "path": "/Users/red/.codex/artifacts/pupu-357/cancel-after-resume-desktop-01-20261027/run-01/workspace/direct-never.txt",
+         "unified_diff": "--- a//Users/red/.codex/artifacts/pupu-357/cancel-after-resume-desktop-01-20261027/run-01/workspace/direct-never.txt\n+++ b//Users/red/.codex/artifacts/pupu-357/cancel-after-resume-desktop-01-20261027/run-01/workspace/direct-never.txt\n@@ -0,0 +1 @@\n+offline-direct-never\n",
+         "truncated": false,
+         "total_lines": 4,
+         "displayed_lines": 4,
+         "fallback_description": "create /Users/red/.codex/artifacts/pupu-357/cancel-after-resume-desktop-01-20261027/run-01/workspace/direct-never.txt (+1 -0)"
+        },
+        "render_component": {
+         "version": 1,
+         "type": "confirmation",
+         "config": {}
+        }
+       },
+       "response_contract": {
+        "type": "object",
+        "properties": {
+         "approved": {
+          "type": "boolean"
+         },
+         "modified_arguments": {
+          "type": [
+           "object",
+           "null"
+          ]
+         },
+         "reason": {
+          "type": "string"
+         }
+        },
+        "required": [
+         "approved",
+         "modified_arguments",
+         "reason"
+        ],
+        "additionalProperties": false
+       },
+       "schema_digest": "49eefff5e9f1efed1f690f7931c8bb0e2045399644ce6587a4b6216403ec1ec4",
+       "request_digest": "521f1c8ce7ddd05d904610a3e6b60092f2737570e689a91236ffd4da27a1c935",
+       "created_revision": 0,
+       "subject": {
+        "binding_version": 1,
+        "provider": "ollama",
+        "model": "qa-cancel-direct",
+        "prompt_digest": "63144409d214090ea01647f6490129bbf71c345badc786e1b00c53f6ee6805dc",
+        "tool_name": "write",
+        "tool_schema_digest": "3bdca2bdc4c1b33ed2dc5f016acc3696baaf750012e5b55b20f2420eb9c0b448",
+        "extra": {
+         "context_v2_tool_authority": {
+          "schema": "unchain.context_tool_approval.v1",
+          "intent_cursor": {
+           "schema": "unchain.event_cursor.v1",
+           "store_seq": 15,
+           "event_id": "event-71265a618bb9e4588fdc8cac70b79f952d05415906bda9e00caede14d939b46f"
+          },
+          "original_arguments_sha256": "f9d3512f9a1c179496f66999d0e4573797b22a3b7b1d0b4dd7f7260e363c0c57",
+          "route_kind": "normal",
+          "route_manifest_sha256": "410df55877cea622ef230a5dd1fac4b83943b08ca9fb711be938ae8112602a5b",
+          "terminal_handler_manifest_sha256": "154069987c3b98ae1432551d04f452d4a96614b2afefff2b4896d91593a3c458"
+         }
+        }
+       }
+      }
+     },
+     "runtime_event_id": "evt_dc68e8f477c24977aed893a3829dfe34"
+    }
+   },
+   {
+    "seq": 6,
+    "ts": 1793079049156,
+    "type": "tool_call",
+    "run_id": "unchain-1793079047811-f28a9eb7478c38",
+    "stage": "runtime_event",
+    "links": {
+     "parent_run_id": null,
+     "parent_event_id": null,
+     "caused_by_event_id": null,
+     "step_id": "tool:qa-cancel-direct-write-1",
+     "tool_call_id": "qa-cancel-direct-write-1",
+     "interaction_id": "interaction_521f1c8ce7ddd05d904610a3e6b60092",
+     "artifact_id": null,
+     "workspace_change_set_id": null,
+     "plan_id": null,
+     "channel_id": null,
+     "team_id": null,
+     "input_request_id": "interaction_521f1c8ce7ddd05d904610a3e6b60092"
+    },
+    "event_id": "evt_6c9cf0fd404147429132fbe3a2d3bab4",
+    "session_id": "chat-1793079024513-2e695bd37e5f317922e3f95d886af1d7",
+    "payload": {
+     "call_id": "qa-cancel-direct-write-1",
+     "confirmation_id": "interaction_521f1c8ce7ddd05d904610a3e6b60092",
+     "requires_confirmation": true,
+     "tool_name": "write",
+     "description": "Create /Users/red/.codex/artifacts/pupu-357/cancel-after-resume-desktop-01-20261027/run-01/workspace/direct-never.txt",
+     "arguments": {
+      "content": "offline-direct-never\n",
+      "path": "/Users/red/.codex/artifacts/pupu-357/cancel-after-resume-desktop-01-20261027/run-01/workspace/direct-never.txt"
+     },
+     "interact_type": "code_diff",
+     "interact_config": {
+      "displayed_lines": 4,
+      "fallback_description": "create /Users/red/.codex/artifacts/pupu-357/cancel-after-resume-desktop-01-20261027/run-01/workspace/direct-never.txt (+1 -0)",
+      "operation": "create",
+      "path": "/Users/red/.codex/artifacts/pupu-357/cancel-after-resume-desktop-01-20261027/run-01/workspace/direct-never.txt",
+      "title": "Create /Users/red/.codex/artifacts/pupu-357/cancel-after-resume-desktop-01-20261027/run-01/workspace/direct-never.txt",
+      "total_lines": 4,
+      "truncated": false,
+      "unified_diff": "--- a//Users/red/.codex/artifacts/pupu-357/cancel-after-resume-desktop-01-20261027/run-01/workspace/direct-never.txt\n+++ b//Users/red/.codex/artifacts/pupu-357/cancel-after-resume-desktop-01-20261027/run-01/workspace/direct-never.txt\n@@ -0,0 +1 @@\n+offline-direct-never\n",
+      "options": []
+     },
+     "interaction_id": "interaction_521f1c8ce7ddd05d904610a3e6b60092",
+     "runtime_source_type": "interaction_requested",
+     "runtime_event_id": "evt_6c9cf0fd404147429132fbe3a2d3bab4"
+    }
+   },
+   {
+    "seq": 6.1,
+    "ts": 1793079051552,
+    "type": "interaction_cancelled",
+    "run_id": "unchain-1793079047811-f28a9eb7478c38",
+    "stage": "client",
+    "links": {
+     "parent_run_id": null,
+     "parent_event_id": null,
+     "caused_by_event_id": null,
+     "step_id": "tool:qa-cancel-direct-write-1",
+     "tool_call_id": "qa-cancel-direct-write-1",
+     "interaction_id": "interaction_521f1c8ce7ddd05d904610a3e6b60092",
+     "artifact_id": null,
+     "workspace_change_set_id": null,
+     "plan_id": null,
+     "channel_id": null,
+     "team_id": null,
+     "input_request_id": "interaction_521f1c8ce7ddd05d904610a3e6b60092"
+    },
+    "session_id": "chat-1793079024513-2e695bd37e5f317922e3f95d886af1d7",
+    "payload": {
+     "tool_name": "write",
+     "call_id": "qa-cancel-direct-write-1",
+     "confirmation_id": "interaction_521f1c8ce7ddd05d904610a3e6b60092",
+     "execution_id": "chat-1793079024513-2e695bd37e5f317922e3f95d886af1d7",
+     "attempt_id": "unchain-1793079047811-f28a9eb7478c38",
+     "source_attempt_id": "unchain-1793079047811-f28a9eb7478c38",
+     "reason": "user_stop",
+     "durable_interaction_cancelled": true,
+     "synthetic": true
+    }
+   }
+  ],
+  "meta": {
+   "model": "ollama:qa-environment-decoy",
+   "requestId": "unchain-1793079047811-f28a9eb7478c38",
+   "attemptId": "unchain-1793079047811-f28a9eb7478c38",
+   "executionSessionId": "chat-1793079024513-2e695bd37e5f317922e3f95d886af1d7"
+  }
+ },
+ "direct_cancel": {
+  "phase": "run-01",
+  "observed_at_ms": 1793079051552,
+  "status": 200,
+  "request": {
+   "owner_chat_id": "chat-1793079024513-2e695bd37e5f317922e3f95d886af1d7",
+   "execution_id": "chat-1793079024513-2e695bd37e5f317922e3f95d886af1d7",
+   "attempt_id": "unchain-1793079047811-f28a9eb7478c38",
+   "source_attempt_id": "unchain-1793079047811-f28a9eb7478c38",
+   "interaction_id": "interaction_521f1c8ce7ddd05d904610a3e6b60092",
+   "reason": "user_stop",
+   "idempotency_key": "stop:unchain-1793079047811-f28a9eb7478c38"
+  },
+  "response": {
+   "attempt_id": "unchain-1793079047811-f28a9eb7478c38",
+   "cancellation": {
+    "fencing_token": null,
+    "reason": "user_stop",
+    "requested_at_ms": 1793079051548
+   },
+   "context_interaction_reconciled": true,
+   "disposition": "cancelled",
+   "durable_interaction_cancelled": true,
+   "execution": null,
+   "execution_id": "chat-1793079024513-2e695bd37e5f317922e3f95d886af1d7",
+   "source_attempt_id": "unchain-1793079047811-f28a9eb7478c38",
+   "state": "cancelled",
+   "status": "ok"
+  }
+ }
+}

@@ -1,3 +1,4 @@
+import ShadowSurface from "../material/shadow_surface";
 import { useCallback, useContext, useMemo, useState } from "react";
 
 /* { Contexts } ----------------------------------------------------------------------------------------------------------- */
@@ -79,7 +80,7 @@ const DotDefault = ({ status, tl }) => (
 const DotStart = ({ tl }) => {
   const color = tl.pointColor ?? tl.highlightColor;
   return (
-    <div
+    <ShadowSurface
       style={{
         width: PRESET_DOT_R * 2,
         height: PRESET_DOT_R * 2,
@@ -97,7 +98,7 @@ const DotEnd = ({ status, tl }) => {
   const color = resolvePointColor(status, tl);
   const glowing = status === "done" || status === "active";
   return (
-    <div
+    <ShadowSurface
       style={{
         width: PRESET_DOT_R * 2,
         height: PRESET_DOT_R * 2,

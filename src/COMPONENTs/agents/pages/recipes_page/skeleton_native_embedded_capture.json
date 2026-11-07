@@ -1,0 +1,647 @@
+{
+  "manifest": {
+    "manifest_digest": "sha256:f6daf3894dd947723ee7dc60392277896b88c4890d35373b26442a1833a28101",
+    "protocols": [
+      {
+        "features": [
+          "artifact_handoff",
+          "canonical_journal",
+          "chat_deletion_sqlite_scope_closure",
+          "context_compiler",
+          "context_content_paging_v1",
+          "context_content_read_recovery_v1",
+          "context_contribution_manifest_v1",
+          "generation_rebase_live_interaction_cycles",
+          "interaction_resolution_compat",
+          "long_term_promotion",
+          "memory_curator",
+          "memory_toolkit",
+          "memory_workspace",
+          "tool_output_management_v1"
+        ],
+        "id": "context_memory",
+        "major": 1,
+        "minor": 0
+      },
+      {
+        "features": [
+          "cancel_pending",
+          "expected_interaction_id_cas",
+          "fresh_run_lineage",
+          "graph_interaction_lineage_preflight_v1",
+          "host_controlled_resume",
+          "interaction_resolution_atomic_acceptance_v1"
+        ],
+        "id": "durable_interaction",
+        "major": 1,
+        "minor": 0
+      },
+      {
+        "features": [
+          "atomic_receipt_cas",
+          "auxiliary_calls",
+          "enforce_mode",
+          "graph_runs",
+          "memory_off",
+          "ollama_reasoning_preview_v1",
+          "provider_response_outcomes_v1",
+          "provider_uncertainty_diagnostics_v1",
+          "subagent_runs"
+        ],
+        "id": "provider_turn_ownership",
+        "major": 1,
+        "minor": 0
+      },
+      {
+        "features": [
+          "canonical_metrics",
+          "completion_diagnostics_ref",
+          "context_composition_ref_v1",
+          "continuation_claim",
+          "immutable_pricing_snapshot",
+          "provider_call_set_union",
+          "provider_call_usage_v1",
+          "run_bundle_v1",
+          "run_bundle_v2"
+        ],
+        "id": "run_bundle",
+        "major": 1,
+        "minor": 0
+      },
+      {
+        "features": [
+          "code_python_v1",
+          "draft_diagnostics_v1",
+          "durable_exclusive_dag_v2",
+          "end_only_root_completion_v1",
+          "explicit_bindings_v1",
+          "hook_phase_receipts_v1",
+          "kernel_profiles_v1",
+          "legacy_conversion_v1",
+          "non_llm_workflow_v1",
+          "pinned_workflow_calls_v1",
+          "production_host_bindings_v1",
+          "skill_read_v1",
+          "structured_output_v1",
+          "subagent_graphs_v1",
+          "tool_call_v1"
+        ],
+        "id": "skeleton_execution",
+        "major": 1,
+        "minor": 1
+      },
+      {
+        "features": [
+          "active_skills_snapshot_v1",
+          "catalog_v1",
+          "skill_md_registry_v1",
+          "skill_tool_v1",
+          "toolkit_embedded_skills_v1",
+          "user_invocation_v1"
+        ],
+        "id": "skills",
+        "major": 1,
+        "minor": 0
+      }
+    ],
+    "runtime": "unchain",
+    "schema": "unchain.runtime_protocol_manifest.v1"
+  },
+  "rows": [
+    {
+      "case": "unfinished",
+      "document": {
+        "schema_version": 1,
+        "kind": "agent",
+        "id": "native-embedded-capture-0",
+        "name": "Embedded creation",
+        "nodes": [
+          {
+            "id": "start",
+            "type": "start",
+            "config": {
+              "execution": {
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "agent",
+            "type": "agent",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              },
+              "kernel": {
+                "schema_version": 1,
+                "profile": {
+                  "id": "openai:gpt-6-luna",
+                  "provider": "openai",
+                  "model": "gpt-6-luna",
+                  "protocol": "openai-responses",
+                  "endpoint": "https://api.openai.com/v1",
+                  "credential_ref": "openai",
+                  "context_window": 1050000,
+                  "output_limit": 128000,
+                  "capabilities": {
+                    "json_schema": true,
+                    "images": true,
+                    "files": false
+                  }
+                },
+                "prompt": "",
+                "max_iterations": 12,
+                "output_tokens": 128000,
+                "history": "root",
+                "overflow": "error",
+                "json_schema": null
+              }
+            }
+          },
+          {
+            "id": "end",
+            "type": "end",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "tools",
+            "type": "toolkit_pool",
+            "config": {
+              "toolkits": [
+                {
+                  "id": "core",
+                  "enabled_tools": [
+                    "read",
+                    "write"
+                  ]
+                }
+              ],
+              "merge_with_user_selected": false
+            }
+          },
+          {
+            "id": "pool",
+            "type": "subagent_pool",
+            "config": {
+              "subagents": [
+                {
+                  "id": "subagent-1",
+                  "name": "New Agent",
+                  "description": "",
+                  "source": {
+                    "kind": "embedded",
+                    "document": {
+                      "schema_version": 1,
+                      "kind": "agent",
+                      "id": "embedded-child-0",
+                      "name": "New Agent",
+                      "nodes": [
+                        {
+                          "id": "start",
+                          "type": "start",
+                          "config": {
+                            "execution": {
+                              "outputs": []
+                            }
+                          }
+                        },
+                        {
+                          "id": "agent",
+                          "type": "agent",
+                          "config": {
+                            "execution": {
+                              "inputs": [],
+                              "outputs": []
+                            }
+                          }
+                        },
+                        {
+                          "id": "end",
+                          "type": "end",
+                          "config": {
+                            "execution": {
+                              "inputs": [],
+                              "outputs": []
+                            }
+                          }
+                        }
+                      ],
+                      "edges": [
+                        {
+                          "id": "flow-start-agent",
+                          "kind": "flow",
+                          "source_node_id": "start",
+                          "source_port_id": "out",
+                          "target_node_id": "agent",
+                          "target_port_id": "in"
+                        },
+                        {
+                          "id": "flow-agent-end",
+                          "kind": "flow",
+                          "source_node_id": "agent",
+                          "source_port_id": "out",
+                          "target_node_id": "end",
+                          "target_port_id": "in"
+                        }
+                      ]
+                    }
+                  },
+                  "allowed_modes": [
+                    "delegate",
+                    "worker"
+                  ],
+                  "output_mode": "summary",
+                  "memory_policy": "ephemeral",
+                  "parallel_safe": true,
+                  "allowed_tools": null,
+                  "disabled_tools": []
+                }
+              ]
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "flow-start-agent",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "agent",
+            "target_port_id": "in"
+          },
+          {
+            "id": "flow-agent-end",
+            "kind": "flow",
+            "source_node_id": "agent",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          },
+          {
+            "id": "attach-agent-tools",
+            "kind": "attach",
+            "source_node_id": "agent",
+            "source_port_id": "attach_top",
+            "target_node_id": "tools",
+            "target_port_id": "attach_top"
+          },
+          {
+            "id": "attach-subagents",
+            "kind": "attach",
+            "source_node_id": "agent",
+            "source_port_id": "attach_bot",
+            "target_node_id": "pool",
+            "target_port_id": "attach_top"
+          }
+        ]
+      },
+      "roundtrip_equal": true,
+      "diagnostics": [],
+      "prepared": false,
+      "refusal": {
+        "code": "invalid_shape",
+        "path": [
+          "document",
+          "nodes",
+          4,
+          "config",
+          "subagents",
+          0,
+          "source",
+          "document",
+          "nodes",
+          1,
+          "config"
+        ],
+        "message": "Agent node requires execution and kernel configuration"
+      }
+    },
+    {
+      "case": "configured",
+      "document": {
+        "schema_version": 1,
+        "kind": "agent",
+        "id": "native-embedded-capture-1",
+        "name": "Embedded creation",
+        "nodes": [
+          {
+            "id": "start",
+            "type": "start",
+            "config": {
+              "execution": {
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "agent",
+            "type": "agent",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              },
+              "kernel": {
+                "schema_version": 1,
+                "profile": {
+                  "id": "openai:gpt-6-luna",
+                  "provider": "openai",
+                  "model": "gpt-6-luna",
+                  "protocol": "openai-responses",
+                  "endpoint": "https://api.openai.com/v1",
+                  "credential_ref": "openai",
+                  "context_window": 1050000,
+                  "output_limit": 128000,
+                  "capabilities": {
+                    "json_schema": true,
+                    "images": true,
+                    "files": false
+                  }
+                },
+                "prompt": "",
+                "max_iterations": 12,
+                "output_tokens": 128000,
+                "history": "root",
+                "overflow": "error",
+                "json_schema": null
+              }
+            }
+          },
+          {
+            "id": "end",
+            "type": "end",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "tools",
+            "type": "toolkit_pool",
+            "config": {
+              "toolkits": [
+                {
+                  "id": "core",
+                  "enabled_tools": [
+                    "read",
+                    "write"
+                  ]
+                }
+              ],
+              "merge_with_user_selected": false
+            }
+          },
+          {
+            "id": "pool",
+            "type": "subagent_pool",
+            "config": {
+              "subagents": [
+                {
+                  "id": "subagent-1",
+                  "name": "New Agent",
+                  "description": "",
+                  "source": {
+                    "kind": "embedded",
+                    "document": {
+                      "schema_version": 1,
+                      "kind": "agent",
+                      "id": "embedded-child-1",
+                      "name": "New Agent",
+                      "nodes": [
+                        {
+                          "id": "start",
+                          "type": "start",
+                          "config": {
+                            "execution": {
+                              "outputs": []
+                            }
+                          }
+                        },
+                        {
+                          "id": "agent",
+                          "type": "agent",
+                          "config": {
+                            "execution": {
+                              "inputs": [],
+                              "outputs": []
+                            },
+                            "kernel": {
+                              "schema_version": 1,
+                              "profile": {
+                                "id": "openai:gpt-6-luna",
+                                "provider": "openai",
+                                "model": "gpt-6-luna",
+                                "protocol": "openai-responses",
+                                "endpoint": "https://api.openai.com/v1",
+                                "credential_ref": "openai",
+                                "context_window": 1050000,
+                                "output_limit": 128000,
+                                "capabilities": {
+                                  "json_schema": true,
+                                  "images": true,
+                                  "files": false
+                                }
+                              },
+                              "prompt": "",
+                              "max_iterations": 12,
+                              "output_tokens": 128000,
+                              "history": "root",
+                              "overflow": "error",
+                              "json_schema": null
+                            }
+                          }
+                        },
+                        {
+                          "id": "end",
+                          "type": "end",
+                          "config": {
+                            "execution": {
+                              "inputs": [],
+                              "outputs": []
+                            }
+                          }
+                        }
+                      ],
+                      "edges": [
+                        {
+                          "id": "flow-start-agent",
+                          "kind": "flow",
+                          "source_node_id": "start",
+                          "source_port_id": "out",
+                          "target_node_id": "agent",
+                          "target_port_id": "in"
+                        },
+                        {
+                          "id": "flow-agent-end",
+                          "kind": "flow",
+                          "source_node_id": "agent",
+                          "source_port_id": "out",
+                          "target_node_id": "end",
+                          "target_port_id": "in"
+                        }
+                      ]
+                    }
+                  },
+                  "allowed_modes": [
+                    "delegate",
+                    "worker"
+                  ],
+                  "output_mode": "summary",
+                  "memory_policy": "ephemeral",
+                  "parallel_safe": true,
+                  "allowed_tools": null,
+                  "disabled_tools": []
+                }
+              ]
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "flow-start-agent",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "agent",
+            "target_port_id": "in"
+          },
+          {
+            "id": "flow-agent-end",
+            "kind": "flow",
+            "source_node_id": "agent",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          },
+          {
+            "id": "attach-agent-tools",
+            "kind": "attach",
+            "source_node_id": "agent",
+            "source_port_id": "attach_top",
+            "target_node_id": "tools",
+            "target_port_id": "attach_top"
+          },
+          {
+            "id": "attach-subagents",
+            "kind": "attach",
+            "source_node_id": "agent",
+            "source_port_id": "attach_bot",
+            "target_node_id": "pool",
+            "target_port_id": "attach_top"
+          }
+        ]
+      },
+      "roundtrip_equal": true,
+      "diagnostics": [],
+      "prepared": true,
+      "prepared_child": {
+        "pool_node_id": "pool",
+        "kernel_node_id": "agent",
+        "entry_id": "subagent-1",
+        "name": "New Agent",
+        "description": "",
+        "allowed_modes": [
+          "delegate",
+          "worker"
+        ],
+        "output_mode": "summary",
+        "memory_policy": "ephemeral",
+        "parallel_safe": true,
+        "allowed_tools": null,
+        "disabled_tools": [],
+        "source_kind": "embedded",
+        "agent_id": null,
+        "edit_token": null,
+        "definition_digest": "f5c3a0945cfbc8b3eebb7f14905cbd287dd6c013eb4d391da4b166ff6c3acfed",
+        "document": {
+          "edges": [
+            {
+              "id": "flow-start-agent",
+              "kind": "flow",
+              "source_node_id": "start",
+              "source_port_id": "out",
+              "target_node_id": "agent",
+              "target_port_id": "in"
+            },
+            {
+              "id": "flow-agent-end",
+              "kind": "flow",
+              "source_node_id": "agent",
+              "source_port_id": "out",
+              "target_node_id": "end",
+              "target_port_id": "in"
+            }
+          ],
+          "id": "embedded-child-1",
+          "kind": "agent",
+          "name": "New Agent",
+          "nodes": [
+            {
+              "config": {
+                "execution": {
+                  "outputs": []
+                }
+              },
+              "id": "start",
+              "type": "start"
+            },
+            {
+              "config": {
+                "execution": {
+                  "inputs": [],
+                  "outputs": []
+                },
+                "kernel": {
+                  "history": "root",
+                  "json_schema": null,
+                  "max_iterations": 12,
+                  "output_tokens": 128000,
+                  "overflow": "error",
+                  "profile": {
+                    "capabilities": {
+                      "files": false,
+                      "images": true,
+                      "json_schema": true
+                    },
+                    "context_window": 1050000,
+                    "credential_ref": "openai",
+                    "endpoint": "https://api.openai.com/v1",
+                    "id": "openai:gpt-6-luna",
+                    "model": "gpt-6-luna",
+                    "output_limit": 128000,
+                    "protocol": "openai-responses",
+                    "provider": "openai"
+                  },
+                  "prompt": "",
+                  "schema_version": 1
+                }
+              },
+              "id": "agent",
+              "type": "agent"
+            },
+            {
+              "config": {
+                "execution": {
+                  "inputs": [],
+                  "outputs": []
+                }
+              },
+              "id": "end",
+              "type": "end"
+            }
+          ],
+          "schema_version": 1
+        },
+        "subagents": []
+      }
+    }
+  ]
+}

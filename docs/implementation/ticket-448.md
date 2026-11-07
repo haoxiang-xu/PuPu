@@ -304,3 +304,36 @@ unguarded `pytest.main` recursively ran during macOS multiprocessing spawn;
 the successful run uses the normal module entrypoint, with no tests excluded.
 The isolated five-test module is supplemental evidence, not a substitute for
 this complete suite. Remote ReleaseQA still must pass on the pushed revision.
+
+
+## PR #460 conflict resolution — 2026-11-06
+
+Merge current `dev` (`3fdb84f17fed1fcc3fe9aa2db526f2c9586f5679`) into the
+existing PR branch; preserve its production-factory regression unchanged.
+The only conflicting file was `.github/workflows/release-qa.yml`. The PR selected
+Unchain `122f476df60a549c4e13c102d8a48abe1f1e46f0` for #448, whereas dev selected
+`369d86cc9592704c6d45017147904bf6e103a37f` for the newer Skeleton runtime.
+Neither side alone is the right resolution: the merged Unchain commit
+`657d64df8493c503ac3c64e1ebe45be06af2dcb8` contains both histories. Select that
+immutable source in the dispatch default and all four job fallbacks, retaining
+explicit overrides, source guards, permissions and single-wheel propagation.
+This continues the existing artifact-binding BC/SEQ contracts; no runtime wire
+schema, release permission or product logic is added by the conflict resolution.
+
+A single new wheel built from that exact merged source has SHA-256
+`5c7ccd7dbb782e514d18a3ec5114462bae1218bfba53975b42d133688c8e0ab8`.
+All 389 runtime package members match both source and installed bytes. The actual
+installed runtime manifest is
+`sha256:88d5f8d733e7f3dc94fb1cd20060fcc5f2611c0f94420e327bcb12664368bf2e`.
+The earlier wheel/manifest receipts above remain historical evidence for their
+own candidates, not validation of this newer combination.
+
+Offline validation on the merge result: 24 owning workflow contracts passed;
+all five unchanged #448 host tests passed against this installed wheel; the
+current-turn compiler and memory-reader security suites passed 52 tests with
+four existing expected failures. A parsed-YAML control verifies the exact five
+selections and preserved explicit overrides; four negative controls reject
+losing either side, a divergent package source or a removed override. No full
+backend/frontend, packaged sidecar, desktop, live provider or user-library run
+is claimed for this conflict fix. Remote CI on the pushed merge commit remains
+required. Evidence: `/Users/red/.codex/artifacts/pupu-pr-460-conflicts-20261106/`.

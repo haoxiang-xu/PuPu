@@ -1,3 +1,4 @@
+import ShadowSurface from "../../../../BUILTIN_COMPONENTs/material/shadow_surface";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FlowEditor } from "../../../../BUILTIN_COMPONENTs/flow_editor";
 import usePresentationPlatform from "../../../../BUILTIN_COMPONENTs/mini_react/use_presentation_platform";
@@ -45,6 +46,11 @@ export default function RecipeCanvas({
   onRedo,
   canUndo,
   canRedo,
+  recipes,
+  onDrillIn,
+  onEscape,
+  viewportOutRef,
+  restoreViewport,
 }) {
   const [resetToken, setResetToken] = useState(0);
   const [palette, setPalette] = useState({
@@ -93,6 +99,13 @@ export default function RecipeCanvas({
   }, [recipe]);
 
   const edges = useMemo(() => recipe?.edges || [], [recipe]);
+
+  /* Home centers the graph's own Start. A sub-graph opened by drilling in need
+     not name its start node "start", so it is found by type. */
+  const startNodeId = useMemo(
+    () => (recipe?.nodes || []).find((n) => n.type === "start")?.id || "start",
+    [recipe],
+  );
 
   /* A detail page pinned to a node that no longer exists would keep editing a
    * ghost, so closing it is part of deleting. Watching the node list covers
@@ -323,12 +336,42 @@ export default function RecipeCanvas({
     remove_edge,
   ]);
 
+  /* Escape goes up one drill level before it reaches the Agents modal.
+     Registered on `document`, where a bubble listener still precedes the
+     modal's `window` one, so stopping propagation here shadows it — the same
+     mechanism the palette uses. The palette and the context menu own Escape
+     while they are open, and that is decided from their own state rather than
+     from listener registration order, which mounting and re-running effects
+     both reshuffle. */
+  useEffect(() => {
+    if (typeof onEscape !== "function") return undefined;
+    const onKey = (e) => {
+      if (e.key !== "Escape") return;
+      if (palette.visible || contextMenu.visible) return;
+      const tag = document.activeElement?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if (onEscape() === true) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onEscape, palette.visible, contextMenu.visible]);
+
   const renderNode = (node) => {
     if (node.type === "agent") return <AgentNode node={node} isDark={isDark} />;
     if (is_toolkit_pool_type(node.type))
       return <ToolPoolNode node={node} isDark={isDark} />;
     if (node.type === "subagent_pool")
-      return <SubagentPoolNode node={node} isDark={isDark} />;
+      return (
+        <SubagentPoolNode
+          node={node}
+          isDark={isDark}
+          recipes={recipes}
+          onDrillIn={onDrillIn}
+        />
+      );
     if (node.type === "start") return <StartNode isDark={isDark} />;
     if (node.type === "end") return <EndNode isDark={isDark} />;
     return null;
@@ -389,10 +432,12 @@ export default function RecipeCanvas({
           fit_token={fitToken}
           zoom_reset_token={zoomResetToken}
           select_all_token={selectAllToken}
-          reset_focus_node_id="start"
+          viewport_out_ref={viewportOutRef}
+          restore_viewport={restoreViewport}
+          reset_focus_node_id={startNodeId}
         />
 
-        <div
+        <ShadowSurface
           style={{
             position: "absolute",
             bottom: 16,
@@ -471,7 +516,7 @@ export default function RecipeCanvas({
               opacity: dirty ? 1 : 0.5,
             }}
           />
-        </div>
+        </ShadowSurface>
 
         <RecipeNodePalette
           visible={palette.visible}

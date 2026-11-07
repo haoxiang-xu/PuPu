@@ -1,0 +1,6782 @@
+{
+ "manifest": {
+  "producer": "unchain_runtime/server skeleton_code_source_store (save_managed_draft / get_managed_resource) on wheel a166988a, build-venv python 3.12.10, fresh offline sandbox store",
+  "tool": "code-g1-ui-01/tools/capture_g1_store.py",
+  "do_not_edit_by_hand": true
+ },
+ "texts": {
+  "root": "def main(input, context):\n\t# tab, trailing spaces   \n    return {\"message\": \"r\u00e9sum\u00e9 \u4e2d\u6587 \ud83d\ude00\"}",
+  "shared": "def main(input, context):\n    return {\"message\": \"shared\"}\n",
+  "child": "def main(input, context):\n    return {\"message\": \"child\"}\n\n\n",
+  "ref": "def main(input, context):\n    return {\"message\": \"referenced agent's own code\"}\n",
+  "crlf": "def main(input, context):\r\n    return {\"message\": \"crlf\"}\r\n",
+  "empty": ""
+ },
+ "rows": [
+  {
+   "case": "root_create",
+   "edit": {
+    "schema": "pupu.skeleton-edit.v2",
+    "document": {
+     "schema_version": 1,
+     "kind": "agent",
+     "id": "g1-root",
+     "name": "G1 Root",
+     "nodes": [
+      {
+       "id": "start",
+       "type": "start",
+       "config": {
+        "execution": {
+         "outputs": []
+        }
+       }
+      },
+      {
+       "id": "score",
+       "type": "code",
+       "config": {
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        },
+        "code": {
+         "source": {
+          "kind": "file",
+          "path": "tools/placeholder.py"
+         },
+         "environment_profile_id": "offline-python",
+         "timeout_ms": 5000,
+         "max_result_bytes": 10000,
+         "max_log_bytes": 10000,
+         "result_schema": {
+          "type": "object",
+          "properties": {
+           "message": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "message"
+          ],
+          "additionalProperties": false
+         }
+        }
+       }
+      },
+      {
+       "id": "end",
+       "type": "end",
+       "config": {
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        }
+       }
+      }
+     ],
+     "edges": [
+      {
+       "id": "flow-start-score",
+       "kind": "flow",
+       "source_node_id": "start",
+       "source_port_id": "out",
+       "target_node_id": "score",
+       "target_port_id": "in"
+      },
+      {
+       "id": "flow-score-end",
+       "kind": "flow",
+       "source_node_id": "score",
+       "source_port_id": "out",
+       "target_node_id": "end",
+       "target_port_id": "in"
+      }
+     ]
+    },
+    "expected_edit_token": null,
+    "managed_sources": [
+     {
+      "node_path": [
+       "nodes",
+       1
+      ],
+      "text": "def main(input, context):\n\t# tab, trailing spaces   \n    return {\"message\": \"r\u00e9sum\u00e9 \u4e2d\u6587 \ud83d\ude00\"}"
+     }
+    ]
+   },
+   "reply": {
+    "schema": "pupu.skeleton-resource.v2",
+    "resource": {
+     "id": "g1-root",
+     "kind": "agent",
+     "name": "G1 Root",
+     "description": "",
+     "archived": false,
+     "edit_token": "edit-1-445cb3d55fd3de7ba89a707a",
+     "draft_digest": "e06d84cfe35940b5b5e10154221d76f7cea1ff25da67f60b8a8bff2e04ecc790",
+     "source_identity": null,
+     "document": {
+      "edges": [
+       {
+        "id": "flow-start-score",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "score",
+        "target_port_id": "in"
+       },
+       {
+        "id": "flow-score-end",
+        "kind": "flow",
+        "source_node_id": "score",
+        "source_port_id": "out",
+        "target_node_id": "end",
+        "target_port_id": "in"
+       }
+      ],
+      "id": "g1-root",
+      "kind": "agent",
+      "name": "G1 Root",
+      "nodes": [
+       {
+        "config": {
+         "execution": {
+          "outputs": []
+         }
+        },
+        "id": "start",
+        "type": "start"
+       },
+       {
+        "config": {
+         "code": {
+          "environment_profile_id": "offline-python",
+          "max_log_bytes": 10000,
+          "max_result_bytes": 10000,
+          "result_schema": {
+           "additionalProperties": false,
+           "properties": {
+            "message": {
+             "type": "string"
+            }
+           },
+           "required": [
+            "message"
+           ],
+           "type": "object"
+          },
+          "source": {
+           "kind": "file",
+           "path": "__pupu_code__/sha256/e642080582b2dd29bc5a542a461a0dea876fff33bd4f71fd6b08c8fcffc7f742.py"
+          },
+          "timeout_ms": 5000
+         },
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "score",
+        "type": "code"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "end",
+        "type": "end"
+       }
+      ],
+      "schema_version": 1
+     },
+     "diagnostics": [
+      {
+       "code": "agent_required",
+       "path": [
+        "document",
+        "nodes"
+       ],
+       "message": "agent graph requires an agent node"
+      }
+     ]
+    },
+    "sources_manifest": {
+     "entries": [
+      {
+       "node_path": [
+        "nodes",
+        1
+       ],
+       "sha256": "e642080582b2dd29bc5a542a461a0dea876fff33bd4f71fd6b08c8fcffc7f742"
+      }
+     ],
+     "schema": "pupu.skeleton-code-sources.v1"
+    },
+    "contents": [
+     {
+      "sha256": "e642080582b2dd29bc5a542a461a0dea876fff33bd4f71fd6b08c8fcffc7f742",
+      "text": "def main(input, context):\n\t# tab, trailing spaces   \n    return {\"message\": \"r\u00e9sum\u00e9 \u4e2d\u6587 \ud83d\ude00\"}"
+     }
+    ],
+    "content_digest": "445cb3d55fd3de7ba89a707a7bf674938f9e1fadf5bdc764cdd7dce36d3fb700"
+   }
+  },
+  {
+   "case": "root_get",
+   "resource_id": "g1-root",
+   "reply": {
+    "schema": "pupu.skeleton-resource.v2",
+    "resource": {
+     "id": "g1-root",
+     "kind": "agent",
+     "name": "G1 Root",
+     "description": "",
+     "archived": false,
+     "edit_token": "edit-1-445cb3d55fd3de7ba89a707a",
+     "draft_digest": "e06d84cfe35940b5b5e10154221d76f7cea1ff25da67f60b8a8bff2e04ecc790",
+     "source_identity": null,
+     "document": {
+      "edges": [
+       {
+        "id": "flow-start-score",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "score",
+        "target_port_id": "in"
+       },
+       {
+        "id": "flow-score-end",
+        "kind": "flow",
+        "source_node_id": "score",
+        "source_port_id": "out",
+        "target_node_id": "end",
+        "target_port_id": "in"
+       }
+      ],
+      "id": "g1-root",
+      "kind": "agent",
+      "name": "G1 Root",
+      "nodes": [
+       {
+        "config": {
+         "execution": {
+          "outputs": []
+         }
+        },
+        "id": "start",
+        "type": "start"
+       },
+       {
+        "config": {
+         "code": {
+          "environment_profile_id": "offline-python",
+          "max_log_bytes": 10000,
+          "max_result_bytes": 10000,
+          "result_schema": {
+           "additionalProperties": false,
+           "properties": {
+            "message": {
+             "type": "string"
+            }
+           },
+           "required": [
+            "message"
+           ],
+           "type": "object"
+          },
+          "source": {
+           "kind": "file",
+           "path": "__pupu_code__/sha256/e642080582b2dd29bc5a542a461a0dea876fff33bd4f71fd6b08c8fcffc7f742.py"
+          },
+          "timeout_ms": 5000
+         },
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "score",
+        "type": "code"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "end",
+        "type": "end"
+       }
+      ],
+      "schema_version": 1
+     },
+     "diagnostics": [
+      {
+       "code": "agent_required",
+       "path": [
+        "document",
+        "nodes"
+       ],
+       "message": "agent graph requires an agent node"
+      }
+     ]
+    },
+    "sources_manifest": {
+     "entries": [
+      {
+       "node_path": [
+        "nodes",
+        1
+       ],
+       "sha256": "e642080582b2dd29bc5a542a461a0dea876fff33bd4f71fd6b08c8fcffc7f742"
+      }
+     ],
+     "schema": "pupu.skeleton-code-sources.v1"
+    },
+    "contents": [
+     {
+      "sha256": "e642080582b2dd29bc5a542a461a0dea876fff33bd4f71fd6b08c8fcffc7f742",
+      "text": "def main(input, context):\n\t# tab, trailing spaces   \n    return {\"message\": \"r\u00e9sum\u00e9 \u4e2d\u6587 \ud83d\ude00\"}"
+     }
+    ],
+    "content_digest": "445cb3d55fd3de7ba89a707a7bf674938f9e1fadf5bdc764cdd7dce36d3fb700"
+   }
+  },
+  {
+   "case": "root_stale_token",
+   "edit": {
+    "schema": "pupu.skeleton-edit.v2",
+    "document": {
+     "edges": [
+      {
+       "id": "flow-start-score",
+       "kind": "flow",
+       "source_node_id": "start",
+       "source_port_id": "out",
+       "target_node_id": "score",
+       "target_port_id": "in"
+      },
+      {
+       "id": "flow-score-end",
+       "kind": "flow",
+       "source_node_id": "score",
+       "source_port_id": "out",
+       "target_node_id": "end",
+       "target_port_id": "in"
+      }
+     ],
+     "id": "g1-root",
+     "kind": "agent",
+     "name": "G1 Root",
+     "nodes": [
+      {
+       "config": {
+        "execution": {
+         "outputs": []
+        }
+       },
+       "id": "start",
+       "type": "start"
+      },
+      {
+       "config": {
+        "code": {
+         "environment_profile_id": "offline-python",
+         "max_log_bytes": 10000,
+         "max_result_bytes": 10000,
+         "result_schema": {
+          "additionalProperties": false,
+          "properties": {
+           "message": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "message"
+          ],
+          "type": "object"
+         },
+         "source": {
+          "kind": "file",
+          "path": "__pupu_code__/sha256/e642080582b2dd29bc5a542a461a0dea876fff33bd4f71fd6b08c8fcffc7f742.py"
+         },
+         "timeout_ms": 5000
+        },
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        }
+       },
+       "id": "score",
+       "type": "code"
+      },
+      {
+       "config": {
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        }
+       },
+       "id": "end",
+       "type": "end"
+      }
+     ],
+     "schema_version": 1
+    },
+    "expected_edit_token": "edit-1-000000000000000000000000",
+    "managed_sources": [
+     {
+      "node_path": [
+       "nodes",
+       1
+      ],
+      "text": "def main(input, context):\n\t# tab, trailing spaces   \n    return {\"message\": \"r\u00e9sum\u00e9 \u4e2d\u6587 \ud83d\ude00\"}"
+     }
+    ]
+   },
+   "refusal": {
+    "code": "edit_conflict",
+    "path": [
+     "expected_edit_token"
+    ],
+    "message": "Resource changed in another editor.",
+    "status": 409
+   }
+  },
+  {
+   "case": "root_unbound",
+   "edit": {
+    "schema": "pupu.skeleton-edit.v2",
+    "document": {
+     "edges": [
+      {
+       "id": "flow-start-score",
+       "kind": "flow",
+       "source_node_id": "start",
+       "source_port_id": "out",
+       "target_node_id": "score",
+       "target_port_id": "in"
+      },
+      {
+       "id": "flow-score-end",
+       "kind": "flow",
+       "source_node_id": "score",
+       "source_port_id": "out",
+       "target_node_id": "end",
+       "target_port_id": "in"
+      }
+     ],
+     "id": "g1-root",
+     "kind": "agent",
+     "name": "G1 Root",
+     "nodes": [
+      {
+       "config": {
+        "execution": {
+         "outputs": []
+        }
+       },
+       "id": "start",
+       "type": "start"
+      },
+      {
+       "config": {
+        "code": {
+         "environment_profile_id": "offline-python",
+         "max_log_bytes": 10000,
+         "max_result_bytes": 10000,
+         "result_schema": {
+          "additionalProperties": false,
+          "properties": {
+           "message": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "message"
+          ],
+          "type": "object"
+         },
+         "source": {
+          "kind": "file",
+          "path": "__pupu_code__/sha256/e642080582b2dd29bc5a542a461a0dea876fff33bd4f71fd6b08c8fcffc7f742.py"
+         },
+         "timeout_ms": 5000
+        },
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        }
+       },
+       "id": "score",
+       "type": "code"
+      },
+      {
+       "config": {
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        }
+       },
+       "id": "end",
+       "type": "end"
+      }
+     ],
+     "schema_version": 1
+    },
+    "expected_edit_token": "edit-1-445cb3d55fd3de7ba89a707a",
+    "managed_sources": []
+   },
+   "refusal": {
+    "code": "managed_source_required",
+    "path": [
+     "document",
+     "nodes",
+     1,
+     "config",
+     "code",
+     "source"
+    ],
+    "message": "This Code source still names managed bytes; supply its source or explicitly change/remove it.",
+    "status": 409
+   }
+  },
+  {
+   "case": "root_string_index",
+   "edit": {
+    "schema": "pupu.skeleton-edit.v2",
+    "document": {
+     "edges": [
+      {
+       "id": "flow-start-score",
+       "kind": "flow",
+       "source_node_id": "start",
+       "source_port_id": "out",
+       "target_node_id": "score",
+       "target_port_id": "in"
+      },
+      {
+       "id": "flow-score-end",
+       "kind": "flow",
+       "source_node_id": "score",
+       "source_port_id": "out",
+       "target_node_id": "end",
+       "target_port_id": "in"
+      }
+     ],
+     "id": "g1-root",
+     "kind": "agent",
+     "name": "G1 Root",
+     "nodes": [
+      {
+       "config": {
+        "execution": {
+         "outputs": []
+        }
+       },
+       "id": "start",
+       "type": "start"
+      },
+      {
+       "config": {
+        "code": {
+         "environment_profile_id": "offline-python",
+         "max_log_bytes": 10000,
+         "max_result_bytes": 10000,
+         "result_schema": {
+          "additionalProperties": false,
+          "properties": {
+           "message": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "message"
+          ],
+          "type": "object"
+         },
+         "source": {
+          "kind": "file",
+          "path": "__pupu_code__/sha256/e642080582b2dd29bc5a542a461a0dea876fff33bd4f71fd6b08c8fcffc7f742.py"
+         },
+         "timeout_ms": 5000
+        },
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        }
+       },
+       "id": "score",
+       "type": "code"
+      },
+      {
+       "config": {
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        }
+       },
+       "id": "end",
+       "type": "end"
+      }
+     ],
+     "schema_version": 1
+    },
+    "expected_edit_token": "edit-1-445cb3d55fd3de7ba89a707a",
+    "managed_sources": [
+     {
+      "node_path": [
+       "nodes",
+       "1"
+      ],
+      "text": "def main(input, context):\n\t# tab, trailing spaces   \n    return {\"message\": \"r\u00e9sum\u00e9 \u4e2d\u6587 \ud83d\ude00\"}"
+     }
+    ]
+   },
+   "refusal": {
+    "code": "invalid_target",
+    "path": [
+     "managed_sources",
+     0,
+     "node_path"
+    ],
+    "message": "Code target is not present in this document.",
+    "status": 400
+   }
+  },
+  {
+   "case": "root_bool_index",
+   "edit": {
+    "schema": "pupu.skeleton-edit.v2",
+    "document": {
+     "edges": [
+      {
+       "id": "flow-start-score",
+       "kind": "flow",
+       "source_node_id": "start",
+       "source_port_id": "out",
+       "target_node_id": "score",
+       "target_port_id": "in"
+      },
+      {
+       "id": "flow-score-end",
+       "kind": "flow",
+       "source_node_id": "score",
+       "source_port_id": "out",
+       "target_node_id": "end",
+       "target_port_id": "in"
+      }
+     ],
+     "id": "g1-root",
+     "kind": "agent",
+     "name": "G1 Root",
+     "nodes": [
+      {
+       "config": {
+        "execution": {
+         "outputs": []
+        }
+       },
+       "id": "start",
+       "type": "start"
+      },
+      {
+       "config": {
+        "code": {
+         "environment_profile_id": "offline-python",
+         "max_log_bytes": 10000,
+         "max_result_bytes": 10000,
+         "result_schema": {
+          "additionalProperties": false,
+          "properties": {
+           "message": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "message"
+          ],
+          "type": "object"
+         },
+         "source": {
+          "kind": "file",
+          "path": "__pupu_code__/sha256/e642080582b2dd29bc5a542a461a0dea876fff33bd4f71fd6b08c8fcffc7f742.py"
+         },
+         "timeout_ms": 5000
+        },
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        }
+       },
+       "id": "score",
+       "type": "code"
+      },
+      {
+       "config": {
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        }
+       },
+       "id": "end",
+       "type": "end"
+      }
+     ],
+     "schema_version": 1
+    },
+    "expected_edit_token": "edit-1-445cb3d55fd3de7ba89a707a",
+    "managed_sources": [
+     {
+      "node_path": [
+       "nodes",
+       true
+      ],
+      "text": "def main(input, context):\n\t# tab, trailing spaces   \n    return {\"message\": \"r\u00e9sum\u00e9 \u4e2d\u6587 \ud83d\ude00\"}"
+     }
+    ]
+   },
+   "refusal": {
+    "code": "invalid_target",
+    "path": [
+     "managed_sources",
+     0,
+     "node_path"
+    ],
+    "message": "Code target is not present in this document.",
+    "status": 400
+   }
+  },
+  {
+   "case": "root_duplicate",
+   "edit": {
+    "schema": "pupu.skeleton-edit.v2",
+    "document": {
+     "edges": [
+      {
+       "id": "flow-start-score",
+       "kind": "flow",
+       "source_node_id": "start",
+       "source_port_id": "out",
+       "target_node_id": "score",
+       "target_port_id": "in"
+      },
+      {
+       "id": "flow-score-end",
+       "kind": "flow",
+       "source_node_id": "score",
+       "source_port_id": "out",
+       "target_node_id": "end",
+       "target_port_id": "in"
+      }
+     ],
+     "id": "g1-root",
+     "kind": "agent",
+     "name": "G1 Root",
+     "nodes": [
+      {
+       "config": {
+        "execution": {
+         "outputs": []
+        }
+       },
+       "id": "start",
+       "type": "start"
+      },
+      {
+       "config": {
+        "code": {
+         "environment_profile_id": "offline-python",
+         "max_log_bytes": 10000,
+         "max_result_bytes": 10000,
+         "result_schema": {
+          "additionalProperties": false,
+          "properties": {
+           "message": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "message"
+          ],
+          "type": "object"
+         },
+         "source": {
+          "kind": "file",
+          "path": "__pupu_code__/sha256/e642080582b2dd29bc5a542a461a0dea876fff33bd4f71fd6b08c8fcffc7f742.py"
+         },
+         "timeout_ms": 5000
+        },
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        }
+       },
+       "id": "score",
+       "type": "code"
+      },
+      {
+       "config": {
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        }
+       },
+       "id": "end",
+       "type": "end"
+      }
+     ],
+     "schema_version": 1
+    },
+    "expected_edit_token": "edit-1-445cb3d55fd3de7ba89a707a",
+    "managed_sources": [
+     {
+      "node_path": [
+       "nodes",
+       1
+      ],
+      "text": "def main(input, context):\n\t# tab, trailing spaces   \n    return {\"message\": \"r\u00e9sum\u00e9 \u4e2d\u6587 \ud83d\ude00\"}"
+     },
+     {
+      "node_path": [
+       "nodes",
+       1
+      ],
+      "text": "def main(input, context):\n\t# tab, trailing spaces   \n    return {\"message\": \"r\u00e9sum\u00e9 \u4e2d\u6587 \ud83d\ude00\"}"
+     }
+    ]
+   },
+   "refusal": {
+    "code": "duplicate_identity",
+    "path": [
+     "managed_sources",
+     1,
+     "node_path"
+    ],
+    "message": "Code target is listed twice.",
+    "status": 400
+   }
+  },
+  {
+   "case": "root_not_code",
+   "edit": {
+    "schema": "pupu.skeleton-edit.v2",
+    "document": {
+     "edges": [
+      {
+       "id": "flow-start-score",
+       "kind": "flow",
+       "source_node_id": "start",
+       "source_port_id": "out",
+       "target_node_id": "score",
+       "target_port_id": "in"
+      },
+      {
+       "id": "flow-score-end",
+       "kind": "flow",
+       "source_node_id": "score",
+       "source_port_id": "out",
+       "target_node_id": "end",
+       "target_port_id": "in"
+      }
+     ],
+     "id": "g1-root",
+     "kind": "agent",
+     "name": "G1 Root",
+     "nodes": [
+      {
+       "config": {
+        "execution": {
+         "outputs": []
+        }
+       },
+       "id": "start",
+       "type": "start"
+      },
+      {
+       "config": {
+        "code": {
+         "environment_profile_id": "offline-python",
+         "max_log_bytes": 10000,
+         "max_result_bytes": 10000,
+         "result_schema": {
+          "additionalProperties": false,
+          "properties": {
+           "message": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "message"
+          ],
+          "type": "object"
+         },
+         "source": {
+          "kind": "file",
+          "path": "__pupu_code__/sha256/e642080582b2dd29bc5a542a461a0dea876fff33bd4f71fd6b08c8fcffc7f742.py"
+         },
+         "timeout_ms": 5000
+        },
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        }
+       },
+       "id": "score",
+       "type": "code"
+      },
+      {
+       "config": {
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        }
+       },
+       "id": "end",
+       "type": "end"
+      }
+     ],
+     "schema_version": 1
+    },
+    "expected_edit_token": "edit-1-445cb3d55fd3de7ba89a707a",
+    "managed_sources": [
+     {
+      "node_path": [
+       "nodes",
+       0
+      ],
+      "text": "def main(input, context):\n\t# tab, trailing spaces   \n    return {\"message\": \"r\u00e9sum\u00e9 \u4e2d\u6587 \ud83d\ude00\"}"
+     }
+    ]
+   },
+   "refusal": {
+    "code": "invalid_target",
+    "path": [
+     "managed_sources",
+     0,
+     "node_path"
+    ],
+    "message": "Source must address a Code settings object.",
+    "status": 400
+   }
+  },
+  {
+   "case": "root_lone_surrogate",
+   "edit": {
+    "schema": "pupu.skeleton-edit.v2",
+    "document": {
+     "edges": [
+      {
+       "id": "flow-start-score",
+       "kind": "flow",
+       "source_node_id": "start",
+       "source_port_id": "out",
+       "target_node_id": "score",
+       "target_port_id": "in"
+      },
+      {
+       "id": "flow-score-end",
+       "kind": "flow",
+       "source_node_id": "score",
+       "source_port_id": "out",
+       "target_node_id": "end",
+       "target_port_id": "in"
+      }
+     ],
+     "id": "g1-root",
+     "kind": "agent",
+     "name": "G1 Root",
+     "nodes": [
+      {
+       "config": {
+        "execution": {
+         "outputs": []
+        }
+       },
+       "id": "start",
+       "type": "start"
+      },
+      {
+       "config": {
+        "code": {
+         "environment_profile_id": "offline-python",
+         "max_log_bytes": 10000,
+         "max_result_bytes": 10000,
+         "result_schema": {
+          "additionalProperties": false,
+          "properties": {
+           "message": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "message"
+          ],
+          "type": "object"
+         },
+         "source": {
+          "kind": "file",
+          "path": "__pupu_code__/sha256/e642080582b2dd29bc5a542a461a0dea876fff33bd4f71fd6b08c8fcffc7f742.py"
+         },
+         "timeout_ms": 5000
+        },
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        }
+       },
+       "id": "score",
+       "type": "code"
+      },
+      {
+       "config": {
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        }
+       },
+       "id": "end",
+       "type": "end"
+      }
+     ],
+     "schema_version": 1
+    },
+    "expected_edit_token": "edit-1-445cb3d55fd3de7ba89a707a",
+    "managed_sources": [
+     {
+      "node_path": [
+       "nodes",
+       1
+      ],
+      "text": "x\ud800"
+     }
+    ]
+   },
+   "refusal": {
+    "code": "invalid_value",
+    "path": [
+     "managed_sources",
+     0,
+     "text"
+    ],
+    "message": "Code source must be valid Unicode.",
+    "status": 400
+   }
+  },
+  {
+   "case": "root_unknown_field",
+   "edit": {
+    "schema": "pupu.skeleton-edit.v2",
+    "document": {
+     "edges": [
+      {
+       "id": "flow-start-score",
+       "kind": "flow",
+       "source_node_id": "start",
+       "source_port_id": "out",
+       "target_node_id": "score",
+       "target_port_id": "in"
+      },
+      {
+       "id": "flow-score-end",
+       "kind": "flow",
+       "source_node_id": "score",
+       "source_port_id": "out",
+       "target_node_id": "end",
+       "target_port_id": "in"
+      }
+     ],
+     "id": "g1-root",
+     "kind": "agent",
+     "name": "G1 Root",
+     "nodes": [
+      {
+       "config": {
+        "execution": {
+         "outputs": []
+        }
+       },
+       "id": "start",
+       "type": "start"
+      },
+      {
+       "config": {
+        "code": {
+         "environment_profile_id": "offline-python",
+         "max_log_bytes": 10000,
+         "max_result_bytes": 10000,
+         "result_schema": {
+          "additionalProperties": false,
+          "properties": {
+           "message": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "message"
+          ],
+          "type": "object"
+         },
+         "source": {
+          "kind": "file",
+          "path": "__pupu_code__/sha256/e642080582b2dd29bc5a542a461a0dea876fff33bd4f71fd6b08c8fcffc7f742.py"
+         },
+         "timeout_ms": 5000
+        },
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        }
+       },
+       "id": "score",
+       "type": "code"
+      },
+      {
+       "config": {
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        }
+       },
+       "id": "end",
+       "type": "end"
+      }
+     ],
+     "schema_version": 1
+    },
+    "expected_edit_token": "edit-1-445cb3d55fd3de7ba89a707a",
+    "managed_sources": [
+     {
+      "node_path": [
+       "nodes",
+       1
+      ],
+      "text": "def main(input, context):\n\t# tab, trailing spaces   \n    return {\"message\": \"r\u00e9sum\u00e9 \u4e2d\u6587 \ud83d\ude00\"}"
+     }
+    ],
+    "extra": 1
+   },
+   "refusal": {
+    "code": "unknown_field",
+    "path": [
+     "extra"
+    ],
+    "message": "Unknown source field.",
+    "status": 400
+   }
+  },
+  {
+   "case": "root_v1_shape",
+   "edit": {
+    "document": {
+     "edges": [
+      {
+       "id": "flow-start-score",
+       "kind": "flow",
+       "source_node_id": "start",
+       "source_port_id": "out",
+       "target_node_id": "score",
+       "target_port_id": "in"
+      },
+      {
+       "id": "flow-score-end",
+       "kind": "flow",
+       "source_node_id": "score",
+       "source_port_id": "out",
+       "target_node_id": "end",
+       "target_port_id": "in"
+      }
+     ],
+     "id": "g1-root",
+     "kind": "agent",
+     "name": "G1 Root",
+     "nodes": [
+      {
+       "config": {
+        "execution": {
+         "outputs": []
+        }
+       },
+       "id": "start",
+       "type": "start"
+      },
+      {
+       "config": {
+        "code": {
+         "environment_profile_id": "offline-python",
+         "max_log_bytes": 10000,
+         "max_result_bytes": 10000,
+         "result_schema": {
+          "additionalProperties": false,
+          "properties": {
+           "message": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "message"
+          ],
+          "type": "object"
+         },
+         "source": {
+          "kind": "file",
+          "path": "__pupu_code__/sha256/e642080582b2dd29bc5a542a461a0dea876fff33bd4f71fd6b08c8fcffc7f742.py"
+         },
+         "timeout_ms": 5000
+        },
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        }
+       },
+       "id": "score",
+       "type": "code"
+      },
+      {
+       "config": {
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        }
+       },
+       "id": "end",
+       "type": "end"
+      }
+     ],
+     "schema_version": 1
+    },
+    "expected_edit_token": "edit-1-445cb3d55fd3de7ba89a707a"
+   },
+   "refusal": {
+    "code": "invalid_shape",
+    "path": [],
+    "message": "Source record is missing required fields.",
+    "status": 400
+   }
+  },
+  {
+   "case": "ref_create",
+   "edit": {
+    "schema": "pupu.skeleton-edit.v2",
+    "document": {
+     "schema_version": 1,
+     "kind": "agent",
+     "id": "g1-ref",
+     "name": "Child",
+     "nodes": [
+      {
+       "id": "start",
+       "type": "start",
+       "config": {
+        "execution": {
+         "outputs": []
+        }
+       }
+      },
+      {
+       "id": "ref_code",
+       "type": "code",
+       "config": {
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        },
+        "code": {
+         "source": {
+          "kind": "file",
+          "path": "tools/placeholder.py"
+         },
+         "environment_profile_id": "offline-python",
+         "timeout_ms": 5000,
+         "max_result_bytes": 10000,
+         "max_log_bytes": 10000,
+         "result_schema": {
+          "type": "object",
+          "properties": {
+           "message": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "message"
+          ],
+          "additionalProperties": false
+         }
+        }
+       }
+      },
+      {
+       "id": "end",
+       "type": "end",
+       "config": {
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        }
+       }
+      }
+     ],
+     "edges": [
+      {
+       "id": "flow-start-ref_code",
+       "kind": "flow",
+       "source_node_id": "start",
+       "source_port_id": "out",
+       "target_node_id": "ref_code",
+       "target_port_id": "in"
+      },
+      {
+       "id": "flow-ref_code-end",
+       "kind": "flow",
+       "source_node_id": "ref_code",
+       "source_port_id": "out",
+       "target_node_id": "end",
+       "target_port_id": "in"
+      }
+     ]
+    },
+    "expected_edit_token": null,
+    "managed_sources": [
+     {
+      "node_path": [
+       "nodes",
+       1
+      ],
+      "text": "def main(input, context):\n    return {\"message\": \"referenced agent's own code\"}\n"
+     }
+    ]
+   },
+   "reply": {
+    "schema": "pupu.skeleton-resource.v2",
+    "resource": {
+     "id": "g1-ref",
+     "kind": "agent",
+     "name": "Child",
+     "description": "",
+     "archived": false,
+     "edit_token": "edit-1-955dcc731a4858f0f0b29659",
+     "draft_digest": "7a2baa903033b08bf59fec0bc822c26934493c1794b888ec0aae5890948e8130",
+     "source_identity": null,
+     "document": {
+      "edges": [
+       {
+        "id": "flow-start-ref_code",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "ref_code",
+        "target_port_id": "in"
+       },
+       {
+        "id": "flow-ref_code-end",
+        "kind": "flow",
+        "source_node_id": "ref_code",
+        "source_port_id": "out",
+        "target_node_id": "end",
+        "target_port_id": "in"
+       }
+      ],
+      "id": "g1-ref",
+      "kind": "agent",
+      "name": "Child",
+      "nodes": [
+       {
+        "config": {
+         "execution": {
+          "outputs": []
+         }
+        },
+        "id": "start",
+        "type": "start"
+       },
+       {
+        "config": {
+         "code": {
+          "environment_profile_id": "offline-python",
+          "max_log_bytes": 10000,
+          "max_result_bytes": 10000,
+          "result_schema": {
+           "additionalProperties": false,
+           "properties": {
+            "message": {
+             "type": "string"
+            }
+           },
+           "required": [
+            "message"
+           ],
+           "type": "object"
+          },
+          "source": {
+           "kind": "file",
+           "path": "__pupu_code__/sha256/25275c6e40bc547ce308b11be91efd114b7816e9dfb4e3e5df9dc39a5c0ebdad.py"
+          },
+          "timeout_ms": 5000
+         },
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "ref_code",
+        "type": "code"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "end",
+        "type": "end"
+       }
+      ],
+      "schema_version": 1
+     },
+     "diagnostics": [
+      {
+       "code": "agent_required",
+       "path": [
+        "document",
+        "nodes"
+       ],
+       "message": "agent graph requires an agent node"
+      }
+     ]
+    },
+    "sources_manifest": {
+     "entries": [
+      {
+       "node_path": [
+        "nodes",
+        1
+       ],
+       "sha256": "25275c6e40bc547ce308b11be91efd114b7816e9dfb4e3e5df9dc39a5c0ebdad"
+      }
+     ],
+     "schema": "pupu.skeleton-code-sources.v1"
+    },
+    "contents": [
+     {
+      "sha256": "25275c6e40bc547ce308b11be91efd114b7816e9dfb4e3e5df9dc39a5c0ebdad",
+      "text": "def main(input, context):\n    return {\"message\": \"referenced agent's own code\"}\n"
+     }
+    ],
+    "content_digest": "955dcc731a4858f0f0b296595b5d4810605c9c9ad56dcce98983792a73ddaf22"
+   }
+  },
+  {
+   "case": "ref_get",
+   "resource_id": "g1-ref",
+   "reply": {
+    "schema": "pupu.skeleton-resource.v2",
+    "resource": {
+     "id": "g1-ref",
+     "kind": "agent",
+     "name": "Child",
+     "description": "",
+     "archived": false,
+     "edit_token": "edit-1-955dcc731a4858f0f0b29659",
+     "draft_digest": "7a2baa903033b08bf59fec0bc822c26934493c1794b888ec0aae5890948e8130",
+     "source_identity": null,
+     "document": {
+      "edges": [
+       {
+        "id": "flow-start-ref_code",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "ref_code",
+        "target_port_id": "in"
+       },
+       {
+        "id": "flow-ref_code-end",
+        "kind": "flow",
+        "source_node_id": "ref_code",
+        "source_port_id": "out",
+        "target_node_id": "end",
+        "target_port_id": "in"
+       }
+      ],
+      "id": "g1-ref",
+      "kind": "agent",
+      "name": "Child",
+      "nodes": [
+       {
+        "config": {
+         "execution": {
+          "outputs": []
+         }
+        },
+        "id": "start",
+        "type": "start"
+       },
+       {
+        "config": {
+         "code": {
+          "environment_profile_id": "offline-python",
+          "max_log_bytes": 10000,
+          "max_result_bytes": 10000,
+          "result_schema": {
+           "additionalProperties": false,
+           "properties": {
+            "message": {
+             "type": "string"
+            }
+           },
+           "required": [
+            "message"
+           ],
+           "type": "object"
+          },
+          "source": {
+           "kind": "file",
+           "path": "__pupu_code__/sha256/25275c6e40bc547ce308b11be91efd114b7816e9dfb4e3e5df9dc39a5c0ebdad.py"
+          },
+          "timeout_ms": 5000
+         },
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "ref_code",
+        "type": "code"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "end",
+        "type": "end"
+       }
+      ],
+      "schema_version": 1
+     },
+     "diagnostics": [
+      {
+       "code": "agent_required",
+       "path": [
+        "document",
+        "nodes"
+       ],
+       "message": "agent graph requires an agent node"
+      }
+     ]
+    },
+    "sources_manifest": {
+     "entries": [
+      {
+       "node_path": [
+        "nodes",
+        1
+       ],
+       "sha256": "25275c6e40bc547ce308b11be91efd114b7816e9dfb4e3e5df9dc39a5c0ebdad"
+      }
+     ],
+     "schema": "pupu.skeleton-code-sources.v1"
+    },
+    "contents": [
+     {
+      "sha256": "25275c6e40bc547ce308b11be91efd114b7816e9dfb4e3e5df9dc39a5c0ebdad",
+      "text": "def main(input, context):\n    return {\"message\": \"referenced agent's own code\"}\n"
+     }
+    ],
+    "content_digest": "955dcc731a4858f0f0b296595b5d4810605c9c9ad56dcce98983792a73ddaf22"
+   }
+  },
+  {
+   "case": "nested_create",
+   "edit": {
+    "schema": "pupu.skeleton-edit.v2",
+    "document": {
+     "schema_version": 1,
+     "kind": "agent",
+     "id": "g1-nested",
+     "name": "G1 Nested",
+     "nodes": [
+      {
+       "id": "start",
+       "type": "start",
+       "config": {
+        "execution": {
+         "outputs": []
+        }
+       }
+      },
+      {
+       "id": "first",
+       "type": "code",
+       "config": {
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        },
+        "code": {
+         "source": {
+          "kind": "file",
+          "path": "tools/placeholder.py"
+         },
+         "environment_profile_id": "offline-python",
+         "timeout_ms": 5000,
+         "max_result_bytes": 10000,
+         "max_log_bytes": 10000,
+         "result_schema": {
+          "type": "object",
+          "properties": {
+           "message": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "message"
+          ],
+          "additionalProperties": false
+         }
+        }
+       }
+      },
+      {
+       "id": "agent",
+       "type": "agent",
+       "config": {
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        }
+       }
+      },
+      {
+       "id": "second",
+       "type": "code",
+       "config": {
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        },
+        "code": {
+         "source": {
+          "kind": "file",
+          "path": "tools/placeholder.py"
+         },
+         "environment_profile_id": "offline-python",
+         "timeout_ms": 5000,
+         "max_result_bytes": 10000,
+         "max_log_bytes": 10000,
+         "result_schema": {
+          "type": "object",
+          "properties": {
+           "message": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "message"
+          ],
+          "additionalProperties": false
+         }
+        }
+       }
+      },
+      {
+       "id": "end",
+       "type": "end",
+       "config": {
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        }
+       }
+      },
+      {
+       "id": "pool",
+       "type": "subagent_pool",
+       "config": {
+        "subagents": [
+         {
+          "id": "embedded-one",
+          "name": "embedded-one",
+          "description": "",
+          "source": {
+           "kind": "embedded",
+           "document": {
+            "schema_version": 1,
+            "kind": "agent",
+            "id": "g1-nested-child",
+            "name": "Child",
+            "nodes": [
+             {
+              "id": "start",
+              "type": "start",
+              "config": {
+               "execution": {
+                "outputs": []
+               }
+              }
+             },
+             {
+              "id": "child_code",
+              "type": "code",
+              "config": {
+               "execution": {
+                "inputs": [],
+                "outputs": []
+               },
+               "code": {
+                "source": {
+                 "kind": "file",
+                 "path": "tools/placeholder.py"
+                },
+                "environment_profile_id": "offline-python",
+                "timeout_ms": 5000,
+                "max_result_bytes": 10000,
+                "max_log_bytes": 10000,
+                "result_schema": {
+                 "type": "object",
+                 "properties": {
+                  "message": {
+                   "type": "string"
+                  }
+                 },
+                 "required": [
+                  "message"
+                 ],
+                 "additionalProperties": false
+                }
+               }
+              }
+             },
+             {
+              "id": "end",
+              "type": "end",
+              "config": {
+               "execution": {
+                "inputs": [],
+                "outputs": []
+               }
+              }
+             }
+            ],
+            "edges": [
+             {
+              "id": "flow-start-child_code",
+              "kind": "flow",
+              "source_node_id": "start",
+              "source_port_id": "out",
+              "target_node_id": "child_code",
+              "target_port_id": "in"
+             },
+             {
+              "id": "flow-child_code-end",
+              "kind": "flow",
+              "source_node_id": "child_code",
+              "source_port_id": "out",
+              "target_node_id": "end",
+              "target_port_id": "in"
+             }
+            ]
+           }
+          },
+          "allowed_modes": [
+           "delegate",
+           "worker"
+          ],
+          "output_mode": "summary",
+          "memory_policy": "ephemeral",
+          "parallel_safe": true,
+          "allowed_tools": null,
+          "disabled_tools": []
+         },
+         {
+          "id": "referenced",
+          "name": "referenced",
+          "description": "",
+          "source": {
+           "kind": "agent_ref",
+           "agent_id": "g1-ref"
+          },
+          "allowed_modes": [
+           "delegate",
+           "worker"
+          ],
+          "output_mode": "summary",
+          "memory_policy": "ephemeral",
+          "parallel_safe": true,
+          "allowed_tools": null,
+          "disabled_tools": []
+         }
+        ]
+       }
+      }
+     ],
+     "edges": [
+      {
+       "id": "flow-start-first",
+       "kind": "flow",
+       "source_node_id": "start",
+       "source_port_id": "out",
+       "target_node_id": "first",
+       "target_port_id": "in"
+      },
+      {
+       "id": "flow-first-agent",
+       "kind": "flow",
+       "source_node_id": "first",
+       "source_port_id": "out",
+       "target_node_id": "agent",
+       "target_port_id": "in"
+      },
+      {
+       "id": "flow-agent-second",
+       "kind": "flow",
+       "source_node_id": "agent",
+       "source_port_id": "out",
+       "target_node_id": "second",
+       "target_port_id": "in"
+      },
+      {
+       "id": "flow-second-end",
+       "kind": "flow",
+       "source_node_id": "second",
+       "source_port_id": "out",
+       "target_node_id": "end",
+       "target_port_id": "in"
+      },
+      {
+       "id": "attach-subagents",
+       "kind": "attach",
+       "source_node_id": "agent",
+       "source_port_id": "attach_bottom",
+       "target_node_id": "pool",
+       "target_port_id": "attach_top"
+      }
+     ]
+    },
+    "expected_edit_token": null,
+    "managed_sources": [
+     {
+      "node_path": [
+       "nodes",
+       1
+      ],
+      "text": "def main(input, context):\n    return {\"message\": \"shared\"}\n"
+     },
+     {
+      "node_path": [
+       "nodes",
+       3
+      ],
+      "text": "def main(input, context):\n    return {\"message\": \"shared\"}\n"
+     },
+     {
+      "node_path": [
+       "nodes",
+       5,
+       "config",
+       "subagents",
+       0,
+       "source",
+       "document",
+       "nodes",
+       1
+      ],
+      "text": "def main(input, context):\n    return {\"message\": \"child\"}\n\n\n"
+     }
+    ]
+   },
+   "reply": {
+    "schema": "pupu.skeleton-resource.v2",
+    "resource": {
+     "id": "g1-nested",
+     "kind": "agent",
+     "name": "G1 Nested",
+     "description": "",
+     "archived": false,
+     "edit_token": "edit-1-ef223876e8d12447cef20e90",
+     "draft_digest": "e97b127994ec472b1f71bf20e761596c7ee877f1dd70f174e15f858926f37944",
+     "source_identity": null,
+     "document": {
+      "edges": [
+       {
+        "id": "flow-start-first",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "first",
+        "target_port_id": "in"
+       },
+       {
+        "id": "flow-first-agent",
+        "kind": "flow",
+        "source_node_id": "first",
+        "source_port_id": "out",
+        "target_node_id": "agent",
+        "target_port_id": "in"
+       },
+       {
+        "id": "flow-agent-second",
+        "kind": "flow",
+        "source_node_id": "agent",
+        "source_port_id": "out",
+        "target_node_id": "second",
+        "target_port_id": "in"
+       },
+       {
+        "id": "flow-second-end",
+        "kind": "flow",
+        "source_node_id": "second",
+        "source_port_id": "out",
+        "target_node_id": "end",
+        "target_port_id": "in"
+       },
+       {
+        "id": "attach-subagents",
+        "kind": "attach",
+        "source_node_id": "agent",
+        "source_port_id": "attach_bottom",
+        "target_node_id": "pool",
+        "target_port_id": "attach_top"
+       }
+      ],
+      "id": "g1-nested",
+      "kind": "agent",
+      "name": "G1 Nested",
+      "nodes": [
+       {
+        "config": {
+         "execution": {
+          "outputs": []
+         }
+        },
+        "id": "start",
+        "type": "start"
+       },
+       {
+        "config": {
+         "code": {
+          "environment_profile_id": "offline-python",
+          "max_log_bytes": 10000,
+          "max_result_bytes": 10000,
+          "result_schema": {
+           "additionalProperties": false,
+           "properties": {
+            "message": {
+             "type": "string"
+            }
+           },
+           "required": [
+            "message"
+           ],
+           "type": "object"
+          },
+          "source": {
+           "kind": "file",
+           "path": "__pupu_code__/sha256/e26ad67b7c937f446dca430c0094b8b94aee0c5cf47734625917f4dd401f34ec.py"
+          },
+          "timeout_ms": 5000
+         },
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "first",
+        "type": "code"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "agent",
+        "type": "agent"
+       },
+       {
+        "config": {
+         "code": {
+          "environment_profile_id": "offline-python",
+          "max_log_bytes": 10000,
+          "max_result_bytes": 10000,
+          "result_schema": {
+           "additionalProperties": false,
+           "properties": {
+            "message": {
+             "type": "string"
+            }
+           },
+           "required": [
+            "message"
+           ],
+           "type": "object"
+          },
+          "source": {
+           "kind": "file",
+           "path": "__pupu_code__/sha256/e26ad67b7c937f446dca430c0094b8b94aee0c5cf47734625917f4dd401f34ec.py"
+          },
+          "timeout_ms": 5000
+         },
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "second",
+        "type": "code"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "end",
+        "type": "end"
+       },
+       {
+        "config": {
+         "subagents": [
+          {
+           "allowed_modes": [
+            "delegate",
+            "worker"
+           ],
+           "allowed_tools": null,
+           "description": "",
+           "disabled_tools": [],
+           "id": "embedded-one",
+           "memory_policy": "ephemeral",
+           "name": "embedded-one",
+           "output_mode": "summary",
+           "parallel_safe": true,
+           "source": {
+            "document": {
+             "edges": [
+              {
+               "id": "flow-start-child_code",
+               "kind": "flow",
+               "source_node_id": "start",
+               "source_port_id": "out",
+               "target_node_id": "child_code",
+               "target_port_id": "in"
+              },
+              {
+               "id": "flow-child_code-end",
+               "kind": "flow",
+               "source_node_id": "child_code",
+               "source_port_id": "out",
+               "target_node_id": "end",
+               "target_port_id": "in"
+              }
+             ],
+             "id": "g1-nested-child",
+             "kind": "agent",
+             "name": "Child",
+             "nodes": [
+              {
+               "config": {
+                "execution": {
+                 "outputs": []
+                }
+               },
+               "id": "start",
+               "type": "start"
+              },
+              {
+               "config": {
+                "code": {
+                 "environment_profile_id": "offline-python",
+                 "max_log_bytes": 10000,
+                 "max_result_bytes": 10000,
+                 "result_schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                   "message": {
+                    "type": "string"
+                   }
+                  },
+                  "required": [
+                   "message"
+                  ],
+                  "type": "object"
+                 },
+                 "source": {
+                  "kind": "file",
+                  "path": "__pupu_code__/sha256/36983f0c4bc397bece0538d44ad13911a7f30545d80d31ad3689f4ac1a69cfd9.py"
+                 },
+                 "timeout_ms": 5000
+                },
+                "execution": {
+                 "inputs": [],
+                 "outputs": []
+                }
+               },
+               "id": "child_code",
+               "type": "code"
+              },
+              {
+               "config": {
+                "execution": {
+                 "inputs": [],
+                 "outputs": []
+                }
+               },
+               "id": "end",
+               "type": "end"
+              }
+             ],
+             "schema_version": 1
+            },
+            "kind": "embedded"
+           }
+          },
+          {
+           "allowed_modes": [
+            "delegate",
+            "worker"
+           ],
+           "allowed_tools": null,
+           "description": "",
+           "disabled_tools": [],
+           "id": "referenced",
+           "memory_policy": "ephemeral",
+           "name": "referenced",
+           "output_mode": "summary",
+           "parallel_safe": true,
+           "source": {
+            "agent_id": "g1-ref",
+            "kind": "agent_ref"
+           }
+          }
+         ]
+        },
+        "id": "pool",
+        "type": "subagent_pool"
+       }
+      ],
+      "schema_version": 1
+     },
+     "diagnostics": [
+      {
+       "code": "pool_attachment_required",
+       "path": [
+        "document",
+        "nodes",
+        5
+       ],
+       "message": "pool must attach to an agent"
+      },
+      {
+       "code": "agent_required",
+       "path": [
+        "document",
+        "nodes",
+        5,
+        "config",
+        "subagents",
+        0,
+        "source",
+        "document",
+        "nodes"
+       ],
+       "message": "agent graph requires an agent node"
+      },
+      {
+       "code": "attach_ports",
+       "path": [
+        "document",
+        "edges",
+        4,
+        "source_port_id"
+       ],
+       "message": "attach port must be attach_top or attach_bot"
+      }
+     ]
+    },
+    "sources_manifest": {
+     "entries": [
+      {
+       "node_path": [
+        "nodes",
+        1
+       ],
+       "sha256": "e26ad67b7c937f446dca430c0094b8b94aee0c5cf47734625917f4dd401f34ec"
+      },
+      {
+       "node_path": [
+        "nodes",
+        3
+       ],
+       "sha256": "e26ad67b7c937f446dca430c0094b8b94aee0c5cf47734625917f4dd401f34ec"
+      },
+      {
+       "node_path": [
+        "nodes",
+        5,
+        "config",
+        "subagents",
+        0,
+        "source",
+        "document",
+        "nodes",
+        1
+       ],
+       "sha256": "36983f0c4bc397bece0538d44ad13911a7f30545d80d31ad3689f4ac1a69cfd9"
+      }
+     ],
+     "schema": "pupu.skeleton-code-sources.v1"
+    },
+    "contents": [
+     {
+      "sha256": "36983f0c4bc397bece0538d44ad13911a7f30545d80d31ad3689f4ac1a69cfd9",
+      "text": "def main(input, context):\n    return {\"message\": \"child\"}\n\n\n"
+     },
+     {
+      "sha256": "e26ad67b7c937f446dca430c0094b8b94aee0c5cf47734625917f4dd401f34ec",
+      "text": "def main(input, context):\n    return {\"message\": \"shared\"}\n"
+     }
+    ],
+    "content_digest": "ef223876e8d12447cef20e904446dbf590ac5e5d3684f4023d609f649f20085f"
+   }
+  },
+  {
+   "case": "nested_get",
+   "resource_id": "g1-nested",
+   "reply": {
+    "schema": "pupu.skeleton-resource.v2",
+    "resource": {
+     "id": "g1-nested",
+     "kind": "agent",
+     "name": "G1 Nested",
+     "description": "",
+     "archived": false,
+     "edit_token": "edit-1-ef223876e8d12447cef20e90",
+     "draft_digest": "e97b127994ec472b1f71bf20e761596c7ee877f1dd70f174e15f858926f37944",
+     "source_identity": null,
+     "document": {
+      "edges": [
+       {
+        "id": "flow-start-first",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "first",
+        "target_port_id": "in"
+       },
+       {
+        "id": "flow-first-agent",
+        "kind": "flow",
+        "source_node_id": "first",
+        "source_port_id": "out",
+        "target_node_id": "agent",
+        "target_port_id": "in"
+       },
+       {
+        "id": "flow-agent-second",
+        "kind": "flow",
+        "source_node_id": "agent",
+        "source_port_id": "out",
+        "target_node_id": "second",
+        "target_port_id": "in"
+       },
+       {
+        "id": "flow-second-end",
+        "kind": "flow",
+        "source_node_id": "second",
+        "source_port_id": "out",
+        "target_node_id": "end",
+        "target_port_id": "in"
+       },
+       {
+        "id": "attach-subagents",
+        "kind": "attach",
+        "source_node_id": "agent",
+        "source_port_id": "attach_bottom",
+        "target_node_id": "pool",
+        "target_port_id": "attach_top"
+       }
+      ],
+      "id": "g1-nested",
+      "kind": "agent",
+      "name": "G1 Nested",
+      "nodes": [
+       {
+        "config": {
+         "execution": {
+          "outputs": []
+         }
+        },
+        "id": "start",
+        "type": "start"
+       },
+       {
+        "config": {
+         "code": {
+          "environment_profile_id": "offline-python",
+          "max_log_bytes": 10000,
+          "max_result_bytes": 10000,
+          "result_schema": {
+           "additionalProperties": false,
+           "properties": {
+            "message": {
+             "type": "string"
+            }
+           },
+           "required": [
+            "message"
+           ],
+           "type": "object"
+          },
+          "source": {
+           "kind": "file",
+           "path": "__pupu_code__/sha256/e26ad67b7c937f446dca430c0094b8b94aee0c5cf47734625917f4dd401f34ec.py"
+          },
+          "timeout_ms": 5000
+         },
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "first",
+        "type": "code"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "agent",
+        "type": "agent"
+       },
+       {
+        "config": {
+         "code": {
+          "environment_profile_id": "offline-python",
+          "max_log_bytes": 10000,
+          "max_result_bytes": 10000,
+          "result_schema": {
+           "additionalProperties": false,
+           "properties": {
+            "message": {
+             "type": "string"
+            }
+           },
+           "required": [
+            "message"
+           ],
+           "type": "object"
+          },
+          "source": {
+           "kind": "file",
+           "path": "__pupu_code__/sha256/e26ad67b7c937f446dca430c0094b8b94aee0c5cf47734625917f4dd401f34ec.py"
+          },
+          "timeout_ms": 5000
+         },
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "second",
+        "type": "code"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "end",
+        "type": "end"
+       },
+       {
+        "config": {
+         "subagents": [
+          {
+           "allowed_modes": [
+            "delegate",
+            "worker"
+           ],
+           "allowed_tools": null,
+           "description": "",
+           "disabled_tools": [],
+           "id": "embedded-one",
+           "memory_policy": "ephemeral",
+           "name": "embedded-one",
+           "output_mode": "summary",
+           "parallel_safe": true,
+           "source": {
+            "document": {
+             "edges": [
+              {
+               "id": "flow-start-child_code",
+               "kind": "flow",
+               "source_node_id": "start",
+               "source_port_id": "out",
+               "target_node_id": "child_code",
+               "target_port_id": "in"
+              },
+              {
+               "id": "flow-child_code-end",
+               "kind": "flow",
+               "source_node_id": "child_code",
+               "source_port_id": "out",
+               "target_node_id": "end",
+               "target_port_id": "in"
+              }
+             ],
+             "id": "g1-nested-child",
+             "kind": "agent",
+             "name": "Child",
+             "nodes": [
+              {
+               "config": {
+                "execution": {
+                 "outputs": []
+                }
+               },
+               "id": "start",
+               "type": "start"
+              },
+              {
+               "config": {
+                "code": {
+                 "environment_profile_id": "offline-python",
+                 "max_log_bytes": 10000,
+                 "max_result_bytes": 10000,
+                 "result_schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                   "message": {
+                    "type": "string"
+                   }
+                  },
+                  "required": [
+                   "message"
+                  ],
+                  "type": "object"
+                 },
+                 "source": {
+                  "kind": "file",
+                  "path": "__pupu_code__/sha256/36983f0c4bc397bece0538d44ad13911a7f30545d80d31ad3689f4ac1a69cfd9.py"
+                 },
+                 "timeout_ms": 5000
+                },
+                "execution": {
+                 "inputs": [],
+                 "outputs": []
+                }
+               },
+               "id": "child_code",
+               "type": "code"
+              },
+              {
+               "config": {
+                "execution": {
+                 "inputs": [],
+                 "outputs": []
+                }
+               },
+               "id": "end",
+               "type": "end"
+              }
+             ],
+             "schema_version": 1
+            },
+            "kind": "embedded"
+           }
+          },
+          {
+           "allowed_modes": [
+            "delegate",
+            "worker"
+           ],
+           "allowed_tools": null,
+           "description": "",
+           "disabled_tools": [],
+           "id": "referenced",
+           "memory_policy": "ephemeral",
+           "name": "referenced",
+           "output_mode": "summary",
+           "parallel_safe": true,
+           "source": {
+            "agent_id": "g1-ref",
+            "kind": "agent_ref"
+           }
+          }
+         ]
+        },
+        "id": "pool",
+        "type": "subagent_pool"
+       }
+      ],
+      "schema_version": 1
+     },
+     "diagnostics": [
+      {
+       "code": "pool_attachment_required",
+       "path": [
+        "document",
+        "nodes",
+        5
+       ],
+       "message": "pool must attach to an agent"
+      },
+      {
+       "code": "agent_required",
+       "path": [
+        "document",
+        "nodes",
+        5,
+        "config",
+        "subagents",
+        0,
+        "source",
+        "document",
+        "nodes"
+       ],
+       "message": "agent graph requires an agent node"
+      },
+      {
+       "code": "attach_ports",
+       "path": [
+        "document",
+        "edges",
+        4,
+        "source_port_id"
+       ],
+       "message": "attach port must be attach_top or attach_bot"
+      }
+     ]
+    },
+    "sources_manifest": {
+     "entries": [
+      {
+       "node_path": [
+        "nodes",
+        1
+       ],
+       "sha256": "e26ad67b7c937f446dca430c0094b8b94aee0c5cf47734625917f4dd401f34ec"
+      },
+      {
+       "node_path": [
+        "nodes",
+        3
+       ],
+       "sha256": "e26ad67b7c937f446dca430c0094b8b94aee0c5cf47734625917f4dd401f34ec"
+      },
+      {
+       "node_path": [
+        "nodes",
+        5,
+        "config",
+        "subagents",
+        0,
+        "source",
+        "document",
+        "nodes",
+        1
+       ],
+       "sha256": "36983f0c4bc397bece0538d44ad13911a7f30545d80d31ad3689f4ac1a69cfd9"
+      }
+     ],
+     "schema": "pupu.skeleton-code-sources.v1"
+    },
+    "contents": [
+     {
+      "sha256": "36983f0c4bc397bece0538d44ad13911a7f30545d80d31ad3689f4ac1a69cfd9",
+      "text": "def main(input, context):\n    return {\"message\": \"child\"}\n\n\n"
+     },
+     {
+      "sha256": "e26ad67b7c937f446dca430c0094b8b94aee0c5cf47734625917f4dd401f34ec",
+      "text": "def main(input, context):\n    return {\"message\": \"shared\"}\n"
+     }
+    ],
+    "content_digest": "ef223876e8d12447cef20e904446dbf590ac5e5d3684f4023d609f649f20085f"
+   }
+  },
+  {
+   "case": "nested_ref_target",
+   "edit": {
+    "schema": "pupu.skeleton-edit.v2",
+    "document": {
+     "edges": [
+      {
+       "id": "flow-start-first",
+       "kind": "flow",
+       "source_node_id": "start",
+       "source_port_id": "out",
+       "target_node_id": "first",
+       "target_port_id": "in"
+      },
+      {
+       "id": "flow-first-agent",
+       "kind": "flow",
+       "source_node_id": "first",
+       "source_port_id": "out",
+       "target_node_id": "agent",
+       "target_port_id": "in"
+      },
+      {
+       "id": "flow-agent-second",
+       "kind": "flow",
+       "source_node_id": "agent",
+       "source_port_id": "out",
+       "target_node_id": "second",
+       "target_port_id": "in"
+      },
+      {
+       "id": "flow-second-end",
+       "kind": "flow",
+       "source_node_id": "second",
+       "source_port_id": "out",
+       "target_node_id": "end",
+       "target_port_id": "in"
+      },
+      {
+       "id": "attach-subagents",
+       "kind": "attach",
+       "source_node_id": "agent",
+       "source_port_id": "attach_bottom",
+       "target_node_id": "pool",
+       "target_port_id": "attach_top"
+      }
+     ],
+     "id": "g1-nested",
+     "kind": "agent",
+     "name": "G1 Nested",
+     "nodes": [
+      {
+       "config": {
+        "execution": {
+         "outputs": []
+        }
+       },
+       "id": "start",
+       "type": "start"
+      },
+      {
+       "config": {
+        "code": {
+         "environment_profile_id": "offline-python",
+         "max_log_bytes": 10000,
+         "max_result_bytes": 10000,
+         "result_schema": {
+          "additionalProperties": false,
+          "properties": {
+           "message": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "message"
+          ],
+          "type": "object"
+         },
+         "source": {
+          "kind": "file",
+          "path": "__pupu_code__/sha256/e26ad67b7c937f446dca430c0094b8b94aee0c5cf47734625917f4dd401f34ec.py"
+         },
+         "timeout_ms": 5000
+        },
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        }
+       },
+       "id": "first",
+       "type": "code"
+      },
+      {
+       "config": {
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        }
+       },
+       "id": "agent",
+       "type": "agent"
+      },
+      {
+       "config": {
+        "code": {
+         "environment_profile_id": "offline-python",
+         "max_log_bytes": 10000,
+         "max_result_bytes": 10000,
+         "result_schema": {
+          "additionalProperties": false,
+          "properties": {
+           "message": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "message"
+          ],
+          "type": "object"
+         },
+         "source": {
+          "kind": "file",
+          "path": "__pupu_code__/sha256/e26ad67b7c937f446dca430c0094b8b94aee0c5cf47734625917f4dd401f34ec.py"
+         },
+         "timeout_ms": 5000
+        },
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        }
+       },
+       "id": "second",
+       "type": "code"
+      },
+      {
+       "config": {
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        }
+       },
+       "id": "end",
+       "type": "end"
+      },
+      {
+       "config": {
+        "subagents": [
+         {
+          "allowed_modes": [
+           "delegate",
+           "worker"
+          ],
+          "allowed_tools": null,
+          "description": "",
+          "disabled_tools": [],
+          "id": "embedded-one",
+          "memory_policy": "ephemeral",
+          "name": "embedded-one",
+          "output_mode": "summary",
+          "parallel_safe": true,
+          "source": {
+           "document": {
+            "edges": [
+             {
+              "id": "flow-start-child_code",
+              "kind": "flow",
+              "source_node_id": "start",
+              "source_port_id": "out",
+              "target_node_id": "child_code",
+              "target_port_id": "in"
+             },
+             {
+              "id": "flow-child_code-end",
+              "kind": "flow",
+              "source_node_id": "child_code",
+              "source_port_id": "out",
+              "target_node_id": "end",
+              "target_port_id": "in"
+             }
+            ],
+            "id": "g1-nested-child",
+            "kind": "agent",
+            "name": "Child",
+            "nodes": [
+             {
+              "config": {
+               "execution": {
+                "outputs": []
+               }
+              },
+              "id": "start",
+              "type": "start"
+             },
+             {
+              "config": {
+               "code": {
+                "environment_profile_id": "offline-python",
+                "max_log_bytes": 10000,
+                "max_result_bytes": 10000,
+                "result_schema": {
+                 "additionalProperties": false,
+                 "properties": {
+                  "message": {
+                   "type": "string"
+                  }
+                 },
+                 "required": [
+                  "message"
+                 ],
+                 "type": "object"
+                },
+                "source": {
+                 "kind": "file",
+                 "path": "__pupu_code__/sha256/36983f0c4bc397bece0538d44ad13911a7f30545d80d31ad3689f4ac1a69cfd9.py"
+                },
+                "timeout_ms": 5000
+               },
+               "execution": {
+                "inputs": [],
+                "outputs": []
+               }
+              },
+              "id": "child_code",
+              "type": "code"
+             },
+             {
+              "config": {
+               "execution": {
+                "inputs": [],
+                "outputs": []
+               }
+              },
+              "id": "end",
+              "type": "end"
+             }
+            ],
+            "schema_version": 1
+           },
+           "kind": "embedded"
+          }
+         },
+         {
+          "allowed_modes": [
+           "delegate",
+           "worker"
+          ],
+          "allowed_tools": null,
+          "description": "",
+          "disabled_tools": [],
+          "id": "referenced",
+          "memory_policy": "ephemeral",
+          "name": "referenced",
+          "output_mode": "summary",
+          "parallel_safe": true,
+          "source": {
+           "agent_id": "g1-ref",
+           "kind": "agent_ref"
+          }
+         }
+        ]
+       },
+       "id": "pool",
+       "type": "subagent_pool"
+      }
+     ],
+     "schema_version": 1
+    },
+    "expected_edit_token": "edit-1-ef223876e8d12447cef20e90",
+    "managed_sources": [
+     {
+      "node_path": [
+       "nodes",
+       1
+      ],
+      "text": "def main(input, context):\n    return {\"message\": \"shared\"}\n"
+     },
+     {
+      "node_path": [
+       "nodes",
+       3
+      ],
+      "text": "def main(input, context):\n    return {\"message\": \"shared\"}\n"
+     },
+     {
+      "node_path": [
+       "nodes",
+       5,
+       "config",
+       "subagents",
+       0,
+       "source",
+       "document",
+       "nodes",
+       1
+      ],
+      "text": "def main(input, context):\n    return {\"message\": \"child\"}\n\n\n"
+     },
+     {
+      "node_path": [
+       "nodes",
+       5,
+       "config",
+       "subagents",
+       1,
+       "source",
+       "document",
+       "nodes",
+       1
+      ],
+      "text": "def main(input, context):\n    return {\"message\": \"referenced agent's own code\"}\n"
+     }
+    ]
+   },
+   "refusal": {
+    "code": "invalid_target",
+    "path": [
+     "managed_sources",
+     3,
+     "node_path"
+    ],
+    "message": "Referenced Agent source belongs to another resource.",
+    "status": 400
+   }
+  },
+  {
+   "case": "nested_child_unbound",
+   "edit": {
+    "schema": "pupu.skeleton-edit.v2",
+    "document": {
+     "edges": [
+      {
+       "id": "flow-start-first",
+       "kind": "flow",
+       "source_node_id": "start",
+       "source_port_id": "out",
+       "target_node_id": "first",
+       "target_port_id": "in"
+      },
+      {
+       "id": "flow-first-agent",
+       "kind": "flow",
+       "source_node_id": "first",
+       "source_port_id": "out",
+       "target_node_id": "agent",
+       "target_port_id": "in"
+      },
+      {
+       "id": "flow-agent-second",
+       "kind": "flow",
+       "source_node_id": "agent",
+       "source_port_id": "out",
+       "target_node_id": "second",
+       "target_port_id": "in"
+      },
+      {
+       "id": "flow-second-end",
+       "kind": "flow",
+       "source_node_id": "second",
+       "source_port_id": "out",
+       "target_node_id": "end",
+       "target_port_id": "in"
+      },
+      {
+       "id": "attach-subagents",
+       "kind": "attach",
+       "source_node_id": "agent",
+       "source_port_id": "attach_bottom",
+       "target_node_id": "pool",
+       "target_port_id": "attach_top"
+      }
+     ],
+     "id": "g1-nested",
+     "kind": "agent",
+     "name": "G1 Nested",
+     "nodes": [
+      {
+       "config": {
+        "execution": {
+         "outputs": []
+        }
+       },
+       "id": "start",
+       "type": "start"
+      },
+      {
+       "config": {
+        "code": {
+         "environment_profile_id": "offline-python",
+         "max_log_bytes": 10000,
+         "max_result_bytes": 10000,
+         "result_schema": {
+          "additionalProperties": false,
+          "properties": {
+           "message": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "message"
+          ],
+          "type": "object"
+         },
+         "source": {
+          "kind": "file",
+          "path": "__pupu_code__/sha256/e26ad67b7c937f446dca430c0094b8b94aee0c5cf47734625917f4dd401f34ec.py"
+         },
+         "timeout_ms": 5000
+        },
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        }
+       },
+       "id": "first",
+       "type": "code"
+      },
+      {
+       "config": {
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        }
+       },
+       "id": "agent",
+       "type": "agent"
+      },
+      {
+       "config": {
+        "code": {
+         "environment_profile_id": "offline-python",
+         "max_log_bytes": 10000,
+         "max_result_bytes": 10000,
+         "result_schema": {
+          "additionalProperties": false,
+          "properties": {
+           "message": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "message"
+          ],
+          "type": "object"
+         },
+         "source": {
+          "kind": "file",
+          "path": "__pupu_code__/sha256/e26ad67b7c937f446dca430c0094b8b94aee0c5cf47734625917f4dd401f34ec.py"
+         },
+         "timeout_ms": 5000
+        },
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        }
+       },
+       "id": "second",
+       "type": "code"
+      },
+      {
+       "config": {
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        }
+       },
+       "id": "end",
+       "type": "end"
+      },
+      {
+       "config": {
+        "subagents": [
+         {
+          "allowed_modes": [
+           "delegate",
+           "worker"
+          ],
+          "allowed_tools": null,
+          "description": "",
+          "disabled_tools": [],
+          "id": "embedded-one",
+          "memory_policy": "ephemeral",
+          "name": "embedded-one",
+          "output_mode": "summary",
+          "parallel_safe": true,
+          "source": {
+           "document": {
+            "edges": [
+             {
+              "id": "flow-start-child_code",
+              "kind": "flow",
+              "source_node_id": "start",
+              "source_port_id": "out",
+              "target_node_id": "child_code",
+              "target_port_id": "in"
+             },
+             {
+              "id": "flow-child_code-end",
+              "kind": "flow",
+              "source_node_id": "child_code",
+              "source_port_id": "out",
+              "target_node_id": "end",
+              "target_port_id": "in"
+             }
+            ],
+            "id": "g1-nested-child",
+            "kind": "agent",
+            "name": "Child",
+            "nodes": [
+             {
+              "config": {
+               "execution": {
+                "outputs": []
+               }
+              },
+              "id": "start",
+              "type": "start"
+             },
+             {
+              "config": {
+               "code": {
+                "environment_profile_id": "offline-python",
+                "max_log_bytes": 10000,
+                "max_result_bytes": 10000,
+                "result_schema": {
+                 "additionalProperties": false,
+                 "properties": {
+                  "message": {
+                   "type": "string"
+                  }
+                 },
+                 "required": [
+                  "message"
+                 ],
+                 "type": "object"
+                },
+                "source": {
+                 "kind": "file",
+                 "path": "__pupu_code__/sha256/36983f0c4bc397bece0538d44ad13911a7f30545d80d31ad3689f4ac1a69cfd9.py"
+                },
+                "timeout_ms": 5000
+               },
+               "execution": {
+                "inputs": [],
+                "outputs": []
+               }
+              },
+              "id": "child_code",
+              "type": "code"
+             },
+             {
+              "config": {
+               "execution": {
+                "inputs": [],
+                "outputs": []
+               }
+              },
+              "id": "end",
+              "type": "end"
+             }
+            ],
+            "schema_version": 1
+           },
+           "kind": "embedded"
+          }
+         },
+         {
+          "allowed_modes": [
+           "delegate",
+           "worker"
+          ],
+          "allowed_tools": null,
+          "description": "",
+          "disabled_tools": [],
+          "id": "referenced",
+          "memory_policy": "ephemeral",
+          "name": "referenced",
+          "output_mode": "summary",
+          "parallel_safe": true,
+          "source": {
+           "agent_id": "g1-ref",
+           "kind": "agent_ref"
+          }
+         }
+        ]
+       },
+       "id": "pool",
+       "type": "subagent_pool"
+      }
+     ],
+     "schema_version": 1
+    },
+    "expected_edit_token": "edit-1-ef223876e8d12447cef20e90",
+    "managed_sources": [
+     {
+      "node_path": [
+       "nodes",
+       1
+      ],
+      "text": "def main(input, context):\n    return {\"message\": \"shared\"}\n"
+     },
+     {
+      "node_path": [
+       "nodes",
+       3
+      ],
+      "text": "def main(input, context):\n    return {\"message\": \"shared\"}\n"
+     }
+    ]
+   },
+   "refusal": {
+    "code": "managed_source_required",
+    "path": [
+     "document",
+     "nodes",
+     5,
+     "config",
+     "subagents",
+     0,
+     "source",
+     "document",
+     "nodes",
+     1,
+     "config",
+     "code",
+     "source"
+    ],
+    "message": "This Code source still names managed bytes; supply its source or explicitly change/remove it.",
+    "status": 409
+   }
+  },
+  {
+   "case": "nested_reordered",
+   "edit": {
+    "schema": "pupu.skeleton-edit.v2",
+    "document": {
+     "edges": [
+      {
+       "id": "flow-start-first",
+       "kind": "flow",
+       "source_node_id": "start",
+       "source_port_id": "out",
+       "target_node_id": "first",
+       "target_port_id": "in"
+      },
+      {
+       "id": "flow-first-agent",
+       "kind": "flow",
+       "source_node_id": "first",
+       "source_port_id": "out",
+       "target_node_id": "agent",
+       "target_port_id": "in"
+      },
+      {
+       "id": "flow-agent-second",
+       "kind": "flow",
+       "source_node_id": "agent",
+       "source_port_id": "out",
+       "target_node_id": "second",
+       "target_port_id": "in"
+      },
+      {
+       "id": "flow-second-end",
+       "kind": "flow",
+       "source_node_id": "second",
+       "source_port_id": "out",
+       "target_node_id": "end",
+       "target_port_id": "in"
+      },
+      {
+       "id": "attach-subagents",
+       "kind": "attach",
+       "source_node_id": "agent",
+       "source_port_id": "attach_bottom",
+       "target_node_id": "pool",
+       "target_port_id": "attach_top"
+      }
+     ],
+     "id": "g1-nested",
+     "kind": "agent",
+     "name": "G1 Nested",
+     "nodes": [
+      {
+       "config": {
+        "execution": {
+         "outputs": []
+        }
+       },
+       "id": "start",
+       "type": "start"
+      },
+      {
+       "config": {
+        "code": {
+         "environment_profile_id": "offline-python",
+         "max_log_bytes": 10000,
+         "max_result_bytes": 10000,
+         "result_schema": {
+          "additionalProperties": false,
+          "properties": {
+           "message": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "message"
+          ],
+          "type": "object"
+         },
+         "source": {
+          "kind": "file",
+          "path": "__pupu_code__/sha256/e26ad67b7c937f446dca430c0094b8b94aee0c5cf47734625917f4dd401f34ec.py"
+         },
+         "timeout_ms": 5000
+        },
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        }
+       },
+       "id": "second",
+       "type": "code"
+      },
+      {
+       "config": {
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        }
+       },
+       "id": "agent",
+       "type": "agent"
+      },
+      {
+       "config": {
+        "code": {
+         "environment_profile_id": "offline-python",
+         "max_log_bytes": 10000,
+         "max_result_bytes": 10000,
+         "result_schema": {
+          "additionalProperties": false,
+          "properties": {
+           "message": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "message"
+          ],
+          "type": "object"
+         },
+         "source": {
+          "kind": "file",
+          "path": "__pupu_code__/sha256/e26ad67b7c937f446dca430c0094b8b94aee0c5cf47734625917f4dd401f34ec.py"
+         },
+         "timeout_ms": 5000
+        },
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        }
+       },
+       "id": "first",
+       "type": "code"
+      },
+      {
+       "config": {
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        }
+       },
+       "id": "end",
+       "type": "end"
+      },
+      {
+       "config": {
+        "subagents": [
+         {
+          "allowed_modes": [
+           "delegate",
+           "worker"
+          ],
+          "allowed_tools": null,
+          "description": "",
+          "disabled_tools": [],
+          "id": "embedded-one",
+          "memory_policy": "ephemeral",
+          "name": "embedded-one",
+          "output_mode": "summary",
+          "parallel_safe": true,
+          "source": {
+           "document": {
+            "edges": [
+             {
+              "id": "flow-start-child_code",
+              "kind": "flow",
+              "source_node_id": "start",
+              "source_port_id": "out",
+              "target_node_id": "child_code",
+              "target_port_id": "in"
+             },
+             {
+              "id": "flow-child_code-end",
+              "kind": "flow",
+              "source_node_id": "child_code",
+              "source_port_id": "out",
+              "target_node_id": "end",
+              "target_port_id": "in"
+             }
+            ],
+            "id": "g1-nested-child",
+            "kind": "agent",
+            "name": "Child",
+            "nodes": [
+             {
+              "config": {
+               "execution": {
+                "outputs": []
+               }
+              },
+              "id": "start",
+              "type": "start"
+             },
+             {
+              "config": {
+               "code": {
+                "environment_profile_id": "offline-python",
+                "max_log_bytes": 10000,
+                "max_result_bytes": 10000,
+                "result_schema": {
+                 "additionalProperties": false,
+                 "properties": {
+                  "message": {
+                   "type": "string"
+                  }
+                 },
+                 "required": [
+                  "message"
+                 ],
+                 "type": "object"
+                },
+                "source": {
+                 "kind": "file",
+                 "path": "__pupu_code__/sha256/36983f0c4bc397bece0538d44ad13911a7f30545d80d31ad3689f4ac1a69cfd9.py"
+                },
+                "timeout_ms": 5000
+               },
+               "execution": {
+                "inputs": [],
+                "outputs": []
+               }
+              },
+              "id": "child_code",
+              "type": "code"
+             },
+             {
+              "config": {
+               "execution": {
+                "inputs": [],
+                "outputs": []
+               }
+              },
+              "id": "end",
+              "type": "end"
+             }
+            ],
+            "schema_version": 1
+           },
+           "kind": "embedded"
+          }
+         },
+         {
+          "allowed_modes": [
+           "delegate",
+           "worker"
+          ],
+          "allowed_tools": null,
+          "description": "",
+          "disabled_tools": [],
+          "id": "referenced",
+          "memory_policy": "ephemeral",
+          "name": "referenced",
+          "output_mode": "summary",
+          "parallel_safe": true,
+          "source": {
+           "agent_id": "g1-ref",
+           "kind": "agent_ref"
+          }
+         }
+        ]
+       },
+       "id": "pool",
+       "type": "subagent_pool"
+      }
+     ],
+     "schema_version": 1
+    },
+    "expected_edit_token": "edit-1-ef223876e8d12447cef20e90",
+    "managed_sources": [
+     {
+      "node_path": [
+       "nodes",
+       1
+      ],
+      "text": "def main(input, context):\n    return {\"message\": \"shared\"}\n"
+     },
+     {
+      "node_path": [
+       "nodes",
+       3
+      ],
+      "text": "def main(input, context):\n    return {\"message\": \"shared\"}\n"
+     },
+     {
+      "node_path": [
+       "nodes",
+       5,
+       "config",
+       "subagents",
+       0,
+       "source",
+       "document",
+       "nodes",
+       1
+      ],
+      "text": "def main(input, context):\n    return {\"message\": \"child\"}\n\n\n"
+     }
+    ]
+   },
+   "reply": {
+    "schema": "pupu.skeleton-resource.v2",
+    "resource": {
+     "id": "g1-nested",
+     "kind": "agent",
+     "name": "G1 Nested",
+     "description": "",
+     "archived": false,
+     "edit_token": "edit-2-4c09f2fb7a206a1a525f97a0",
+     "draft_digest": "f3d482dbf02bbe456480fc441587dc71f7297952c17c5f37984277e1cc880153",
+     "source_identity": null,
+     "document": {
+      "edges": [
+       {
+        "id": "flow-start-first",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "first",
+        "target_port_id": "in"
+       },
+       {
+        "id": "flow-first-agent",
+        "kind": "flow",
+        "source_node_id": "first",
+        "source_port_id": "out",
+        "target_node_id": "agent",
+        "target_port_id": "in"
+       },
+       {
+        "id": "flow-agent-second",
+        "kind": "flow",
+        "source_node_id": "agent",
+        "source_port_id": "out",
+        "target_node_id": "second",
+        "target_port_id": "in"
+       },
+       {
+        "id": "flow-second-end",
+        "kind": "flow",
+        "source_node_id": "second",
+        "source_port_id": "out",
+        "target_node_id": "end",
+        "target_port_id": "in"
+       },
+       {
+        "id": "attach-subagents",
+        "kind": "attach",
+        "source_node_id": "agent",
+        "source_port_id": "attach_bottom",
+        "target_node_id": "pool",
+        "target_port_id": "attach_top"
+       }
+      ],
+      "id": "g1-nested",
+      "kind": "agent",
+      "name": "G1 Nested",
+      "nodes": [
+       {
+        "config": {
+         "execution": {
+          "outputs": []
+         }
+        },
+        "id": "start",
+        "type": "start"
+       },
+       {
+        "config": {
+         "code": {
+          "environment_profile_id": "offline-python",
+          "max_log_bytes": 10000,
+          "max_result_bytes": 10000,
+          "result_schema": {
+           "additionalProperties": false,
+           "properties": {
+            "message": {
+             "type": "string"
+            }
+           },
+           "required": [
+            "message"
+           ],
+           "type": "object"
+          },
+          "source": {
+           "kind": "file",
+           "path": "__pupu_code__/sha256/e26ad67b7c937f446dca430c0094b8b94aee0c5cf47734625917f4dd401f34ec.py"
+          },
+          "timeout_ms": 5000
+         },
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "second",
+        "type": "code"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "agent",
+        "type": "agent"
+       },
+       {
+        "config": {
+         "code": {
+          "environment_profile_id": "offline-python",
+          "max_log_bytes": 10000,
+          "max_result_bytes": 10000,
+          "result_schema": {
+           "additionalProperties": false,
+           "properties": {
+            "message": {
+             "type": "string"
+            }
+           },
+           "required": [
+            "message"
+           ],
+           "type": "object"
+          },
+          "source": {
+           "kind": "file",
+           "path": "__pupu_code__/sha256/e26ad67b7c937f446dca430c0094b8b94aee0c5cf47734625917f4dd401f34ec.py"
+          },
+          "timeout_ms": 5000
+         },
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "first",
+        "type": "code"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "end",
+        "type": "end"
+       },
+       {
+        "config": {
+         "subagents": [
+          {
+           "allowed_modes": [
+            "delegate",
+            "worker"
+           ],
+           "allowed_tools": null,
+           "description": "",
+           "disabled_tools": [],
+           "id": "embedded-one",
+           "memory_policy": "ephemeral",
+           "name": "embedded-one",
+           "output_mode": "summary",
+           "parallel_safe": true,
+           "source": {
+            "document": {
+             "edges": [
+              {
+               "id": "flow-start-child_code",
+               "kind": "flow",
+               "source_node_id": "start",
+               "source_port_id": "out",
+               "target_node_id": "child_code",
+               "target_port_id": "in"
+              },
+              {
+               "id": "flow-child_code-end",
+               "kind": "flow",
+               "source_node_id": "child_code",
+               "source_port_id": "out",
+               "target_node_id": "end",
+               "target_port_id": "in"
+              }
+             ],
+             "id": "g1-nested-child",
+             "kind": "agent",
+             "name": "Child",
+             "nodes": [
+              {
+               "config": {
+                "execution": {
+                 "outputs": []
+                }
+               },
+               "id": "start",
+               "type": "start"
+              },
+              {
+               "config": {
+                "code": {
+                 "environment_profile_id": "offline-python",
+                 "max_log_bytes": 10000,
+                 "max_result_bytes": 10000,
+                 "result_schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                   "message": {
+                    "type": "string"
+                   }
+                  },
+                  "required": [
+                   "message"
+                  ],
+                  "type": "object"
+                 },
+                 "source": {
+                  "kind": "file",
+                  "path": "__pupu_code__/sha256/36983f0c4bc397bece0538d44ad13911a7f30545d80d31ad3689f4ac1a69cfd9.py"
+                 },
+                 "timeout_ms": 5000
+                },
+                "execution": {
+                 "inputs": [],
+                 "outputs": []
+                }
+               },
+               "id": "child_code",
+               "type": "code"
+              },
+              {
+               "config": {
+                "execution": {
+                 "inputs": [],
+                 "outputs": []
+                }
+               },
+               "id": "end",
+               "type": "end"
+              }
+             ],
+             "schema_version": 1
+            },
+            "kind": "embedded"
+           }
+          },
+          {
+           "allowed_modes": [
+            "delegate",
+            "worker"
+           ],
+           "allowed_tools": null,
+           "description": "",
+           "disabled_tools": [],
+           "id": "referenced",
+           "memory_policy": "ephemeral",
+           "name": "referenced",
+           "output_mode": "summary",
+           "parallel_safe": true,
+           "source": {
+            "agent_id": "g1-ref",
+            "kind": "agent_ref"
+           }
+          }
+         ]
+        },
+        "id": "pool",
+        "type": "subagent_pool"
+       }
+      ],
+      "schema_version": 1
+     },
+     "diagnostics": [
+      {
+       "code": "pool_attachment_required",
+       "path": [
+        "document",
+        "nodes",
+        5
+       ],
+       "message": "pool must attach to an agent"
+      },
+      {
+       "code": "agent_required",
+       "path": [
+        "document",
+        "nodes",
+        5,
+        "config",
+        "subagents",
+        0,
+        "source",
+        "document",
+        "nodes"
+       ],
+       "message": "agent graph requires an agent node"
+      },
+      {
+       "code": "attach_ports",
+       "path": [
+        "document",
+        "edges",
+        4,
+        "source_port_id"
+       ],
+       "message": "attach port must be attach_top or attach_bot"
+      }
+     ]
+    },
+    "sources_manifest": {
+     "entries": [
+      {
+       "node_path": [
+        "nodes",
+        1
+       ],
+       "sha256": "e26ad67b7c937f446dca430c0094b8b94aee0c5cf47734625917f4dd401f34ec"
+      },
+      {
+       "node_path": [
+        "nodes",
+        3
+       ],
+       "sha256": "e26ad67b7c937f446dca430c0094b8b94aee0c5cf47734625917f4dd401f34ec"
+      },
+      {
+       "node_path": [
+        "nodes",
+        5,
+        "config",
+        "subagents",
+        0,
+        "source",
+        "document",
+        "nodes",
+        1
+       ],
+       "sha256": "36983f0c4bc397bece0538d44ad13911a7f30545d80d31ad3689f4ac1a69cfd9"
+      }
+     ],
+     "schema": "pupu.skeleton-code-sources.v1"
+    },
+    "contents": [
+     {
+      "sha256": "36983f0c4bc397bece0538d44ad13911a7f30545d80d31ad3689f4ac1a69cfd9",
+      "text": "def main(input, context):\n    return {\"message\": \"child\"}\n\n\n"
+     },
+     {
+      "sha256": "e26ad67b7c937f446dca430c0094b8b94aee0c5cf47734625917f4dd401f34ec",
+      "text": "def main(input, context):\n    return {\"message\": \"shared\"}\n"
+     }
+    ],
+    "content_digest": "4c09f2fb7a206a1a525f97a0d10330a6fdf213866cf156d9c3cba9441d7b722e"
+   }
+  },
+  {
+   "case": "nested_node_deleted",
+   "edit": {
+    "schema": "pupu.skeleton-edit.v2",
+    "document": {
+     "edges": [
+      {
+       "id": "flow-start-first",
+       "kind": "flow",
+       "source_node_id": "start",
+       "source_port_id": "out",
+       "target_node_id": "first",
+       "target_port_id": "in"
+      },
+      {
+       "id": "flow-first-agent",
+       "kind": "flow",
+       "source_node_id": "first",
+       "source_port_id": "out",
+       "target_node_id": "agent",
+       "target_port_id": "in"
+      },
+      {
+       "id": "attach-subagents",
+       "kind": "attach",
+       "source_node_id": "agent",
+       "source_port_id": "attach_bottom",
+       "target_node_id": "pool",
+       "target_port_id": "attach_top"
+      }
+     ],
+     "id": "g1-nested",
+     "kind": "agent",
+     "name": "G1 Nested",
+     "nodes": [
+      {
+       "config": {
+        "execution": {
+         "outputs": []
+        }
+       },
+       "id": "start",
+       "type": "start"
+      },
+      {
+       "config": {
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        }
+       },
+       "id": "agent",
+       "type": "agent"
+      },
+      {
+       "config": {
+        "code": {
+         "environment_profile_id": "offline-python",
+         "max_log_bytes": 10000,
+         "max_result_bytes": 10000,
+         "result_schema": {
+          "additionalProperties": false,
+          "properties": {
+           "message": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "message"
+          ],
+          "type": "object"
+         },
+         "source": {
+          "kind": "file",
+          "path": "__pupu_code__/sha256/e26ad67b7c937f446dca430c0094b8b94aee0c5cf47734625917f4dd401f34ec.py"
+         },
+         "timeout_ms": 5000
+        },
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        }
+       },
+       "id": "first",
+       "type": "code"
+      },
+      {
+       "config": {
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        }
+       },
+       "id": "end",
+       "type": "end"
+      },
+      {
+       "config": {
+        "subagents": [
+         {
+          "allowed_modes": [
+           "delegate",
+           "worker"
+          ],
+          "allowed_tools": null,
+          "description": "",
+          "disabled_tools": [],
+          "id": "embedded-one",
+          "memory_policy": "ephemeral",
+          "name": "embedded-one",
+          "output_mode": "summary",
+          "parallel_safe": true,
+          "source": {
+           "document": {
+            "edges": [
+             {
+              "id": "flow-start-child_code",
+              "kind": "flow",
+              "source_node_id": "start",
+              "source_port_id": "out",
+              "target_node_id": "child_code",
+              "target_port_id": "in"
+             },
+             {
+              "id": "flow-child_code-end",
+              "kind": "flow",
+              "source_node_id": "child_code",
+              "source_port_id": "out",
+              "target_node_id": "end",
+              "target_port_id": "in"
+             }
+            ],
+            "id": "g1-nested-child",
+            "kind": "agent",
+            "name": "Child",
+            "nodes": [
+             {
+              "config": {
+               "execution": {
+                "outputs": []
+               }
+              },
+              "id": "start",
+              "type": "start"
+             },
+             {
+              "config": {
+               "code": {
+                "environment_profile_id": "offline-python",
+                "max_log_bytes": 10000,
+                "max_result_bytes": 10000,
+                "result_schema": {
+                 "additionalProperties": false,
+                 "properties": {
+                  "message": {
+                   "type": "string"
+                  }
+                 },
+                 "required": [
+                  "message"
+                 ],
+                 "type": "object"
+                },
+                "source": {
+                 "kind": "file",
+                 "path": "__pupu_code__/sha256/36983f0c4bc397bece0538d44ad13911a7f30545d80d31ad3689f4ac1a69cfd9.py"
+                },
+                "timeout_ms": 5000
+               },
+               "execution": {
+                "inputs": [],
+                "outputs": []
+               }
+              },
+              "id": "child_code",
+              "type": "code"
+             },
+             {
+              "config": {
+               "execution": {
+                "inputs": [],
+                "outputs": []
+               }
+              },
+              "id": "end",
+              "type": "end"
+             }
+            ],
+            "schema_version": 1
+           },
+           "kind": "embedded"
+          }
+         },
+         {
+          "allowed_modes": [
+           "delegate",
+           "worker"
+          ],
+          "allowed_tools": null,
+          "description": "",
+          "disabled_tools": [],
+          "id": "referenced",
+          "memory_policy": "ephemeral",
+          "name": "referenced",
+          "output_mode": "summary",
+          "parallel_safe": true,
+          "source": {
+           "agent_id": "g1-ref",
+           "kind": "agent_ref"
+          }
+         }
+        ]
+       },
+       "id": "pool",
+       "type": "subagent_pool"
+      }
+     ],
+     "schema_version": 1
+    },
+    "expected_edit_token": "edit-2-4c09f2fb7a206a1a525f97a0",
+    "managed_sources": [
+     {
+      "node_path": [
+       "nodes",
+       2
+      ],
+      "text": "def main(input, context):\n    return {\"message\": \"shared\"}\n"
+     },
+     {
+      "node_path": [
+       "nodes",
+       4,
+       "config",
+       "subagents",
+       0,
+       "source",
+       "document",
+       "nodes",
+       1
+      ],
+      "text": "def main(input, context):\n    return {\"message\": \"child\"}\n\n\n"
+     }
+    ]
+   },
+   "reply": {
+    "schema": "pupu.skeleton-resource.v2",
+    "resource": {
+     "id": "g1-nested",
+     "kind": "agent",
+     "name": "G1 Nested",
+     "description": "",
+     "archived": false,
+     "edit_token": "edit-3-45ef46fa4c6a1ead6273f289",
+     "draft_digest": "0b43dcca2f89ea3f260036e7bf5e3922cbec7ba5e5c6a4236f6f73f318d6f10f",
+     "source_identity": null,
+     "document": {
+      "edges": [
+       {
+        "id": "flow-start-first",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "first",
+        "target_port_id": "in"
+       },
+       {
+        "id": "flow-first-agent",
+        "kind": "flow",
+        "source_node_id": "first",
+        "source_port_id": "out",
+        "target_node_id": "agent",
+        "target_port_id": "in"
+       },
+       {
+        "id": "attach-subagents",
+        "kind": "attach",
+        "source_node_id": "agent",
+        "source_port_id": "attach_bottom",
+        "target_node_id": "pool",
+        "target_port_id": "attach_top"
+       }
+      ],
+      "id": "g1-nested",
+      "kind": "agent",
+      "name": "G1 Nested",
+      "nodes": [
+       {
+        "config": {
+         "execution": {
+          "outputs": []
+         }
+        },
+        "id": "start",
+        "type": "start"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "agent",
+        "type": "agent"
+       },
+       {
+        "config": {
+         "code": {
+          "environment_profile_id": "offline-python",
+          "max_log_bytes": 10000,
+          "max_result_bytes": 10000,
+          "result_schema": {
+           "additionalProperties": false,
+           "properties": {
+            "message": {
+             "type": "string"
+            }
+           },
+           "required": [
+            "message"
+           ],
+           "type": "object"
+          },
+          "source": {
+           "kind": "file",
+           "path": "__pupu_code__/sha256/e26ad67b7c937f446dca430c0094b8b94aee0c5cf47734625917f4dd401f34ec.py"
+          },
+          "timeout_ms": 5000
+         },
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "first",
+        "type": "code"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "end",
+        "type": "end"
+       },
+       {
+        "config": {
+         "subagents": [
+          {
+           "allowed_modes": [
+            "delegate",
+            "worker"
+           ],
+           "allowed_tools": null,
+           "description": "",
+           "disabled_tools": [],
+           "id": "embedded-one",
+           "memory_policy": "ephemeral",
+           "name": "embedded-one",
+           "output_mode": "summary",
+           "parallel_safe": true,
+           "source": {
+            "document": {
+             "edges": [
+              {
+               "id": "flow-start-child_code",
+               "kind": "flow",
+               "source_node_id": "start",
+               "source_port_id": "out",
+               "target_node_id": "child_code",
+               "target_port_id": "in"
+              },
+              {
+               "id": "flow-child_code-end",
+               "kind": "flow",
+               "source_node_id": "child_code",
+               "source_port_id": "out",
+               "target_node_id": "end",
+               "target_port_id": "in"
+              }
+             ],
+             "id": "g1-nested-child",
+             "kind": "agent",
+             "name": "Child",
+             "nodes": [
+              {
+               "config": {
+                "execution": {
+                 "outputs": []
+                }
+               },
+               "id": "start",
+               "type": "start"
+              },
+              {
+               "config": {
+                "code": {
+                 "environment_profile_id": "offline-python",
+                 "max_log_bytes": 10000,
+                 "max_result_bytes": 10000,
+                 "result_schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                   "message": {
+                    "type": "string"
+                   }
+                  },
+                  "required": [
+                   "message"
+                  ],
+                  "type": "object"
+                 },
+                 "source": {
+                  "kind": "file",
+                  "path": "__pupu_code__/sha256/36983f0c4bc397bece0538d44ad13911a7f30545d80d31ad3689f4ac1a69cfd9.py"
+                 },
+                 "timeout_ms": 5000
+                },
+                "execution": {
+                 "inputs": [],
+                 "outputs": []
+                }
+               },
+               "id": "child_code",
+               "type": "code"
+              },
+              {
+               "config": {
+                "execution": {
+                 "inputs": [],
+                 "outputs": []
+                }
+               },
+               "id": "end",
+               "type": "end"
+              }
+             ],
+             "schema_version": 1
+            },
+            "kind": "embedded"
+           }
+          },
+          {
+           "allowed_modes": [
+            "delegate",
+            "worker"
+           ],
+           "allowed_tools": null,
+           "description": "",
+           "disabled_tools": [],
+           "id": "referenced",
+           "memory_policy": "ephemeral",
+           "name": "referenced",
+           "output_mode": "summary",
+           "parallel_safe": true,
+           "source": {
+            "agent_id": "g1-ref",
+            "kind": "agent_ref"
+           }
+          }
+         ]
+        },
+        "id": "pool",
+        "type": "subagent_pool"
+       }
+      ],
+      "schema_version": 1
+     },
+     "diagnostics": [
+      {
+       "code": "cannot_reach_end",
+       "path": [
+        "document",
+        "nodes",
+        0
+       ],
+       "message": "execution node cannot reach end"
+      },
+      {
+       "code": "flow_output_required",
+       "path": [
+        "document",
+        "nodes",
+        1
+       ],
+       "message": "execution node requires flow output"
+      },
+      {
+       "code": "cannot_reach_end",
+       "path": [
+        "document",
+        "nodes",
+        1
+       ],
+       "message": "execution node cannot reach end"
+      },
+      {
+       "code": "cannot_reach_end",
+       "path": [
+        "document",
+        "nodes",
+        2
+       ],
+       "message": "execution node cannot reach end"
+      },
+      {
+       "code": "flow_input_required",
+       "path": [
+        "document",
+        "nodes",
+        3
+       ],
+       "message": "execution node requires flow input"
+      },
+      {
+       "code": "unreachable_node",
+       "path": [
+        "document",
+        "nodes",
+        3
+       ],
+       "message": "execution node is unreachable from start"
+      },
+      {
+       "code": "pool_attachment_required",
+       "path": [
+        "document",
+        "nodes",
+        4
+       ],
+       "message": "pool must attach to an agent"
+      },
+      {
+       "code": "agent_required",
+       "path": [
+        "document",
+        "nodes",
+        4,
+        "config",
+        "subagents",
+        0,
+        "source",
+        "document",
+        "nodes"
+       ],
+       "message": "agent graph requires an agent node"
+      },
+      {
+       "code": "attach_ports",
+       "path": [
+        "document",
+        "edges",
+        2,
+        "source_port_id"
+       ],
+       "message": "attach port must be attach_top or attach_bot"
+      }
+     ]
+    },
+    "sources_manifest": {
+     "entries": [
+      {
+       "node_path": [
+        "nodes",
+        2
+       ],
+       "sha256": "e26ad67b7c937f446dca430c0094b8b94aee0c5cf47734625917f4dd401f34ec"
+      },
+      {
+       "node_path": [
+        "nodes",
+        4,
+        "config",
+        "subagents",
+        0,
+        "source",
+        "document",
+        "nodes",
+        1
+       ],
+       "sha256": "36983f0c4bc397bece0538d44ad13911a7f30545d80d31ad3689f4ac1a69cfd9"
+      }
+     ],
+     "schema": "pupu.skeleton-code-sources.v1"
+    },
+    "contents": [
+     {
+      "sha256": "36983f0c4bc397bece0538d44ad13911a7f30545d80d31ad3689f4ac1a69cfd9",
+      "text": "def main(input, context):\n    return {\"message\": \"child\"}\n\n\n"
+     },
+     {
+      "sha256": "e26ad67b7c937f446dca430c0094b8b94aee0c5cf47734625917f4dd401f34ec",
+      "text": "def main(input, context):\n    return {\"message\": \"shared\"}\n"
+     }
+    ],
+    "content_digest": "45ef46fa4c6a1ead6273f2895572cae81160efd84de85390ba921992a523a997"
+   }
+  },
+  {
+   "case": "nested_child_changed",
+   "edit": {
+    "schema": "pupu.skeleton-edit.v2",
+    "document": {
+     "edges": [
+      {
+       "id": "flow-start-first",
+       "kind": "flow",
+       "source_node_id": "start",
+       "source_port_id": "out",
+       "target_node_id": "first",
+       "target_port_id": "in"
+      },
+      {
+       "id": "flow-first-agent",
+       "kind": "flow",
+       "source_node_id": "first",
+       "source_port_id": "out",
+       "target_node_id": "agent",
+       "target_port_id": "in"
+      },
+      {
+       "id": "attach-subagents",
+       "kind": "attach",
+       "source_node_id": "agent",
+       "source_port_id": "attach_bottom",
+       "target_node_id": "pool",
+       "target_port_id": "attach_top"
+      }
+     ],
+     "id": "g1-nested",
+     "kind": "agent",
+     "name": "G1 Nested",
+     "nodes": [
+      {
+       "config": {
+        "execution": {
+         "outputs": []
+        }
+       },
+       "id": "start",
+       "type": "start"
+      },
+      {
+       "config": {
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        }
+       },
+       "id": "agent",
+       "type": "agent"
+      },
+      {
+       "config": {
+        "code": {
+         "environment_profile_id": "offline-python",
+         "max_log_bytes": 10000,
+         "max_result_bytes": 10000,
+         "result_schema": {
+          "additionalProperties": false,
+          "properties": {
+           "message": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "message"
+          ],
+          "type": "object"
+         },
+         "source": {
+          "kind": "file",
+          "path": "__pupu_code__/sha256/e26ad67b7c937f446dca430c0094b8b94aee0c5cf47734625917f4dd401f34ec.py"
+         },
+         "timeout_ms": 5000
+        },
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        }
+       },
+       "id": "first",
+       "type": "code"
+      },
+      {
+       "config": {
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        }
+       },
+       "id": "end",
+       "type": "end"
+      },
+      {
+       "config": {
+        "subagents": [
+         {
+          "allowed_modes": [
+           "delegate",
+           "worker"
+          ],
+          "allowed_tools": null,
+          "description": "",
+          "disabled_tools": [],
+          "id": "embedded-one",
+          "memory_policy": "ephemeral",
+          "name": "embedded-one",
+          "output_mode": "summary",
+          "parallel_safe": true,
+          "source": {
+           "document": {
+            "edges": [
+             {
+              "id": "flow-start-child_code",
+              "kind": "flow",
+              "source_node_id": "start",
+              "source_port_id": "out",
+              "target_node_id": "child_code",
+              "target_port_id": "in"
+             },
+             {
+              "id": "flow-child_code-end",
+              "kind": "flow",
+              "source_node_id": "child_code",
+              "source_port_id": "out",
+              "target_node_id": "end",
+              "target_port_id": "in"
+             }
+            ],
+            "id": "g1-nested-child",
+            "kind": "agent",
+            "name": "Child",
+            "nodes": [
+             {
+              "config": {
+               "execution": {
+                "outputs": []
+               }
+              },
+              "id": "start",
+              "type": "start"
+             },
+             {
+              "config": {
+               "code": {
+                "environment_profile_id": "offline-python",
+                "max_log_bytes": 10000,
+                "max_result_bytes": 10000,
+                "result_schema": {
+                 "additionalProperties": false,
+                 "properties": {
+                  "message": {
+                   "type": "string"
+                  }
+                 },
+                 "required": [
+                  "message"
+                 ],
+                 "type": "object"
+                },
+                "source": {
+                 "kind": "file",
+                 "path": "__pupu_code__/sha256/36983f0c4bc397bece0538d44ad13911a7f30545d80d31ad3689f4ac1a69cfd9.py"
+                },
+                "timeout_ms": 5000
+               },
+               "execution": {
+                "inputs": [],
+                "outputs": []
+               }
+              },
+              "id": "child_code",
+              "type": "code"
+             },
+             {
+              "config": {
+               "execution": {
+                "inputs": [],
+                "outputs": []
+               }
+              },
+              "id": "end",
+              "type": "end"
+             }
+            ],
+            "schema_version": 1
+           },
+           "kind": "embedded"
+          }
+         },
+         {
+          "allowed_modes": [
+           "delegate",
+           "worker"
+          ],
+          "allowed_tools": null,
+          "description": "",
+          "disabled_tools": [],
+          "id": "referenced",
+          "memory_policy": "ephemeral",
+          "name": "referenced",
+          "output_mode": "summary",
+          "parallel_safe": true,
+          "source": {
+           "agent_id": "g1-ref",
+           "kind": "agent_ref"
+          }
+         }
+        ]
+       },
+       "id": "pool",
+       "type": "subagent_pool"
+      }
+     ],
+     "schema_version": 1
+    },
+    "expected_edit_token": "edit-3-45ef46fa4c6a1ead6273f289",
+    "managed_sources": [
+     {
+      "node_path": [
+       "nodes",
+       2
+      ],
+      "text": "def main(input, context):\n    return {\"message\": \"shared\"}\n"
+     },
+     {
+      "node_path": [
+       "nodes",
+       4,
+       "config",
+       "subagents",
+       0,
+       "source",
+       "document",
+       "nodes",
+       1
+      ],
+      "text": "def main(input, context):\n    return {\"message\": \"child\"}\n\n\n# more\n"
+     }
+    ]
+   },
+   "reply": {
+    "schema": "pupu.skeleton-resource.v2",
+    "resource": {
+     "id": "g1-nested",
+     "kind": "agent",
+     "name": "G1 Nested",
+     "description": "",
+     "archived": false,
+     "edit_token": "edit-4-24d36a3542f26b5d6a3ad28e",
+     "draft_digest": "10eaeeb2fc17fe51f0773a3a67f7509ca7e8429a4ae15828d0e9c60077ea5056",
+     "source_identity": null,
+     "document": {
+      "edges": [
+       {
+        "id": "flow-start-first",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "first",
+        "target_port_id": "in"
+       },
+       {
+        "id": "flow-first-agent",
+        "kind": "flow",
+        "source_node_id": "first",
+        "source_port_id": "out",
+        "target_node_id": "agent",
+        "target_port_id": "in"
+       },
+       {
+        "id": "attach-subagents",
+        "kind": "attach",
+        "source_node_id": "agent",
+        "source_port_id": "attach_bottom",
+        "target_node_id": "pool",
+        "target_port_id": "attach_top"
+       }
+      ],
+      "id": "g1-nested",
+      "kind": "agent",
+      "name": "G1 Nested",
+      "nodes": [
+       {
+        "config": {
+         "execution": {
+          "outputs": []
+         }
+        },
+        "id": "start",
+        "type": "start"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "agent",
+        "type": "agent"
+       },
+       {
+        "config": {
+         "code": {
+          "environment_profile_id": "offline-python",
+          "max_log_bytes": 10000,
+          "max_result_bytes": 10000,
+          "result_schema": {
+           "additionalProperties": false,
+           "properties": {
+            "message": {
+             "type": "string"
+            }
+           },
+           "required": [
+            "message"
+           ],
+           "type": "object"
+          },
+          "source": {
+           "kind": "file",
+           "path": "__pupu_code__/sha256/e26ad67b7c937f446dca430c0094b8b94aee0c5cf47734625917f4dd401f34ec.py"
+          },
+          "timeout_ms": 5000
+         },
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "first",
+        "type": "code"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "end",
+        "type": "end"
+       },
+       {
+        "config": {
+         "subagents": [
+          {
+           "allowed_modes": [
+            "delegate",
+            "worker"
+           ],
+           "allowed_tools": null,
+           "description": "",
+           "disabled_tools": [],
+           "id": "embedded-one",
+           "memory_policy": "ephemeral",
+           "name": "embedded-one",
+           "output_mode": "summary",
+           "parallel_safe": true,
+           "source": {
+            "document": {
+             "edges": [
+              {
+               "id": "flow-start-child_code",
+               "kind": "flow",
+               "source_node_id": "start",
+               "source_port_id": "out",
+               "target_node_id": "child_code",
+               "target_port_id": "in"
+              },
+              {
+               "id": "flow-child_code-end",
+               "kind": "flow",
+               "source_node_id": "child_code",
+               "source_port_id": "out",
+               "target_node_id": "end",
+               "target_port_id": "in"
+              }
+             ],
+             "id": "g1-nested-child",
+             "kind": "agent",
+             "name": "Child",
+             "nodes": [
+              {
+               "config": {
+                "execution": {
+                 "outputs": []
+                }
+               },
+               "id": "start",
+               "type": "start"
+              },
+              {
+               "config": {
+                "code": {
+                 "environment_profile_id": "offline-python",
+                 "max_log_bytes": 10000,
+                 "max_result_bytes": 10000,
+                 "result_schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                   "message": {
+                    "type": "string"
+                   }
+                  },
+                  "required": [
+                   "message"
+                  ],
+                  "type": "object"
+                 },
+                 "source": {
+                  "kind": "file",
+                  "path": "__pupu_code__/sha256/b683bf50c2234151edd933e7a27d0dce43b56feec9932db7aa822bfc15eaab72.py"
+                 },
+                 "timeout_ms": 5000
+                },
+                "execution": {
+                 "inputs": [],
+                 "outputs": []
+                }
+               },
+               "id": "child_code",
+               "type": "code"
+              },
+              {
+               "config": {
+                "execution": {
+                 "inputs": [],
+                 "outputs": []
+                }
+               },
+               "id": "end",
+               "type": "end"
+              }
+             ],
+             "schema_version": 1
+            },
+            "kind": "embedded"
+           }
+          },
+          {
+           "allowed_modes": [
+            "delegate",
+            "worker"
+           ],
+           "allowed_tools": null,
+           "description": "",
+           "disabled_tools": [],
+           "id": "referenced",
+           "memory_policy": "ephemeral",
+           "name": "referenced",
+           "output_mode": "summary",
+           "parallel_safe": true,
+           "source": {
+            "agent_id": "g1-ref",
+            "kind": "agent_ref"
+           }
+          }
+         ]
+        },
+        "id": "pool",
+        "type": "subagent_pool"
+       }
+      ],
+      "schema_version": 1
+     },
+     "diagnostics": [
+      {
+       "code": "cannot_reach_end",
+       "path": [
+        "document",
+        "nodes",
+        0
+       ],
+       "message": "execution node cannot reach end"
+      },
+      {
+       "code": "flow_output_required",
+       "path": [
+        "document",
+        "nodes",
+        1
+       ],
+       "message": "execution node requires flow output"
+      },
+      {
+       "code": "cannot_reach_end",
+       "path": [
+        "document",
+        "nodes",
+        1
+       ],
+       "message": "execution node cannot reach end"
+      },
+      {
+       "code": "cannot_reach_end",
+       "path": [
+        "document",
+        "nodes",
+        2
+       ],
+       "message": "execution node cannot reach end"
+      },
+      {
+       "code": "flow_input_required",
+       "path": [
+        "document",
+        "nodes",
+        3
+       ],
+       "message": "execution node requires flow input"
+      },
+      {
+       "code": "unreachable_node",
+       "path": [
+        "document",
+        "nodes",
+        3
+       ],
+       "message": "execution node is unreachable from start"
+      },
+      {
+       "code": "pool_attachment_required",
+       "path": [
+        "document",
+        "nodes",
+        4
+       ],
+       "message": "pool must attach to an agent"
+      },
+      {
+       "code": "agent_required",
+       "path": [
+        "document",
+        "nodes",
+        4,
+        "config",
+        "subagents",
+        0,
+        "source",
+        "document",
+        "nodes"
+       ],
+       "message": "agent graph requires an agent node"
+      },
+      {
+       "code": "attach_ports",
+       "path": [
+        "document",
+        "edges",
+        2,
+        "source_port_id"
+       ],
+       "message": "attach port must be attach_top or attach_bot"
+      }
+     ]
+    },
+    "sources_manifest": {
+     "entries": [
+      {
+       "node_path": [
+        "nodes",
+        2
+       ],
+       "sha256": "e26ad67b7c937f446dca430c0094b8b94aee0c5cf47734625917f4dd401f34ec"
+      },
+      {
+       "node_path": [
+        "nodes",
+        4,
+        "config",
+        "subagents",
+        0,
+        "source",
+        "document",
+        "nodes",
+        1
+       ],
+       "sha256": "b683bf50c2234151edd933e7a27d0dce43b56feec9932db7aa822bfc15eaab72"
+      }
+     ],
+     "schema": "pupu.skeleton-code-sources.v1"
+    },
+    "contents": [
+     {
+      "sha256": "b683bf50c2234151edd933e7a27d0dce43b56feec9932db7aa822bfc15eaab72",
+      "text": "def main(input, context):\n    return {\"message\": \"child\"}\n\n\n# more\n"
+     },
+     {
+      "sha256": "e26ad67b7c937f446dca430c0094b8b94aee0c5cf47734625917f4dd401f34ec",
+      "text": "def main(input, context):\n    return {\"message\": \"shared\"}\n"
+     }
+    ],
+    "content_digest": "24d36a3542f26b5d6a3ad28e5b073d0a29716aad202af0ab20a0c649c996d6e5"
+   }
+  },
+  {
+   "case": "nested_get_after",
+   "resource_id": "g1-nested",
+   "reply": {
+    "schema": "pupu.skeleton-resource.v2",
+    "resource": {
+     "id": "g1-nested",
+     "kind": "agent",
+     "name": "G1 Nested",
+     "description": "",
+     "archived": false,
+     "edit_token": "edit-4-24d36a3542f26b5d6a3ad28e",
+     "draft_digest": "10eaeeb2fc17fe51f0773a3a67f7509ca7e8429a4ae15828d0e9c60077ea5056",
+     "source_identity": null,
+     "document": {
+      "edges": [
+       {
+        "id": "flow-start-first",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "first",
+        "target_port_id": "in"
+       },
+       {
+        "id": "flow-first-agent",
+        "kind": "flow",
+        "source_node_id": "first",
+        "source_port_id": "out",
+        "target_node_id": "agent",
+        "target_port_id": "in"
+       },
+       {
+        "id": "attach-subagents",
+        "kind": "attach",
+        "source_node_id": "agent",
+        "source_port_id": "attach_bottom",
+        "target_node_id": "pool",
+        "target_port_id": "attach_top"
+       }
+      ],
+      "id": "g1-nested",
+      "kind": "agent",
+      "name": "G1 Nested",
+      "nodes": [
+       {
+        "config": {
+         "execution": {
+          "outputs": []
+         }
+        },
+        "id": "start",
+        "type": "start"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "agent",
+        "type": "agent"
+       },
+       {
+        "config": {
+         "code": {
+          "environment_profile_id": "offline-python",
+          "max_log_bytes": 10000,
+          "max_result_bytes": 10000,
+          "result_schema": {
+           "additionalProperties": false,
+           "properties": {
+            "message": {
+             "type": "string"
+            }
+           },
+           "required": [
+            "message"
+           ],
+           "type": "object"
+          },
+          "source": {
+           "kind": "file",
+           "path": "__pupu_code__/sha256/e26ad67b7c937f446dca430c0094b8b94aee0c5cf47734625917f4dd401f34ec.py"
+          },
+          "timeout_ms": 5000
+         },
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "first",
+        "type": "code"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "end",
+        "type": "end"
+       },
+       {
+        "config": {
+         "subagents": [
+          {
+           "allowed_modes": [
+            "delegate",
+            "worker"
+           ],
+           "allowed_tools": null,
+           "description": "",
+           "disabled_tools": [],
+           "id": "embedded-one",
+           "memory_policy": "ephemeral",
+           "name": "embedded-one",
+           "output_mode": "summary",
+           "parallel_safe": true,
+           "source": {
+            "document": {
+             "edges": [
+              {
+               "id": "flow-start-child_code",
+               "kind": "flow",
+               "source_node_id": "start",
+               "source_port_id": "out",
+               "target_node_id": "child_code",
+               "target_port_id": "in"
+              },
+              {
+               "id": "flow-child_code-end",
+               "kind": "flow",
+               "source_node_id": "child_code",
+               "source_port_id": "out",
+               "target_node_id": "end",
+               "target_port_id": "in"
+              }
+             ],
+             "id": "g1-nested-child",
+             "kind": "agent",
+             "name": "Child",
+             "nodes": [
+              {
+               "config": {
+                "execution": {
+                 "outputs": []
+                }
+               },
+               "id": "start",
+               "type": "start"
+              },
+              {
+               "config": {
+                "code": {
+                 "environment_profile_id": "offline-python",
+                 "max_log_bytes": 10000,
+                 "max_result_bytes": 10000,
+                 "result_schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                   "message": {
+                    "type": "string"
+                   }
+                  },
+                  "required": [
+                   "message"
+                  ],
+                  "type": "object"
+                 },
+                 "source": {
+                  "kind": "file",
+                  "path": "__pupu_code__/sha256/b683bf50c2234151edd933e7a27d0dce43b56feec9932db7aa822bfc15eaab72.py"
+                 },
+                 "timeout_ms": 5000
+                },
+                "execution": {
+                 "inputs": [],
+                 "outputs": []
+                }
+               },
+               "id": "child_code",
+               "type": "code"
+              },
+              {
+               "config": {
+                "execution": {
+                 "inputs": [],
+                 "outputs": []
+                }
+               },
+               "id": "end",
+               "type": "end"
+              }
+             ],
+             "schema_version": 1
+            },
+            "kind": "embedded"
+           }
+          },
+          {
+           "allowed_modes": [
+            "delegate",
+            "worker"
+           ],
+           "allowed_tools": null,
+           "description": "",
+           "disabled_tools": [],
+           "id": "referenced",
+           "memory_policy": "ephemeral",
+           "name": "referenced",
+           "output_mode": "summary",
+           "parallel_safe": true,
+           "source": {
+            "agent_id": "g1-ref",
+            "kind": "agent_ref"
+           }
+          }
+         ]
+        },
+        "id": "pool",
+        "type": "subagent_pool"
+       }
+      ],
+      "schema_version": 1
+     },
+     "diagnostics": [
+      {
+       "code": "cannot_reach_end",
+       "path": [
+        "document",
+        "nodes",
+        0
+       ],
+       "message": "execution node cannot reach end"
+      },
+      {
+       "code": "flow_output_required",
+       "path": [
+        "document",
+        "nodes",
+        1
+       ],
+       "message": "execution node requires flow output"
+      },
+      {
+       "code": "cannot_reach_end",
+       "path": [
+        "document",
+        "nodes",
+        1
+       ],
+       "message": "execution node cannot reach end"
+      },
+      {
+       "code": "cannot_reach_end",
+       "path": [
+        "document",
+        "nodes",
+        2
+       ],
+       "message": "execution node cannot reach end"
+      },
+      {
+       "code": "flow_input_required",
+       "path": [
+        "document",
+        "nodes",
+        3
+       ],
+       "message": "execution node requires flow input"
+      },
+      {
+       "code": "unreachable_node",
+       "path": [
+        "document",
+        "nodes",
+        3
+       ],
+       "message": "execution node is unreachable from start"
+      },
+      {
+       "code": "pool_attachment_required",
+       "path": [
+        "document",
+        "nodes",
+        4
+       ],
+       "message": "pool must attach to an agent"
+      },
+      {
+       "code": "agent_required",
+       "path": [
+        "document",
+        "nodes",
+        4,
+        "config",
+        "subagents",
+        0,
+        "source",
+        "document",
+        "nodes"
+       ],
+       "message": "agent graph requires an agent node"
+      },
+      {
+       "code": "attach_ports",
+       "path": [
+        "document",
+        "edges",
+        2,
+        "source_port_id"
+       ],
+       "message": "attach port must be attach_top or attach_bot"
+      }
+     ]
+    },
+    "sources_manifest": {
+     "entries": [
+      {
+       "node_path": [
+        "nodes",
+        2
+       ],
+       "sha256": "e26ad67b7c937f446dca430c0094b8b94aee0c5cf47734625917f4dd401f34ec"
+      },
+      {
+       "node_path": [
+        "nodes",
+        4,
+        "config",
+        "subagents",
+        0,
+        "source",
+        "document",
+        "nodes",
+        1
+       ],
+       "sha256": "b683bf50c2234151edd933e7a27d0dce43b56feec9932db7aa822bfc15eaab72"
+      }
+     ],
+     "schema": "pupu.skeleton-code-sources.v1"
+    },
+    "contents": [
+     {
+      "sha256": "b683bf50c2234151edd933e7a27d0dce43b56feec9932db7aa822bfc15eaab72",
+      "text": "def main(input, context):\n    return {\"message\": \"child\"}\n\n\n# more\n"
+     },
+     {
+      "sha256": "e26ad67b7c937f446dca430c0094b8b94aee0c5cf47734625917f4dd401f34ec",
+      "text": "def main(input, context):\n    return {\"message\": \"shared\"}\n"
+     }
+    ],
+    "content_digest": "24d36a3542f26b5d6a3ad28e5b073d0a29716aad202af0ab20a0c649c996d6e5"
+   }
+  },
+  {
+   "case": "nested_switch_to_file",
+   "edit": {
+    "schema": "pupu.skeleton-edit.v2",
+    "document": {
+     "edges": [
+      {
+       "id": "flow-start-first",
+       "kind": "flow",
+       "source_node_id": "start",
+       "source_port_id": "out",
+       "target_node_id": "first",
+       "target_port_id": "in"
+      },
+      {
+       "id": "flow-first-agent",
+       "kind": "flow",
+       "source_node_id": "first",
+       "source_port_id": "out",
+       "target_node_id": "agent",
+       "target_port_id": "in"
+      },
+      {
+       "id": "attach-subagents",
+       "kind": "attach",
+       "source_node_id": "agent",
+       "source_port_id": "attach_bottom",
+       "target_node_id": "pool",
+       "target_port_id": "attach_top"
+      }
+     ],
+     "id": "g1-nested",
+     "kind": "agent",
+     "name": "G1 Nested",
+     "nodes": [
+      {
+       "config": {
+        "execution": {
+         "outputs": []
+        }
+       },
+       "id": "start",
+       "type": "start"
+      },
+      {
+       "config": {
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        }
+       },
+       "id": "agent",
+       "type": "agent"
+      },
+      {
+       "config": {
+        "code": {
+         "environment_profile_id": "offline-python",
+         "max_log_bytes": 10000,
+         "max_result_bytes": 10000,
+         "result_schema": {
+          "additionalProperties": false,
+          "properties": {
+           "message": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "message"
+          ],
+          "type": "object"
+         },
+         "source": {
+          "kind": "file",
+          "path": "tools/score.py"
+         },
+         "timeout_ms": 5000
+        },
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        }
+       },
+       "id": "first",
+       "type": "code"
+      },
+      {
+       "config": {
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        }
+       },
+       "id": "end",
+       "type": "end"
+      },
+      {
+       "config": {
+        "subagents": [
+         {
+          "allowed_modes": [
+           "delegate",
+           "worker"
+          ],
+          "allowed_tools": null,
+          "description": "",
+          "disabled_tools": [],
+          "id": "embedded-one",
+          "memory_policy": "ephemeral",
+          "name": "embedded-one",
+          "output_mode": "summary",
+          "parallel_safe": true,
+          "source": {
+           "document": {
+            "edges": [
+             {
+              "id": "flow-start-child_code",
+              "kind": "flow",
+              "source_node_id": "start",
+              "source_port_id": "out",
+              "target_node_id": "child_code",
+              "target_port_id": "in"
+             },
+             {
+              "id": "flow-child_code-end",
+              "kind": "flow",
+              "source_node_id": "child_code",
+              "source_port_id": "out",
+              "target_node_id": "end",
+              "target_port_id": "in"
+             }
+            ],
+            "id": "g1-nested-child",
+            "kind": "agent",
+            "name": "Child",
+            "nodes": [
+             {
+              "config": {
+               "execution": {
+                "outputs": []
+               }
+              },
+              "id": "start",
+              "type": "start"
+             },
+             {
+              "config": {
+               "code": {
+                "environment_profile_id": "offline-python",
+                "max_log_bytes": 10000,
+                "max_result_bytes": 10000,
+                "result_schema": {
+                 "additionalProperties": false,
+                 "properties": {
+                  "message": {
+                   "type": "string"
+                  }
+                 },
+                 "required": [
+                  "message"
+                 ],
+                 "type": "object"
+                },
+                "source": {
+                 "kind": "file",
+                 "path": "__pupu_code__/sha256/b683bf50c2234151edd933e7a27d0dce43b56feec9932db7aa822bfc15eaab72.py"
+                },
+                "timeout_ms": 5000
+               },
+               "execution": {
+                "inputs": [],
+                "outputs": []
+               }
+              },
+              "id": "child_code",
+              "type": "code"
+             },
+             {
+              "config": {
+               "execution": {
+                "inputs": [],
+                "outputs": []
+               }
+              },
+              "id": "end",
+              "type": "end"
+             }
+            ],
+            "schema_version": 1
+           },
+           "kind": "embedded"
+          }
+         },
+         {
+          "allowed_modes": [
+           "delegate",
+           "worker"
+          ],
+          "allowed_tools": null,
+          "description": "",
+          "disabled_tools": [],
+          "id": "referenced",
+          "memory_policy": "ephemeral",
+          "name": "referenced",
+          "output_mode": "summary",
+          "parallel_safe": true,
+          "source": {
+           "agent_id": "g1-ref",
+           "kind": "agent_ref"
+          }
+         }
+        ]
+       },
+       "id": "pool",
+       "type": "subagent_pool"
+      }
+     ],
+     "schema_version": 1
+    },
+    "expected_edit_token": "edit-4-24d36a3542f26b5d6a3ad28e",
+    "managed_sources": [
+     {
+      "node_path": [
+       "nodes",
+       4,
+       "config",
+       "subagents",
+       0,
+       "source",
+       "document",
+       "nodes",
+       1
+      ],
+      "text": "def main(input, context):\n    return {\"message\": \"child\"}\n\n\n# more\n"
+     }
+    ]
+   },
+   "reply": {
+    "schema": "pupu.skeleton-resource.v2",
+    "resource": {
+     "id": "g1-nested",
+     "kind": "agent",
+     "name": "G1 Nested",
+     "description": "",
+     "archived": false,
+     "edit_token": "edit-5-df01b9e805c2197574a9c402",
+     "draft_digest": "44e2a469c4b82da7976576103e6487f2751579d6257182a1f3921ba09743bf16",
+     "source_identity": null,
+     "document": {
+      "edges": [
+       {
+        "id": "flow-start-first",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "first",
+        "target_port_id": "in"
+       },
+       {
+        "id": "flow-first-agent",
+        "kind": "flow",
+        "source_node_id": "first",
+        "source_port_id": "out",
+        "target_node_id": "agent",
+        "target_port_id": "in"
+       },
+       {
+        "id": "attach-subagents",
+        "kind": "attach",
+        "source_node_id": "agent",
+        "source_port_id": "attach_bottom",
+        "target_node_id": "pool",
+        "target_port_id": "attach_top"
+       }
+      ],
+      "id": "g1-nested",
+      "kind": "agent",
+      "name": "G1 Nested",
+      "nodes": [
+       {
+        "config": {
+         "execution": {
+          "outputs": []
+         }
+        },
+        "id": "start",
+        "type": "start"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "agent",
+        "type": "agent"
+       },
+       {
+        "config": {
+         "code": {
+          "environment_profile_id": "offline-python",
+          "max_log_bytes": 10000,
+          "max_result_bytes": 10000,
+          "result_schema": {
+           "additionalProperties": false,
+           "properties": {
+            "message": {
+             "type": "string"
+            }
+           },
+           "required": [
+            "message"
+           ],
+           "type": "object"
+          },
+          "source": {
+           "kind": "file",
+           "path": "tools/score.py"
+          },
+          "timeout_ms": 5000
+         },
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "first",
+        "type": "code"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "end",
+        "type": "end"
+       },
+       {
+        "config": {
+         "subagents": [
+          {
+           "allowed_modes": [
+            "delegate",
+            "worker"
+           ],
+           "allowed_tools": null,
+           "description": "",
+           "disabled_tools": [],
+           "id": "embedded-one",
+           "memory_policy": "ephemeral",
+           "name": "embedded-one",
+           "output_mode": "summary",
+           "parallel_safe": true,
+           "source": {
+            "document": {
+             "edges": [
+              {
+               "id": "flow-start-child_code",
+               "kind": "flow",
+               "source_node_id": "start",
+               "source_port_id": "out",
+               "target_node_id": "child_code",
+               "target_port_id": "in"
+              },
+              {
+               "id": "flow-child_code-end",
+               "kind": "flow",
+               "source_node_id": "child_code",
+               "source_port_id": "out",
+               "target_node_id": "end",
+               "target_port_id": "in"
+              }
+             ],
+             "id": "g1-nested-child",
+             "kind": "agent",
+             "name": "Child",
+             "nodes": [
+              {
+               "config": {
+                "execution": {
+                 "outputs": []
+                }
+               },
+               "id": "start",
+               "type": "start"
+              },
+              {
+               "config": {
+                "code": {
+                 "environment_profile_id": "offline-python",
+                 "max_log_bytes": 10000,
+                 "max_result_bytes": 10000,
+                 "result_schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                   "message": {
+                    "type": "string"
+                   }
+                  },
+                  "required": [
+                   "message"
+                  ],
+                  "type": "object"
+                 },
+                 "source": {
+                  "kind": "file",
+                  "path": "__pupu_code__/sha256/b683bf50c2234151edd933e7a27d0dce43b56feec9932db7aa822bfc15eaab72.py"
+                 },
+                 "timeout_ms": 5000
+                },
+                "execution": {
+                 "inputs": [],
+                 "outputs": []
+                }
+               },
+               "id": "child_code",
+               "type": "code"
+              },
+              {
+               "config": {
+                "execution": {
+                 "inputs": [],
+                 "outputs": []
+                }
+               },
+               "id": "end",
+               "type": "end"
+              }
+             ],
+             "schema_version": 1
+            },
+            "kind": "embedded"
+           }
+          },
+          {
+           "allowed_modes": [
+            "delegate",
+            "worker"
+           ],
+           "allowed_tools": null,
+           "description": "",
+           "disabled_tools": [],
+           "id": "referenced",
+           "memory_policy": "ephemeral",
+           "name": "referenced",
+           "output_mode": "summary",
+           "parallel_safe": true,
+           "source": {
+            "agent_id": "g1-ref",
+            "kind": "agent_ref"
+           }
+          }
+         ]
+        },
+        "id": "pool",
+        "type": "subagent_pool"
+       }
+      ],
+      "schema_version": 1
+     },
+     "diagnostics": [
+      {
+       "code": "cannot_reach_end",
+       "path": [
+        "document",
+        "nodes",
+        0
+       ],
+       "message": "execution node cannot reach end"
+      },
+      {
+       "code": "flow_output_required",
+       "path": [
+        "document",
+        "nodes",
+        1
+       ],
+       "message": "execution node requires flow output"
+      },
+      {
+       "code": "cannot_reach_end",
+       "path": [
+        "document",
+        "nodes",
+        1
+       ],
+       "message": "execution node cannot reach end"
+      },
+      {
+       "code": "cannot_reach_end",
+       "path": [
+        "document",
+        "nodes",
+        2
+       ],
+       "message": "execution node cannot reach end"
+      },
+      {
+       "code": "flow_input_required",
+       "path": [
+        "document",
+        "nodes",
+        3
+       ],
+       "message": "execution node requires flow input"
+      },
+      {
+       "code": "unreachable_node",
+       "path": [
+        "document",
+        "nodes",
+        3
+       ],
+       "message": "execution node is unreachable from start"
+      },
+      {
+       "code": "pool_attachment_required",
+       "path": [
+        "document",
+        "nodes",
+        4
+       ],
+       "message": "pool must attach to an agent"
+      },
+      {
+       "code": "agent_required",
+       "path": [
+        "document",
+        "nodes",
+        4,
+        "config",
+        "subagents",
+        0,
+        "source",
+        "document",
+        "nodes"
+       ],
+       "message": "agent graph requires an agent node"
+      },
+      {
+       "code": "attach_ports",
+       "path": [
+        "document",
+        "edges",
+        2,
+        "source_port_id"
+       ],
+       "message": "attach port must be attach_top or attach_bot"
+      }
+     ]
+    },
+    "sources_manifest": {
+     "entries": [
+      {
+       "node_path": [
+        "nodes",
+        4,
+        "config",
+        "subagents",
+        0,
+        "source",
+        "document",
+        "nodes",
+        1
+       ],
+       "sha256": "b683bf50c2234151edd933e7a27d0dce43b56feec9932db7aa822bfc15eaab72"
+      }
+     ],
+     "schema": "pupu.skeleton-code-sources.v1"
+    },
+    "contents": [
+     {
+      "sha256": "b683bf50c2234151edd933e7a27d0dce43b56feec9932db7aa822bfc15eaab72",
+      "text": "def main(input, context):\n    return {\"message\": \"child\"}\n\n\n# more\n"
+     }
+    ],
+    "content_digest": "df01b9e805c2197574a9c4023b471f8b1c4d646ba2ac7b48588ce80d772b1a25"
+   }
+  },
+  {
+   "case": "crlf_create",
+   "edit": {
+    "schema": "pupu.skeleton-edit.v2",
+    "document": {
+     "schema_version": 1,
+     "kind": "agent",
+     "id": "g1-crlf",
+     "name": "Child",
+     "nodes": [
+      {
+       "id": "start",
+       "type": "start",
+       "config": {
+        "execution": {
+         "outputs": []
+        }
+       }
+      },
+      {
+       "id": "crlf_code",
+       "type": "code",
+       "config": {
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        },
+        "code": {
+         "source": {
+          "kind": "file",
+          "path": "tools/placeholder.py"
+         },
+         "environment_profile_id": "offline-python",
+         "timeout_ms": 5000,
+         "max_result_bytes": 10000,
+         "max_log_bytes": 10000,
+         "result_schema": {
+          "type": "object",
+          "properties": {
+           "message": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "message"
+          ],
+          "additionalProperties": false
+         }
+        }
+       }
+      },
+      {
+       "id": "end",
+       "type": "end",
+       "config": {
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        }
+       }
+      }
+     ],
+     "edges": [
+      {
+       "id": "flow-start-crlf_code",
+       "kind": "flow",
+       "source_node_id": "start",
+       "source_port_id": "out",
+       "target_node_id": "crlf_code",
+       "target_port_id": "in"
+      },
+      {
+       "id": "flow-crlf_code-end",
+       "kind": "flow",
+       "source_node_id": "crlf_code",
+       "source_port_id": "out",
+       "target_node_id": "end",
+       "target_port_id": "in"
+      }
+     ]
+    },
+    "expected_edit_token": null,
+    "managed_sources": [
+     {
+      "node_path": [
+       "nodes",
+       1
+      ],
+      "text": "def main(input, context):\r\n    return {\"message\": \"crlf\"}\r\n"
+     }
+    ]
+   },
+   "reply": {
+    "schema": "pupu.skeleton-resource.v2",
+    "resource": {
+     "id": "g1-crlf",
+     "kind": "agent",
+     "name": "Child",
+     "description": "",
+     "archived": false,
+     "edit_token": "edit-1-a89b076caf3bd5971852a093",
+     "draft_digest": "4c900bac3f6933afbea3f0c47265a6854b2ba9d72e69e5dfbca3569682081a6b",
+     "source_identity": null,
+     "document": {
+      "edges": [
+       {
+        "id": "flow-start-crlf_code",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "crlf_code",
+        "target_port_id": "in"
+       },
+       {
+        "id": "flow-crlf_code-end",
+        "kind": "flow",
+        "source_node_id": "crlf_code",
+        "source_port_id": "out",
+        "target_node_id": "end",
+        "target_port_id": "in"
+       }
+      ],
+      "id": "g1-crlf",
+      "kind": "agent",
+      "name": "Child",
+      "nodes": [
+       {
+        "config": {
+         "execution": {
+          "outputs": []
+         }
+        },
+        "id": "start",
+        "type": "start"
+       },
+       {
+        "config": {
+         "code": {
+          "environment_profile_id": "offline-python",
+          "max_log_bytes": 10000,
+          "max_result_bytes": 10000,
+          "result_schema": {
+           "additionalProperties": false,
+           "properties": {
+            "message": {
+             "type": "string"
+            }
+           },
+           "required": [
+            "message"
+           ],
+           "type": "object"
+          },
+          "source": {
+           "kind": "file",
+           "path": "__pupu_code__/sha256/8a71daef113c19eabcdd866a6498a3103463394b2e47b3816d0200441ea85b8f.py"
+          },
+          "timeout_ms": 5000
+         },
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "crlf_code",
+        "type": "code"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "end",
+        "type": "end"
+       }
+      ],
+      "schema_version": 1
+     },
+     "diagnostics": [
+      {
+       "code": "agent_required",
+       "path": [
+        "document",
+        "nodes"
+       ],
+       "message": "agent graph requires an agent node"
+      }
+     ]
+    },
+    "sources_manifest": {
+     "entries": [
+      {
+       "node_path": [
+        "nodes",
+        1
+       ],
+       "sha256": "8a71daef113c19eabcdd866a6498a3103463394b2e47b3816d0200441ea85b8f"
+      }
+     ],
+     "schema": "pupu.skeleton-code-sources.v1"
+    },
+    "contents": [
+     {
+      "sha256": "8a71daef113c19eabcdd866a6498a3103463394b2e47b3816d0200441ea85b8f",
+      "text": "def main(input, context):\r\n    return {\"message\": \"crlf\"}\r\n"
+     }
+    ],
+    "content_digest": "a89b076caf3bd5971852a09300d00db7d72d304c1ce83ac7609481cc5a441d44"
+   }
+  },
+  {
+   "case": "crlf_get",
+   "resource_id": "g1-crlf",
+   "reply": {
+    "schema": "pupu.skeleton-resource.v2",
+    "resource": {
+     "id": "g1-crlf",
+     "kind": "agent",
+     "name": "Child",
+     "description": "",
+     "archived": false,
+     "edit_token": "edit-1-a89b076caf3bd5971852a093",
+     "draft_digest": "4c900bac3f6933afbea3f0c47265a6854b2ba9d72e69e5dfbca3569682081a6b",
+     "source_identity": null,
+     "document": {
+      "edges": [
+       {
+        "id": "flow-start-crlf_code",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "crlf_code",
+        "target_port_id": "in"
+       },
+       {
+        "id": "flow-crlf_code-end",
+        "kind": "flow",
+        "source_node_id": "crlf_code",
+        "source_port_id": "out",
+        "target_node_id": "end",
+        "target_port_id": "in"
+       }
+      ],
+      "id": "g1-crlf",
+      "kind": "agent",
+      "name": "Child",
+      "nodes": [
+       {
+        "config": {
+         "execution": {
+          "outputs": []
+         }
+        },
+        "id": "start",
+        "type": "start"
+       },
+       {
+        "config": {
+         "code": {
+          "environment_profile_id": "offline-python",
+          "max_log_bytes": 10000,
+          "max_result_bytes": 10000,
+          "result_schema": {
+           "additionalProperties": false,
+           "properties": {
+            "message": {
+             "type": "string"
+            }
+           },
+           "required": [
+            "message"
+           ],
+           "type": "object"
+          },
+          "source": {
+           "kind": "file",
+           "path": "__pupu_code__/sha256/8a71daef113c19eabcdd866a6498a3103463394b2e47b3816d0200441ea85b8f.py"
+          },
+          "timeout_ms": 5000
+         },
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "crlf_code",
+        "type": "code"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "end",
+        "type": "end"
+       }
+      ],
+      "schema_version": 1
+     },
+     "diagnostics": [
+      {
+       "code": "agent_required",
+       "path": [
+        "document",
+        "nodes"
+       ],
+       "message": "agent graph requires an agent node"
+      }
+     ]
+    },
+    "sources_manifest": {
+     "entries": [
+      {
+       "node_path": [
+        "nodes",
+        1
+       ],
+       "sha256": "8a71daef113c19eabcdd866a6498a3103463394b2e47b3816d0200441ea85b8f"
+      }
+     ],
+     "schema": "pupu.skeleton-code-sources.v1"
+    },
+    "contents": [
+     {
+      "sha256": "8a71daef113c19eabcdd866a6498a3103463394b2e47b3816d0200441ea85b8f",
+      "text": "def main(input, context):\r\n    return {\"message\": \"crlf\"}\r\n"
+     }
+    ],
+    "content_digest": "a89b076caf3bd5971852a09300d00db7d72d304c1ce83ac7609481cc5a441d44"
+   }
+  },
+  {
+   "case": "empty_create",
+   "edit": {
+    "schema": "pupu.skeleton-edit.v2",
+    "document": {
+     "schema_version": 1,
+     "kind": "agent",
+     "id": "g1-empty",
+     "name": "Child",
+     "nodes": [
+      {
+       "id": "start",
+       "type": "start",
+       "config": {
+        "execution": {
+         "outputs": []
+        }
+       }
+      },
+      {
+       "id": "empty_code",
+       "type": "code",
+       "config": {
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        },
+        "code": {
+         "source": {
+          "kind": "file",
+          "path": "tools/placeholder.py"
+         },
+         "environment_profile_id": "offline-python",
+         "timeout_ms": 5000,
+         "max_result_bytes": 10000,
+         "max_log_bytes": 10000,
+         "result_schema": {
+          "type": "object",
+          "properties": {
+           "message": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "message"
+          ],
+          "additionalProperties": false
+         }
+        }
+       }
+      },
+      {
+       "id": "end",
+       "type": "end",
+       "config": {
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        }
+       }
+      }
+     ],
+     "edges": [
+      {
+       "id": "flow-start-empty_code",
+       "kind": "flow",
+       "source_node_id": "start",
+       "source_port_id": "out",
+       "target_node_id": "empty_code",
+       "target_port_id": "in"
+      },
+      {
+       "id": "flow-empty_code-end",
+       "kind": "flow",
+       "source_node_id": "empty_code",
+       "source_port_id": "out",
+       "target_node_id": "end",
+       "target_port_id": "in"
+      }
+     ]
+    },
+    "expected_edit_token": null,
+    "managed_sources": [
+     {
+      "node_path": [
+       "nodes",
+       1
+      ],
+      "text": ""
+     }
+    ]
+   },
+   "reply": {
+    "schema": "pupu.skeleton-resource.v2",
+    "resource": {
+     "id": "g1-empty",
+     "kind": "agent",
+     "name": "Child",
+     "description": "",
+     "archived": false,
+     "edit_token": "edit-1-4f347e5356902731ef295d47",
+     "draft_digest": "4f7efea31ac842202f0ddf47d06474beba22b154ff95e174fda0f2e0cb02592e",
+     "source_identity": null,
+     "document": {
+      "edges": [
+       {
+        "id": "flow-start-empty_code",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "empty_code",
+        "target_port_id": "in"
+       },
+       {
+        "id": "flow-empty_code-end",
+        "kind": "flow",
+        "source_node_id": "empty_code",
+        "source_port_id": "out",
+        "target_node_id": "end",
+        "target_port_id": "in"
+       }
+      ],
+      "id": "g1-empty",
+      "kind": "agent",
+      "name": "Child",
+      "nodes": [
+       {
+        "config": {
+         "execution": {
+          "outputs": []
+         }
+        },
+        "id": "start",
+        "type": "start"
+       },
+       {
+        "config": {
+         "code": {
+          "environment_profile_id": "offline-python",
+          "max_log_bytes": 10000,
+          "max_result_bytes": 10000,
+          "result_schema": {
+           "additionalProperties": false,
+           "properties": {
+            "message": {
+             "type": "string"
+            }
+           },
+           "required": [
+            "message"
+           ],
+           "type": "object"
+          },
+          "source": {
+           "kind": "file",
+           "path": "__pupu_code__/sha256/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.py"
+          },
+          "timeout_ms": 5000
+         },
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "empty_code",
+        "type": "code"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "end",
+        "type": "end"
+       }
+      ],
+      "schema_version": 1
+     },
+     "diagnostics": [
+      {
+       "code": "agent_required",
+       "path": [
+        "document",
+        "nodes"
+       ],
+       "message": "agent graph requires an agent node"
+      }
+     ]
+    },
+    "sources_manifest": {
+     "entries": [
+      {
+       "node_path": [
+        "nodes",
+        1
+       ],
+       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+     ],
+     "schema": "pupu.skeleton-code-sources.v1"
+    },
+    "contents": [
+     {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "text": ""
+     }
+    ],
+    "content_digest": "4f347e5356902731ef295d47e2e138af5bde82e097f035d7153fceed5fc00a59"
+   }
+  },
+  {
+   "case": "plain_create",
+   "edit": {
+    "schema": "pupu.skeleton-edit.v2",
+    "document": {
+     "schema_version": 1,
+     "kind": "agent",
+     "id": "g1-plain",
+     "name": "G1 Plain",
+     "nodes": [
+      {
+       "id": "start",
+       "type": "start",
+       "config": {
+        "execution": {
+         "outputs": []
+        }
+       }
+      },
+      {
+       "id": "end",
+       "type": "end",
+       "config": {
+        "execution": {
+         "inputs": [],
+         "outputs": []
+        }
+       }
+      }
+     ],
+     "edges": [
+      {
+       "id": "flow-start-end",
+       "kind": "flow",
+       "source_node_id": "start",
+       "source_port_id": "out",
+       "target_node_id": "end",
+       "target_port_id": "in"
+      }
+     ]
+    },
+    "expected_edit_token": null,
+    "managed_sources": []
+   },
+   "reply": {
+    "schema": "pupu.skeleton-resource.v2",
+    "resource": {
+     "id": "g1-plain",
+     "kind": "agent",
+     "name": "G1 Plain",
+     "description": "",
+     "archived": false,
+     "edit_token": "edit-1-4237906021639f2848db99d0",
+     "draft_digest": "f32492272cf2c8a31eff509afcb424e19fb06cb965aff4246bb356762e040238",
+     "source_identity": null,
+     "document": {
+      "edges": [
+       {
+        "id": "flow-start-end",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "end",
+        "target_port_id": "in"
+       }
+      ],
+      "id": "g1-plain",
+      "kind": "agent",
+      "name": "G1 Plain",
+      "nodes": [
+       {
+        "config": {
+         "execution": {
+          "outputs": []
+         }
+        },
+        "id": "start",
+        "type": "start"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "end",
+        "type": "end"
+       }
+      ],
+      "schema_version": 1
+     },
+     "diagnostics": [
+      {
+       "code": "agent_required",
+       "path": [
+        "document",
+        "nodes"
+       ],
+       "message": "agent graph requires an agent node"
+      }
+     ]
+    },
+    "sources_manifest": {
+     "entries": [],
+     "schema": "pupu.skeleton-code-sources.v1"
+    },
+    "contents": [],
+    "content_digest": "4237906021639f2848db99d01b44592d5dfe69960c6270733840d35df0005b26"
+   }
+  },
+  {
+   "case": "plain_get",
+   "resource_id": "g1-plain",
+   "reply": {
+    "schema": "pupu.skeleton-resource.v2",
+    "resource": {
+     "id": "g1-plain",
+     "kind": "agent",
+     "name": "G1 Plain",
+     "description": "",
+     "archived": false,
+     "edit_token": "edit-1-4237906021639f2848db99d0",
+     "draft_digest": "f32492272cf2c8a31eff509afcb424e19fb06cb965aff4246bb356762e040238",
+     "source_identity": null,
+     "document": {
+      "edges": [
+       {
+        "id": "flow-start-end",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "end",
+        "target_port_id": "in"
+       }
+      ],
+      "id": "g1-plain",
+      "kind": "agent",
+      "name": "G1 Plain",
+      "nodes": [
+       {
+        "config": {
+         "execution": {
+          "outputs": []
+         }
+        },
+        "id": "start",
+        "type": "start"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "end",
+        "type": "end"
+       }
+      ],
+      "schema_version": 1
+     },
+     "diagnostics": [
+      {
+       "code": "agent_required",
+       "path": [
+        "document",
+        "nodes"
+       ],
+       "message": "agent graph requires an agent node"
+      }
+     ]
+    },
+    "sources_manifest": {
+     "entries": [],
+     "schema": "pupu.skeleton-code-sources.v1"
+    },
+    "contents": [],
+    "content_digest": "4237906021639f2848db99d01b44592d5dfe69960c6270733840d35df0005b26"
+   }
+  },
+  {
+   "case": "missing_get",
+   "resource_id": "g1-nope",
+   "refusal": {
+    "code": "resource_missing",
+    "path": [
+     "resource_id"
+    ],
+    "message": "Skeleton resource was not found.",
+    "status": 404
+   }
+  }
+ ]
+}

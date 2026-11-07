@@ -1,0 +1,3681 @@
+{
+ "manifest": {
+  "producer": "snapshot unchain_runtime/server v2 managed store + fixed wheel fc19098f, offline sandbox",
+  "wheel_unchain_file": "/Users/red/.codex/artifacts/pupu-357/delegate-cancel-producer-01-20261027/fixed-pair/build-venv/lib/python3.12/site-packages/unchain/__init__.py",
+  "server": "/Users/red/Desktop/GITRepo/pupu-357-workflow-create/unchain_runtime/server",
+  "tool": "workflow-authoring-01/tools/capture_workflow_authoring.py",
+  "do_not_edit_by_hand": true
+ },
+ "revision": "rev-1-b0ce62451f4dd3f2",
+ "rows": [
+  {
+   "case": "wf_seed_save",
+   "document": {
+    "schema_version": 1,
+    "kind": "workflow",
+    "id": "wf-new",
+    "name": "New Workflow",
+    "nodes": [
+     {
+      "id": "start",
+      "type": "start",
+      "config": {
+       "execution": {
+        "outputs": []
+       }
+      }
+     },
+     {
+      "id": "end",
+      "type": "end",
+      "config": {
+       "execution": {
+        "inputs": [],
+        "outputs": []
+       }
+      }
+     }
+    ],
+    "edges": [
+     {
+      "id": "flow-start-end",
+      "kind": "flow",
+      "source_node_id": "start",
+      "source_port_id": "out",
+      "target_node_id": "end",
+      "target_port_id": "in"
+     }
+    ]
+   },
+   "reply": {
+    "schema": "pupu.skeleton-resource.v2",
+    "resource": {
+     "id": "wf-new",
+     "kind": "workflow",
+     "name": "New Workflow",
+     "description": "",
+     "archived": false,
+     "edit_token": "edit-1-b549f3a7220c49ba50897aa7",
+     "draft_digest": "9be97511586c8530201f3ec4b319edb987d6b8d970941ef984c55ed1321911fd",
+     "source_identity": null,
+     "document": {
+      "edges": [
+       {
+        "id": "flow-start-end",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "end",
+        "target_port_id": "in"
+       }
+      ],
+      "id": "wf-new",
+      "kind": "workflow",
+      "name": "New Workflow",
+      "nodes": [
+       {
+        "config": {
+         "execution": {
+          "outputs": []
+         }
+        },
+        "id": "start",
+        "type": "start"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "end",
+        "type": "end"
+       }
+      ],
+      "schema_version": 1
+     },
+     "diagnostics": []
+    },
+    "sources_manifest": {
+     "entries": [],
+     "schema": "pupu.skeleton-code-sources.v1"
+    },
+    "contents": [],
+    "content_digest": "b549f3a7220c49ba50897aa78a954eece9264d6fc1426dc9b1f904b43963f8f7"
+   }
+  },
+  {
+   "case": "wf_seed_diagnose",
+   "document": {
+    "schema_version": 1,
+    "kind": "workflow",
+    "id": "wf-new",
+    "name": "New Workflow",
+    "nodes": [
+     {
+      "id": "start",
+      "type": "start",
+      "config": {
+       "execution": {
+        "outputs": []
+       }
+      }
+     },
+     {
+      "id": "end",
+      "type": "end",
+      "config": {
+       "execution": {
+        "inputs": [],
+        "outputs": []
+       }
+      }
+     }
+    ],
+    "edges": [
+     {
+      "id": "flow-start-end",
+      "kind": "flow",
+      "source_node_id": "start",
+      "source_port_id": "out",
+      "target_node_id": "end",
+      "target_port_id": "in"
+     }
+    ]
+   },
+   "reply": []
+  },
+  {
+   "case": "wf_seed_preflight",
+   "reply": {
+    "schema": "pupu.skeleton-preflight.v2",
+    "preflight": {
+     "ok": true,
+     "id": "wf-new",
+     "kind": "workflow",
+     "definition_digest": "9be97511586c8530201f3ec4b319edb987d6b8d970941ef984c55ed1321911fd",
+     "edit_token": "edit-1-b549f3a7220c49ba50897aa7",
+     "document": {
+      "edges": [
+       {
+        "id": "flow-start-end",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "end",
+        "target_port_id": "in"
+       }
+      ],
+      "id": "wf-new",
+      "kind": "workflow",
+      "name": "New Workflow",
+      "nodes": [
+       {
+        "config": {
+         "execution": {
+          "outputs": []
+         }
+        },
+        "id": "start",
+        "type": "start"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "end",
+        "type": "end"
+       }
+      ],
+      "schema_version": 1
+     },
+     "diagnostics": [],
+     "dependencies": [],
+     "subagents": []
+    }
+   }
+  },
+  {
+   "case": "wf_seed_get",
+   "reply": {
+    "schema": "pupu.skeleton-resource.v2",
+    "resource": {
+     "id": "wf-new",
+     "kind": "workflow",
+     "name": "New Workflow",
+     "description": "",
+     "archived": false,
+     "edit_token": "edit-1-b549f3a7220c49ba50897aa7",
+     "draft_digest": "9be97511586c8530201f3ec4b319edb987d6b8d970941ef984c55ed1321911fd",
+     "source_identity": null,
+     "document": {
+      "edges": [
+       {
+        "id": "flow-start-end",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "end",
+        "target_port_id": "in"
+       }
+      ],
+      "id": "wf-new",
+      "kind": "workflow",
+      "name": "New Workflow",
+      "nodes": [
+       {
+        "config": {
+         "execution": {
+          "outputs": []
+         }
+        },
+        "id": "start",
+        "type": "start"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "end",
+        "type": "end"
+       }
+      ],
+      "schema_version": 1
+     },
+     "diagnostics": []
+    },
+    "sources_manifest": {
+     "entries": [],
+     "schema": "pupu.skeleton-code-sources.v1"
+    },
+    "contents": [],
+    "content_digest": "b549f3a7220c49ba50897aa78a954eece9264d6fc1426dc9b1f904b43963f8f7"
+   }
+  },
+  {
+   "case": "wf_add_if_else_save",
+   "document": {
+    "schema_version": 1,
+    "kind": "workflow",
+    "id": "wf-add-if-else",
+    "name": "add if_else",
+    "nodes": [
+     {
+      "id": "start",
+      "type": "start",
+      "config": {
+       "execution": {
+        "outputs": []
+       }
+      }
+     },
+     {
+      "id": "n",
+      "type": "if_else",
+      "config": {
+       "execution": {
+        "inputs": []
+       }
+      }
+     },
+     {
+      "id": "end",
+      "type": "end",
+      "config": {
+       "execution": {
+        "inputs": [],
+        "outputs": []
+       }
+      }
+     }
+    ],
+    "edges": [
+     {
+      "id": "flow-start-n",
+      "kind": "flow",
+      "source_node_id": "start",
+      "source_port_id": "out",
+      "target_node_id": "n",
+      "target_port_id": "in"
+     }
+    ]
+   },
+   "reply": {
+    "schema": "pupu.skeleton-resource.v2",
+    "resource": {
+     "id": "wf-add-if-else",
+     "kind": "workflow",
+     "name": "add if_else",
+     "description": "",
+     "archived": false,
+     "edit_token": "edit-1-14a7c054d809e4ccc13a3edc",
+     "draft_digest": "e6faa1ede5eb5c8e050ac539ba8ed77f5d7c7b5d3a92ef51387b058760e0ae4f",
+     "source_identity": null,
+     "document": {
+      "edges": [
+       {
+        "id": "flow-start-n",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "n",
+        "target_port_id": "in"
+       }
+      ],
+      "id": "wf-add-if-else",
+      "kind": "workflow",
+      "name": "add if_else",
+      "nodes": [
+       {
+        "config": {
+         "execution": {
+          "outputs": []
+         }
+        },
+        "id": "start",
+        "type": "start"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": []
+         }
+        },
+        "id": "n",
+        "type": "if_else"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "end",
+        "type": "end"
+       }
+      ],
+      "schema_version": 1
+     },
+     "diagnostics": [
+      {
+       "code": "cannot_reach_end",
+       "path": [
+        "document",
+        "nodes",
+        0
+       ],
+       "message": "execution node cannot reach end"
+      },
+      {
+       "code": "flow_output_required",
+       "path": [
+        "document",
+        "nodes",
+        1
+       ],
+       "message": "execution node requires flow output"
+      },
+      {
+       "code": "if_outlet_required",
+       "path": [
+        "document",
+        "nodes",
+        1
+       ],
+       "message": "if_else requires true outlet"
+      },
+      {
+       "code": "if_outlet_required",
+       "path": [
+        "document",
+        "nodes",
+        1
+       ],
+       "message": "if_else requires false outlet"
+      },
+      {
+       "code": "cannot_reach_end",
+       "path": [
+        "document",
+        "nodes",
+        1
+       ],
+       "message": "execution node cannot reach end"
+      },
+      {
+       "code": "missing_field",
+       "path": [
+        "document",
+        "nodes",
+        1,
+        "config",
+        "execution",
+        "condition"
+       ],
+       "message": "required branch expression is missing"
+      },
+      {
+       "code": "flow_input_required",
+       "path": [
+        "document",
+        "nodes",
+        2
+       ],
+       "message": "execution node requires flow input"
+      },
+      {
+       "code": "unreachable_node",
+       "path": [
+        "document",
+        "nodes",
+        2
+       ],
+       "message": "execution node is unreachable from start"
+      }
+     ]
+    },
+    "sources_manifest": {
+     "entries": [],
+     "schema": "pupu.skeleton-code-sources.v1"
+    },
+    "contents": [],
+    "content_digest": "14a7c054d809e4ccc13a3edcd27ac6f2b6cb22ae938bde3db111f55047cd0e85"
+   }
+  },
+  {
+   "case": "wf_add_if_else_diagnose",
+   "document": {
+    "schema_version": 1,
+    "kind": "workflow",
+    "id": "wf-add-if-else",
+    "name": "add if_else",
+    "nodes": [
+     {
+      "id": "start",
+      "type": "start",
+      "config": {
+       "execution": {
+        "outputs": []
+       }
+      }
+     },
+     {
+      "id": "n",
+      "type": "if_else",
+      "config": {
+       "execution": {
+        "inputs": []
+       }
+      }
+     },
+     {
+      "id": "end",
+      "type": "end",
+      "config": {
+       "execution": {
+        "inputs": [],
+        "outputs": []
+       }
+      }
+     }
+    ],
+    "edges": [
+     {
+      "id": "flow-start-n",
+      "kind": "flow",
+      "source_node_id": "start",
+      "source_port_id": "out",
+      "target_node_id": "n",
+      "target_port_id": "in"
+     }
+    ]
+   },
+   "reply": [
+    {
+     "code": "cannot_reach_end",
+     "path": [
+      "document",
+      "nodes",
+      0
+     ],
+     "message": "execution node cannot reach end"
+    },
+    {
+     "code": "flow_output_required",
+     "path": [
+      "document",
+      "nodes",
+      1
+     ],
+     "message": "execution node requires flow output"
+    },
+    {
+     "code": "if_outlet_required",
+     "path": [
+      "document",
+      "nodes",
+      1
+     ],
+     "message": "if_else requires true outlet"
+    },
+    {
+     "code": "if_outlet_required",
+     "path": [
+      "document",
+      "nodes",
+      1
+     ],
+     "message": "if_else requires false outlet"
+    },
+    {
+     "code": "cannot_reach_end",
+     "path": [
+      "document",
+      "nodes",
+      1
+     ],
+     "message": "execution node cannot reach end"
+    },
+    {
+     "code": "missing_field",
+     "path": [
+      "document",
+      "nodes",
+      1,
+      "config",
+      "execution",
+      "condition"
+     ],
+     "message": "required branch expression is missing"
+    },
+    {
+     "code": "flow_input_required",
+     "path": [
+      "document",
+      "nodes",
+      2
+     ],
+     "message": "execution node requires flow input"
+    },
+    {
+     "code": "unreachable_node",
+     "path": [
+      "document",
+      "nodes",
+      2
+     ],
+     "message": "execution node is unreachable from start"
+    }
+   ]
+  },
+  {
+   "case": "wf_add_switch_case_save",
+   "document": {
+    "schema_version": 1,
+    "kind": "workflow",
+    "id": "wf-add-switch-case",
+    "name": "add switch_case",
+    "nodes": [
+     {
+      "id": "start",
+      "type": "start",
+      "config": {
+       "execution": {
+        "outputs": []
+       }
+      }
+     },
+     {
+      "id": "n",
+      "type": "switch_case",
+      "config": {
+       "execution": {
+        "inputs": [],
+        "cases": []
+       }
+      }
+     },
+     {
+      "id": "end",
+      "type": "end",
+      "config": {
+       "execution": {
+        "inputs": [],
+        "outputs": []
+       }
+      }
+     }
+    ],
+    "edges": [
+     {
+      "id": "flow-start-n",
+      "kind": "flow",
+      "source_node_id": "start",
+      "source_port_id": "out",
+      "target_node_id": "n",
+      "target_port_id": "in"
+     }
+    ]
+   },
+   "reply": {
+    "schema": "pupu.skeleton-resource.v2",
+    "resource": {
+     "id": "wf-add-switch-case",
+     "kind": "workflow",
+     "name": "add switch_case",
+     "description": "",
+     "archived": false,
+     "edit_token": "edit-1-7524f606566f96e0be986958",
+     "draft_digest": "073de8f9abc0cd7a59156571a74a4a409490486d4e23d1c2c949269579a8ab02",
+     "source_identity": null,
+     "document": {
+      "edges": [
+       {
+        "id": "flow-start-n",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "n",
+        "target_port_id": "in"
+       }
+      ],
+      "id": "wf-add-switch-case",
+      "kind": "workflow",
+      "name": "add switch_case",
+      "nodes": [
+       {
+        "config": {
+         "execution": {
+          "outputs": []
+         }
+        },
+        "id": "start",
+        "type": "start"
+       },
+       {
+        "config": {
+         "execution": {
+          "cases": [],
+          "inputs": []
+         }
+        },
+        "id": "n",
+        "type": "switch_case"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "end",
+        "type": "end"
+       }
+      ],
+      "schema_version": 1
+     },
+     "diagnostics": [
+      {
+       "code": "cannot_reach_end",
+       "path": [
+        "document",
+        "nodes",
+        0
+       ],
+       "message": "execution node cannot reach end"
+      },
+      {
+       "code": "flow_output_required",
+       "path": [
+        "document",
+        "nodes",
+        1
+       ],
+       "message": "execution node requires flow output"
+      },
+      {
+       "code": "switch_default_required",
+       "path": [
+        "document",
+        "nodes",
+        1
+       ],
+       "message": "switch_case requires default outlet"
+      },
+      {
+       "code": "cannot_reach_end",
+       "path": [
+        "document",
+        "nodes",
+        1
+       ],
+       "message": "execution node cannot reach end"
+      },
+      {
+       "code": "missing_field",
+       "path": [
+        "document",
+        "nodes",
+        1,
+        "config",
+        "execution",
+        "value"
+       ],
+       "message": "required branch expression is missing"
+      },
+      {
+       "code": "flow_input_required",
+       "path": [
+        "document",
+        "nodes",
+        2
+       ],
+       "message": "execution node requires flow input"
+      },
+      {
+       "code": "unreachable_node",
+       "path": [
+        "document",
+        "nodes",
+        2
+       ],
+       "message": "execution node is unreachable from start"
+      }
+     ]
+    },
+    "sources_manifest": {
+     "entries": [],
+     "schema": "pupu.skeleton-code-sources.v1"
+    },
+    "contents": [],
+    "content_digest": "7524f606566f96e0be9869588d42e9e737972247189ae871faf94ed9d8cd737f"
+   }
+  },
+  {
+   "case": "wf_add_switch_case_diagnose",
+   "document": {
+    "schema_version": 1,
+    "kind": "workflow",
+    "id": "wf-add-switch-case",
+    "name": "add switch_case",
+    "nodes": [
+     {
+      "id": "start",
+      "type": "start",
+      "config": {
+       "execution": {
+        "outputs": []
+       }
+      }
+     },
+     {
+      "id": "n",
+      "type": "switch_case",
+      "config": {
+       "execution": {
+        "inputs": [],
+        "cases": []
+       }
+      }
+     },
+     {
+      "id": "end",
+      "type": "end",
+      "config": {
+       "execution": {
+        "inputs": [],
+        "outputs": []
+       }
+      }
+     }
+    ],
+    "edges": [
+     {
+      "id": "flow-start-n",
+      "kind": "flow",
+      "source_node_id": "start",
+      "source_port_id": "out",
+      "target_node_id": "n",
+      "target_port_id": "in"
+     }
+    ]
+   },
+   "reply": [
+    {
+     "code": "cannot_reach_end",
+     "path": [
+      "document",
+      "nodes",
+      0
+     ],
+     "message": "execution node cannot reach end"
+    },
+    {
+     "code": "flow_output_required",
+     "path": [
+      "document",
+      "nodes",
+      1
+     ],
+     "message": "execution node requires flow output"
+    },
+    {
+     "code": "switch_default_required",
+     "path": [
+      "document",
+      "nodes",
+      1
+     ],
+     "message": "switch_case requires default outlet"
+    },
+    {
+     "code": "cannot_reach_end",
+     "path": [
+      "document",
+      "nodes",
+      1
+     ],
+     "message": "execution node cannot reach end"
+    },
+    {
+     "code": "missing_field",
+     "path": [
+      "document",
+      "nodes",
+      1,
+      "config",
+      "execution",
+      "value"
+     ],
+     "message": "required branch expression is missing"
+    },
+    {
+     "code": "flow_input_required",
+     "path": [
+      "document",
+      "nodes",
+      2
+     ],
+     "message": "execution node requires flow input"
+    },
+    {
+     "code": "unreachable_node",
+     "path": [
+      "document",
+      "nodes",
+      2
+     ],
+     "message": "execution node is unreachable from start"
+    }
+   ]
+  },
+  {
+   "case": "wf_add_tool_call_save",
+   "document": {
+    "schema_version": 1,
+    "kind": "workflow",
+    "id": "wf-add-tool-call",
+    "name": "add tool_call",
+    "nodes": [
+     {
+      "id": "start",
+      "type": "start",
+      "config": {
+       "execution": {
+        "outputs": []
+       }
+      }
+     },
+     {
+      "id": "n",
+      "type": "tool_call",
+      "config": {
+       "execution": {
+        "inputs": [],
+        "outputs": []
+       }
+      }
+     },
+     {
+      "id": "end",
+      "type": "end",
+      "config": {
+       "execution": {
+        "inputs": [],
+        "outputs": []
+       }
+      }
+     }
+    ],
+    "edges": [
+     {
+      "id": "flow-start-n",
+      "kind": "flow",
+      "source_node_id": "start",
+      "source_port_id": "out",
+      "target_node_id": "n",
+      "target_port_id": "in"
+     },
+     {
+      "id": "flow-n-end",
+      "kind": "flow",
+      "source_node_id": "n",
+      "source_port_id": "out",
+      "target_node_id": "end",
+      "target_port_id": "in"
+     }
+    ]
+   },
+   "reply": {
+    "schema": "pupu.skeleton-resource.v2",
+    "resource": {
+     "id": "wf-add-tool-call",
+     "kind": "workflow",
+     "name": "add tool_call",
+     "description": "",
+     "archived": false,
+     "edit_token": "edit-1-e1145b7f4756a97aea228ffd",
+     "draft_digest": "510868cc917508fc73e0dfb1d1f924ffdbe0597c809ecd4cd349b12aa0d22c29",
+     "source_identity": null,
+     "document": {
+      "edges": [
+       {
+        "id": "flow-start-n",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "n",
+        "target_port_id": "in"
+       },
+       {
+        "id": "flow-n-end",
+        "kind": "flow",
+        "source_node_id": "n",
+        "source_port_id": "out",
+        "target_node_id": "end",
+        "target_port_id": "in"
+       }
+      ],
+      "id": "wf-add-tool-call",
+      "kind": "workflow",
+      "name": "add tool_call",
+      "nodes": [
+       {
+        "config": {
+         "execution": {
+          "outputs": []
+         }
+        },
+        "id": "start",
+        "type": "start"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "n",
+        "type": "tool_call"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "end",
+        "type": "end"
+       }
+      ],
+      "schema_version": 1
+     },
+     "diagnostics": []
+    },
+    "sources_manifest": {
+     "entries": [],
+     "schema": "pupu.skeleton-code-sources.v1"
+    },
+    "contents": [],
+    "content_digest": "e1145b7f4756a97aea228ffd2849be059224e6264265c724e268092efdda864b"
+   }
+  },
+  {
+   "case": "wf_add_tool_call_diagnose",
+   "document": {
+    "schema_version": 1,
+    "kind": "workflow",
+    "id": "wf-add-tool-call",
+    "name": "add tool_call",
+    "nodes": [
+     {
+      "id": "start",
+      "type": "start",
+      "config": {
+       "execution": {
+        "outputs": []
+       }
+      }
+     },
+     {
+      "id": "n",
+      "type": "tool_call",
+      "config": {
+       "execution": {
+        "inputs": [],
+        "outputs": []
+       }
+      }
+     },
+     {
+      "id": "end",
+      "type": "end",
+      "config": {
+       "execution": {
+        "inputs": [],
+        "outputs": []
+       }
+      }
+     }
+    ],
+    "edges": [
+     {
+      "id": "flow-start-n",
+      "kind": "flow",
+      "source_node_id": "start",
+      "source_port_id": "out",
+      "target_node_id": "n",
+      "target_port_id": "in"
+     },
+     {
+      "id": "flow-n-end",
+      "kind": "flow",
+      "source_node_id": "n",
+      "source_port_id": "out",
+      "target_node_id": "end",
+      "target_port_id": "in"
+     }
+    ]
+   },
+   "reply": []
+  },
+  {
+   "case": "wf_add_skill_read_save",
+   "document": {
+    "schema_version": 1,
+    "kind": "workflow",
+    "id": "wf-add-skill-read",
+    "name": "add skill_read",
+    "nodes": [
+     {
+      "id": "start",
+      "type": "start",
+      "config": {
+       "execution": {
+        "outputs": []
+       }
+      }
+     },
+     {
+      "id": "n",
+      "type": "skill_read",
+      "config": {
+       "execution": {
+        "inputs": [],
+        "outputs": []
+       }
+      }
+     },
+     {
+      "id": "end",
+      "type": "end",
+      "config": {
+       "execution": {
+        "inputs": [],
+        "outputs": []
+       }
+      }
+     }
+    ],
+    "edges": [
+     {
+      "id": "flow-start-n",
+      "kind": "flow",
+      "source_node_id": "start",
+      "source_port_id": "out",
+      "target_node_id": "n",
+      "target_port_id": "in"
+     },
+     {
+      "id": "flow-n-end",
+      "kind": "flow",
+      "source_node_id": "n",
+      "source_port_id": "out",
+      "target_node_id": "end",
+      "target_port_id": "in"
+     }
+    ]
+   },
+   "reply": {
+    "schema": "pupu.skeleton-resource.v2",
+    "resource": {
+     "id": "wf-add-skill-read",
+     "kind": "workflow",
+     "name": "add skill_read",
+     "description": "",
+     "archived": false,
+     "edit_token": "edit-1-c4cf188f25d095fe5c0c96b4",
+     "draft_digest": "c46f207402371373e95ebfe937722e6104e9d492605673358387e03967b1b422",
+     "source_identity": null,
+     "document": {
+      "edges": [
+       {
+        "id": "flow-start-n",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "n",
+        "target_port_id": "in"
+       },
+       {
+        "id": "flow-n-end",
+        "kind": "flow",
+        "source_node_id": "n",
+        "source_port_id": "out",
+        "target_node_id": "end",
+        "target_port_id": "in"
+       }
+      ],
+      "id": "wf-add-skill-read",
+      "kind": "workflow",
+      "name": "add skill_read",
+      "nodes": [
+       {
+        "config": {
+         "execution": {
+          "outputs": []
+         }
+        },
+        "id": "start",
+        "type": "start"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "n",
+        "type": "skill_read"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "end",
+        "type": "end"
+       }
+      ],
+      "schema_version": 1
+     },
+     "diagnostics": []
+    },
+    "sources_manifest": {
+     "entries": [],
+     "schema": "pupu.skeleton-code-sources.v1"
+    },
+    "contents": [],
+    "content_digest": "c4cf188f25d095fe5c0c96b4c2efd82eb3cbf693ed25c32af593cf05fc8f20b3"
+   }
+  },
+  {
+   "case": "wf_add_skill_read_diagnose",
+   "document": {
+    "schema_version": 1,
+    "kind": "workflow",
+    "id": "wf-add-skill-read",
+    "name": "add skill_read",
+    "nodes": [
+     {
+      "id": "start",
+      "type": "start",
+      "config": {
+       "execution": {
+        "outputs": []
+       }
+      }
+     },
+     {
+      "id": "n",
+      "type": "skill_read",
+      "config": {
+       "execution": {
+        "inputs": [],
+        "outputs": []
+       }
+      }
+     },
+     {
+      "id": "end",
+      "type": "end",
+      "config": {
+       "execution": {
+        "inputs": [],
+        "outputs": []
+       }
+      }
+     }
+    ],
+    "edges": [
+     {
+      "id": "flow-start-n",
+      "kind": "flow",
+      "source_node_id": "start",
+      "source_port_id": "out",
+      "target_node_id": "n",
+      "target_port_id": "in"
+     },
+     {
+      "id": "flow-n-end",
+      "kind": "flow",
+      "source_node_id": "n",
+      "source_port_id": "out",
+      "target_node_id": "end",
+      "target_port_id": "in"
+     }
+    ]
+   },
+   "reply": []
+  },
+  {
+   "case": "wf_add_code_save",
+   "document": {
+    "schema_version": 1,
+    "kind": "workflow",
+    "id": "wf-add-code",
+    "name": "add code",
+    "nodes": [
+     {
+      "id": "start",
+      "type": "start",
+      "config": {
+       "execution": {
+        "outputs": []
+       }
+      }
+     },
+     {
+      "id": "n",
+      "type": "code",
+      "config": {
+       "execution": {
+        "inputs": [],
+        "outputs": []
+       }
+      }
+     },
+     {
+      "id": "end",
+      "type": "end",
+      "config": {
+       "execution": {
+        "inputs": [],
+        "outputs": []
+       }
+      }
+     }
+    ],
+    "edges": [
+     {
+      "id": "flow-start-n",
+      "kind": "flow",
+      "source_node_id": "start",
+      "source_port_id": "out",
+      "target_node_id": "n",
+      "target_port_id": "in"
+     },
+     {
+      "id": "flow-n-end",
+      "kind": "flow",
+      "source_node_id": "n",
+      "source_port_id": "out",
+      "target_node_id": "end",
+      "target_port_id": "in"
+     }
+    ]
+   },
+   "reply": {
+    "schema": "pupu.skeleton-resource.v2",
+    "resource": {
+     "id": "wf-add-code",
+     "kind": "workflow",
+     "name": "add code",
+     "description": "",
+     "archived": false,
+     "edit_token": "edit-1-4891afe900e3881a73c0cba2",
+     "draft_digest": "7a50b034d1c482773568c9276c1d23d010712347c0750eb77d04fdb4e0def318",
+     "source_identity": null,
+     "document": {
+      "edges": [
+       {
+        "id": "flow-start-n",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "n",
+        "target_port_id": "in"
+       },
+       {
+        "id": "flow-n-end",
+        "kind": "flow",
+        "source_node_id": "n",
+        "source_port_id": "out",
+        "target_node_id": "end",
+        "target_port_id": "in"
+       }
+      ],
+      "id": "wf-add-code",
+      "kind": "workflow",
+      "name": "add code",
+      "nodes": [
+       {
+        "config": {
+         "execution": {
+          "outputs": []
+         }
+        },
+        "id": "start",
+        "type": "start"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "n",
+        "type": "code"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "end",
+        "type": "end"
+       }
+      ],
+      "schema_version": 1
+     },
+     "diagnostics": []
+    },
+    "sources_manifest": {
+     "entries": [],
+     "schema": "pupu.skeleton-code-sources.v1"
+    },
+    "contents": [],
+    "content_digest": "4891afe900e3881a73c0cba2fe3b4696c4689409c57ee5a3af7752b08e8a59bf"
+   }
+  },
+  {
+   "case": "wf_add_code_diagnose",
+   "document": {
+    "schema_version": 1,
+    "kind": "workflow",
+    "id": "wf-add-code",
+    "name": "add code",
+    "nodes": [
+     {
+      "id": "start",
+      "type": "start",
+      "config": {
+       "execution": {
+        "outputs": []
+       }
+      }
+     },
+     {
+      "id": "n",
+      "type": "code",
+      "config": {
+       "execution": {
+        "inputs": [],
+        "outputs": []
+       }
+      }
+     },
+     {
+      "id": "end",
+      "type": "end",
+      "config": {
+       "execution": {
+        "inputs": [],
+        "outputs": []
+       }
+      }
+     }
+    ],
+    "edges": [
+     {
+      "id": "flow-start-n",
+      "kind": "flow",
+      "source_node_id": "start",
+      "source_port_id": "out",
+      "target_node_id": "n",
+      "target_port_id": "in"
+     },
+     {
+      "id": "flow-n-end",
+      "kind": "flow",
+      "source_node_id": "n",
+      "source_port_id": "out",
+      "target_node_id": "end",
+      "target_port_id": "in"
+     }
+    ]
+   },
+   "reply": []
+  },
+  {
+   "case": "wf_add_workflow_call_save",
+   "document": {
+    "schema_version": 1,
+    "kind": "workflow",
+    "id": "wf-add-workflow-call",
+    "name": "add workflow_call",
+    "nodes": [
+     {
+      "id": "start",
+      "type": "start",
+      "config": {
+       "execution": {
+        "outputs": []
+       }
+      }
+     },
+     {
+      "id": "n",
+      "type": "workflow_call",
+      "config": {
+       "execution": {
+        "inputs": [],
+        "outputs": []
+       }
+      }
+     },
+     {
+      "id": "end",
+      "type": "end",
+      "config": {
+       "execution": {
+        "inputs": [],
+        "outputs": []
+       }
+      }
+     }
+    ],
+    "edges": [
+     {
+      "id": "flow-start-n",
+      "kind": "flow",
+      "source_node_id": "start",
+      "source_port_id": "out",
+      "target_node_id": "n",
+      "target_port_id": "in"
+     },
+     {
+      "id": "flow-n-end",
+      "kind": "flow",
+      "source_node_id": "n",
+      "source_port_id": "out",
+      "target_node_id": "end",
+      "target_port_id": "in"
+     }
+    ]
+   },
+   "reply": {
+    "schema": "pupu.skeleton-resource.v2",
+    "resource": {
+     "id": "wf-add-workflow-call",
+     "kind": "workflow",
+     "name": "add workflow_call",
+     "description": "",
+     "archived": false,
+     "edit_token": "edit-1-6f6fee4be39f91cef27b7bec",
+     "draft_digest": "0980ba2e3b13e38320b59bba655f2cf672da64c4869a7e0bf6a2f4f60226cd60",
+     "source_identity": null,
+     "document": {
+      "edges": [
+       {
+        "id": "flow-start-n",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "n",
+        "target_port_id": "in"
+       },
+       {
+        "id": "flow-n-end",
+        "kind": "flow",
+        "source_node_id": "n",
+        "source_port_id": "out",
+        "target_node_id": "end",
+        "target_port_id": "in"
+       }
+      ],
+      "id": "wf-add-workflow-call",
+      "kind": "workflow",
+      "name": "add workflow_call",
+      "nodes": [
+       {
+        "config": {
+         "execution": {
+          "outputs": []
+         }
+        },
+        "id": "start",
+        "type": "start"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "n",
+        "type": "workflow_call"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "end",
+        "type": "end"
+       }
+      ],
+      "schema_version": 1
+     },
+     "diagnostics": []
+    },
+    "sources_manifest": {
+     "entries": [],
+     "schema": "pupu.skeleton-code-sources.v1"
+    },
+    "contents": [],
+    "content_digest": "6f6fee4be39f91cef27b7beceb8c7f533a6fd2988e00762f22a810de1a58db65"
+   }
+  },
+  {
+   "case": "wf_add_workflow_call_diagnose",
+   "document": {
+    "schema_version": 1,
+    "kind": "workflow",
+    "id": "wf-add-workflow-call",
+    "name": "add workflow_call",
+    "nodes": [
+     {
+      "id": "start",
+      "type": "start",
+      "config": {
+       "execution": {
+        "outputs": []
+       }
+      }
+     },
+     {
+      "id": "n",
+      "type": "workflow_call",
+      "config": {
+       "execution": {
+        "inputs": [],
+        "outputs": []
+       }
+      }
+     },
+     {
+      "id": "end",
+      "type": "end",
+      "config": {
+       "execution": {
+        "inputs": [],
+        "outputs": []
+       }
+      }
+     }
+    ],
+    "edges": [
+     {
+      "id": "flow-start-n",
+      "kind": "flow",
+      "source_node_id": "start",
+      "source_port_id": "out",
+      "target_node_id": "n",
+      "target_port_id": "in"
+     },
+     {
+      "id": "flow-n-end",
+      "kind": "flow",
+      "source_node_id": "n",
+      "source_port_id": "out",
+      "target_node_id": "end",
+      "target_port_id": "in"
+     }
+    ]
+   },
+   "reply": []
+  },
+  {
+   "case": "wf_add_agent_save",
+   "document": {
+    "schema_version": 1,
+    "kind": "workflow",
+    "id": "wf-add-agent",
+    "name": "add agent",
+    "nodes": [
+     {
+      "id": "start",
+      "type": "start",
+      "config": {
+       "execution": {
+        "outputs": []
+       }
+      }
+     },
+     {
+      "id": "n",
+      "type": "agent",
+      "config": {
+       "execution": {
+        "inputs": [],
+        "outputs": []
+       }
+      }
+     },
+     {
+      "id": "end",
+      "type": "end",
+      "config": {
+       "execution": {
+        "inputs": [],
+        "outputs": []
+       }
+      }
+     }
+    ],
+    "edges": [
+     {
+      "id": "flow-start-n",
+      "kind": "flow",
+      "source_node_id": "start",
+      "source_port_id": "out",
+      "target_node_id": "n",
+      "target_port_id": "in"
+     },
+     {
+      "id": "flow-n-end",
+      "kind": "flow",
+      "source_node_id": "n",
+      "source_port_id": "out",
+      "target_node_id": "end",
+      "target_port_id": "in"
+     }
+    ]
+   },
+   "refusal": {
+    "code": "invalid_value",
+    "path": [
+     "document",
+     "nodes",
+     1,
+     "type"
+    ],
+    "message": "node type is forbidden in workflow",
+    "status": 400
+   }
+  },
+  {
+   "case": "wf_add_agent_diagnose",
+   "document": {
+    "schema_version": 1,
+    "kind": "workflow",
+    "id": "wf-add-agent",
+    "name": "add agent",
+    "nodes": [
+     {
+      "id": "start",
+      "type": "start",
+      "config": {
+       "execution": {
+        "outputs": []
+       }
+      }
+     },
+     {
+      "id": "n",
+      "type": "agent",
+      "config": {
+       "execution": {
+        "inputs": [],
+        "outputs": []
+       }
+      }
+     },
+     {
+      "id": "end",
+      "type": "end",
+      "config": {
+       "execution": {
+        "inputs": [],
+        "outputs": []
+       }
+      }
+     }
+    ],
+    "edges": [
+     {
+      "id": "flow-start-n",
+      "kind": "flow",
+      "source_node_id": "start",
+      "source_port_id": "out",
+      "target_node_id": "n",
+      "target_port_id": "in"
+     },
+     {
+      "id": "flow-n-end",
+      "kind": "flow",
+      "source_node_id": "n",
+      "source_port_id": "out",
+      "target_node_id": "end",
+      "target_port_id": "in"
+     }
+    ]
+   },
+   "refusal": {
+    "code": "invalid_value",
+    "path": [
+     "document",
+     "nodes",
+     1,
+     "type"
+    ],
+    "message": "node type is forbidden in workflow",
+    "status": 400
+   }
+  },
+  {
+   "case": "wf_pool_toolkit_pool_save",
+   "document": {
+    "schema_version": 1,
+    "kind": "workflow",
+    "id": "wf-pool-toolkit-pool",
+    "name": "pool toolkit_pool",
+    "nodes": [
+     {
+      "id": "start",
+      "type": "start",
+      "config": {
+       "execution": {
+        "outputs": []
+       }
+      }
+     },
+     {
+      "id": "p",
+      "type": "toolkit_pool",
+      "config": {
+       "toolkits": [],
+       "merge_with_user_selected": false
+      }
+     },
+     {
+      "id": "end",
+      "type": "end",
+      "config": {
+       "execution": {
+        "inputs": [],
+        "outputs": []
+       }
+      }
+     }
+    ],
+    "edges": [
+     {
+      "id": "flow-start-end",
+      "kind": "flow",
+      "source_node_id": "start",
+      "source_port_id": "out",
+      "target_node_id": "end",
+      "target_port_id": "in"
+     }
+    ]
+   },
+   "refusal": {
+    "code": "invalid_value",
+    "path": [
+     "document",
+     "nodes",
+     1,
+     "type"
+    ],
+    "message": "node type is forbidden in workflow",
+    "status": 400
+   }
+  },
+  {
+   "case": "wf_pool_subagent_pool_save",
+   "document": {
+    "schema_version": 1,
+    "kind": "workflow",
+    "id": "wf-pool-subagent-pool",
+    "name": "pool subagent_pool",
+    "nodes": [
+     {
+      "id": "start",
+      "type": "start",
+      "config": {
+       "execution": {
+        "outputs": []
+       }
+      }
+     },
+     {
+      "id": "p",
+      "type": "subagent_pool",
+      "config": {
+       "subagents": []
+      }
+     },
+     {
+      "id": "end",
+      "type": "end",
+      "config": {
+       "execution": {
+        "inputs": [],
+        "outputs": []
+       }
+      }
+     }
+    ],
+    "edges": [
+     {
+      "id": "flow-start-end",
+      "kind": "flow",
+      "source_node_id": "start",
+      "source_port_id": "out",
+      "target_node_id": "end",
+      "target_port_id": "in"
+     }
+    ]
+   },
+   "refusal": {
+    "code": "invalid_value",
+    "path": [
+     "document",
+     "nodes",
+     1,
+     "type"
+    ],
+    "message": "node type is forbidden in workflow",
+    "status": 400
+   }
+  },
+  {
+   "case": "wf_pool_hooks_pool_save",
+   "document": {
+    "schema_version": 1,
+    "kind": "workflow",
+    "id": "wf-pool-hooks-pool",
+    "name": "pool hooks_pool",
+    "nodes": [
+     {
+      "id": "start",
+      "type": "start",
+      "config": {
+       "execution": {
+        "outputs": []
+       }
+      }
+     },
+     {
+      "id": "p",
+      "type": "hooks_pool",
+      "config": {
+       "hooks": []
+      }
+     },
+     {
+      "id": "end",
+      "type": "end",
+      "config": {
+       "execution": {
+        "inputs": [],
+        "outputs": []
+       }
+      }
+     }
+    ],
+    "edges": [
+     {
+      "id": "flow-start-end",
+      "kind": "flow",
+      "source_node_id": "start",
+      "source_port_id": "out",
+      "target_node_id": "end",
+      "target_port_id": "in"
+     }
+    ]
+   },
+   "refusal": {
+    "code": "invalid_value",
+    "path": [
+     "document",
+     "nodes",
+     1,
+     "type"
+    ],
+    "message": "node type is forbidden in workflow",
+    "status": 400
+   }
+  },
+  {
+   "case": "wf_attach_edge_save",
+   "document": {
+    "schema_version": 1,
+    "kind": "workflow",
+    "id": "wf-attach-edge",
+    "name": "attach edge",
+    "nodes": [
+     {
+      "id": "start",
+      "type": "start",
+      "config": {
+       "execution": {
+        "outputs": []
+       }
+      }
+     },
+     {
+      "id": "code",
+      "type": "code",
+      "config": {
+       "execution": {
+        "inputs": [],
+        "outputs": []
+       }
+      }
+     },
+     {
+      "id": "end",
+      "type": "end",
+      "config": {
+       "execution": {
+        "inputs": [],
+        "outputs": []
+       }
+      }
+     }
+    ],
+    "edges": [
+     {
+      "id": "flow-start-code",
+      "kind": "flow",
+      "source_node_id": "start",
+      "source_port_id": "out",
+      "target_node_id": "code",
+      "target_port_id": "in"
+     },
+     {
+      "id": "flow-code-end",
+      "kind": "flow",
+      "source_node_id": "code",
+      "source_port_id": "out",
+      "target_node_id": "end",
+      "target_port_id": "in"
+     },
+     {
+      "id": "attach-code-end",
+      "kind": "attach",
+      "source_node_id": "code",
+      "source_port_id": "attach_bot",
+      "target_node_id": "end",
+      "target_port_id": "attach_top"
+     }
+    ]
+   },
+   "reply": {
+    "schema": "pupu.skeleton-resource.v2",
+    "resource": {
+     "id": "wf-attach-edge",
+     "kind": "workflow",
+     "name": "attach edge",
+     "description": "",
+     "archived": false,
+     "edit_token": "edit-1-300a892a13a1c5bbdd835f72",
+     "draft_digest": "38cf6d8ef7dc7ef2db4334b063fe30dd4a4b5bd0eb9e4ebae537323d41d0a74e",
+     "source_identity": null,
+     "document": {
+      "edges": [
+       {
+        "id": "flow-start-code",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "code",
+        "target_port_id": "in"
+       },
+       {
+        "id": "flow-code-end",
+        "kind": "flow",
+        "source_node_id": "code",
+        "source_port_id": "out",
+        "target_node_id": "end",
+        "target_port_id": "in"
+       },
+       {
+        "id": "attach-code-end",
+        "kind": "attach",
+        "source_node_id": "code",
+        "source_port_id": "attach_bot",
+        "target_node_id": "end",
+        "target_port_id": "attach_top"
+       }
+      ],
+      "id": "wf-attach-edge",
+      "kind": "workflow",
+      "name": "attach edge",
+      "nodes": [
+       {
+        "config": {
+         "execution": {
+          "outputs": []
+         }
+        },
+        "id": "start",
+        "type": "start"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "code",
+        "type": "code"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "end",
+        "type": "end"
+       }
+      ],
+      "schema_version": 1
+     },
+     "diagnostics": [
+      {
+       "code": "attach_endpoints",
+       "path": [
+        "document",
+        "edges",
+        2
+       ],
+       "message": "attach connects an agent and a pool"
+      }
+     ]
+    },
+    "sources_manifest": {
+     "entries": [],
+     "schema": "pupu.skeleton-code-sources.v1"
+    },
+    "contents": [],
+    "content_digest": "300a892a13a1c5bbdd835f72a1e6b9761a7c8532a96d37dc2d00d6b296af2d14"
+   }
+  },
+  {
+   "case": "wf_attach_edge_diagnose",
+   "document": {
+    "schema_version": 1,
+    "kind": "workflow",
+    "id": "wf-attach-edge",
+    "name": "attach edge",
+    "nodes": [
+     {
+      "id": "start",
+      "type": "start",
+      "config": {
+       "execution": {
+        "outputs": []
+       }
+      }
+     },
+     {
+      "id": "code",
+      "type": "code",
+      "config": {
+       "execution": {
+        "inputs": [],
+        "outputs": []
+       }
+      }
+     },
+     {
+      "id": "end",
+      "type": "end",
+      "config": {
+       "execution": {
+        "inputs": [],
+        "outputs": []
+       }
+      }
+     }
+    ],
+    "edges": [
+     {
+      "id": "flow-start-code",
+      "kind": "flow",
+      "source_node_id": "start",
+      "source_port_id": "out",
+      "target_node_id": "code",
+      "target_port_id": "in"
+     },
+     {
+      "id": "flow-code-end",
+      "kind": "flow",
+      "source_node_id": "code",
+      "source_port_id": "out",
+      "target_node_id": "end",
+      "target_port_id": "in"
+     },
+     {
+      "id": "attach-code-end",
+      "kind": "attach",
+      "source_node_id": "code",
+      "source_port_id": "attach_bot",
+      "target_node_id": "end",
+      "target_port_id": "attach_top"
+     }
+    ]
+   },
+   "reply": [
+    {
+     "code": "attach_endpoints",
+     "path": [
+      "document",
+      "edges",
+      2
+     ],
+     "message": "attach connects an agent and a pool"
+    }
+   ]
+  },
+  {
+   "case": "wf_edit_save",
+   "document": {
+    "schema_version": 1,
+    "kind": "workflow",
+    "id": "wf-new",
+    "name": "New Workflow",
+    "nodes": [
+     {
+      "id": "start",
+      "type": "start",
+      "config": {
+       "execution": {
+        "outputs": [
+         {
+          "name": "message",
+          "source": {
+           "kind": "result",
+           "path": [
+            "message"
+           ]
+          }
+         }
+        ]
+       }
+      }
+     },
+     {
+      "id": "end",
+      "type": "end",
+      "config": {
+       "execution": {
+        "inputs": [
+         {
+          "name": "message",
+          "value": {
+           "kind": "ref",
+           "node_id": "start",
+           "path": [
+            "message"
+           ]
+          },
+          "missing": "error"
+         }
+        ],
+        "outputs": [
+         {
+          "name": "summary",
+          "source": {
+           "kind": "input",
+           "path": [
+            "message"
+           ]
+          }
+         }
+        ]
+       }
+      }
+     }
+    ],
+    "edges": [
+     {
+      "id": "flow-start-end",
+      "kind": "flow",
+      "source_node_id": "start",
+      "source_port_id": "out",
+      "target_node_id": "end",
+      "target_port_id": "in"
+     }
+    ]
+   },
+   "reply": {
+    "schema": "pupu.skeleton-resource.v2",
+    "resource": {
+     "id": "wf-new",
+     "kind": "workflow",
+     "name": "New Workflow",
+     "description": "",
+     "archived": false,
+     "edit_token": "edit-2-c5774b1549849862c1fd2866",
+     "draft_digest": "b0ce62451f4dd3f2da48405271ef570bcd82a04a6f23a43e80abecc34ae08b48",
+     "source_identity": null,
+     "document": {
+      "edges": [
+       {
+        "id": "flow-start-end",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "end",
+        "target_port_id": "in"
+       }
+      ],
+      "id": "wf-new",
+      "kind": "workflow",
+      "name": "New Workflow",
+      "nodes": [
+       {
+        "config": {
+         "execution": {
+          "outputs": [
+           {
+            "name": "message",
+            "source": {
+             "kind": "result",
+             "path": [
+              "message"
+             ]
+            }
+           }
+          ]
+         }
+        },
+        "id": "start",
+        "type": "start"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [
+           {
+            "missing": "error",
+            "name": "message",
+            "value": {
+             "kind": "ref",
+             "node_id": "start",
+             "path": [
+              "message"
+             ]
+            }
+           }
+          ],
+          "outputs": [
+           {
+            "name": "summary",
+            "source": {
+             "kind": "input",
+             "path": [
+              "message"
+             ]
+            }
+           }
+          ]
+         }
+        },
+        "id": "end",
+        "type": "end"
+       }
+      ],
+      "schema_version": 1
+     },
+     "diagnostics": []
+    },
+    "sources_manifest": {
+     "entries": [],
+     "schema": "pupu.skeleton-code-sources.v1"
+    },
+    "contents": [],
+    "content_digest": "c5774b1549849862c1fd286675e62f64980a794be450bcb5e357d3929f6e9184"
+   }
+  },
+  {
+   "case": "wf_edit_stale_token",
+   "document": {
+    "schema_version": 1,
+    "kind": "workflow",
+    "id": "wf-new",
+    "name": "New Workflow",
+    "nodes": [
+     {
+      "id": "start",
+      "type": "start",
+      "config": {
+       "execution": {
+        "outputs": [
+         {
+          "name": "message",
+          "source": {
+           "kind": "result",
+           "path": [
+            "message"
+           ]
+          }
+         }
+        ]
+       }
+      }
+     },
+     {
+      "id": "end",
+      "type": "end",
+      "config": {
+       "execution": {
+        "inputs": [
+         {
+          "name": "message",
+          "value": {
+           "kind": "ref",
+           "node_id": "start",
+           "path": [
+            "message"
+           ]
+          },
+          "missing": "error"
+         }
+        ],
+        "outputs": [
+         {
+          "name": "summary",
+          "source": {
+           "kind": "input",
+           "path": [
+            "message"
+           ]
+          }
+         }
+        ]
+       }
+      }
+     }
+    ],
+    "edges": [
+     {
+      "id": "flow-start-end",
+      "kind": "flow",
+      "source_node_id": "start",
+      "source_port_id": "out",
+      "target_node_id": "end",
+      "target_port_id": "in"
+     }
+    ]
+   },
+   "refusal": {
+    "code": "edit_conflict",
+    "path": [
+     "expected_edit_token"
+    ],
+    "message": "Resource changed in another editor.",
+    "status": 409
+   }
+  },
+  {
+   "case": "wf_reopen_get",
+   "reply": {
+    "schema": "pupu.skeleton-resource.v2",
+    "resource": {
+     "id": "wf-new",
+     "kind": "workflow",
+     "name": "New Workflow",
+     "description": "",
+     "archived": false,
+     "edit_token": "edit-2-c5774b1549849862c1fd2866",
+     "draft_digest": "b0ce62451f4dd3f2da48405271ef570bcd82a04a6f23a43e80abecc34ae08b48",
+     "source_identity": null,
+     "document": {
+      "edges": [
+       {
+        "id": "flow-start-end",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "end",
+        "target_port_id": "in"
+       }
+      ],
+      "id": "wf-new",
+      "kind": "workflow",
+      "name": "New Workflow",
+      "nodes": [
+       {
+        "config": {
+         "execution": {
+          "outputs": [
+           {
+            "name": "message",
+            "source": {
+             "kind": "result",
+             "path": [
+              "message"
+             ]
+            }
+           }
+          ]
+         }
+        },
+        "id": "start",
+        "type": "start"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [
+           {
+            "missing": "error",
+            "name": "message",
+            "value": {
+             "kind": "ref",
+             "node_id": "start",
+             "path": [
+              "message"
+             ]
+            }
+           }
+          ],
+          "outputs": [
+           {
+            "name": "summary",
+            "source": {
+             "kind": "input",
+             "path": [
+              "message"
+             ]
+            }
+           }
+          ]
+         }
+        },
+        "id": "end",
+        "type": "end"
+       }
+      ],
+      "schema_version": 1
+     },
+     "diagnostics": []
+    },
+    "sources_manifest": {
+     "entries": [],
+     "schema": "pupu.skeleton-code-sources.v1"
+    },
+    "contents": [],
+    "content_digest": "c5774b1549849862c1fd286675e62f64980a794be450bcb5e357d3929f6e9184"
+   }
+  },
+  {
+   "case": "wf_edit_preflight",
+   "reply": {
+    "schema": "pupu.skeleton-preflight.v2",
+    "preflight": {
+     "ok": true,
+     "id": "wf-new",
+     "kind": "workflow",
+     "definition_digest": "b0ce62451f4dd3f2da48405271ef570bcd82a04a6f23a43e80abecc34ae08b48",
+     "edit_token": "edit-2-c5774b1549849862c1fd2866",
+     "document": {
+      "edges": [
+       {
+        "id": "flow-start-end",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "end",
+        "target_port_id": "in"
+       }
+      ],
+      "id": "wf-new",
+      "kind": "workflow",
+      "name": "New Workflow",
+      "nodes": [
+       {
+        "config": {
+         "execution": {
+          "outputs": [
+           {
+            "name": "message",
+            "source": {
+             "kind": "result",
+             "path": [
+              "message"
+             ]
+            }
+           }
+          ]
+         }
+        },
+        "id": "start",
+        "type": "start"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [
+           {
+            "missing": "error",
+            "name": "message",
+            "value": {
+             "kind": "ref",
+             "node_id": "start",
+             "path": [
+              "message"
+             ]
+            }
+           }
+          ],
+          "outputs": [
+           {
+            "name": "summary",
+            "source": {
+             "kind": "input",
+             "path": [
+              "message"
+             ]
+            }
+           }
+          ]
+         }
+        },
+        "id": "end",
+        "type": "end"
+       }
+      ],
+      "schema_version": 1
+     },
+     "diagnostics": [],
+     "dependencies": [],
+     "subagents": []
+    }
+   }
+  },
+  {
+   "case": "wf_publish",
+   "reply": {
+    "schema": "pupu.skeleton-workflow-version.v2",
+    "version": {
+     "workflow_id": "wf-new",
+     "revision_id": "rev-1-b0ce62451f4dd3f2",
+     "ordinal": 1,
+     "definition_digest": "b0ce62451f4dd3f2da48405271ef570bcd82a04a6f23a43e80abecc34ae08b48",
+     "document": {
+      "edges": [
+       {
+        "id": "flow-start-end",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "end",
+        "target_port_id": "in"
+       }
+      ],
+      "id": "wf-new",
+      "kind": "workflow",
+      "name": "New Workflow",
+      "nodes": [
+       {
+        "config": {
+         "execution": {
+          "outputs": [
+           {
+            "name": "message",
+            "source": {
+             "kind": "result",
+             "path": [
+              "message"
+             ]
+            }
+           }
+          ]
+         }
+        },
+        "id": "start",
+        "type": "start"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [
+           {
+            "missing": "error",
+            "name": "message",
+            "value": {
+             "kind": "ref",
+             "node_id": "start",
+             "path": [
+              "message"
+             ]
+            }
+           }
+          ],
+          "outputs": [
+           {
+            "name": "summary",
+            "source": {
+             "kind": "input",
+             "path": [
+              "message"
+             ]
+            }
+           }
+          ]
+         }
+        },
+        "id": "end",
+        "type": "end"
+       }
+      ],
+      "schema_version": 1
+     },
+     "dependencies": []
+    },
+    "sources_manifest": {
+     "entries": [],
+     "schema": "pupu.skeleton-code-sources.v1"
+    },
+    "contents": [],
+    "content_digest": "c5774b1549849862c1fd286675e62f64980a794be450bcb5e357d3929f6e9184"
+   }
+  },
+  {
+   "case": "wf_version",
+   "reply": {
+    "schema": "pupu.skeleton-workflow-version.v2",
+    "version": {
+     "workflow_id": "wf-new",
+     "revision_id": "rev-1-b0ce62451f4dd3f2",
+     "ordinal": 1,
+     "definition_digest": "b0ce62451f4dd3f2da48405271ef570bcd82a04a6f23a43e80abecc34ae08b48",
+     "document": {
+      "edges": [
+       {
+        "id": "flow-start-end",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "end",
+        "target_port_id": "in"
+       }
+      ],
+      "id": "wf-new",
+      "kind": "workflow",
+      "name": "New Workflow",
+      "nodes": [
+       {
+        "config": {
+         "execution": {
+          "outputs": [
+           {
+            "name": "message",
+            "source": {
+             "kind": "result",
+             "path": [
+              "message"
+             ]
+            }
+           }
+          ]
+         }
+        },
+        "id": "start",
+        "type": "start"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [
+           {
+            "missing": "error",
+            "name": "message",
+            "value": {
+             "kind": "ref",
+             "node_id": "start",
+             "path": [
+              "message"
+             ]
+            }
+           }
+          ],
+          "outputs": [
+           {
+            "name": "summary",
+            "source": {
+             "kind": "input",
+             "path": [
+              "message"
+             ]
+            }
+           }
+          ]
+         }
+        },
+        "id": "end",
+        "type": "end"
+       }
+      ],
+      "schema_version": 1
+     },
+     "dependencies": []
+    },
+    "sources_manifest": {
+     "entries": [],
+     "schema": "pupu.skeleton-code-sources.v1"
+    },
+    "contents": [],
+    "content_digest": "c5774b1549849862c1fd286675e62f64980a794be450bcb5e357d3929f6e9184"
+   }
+  },
+  {
+   "case": "list_after_publish",
+   "reply": [
+    {
+     "id": "wf-add-code",
+     "kind": "workflow",
+     "name": "add code",
+     "description": "",
+     "archived": false,
+     "edit_token": "edit-1-4891afe900e3881a73c0cba2",
+     "draft_digest": "7a50b034d1c482773568c9276c1d23d010712347c0750eb77d04fdb4e0def318",
+     "source_identity": null,
+     "published_revisions": 0
+    },
+    {
+     "id": "wf-add-if-else",
+     "kind": "workflow",
+     "name": "add if_else",
+     "description": "",
+     "archived": false,
+     "edit_token": "edit-1-14a7c054d809e4ccc13a3edc",
+     "draft_digest": "e6faa1ede5eb5c8e050ac539ba8ed77f5d7c7b5d3a92ef51387b058760e0ae4f",
+     "source_identity": null,
+     "published_revisions": 0
+    },
+    {
+     "id": "wf-add-skill-read",
+     "kind": "workflow",
+     "name": "add skill_read",
+     "description": "",
+     "archived": false,
+     "edit_token": "edit-1-c4cf188f25d095fe5c0c96b4",
+     "draft_digest": "c46f207402371373e95ebfe937722e6104e9d492605673358387e03967b1b422",
+     "source_identity": null,
+     "published_revisions": 0
+    },
+    {
+     "id": "wf-add-switch-case",
+     "kind": "workflow",
+     "name": "add switch_case",
+     "description": "",
+     "archived": false,
+     "edit_token": "edit-1-7524f606566f96e0be986958",
+     "draft_digest": "073de8f9abc0cd7a59156571a74a4a409490486d4e23d1c2c949269579a8ab02",
+     "source_identity": null,
+     "published_revisions": 0
+    },
+    {
+     "id": "wf-add-tool-call",
+     "kind": "workflow",
+     "name": "add tool_call",
+     "description": "",
+     "archived": false,
+     "edit_token": "edit-1-e1145b7f4756a97aea228ffd",
+     "draft_digest": "510868cc917508fc73e0dfb1d1f924ffdbe0597c809ecd4cd349b12aa0d22c29",
+     "source_identity": null,
+     "published_revisions": 0
+    },
+    {
+     "id": "wf-add-workflow-call",
+     "kind": "workflow",
+     "name": "add workflow_call",
+     "description": "",
+     "archived": false,
+     "edit_token": "edit-1-6f6fee4be39f91cef27b7bec",
+     "draft_digest": "0980ba2e3b13e38320b59bba655f2cf672da64c4869a7e0bf6a2f4f60226cd60",
+     "source_identity": null,
+     "published_revisions": 0
+    },
+    {
+     "id": "wf-attach-edge",
+     "kind": "workflow",
+     "name": "attach edge",
+     "description": "",
+     "archived": false,
+     "edit_token": "edit-1-300a892a13a1c5bbdd835f72",
+     "draft_digest": "38cf6d8ef7dc7ef2db4334b063fe30dd4a4b5bd0eb9e4ebae537323d41d0a74e",
+     "source_identity": null,
+     "published_revisions": 0
+    },
+    {
+     "id": "wf-new",
+     "kind": "workflow",
+     "name": "New Workflow",
+     "description": "",
+     "archived": false,
+     "edit_token": "edit-2-c5774b1549849862c1fd2866",
+     "draft_digest": "b0ce62451f4dd3f2da48405271ef570bcd82a04a6f23a43e80abecc34ae08b48",
+     "source_identity": null,
+     "published_revisions": 1
+    }
+   ]
+  },
+  {
+   "case": "caller_save",
+   "document": {
+    "schema_version": 1,
+    "kind": "agent",
+    "id": "caller-of-new",
+    "name": "Caller",
+    "nodes": [
+     {
+      "id": "start",
+      "type": "start",
+      "config": {
+       "execution": {
+        "outputs": [
+         {
+          "name": "message",
+          "source": {
+           "kind": "result",
+           "path": [
+            "message"
+           ]
+          }
+         }
+        ]
+       }
+      }
+     },
+     {
+      "id": "kernel",
+      "type": "agent",
+      "config": {
+       "execution": {
+        "inputs": [
+         {
+          "name": "message",
+          "value": {
+           "kind": "ref",
+           "node_id": "start",
+           "path": [
+            "message"
+           ]
+          },
+          "missing": "error"
+         }
+        ],
+        "outputs": [
+         {
+          "name": "message",
+          "source": {
+           "kind": "result",
+           "path": [
+            "message"
+           ]
+          }
+         },
+         {
+          "name": "context",
+          "source": {
+           "kind": "result",
+           "path": [
+            "context"
+           ]
+          }
+         }
+        ]
+       },
+       "kernel": {
+        "schema_version": 1,
+        "profile": {
+         "id": "openai-profile",
+         "provider": "openai",
+         "model": "test-model",
+         "protocol": "openai-responses",
+         "endpoint": "https://api.openai.com/v1",
+         "credential_ref": "openai",
+         "context_window": 8192,
+         "output_limit": 2048,
+         "capabilities": {
+          "json_schema": true,
+          "images": true,
+          "files": true
+         }
+        },
+        "prompt": "resolved builtin",
+        "max_iterations": 8,
+        "output_tokens": 512,
+        "history": "root",
+        "overflow": "error",
+        "json_schema": null
+       }
+      }
+     },
+     {
+      "id": "call",
+      "type": "workflow_call",
+      "config": {
+       "execution": {
+        "inputs": [
+         {
+          "name": "message",
+          "value": {
+           "kind": "ref",
+           "node_id": "start",
+           "path": [
+            "message"
+           ]
+          },
+          "missing": "error"
+         }
+        ],
+        "outputs": [
+         {
+          "name": "summary",
+          "source": {
+           "kind": "result",
+           "path": [
+            "summary"
+           ]
+          }
+         }
+        ]
+       },
+       "workflow": {
+        "workflow_id": "wf-new",
+        "revision_id": "rev-1-b0ce62451f4dd3f2"
+       }
+      }
+     },
+     {
+      "id": "end",
+      "type": "end",
+      "config": {
+       "execution": {
+        "inputs": [
+         {
+          "name": "summary",
+          "value": {
+           "kind": "ref",
+           "node_id": "call",
+           "path": [
+            "summary"
+           ]
+          },
+          "missing": "error"
+         }
+        ],
+        "outputs": [
+         {
+          "name": "message",
+          "source": {
+           "kind": "input",
+           "path": [
+            "summary"
+           ]
+          }
+         }
+        ]
+       }
+      }
+     }
+    ],
+    "edges": [
+     {
+      "id": "flow-start-kernel",
+      "kind": "flow",
+      "source_node_id": "start",
+      "source_port_id": "out",
+      "target_node_id": "kernel",
+      "target_port_id": "in"
+     },
+     {
+      "id": "flow-kernel-call",
+      "kind": "flow",
+      "source_node_id": "kernel",
+      "source_port_id": "out",
+      "target_node_id": "call",
+      "target_port_id": "in"
+     },
+     {
+      "id": "flow-call-end",
+      "kind": "flow",
+      "source_node_id": "call",
+      "source_port_id": "out",
+      "target_node_id": "end",
+      "target_port_id": "in"
+     }
+    ]
+   },
+   "reply": {
+    "schema": "pupu.skeleton-resource.v2",
+    "resource": {
+     "id": "caller-of-new",
+     "kind": "agent",
+     "name": "Caller",
+     "description": "",
+     "archived": false,
+     "edit_token": "edit-1-99e0cb5dcfacd0ab2ba5fccf",
+     "draft_digest": "4288a485b3529779bdfa8ba2d1cba7e7e1f85661f94ef6fac55d925b83e73ba2",
+     "source_identity": null,
+     "document": {
+      "edges": [
+       {
+        "id": "flow-start-kernel",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "kernel",
+        "target_port_id": "in"
+       },
+       {
+        "id": "flow-kernel-call",
+        "kind": "flow",
+        "source_node_id": "kernel",
+        "source_port_id": "out",
+        "target_node_id": "call",
+        "target_port_id": "in"
+       },
+       {
+        "id": "flow-call-end",
+        "kind": "flow",
+        "source_node_id": "call",
+        "source_port_id": "out",
+        "target_node_id": "end",
+        "target_port_id": "in"
+       }
+      ],
+      "id": "caller-of-new",
+      "kind": "agent",
+      "name": "Caller",
+      "nodes": [
+       {
+        "config": {
+         "execution": {
+          "outputs": [
+           {
+            "name": "message",
+            "source": {
+             "kind": "result",
+             "path": [
+              "message"
+             ]
+            }
+           }
+          ]
+         }
+        },
+        "id": "start",
+        "type": "start"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [
+           {
+            "missing": "error",
+            "name": "message",
+            "value": {
+             "kind": "ref",
+             "node_id": "start",
+             "path": [
+              "message"
+             ]
+            }
+           }
+          ],
+          "outputs": [
+           {
+            "name": "message",
+            "source": {
+             "kind": "result",
+             "path": [
+              "message"
+             ]
+            }
+           },
+           {
+            "name": "context",
+            "source": {
+             "kind": "result",
+             "path": [
+              "context"
+             ]
+            }
+           }
+          ]
+         },
+         "kernel": {
+          "history": "root",
+          "json_schema": null,
+          "max_iterations": 8,
+          "output_tokens": 512,
+          "overflow": "error",
+          "profile": {
+           "capabilities": {
+            "files": true,
+            "images": true,
+            "json_schema": true
+           },
+           "context_window": 8192,
+           "credential_ref": "openai",
+           "endpoint": "https://api.openai.com/v1",
+           "id": "openai-profile",
+           "model": "test-model",
+           "output_limit": 2048,
+           "protocol": "openai-responses",
+           "provider": "openai"
+          },
+          "prompt": "resolved builtin",
+          "schema_version": 1
+         }
+        },
+        "id": "kernel",
+        "type": "agent"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [
+           {
+            "missing": "error",
+            "name": "message",
+            "value": {
+             "kind": "ref",
+             "node_id": "start",
+             "path": [
+              "message"
+             ]
+            }
+           }
+          ],
+          "outputs": [
+           {
+            "name": "summary",
+            "source": {
+             "kind": "result",
+             "path": [
+              "summary"
+             ]
+            }
+           }
+          ]
+         },
+         "workflow": {
+          "revision_id": "rev-1-b0ce62451f4dd3f2",
+          "workflow_id": "wf-new"
+         }
+        },
+        "id": "call",
+        "type": "workflow_call"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [
+           {
+            "missing": "error",
+            "name": "summary",
+            "value": {
+             "kind": "ref",
+             "node_id": "call",
+             "path": [
+              "summary"
+             ]
+            }
+           }
+          ],
+          "outputs": [
+           {
+            "name": "message",
+            "source": {
+             "kind": "input",
+             "path": [
+              "summary"
+             ]
+            }
+           }
+          ]
+         }
+        },
+        "id": "end",
+        "type": "end"
+       }
+      ],
+      "schema_version": 1
+     },
+     "diagnostics": []
+    },
+    "sources_manifest": {
+     "entries": [],
+     "schema": "pupu.skeleton-code-sources.v1"
+    },
+    "contents": [],
+    "content_digest": "99e0cb5dcfacd0ab2ba5fccf6f31a5cc2f05476df3a554673ac2204ff1e1bcaf"
+   }
+  },
+  {
+   "case": "caller_preflight",
+   "reply": {
+    "schema": "pupu.skeleton-preflight.v2",
+    "preflight": {
+     "ok": true,
+     "id": "caller-of-new",
+     "kind": "agent",
+     "definition_digest": "4288a485b3529779bdfa8ba2d1cba7e7e1f85661f94ef6fac55d925b83e73ba2",
+     "edit_token": "edit-1-99e0cb5dcfacd0ab2ba5fccf",
+     "document": {
+      "edges": [
+       {
+        "id": "flow-start-kernel",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "kernel",
+        "target_port_id": "in"
+       },
+       {
+        "id": "flow-kernel-call",
+        "kind": "flow",
+        "source_node_id": "kernel",
+        "source_port_id": "out",
+        "target_node_id": "call",
+        "target_port_id": "in"
+       },
+       {
+        "id": "flow-call-end",
+        "kind": "flow",
+        "source_node_id": "call",
+        "source_port_id": "out",
+        "target_node_id": "end",
+        "target_port_id": "in"
+       }
+      ],
+      "id": "caller-of-new",
+      "kind": "agent",
+      "name": "Caller",
+      "nodes": [
+       {
+        "config": {
+         "execution": {
+          "outputs": [
+           {
+            "name": "message",
+            "source": {
+             "kind": "result",
+             "path": [
+              "message"
+             ]
+            }
+           }
+          ]
+         }
+        },
+        "id": "start",
+        "type": "start"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [
+           {
+            "missing": "error",
+            "name": "message",
+            "value": {
+             "kind": "ref",
+             "node_id": "start",
+             "path": [
+              "message"
+             ]
+            }
+           }
+          ],
+          "outputs": [
+           {
+            "name": "message",
+            "source": {
+             "kind": "result",
+             "path": [
+              "message"
+             ]
+            }
+           },
+           {
+            "name": "context",
+            "source": {
+             "kind": "result",
+             "path": [
+              "context"
+             ]
+            }
+           }
+          ]
+         },
+         "kernel": {
+          "history": "root",
+          "json_schema": null,
+          "max_iterations": 8,
+          "output_tokens": 512,
+          "overflow": "error",
+          "profile": {
+           "capabilities": {
+            "files": true,
+            "images": true,
+            "json_schema": true
+           },
+           "context_window": 8192,
+           "credential_ref": "openai",
+           "endpoint": "https://api.openai.com/v1",
+           "id": "openai-profile",
+           "model": "test-model",
+           "output_limit": 2048,
+           "protocol": "openai-responses",
+           "provider": "openai"
+          },
+          "prompt": "resolved builtin",
+          "schema_version": 1
+         }
+        },
+        "id": "kernel",
+        "type": "agent"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [
+           {
+            "missing": "error",
+            "name": "message",
+            "value": {
+             "kind": "ref",
+             "node_id": "start",
+             "path": [
+              "message"
+             ]
+            }
+           }
+          ],
+          "outputs": [
+           {
+            "name": "summary",
+            "source": {
+             "kind": "result",
+             "path": [
+              "summary"
+             ]
+            }
+           }
+          ]
+         },
+         "workflow": {
+          "revision_id": "rev-1-b0ce62451f4dd3f2",
+          "workflow_id": "wf-new"
+         }
+        },
+        "id": "call",
+        "type": "workflow_call"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [
+           {
+            "missing": "error",
+            "name": "summary",
+            "value": {
+             "kind": "ref",
+             "node_id": "call",
+             "path": [
+              "summary"
+             ]
+            }
+           }
+          ],
+          "outputs": [
+           {
+            "name": "message",
+            "source": {
+             "kind": "input",
+             "path": [
+              "summary"
+             ]
+            }
+           }
+          ]
+         }
+        },
+        "id": "end",
+        "type": "end"
+       }
+      ],
+      "schema_version": 1
+     },
+     "diagnostics": [],
+     "dependencies": [
+      {
+       "workflow_id": "wf-new",
+       "revision_id": "rev-1-b0ce62451f4dd3f2",
+       "definition_digest": "b0ce62451f4dd3f2da48405271ef570bcd82a04a6f23a43e80abecc34ae08b48"
+      }
+     ],
+     "subagents": []
+    }
+   }
+  },
+  {
+   "case": "agent_seed_save",
+   "document": {
+    "schema_version": 1,
+    "kind": "agent",
+    "id": "agent-new",
+    "name": "New Agent",
+    "nodes": [
+     {
+      "id": "start",
+      "type": "start",
+      "config": {
+       "execution": {
+        "outputs": []
+       }
+      }
+     },
+     {
+      "id": "agent",
+      "type": "agent",
+      "config": {
+       "execution": {
+        "inputs": [],
+        "outputs": []
+       }
+      }
+     },
+     {
+      "id": "end",
+      "type": "end",
+      "config": {
+       "execution": {
+        "inputs": [],
+        "outputs": []
+       }
+      }
+     }
+    ],
+    "edges": [
+     {
+      "id": "flow-start-agent",
+      "kind": "flow",
+      "source_node_id": "start",
+      "source_port_id": "out",
+      "target_node_id": "agent",
+      "target_port_id": "in"
+     },
+     {
+      "id": "flow-agent-end",
+      "kind": "flow",
+      "source_node_id": "agent",
+      "source_port_id": "out",
+      "target_node_id": "end",
+      "target_port_id": "in"
+     }
+    ]
+   },
+   "reply": {
+    "schema": "pupu.skeleton-resource.v2",
+    "resource": {
+     "id": "agent-new",
+     "kind": "agent",
+     "name": "New Agent",
+     "description": "",
+     "archived": false,
+     "edit_token": "edit-1-d0eb191bd928c43e8b042f12",
+     "draft_digest": "9d09f9312edec00e59dab0570690e6deea7e64925dd54b62980d5e606c9a4cb5",
+     "source_identity": null,
+     "document": {
+      "edges": [
+       {
+        "id": "flow-start-agent",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "agent",
+        "target_port_id": "in"
+       },
+       {
+        "id": "flow-agent-end",
+        "kind": "flow",
+        "source_node_id": "agent",
+        "source_port_id": "out",
+        "target_node_id": "end",
+        "target_port_id": "in"
+       }
+      ],
+      "id": "agent-new",
+      "kind": "agent",
+      "name": "New Agent",
+      "nodes": [
+       {
+        "config": {
+         "execution": {
+          "outputs": []
+         }
+        },
+        "id": "start",
+        "type": "start"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "agent",
+        "type": "agent"
+       },
+       {
+        "config": {
+         "execution": {
+          "inputs": [],
+          "outputs": []
+         }
+        },
+        "id": "end",
+        "type": "end"
+       }
+      ],
+      "schema_version": 1
+     },
+     "diagnostics": []
+    },
+    "sources_manifest": {
+     "entries": [],
+     "schema": "pupu.skeleton-code-sources.v1"
+    },
+    "contents": [],
+    "content_digest": "d0eb191bd928c43e8b042f12f40d46b5c528b3aa2a18a6acac56e227844928a0"
+   }
+  },
+  {
+   "case": "agent_seed_diagnose",
+   "document": {
+    "schema_version": 1,
+    "kind": "agent",
+    "id": "agent-new",
+    "name": "New Agent",
+    "nodes": [
+     {
+      "id": "start",
+      "type": "start",
+      "config": {
+       "execution": {
+        "outputs": []
+       }
+      }
+     },
+     {
+      "id": "agent",
+      "type": "agent",
+      "config": {
+       "execution": {
+        "inputs": [],
+        "outputs": []
+       }
+      }
+     },
+     {
+      "id": "end",
+      "type": "end",
+      "config": {
+       "execution": {
+        "inputs": [],
+        "outputs": []
+       }
+      }
+     }
+    ],
+    "edges": [
+     {
+      "id": "flow-start-agent",
+      "kind": "flow",
+      "source_node_id": "start",
+      "source_port_id": "out",
+      "target_node_id": "agent",
+      "target_port_id": "in"
+     },
+     {
+      "id": "flow-agent-end",
+      "kind": "flow",
+      "source_node_id": "agent",
+      "source_port_id": "out",
+      "target_node_id": "end",
+      "target_port_id": "in"
+     }
+    ]
+   },
+   "reply": []
+  }
+ ]
+}

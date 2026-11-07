@@ -90,7 +90,7 @@ function makeRecipe(extra = {}) {
 }
 
 describe("ToolPoolPanel — pool", () => {
-  test("bleeds the internal scrollbar into the inspector right edge", async () => {
+  test("owns no scroller of its own — the shell's body is the only one", async () => {
     const { node, recipe } = makeRecipe();
     const { container } = render(
       wrap(<ToolPoolPanel node={node} recipe={recipe} onChange={() => {}} />),
@@ -100,12 +100,16 @@ describe("ToolPoolPanel — pool", () => {
       expect(screen.getByText("Core")).toBeInTheDocument();
     });
 
-    const panel = container.querySelector(".scrollable");
-    expect(panel).toHaveAttribute("data-sb-edge", "2");
-    expect(panel).toHaveStyle({
-      marginRight: "-16px",
-      paddingRight: "18px",
-    });
+    /* This panel used to bleed its own scrollbar into the inspector's right
+     * edge with a negative margin. Under the shared shell that is a second
+     * scroll area nested inside the one that already scrolls, so it is gone
+     * and the bleed trick with it. */
+    expect(container.querySelector(".scrollable")).toBeNull();
+    expect(container.querySelector('[data-sb-edge="2"]')).toBeNull();
+    const root = container.firstChild;
+    expect(root.style.overflow).toBe("");
+    expect(root.style.maxHeight).toBe("");
+    expect(root.style.marginRight).toBe("");
   });
 
   test("renders pool entries with toolkit name and tool count", async () => {
@@ -339,8 +343,12 @@ describe("ToolPoolPanel — installed list", () => {
     });
 
     const frames = screen.getAllByTestId("toolkit-icon-frame");
-    const external = frames.find((node) => node.getAttribute("data-name") === "link");
-    const github = frames.find((node) => node.getAttribute("data-name") === "github");
+    const external = frames.find(
+      (node) => node.getAttribute("data-name") === "link",
+    );
+    const github = frames.find(
+      (node) => node.getAttribute("data-name") === "github",
+    );
     expect(external).toHaveAttribute("data-bg", "#2563eb");
     expect(external).toHaveAttribute("data-size", "24");
     expect(external).toHaveAttribute("data-icon-size", "13");
@@ -403,7 +411,10 @@ describe("ToolPoolPanel — installed list", () => {
 describe("ToolPoolPanel — merge switch", () => {
   test("the merge switch uses the builder's switch size (80% of default)", async () => {
     const { node, recipe } = makeRecipe({ merge_with_user_selected: true });
-    const sized = { theme: { switch: { width: 64, height: 32 } }, onThemeMode: "light_mode" };
+    const sized = {
+      theme: { switch: { width: 64, height: 32 } },
+      onThemeMode: "light_mode",
+    };
     const { container } = render(
       <ConfigContext.Provider value={sized}>
         <ToolPoolPanel node={node} recipe={recipe} onChange={() => {}} />
@@ -416,7 +427,6 @@ describe("ToolPoolPanel — merge switch", () => {
     expect(el.style.width).toBe("52px");
     expect(el.style.height).toBe("26px");
   });
-
 
   test("toggling the merge switch updates node.merge_with_user_selected", async () => {
     const { node, recipe } = makeRecipe({ merge_with_user_selected: true });
@@ -463,15 +473,19 @@ describe("toolpool_panel helpers", () => {
 
   test("enabled_tool_set: 全开返回全集，白名单返回数组集合", () => {
     expect(enabled_tool_set({ id: "x" }, names)).toEqual(new Set(names));
-    expect(enabled_tool_set({ id: "x", enabled_tools: ["read_file"] }, names)).toEqual(
-      new Set(["read_file"]),
+    expect(
+      enabled_tool_set({ id: "x", enabled_tools: ["read_file"] }, names),
+    ).toEqual(new Set(["read_file"]));
+    expect(enabled_tool_set({ id: "x", enabled_tools: [] }, names)).toEqual(
+      new Set(),
     );
-    expect(enabled_tool_set({ id: "x", enabled_tools: [] }, names)).toEqual(new Set());
   });
 
   test("enabled_count: 全开=总数，白名单=数组长度", () => {
     expect(enabled_count({ id: "x" }, names)).toBe(3);
-    expect(enabled_count({ id: "x", enabled_tools: ["read_file"] }, names)).toBe(1);
+    expect(
+      enabled_count({ id: "x", enabled_tools: ["read_file"] }, names),
+    ).toBe(1);
     expect(enabled_count({ id: "x", enabled_tools: [] }, names)).toBe(0);
   });
 
@@ -484,19 +498,27 @@ describe("toolpool_panel helpers", () => {
 
   test("next_enabled_tools: 白名单下开一个 → 凑齐全集返回 undefined(全开)", () => {
     expect(
-      next_enabled_tools({ id: "x", enabled_tools: ["read_file", "list_dir"] }, names, "write_file"),
+      next_enabled_tools(
+        { id: "x", enabled_tools: ["read_file", "list_dir"] },
+        names,
+        "write_file",
+      ),
     ).toBeUndefined();
   });
 
   test("next_enabled_tools: 关掉最后一个 → 空数组", () => {
     expect(
-      next_enabled_tools({ id: "x", enabled_tools: ["read_file"] }, names, "read_file"),
+      next_enabled_tools(
+        { id: "x", enabled_tools: ["read_file"] },
+        names,
+        "read_file",
+      ),
     ).toEqual([]);
   });
 
   test("next_enabled_tools: 全关下开一个 → 单元素白名单", () => {
-    expect(next_enabled_tools({ id: "x", enabled_tools: [] }, names, "list_dir")).toEqual([
-      "list_dir",
-    ]);
+    expect(
+      next_enabled_tools({ id: "x", enabled_tools: [] }, names, "list_dir"),
+    ).toEqual(["list_dir"]);
   });
 });

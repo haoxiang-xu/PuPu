@@ -1,0 +1,262 @@
+[
+  {
+    "kernel": {
+      "schema_version": 1,
+      "profile": {
+        "id": "profile.auth-capture",
+        "provider": "custom.route",
+        "model": "model.auth-capture",
+        "protocol": "anthropic",
+        "endpoint": "https://api.openai.com/v1",
+        "credential_ref": "key.auth-capture",
+        "context_window": 8192,
+        "output_limit": 2048,
+        "capabilities": {
+          "json_schema": true,
+          "images": true,
+          "files": true
+        },
+        "auth_mode": "x-api-key"
+      },
+      "prompt": "literal prompt",
+      "max_iterations": 8,
+      "output_tokens": 512,
+      "history": "root",
+      "overflow": "error",
+      "json_schema": null
+    },
+    "accepted": true
+  },
+  {
+    "kernel": {
+      "schema_version": 1,
+      "profile": {
+        "id": "profile.auth-capture",
+        "provider": "custom.route",
+        "model": "model.auth-capture",
+        "protocol": "anthropic",
+        "endpoint": "https://api.openai.com/v1",
+        "credential_ref": "key.auth-capture",
+        "context_window": 8192,
+        "output_limit": 2048,
+        "capabilities": {
+          "json_schema": true,
+          "images": true,
+          "files": true
+        },
+        "auth_mode": "bearer"
+      },
+      "prompt": "literal prompt",
+      "max_iterations": 8,
+      "output_tokens": 512,
+      "history": "root",
+      "overflow": "error",
+      "json_schema": null
+    },
+    "accepted": true
+  },
+  {
+    "kernel": {
+      "schema_version": 1,
+      "profile": {
+        "id": "profile.auth-capture",
+        "provider": "custom.route",
+        "model": "model.auth-capture",
+        "protocol": "anthropic",
+        "endpoint": "https://api.openai.com/v1",
+        "credential_ref": "key.auth-capture",
+        "context_window": 8192,
+        "output_limit": 2048,
+        "capabilities": {
+          "json_schema": true,
+          "images": true,
+          "files": true
+        },
+        "auth_mode": null
+      },
+      "prompt": "literal prompt",
+      "max_iterations": 8,
+      "output_tokens": 512,
+      "history": "root",
+      "overflow": "error",
+      "json_schema": null
+    },
+    "accepted": false,
+    "code": "unsupported_capability",
+    "path": [
+      "kernel",
+      "profile",
+      "auth_mode"
+    ]
+  },
+  {
+    "kernel": {
+      "schema_version": 1,
+      "profile": {
+        "id": "profile.auth-capture",
+        "provider": "custom.route",
+        "model": "model.auth-capture",
+        "protocol": "anthropic",
+        "endpoint": "https://api.openai.com/v1",
+        "credential_ref": "key.auth-capture",
+        "context_window": 8192,
+        "output_limit": 2048,
+        "capabilities": {
+          "json_schema": true,
+          "images": true,
+          "files": true
+        },
+        "auth_mode": false
+      },
+      "prompt": "literal prompt",
+      "max_iterations": 8,
+      "output_tokens": 512,
+      "history": "root",
+      "overflow": "error",
+      "json_schema": null
+    },
+    "accepted": false,
+    "code": "unsupported_capability",
+    "path": [
+      "kernel",
+      "profile",
+      "auth_mode"
+    ]
+  },
+  {
+    "kernel": {
+      "schema_version": 1,
+      "profile": {
+        "id": "profile.auth-capture",
+        "provider": "custom.route",
+        "model": "model.auth-capture",
+        "protocol": "anthropic",
+        "endpoint": "https://api.openai.com/v1",
+        "credential_ref": "key.auth-capture",
+        "context_window": 8192,
+        "output_limit": 2048,
+        "capabilities": {
+          "json_schema": true,
+          "images": true,
+          "files": true
+        },
+        "auth_mode": 0
+      },
+      "prompt": "literal prompt",
+      "max_iterations": 8,
+      "output_tokens": 512,
+      "history": "root",
+      "overflow": "error",
+      "json_schema": null
+    },
+    "accepted": false,
+    "code": "unsupported_capability",
+    "path": [
+      "kernel",
+      "profile",
+      "auth_mode"
+    ]
+  },
+  {
+    "kernel": {
+      "schema_version": 1,
+      "profile": {
+        "id": "profile.auth-capture",
+        "provider": "custom.route",
+        "model": "model.auth-capture",
+        "protocol": "anthropic",
+        "endpoint": "https://api.openai.com/v1",
+        "credential_ref": "key.auth-capture",
+        "context_window": 8192,
+        "output_limit": 2048,
+        "capabilities": {
+          "json_schema": true,
+          "images": true,
+          "files": true
+        },
+        "auth_mode": ""
+      },
+      "prompt": "literal prompt",
+      "max_iterations": 8,
+      "output_tokens": 512,
+      "history": "root",
+      "overflow": "error",
+      "json_schema": null
+    },
+    "accepted": false,
+    "code": "unsupported_capability",
+    "path": [
+      "kernel",
+      "profile",
+      "auth_mode"
+    ]
+  },
+  {
+    "kernel": {
+      "schema_version": 1,
+      "profile": {
+        "id": "profile.auth-capture",
+        "provider": "custom.route",
+        "model": "model.auth-capture",
+        "protocol": "anthropic",
+        "endpoint": "https://api.openai.com/v1",
+        "credential_ref": "key.auth-capture",
+        "context_window": 8192,
+        "output_limit": 2048,
+        "capabilities": {
+          "json_schema": true,
+          "images": true,
+          "files": true
+        },
+        "auth_mode": " bearer"
+      },
+      "prompt": "literal prompt",
+      "max_iterations": 8,
+      "output_tokens": 512,
+      "history": "root",
+      "overflow": "error",
+      "json_schema": null
+    },
+    "accepted": false,
+    "code": "unsupported_capability",
+    "path": [
+      "kernel",
+      "profile",
+      "auth_mode"
+    ]
+  },
+  {
+    "kernel": {
+      "schema_version": 1,
+      "profile": {
+        "id": "profile.auth-capture",
+        "provider": "custom.route",
+        "model": "model.auth-capture",
+        "protocol": "anthropic",
+        "endpoint": "https://api.openai.com/v1",
+        "credential_ref": "key.auth-capture",
+        "context_window": 8192,
+        "output_limit": 2048,
+        "capabilities": {
+          "json_schema": true,
+          "images": true,
+          "files": true
+        },
+        "auth_mode": "header"
+      },
+      "prompt": "literal prompt",
+      "max_iterations": 8,
+      "output_tokens": 512,
+      "history": "root",
+      "overflow": "error",
+      "json_schema": null
+    },
+    "accepted": false,
+    "code": "unsupported_capability",
+    "path": [
+      "kernel",
+      "profile",
+      "auth_mode"
+    ]
+  }
+]

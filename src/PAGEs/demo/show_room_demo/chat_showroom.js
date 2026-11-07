@@ -1,3 +1,4 @@
+import ShadowSurface from "../../../BUILTIN_COMPONENTs/material/shadow_surface";
 import { useState, useContext, useRef, useCallback, useEffect } from "react";
 
 /* { Contexts } -------------------------------------------------------------------------------------------------------------- */
@@ -26,7 +27,7 @@ const AttachPanel = ({
   if (focused) panelBg = focusBg || "rgba(255,255,255,0.95)";
 
   return (
-    <div
+    <ShadowSurface
       style={{
         display: "flex",
         alignItems: "center",
@@ -42,7 +43,7 @@ const AttachPanel = ({
       <Button prefix_icon="link" style={{ color, fontSize: 14 }} />
       <Button prefix_icon="global" style={{ color, fontSize: 14 }} />
       <Button prefix_icon="add" style={{ color, fontSize: 14 }} />
-    </div>
+    </ShadowSurface>
   );
 };
 

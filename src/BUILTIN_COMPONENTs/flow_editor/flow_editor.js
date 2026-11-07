@@ -39,6 +39,28 @@ import {
 /*    • User-defined node content via `render_node`                        */
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
+/* A table keyed by an id the graph chose, made without a prototype.
+ *
+ * A node id and an edge id are data. Nothing in this editor decides them, and
+ * the graph that supplies them may legally use any non-empty string — measured
+ * on the Skeleton store and its runtime
+ * (`COMPONENTs/agents/pages/recipes_page/skeleton_node_id_capture`): a whole
+ * Workflow whose Start is named `__proto__` is saved byte for byte, passes the
+ * store's own check and executes, completing both of its nodes.
+ *
+ * Drawn here, it threw. `map[edge.source_node_id]` answered with
+ * `Object.prototype` — an object, so the `if (!map[id])` guard passed — and
+ * `map[id].add(...)` is not a function. The registries beside it had the other
+ * half of the fault: `node_elements_ref.current[id] = el` set the object's
+ * prototype to a DOM element rather than storing it, and `delete` then could
+ * not remove it.
+ *
+ * Without a prototype there is nothing to inherit and no setter to invoke, so
+ * every id the graph is allowed to use is an own key of its own. Reads
+ * elsewhere in this file stay as they are: on these tables `table[id]` can
+ * only answer with what was put there. */
+const id_table = () => Object.create(null);
+
 const SNAP_THRESHOLD = 5;
 /* How far the pointer travels before a press on a node becomes a drag.
    Measured in screen pixels, so what counts as a drag does not change with
@@ -80,6 +102,10 @@ function FlowEditor({
   on_nodes_change,
   on_edges_change,
   on_connect,
+  /* Optional semantic consumers own admission and persistence. Without them,
+     the existing recipe consumers keep the drawing-array contract. */
+  on_delete,
+  on_reconnect,
   on_edge_add_node,
   on_select,
   render_node,
@@ -93,6 +119,8 @@ function FlowEditor({
   fit_token,
   zoom_reset_token,
   select_all_token,
+  viewport_out_ref,
+  restore_viewport,
   ...props
 }) {
   const { theme: config_theme } = useContext(ConfigContext);
@@ -121,9 +149,11 @@ function FlowEditor({
   const canvas_ref = useRef(null);
   const viewport_div_ref = useRef(null);
   const temp_edge_ref = useRef(null);
-  const node_elements_ref = useRef({});
-  const node_dimensions_ref = useRef({});
-  const edge_elements_ref = useRef({});
+  /* The three registries below are keyed by the ids the GRAPH chose, so they
+     are made without a prototype — see `id_table`. */
+  const node_elements_ref = useRef(id_table());
+  const node_dimensions_ref = useRef(id_table());
+  const edge_elements_ref = useRef(id_table());
 
   const nodes_ref = useRef(nodes);
   const edges_ref = useRef(edges);
@@ -155,6 +185,31 @@ function FlowEditor({
     selected_edge_ref.current = selected_edge_id;
   }, [selected_edge_id]);
 
+  /* Publishing and committing are not the same moment.
+     Zoom draws itself imperatively and defers the React state to an animation
+     frame, which is right for the frame rate and wrong for the refs: a canvas
+     closing right after a wheel read a viewport the gesture had already
+     replaced. So the refs are published synchronously, always, and only the
+     state update is allowed to wait. */
+  const publish_viewport = useCallback(
+    (next) => {
+      viewport_ref.current = next;
+      if (viewport_out_ref) viewport_out_ref.current = next;
+    },
+    [viewport_out_ref],
+  );
+
+  const commit_viewport = useCallback(
+    (next, transform) => {
+      publish_viewport(next);
+      if (viewport_div_ref.current && transform) {
+        viewport_div_ref.current.style.transform = transform;
+      }
+      setViewport(next);
+    },
+    [publish_viewport],
+  );
+
   /* ── Reset viewport (home button) ───────────────────────── */
   /*  With `reset_focus_node_id` the named node is centered in   */
   /*  the canvas at zoom 1; otherwise (or if the node is not     */
@@ -178,13 +233,48 @@ function FlowEditor({
         zoom: 1,
       };
     }
-    viewport_ref.current = next;
-    if (viewport_div_ref.current) {
-      viewport_div_ref.current.style.transform = `translate(${next.x}px, ${next.y}px) scale(1)`;
-    }
-    setViewport(next);
+    commit_viewport(next, `translate(${next.x}px, ${next.y}px) scale(1)`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reset_token]);
+
+  /* ── Mirror the viewport out ────────────────────────────── */
+  /*  Pull-based on purpose: a caller that swaps the graph out    */
+  /*  (drilling into a subagent) needs the viewport it is         */
+  /*  leaving, and a callback would fire on every pan frame for   */
+  /*  a value almost nobody reads.                                */
+  /*                                                              */
+  /*  Seeded here and kept current by `commit_viewport`, never by */
+  /*  an effect on the state: an effect runs a commit later than  */
+  /*  the gesture, so a caller reading it during a wheel — or in  */
+  /*  a cleanup when the canvas closes right after one — got the  */
+  /*  viewport from before the zoom. One writer, no window.       */
+  useEffect(() => {
+    if (!viewport_out_ref) return;
+    if (viewport_out_ref.current == null) {
+      viewport_out_ref.current = viewport_ref.current;
+      return;
+    }
+    /* One object, not two copies: the pan path moves the viewport by mutating
+       it in place between commits, and a caller reading a second object would
+       see that only at the next zoom. */
+    viewport_ref.current = viewport_out_ref.current;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewport_out_ref]);
+
+  /* ── Restore a viewport ─────────────────────────────────── */
+  /*  Same token idiom as the home reset. Coming back up from a   */
+  /*  drill-in puts the parent graph exactly where it was, which  */
+  /*  re-fitting or re-centering would only approximate.          */
+  useEffect(() => {
+    if (!restore_viewport || restore_viewport.token === undefined) return;
+    const next = {
+      x: restore_viewport.x || 0,
+      y: restore_viewport.y || 0,
+      zoom: restore_viewport.zoom || 1,
+    };
+    commit_viewport(next, `translate(${next.x}px, ${next.y}px) scale(${next.zoom})`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restore_viewport && restore_viewport.token]);
 
   /* ── Fit every node into view ───────────────────────────── */
   /*  Same token idiom as the home reset: the parent bumps the   */
@@ -226,11 +316,7 @@ function FlowEditor({
       y: rect.height / 2 - (min_y + span_y / 2) * zoom,
       zoom,
     };
-    viewport_ref.current = next;
-    if (viewport_div_ref.current) {
-      viewport_div_ref.current.style.transform = `translate(${next.x}px, ${next.y}px) scale(${zoom})`;
-    }
-    setViewport(next);
+    commit_viewport(next, `translate(${next.x}px, ${next.y}px) scale(${zoom})`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fit_token]);
 
@@ -247,11 +333,7 @@ function FlowEditor({
       y: cy - ((cy - vp.y) / vp.zoom) * 1,
       zoom: 1,
     };
-    viewport_ref.current = next;
-    if (viewport_div_ref.current) {
-      viewport_div_ref.current.style.transform = `translate(${next.x}px, ${next.y}px) scale(1)`;
-    }
-    setViewport(next);
+    commit_viewport(next, `translate(${next.x}px, ${next.y}px) scale(1)`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zoom_reset_token]);
 
@@ -540,7 +622,7 @@ function FlowEditor({
       const sc = new_zoom / vp.zoom;
       const new_x = mx - (mx - vp.x) * sc;
       const new_y = my - (my - vp.y) * sc;
-      viewport_ref.current = { x: new_x, y: new_y, zoom: new_zoom };
+      publish_viewport({ x: new_x, y: new_y, zoom: new_zoom });
       if (viewport_div_ref.current) {
         viewport_div_ref.current.style.transform = `translate(${new_x}px, ${new_y}px) scale(${new_zoom})`;
       }
@@ -552,10 +634,10 @@ function FlowEditor({
       c.style.backgroundImage = `radial-gradient(circle, ${theme.gridColor} ${dot}px, transparent ${dot}px)`;
       cancelAnimationFrame(zoom_raf_ref.current);
       zoom_raf_ref.current = requestAnimationFrame(() => {
-        setViewport({ ...viewport_ref.current });
+        commit_viewport({ ...viewport_ref.current });
       });
     },
-    [theme.gridColor, grid_size, min_zoom, max_zoom],
+    [theme.gridColor, grid_size, min_zoom, max_zoom, commit_viewport, publish_viewport],
   );
 
   /* ═══════════════════════════════════════════════════════════ */
@@ -668,7 +750,7 @@ function FlowEditor({
       if (pan_ref.current) {
         const was_click = pan_ref.current.is_click;
         pan_ref.current = null;
-        setViewport({ ...viewport_ref.current });
+        commit_viewport({ ...viewport_ref.current });
         if (canvas_ref.current) {
           canvas_ref.current.style.cursor = space_ref.current ? "grab" : "";
         }
@@ -768,6 +850,18 @@ function FlowEditor({
             };
           }
         }
+        if (typeof on_reconnect === "function") {
+          on_reconnect({
+            edge_id: rc.edge_id,
+            connection: updated ? {
+              source_node_id: updated.source_node_id,
+              source_port_id: updated.source_port_id,
+              target_node_id: updated.target_node_id,
+              target_port_id: updated.target_port_id,
+            } : null,
+          });
+          return;
+        }
         let ok = false;
         if (updated && validate_connection) {
           const src_node = nodes_ref.current.find(
@@ -810,10 +904,12 @@ function FlowEditor({
       window.removeEventListener("mouseup", handle_up);
     };
   }, [
+    commit_viewport,
     grid_size,
     on_nodes_change,
     on_edges_change,
     on_connect,
+    on_reconnect,
     on_select,
     update_edges_for_node,
     compute_snap,
@@ -835,7 +931,10 @@ function FlowEditor({
         const tag = document.activeElement?.tagName;
         if (tag === "INPUT" || tag === "TEXTAREA") return;
         if (selected_edge_ref.current) {
-          on_edges_change?.(
+          if (typeof on_delete === "function") {
+            e.preventDefault();
+            on_delete({ node_ids: [], edge_ids: [selected_edge_ref.current] });
+          } else on_edges_change?.(
             edges_ref.current.filter(
               (edge) => edge.id !== selected_edge_ref.current,
             ),
@@ -850,16 +949,21 @@ function FlowEditor({
             return !n || n.deletable !== false;
           });
           if (deletable_ids.length === 0) return;
-          on_nodes_change?.(
-            nodes_ref.current.filter((n) => !deletable_ids.includes(n.id)),
-          );
-          on_edges_change?.(
-            edges_ref.current.filter(
-              (edge) =>
-                !deletable_ids.includes(edge.source_node_id) &&
-                !deletable_ids.includes(edge.target_node_id),
-            ),
-          );
+          if (typeof on_delete === "function") {
+            e.preventDefault();
+            on_delete({ node_ids: deletable_ids, edge_ids: [] });
+          } else {
+            on_nodes_change?.(
+              nodes_ref.current.filter((n) => !deletable_ids.includes(n.id)),
+            );
+            on_edges_change?.(
+              edges_ref.current.filter(
+                (edge) =>
+                  !deletable_ids.includes(edge.source_node_id) &&
+                  !deletable_ids.includes(edge.target_node_id),
+              ),
+            );
+          }
           setSelectedNodeIds([]);
         }
       }
@@ -876,7 +980,7 @@ function FlowEditor({
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
     };
-  }, [on_nodes_change, on_edges_change]);
+  }, [on_nodes_change, on_edges_change, on_delete]);
 
   useEffect(() => {
     const el = canvas_ref.current;
@@ -947,7 +1051,7 @@ function FlowEditor({
   }, [edges, nodes, dims_version]);
 
   const connected_ports_map = useMemo(() => {
-    const map = {};
+    const map = id_table();
     edges.forEach((edge) => {
       if (!map[edge.source_node_id]) map[edge.source_node_id] = new Set();
       if (!map[edge.target_node_id]) map[edge.target_node_id] = new Set();
@@ -1014,7 +1118,11 @@ function FlowEditor({
       {...props}
     >
       <PuzzleDefs />
-      <div ref={viewport_div_ref} style={viewport_transform_style}>
+      <div
+        ref={viewport_div_ref}
+        data-testid="flow-editor-viewport"
+        style={viewport_transform_style}
+      >
         {/* ── SVG edge layer ── */}
         <svg
           style={{
@@ -1124,7 +1232,7 @@ function FlowEditor({
                 </g>
               )}
               {/* × button at midpoint — delete edge */}
-              {ep.midpoint && on_edges_change && (
+              {ep.midpoint && (on_delete || on_edges_change) && (
                 <g
                   data-edge-delete-btn={ep.id}
                   style={{
@@ -1142,7 +1250,9 @@ function FlowEditor({
                   }}
                   onClick={(e) => {
                     e.stopPropagation();
-                    on_edges_change(
+                    if (typeof on_delete === "function") {
+                      on_delete({ node_ids: [], edge_ids: [ep.id] });
+                    } else on_edges_change(
                       edges_ref.current.filter((edge) => edge.id !== ep.id),
                     );
                     if (selected_edge_id === ep.id) setSelectedEdgeId(null);
@@ -1189,9 +1299,10 @@ function FlowEditor({
                 </g>
               )}
               {/* Endpoint reconnect handles */}
-              {ep.source_pos &&
+              {(on_reconnect || on_edges_change) && ep.source_pos &&
                 (hovered_edge_id === ep.id || selected_edge_id === ep.id) && (
                   <circle
+                    data-edge-reconnect-source={ep.id}
                     cx={ep.source_pos.x}
                     cy={ep.source_pos.y}
                     r={8}
@@ -1210,9 +1321,10 @@ function FlowEditor({
                     }}
                   />
                 )}
-              {ep.target_pos &&
+              {(on_reconnect || on_edges_change) && ep.target_pos &&
                 (hovered_edge_id === ep.id || selected_edge_id === ep.id) && (
                   <circle
+                    data-edge-reconnect-target={ep.id}
                     cx={ep.target_pos.x}
                     cy={ep.target_pos.y}
                     r={8}

@@ -162,6 +162,8 @@ class SidecarMemoryV2DeletionStartupTests(unittest.TestCase):
         fake_subagent_seeds.ensure_seeds_written = lambda _path: None
         fake_recipe_seeds = types.ModuleType("recipe_seeds")
         fake_recipe_seeds.ensure_recipe_seeds_written = lambda _path: None
+        fake_skeleton_resources = types.ModuleType("skeleton_resource_store")
+        fake_skeleton_resources.migrate_known_legacy_sources = lambda: []
         import_error = RuntimeError(r"C:\\Users\\private errno=5 token=secret")
         import_error.code = "session_guard_process_identity_unavailable"
         original_import = builtins.__import__
@@ -188,6 +190,7 @@ class SidecarMemoryV2DeletionStartupTests(unittest.TestCase):
                 "server_thread": fake_server_thread,
                 "subagent_seeds": fake_subagent_seeds,
                 "recipe_seeds": fake_recipe_seeds,
+                "skeleton_resource_store": fake_skeleton_resources,
             },
         ), mock.patch(
             "builtins.__import__",
@@ -264,6 +267,10 @@ class SidecarMemoryV2DeletionStartupTests(unittest.TestCase):
         fake_subagent_seeds.ensure_seeds_written = lambda _path: None
         fake_recipe_seeds = types.ModuleType("recipe_seeds")
         fake_recipe_seeds.ensure_recipe_seeds_written = lambda _path: None
+        fake_skeleton_resources = types.ModuleType("skeleton_resource_store")
+        fake_skeleton_resources.migrate_known_legacy_sources = (
+            lambda: calls.append("legacy_skeletons_migrated") or []
+        )
         fake_session_guard = types.ModuleType("session_execution_guard")
         fake_session_guard.session_guard_migration_receipt = (
             lambda: calls.append("session_guard_migration_initialized")
@@ -290,6 +297,7 @@ class SidecarMemoryV2DeletionStartupTests(unittest.TestCase):
                 "server_thread": fake_server_thread,
                 "subagent_seeds": fake_subagent_seeds,
                 "recipe_seeds": fake_recipe_seeds,
+                "skeleton_resource_store": fake_skeleton_resources,
                 "session_execution_guard": fake_session_guard,
             },
         ), mock.patch.object(
@@ -313,6 +321,8 @@ class SidecarMemoryV2DeletionStartupTests(unittest.TestCase):
             return_value=FakeRuntime(),
         ):
             self.assertEqual(sidecar_main.main([]), 0)
+
+        self.assertIn("legacy_skeletons_migrated", calls)
 
         self.assertIn("runner_created", [entry[0] for entry in calls if isinstance(entry, tuple)])
         self.assertIn("runner_started", calls)

@@ -267,8 +267,9 @@ export const resyncPluginSkills = () => fetchAndSyncPluginSkills();
 const readCurrentWorkspaceRoot = () => readWorkspaceRoot();
 
 // P-D7 (ticket #291): `skills.include_user_dirs` in the runtime settings
-// namespace, default true.
-const readSkillsIncludeUserDirsSetting = () => {
+// namespace, default true. Exported for the Skill Read panel (#352), which
+// must list and preview with the same switch a chat run reads.
+export const readSkillsIncludeUserDirsSetting = () => {
   const runtime = readNamespace("runtime", {});
   const skillsSettings =
     runtime && typeof runtime === "object" && !Array.isArray(runtime)

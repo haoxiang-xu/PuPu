@@ -1,3 +1,5 @@
+import ShadowSurface from "../../../BUILTIN_COMPONENTs/material/shadow_surface";
+import { SURFACE_DITHER_STYLE } from "../../../BUILTIN_COMPONENTs/material/surface_dither";
 /**
  * CommandMenu — the slash-command surface in the composer.
  *
@@ -119,6 +121,7 @@ const CommandMenu = ({
     ? { padding: `${LIST_PADDING}px ${LIST_PADDING}px 0` }
     : {
         backgroundColor: surfaceBg,
+        ...SURFACE_DITHER_STYLE,
         backdropFilter: "blur(18px) saturate(1.4)",
         WebkitBackdropFilter: "blur(18px) saturate(1.4)",
         border,
@@ -142,7 +145,7 @@ const CommandMenu = ({
       };
 
   return (
-    <div
+    <ShadowSurface
       role="listbox"
       aria-label="斜杠命令"
       className={bare ? undefined : "scrollable"}
@@ -180,7 +183,7 @@ const CommandMenu = ({
         expandRef={expandRef}
       />
 
-    </div>
+    </ShadowSurface>
   );
 };
 

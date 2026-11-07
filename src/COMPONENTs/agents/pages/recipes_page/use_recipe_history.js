@@ -87,6 +87,29 @@ export default function useRecipeHistory(activeName) {
     setPresent(next);
   }, []);
 
+  /* Navigating into a subagent's graph and back is navigation, not a new
+     editing session, so the history has to survive the round trip. It travels
+     with the graph it belongs to rather than being rebuilt, because a history
+     is only meaningful against the content it was recorded on — which is also
+     why the caller must not import a snapshot onto content that has since
+     been written by someone else. */
+  const exportHistory = useCallback(
+    () => ({ past: pastRef.current, future: futureRef.current }),
+    [],
+  );
+
+  const importHistory = useCallback((snapshot) => {
+    const past = Array.isArray(snapshot && snapshot.past) ? snapshot.past : [];
+    const future = Array.isArray(snapshot && snapshot.future)
+      ? snapshot.future
+      : [];
+    pastRef.current = past;
+    futureRef.current = future;
+    setPast(past);
+    setFuture(future);
+    coalesceFlag.current = false;
+  }, []);
+
   return {
     recipe: present,
     setRecipe,
@@ -95,5 +118,7 @@ export default function useRecipeHistory(activeName) {
     redo,
     canUndo: past.length > 0,
     canRedo: future.length > 0,
+    exportHistory,
+    importHistory,
   };
 }

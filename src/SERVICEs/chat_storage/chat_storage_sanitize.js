@@ -1,4 +1,5 @@
 import { getDefaultToolkitSelection } from "../default_toolkit_store";
+import { skeleton_agent_id } from "../skeleton_chat_selection";
 import { normalizeToolkitIdAlias } from "../toolkit_id_aliases";
 import {
   DEFAULT_CHAT_TITLE,
@@ -866,6 +867,14 @@ export const sanitizeDraft = (draft) => ({
     : now(),
 });
 
+/* An id the store may keep, or "".
+ *
+ * The renderer's own reader is the authority on the spelling (it mirrors the
+ * server's closed charset); this keeps the stored field to what that reader
+ * accepts, so a value that could never be sent is never written either. */
+export const sanitizeSelectedSkeletonAgentId = (value) =>
+  skeleton_agent_id(value);
+
 export const sanitizeChatSession = (chat, fallbackId) => {
   const createdAt = Number.isFinite(Number(chat?.createdAt))
     ? Number(chat.createdAt)
@@ -920,6 +929,16 @@ export const sanitizeChatSession = (chat, fallbackId) => {
       chat.selectedRecipeName.trim()
         ? trimText(chat.selectedRecipeName.trim(), 200)
         : "Default",
+    /* Which stored Skeleton Agent this chat runs, by resource id, "" for the
+       ordinary default. It is a separate field from the legacy Recipe name on
+       purpose: a Recipe and a Skeleton resource can carry the same spelling
+       and they are not the same thing, so one field holding either would make
+       a name decide an identity. Exactly one of the two is ever non-default —
+       the selector clears the other — and the send refuses to put them in one
+       request, which is also what the server's contract requires. */
+    selectedSkeletonAgentId: sanitizeSelectedSkeletonAgentId(
+      chat?.selectedSkeletonAgentId,
+    ),
     systemPromptOverrides: sanitizeSystemPromptOverrides(
       chat?.systemPromptOverrides,
     ),
@@ -944,6 +963,7 @@ export const sanitizeChatSession = (chat, fallbackId) => {
     cleaned.selectedToolkits = [];
     cleaned.selectedWorkspaceIds = [];
     cleaned.selectedRecipeName = "Default";
+    cleaned.selectedSkeletonAgentId = "";
     cleaned.systemPromptOverrides = {};
     cleaned.isTransientNewChat = false;
     cleaned.threadId =

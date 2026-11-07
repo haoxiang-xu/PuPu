@@ -1,0 +1,480 @@
+{
+ "manifest": "sha256:f6daf3894dd947723ee7dc60392277896b88c4890d35373b26442a1833a28101",
+ "producer": "pure core seeds (skeleton_graph_edits) and actual page Save requests",
+ "consumer": "source SkeletonResourceStore + fixed installed runtime; real Skeleton chat stream with offline SDK",
+ "seeds": [
+  {
+   "case": "seed-if",
+   "document": {
+    "edges": [
+     {
+      "id": "flow-start-agent",
+      "kind": "flow",
+      "source_node_id": "start",
+      "source_port_id": "out",
+      "target_node_id": "agent",
+      "target_port_id": "in"
+     },
+     {
+      "id": "flow-agent-if",
+      "kind": "flow",
+      "source_node_id": "agent",
+      "source_port_id": "out",
+      "target_node_id": "if",
+      "target_port_id": "in"
+     },
+     {
+      "id": "flow-if-end",
+      "kind": "flow",
+      "source_node_id": "if",
+      "source_port_id": "true",
+      "target_node_id": "end",
+      "target_port_id": "in"
+     },
+     {
+      "id": "flow-if-end-2",
+      "kind": "flow",
+      "source_node_id": "if",
+      "source_port_id": "false",
+      "target_node_id": "end",
+      "target_port_id": "in"
+     }
+    ],
+    "id": "seed-if",
+    "kind": "agent",
+    "name": "Seed if",
+    "nodes": [
+     {
+      "config": {
+       "execution": {
+        "outputs": []
+       }
+      },
+      "id": "start",
+      "type": "start"
+     },
+     {
+      "config": {
+       "execution": {
+        "inputs": [],
+        "outputs": []
+       }
+      },
+      "id": "agent",
+      "type": "agent"
+     },
+     {
+      "config": {
+       "execution": {
+        "inputs": [],
+        "outputs": []
+       }
+      },
+      "id": "end",
+      "type": "end"
+     },
+     {
+      "config": {
+       "execution": {
+        "inputs": []
+       }
+      },
+      "id": "if",
+      "type": "if_else"
+     }
+    ],
+    "schema_version": 1
+   },
+   "roundtrip_equal": true,
+   "diagnostics": [
+    {
+     "code": "missing_field",
+     "path": [
+      "document",
+      "nodes",
+      3,
+      "config",
+      "execution",
+      "condition"
+     ]
+    }
+   ],
+   "preflight": {
+    "ok": false,
+    "code": "invalid_shape",
+    "path": [
+     "document",
+     "nodes",
+     1,
+     "config"
+    ],
+    "message": "Agent node requires execution and kernel configuration"
+   }
+  },
+  {
+   "case": "seed-switch",
+   "document": {
+    "edges": [
+     {
+      "id": "flow-start-agent",
+      "kind": "flow",
+      "source_node_id": "start",
+      "source_port_id": "out",
+      "target_node_id": "agent",
+      "target_port_id": "in"
+     },
+     {
+      "id": "flow-agent-switch",
+      "kind": "flow",
+      "source_node_id": "agent",
+      "source_port_id": "out",
+      "target_node_id": "switch",
+      "target_port_id": "in"
+     },
+     {
+      "id": "flow-switch-end",
+      "kind": "flow",
+      "source_node_id": "switch",
+      "source_port_id": "default",
+      "target_node_id": "end",
+      "target_port_id": "in"
+     }
+    ],
+    "id": "seed-switch",
+    "kind": "agent",
+    "name": "Seed switch",
+    "nodes": [
+     {
+      "config": {
+       "execution": {
+        "outputs": []
+       }
+      },
+      "id": "start",
+      "type": "start"
+     },
+     {
+      "config": {
+       "execution": {
+        "inputs": [],
+        "outputs": []
+       }
+      },
+      "id": "agent",
+      "type": "agent"
+     },
+     {
+      "config": {
+       "execution": {
+        "inputs": [],
+        "outputs": []
+       }
+      },
+      "id": "end",
+      "type": "end"
+     },
+     {
+      "config": {
+       "execution": {
+        "cases": [],
+        "inputs": []
+       }
+      },
+      "id": "switch",
+      "type": "switch_case"
+     }
+    ],
+    "schema_version": 1
+   },
+   "roundtrip_equal": true,
+   "diagnostics": [
+    {
+     "code": "missing_field",
+     "path": [
+      "document",
+      "nodes",
+      3,
+      "config",
+      "execution",
+      "value"
+     ]
+    }
+   ],
+   "preflight": {
+    "ok": false,
+    "code": "invalid_shape",
+    "path": [
+     "document",
+     "nodes",
+     1,
+     "config"
+    ],
+    "message": "Agent node requires execution and kernel configuration"
+   }
+  }
+ ],
+ "pages": [
+  {
+   "case": "if-page",
+   "roundtrip_equal": true,
+   "diagnostics": [],
+   "preflight": {
+    "ok": true
+   },
+   "stale_token_save": {
+    "code": "edit_conflict",
+    "path": [
+     "expected_edit_token"
+    ],
+    "message": "resource changed in another editor"
+   },
+   "branch_node": {
+    "config": {
+     "execution": {
+      "condition": {
+       "kind": "compare",
+       "left": {
+        "kind": "input",
+        "path": [
+         "reply"
+        ]
+       },
+       "operator": "contains",
+       "right": {
+        "kind": "literal",
+        "value": "yes"
+       }
+      },
+      "inputs": [
+       {
+        "missing": "error",
+        "name": "reply",
+        "value": {
+         "kind": "ref",
+         "node_id": "router",
+         "path": [
+          "reply"
+         ]
+        }
+       }
+      ]
+     }
+    },
+    "id": "if",
+    "type": "if_else"
+   },
+   "edges": [
+    "agent.out>end.in",
+    "if.false>end.in",
+    "if.true>agent.in",
+    "router.out>if.in",
+    "start.out>router.in"
+   ]
+  },
+  {
+   "case": "switch-page",
+   "roundtrip_equal": true,
+   "diagnostics": [],
+   "preflight": {
+    "ok": true
+   },
+   "stale_token_save": {
+    "code": "edit_conflict",
+    "path": [
+     "expected_edit_token"
+    ],
+    "message": "resource changed in another editor"
+   },
+   "branch_node": {
+    "config": {
+     "execution": {
+      "cases": [
+       {
+        "id": "case-1",
+        "value": "x"
+       }
+      ],
+      "inputs": [
+       {
+        "missing": "error",
+        "name": "reply",
+        "value": {
+         "kind": "ref",
+         "node_id": "router",
+         "path": [
+          "reply"
+         ]
+        }
+       }
+      ],
+      "value": {
+       "kind": "input",
+       "path": [
+        "reply"
+       ]
+      }
+     }
+    },
+    "id": "switch",
+    "type": "switch_case"
+   },
+   "edges": [
+    "router.out>switch.in",
+    "start.out>router.in",
+    "switch.case-1>end.in",
+    "switch.default>end.in"
+   ]
+  }
+ ],
+ "runs": [
+  {
+   "resource": "if-page",
+   "router_reply": "yes please",
+   "root_finals": [
+    "YES-BRANCH-REPLY"
+   ],
+   "status": "completed",
+   "completed_node_ids": [
+    "start",
+    "router",
+    "if",
+    "agent",
+    "end"
+   ],
+   "selected_outlets": [
+    "start.out",
+    "router.out",
+    "if.true",
+    "agent.out"
+   ],
+   "sdk_markers": [
+    "router",
+    "yes-branch"
+   ],
+   "expected": {
+    "sdk_markers": [
+     "router",
+     "yes-branch"
+    ],
+    "root_finals": [
+     "YES-BRANCH-REPLY"
+    ],
+    "selected_outlets": [
+     "start.out",
+     "router.out",
+     "if.true",
+     "agent.out"
+    ]
+   },
+   "as_expected": true
+  },
+  {
+   "resource": "if-page",
+   "router_reply": "no thanks",
+   "root_finals": [
+    "no thanks"
+   ],
+   "status": "completed",
+   "completed_node_ids": [
+    "start",
+    "router",
+    "if",
+    "end"
+   ],
+   "selected_outlets": [
+    "start.out",
+    "router.out",
+    "if.false"
+   ],
+   "sdk_markers": [
+    "router"
+   ],
+   "expected": {
+    "sdk_markers": [
+     "router"
+    ],
+    "root_finals": [
+     "no thanks"
+    ],
+    "selected_outlets": [
+     "start.out",
+     "router.out",
+     "if.false"
+    ]
+   },
+   "as_expected": true
+  },
+  {
+   "resource": "switch-page",
+   "router_reply": "x",
+   "root_finals": [
+    "x"
+   ],
+   "status": "completed",
+   "completed_node_ids": [
+    "start",
+    "router",
+    "switch",
+    "end"
+   ],
+   "selected_outlets": [
+    "start.out",
+    "router.out",
+    "switch.case-1"
+   ],
+   "sdk_markers": [
+    "router"
+   ],
+   "expected": {
+    "sdk_markers": [
+     "router"
+    ],
+    "root_finals": [
+     "x"
+    ],
+    "selected_outlets": [
+     "start.out",
+     "router.out",
+     "switch.case-1"
+    ]
+   },
+   "as_expected": true
+  },
+  {
+   "resource": "switch-page",
+   "router_reply": "zzz",
+   "root_finals": [
+    "zzz"
+   ],
+   "status": "completed",
+   "completed_node_ids": [
+    "start",
+    "router",
+    "switch",
+    "end"
+   ],
+   "selected_outlets": [
+    "start.out",
+    "router.out",
+    "switch.default"
+   ],
+   "sdk_markers": [
+    "router"
+   ],
+   "expected": {
+    "sdk_markers": [
+     "router"
+    ],
+    "root_finals": [
+     "zzz"
+    ],
+    "selected_outlets": [
+     "start.out",
+     "router.out",
+     "switch.default"
+    ]
+   },
+   "as_expected": true
+  }
+ ]
+}

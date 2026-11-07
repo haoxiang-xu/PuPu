@@ -5,6 +5,7 @@ import TextField from "../../../../BUILTIN_COMPONENTs/input/textfield";
 import Button from "../../../../BUILTIN_COMPONENTs/input/button";
 import SegmentedButton from "../../../../BUILTIN_COMPONENTs/input/segmented_button";
 import { api } from "../../../../SERVICEs/api";
+import { eligible_subagent_resources } from "./subagent_eligibility";
 
 export default function SubagentPicker({
   onPick,
@@ -12,7 +13,7 @@ export default function SubagentPicker({
   isDark,
   currentRecipeName = "",
 }) {
-  const [tab, setTab] = useState("workflow");
+  const [tab, setTab] = useState("reference");
   const [recipes, setRecipes] = useState([]);
   const [inlineName, setInlineName] = useState("");
   const [inlineFormat, setInlineFormat] = useState("soul");
@@ -25,7 +26,7 @@ export default function SubagentPicker({
     })();
   }, []);
 
-  const pickRecipe = (name) => {
+  const pickAgent = (name) => {
     onPick({ kind: "recipe_ref", recipe_name: name, disabled_tools: [] });
   };
 
@@ -45,9 +46,12 @@ export default function SubagentPicker({
   };
 
   const divider = `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "#e5e5e7"}`;
-  const availableRecipes = recipes.filter(
-    (recipe) => recipe?.name && recipe.name !== currentRecipeName,
-  );
+  /* A pool holds Agents only. The gate lives in subagent_eligibility so both
+   * this picker's consumers — the detail panel and the older pool inspector —
+   * inherit it instead of each filtering its own way. */
+  const availableAgents = eligible_subagent_resources(recipes, {
+    exclude_name: currentRecipeName,
+  });
 
   return (
     <Modal
@@ -68,7 +72,7 @@ export default function SubagentPicker({
         <div style={{ marginTop: 10 }}>
           <SegmentedButton
             options={[
-              { label: "Workflow", value: "workflow" },
+              { label: "Reference an Agent", value: "reference" },
               { label: "Author inline", value: "inline" },
             ]}
             value={tab}
@@ -81,17 +85,17 @@ export default function SubagentPicker({
       <div
         style={{ flex: 1, overflowY: "auto", padding: "12px 16px", fontSize: 12 }}
       >
-        {tab === "workflow" && (
+        {tab === "reference" && (
           <div>
-            {availableRecipes.length === 0 ? (
+            {availableAgents.length === 0 ? (
               <div style={{ color: "#888" }}>
-                No other workflows available.
+                No other Agents available.
               </div>
             ) : (
-              availableRecipes.map((r) => (
+              availableAgents.map((r) => (
                 <div
                   key={r.name}
-                  onClick={() => pickRecipe(r.name)}
+                  onClick={() => pickAgent(r.name)}
                   style={{
                     padding: "8px 6px",
                     borderBottom: `1px solid ${
@@ -102,7 +106,7 @@ export default function SubagentPicker({
                 >
                   <div style={{ fontWeight: 600 }}>{r.name}</div>
                   <div style={{ fontSize: 11, color: "#888" }}>
-                    {r.description || "Workflow"}
+                    {r.description || "Agent"}
                   </div>
                 </div>
               ))

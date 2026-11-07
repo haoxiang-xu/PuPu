@@ -1,3 +1,4 @@
+import ShadowSurface from "../../BUILTIN_COMPONENTs/material/shadow_surface";
 import { memo, useContext, useEffect, useRef, useState, useCallback } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import { FloatingTextField } from "../../BUILTIN_COMPONENTs/input/textfield";
@@ -79,6 +80,9 @@ const ChatInput = ({
   selectedRecipeName = "Default",
   onSelectRecipe,
   recipeOptions = [],
+  skeletonAgentOptions = [],
+  selectedSkeletonAgentId = "",
+  onSelectSkeletonAgent,
   interjectState,
   onQueueUndo,
   contextCompositionBundle = null,
@@ -221,7 +225,7 @@ const ChatInput = ({
       tokens.forEach((token, index) => {
         if (token.start > cursor) parts.push(text.slice(cursor, token.start));
         parts.push(
-          <span
+          <ShadowSurface as="span"
             key={`${token.name}-${index}`}
             data-command-token={token.name}
             data-active={token.active}
@@ -239,7 +243,7 @@ const ChatInput = ({
             }
           >
             {text.slice(token.start, token.end)}
-          </span>,
+          </ShadowSurface>,
         );
         cursor = token.end;
       });
@@ -611,6 +615,9 @@ const ChatInput = ({
                       selectedRecipeName={selectedRecipeName}
                       onSelectRecipe={onSelectRecipe}
                       recipeOptions={recipeOptions}
+                      skeletonAgentOptions={skeletonAgentOptions}
+                      selectedSkeletonAgentId={selectedSkeletonAgentId}
+                      onSelectSkeletonAgent={onSelectSkeletonAgent}
                       queueItems={interjectState?.queueItems || []}
                       onQueueUndo={onQueueUndo}
                       contextCompositionBundle={contextCompositionBundle}

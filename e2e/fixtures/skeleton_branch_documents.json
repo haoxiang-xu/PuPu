@@ -1,0 +1,432 @@
+{
+  "if": {
+    "edges": [
+      {
+        "id": "a",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "router",
+        "target_port_id": "in"
+      },
+      {
+        "id": "flow-router-if",
+        "kind": "flow",
+        "source_node_id": "router",
+        "source_port_id": "out",
+        "target_node_id": "if",
+        "target_port_id": "in"
+      },
+      {
+        "id": "flow-if-agent",
+        "kind": "flow",
+        "source_node_id": "if",
+        "source_port_id": "true",
+        "target_node_id": "agent",
+        "target_port_id": "in"
+      },
+      {
+        "id": "flow-agent-end",
+        "kind": "flow",
+        "source_node_id": "agent",
+        "source_port_id": "out",
+        "target_node_id": "end",
+        "target_port_id": "in"
+      },
+      {
+        "id": "flow-if-end",
+        "kind": "flow",
+        "source_node_id": "if",
+        "source_port_id": "false",
+        "target_node_id": "end",
+        "target_port_id": "in"
+      }
+    ],
+    "id": "branch-page",
+    "kind": "agent",
+    "name": "Branch page",
+    "nodes": [
+      {
+        "config": {
+          "execution": {
+            "outputs": [
+              {
+                "name": "message",
+                "source": {
+                  "kind": "result",
+                  "path": [
+                    "message"
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        "id": "start",
+        "type": "start"
+      },
+      {
+        "config": {
+          "execution": {
+            "inputs": [
+              {
+                "missing": "error",
+                "name": "message",
+                "value": {
+                  "kind": "ref",
+                  "node_id": "start",
+                  "path": [
+                    "message"
+                  ]
+                }
+              }
+            ],
+            "outputs": [
+              {
+                "name": "reply",
+                "source": {
+                  "kind": "result",
+                  "path": [
+                    "message"
+                  ]
+                }
+              }
+            ]
+          },
+          "kernel": {
+            "history": "root",
+            "json_schema": null,
+            "max_iterations": 12,
+            "output_tokens": 128000,
+            "overflow": "error",
+            "profile": {
+              "capabilities": {
+                "files": false,
+                "images": true,
+                "json_schema": true
+              },
+              "context_window": 1050000,
+              "credential_ref": "openai",
+              "endpoint": "https://api.openai.com/v1",
+              "id": "openai:gpt-6-luna",
+              "model": "gpt-6-luna",
+              "output_limit": 128000,
+              "protocol": "openai-responses",
+              "provider": "openai"
+            },
+            "prompt": "[router]",
+            "schema_version": 1
+          }
+        },
+        "id": "router",
+        "type": "agent"
+      },
+      {
+        "config": {
+          "execution": {
+            "inputs": [
+              {
+                "missing": "error",
+                "name": "message",
+                "value": {
+                  "kind": "first_present",
+                  "values": [
+                    {
+                      "kind": "ref",
+                      "node_id": "agent",
+                      "path": [
+                        "message"
+                      ]
+                    },
+                    {
+                      "kind": "ref",
+                      "node_id": "router",
+                      "path": [
+                        "reply"
+                      ]
+                    }
+                  ]
+                }
+              }
+            ],
+            "outputs": [
+              {
+                "name": "message",
+                "source": {
+                  "kind": "input",
+                  "path": [
+                    "message"
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        "id": "end",
+        "type": "end"
+      },
+      {
+        "id": "if",
+        "type": "if_else",
+        "config": {
+          "execution": {
+            "inputs": [
+              {
+                "name": "reply",
+                "value": {
+                  "kind": "ref",
+                  "node_id": "router",
+                  "path": [
+                    "reply"
+                  ]
+                },
+                "missing": "error"
+              }
+            ],
+            "condition": {
+              "kind": "compare",
+              "operator": "contains",
+              "left": {
+                "kind": "input",
+                "path": [
+                  "reply"
+                ]
+              },
+              "right": {
+                "kind": "literal",
+                "value": "yes"
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": "agent",
+        "type": "agent",
+        "config": {
+          "execution": {
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "message",
+                "source": {
+                  "kind": "result",
+                  "path": [
+                    "message"
+                  ]
+                }
+              }
+            ]
+          },
+          "kernel": {
+            "schema_version": 1,
+            "profile": {
+              "id": "openai:gpt-6-luna",
+              "provider": "openai",
+              "model": "gpt-6-luna",
+              "protocol": "openai-responses",
+              "endpoint": "https://api.openai.com/v1",
+              "credential_ref": "openai",
+              "context_window": 1050000,
+              "output_limit": 128000,
+              "capabilities": {
+                "json_schema": true,
+                "images": true,
+                "files": false
+              }
+            },
+            "prompt": "[yes-branch]",
+            "max_iterations": 12,
+            "output_tokens": 128000,
+            "history": "root",
+            "overflow": "error",
+            "json_schema": null
+          }
+        }
+      }
+    ],
+    "schema_version": 1
+  },
+  "switch": {
+    "edges": [
+      {
+        "id": "a",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "router",
+        "target_port_id": "in"
+      },
+      {
+        "id": "flow-router-switch",
+        "kind": "flow",
+        "source_node_id": "router",
+        "source_port_id": "out",
+        "target_node_id": "switch",
+        "target_port_id": "in"
+      },
+      {
+        "id": "flow-switch-end",
+        "kind": "flow",
+        "source_node_id": "switch",
+        "source_port_id": "case-1",
+        "target_node_id": "end",
+        "target_port_id": "in"
+      },
+      {
+        "id": "flow-switch-end-3",
+        "kind": "flow",
+        "source_node_id": "switch",
+        "source_port_id": "default",
+        "target_node_id": "end",
+        "target_port_id": "in"
+      }
+    ],
+    "id": "branch-page",
+    "kind": "agent",
+    "name": "Branch page",
+    "nodes": [
+      {
+        "config": {
+          "execution": {
+            "outputs": [
+              {
+                "name": "message",
+                "source": {
+                  "kind": "result",
+                  "path": [
+                    "message"
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        "id": "start",
+        "type": "start"
+      },
+      {
+        "config": {
+          "execution": {
+            "inputs": [
+              {
+                "missing": "error",
+                "name": "message",
+                "value": {
+                  "kind": "ref",
+                  "node_id": "start",
+                  "path": [
+                    "message"
+                  ]
+                }
+              }
+            ],
+            "outputs": [
+              {
+                "name": "reply",
+                "source": {
+                  "kind": "result",
+                  "path": [
+                    "message"
+                  ]
+                }
+              }
+            ]
+          },
+          "kernel": {
+            "history": "root",
+            "json_schema": null,
+            "max_iterations": 12,
+            "output_tokens": 128000,
+            "overflow": "error",
+            "profile": {
+              "capabilities": {
+                "files": false,
+                "images": true,
+                "json_schema": true
+              },
+              "context_window": 1050000,
+              "credential_ref": "openai",
+              "endpoint": "https://api.openai.com/v1",
+              "id": "openai:gpt-6-luna",
+              "model": "gpt-6-luna",
+              "output_limit": 128000,
+              "protocol": "openai-responses",
+              "provider": "openai"
+            },
+            "prompt": "[router]",
+            "schema_version": 1
+          }
+        },
+        "id": "router",
+        "type": "agent"
+      },
+      {
+        "config": {
+          "execution": {
+            "inputs": [
+              {
+                "missing": "error",
+                "name": "message",
+                "value": {
+                  "kind": "ref",
+                  "node_id": "router",
+                  "path": [
+                    "reply"
+                  ]
+                }
+              }
+            ],
+            "outputs": [
+              {
+                "name": "message",
+                "source": {
+                  "kind": "input",
+                  "path": [
+                    "message"
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        "id": "end",
+        "type": "end"
+      },
+      {
+        "id": "switch",
+        "type": "switch_case",
+        "config": {
+          "execution": {
+            "inputs": [
+              {
+                "name": "reply",
+                "value": {
+                  "kind": "ref",
+                  "node_id": "router",
+                  "path": [
+                    "reply"
+                  ]
+                },
+                "missing": "error"
+              }
+            ],
+            "cases": [
+              {
+                "id": "case-1",
+                "value": "x"
+              }
+            ],
+            "value": {
+              "kind": "input",
+              "path": [
+                "reply"
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "schema_version": 1
+  }
+}

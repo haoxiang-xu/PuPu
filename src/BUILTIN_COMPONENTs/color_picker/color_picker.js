@@ -1,3 +1,4 @@
+import ShadowSurface from "../material/shadow_surface";
 import React, {
   useState,
   useRef,
@@ -474,7 +475,7 @@ const ColorPickerPanel = ({
   };
 
   return (
-    <div
+    <ShadowSurface
       data-testid="color-picker-panel"
       style={{
         width: PANEL_WIDTH,
@@ -490,7 +491,7 @@ const ColorPickerPanel = ({
       }}
     >
       <div ref={content_ref} data-testid="color-picker-panel-content">
-        <div
+        <ShadowSurface
           ref={svRef}
           data-testid="color-picker-sv"
           onPointerDown={onSVDown}
@@ -563,7 +564,7 @@ const ColorPickerPanel = ({
             </svg>
           ) : null}
 
-          <span
+          <ShadowSurface as="span"
             data-testid="color-picker-sv-thumb"
             data-x={((hsv.s / 100) * SV_WIDTH).toFixed(4)}
             data-y={((1 - hsv.v / 100) * SV_HEIGHT).toFixed(4)}
@@ -582,7 +583,7 @@ const ColorPickerPanel = ({
               pointerEvents: "none",
             }}
           />
-        </div>
+        </ShadowSurface>
 
         <div style={{ padding: "12px 0 0" }}>
           <ControlRow label="HUE" first hairline={C.rowLine} muted={C.muted}>
@@ -716,7 +717,7 @@ const ColorPickerPanel = ({
                 },
               }}
             />
-            <span
+            <ShadowSurface as="span"
               data-testid="color-picker-final-swatch"
               aria-hidden
               style={{
@@ -731,7 +732,7 @@ const ColorPickerPanel = ({
           </ControlRow>
         </div>
       </div>
-    </div>
+    </ShadowSurface>
   );
 };
 
@@ -967,7 +968,7 @@ const ColorPicker = ({
             },
           }}
         >
-          <span
+          <ShadowSurface as="span"
             style={{
               width: M.swatch,
               height: M.swatch,

@@ -1,3 +1,4 @@
+import ShadowSurface from "../material/shadow_surface";
 import React, { useState, useRef, useEffect } from "react";
 import { DEFAULT_PORTS } from "./utils";
 
@@ -31,6 +32,12 @@ const Port = React.memo(function Port({
 }) {
   const [port_hovered, set_port_hovered] = useState(false);
   const fraction = (index + 1) / (total + 1);
+  /* A port sits at an even fraction of its side unless the node says where:
+     `port.anchor`, a pixel distance along that side from the node's top (left
+     and right sides) or left (top and bottom). A tall node keeps its in/out
+     ports level with its header this way, so a chain of mixed heights still
+     reads as one line. Absent or not a finite number, nothing changes. */
+  const anchor = Number.isFinite(port.anchor) ? `${port.anchor}px` : null;
   const shape = theme.portShape;
   const is_bar = shape === "bar";
   const is_puzzle = shape === "puzzle";
@@ -65,22 +72,22 @@ const Port = React.memo(function Port({
 
   switch (side) {
     case "top":
-      pos_style.left = `${fraction * 100}%`;
+      pos_style.left = anchor || `${fraction * 100}%`;
       pos_style.top = offset;
       base_transform = "translateX(-50%)";
       break;
     case "bottom":
-      pos_style.left = `${fraction * 100}%`;
+      pos_style.left = anchor || `${fraction * 100}%`;
       pos_style.bottom = offset;
       base_transform = "translateX(-50%)";
       break;
     case "left":
-      pos_style.top = `${fraction * 100}%`;
+      pos_style.top = anchor || `${fraction * 100}%`;
       pos_style.left = offset;
       base_transform = "translateY(-50%)";
       break;
     case "right":
-      pos_style.top = `${fraction * 100}%`;
+      pos_style.top = anchor || `${fraction * 100}%`;
       pos_style.right = offset;
       base_transform = "translateY(-50%)";
       break;
@@ -112,7 +119,7 @@ const Port = React.memo(function Port({
   const hit_pad = 10;
 
   return (
-    <div
+    <ShadowSurface
       data-port-id={port.id}
       data-port-side={side}
       data-port-kind={kind || ""}
@@ -153,7 +160,7 @@ const Port = React.memo(function Port({
           background: "transparent",
         }}
       />
-    </div>
+    </ShadowSurface>
   );
 });
 
@@ -194,7 +201,12 @@ const FlowEditorNode = React.memo(function FlowEditorNode({
   }, [node.id, register_dimensions]);
 
   /* ── Group ports by side ─────────────────────────────────── */
-  const ports_by_side = {};
+  /* Grouped in a table with no prototype, the sibling of the id-keyed tables
+     in `flow_editor.js`: a side is not graph data today — the catalogs supply
+     it — but this is the same `if (!table[key]) table[key] = []` that threw
+     `.add is not a function` one component up, and it costs nothing to make
+     it unable to happen here. */
+  const ports_by_side = Object.create(null);
   ports.forEach((p) => {
     if (!ports_by_side[p.side]) ports_by_side[p.side] = [];
     ports_by_side[p.side].push(p);
@@ -225,7 +237,7 @@ const FlowEditorNode = React.memo(function FlowEditorNode({
   };
 
   return (
-    <div
+    <ShadowSurface
       ref={node_ref}
       data-flow-node-id={node.id}
       style={node_style}
@@ -275,7 +287,7 @@ const FlowEditorNode = React.memo(function FlowEditorNode({
           </div>
         )}
       </div>
-    </div>
+    </ShadowSurface>
   );
 });
 

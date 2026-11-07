@@ -1,3 +1,4 @@
+import ShadowSurface from "../../../BUILTIN_COMPONENTs/material/shadow_surface";
 import { useState, useContext } from "react";
 
 /* { Contexts } -------------------------------------------------------------------------------------------------------------- */
@@ -193,7 +194,7 @@ const FlowEditorDemo = () => {
                   gap: 10,
                 }}
               >
-                <div
+                <ShadowSurface
                   style={{
                     width: 8,
                     height: 8,

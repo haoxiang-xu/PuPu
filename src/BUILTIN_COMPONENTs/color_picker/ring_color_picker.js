@@ -1,3 +1,4 @@
+import ShadowSurface from "../material/shadow_surface";
 import React, {
   useState,
   useRef,
@@ -191,7 +192,7 @@ const RingColorPicker = ({ value, set_value, default_value = "#3D76C9", label })
   const hexOut = a < 100 ? `${hex}${aByte}` : hex;
 
   const RingThumb = ({ x, y, color, big, dragging }) => (
-    <span
+    <ShadowSurface as="span"
       style={{
         position: "absolute",
         left: x,
@@ -219,7 +220,7 @@ const RingColorPicker = ({ value, set_value, default_value = "#3D76C9", label })
         <div style={{ fontSize: 12, color: sub, letterSpacing: "0.04em" }}>{label}</div>
       )}
 
-      <div
+      <ShadowSurface
         ref={wrapRef}
         onPointerDown={onRingDown}
         onMouseMove={onWrapMove}
@@ -239,7 +240,7 @@ const RingColorPicker = ({ value, set_value, default_value = "#3D76C9", label })
         <Ring id="ring-hue" gradient={HUE_CONIC} outer={hueOut} inner={hueIn} />
 
         {/* circular SV core */}
-        <div
+        <ShadowSurface
           ref={coreRef}
           onPointerDown={onCoreDown}
           style={{
@@ -257,7 +258,7 @@ const RingColorPicker = ({ value, set_value, default_value = "#3D76C9", label })
             zIndex: 4,
           }}
         >
-          <span
+          <ShadowSurface as="span"
             style={{
               position: "absolute",
               left: `${hsv.s}%`,
@@ -273,15 +274,15 @@ const RingColorPicker = ({ value, set_value, default_value = "#3D76C9", label })
               transition: drag === "core" ? "none" : `left ${GROW}, top ${GROW}`,
             }}
           />
-        </div>
+        </ShadowSurface>
 
         <RingThumb x={huePos.x} y={huePos.y} color={`hsl(${hsv.h},100%,50%)`} big={hover === "hue"} dragging={drag === "hue"} />
         <RingThumb x={alphaPos.x} y={alphaPos.y} color={hex} big={hover === "alpha"} dragging={drag === "alpha"} />
-      </div>
+      </ShadowSurface>
 
       {/* read-out — swatch shows real alpha over a checker */}
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span
+        <ShadowSurface as="span"
           style={{
             width: 22,
             height: 22,

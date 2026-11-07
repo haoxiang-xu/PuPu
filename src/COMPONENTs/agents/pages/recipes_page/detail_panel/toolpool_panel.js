@@ -44,9 +44,6 @@ const TABS = [
   { key: "store", label: "Store", icon: "search" },
 ];
 
-const DETAIL_PANEL_RIGHT_PADDING = 16;
-const TOOLPOOL_SCROLL_PADDING = 2;
-
 export default function ToolPoolPanel({ node, recipe, onChange, isDark }) {
   const [catalog, setCatalog] = useState([]);
   const [active_tab, setActiveTab] = useState("installed");
@@ -129,7 +126,10 @@ export default function ToolPoolPanel({ node, recipe, onChange, isDark }) {
 
   function toggle_tool(tk_id, tool_names, tool_name) {
     const entry = toolkits.find((t) => t.id === tk_id);
-    write_enabled_tools(tk_id, next_enabled_tools(entry, tool_names, tool_name));
+    write_enabled_tools(
+      tk_id,
+      next_enabled_tools(entry, tool_names, tool_name),
+    );
   }
 
   function toggle_pool_expanded(tk_id) {
@@ -158,41 +158,19 @@ export default function ToolPoolPanel({ node, recipe, onChange, isDark }) {
   const tag_off_color = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.32)";
 
   return (
+    /* No inner scroller: the shell's body is the one thing that scrolls, and
+     * nesting a second scroll area inside it gave this panel its own bar. */
     <div
-      className="scrollable"
-      data-sb-edge="2"
       style={{
         position: "relative",
-        maxHeight: "100%",
-        overflow: "auto",
         paddingTop: 14,
         paddingBottom: 6,
         paddingLeft: 2,
-        paddingRight: DETAIL_PANEL_RIGHT_PADDING + TOOLPOOL_SCROLL_PADDING,
-        marginRight: -DETAIL_PANEL_RIGHT_PADDING,
         display: "flex",
         flexDirection: "column",
         gap: 12,
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <div
-          style={{
-            width: 26,
-            height: 26,
-            borderRadius: 7,
-            background: "linear-gradient(135deg, #f6a341, #ea7547)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            flexShrink: 0,
-          }}
-        >
-          <Icon src="toolkit_pool" color="#fff" style={{ width: 14, height: 14 }} />
-        </div>
-        <div style={{ fontSize: 14, fontWeight: 600 }}>ToolkitPool</div>
-      </div>
-
       <div
         style={{
           display: "flex",
@@ -221,11 +199,7 @@ export default function ToolPoolPanel({ node, recipe, onChange, isDark }) {
               : "This pool only (ignore user selection)"}
           </span>
         </div>
-        <Switch
-          on={merge_on}
-          set_on={set_merge}
-          style={BUILDER_SWITCH_SIZE}
-        />
+        <Switch on={merge_on} set_on={set_merge} style={BUILDER_SWITCH_SIZE} />
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -364,7 +338,9 @@ export default function ToolPoolPanel({ node, recipe, onChange, isDark }) {
                     return (
                       <span
                         key={t.name}
-                        onClick={() => toggle_tool(entry.id, tool_names, t.name)}
+                        onClick={() =>
+                          toggle_tool(entry.id, tool_names, t.name)
+                        }
                         style={{
                           fontSize: 10.5,
                           fontFamily: "ui-monospace, Menlo, monospace",

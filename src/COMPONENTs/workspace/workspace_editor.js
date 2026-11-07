@@ -1,3 +1,4 @@
+import ShadowSurface from "../../BUILTIN_COMPONENTs/material/shadow_surface";
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import Button from "../../BUILTIN_COMPONENTs/input/button";
 import {
@@ -104,7 +105,7 @@ const UnderlineInput = ({
   const [focused, setFocused] = useState(false);
   const stateLine = error ? colors.danger : focused ? colors.accent : null;
   return (
-    <input
+    <ShadowSurface as="input"
       type="text"
       value={value}
       onChange={onChange}

@@ -1,3 +1,4 @@
+import ShadowSurface from "../material/shadow_surface";
 import React, {
   useCallback,
   useContext,
@@ -998,7 +999,7 @@ const ExplorerRowBase = ({
             />
           )}
           {showUnreadDot && (
-            <span
+            <ShadowSurface as="span"
               aria-hidden="true"
               style={{
                 position: "absolute",
@@ -1200,7 +1201,7 @@ const ExplorerRowBase = ({
                   />
                 )}
                 {showUnreadDot && (
-                  <span
+                  <ShadowSurface as="span"
                     aria-hidden="true"
                     style={{
                       position: "absolute",
@@ -1472,7 +1473,7 @@ const DropIndicator = ({
   return (
     <>
       {/* circle at line start */}
-      <span
+      <ShadowSurface as="span"
         aria-hidden="true"
         style={{
           position: "absolute",
@@ -1490,7 +1491,7 @@ const DropIndicator = ({
         }}
       />
       {/* line */}
-      <span
+      <ShadowSurface as="span"
         aria-hidden="true"
         style={{
           position: "absolute",
@@ -2278,7 +2279,7 @@ const Explorer = ({
       {dragState.isDragging &&
         sourceNode &&
         ReactDOM.createPortal(
-          <div
+          <ShadowSurface
             ref={ghostCallbackRef}
             style={{
               position: "fixed",
@@ -2395,7 +2396,7 @@ const Explorer = ({
                 />
               </span>
             )}
-          </div>,
+          </ShadowSurface>,
           document.body,
         )}
     </div>

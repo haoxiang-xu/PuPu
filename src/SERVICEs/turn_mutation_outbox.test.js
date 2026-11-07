@@ -14,6 +14,7 @@ import {
   normalizeTurnMutationOutboxEntry,
   readTurnMutationOutbox,
   readTurnMutationOutboxState,
+  readTurnMutationAdmissionOutboxState,
   recordTurnMutationRebaseAck,
   recordTurnMutationRetryOutcome,
   recordTurnMutationV1MirrorApplied,
@@ -62,6 +63,55 @@ const rebaseAck = (overrides = {}) => ({
 
 describe("turn mutation outbox", () => {
   beforeEach(() => window.localStorage.clear());
+
+  test("admission snapshot requires a complete bounded unique read", () => {
+    expect(readTurnMutationAdmissionOutboxState({ getItem: () => null })).toEqual({
+      available: true,
+      entries: [],
+    });
+    const targetFirst = [
+      entry({ operationId: "target-op", chatId: "target-chat" }),
+      ...Array.from({ length: 32 }, (_value, index) =>
+        entry({ operationId: `other-op-${index}`, chatId: `other-chat-${index}` }),
+      ),
+    ];
+    const overflowStorage = { getItem: () => JSON.stringify(targetFirst) };
+    expect(readTurnMutationAdmissionOutboxState(overflowStorage)).toEqual({
+      available: false,
+      entries: [],
+    });
+    expect(readTurnMutationOutboxState(overflowStorage)).toMatchObject({
+      available: true,
+      entries: expect.arrayContaining([expect.objectContaining({ operationId: "other-op-31" })]),
+    });
+    expect(readTurnMutationOutboxState(overflowStorage).entries.some(
+      (value) => value.operationId === "target-op",
+    )).toBe(false);
+
+    const duplicates = [
+      entry({ operationId: "duplicate-op", chatId: "target-chat" }),
+      entry({ operationId: "duplicate-op", chatId: "other-chat" }),
+    ];
+    const duplicateStorage = { getItem: () => JSON.stringify(duplicates) };
+    expect(readTurnMutationAdmissionOutboxState(duplicateStorage)).toEqual({
+      available: false,
+      entries: [],
+    });
+    expect(readTurnMutationOutboxState(duplicateStorage).entries[0].chatId).toBe("other-chat");
+
+    for (const storage of [
+      { getItem: () => "" },
+      { getItem: () => "{broken" },
+      { getItem: () => "{}" },
+      { getItem: () => JSON.stringify([entry(), { operationId: "invalid" }]) },
+      { getItem: () => { throw new Error("blocked"); } },
+    ]) {
+      expect(readTurnMutationAdmissionOutboxState(storage)).toEqual({
+        available: false,
+        entries: [],
+      });
+    }
+  });
 
   test("persists and removes a normalized operation", () => {
     expect(enqueueTurnMutation(entry())).toEqual(
@@ -709,5 +759,46 @@ describe("turn mutation outbox — durable retry and quarantine", () => {
       }),
     );
     expect(reset.v2RebasePayload).toEqual(original.v2RebasePayload);
+  });
+});
+
+/* #356 integration: a retry has to run the Agent it was launched with, so the
+   durable record carries that identity beside the model it already carried.
+   The field has three states and the absent one must keep old entries behaving
+   exactly as they did before it existed. */
+describe("the Agent a turn mutation was launched with", () => {
+  test("an id is recorded and read back as itself", () => {
+    const normalized = normalizeTurnMutationOutboxEntry(
+      entry({ selectedSkeletonAgentId: "research.agent:v2" }),
+    );
+    expect(normalized.selectedSkeletonAgentId).toBe("research.agent:v2");
+  });
+
+  test("a turn launched with no Agent records that, rather than nothing", () => {
+    const normalized = normalizeTurnMutationOutboxEntry(
+      entry({ selectedSkeletonAgentId: "" }),
+    );
+    expect(normalized.selectedSkeletonAgentId).toBe("");
+  });
+
+  test("an entry written before the field exists reads as not recorded", () => {
+    const older = entry();
+    delete older.selectedSkeletonAgentId;
+    expect(normalizeTurnMutationOutboxEntry(older).selectedSkeletonAgentId).toBeNull();
+    /* And a non-string cannot pose as a recorded value. */
+    expect(
+      normalizeTurnMutationOutboxEntry(entry({ selectedSkeletonAgentId: 7 }))
+        .selectedSkeletonAgentId,
+    ).toBeNull();
+  });
+
+  test("the identity survives a write and a read of the durable outbox", () => {
+    window.localStorage.clear();
+    enqueueTurnMutation(entry({ selectedSkeletonAgentId: "research.agent:v2" }));
+    const [stored] = readTurnMutationOutbox();
+    expect(stored.selectedSkeletonAgentId).toBe("research.agent:v2");
+    /* Beside the identity fields the entry already carried. */
+    expect(stored.operationId).toBe("turn-op-1");
+    expect(stored.targetMessageId).toBe("user-1");
   });
 });
