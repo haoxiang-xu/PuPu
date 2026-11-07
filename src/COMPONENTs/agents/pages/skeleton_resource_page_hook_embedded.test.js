@@ -367,12 +367,32 @@ describe("Escape never closes the Builder over an edit", () => {
     pressCanvasNode("code");
     await screen.findByTestId("code-section");
     fireEvent.change(screen.getByRole("textbox", { name: "Code of code" }), { target: { value: "x = 2\n" } });
+    document.activeElement?.blur();
     expect(document.activeElement).toBe(document.body);
     escapeOn(document.body);
     expect(onClose).not.toHaveBeenCalled();
     expect(screen.getByTestId("skeleton-escape-unsaved")).toHaveTextContent("Unsaved changes");
     expect(screen.getByRole("textbox", { name: "Code of code" })).toHaveValue("x = 2\n");
     expect(store.save).not.toHaveBeenCalled();
+  });
+
+  test("with Canvas focused and an unsaved edit: Escape keeps the Builder and draft without saving", async () => {
+    const base = caseOf("root");
+    const store = makeStore([base]);
+    const before = heldTexts(store, "import-root-code");
+    const onClose = jest.fn();
+    await openInModal("import-root-code", onClose);
+    pressCanvasNode("code");
+    await screen.findByTestId("code-section");
+    fireEvent.change(screen.getByRole("textbox", { name: "Code of code" }), { target: { value: "x = 2\n" } });
+    const canvas = screen.getByTestId("skeleton-canvas");
+    expect(document.activeElement).toBe(canvas);
+    escapeOn(canvas);
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByTestId("skeleton-escape-unsaved")).toHaveTextContent("Unsaved changes");
+    expect(screen.getByRole("textbox", { name: "Code of code" })).toHaveValue("x = 2\n");
+    expect(store.save).not.toHaveBeenCalled();
+    expect(heldTexts(store, "import-root-code")).toEqual(before);
   });
 
   test("control: with nothing unsaved, Escape closes the Builder as before", async () => {

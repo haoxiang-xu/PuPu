@@ -514,14 +514,18 @@ describe("a stored node carrying a field a node does not have", () => {
        reports it at the path the store names. Which is also why the drawing
        does not need to refuse the graph — the author is told, and can still
        work on everything else in it. */
-    await open_page(stray("child_node_label_unreadable"));
+    const document = stray("child_node_label_unreadable");
+    const before = JSON.stringify(document);
+    await open_page(document);
     fireEvent.click(screen.getByTestId("skeleton-node-pool-a"));
     await act(async () => {});
-    const problems = screen
-      .getByTestId("subagent-entry-0")
-      .textContent;
-    expect(problems).toMatch(/unknown field/i);
-    expect(problems).toMatch(/label/);
+    expect(within(screen.getByTestId("subagent-entry-0")).getByText(
+      "node label must be a string (config.subagents[0].source.document.nodes[1].label)",
+    )).toBeInTheDocument();
+    expect(JSON.stringify(document)).toBe(before);
+    expect(document.nodes.find((node) => node.id === "pool-a").config.subagents[0]
+      .source.document.nodes[1].label).toEqual({ toString: null });
+    expect(api.unchain.saveSkeletonResource).not.toHaveBeenCalled();
   });
 });
 
