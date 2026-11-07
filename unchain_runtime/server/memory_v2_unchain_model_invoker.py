@@ -12,7 +12,7 @@ from __future__ import annotations
 import copy
 import json
 from collections.abc import Callable, Mapping
-from typing import Any
+from typing import Any, NoReturn
 
 from unchain.journal import ResourceRef
 from unchain.journal.models import _required_text, _thaw_json
@@ -73,7 +73,7 @@ class PupuOfficialMemoryAgentInvokerError(CuratorRunnerFailure):
     """Terminal, model-safe failure at the PuPu model invocation boundary."""
 
 
-def _failure(code: str, cause: BaseException | None = None):
+def _failure(code: str, cause: BaseException | None = None) -> NoReturn:
     error = PupuOfficialMemoryAgentInvokerError(code)
     if cause is None:
         raise error

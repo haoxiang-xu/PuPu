@@ -13,7 +13,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from unchain.journal import AttemptRef, JournalAppendRequest, ResourceRef, build_operation_ref
+from unchain.journal import JournalAppendRequest, ResourceRef, build_operation_ref
 from unchain.journal.models import _thaw_json
 from unchain.skeleton import prepare_agent_graph, prepare_workflow
 from unchain.skeleton.agent_preparation import execution_definition_digest

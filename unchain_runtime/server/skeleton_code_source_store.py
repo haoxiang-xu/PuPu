@@ -1,7 +1,6 @@
 """Internal atomic graph/source persistence; no HTTP or execution authority."""
 from contextlib import closing
 from hashlib import sha256
-import json
 import sqlite3
 import time
 

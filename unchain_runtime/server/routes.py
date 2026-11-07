@@ -2,7 +2,6 @@ import character_defaults
 import character_store
 from route_auth import _is_authorized, _json_error
 from route_blueprint import api_blueprint
-from route_projection import _kmeans_2d_numpy
 from unchain_adapter import (
     _extract_workspace_roots_from_options,
     _resolve_workspace_roots,
@@ -85,7 +84,27 @@ import route_interject  # noqa: F401
 import route_computer_use  # noqa: F401
 import route_providers  # noqa: F401
 
+_kmeans_2d_numpy = route_projection._kmeans_2d_numpy
+
+# Route modules register their endpoints on api_blueprint when imported, and
+# tests and sibling route modules reach the adapter helpers through this module.
 __all__ = [
+    "route_catalog",
+    "route_chat",
+    "route_projection",
+    "route_characters",
+    "route_memory",
+    "route_memory_v2",
+    "route_recipes",
+    "route_skeleton_resources",
+    "route_mcp",
+    "route_skillpacks",
+    "route_skills",
+    "route_interject",
+    "route_computer_use",
+    "route_providers",
+    "_extract_workspace_roots_from_options",
+    "_resolve_workspace_roots",
     "api_blueprint",
     "_is_authorized",
     "_json_error",
