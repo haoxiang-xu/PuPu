@@ -62,11 +62,11 @@ function StartCallerInputs({ context, isDark }) {
             <Icon src="lock" />
           </span>
           <span style={{ fontSize: 11, flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>{field.name}</span>
-          <span style={{ fontSize: 10, color: "#86868b" }}>{field.type}</span>
+          <span style={{ fontSize: 10, color: isDark ? "#a1a1aa" : "#68686f" }}>{field.type}</span>
         </div>
       ))}
       {context.kind === "subagent" && fields.length === 0 && (
-        <span style={{ fontSize: 11, color: "#86868b" }}>This Start declares no caller fields.</span>
+        <span style={{ fontSize: 11, color: isDark ? "#a1a1aa" : "#68686f" }}>This Start declares no caller fields.</span>
       )}
     </div>
   );
