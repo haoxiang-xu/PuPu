@@ -325,8 +325,12 @@ def verify_packaged_workflow_tool():
                     'verified_resolution_artifact': artifact.to_dict()}
             if case['name'] == 'child':
                 metadata = assistant[0]['subagentMetaByRunId']
+                parent_kernel = next(node for node in selected['nodes'] if node['type'] == 'agent')
+                expected_full_id = parent_kernel['id'] + '.reviewer.1'
                 lifecycle_children = [(run_id, row) for run_id, row in metadata.items()
-                    if row.get('subagentId') == 'reviewer.1' and row.get('template') == 'Reviewer'
+                    if row.get('subagentId') == expected_full_id and row.get('template') == 'Reviewer'
+                    and row.get('parentId') == parent_kernel['id']
+                    and row.get('lineage') == [parent_kernel['id'], expected_full_id]
                     and row.get('mode') == 'delegate' and row.get('status') == 'completed']
                 assert len(lifecycle_children) == 1, 'exactly one completed Reviewer lifecycle child is required'
                 child_attempt, child_meta = lifecycle_children[0]
@@ -335,7 +339,6 @@ def verify_packaged_workflow_tool():
                             if entry.get('name') == 'Reviewer']
                 assert len(embedded) == 1, 'reviewer child source is ambiguous in immutable launch'
                 pool, embedded_entry = embedded[0]
-                parent_kernel = next(node for node in selected['nodes'] if node['type'] == 'agent')
                 manifest_rows = [row for row in descriptor['selection']['subagents']
                     if row['pool_node_id'] == pool['id'] and row['kernel_node_id'] == parent_kernel['id']
                     and row['entry_id'] == embedded_entry['id']]

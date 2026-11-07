@@ -7,7 +7,7 @@ on:
         description: One serial qualification lane
         required: true
         type: choice
-        options: [pair]
+        options: [pair, retained-verifier]
         default: pair
       allow_provisional_pair:
         description: Allow provisional Linux pair execution pending exact required CI; final success remains mandatory
@@ -1532,3 +1532,374 @@ jobs:
             test-results/platform/git-line-ending-global.json
             test-results/platform/git-line-ending-effective.json
             test-results/platform/wheel-core-byte-diagnostics.json
+
+  retained-verifier:
+    if: inputs.scope == 'retained-verifier'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      QA_WHEEL_SHA: 2f1296163437464d3d17f2fc98793d7bfd5f408a1f2dcec448d9fbb6cdd4bcd9
+      QA_MANIFEST: sha256:88d5f8d733e7f3dc94fb1cd20060fcc5f2611c0f94420e327bcb12664368bf2e
+      QA_BINARY_SHA: ae3add4dcc4890e9bf7e280d002a5511e7e26c07e84ea9eb6bd688dfe7fce3a9
+    steps:
+      - name: Refuse any unpinned or provisional replay request
+        env:
+          REQUEST_HOST: ${{ inputs.candidate_sha }}
+          REQUEST_TREE: ${{ inputs.candidate_tree }}
+          REQUEST_RUN: ${{ inputs.wheel_run_id }}
+          REQUEST_WHEEL: ${{ inputs.wheel_sha256 }}
+          REQUEST_PROVISIONAL: ${{ inputs.allow_provisional_pair }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_WORKSPACE" = /home/runner/work/PuPu/PuPu
+          test "$REQUEST_HOST" = f1eff98ef3ae0292239e8f245bcba378e6cf629e
+          test "$REQUEST_TREE" = e36f0f777059ebff3190c8bd89bc9181145acabe
+          test "$REQUEST_RUN" = 42319490116
+          test "$REQUEST_WHEEL" = "$QA_WHEEL_SHA"
+          test "$REQUEST_PROVISIONAL" = false
+      - name: Check out corrected QA controls
+        uses: actions/checkout@v4
+        with:
+          path: control
+          persist-credentials: false
+      - name: Check out exact recorded Host source
+        uses: actions/checkout@v4
+        with:
+          repository: haoxiang-xu/PuPu
+          ref: f1eff98ef3ae0292239e8f245bcba378e6cf629e
+          path: candidate
+          persist-credentials: false
+      - name: Set up exact retained verification Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.15"
+      - name: Bind current CI and restore only the exact retained inputs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib,json,os,pathlib,shutil,stat,subprocess,tarfile,urllib.request,zipfile
+          ROOT=pathlib.Path('/home/runner/work/PuPu/PuPu')
+          assert pathlib.Path.cwd()==ROOT
+          H='f1eff98ef3ae0292239e8f245bcba378e6cf629e'
+          HT='e36f0f777059ebff3190c8bd89bc9181145acabe'
+          W='2f1296163437464d3d17f2fc98793d7bfd5f408a1f2dcec448d9fbb6cdd4bcd9'
+          M='sha256:88d5f8d733e7f3dc94fb1cd20060fcc5f2611c0f94420e327bcb12664368bf2e'
+          B='ae3add4dcc4890e9bf7e280d002a5511e7e26c07e84ea9eb6bd688dfe7fce3a9'
+          T='cd4fa99e8f296c1db9369abae9c0e8dd2a64d3f125f6ad4e251328b63b706df7'
+          I='8448d405de17362f33121fa2f628bfd92daf5ad9864cc68b8ea82e56de712a41'
+          def digest(p):
+           with p.open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
+          def api(path):
+           req=urllib.request.Request('https://api.github.com/repos/haoxiang-xu/PuPu/'+path,headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json'})
+           with urllib.request.urlopen(req,timeout=30) as r:return json.load(r)
+          def require_ci(d):
+           assert type(d['id']) is int and d['id']==42319490116 and d['head_sha']==H
+           assert d['status']=='completed' and d['conclusion']=='success'
+           return {k:d[k] for k in ('id','head_sha','status','conclusion')}
+          def canonical(name):
+           p=pathlib.PurePosixPath(name)
+           assert name and not name.startswith('/') and '\\' not in name and '\x00' not in name
+           assert all(x not in ('','.','..') for x in name.split('/'))
+           assert p.as_posix()==name
+           return p
+          out=ROOT/'replay-safe';out.mkdir()
+          (out/'current-ci-before.json').write_text(json.dumps(require_ci(api('actions/runs/42319490116')),sort_keys=True)+'\n')
+          assert subprocess.check_output(['git','-C','candidate','rev-parse','HEAD'],text=True).strip()==H
+          assert subprocess.check_output(['git','-C','candidate','rev-parse','HEAD^{tree}'],text=True).strip()==HT
+          retained=ROOT/'retained-replay';retained.mkdir()
+          receipts=[]
+          def fetch(artifact_id,run_id,sha,label,exclude=()):
+           meta=api('actions/artifacts/'+str(artifact_id))
+           assert meta['id']==artifact_id and meta['workflow_run']['id']==run_id and meta['digest']=='sha256:'+sha and meta['expired'] is False
+           if run_id==42319490116:assert meta['workflow_run']['head_sha']==H
+           path=retained/(label+'.zip')
+           req=urllib.request.Request('https://api.github.com/repos/haoxiang-xu/PuPu/actions/artifacts/'+str(artifact_id)+'/zip',headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json'})
+           class DownloadRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self,request,fp,code,msg,headers,newurl):
+             redirected=super().redirect_request(request,fp,code,msg,headers,newurl)
+             redirected.remove_header('Authorization')
+             assert newurl.startswith('https://')
+             return redirected
+           with urllib.request.build_opener(DownloadRedirect()).open(req,timeout=60) as response,path.open('xb') as target:shutil.copyfileobj(response,target,1024*1024)
+           assert path.stat().st_size==meta['size_in_bytes'] and digest(path)==sha
+           dest=retained/label;dest.mkdir();selected=[];seen=set();total=0
+           with zipfile.ZipFile(path) as archive:
+            for row in archive.infolist():
+             name=row.filename.rstrip('/') if row.is_dir() else row.filename
+             canonical(name);assert name not in seen;seen.add(name)
+             if any(name==prefix.rstrip('/') or name.startswith(prefix) for prefix in exclude):continue
+             mode=row.external_attr>>16
+             assert not row.flag_bits&1 and (not stat.S_IFMT(mode) or stat.S_ISREG(mode) or stat.S_ISDIR(mode))
+             if row.is_dir():continue
+             assert len(selected)<5000 and row.file_size<=2*1024**3
+             total+=row.file_size;assert total<=4*1024**3
+             selected.append(row)
+            if label=='runtime':assert len(archive.infolist())==14851 and len(selected)==438
+            for row in selected:
+             target=dest/row.filename;target.parent.mkdir(parents=True,exist_ok=True)
+             with archive.open(row) as source,target.open('xb') as stream:shutil.copyfileobj(source,stream,1024*1024)
+             assert target.stat().st_size==row.file_size
+           receipts.append({'artifact_id':artifact_id,'run_id':run_id,'zip_sha256':sha,'selected_files':len(selected),'selected_bytes':total})
+           return dest
+          files=fetch(13555915892,42320831594,'1a55bab452efce53fc776f6a6ae8880a69c4fc26d0b442f1a90f7e8de61ba7e5','runtime',('test-results/core/pytest-data/','test-results/source/pytest-data/'))
+          wheel=fetch(13551823985,42319490116,'80a08688ea8ee02138d88664a3b297da76af949fef03115db07cfbda137e71f9','wheel')
+          wheels=list(wheel.rglob('*.whl'));assert len(wheels)==1 and digest(wheels[0])==W
+          assert digest(files/'reusable/unchain-0.2.0-py3-none-any.whl')==W
+          identity=json.loads((files/'test-results/pair/pair-identity.json').read_text())
+          for key,value in {'host_sha':H,'host_tree':HT,'core_sha':'369d86cc9592704c6d45017147904bf6e103a37f','core_tree':'18edaf62bb41ebade4457480f1edc89af4c6780b','wheel_sha256':W,'manifest':M,'required_ci_run_id':'42319490116'}.items():assert identity[key]==value
+          assert json.loads((files/'test-results/status/auth-scan-result.json').read_text())=={'status':'PASS','secret_values':4,'scanned_files':11255,'matches':0,'pcap_sha256':'ddd9a6f1c03d137873f604ab3c824d928ba35cda7e02a7c566cb36ebfbed1d45'}
+          sidecar=json.loads((files/'reusable/linux-sidecar-identity.json').read_text());assert sidecar['sha256']==B and sidecar['wheel_sha256']==W and digest(files/'reusable/unchain-server')==B
+          assert digest(files/'reusable/linux-unpacked.tgz')==T and digest(files/'reusable/linux-app-file-inventory.json')==I
+          scan=json.loads((files/'reusable/linux-app-seal-scan.json').read_text());assert scan['status']=='PASS' and scan['tar_sha256']==T
+          for row in scan['files']:
+           path=files/canonical(row['path']);assert path.is_file() and path.stat().st_size==row['size'] and digest(path)==row['sha256']
+          inventory=json.loads((files/'reusable/linux-app-file-inventory.json').read_text())
+          assert len(inventory)==10853
+          for name,row in inventory.items():
+           canonical(name);assert row['type'] in ('file','directory','symlink')
+           for parent in pathlib.PurePosixPath(name).parents:
+            if parent.as_posix()!='.':assert inventory[parent.as_posix()]['type']=='directory'
+           if row['type']=='symlink':
+            target=row['target'];assert target and not target.startswith('/') and '\\' not in target and '\x00' not in target
+            raw=target.encode();assert len(raw)==row['size'] and hashlib.sha256(raw).hexdigest()==row['sha256']
+            parts=list(pathlib.PurePosixPath(name).parent.parts)
+            for part in target.split('/'):
+             if part=='..':assert parts;parts.pop()
+             elif part not in ('','.'):parts.append(part)
+            resolved='/'.join(parts);assert resolved in inventory and inventory[resolved]['type']=='file'
+          app=ROOT/'candidate/dist/linux-unpacked';assert not app.exists();app.mkdir(parents=True)
+          with tarfile.open(files/'reusable/linux-unpacked.tgz','r:gz') as archive:
+           members={};root_seen=False
+           for item in archive:
+            if item.name=='linux-unpacked':assert item.isdir() and not root_seen;root_seen=True;continue
+            assert item.name.startswith('linux-unpacked/')
+            name=item.name[len('linux-unpacked/'):];canonical(name);assert name not in members and name in inventory
+            row=inventory[name]
+            assert (item.isfile() and row['type']=='file') or (item.isdir() and row['type']=='directory') or (item.issym() and row['type']=='symlink')
+            if item.issym():assert item.linkname==row['target']
+            if item.isfile():assert item.size==row['size']
+            members[name]=item
+           assert root_seen and set(members)==set(inventory)
+           for name in sorted(members,key=lambda x:(len(pathlib.PurePosixPath(x).parts),x)):
+            item=members[name]
+            if item.isdir():
+             path=app/name;path.mkdir();os.chmod(path,item.mode&0o777)
+           # Preserve original TAR order for regular bytes: one rewind, then monotonic reads.
+           for name,item in members.items():
+            if item.isfile():
+             row=inventory[name];path=app/name
+             assert path.parent.is_dir() and not path.parent.is_symlink()
+             source=archive.extractfile(item);assert source is not None
+             with source,path.open('xb') as target:shutil.copyfileobj(source,target,1024*1024)
+             assert path.stat().st_size==row['size'] and digest(path)==row['sha256'];os.chmod(path,item.mode&0o777)
+           for name,item in members.items():
+            if item.issym():(app/name).symlink_to(item.linkname)
+          def app_inventory(root):
+           result={}
+           for p in root.rglob('*'):
+            n=p.relative_to(root).as_posix();s=p.lstat()
+            if stat.S_ISLNK(s.st_mode):
+             v=os.readlink(p);raw=v.encode();assert p.resolve().is_relative_to(root.resolve()) and p.resolve().is_file()
+             result[n]={'type':'symlink','target':v,'size':len(raw),'sha256':hashlib.sha256(raw).hexdigest()}
+            elif stat.S_ISREG(s.st_mode):result[n]={'type':'file','size':s.st_size,'sha256':digest(p)}
+            else:assert stat.S_ISDIR(s.st_mode);result[n]={'type':'directory'}
+           return result
+          assert app_inventory(app)==inventory
+          # Read-only captures stay under retained-replay; only a NEW owned working copy may receive derived reports.
+          work=ROOT/'test-results';assert not work.exists();shutil.copytree(files/'test-results',work,ignore=lambda directory,names:['journal-verification-copy'] if pathlib.Path(directory)==files/'test-results/app' else [])
+          assert not (work/'app/journal-verification-copy').exists()
+          def tree(root):return {p.relative_to(root).as_posix():digest(p) for p in root.rglob('*') if p.is_file()}
+          raw_before=tree(work/'app/raw-state') if (work/'app/raw-state').exists() else None
+          # Raw capture's actual directory is read from its immutable recorded relative path, never guessed.
+          capture=json.loads((work/'app/raw-state-capture.json').read_text())
+          (out/'input-receipt.json').write_text(json.dumps({'artifacts':receipts,'original_run':42320831594,'original_conclusion':'FAILURE','host':H,'host_tree':HT,'wheel':W,'manifest':M,'sidecar':B,'tar':T,'inventory':I,'retained_files':tree(files),'working_app_before':tree(work/'app')},sort_keys=True)+'\n')
+          with open(os.environ['GITHUB_ENV'],'a') as env:
+           env.write('QA_WHEEL='+str(wheels[0])+'\nQA_APP='+str(app/'pupu')+'\nQA_OUT='+str(work/'app')+'\n')
+          # Restore only the retained sidecar path needed by verifier byte checks, never execute it.
+          sidecar_path=ROOT/'candidate/unchain_runtime/dist/linux/unchain-server'
+          assert not sidecar_path.exists();sidecar_path.parent.mkdir(parents=True,exist_ok=True)
+          shutil.copyfile(files/'reusable/unchain-server',sidecar_path)
+          assert digest(sidecar_path)==B
+          host_sources={}
+          for name in subprocess.check_output(['git','-C','candidate','ls-files','unchain_runtime/server'],text=True).splitlines():
+           if name.endswith('.py'):
+            raw=subprocess.check_output(['git','-C','candidate','show',H+':'+name])
+            assert (ROOT/'candidate'/name).read_bytes()==raw
+            host_sources[str(ROOT/'candidate'/name)]=hashlib.sha256(raw).hexdigest()
+          (out/'host-sources.json').write_text(json.dumps(host_sources,sort_keys=True)+'\n')
+          (out/'tar-modes.json').write_text(json.dumps({name:item.mode&0o777 for name,item in members.items() if not item.issym()},sort_keys=True)+'\n')
+
+          # Reconcile accepted fresh B2 capture bytes without executing its cells again.
+          accepted_b2={'core/acceptance.xml': '34001fdcf3dda6f31387a4a17381d4638bb28fd59a107d9e5e0fc31bb8ece921', 'core/imported-runtime.json': '0a6a8646c1bc66c7eaaf3f5642d12f81ab5b2f9d102e53396da5dd886b66b1e6', 'core/test-files.txt': 'b786ae19b820d15aac57f49b323460eb81e9b54e13f0ef343adfc2238344f18e', 'source/acceptance.xml': '4e7fe029a766a2551a2ee405b1f61a986c96dc5992f210000420c37feaea2b74', 'source/imported-runtime.json': '95557c153060ef9d7c000fb6723c72174f72192f7f9f558b00e054a656d27f0e', 'source/test-files.txt': 'f2162189f5ae6f74cf56b1d5e2037d23c7ec1ae668be36b13dd6676f8667961f', 'status/unit-evidence-scan.json': '699877aaaa80ff389fee1ebdef4c1a28c1b8ded38072ee047e183a942dbdeace', 'pair/build-version-input.json': '8588c6792d15e67414c0f95c4ba95eae5b5282792dfc2b5e056a37df9950fc93', 'pair/installed-cells-summary.json': '4ad5e2d855aaa63ded1f9b2939ca64c729d608fa1555034fe0d971101655a661', 'pair/wheel-run.json': '70f657047e75193ffb14726e66f0f0a1c6a092fd16edb1ce2799aaa3e77774e1', 'pair/core-test-staging.json': '055f30808f126ddbb8b817f54fff37dffd8fa03857f3b6db8472c1f4ddca783f', 'pair/dependencies-freeze.txt': 'd1555d870384a9b455829310ef8835a99c56e60b0e4681c0602a99822564035e', 'pair/unchain-artifact.json': 'f35fe629adcd4f821ce887e52614c9bb6a5d90af8d81d0942395b455b5f03f5f', 'pair/pair-identity.json': '00cad5a4b233196bcd62d03d113333e85a66bcdca5424124a8d91e0ae606b20b'}
+          for name,sha in accepted_b2.items():assert digest(files/'test-results'/canonical(name))==sha
+          PY
+      - name: Install only declared prerequisites and the canonical wheel for verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m venv "$RUNNER_TEMP/356-verifier-venv"
+          "$RUNNER_TEMP/356-verifier-venv/bin/python" -m pip install --disable-pip-version-check -r candidate/unchain_runtime/server/requirements.txt
+          "$RUNNER_TEMP/356-verifier-venv/bin/python" -m pip install --disable-pip-version-check --constraint candidate/unchain_runtime/server/requirements.txt "$QA_WHEEL"
+          "$RUNNER_TEMP/356-verifier-venv/bin/python" -m pip check
+          "$RUNNER_TEMP/356-verifier-venv/bin/python" - <<'PY' >> "$GITHUB_ENV"
+          import site,sys
+          assert tuple(sys.version_info[:3])==(3,12,15)
+          print('QA_PYTHON='+sys.executable)
+          print('QA_SITE='+site.getsitepackages()[0])
+          PY
+      - name: Execute the full corrected verifier only in a genuine offline namespace
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/356-verifier-main.py" <<'PY'
+          import hashlib,importlib.util,json,os,pathlib,runpy,sys,zipfile
+          root=pathlib.Path('/home/runner/work/PuPu/PuPu')
+          assert tuple(sys.version_info[:3])==(3,12,15)
+          assert os.getuid()!=0 and os.geteuid()!=0
+          status=dict(line.split(':',1) for line in pathlib.Path('/proc/self/status').read_text().splitlines() if ':' in line)
+          assert int(status['CapEff'].strip(),16)==0 and status['NoNewPrivs'].strip()=='1'
+          assert {p.name for p in pathlib.Path('/sys/class/net').iterdir()}=={'lo'}
+          site=pathlib.Path(os.environ['QA_SITE']).resolve();wheel=pathlib.Path(os.environ['QA_WHEEL'])
+          assert hashlib.sha256(wheel.read_bytes()).hexdigest()==os.environ['QA_WHEEL_SHA']
+          from unchain.runtime.runtime_protocol import runtime_protocol_manifest
+          assert runtime_protocol_manifest()['manifest_digest']==os.environ['QA_MANIFEST']
+          helper=root/'control/tools/qa356/verify_app.py'
+          sys.argv=[str(helper)];sys.path[0]=str(helper.parent)
+          # Full original __main__ entrypoint, with every assertion and exception unchanged.
+          runpy.run_path(str(helper),run_name='__main__')
+          assert runtime_protocol_manifest()['manifest_digest']==os.environ['QA_MANIFEST']
+          core=[];host=[];host_sources=json.loads((root/'replay-safe/host-sources.json').read_text())
+          with zipfile.ZipFile(wheel) as archive:
+           for name,module in sorted(sys.modules.copy().items()):
+            filename=getattr(module,'__file__',None)
+            if not filename:
+             assert name!='unchain' and not name.startswith('unchain.')
+             continue
+            path=pathlib.Path(filename)
+            if path.suffix=='.pyc':path=pathlib.Path(importlib.util.source_from_cache(str(path)))
+            path=path.resolve()
+            if name=='unchain' or name.startswith('unchain.'):
+             assert path.is_relative_to(site/'unchain')
+             member=path.relative_to(site).as_posix();raw=path.read_bytes();assert raw==archive.read(member)
+             core.append({'module':name,'sha256':hashlib.sha256(raw).hexdigest()})
+            elif path.is_relative_to(root/'candidate/unchain_runtime/server'):
+             assert str(path) in host_sources and hashlib.sha256(path.read_bytes()).hexdigest()==host_sources[str(path)]
+             host.append({'module':name,'sha256':host_sources[str(path)]})
+          assert core and host
+          report=json.loads((root/'test-results/app/raw-lifecycle-verification.json').read_text())
+          assert [r['case'] for r in report['cases']]==['approved','cancelled','child']
+          assert report['wheel_sha256']==os.environ['QA_WHEEL_SHA'] and report['manifest']==os.environ['QA_MANIFEST']
+          assert next(r for r in report['cases'] if r['case']=='child')['child_store'] is not None
+          (root/'replay-safe/actual-imports.json').write_text(json.dumps({'mode':'runpy_full_main_direct_script_argv_path','core':core,'host':host,'manifest':os.environ['QA_MANIFEST']},sort_keys=True)+'\n')
+          PY
+          cat > "$RUNNER_TEMP/356-verifier-inside.sh" <<'SH'
+          set -euo pipefail
+          ip link set lo up
+          test "$(ip -j route show | tr -d '[:space:]')" = '[]'
+          setpriv --reuid="$QA_UID" --regid="$QA_GID" --init-groups --bounding-set=-all --no-new-privs env -i \
+           PATH="$PATH" HOME="$QA_HOME" TMPDIR="$QA_TMP" LANG=C.UTF-8 PYTHONDONTWRITEBYTECODE=1 \
+           PYTHONPATH="$QA_CONTROL:$QA_SERVER:$QA_SITE" UNCHAIN_SOURCE_PATH="$QA_SITE" \
+           QA_OUT="$QA_OUT" QA_APP="$QA_APP" QA_CONTROL="$QA_CONTROL" QA_SITE="$QA_SITE" \
+           QA_WHEEL="$QA_WHEEL" QA_WHEEL_SHA="$QA_WHEEL_SHA" QA_MANIFEST="$QA_MANIFEST" QA_BINARY_SHA="$QA_BINARY_SHA" \
+           "$QA_PYTHON" -B "$QA_LAUNCHER" > "$QA_PRIVATE_LOG" 2>&1
+          # No runtime launch, providers, capture or guard substitution: only the retained-state verifier.
+          test "$(ip -j route show | tr -d '[:space:]')" = '[]'
+          SH
+          export QA_UID="$(id -u)" QA_GID="$(id -g)"
+          export QA_HOME="$RUNNER_TEMP/356-verifier-home" QA_TMP="$RUNNER_TEMP/356-verifier-tmp"
+          export QA_SERVER="$GITHUB_WORKSPACE/candidate/unchain_runtime/server" QA_CONTROL="$GITHUB_WORKSPACE/control/tools/qa356"
+          export QA_LAUNCHER="$RUNNER_TEMP/356-verifier-main.py" QA_PRIVATE_LOG="$RUNNER_TEMP/356-verifier-private.log"
+          mkdir "$QA_HOME" "$QA_TMP"
+          ulimit -v 4194304
+          timeout 300s sudo --preserve-env=PATH,QA_UID,QA_GID,QA_HOME,QA_TMP,QA_SERVER,QA_CONTROL,QA_SITE,QA_OUT,QA_APP,QA_WHEEL,QA_WHEEL_SHA,QA_MANIFEST,QA_BINARY_SHA,QA_PYTHON,QA_LAUNCHER,QA_PRIVATE_LOG             unshare --net /bin/bash "$RUNNER_TEMP/356-verifier-inside.sh"
+      - name: Require immutable raw inputs and sealed inventory then final successful CI
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib,json,os,pathlib,stat,urllib.request
+          R=pathlib.Path('/home/runner/work/PuPu/PuPu');out=R/'replay-safe'
+          def digest(p):
+           with p.open('rb') as s:return hashlib.file_digest(s,'sha256').hexdigest()
+          def tree(root):return {p.relative_to(root).as_posix():digest(p) for p in root.rglob('*') if p.is_file()}
+          before=json.loads((out/'input-receipt.json').read_text());files=R/'retained-replay/runtime';app=R/'candidate/dist/linux-unpacked'
+          assert tree(files)==before['retained_files']
+          for row,label in zip(before['artifacts'],('runtime','wheel')):assert digest(R/'retained-replay'/(label+'.zip'))==row['zip_sha256']
+          work=R/'test-results/app'
+          old=before['working_app_before'];now=tree(work)
+          assert {k:v for k,v in old.items() if k.startswith('raw-state/')}=={k:v for k,v in now.items() if k.startswith('raw-state/')}
+          # All original working inputs except the verifier's known derived output names remain exact.
+          derived={'canonical-journal.json','raw-verification.json','raw-lifecycle-verification.json','lifecycle-approved-journal.json','lifecycle-cancelled-journal.json','lifecycle-child-journal.json'}
+          for name,value in old.items():
+           if name not in derived:assert now[name]==value
+          inventory=json.loads((files/'reusable/linux-app-file-inventory.json').read_text());seen={}
+          modes=json.loads((out/'tar-modes.json').read_text())
+          for p in app.rglob('*'):
+           name=p.relative_to(app).as_posix();s=p.lstat()
+           if stat.S_ISLNK(s.st_mode):
+            target=os.readlink(p);raw=target.encode();seen[name]={'type':'symlink','target':target,'size':len(raw),'sha256':hashlib.sha256(raw).hexdigest()};assert p.resolve().is_relative_to(app) and p.resolve().is_file()
+           elif stat.S_ISREG(s.st_mode):seen[name]={'type':'file','size':s.st_size,'sha256':digest(p)}
+           else:assert stat.S_ISDIR(s.st_mode);seen[name]={'type':'directory'}
+           if name in modes:assert stat.S_IMODE(s.st_mode)==modes[name]
+          assert seen==inventory
+          req=urllib.request.Request('https://api.github.com/repos/haoxiang-xu/PuPu/actions/runs/42319490116',headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json'})
+          with urllib.request.urlopen(req,timeout=30) as response:d=json.load(response)
+          assert type(d['id']) is int and d['id']==42319490116 and d['head_sha']=='f1eff98ef3ae0292239e8f245bcba378e6cf629e' and d['status']=='completed' and d['conclusion']=='success'
+          proof=json.loads((out/'actual-imports.json').read_text());assert proof['core'] and proof['host']
+          receipt={'schema':'qa356.retained-verifier-replay.v1','status':'ORIGINAL_RUNTIME_PLUS_VERIFIER_REPLAY_PASS','original_run':42320831594,'original_workflow_conclusion':'FAILURE','current_ci_run':42319490116,'current_ci_status':'completed_success','host_sha':before['host'],'wheel_sha256':before['wheel'],'manifest':before['manifest'],'sidecar_sha256':before['sidecar'],'tar_sha256':before['tar'],'sealed_inventory_sha256':before['inventory'],'wrapper_mode':'runpy_full_main_direct_script_argv_path','core_import_count':len(proof['core']),'host_import_count':len(proof['host']),'preserved_raw_state':True,'preserved_retained_inputs':True,'preserved_sealed_inventory':True,'original_auth_scan':'PASS_ORIGINAL_OBSERVATION_NOT_NEW_SCAN','derived_output_hashes':{name:digest(work/name) for name in sorted(derived)},'actual_imports_sha256':digest(out/'actual-imports.json'),'input_receipt_sha256':digest(out/'input-receipt.json'),'current_ci_before_sha256':digest(out/'current-ci-before.json')}
+          raw=(json.dumps(receipt,sort_keys=True)+'\n').encode();assert len(raw)<=16384
+          publish=R/'replay-publish';publish.mkdir();(publish/'replay-receipt.json').write_bytes(raw)
+          PY
+      - name: Write bounded failure status without exposing verifier logs or raw state
+        if: failure()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p replay-publish
+          printf '%s\n' '{"schema":"qa356.retained-verifier-status.v1","status":"FAIL_OR_NOT_RUN","original_run":42320831594,"original_workflow_conclusion":"FAILURE"}' > replay-publish/replay-status.json
+      - name: Validate the exact bounded publication allowlist
+        if: always()
+        id: publication
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,pathlib,re
+          p=pathlib.Path('replay-publish'); assert p.is_dir()
+          names={x.name for x in p.iterdir()}
+          assert names in ({'replay-status.json'},{'replay-receipt.json'})
+          for x in p.iterdir():
+              assert x.is_file() and not x.is_symlink() and x.stat().st_size<=16384
+              raw=x.read_bytes();d=json.loads(raw)
+              assert isinstance(d,dict) and d['original_run']==42320831594 and d['original_workflow_conclusion']=='FAILURE'
+              if x.name=='replay-status.json':
+                  assert d=={'schema':'qa356.retained-verifier-status.v1','status':'FAIL_OR_NOT_RUN','original_run':42320831594,'original_workflow_conclusion':'FAILURE'}
+              else:
+                  assert set(d)=={'schema','status','original_run','original_workflow_conclusion','current_ci_run','current_ci_status','host_sha','wheel_sha256','manifest','sidecar_sha256','tar_sha256','sealed_inventory_sha256','wrapper_mode','core_import_count','host_import_count','preserved_raw_state','preserved_retained_inputs','preserved_sealed_inventory','original_auth_scan','derived_output_hashes','actual_imports_sha256','input_receipt_sha256','current_ci_before_sha256'}
+                  assert d['schema']=='qa356.retained-verifier-replay.v1' and d['status']=='ORIGINAL_RUNTIME_PLUS_VERIFIER_REPLAY_PASS'
+                  assert d['host_sha']=='f1eff98ef3ae0292239e8f245bcba378e6cf629e' and d['wheel_sha256']=='2f1296163437464d3d17f2fc98793d7bfd5f408a1f2dcec448d9fbb6cdd4bcd9'
+                  assert d['manifest']=='sha256:88d5f8d733e7f3dc94fb1cd20060fcc5f2611c0f94420e327bcb12664368bf2e' and d['sidecar_sha256']=='ae3add4dcc4890e9bf7e280d002a5511e7e26c07e84ea9eb6bd688dfe7fce3a9'
+                  assert d['tar_sha256']=='cd4fa99e8f296c1db9369abae9c0e8dd2a64d3f125f6ad4e251328b63b706df7' and d['sealed_inventory_sha256']=='8448d405de17362f33121fa2f628bfd92daf5ad9864cc68b8ea82e56de712a41'
+                  assert d['wrapper_mode']=='runpy_full_main_direct_script_argv_path' and d['original_auth_scan']=='PASS_ORIGINAL_OBSERVATION_NOT_NEW_SCAN'
+                  assert set(d['derived_output_hashes'])=={'canonical-journal.json','raw-verification.json','raw-lifecycle-verification.json','lifecycle-approved-journal.json','lifecycle-cancelled-journal.json','lifecycle-child-journal.json'}
+                  assert all(re.fullmatch('[0-9a-f]{64}',d[k]) for k in ('actual_imports_sha256','input_receipt_sha256','current_ci_before_sha256'))
+                  assert d['current_ci_run']==42319490116 and d['current_ci_status']=='completed_success'
+                  assert d['preserved_raw_state'] is True and d['preserved_retained_inputs'] is True and d['preserved_sealed_inventory'] is True
+                  assert d['core_import_count']>0 and d['host_import_count']>0
+                  assert all(re.fullmatch('[0-9a-f]{64}',v) for v in d['derived_output_hashes'].values())
+              assert b'Bearer ' not in raw and b'github_pat_' not in raw and b'ghp_' not in raw
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f:f.write('ready=true\n')
+          PY
+      - name: Publish only validated bounded replay receipt or failure status
+        if: always() && steps.publication.outputs.ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: 356-retained-verifier-replay-${{ github.run_id }}
+          path: |
+            replay-publish/replay-receipt.json
+            replay-publish/replay-status.json
+          if-no-files-found: error
