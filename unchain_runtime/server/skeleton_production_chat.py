@@ -145,9 +145,9 @@ def _node_attachments(authorized):
 
 
 def _stream_worker_event(raw):
-    """Keep node events scoped while allowing only a committed child End."""
+    """Keep typed child model observations distinct from committed child End."""
     event = dict(raw)
-    from skeleton_child_events import ChildEndAttribution
+    from skeleton_child_events import ChildEndAttribution, ChildNodeAttribution
     attribution = event.get("_pupu_skeleton_child_attribution")
     if (type(attribution) is ChildEndAttribution
             and event.get("type") == "final_message"
@@ -156,6 +156,12 @@ def _stream_worker_event(raw):
         return event
     if type(attribution) is ChildEndAttribution or event.get("scope") == "child_end":
         return None
+    if (type(attribution) is ChildNodeAttribution
+            and event.get("scope") == "node"
+            and event.get("type") == "final_message"
+            and event.get("run_id") == attribution.node_run_id
+            and attribution.source_type == "final_message"):
+        return event
     if event.get("scope") == "node":
         if event.get("type") == "final_message":
             event["type"] = "workflow_step_final"

@@ -401,3 +401,105 @@ establish that predicate is unaffected. It is not relabeled as a new Mac pair,
 sidecar/profile contract, or whole-resource equality. The new wheel/manifest and
 changed child/cold/serialization boundaries require the replacement pair's actual
 Linux/Windows and App cells. Frozen evidence and prior failed rounds are preserved.
+
+### Native child model observation repair — 2026-11-07 UTC
+
+Workspace: `/Users/red/Desktop/GITRepo/pupu-356-child-observation-delivery`;
+branch `codex/ticket-356-child-observation-delivery`; frozen base
+`56dd76fdd68956a5652ccbd085b99d95db9f5a28` (tree
+`735607061eb127cc549e0ef76cc94ca6e6b9eb6e`). This is a necessary #356
+integration repair, not a new feature. The original candidate remains read-only.
+
+The strong-model source-backed handoff is
+`/Users/red/.codex/artifacts/pupu-356/today-356-20261104/heavy-review/child-observation-production-repair-handoff-v1.json`,
+SHA256 `fd4cc06fc34494b1a7f428e812d3452b015e9bacbb0bc68c024ecb071bfc6b05`.
+Its first-cause evidence is run42313351827 and report
+`heavy-review/pair42313351827-child-observation-first-cause-plan.json`,
+SHA256 `d12a91c7b7c0a1770928360f458385abff8dbda2e87cbad875eea266fe9960d4`.
+All ten actual pointer/clip/title stages passed. Journal seq32/kernel CAS contain
+native node N's raw model text; the separate committed child C End is correctly
+visible. The production Host renames the native final to unsupported
+`workflow_step_final`, and the frontend routes correctly linked N observations
+to root frames because N deliberately has no `run_started`.
+
+**Settled repair (BC-356-CLOSE-005 amendment):** no Core, protocol, manifest,
+Journal, durable-state or new persistence-schema change. In
+`skeleton_production_chat._stream_worker_event`, preserve a node `final_message`
+only with exact `ChildNodeAttribution`, matching N and
+`source_type == final_message`. Keep existing R/T binding and strip/project
+validation. Untyped/generic/root-node finals, token deltas and suppressed node
+lifecycle events retain their existing behavior. Installed Core already maps
+the admitted event to `step.completed(model_response, final_text)` under N,
+with the existing projected parent C link.
+
+In `useChatStream`'s existing `onFrame` path, admit a normalized runtime N frame
+linked to C only for the active assistant owner/current generation, exact
+execution session, N distinct from C, and known lifecycle C metadata with a
+nonblank `subagentId`. Current metadata or `savedChildMeta(C)` on that exact
+assistant message provides the evidence; a status-only eager placeholder or a
+bucket alone does not. Use existing child-frame adoption/append/sync and event
+deduplication. Never create lifecycle N metadata. A known-C candidate with an
+explicit wrong session must not fall through into root content handling. Keep
+legacy root P-to-R and old child paths unchanged. Cold ownership must not
+require the saved message's transport attempt to equal canonical R.
+
+N raw model text is only an owned node observation. C's committed End, parent
+tool result, root final, parent provider/history/summary/ProgressDigest and
+after-Hook A/B isolation remain distinct. No renderer production change is
+planned; existing TraceChain must consume the resulting owned frames.
+
+**SEQ/AC-356-CLOSE-005 amendment:** genuine production callback -> installed
+Core normalization -> private-carrier projection; no N lifecycle event;
+response then model final then distinct C End; current and cold R!=T owner;
+saved-frame preservation and duplicate replay; stale generation/Stop/foreign
+session refusal; sibling/nested direct-parent isolation; root P-to-R and legacy
+paths; committed-End and after-Hook privacy controls. A wrong identity fails
+the existing boundary, without a fallback that invents output.
+
+**Delegation assessment: PARTIALLY SUITABLE.** `gpt-6-astra` resolved the typed
+seam, ownership, failure semantics and artifact strategy. `gpt-6.1-sol` may
+implement only the bounded next slice below; root/strong review owns checkpoint
+release and acceptance. No new UI primitive or design decision is involved.
+
+1. Tests-only RED checkpoint. Production bytes stay identical to56. Allowed
+   tests: `test_skeleton_production_chat.py`, `test_chat_stream_v4.py`,
+   `test_skeleton_agent_runtime.py`,
+   `use_chat_stream.memory_v2_payload.test.js`, and `trace_chain.test.js`.
+   Reuse the handoff's exact existing harnesses and actual capture identities.
+   Require meaningful content/routing RED after completion/identity prerequisites,
+   never a setup failure or a forwarding stub. Prove separate N model text,
+   C End and root final. Run explicit selectors only, one local worker <=4GiB;
+   no local App/browser. A real macOS process-identity block is BLOCKED and
+   goes to the existing hosted Linux lane unchanged, never mocked around.
+2. Strong RED review, then release only the two production seams above with
+   fresh exact impacts and retained HIGH/CRITICAL/UNKNOWN warnings. No worker
+   continuation into implementation without that checkpoint.
+3. Targeted GREEN/negative/cold/nested/H1 controls; full raw graph change
+   analysis before delivery commit, exact diff/patch/source identity review.
+4. Normal new required Host CI builds **one new canonical wheel** from unchanged
+   Core369. Independently compare all378 Python members/payloads and manifest
+   to frozen95. A changed ZIP digest is a new identity, never relabel95 or add
+   a reuse bypass. Fresh affected installed/binary/App cells bind that new SHA.
+   Existing narrow unchanged worker predicates retain only their proved scope.
+   Full CI and exact App lifecycle/raw verification remain mandatory, with at
+   most two hosted jobs and no overlapping local heavy work.
+
+Before edits, exact projector impact is LOW (one direct caller, zero indexed
+flows, one module). The hook callback is UNKNOWN due dynamic callback wiring;
+literal wiring corroborates its entry, not absence of risk. The independent
+clone's graph receipts are in `light-execution/child-observation-delivery/`.
+Do not edit Core, observer gates, guards, routes, schemas, budgets, dependencies,
+generic UI components or QA success criteria. Report a new contradiction before
+dependent edits. No close/merge claim until new delivered-head evidence passes.
+
+Development checkpoint: three causal REDs were confirmed with production still
+at56, then the two bounded repairs passed14 distinct frontend/owned-trace/cold/
+stale controls (the strengthened stale-native case was repeated once) and4
+backend/normalization/H1/identity controls. The actual public
+cold producer and the synthetic V4 SSE route remain locally BLOCKED by the real
+macOS process-incarnation check; no guard mock or skip was added. Full Linux CI
+and fresh installed/binary/App cells must execute them. H1's exact raw text is
+the structured JSON returned by its SDK fixture, not the bare marker; correcting
+that test expectation did not relax content equality or downstream isolation.
+The full i18n scan is unchanged (876 English keys, ten locales, no new findings;
+the same50 dynamic references and88 dead-key candidates remain disclosed).

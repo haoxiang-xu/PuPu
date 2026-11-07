@@ -778,10 +778,19 @@ class ChatStreamV4RouteTests(unittest.TestCase):
             child_node, root_run_id=canonical_source_run_id,
             transport_attempt_id=transport_attempt_id,
         )
+        child_final = bind_transport_attempt(attach_node_attribution({
+            "type": "final_message", "scope": "node", "run_id": node_run_id,
+            "content": "native child model text",
+        }, ChildNodeAttribution(
+            root_run_id=canonical_source_run_id, parent_run_id="parent-node-attempt",
+            child_run_id=child_run_id, graph_id="child-graph-id",
+            node_run_id=node_run_id, source_type="final_message",
+        )), root_run_id=canonical_source_run_id, transport_attempt_id=transport_attempt_id)
         with mock.patch.object(
             miso_routes, "stream_chat_events",
             return_value=iter([
                 child_node,
+                child_final,
                 end,
                 {"type": "final_message", "run_id": transport_attempt_id, "content": "root final"},
             ]),
@@ -815,6 +824,11 @@ class ChatStreamV4RouteTests(unittest.TestCase):
         ]
         self.assertNotEqual(canonical_source_run_id, transport_attempt_id)
         self.assertEqual(child_model["links"]["parent_run_id"], child_run_id)
+        native_final = next(event for event in runtime_events if
+            event.get("run_id") == node_run_id and
+            event.get("payload", {}).get("final_text") == "native child model text")
+        self.assertEqual(native_final["links"]["parent_run_id"], child_run_id)
+        self.assertEqual(native_final["payload"]["step_type"], "model_response")
         self.assertEqual(child_end["links"]["parent_run_id"], "parent-node-attempt")
         self.assertEqual(child_end["payload"]["final_text"], "committed child End")
         self.assertEqual(len(root_finals), 1)

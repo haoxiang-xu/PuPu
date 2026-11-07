@@ -6140,6 +6140,26 @@ export const useChatStream = ({
           : null;
       };
 
+      // Native node lifecycle is suppressed. Only a real lifecycle child on
+      // this assistant owner can authorize its normalized node observations.
+      const linkedNativeChildParent = (frame) => {
+        if (frame?.stage !== "runtime_event") return "";
+        const runId = typeof frame.run_id === "string" ? frame.run_id : "";
+        const parentId =
+          typeof frame.links?.parent_run_id === "string"
+            ? frame.links.parent_run_id
+            : "";
+        if (!runId.trim() || !parentId.trim() || runId === parentId) return "";
+        if (!streamMessages.some((message) =>
+          message.id === assistantMessageId && message.role === "assistant",
+        )) return "";
+        const knownLifecycle = [
+          renderRuntime.subagentMetaByRunId.get(parentId),
+          savedChildMeta(parentId),
+        ].some((meta) => typeof meta?.subagentId === "string" && meta.subagentId.trim());
+        return knownLifecycle ? parentId : "";
+      };
+
       const upsertSubagentMeta = (childRunId, updates) => {
         if (typeof childRunId !== "string" || !childRunId.trim()) {
           return null;
@@ -8169,12 +8189,18 @@ export const useChatStream = ({
 
               /* ── Route subagent frames to their sub-timeline ── */
               /* Known subagent: run_id already registered via lifecycle events */
+              const linkedParent = linkedNativeChildParent(frame);
+              // A foreign execution observation must not fall into root final
+              // handling merely because its known child link is inadmissible.
+              if (linkedParent && frame.session_id !== effectiveThreadId) return;
+              const isLinkedNativeChild = Boolean(linkedParent);
               const isKnownChild = isKnownSubagentRunId(frameRunId);
               /* Unknown run_id that differs from parent: likely a subagent whose
                  lifecycle event hasn't arrived yet (race condition) or whose
                  run_id format differs. Register it eagerly. */
               const isUnknownChild =
                 !isKnownChild &&
+                !isLinkedNativeChild &&
                 frameRunId.length > 0 &&
                 renderRuntime.parentRunId &&
                 frameRunId !== renderRuntime.parentRunId;
@@ -8189,7 +8215,7 @@ export const useChatStream = ({
                 });
               }
 
-              if (isKnownChild || isUnknownChild) {
+              if (isKnownChild || isLinkedNativeChild || isUnknownChild) {
                 if (isUnknownChild) {
                   /* Eagerly register this run_id as a subagent so subsequent
                      frames are also routed here. */

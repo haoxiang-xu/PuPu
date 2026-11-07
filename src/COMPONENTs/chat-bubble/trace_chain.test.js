@@ -1402,6 +1402,10 @@ describe("TraceChain final_message draft timeline", () => {
           } }),
           run_id: "node-attempt-alpha",
           links: { parent_run_id: "child-run-alpha" },
+        }, {
+          ...frame({ seq: 10, type: "final_message", payload: { content: "Native child model observation" } }),
+          run_id: "node-attempt-alpha", stage: "runtime_event", event_id: "native-model-final-356",
+          links: { parent_run_id: "child-run-alpha" },
         }],
         "sibling-node-attempt": [{
           ...frame({ seq: 10, type: "tool_call", payload: {
@@ -1434,7 +1438,10 @@ describe("TraceChain final_message draft timeline", () => {
       },
     });
 
-    expect(screen.getByText("Child-owned End")).toBeInTheDocument();
+    const ownedRow = timelineRowFor(screen.getByText("analyzer.1", { exact: true }));
+    expect(ownedRow).not.toBeNull();
+    expect(within(ownedRow).getByText("Child-owned End")).toBeInTheDocument();
+    expect(within(ownedRow).getByText("Native child model observation")).toBeInTheDocument();
     expect(screen.getByText("direct-node-tool")).toBeInTheDocument();
     expect(screen.queryByText("sibling-only-tool")).not.toBeInTheDocument();
     expect(screen.queryByText("nested-only-tool")).not.toBeInTheDocument();

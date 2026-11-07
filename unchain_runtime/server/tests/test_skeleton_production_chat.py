@@ -106,6 +106,69 @@ def test_stream_worker_preserves_only_typed_committed_child_end_final():
     assert _stream_worker_event(mapping_attribution_end) is None
     assert _stream_worker_event(wrong_identity_end) is None
 
+    from dataclasses import replace
+    from skeleton_child_events import (
+        ChildNodeAttribution, attach_node_attribution, bind_transport_attempt,
+        strip_attribution, project_attribution,
+    )
+    attribution = ChildNodeAttribution(
+        root_run_id="root-R", parent_run_id="parent-P", child_run_id="child-C",
+        graph_id="child-G", node_run_id="node-N", source_type="final_message",
+    )
+    typed_final = attach_node_attribution({
+        "type": "final_message", "scope": "node", "run_id": "node-N",
+        "content": "native model observation",
+    }, attribution)
+    mapping = {**typed_final, "_pupu_skeleton_child_attribution": {
+        "node_run_id": "node-N", "source_type": "final_message",
+    }}
+    assert _stream_worker_event(mapping)["type"] == "workflow_step_final"
+    wrong_source = {**typed_final, "_pupu_skeleton_child_attribution":
+                    replace(attribution, source_type="response_received")}
+    assert _stream_worker_event(wrong_source)["type"] == "workflow_step_final"
+    assert _stream_worker_event({**typed_final, "type": "token_delta"})["type"] == "workflow_step_delta"
+    for kind in ("run_started", "run_completed", "run_failed", "interaction_requested"):
+        assert _stream_worker_event({**typed_final, "type": kind}) is None
+    with pytest.raises(ValueError, match="changed before projection"):
+        strip_attribution({**typed_final, "run_id": "wrong-N"})
+    with pytest.raises(ValueError, match="another root"):
+        bind_transport_attempt(typed_final, root_run_id="wrong-R", transport_attempt_id="T")
+    bound = bind_transport_attempt(typed_final, root_run_id="root-R", transport_attempt_id="T")
+    with pytest.raises(ValueError, match="already has a transport"):
+        bind_transport_attempt(bound, root_run_id="root-R", transport_attempt_id="T2")
+    _clean, bound_attribution = strip_attribution(bound)
+    with pytest.raises(ValueError, match="another transport"):
+        project_attribution({"run_id": "node-N", "links": {}}, bound_attribution,
+                            transport_attempt_id="wrong-T")
+    assert _stream_worker_event(typed_final) == typed_final, "typed N model observation must survive production projection"
+
+
+def test_host_typed_child_final_survives_actual_core_normalization():
+    from skeleton_child_events import (
+        ChildNodeAttribution, attach_node_attribution, bind_transport_attempt,
+        strip_attribution, project_attribution,
+    )
+    from skeleton_production_chat import _stream_worker_event
+    from unchain.events.bridge import RuntimeEventBridge
+    raw = attach_node_attribution({
+        "type": "final_message", "scope": "node", "run_id": "node-N",
+        "content": "native model observation",
+    }, ChildNodeAttribution(root_run_id="root-R", parent_run_id="parent-P",
+        child_run_id="child-C", graph_id="child-G", node_run_id="node-N",
+        source_type="final_message"))
+    projected = _stream_worker_event(raw)
+    bound = bind_transport_attempt(projected, root_run_id="root-R", transport_attempt_id="transport-T")
+    clean, attribution = strip_attribution(bound)
+    bridge = RuntimeEventBridge(session_id="public-native-child-session",
+        root_run_id="transport-T", trace_level="minimal")
+    normalized = [project_attribution(event.to_dict(), attribution,
+        transport_attempt_id="transport-T") for event in bridge.normalize(clean)]
+    assert [(event["type"], event["run_id"], event["links"]["parent_run_id"],
+             event["payload"].get("final_text")) for event in normalized] == [
+        ("step.completed", "node-N", "child-C", "native model observation")
+    ], "actual Host projection must reach the real Core model final_text branch"
+    assert "_pupu_skeleton_child_attribution" not in json.dumps(normalized)
+
 
 def test_second_chat_uses_new_root_and_keeps_prior_root_history(production):
     _store, options, calls = production
@@ -296,6 +359,35 @@ def test_public_native_child_observations_bind_canonical_root_to_cold_transport(
     assert roots[0]["run_id"] == root_run_id
     assert roots[0]["content"] == "Public child End sentinel"
     assert interactions.get_pending_interaction("public-native-child-session")["status"] == "none"
+
+    # All real resource/pool/credential, cold completion and one-write/three-SDK
+    # prerequisites above must pass before the observation-content regression.
+    finals = [(event, attribution) for event, attribution in child_node_events
+              if attribution.source_type == "final_message"]
+    assert len(finals) == 1
+    assert finals[0][0]["type"] == "final_message", "real child model final was discarded by Host projection"
+    expected_native_text = _final_response("child model final").output[0]["content"][0]["text"]
+    assert finals[0][0]["content"] == expected_native_text
+    from unchain.events.bridge import RuntimeEventBridge
+    from skeleton_child_events import project_attribution
+    bridge = RuntimeEventBridge(session_id="public-native-child-session",
+        root_run_id=transport_attempt_id, trace_level="minimal")
+    normalized = []
+    for raw in resumed:
+        clean, attribution = strip_attribution(raw)
+        normalized.extend(project_attribution(event.to_dict(), attribution,
+            transport_attempt_id=transport_attempt_id) for event in bridge.normalize(clean))
+    native_final = next(event for event in normalized if
+        event["run_id"] == finals[0][1].node_run_id and
+        event["payload"].get("final_text") == expected_native_text)
+    assert native_final["links"]["parent_run_id"] == child_ends[0][1].child_run_id
+    committed = next(event for event in normalized if
+        event["run_id"] == child_ends[0][1].child_run_id and
+        event["payload"].get("final_text") == "Public child End sentinel")
+    assert committed["links"]["parent_run_id"] == child_ends[0][1].parent_run_id
+    assert len([event for event in normalized if event["run_id"] == root_run_id and
+                event["payload"].get("final_text") == "Public child End sentinel"]) == 1
+    assert "_pupu_skeleton_child_attribution" not in json.dumps(normalized)
 
 
 def test_public_cancel_wait_blocks_late_answer_and_releases_guard(production, monkeypatch):

@@ -1626,6 +1626,20 @@ def test_child_end_observation_cannot_bypass_after_hook_replacement(tmp_path, mo
     assert len(child_ends) == 1
     assert child_ends[0][0]["content"] == "SECRET_A"
     assert "RAW_MODEL" not in child_ends[0][0]["content"]
+    from skeleton_production_chat import _stream_worker_event
+    projected_native = []
+    for event in callbacks:
+        projected = _stream_worker_event(event)
+        if projected is None:
+            continue
+        clean, attribution = strip_attribution(projected)
+        if type(attribution) is ChildNodeAttribution and attribution.source_type == "final_message":
+            projected_native.append((clean, attribution))
+    expected_raw_model = _final_response("RAW_MODEL").output[0]["content"][0]["text"]
+    assert any(event.get("type") == "final_message" and event.get("content") == expected_raw_model
+               and event.get("run_id") == attribution.node_run_id
+               for event, attribution in projected_native)
+
     assert all("SECRET_A" not in repr(event) and "RAW_MODEL" not in repr(event)
                for event in digest_inputs)
     assert any(event.get("run_id") in root_model_attempts for event in digest_inputs)

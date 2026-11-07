@@ -736,6 +736,411 @@ describe("Memory V2 P0 payload seams", () => {
     expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(1);
   };
 
+  const nativeChildObservationFixture356 = {
+  "ids": {
+    "R": "observation-root-R",
+    "T": "observation-transport-T",
+    "P": "observation-parent-P",
+    "C": "observation-child-C",
+    "N": "node-attempt-observation-N"
+  },
+  "events": [
+    {
+      "schema_version": "v4",
+      "event_id": "event-0",
+      "type": "session.started",
+      "timestamp": "2026-11-07T00:18:27.009662Z",
+      "session_id": "observation-session",
+      "run_id": "observation-transport-T",
+      "agent_id": "developer",
+      "turn_id": null,
+      "seq": 1,
+      "links": {
+        "parent_run_id": null,
+        "parent_event_id": null,
+        "caused_by_event_id": null,
+        "step_id": null,
+        "tool_call_id": null,
+        "interaction_id": null,
+        "artifact_id": null,
+        "workspace_change_set_id": null,
+        "plan_id": null,
+        "channel_id": null,
+        "team_id": null
+      },
+      "surface": {
+        "slot": "debug",
+        "scope": "session",
+        "group": "session",
+        "default_state": "hidden",
+        "priority": 1000
+      },
+      "visibility": "debug",
+      "payload": {},
+      "metadata": {}
+    },
+    {
+      "schema_version": "v4",
+      "event_id": "event-1",
+      "type": "run.started",
+      "timestamp": "2026-11-07T00:18:27.009947Z",
+      "session_id": "observation-session",
+      "run_id": "observation-child-C",
+      "agent_id": "kernel.reviewer.1",
+      "turn_id": null,
+      "seq": 2,
+      "links": {
+        "parent_run_id": "observation-parent-P",
+        "parent_event_id": null,
+        "caused_by_event_id": null,
+        "step_id": null,
+        "tool_call_id": null,
+        "interaction_id": null,
+        "artifact_id": null,
+        "workspace_change_set_id": null,
+        "plan_id": null,
+        "channel_id": null,
+        "team_id": null
+      },
+      "surface": {
+        "slot": "debug",
+        "scope": "run",
+        "group": "debug",
+        "default_state": "hidden",
+        "priority": 1000
+      },
+      "visibility": "user",
+      "payload": {
+        "agent_id": "kernel.reviewer.1",
+        "parent_id": "kernel",
+        "mode": "delegate",
+        "template": "Reviewer",
+        "lineage": [
+          "kernel",
+          "kernel.reviewer.1"
+        ],
+        "status": "running"
+      },
+      "metadata": {
+        "raw_type": "subagent_started"
+      }
+    },
+    {
+      "schema_version": "v4",
+      "event_id": "event-2",
+      "type": "step.completed",
+      "timestamp": "2026-11-07T00:18:27.009996Z",
+      "session_id": "observation-session",
+      "run_id": "node-attempt-observation-N",
+      "agent_id": "developer",
+      "turn_id": null,
+      "seq": 3,
+      "links": {
+        "parent_run_id": "observation-child-C",
+        "parent_event_id": null,
+        "caused_by_event_id": null,
+        "step_id": "model:node-attempt-observation-N:response",
+        "tool_call_id": null,
+        "interaction_id": null,
+        "artifact_id": null,
+        "workspace_change_set_id": null,
+        "plan_id": null,
+        "channel_id": null,
+        "team_id": null
+      },
+      "surface": {
+        "slot": "trace_inline",
+        "scope": "turn",
+        "group": "model",
+        "default_state": "collapsed",
+        "priority": 100
+      },
+      "visibility": "user",
+      "payload": {
+        "step_id": "model:node-attempt-observation-N:response",
+        "step_type": "model_response",
+        "status": "completed",
+        "response_id": "child-response",
+        "has_tool_calls": false
+      },
+      "metadata": {
+        "raw_type": "response_received"
+      }
+    },
+    {
+      "schema_version": "v4",
+      "event_id": "event-3",
+      "type": "step.completed",
+      "timestamp": "2026-11-07T00:18:27.010026Z",
+      "session_id": "observation-session",
+      "run_id": "node-attempt-observation-N",
+      "agent_id": "developer",
+      "turn_id": null,
+      "seq": 4,
+      "links": {
+        "parent_run_id": "observation-child-C",
+        "parent_event_id": null,
+        "caused_by_event_id": null,
+        "step_id": "model:node-attempt-observation-N:response",
+        "tool_call_id": null,
+        "interaction_id": null,
+        "artifact_id": null,
+        "workspace_change_set_id": null,
+        "plan_id": null,
+        "channel_id": null,
+        "team_id": null
+      },
+      "surface": {
+        "slot": "trace_inline",
+        "scope": "turn",
+        "group": "model",
+        "default_state": "collapsed",
+        "priority": 100
+      },
+      "visibility": "user",
+      "payload": {
+        "step_id": "model:node-attempt-observation-N:response",
+        "step_type": "model_response",
+        "status": "completed",
+        "final_text": "NATIVE_CHILD_MODEL_OBSERVATION"
+      },
+      "metadata": {
+        "raw_type": "final_message"
+      }
+    },
+    {
+      "schema_version": "v4",
+      "event_id": "event-4",
+      "type": "step.completed",
+      "timestamp": "2026-11-07T00:18:27.010050Z",
+      "session_id": "observation-session",
+      "run_id": "observation-child-C",
+      "agent_id": "developer",
+      "turn_id": null,
+      "seq": 5,
+      "links": {
+        "parent_run_id": "observation-parent-P",
+        "parent_event_id": null,
+        "caused_by_event_id": null,
+        "step_id": "model:observation-child-C:response",
+        "tool_call_id": null,
+        "interaction_id": null,
+        "artifact_id": null,
+        "workspace_change_set_id": null,
+        "plan_id": null,
+        "channel_id": null,
+        "team_id": null
+      },
+      "surface": {
+        "slot": "trace_inline",
+        "scope": "turn",
+        "group": "model",
+        "default_state": "collapsed",
+        "priority": 100
+      },
+      "visibility": "user",
+      "payload": {
+        "step_id": "model:observation-child-C:response",
+        "step_type": "model_response",
+        "status": "completed",
+        "final_text": "COMMITTED_CHILD_END"
+      },
+      "metadata": {
+        "raw_type": "final_message"
+      }
+    },
+    {
+      "schema_version": "v4",
+      "event_id": "event-5",
+      "type": "step.completed",
+      "timestamp": "2026-11-07T00:18:27.010069Z",
+      "session_id": "observation-session",
+      "run_id": "observation-root-R",
+      "agent_id": "developer",
+      "turn_id": null,
+      "seq": 6,
+      "links": {
+        "parent_run_id": null,
+        "parent_event_id": null,
+        "caused_by_event_id": null,
+        "step_id": "model:observation-root-R:response",
+        "tool_call_id": null,
+        "interaction_id": null,
+        "artifact_id": null,
+        "workspace_change_set_id": null,
+        "plan_id": null,
+        "channel_id": null,
+        "team_id": null
+      },
+      "surface": {
+        "slot": "trace_inline",
+        "scope": "turn",
+        "group": "model",
+        "default_state": "collapsed",
+        "priority": 100
+      },
+      "visibility": "user",
+      "payload": {
+        "step_id": "model:observation-root-R:response",
+        "step_type": "model_response",
+        "status": "completed",
+        "final_text": "ROOT_PARENT_FINAL"
+      },
+      "metadata": {
+        "raw_type": "final_message"
+      }
+    }
+  ]
+};
+
+  test("#356 native child observation: no node run_started persists N under lifecycle C", async () => {
+    // Exact existing Core95 RuntimeEventBridge output; only execution session is
+    // rebound to this real hook/store harness. No raw/node run_started exists.
+    const captured = JSON.parse(JSON.stringify(nativeChildObservationFixture356));
+    const { R: root, T: transport, C: child, N: node } = captured.ids;
+    expect(captured.events.some((event) => event.run_id === node && event.type === "run.started")).toBe(false);
+    startRuntimeV4(transport);
+    renderChat();
+    await waitForReady();
+    sendText("observe the committed child and its native model");
+    await waitForRuntimeRun();
+    const chatId = getChatsStore().activeChatId;
+    await act(async () => {
+      captured.events.forEach((event) => streamHandlers.onRuntimeEvent({ ...event, session_id: chatId }));
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      streamHandlers.onDone({ status: "completed" });
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    });
+    const stored = getChatMessages(chatId).find((message) => message.role === "assistant");
+    expect(stored).toBeDefined();
+    expect(stored.content).toBe("ROOT_PARENT_FINAL");
+    expect(stored.subagentMetaByRunId[child].subagentId).toBe("kernel.reviewer.1");
+    expect(stored.subagentFrames[child]).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: "final_message", run_id: child,
+        payload: expect.objectContaining({ content: "COMMITTED_CHILD_END" }) }),
+    ]));
+    // Genuine regression: lifecycle C and canonical root prerequisites passed.
+    expect(stored.subagentFrames[node]).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: "final_message", run_id: node,
+        links: expect.objectContaining({ parent_run_id: child }),
+        payload: expect.objectContaining({ content: "NATIVE_CHILD_MODEL_OBSERVATION" }) }),
+    ]));
+    expect((stored.traceFrames || []).filter((frame) => frame.run_id === node)).toEqual([]);
+    expect(stored.subagentMetaByRunId?.[node]).toBeUndefined();
+    expect(stored.traceFrames.some((frame) => frame.run_id === root)).toBe(true);
+    // Reopen from the actual store, not a separately constructed renderer shape.
+    const reopened = getChatMessages(chatId).find((message) => message.id === stored.id);
+    expect(reopened.subagentFrames[node]).toEqual(stored.subagentFrames[node]);
+    expect(lastChatMessagesProps.messages.find((message) => message.id === stored.id).subagentFrames[node])
+      .toEqual(stored.subagentFrames[node]);
+  });
+
+  const nativeObservationEvent356 = (index, chatId, overrides = {}) => ({
+    ...JSON.parse(JSON.stringify(nativeChildObservationFixture356.events[index])),
+    session_id: chatId,
+    ...overrides,
+  });
+
+  test.each(["wrong session", "unknown parent", "status-only parent", "root P", "root started"])(
+    "#356 native child observation current fences: %s", async (scenario) => {
+      const { R: root, T: transport, P: parent, C: child, N: node } = nativeChildObservationFixture356.ids;
+      startRuntimeV4(transport);
+      renderChat(); await waitForReady(); sendText("observe child ownership fences");
+      await waitForRuntimeRun();
+      const chatId = getChatsStore().activeChatId;
+      if (scenario === "status-only parent") {
+        await act(async () => setChatMessages(chatId, getChatMessages(chatId).map((message) =>
+          message.role === "assistant" ? { ...message,
+            subagentMetaByRunId: { [child]: { status: "running", subagentId: "" } },
+            subagentFrames: { [child]: [] } } : message), { source: "test" }));
+      }
+      await act(async () => {
+        streamHandlers.onRuntimeEvent(nativeObservationEvent356(0, chatId));
+        if (scenario === "root started") streamHandlers.onRuntimeEvent({
+          ...nativeObservationEvent356(0, chatId), type: "run.started", run_id: root,
+          event_id: "root-started-observation", payload: { status: "running" }, metadata: { raw_type: "run_started" },
+        });
+        if (scenario !== "status-only parent") streamHandlers.onRuntimeEvent(nativeObservationEvent356(1, chatId));
+        [2, 3].forEach((index) => {
+          const event = nativeObservationEvent356(index, chatId);
+          if (scenario === "wrong session") event.session_id = "foreign-execution-session";
+          if (scenario === "unknown parent") event.links.parent_run_id = "unrelated-child";
+          if (scenario === "root P") { event.run_id = parent; event.links.parent_run_id = root; }
+          streamHandlers.onRuntimeEvent(event);
+        });
+        streamHandlers.onRuntimeEvent(nativeObservationEvent356(5, chatId));
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        streamHandlers.onDone({ status: "completed" });
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      });
+      const stored = getChatMessages(chatId).find((message) => message.role === "assistant");
+      expect(stored.content).toBe("ROOT_PARENT_FINAL");
+      if (scenario === "root started") {
+        expect(stored.subagentFrames[node].filter((frame) => frame.type === "final_message")).toHaveLength(1);
+        expect(stored.subagentMetaByRunId?.[node]).toBeUndefined();
+      } else {
+        expect(stored.subagentFrames?.[node]).toBeUndefined();
+        if (scenario === "wrong session") {
+          expect((stored.traceFrames || []).some((frame) => frame.run_id === node)).toBe(false);
+          expect(JSON.stringify(stored)).not.toContain("NATIVE_CHILD_MODEL_OBSERVATION");
+        }
+        if (scenario === "root P") {
+          expect(stored.traceFrames.some((frame) => frame.run_id === parent && frame.type === "final_message")).toBe(true);
+          expect(stored.subagentFrames?.[parent]).toBeUndefined();
+          expect(stored.subagentMetaByRunId?.[parent]).toBeUndefined();
+        }
+      }
+    },
+  );
+
+  test.each(["saved owner", "foreign owner", "status-only parent", "wrong session"])(
+    "#356 native child observation cold ownership: %s", async (scenario) => {
+      const { chatId, decision } = await prepareSettlementResume();
+      const { C: child, N: node } = nativeChildObservationFixture356.ids;
+      const prior = getChatMessages(chatId);
+      const currentOwner = prior.find((message) => message.role === "assistant" && message.meta?.attemptId === "attempt-path");
+      expect(currentOwner).toBeDefined();
+      const savedNode = { seq: 1, ts: 1, type: "response_received", run_id: node, session_id: chatId,
+        stage: "runtime_event", event_id: "saved-native-response", links: { parent_run_id: child }, payload: { status: "success" } };
+      const savedEnd = { seq: 2, ts: 2, type: "final_message", run_id: child, session_id: chatId,
+        stage: "runtime_event", event_id: "saved-committed-end", payload: { content: "SAVED_COMMITTED_END" } };
+      const lifecycle = { subagentId: "kernel.reviewer.1", template: "Reviewer", status: "completed", mode: "delegate" };
+      const owner = { ...currentOwner, subagentFrames: { [node]: [savedNode], [child]: [savedEnd] },
+        subagentMetaByRunId: scenario === "foreign owner" ? {} : { [child]: scenario === "status-only parent" ? { status: "running", subagentId: "" } : lifecycle } };
+      const foreign = { id: "foreign-owner-356", role: "assistant", content: "foreign owner", status: "done",
+        meta: { attemptId: "foreign-attempt" }, subagentFrames: { [child]: [savedEnd] }, subagentMetaByRunId: { [child]: lifecycle } };
+      await act(async () => setChatMessages(chatId,
+        [...prior.map((message) => message.id === owner.id ? owner : message), ...(scenario === "foreign owner" ? [foreign] : [])], { source: "test" }));
+      const storedForeignBefore = JSON.stringify(getChatMessages(chatId).find((message) => message.id === foreign.id));
+      await act(async () => lastChatMessagesProps.onToolConfirmationDecision(decision));
+      await waitFor(() => expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(1));
+      const handlers = window.unchainAPI.startStreamV4.mock.calls[0][1];
+      await act(async () => {
+        const response = nativeObservationEvent356(2, chatId);
+        const final = nativeObservationEvent356(3, chatId);
+        if (scenario === "wrong session") response.session_id = final.session_id = "wrong-cold-session";
+        handlers.onRuntimeEvent(response); handlers.onRuntimeEvent(final); handlers.onRuntimeEvent(final);
+        handlers.onRuntimeEvent(nativeObservationEvent356(5, chatId, { run_id: "attempt-path" }));
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        handlers.onDone({ status: "completed" });
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      });
+      const stored = getChatMessages(chatId).find((message) => message.id === owner.id);
+      expect(stored.subagentFrames[node][0]).toEqual(savedNode);
+      expect(stored.subagentFrames[child]).toEqual([savedEnd]);
+      expect(stored.subagentMetaByRunId?.[node]).toBeUndefined();
+      if (scenario === "saved owner") {
+        expect(stored.subagentFrames[node]).toHaveLength(3);
+        expect(stored.subagentFrames[node].filter((frame) => frame.type === "final_message")).toHaveLength(1);
+        expect((stored.traceFrames || []).some((frame) => frame.run_id === node)).toBe(false);
+      } else {
+        expect(stored.subagentFrames[node]).toEqual([savedNode]);
+        if (scenario === "wrong session") expect((stored.traceFrames || []).some((frame) => frame.run_id === node)).toBe(false);
+        if (scenario === "foreign owner") expect(JSON.stringify(getChatMessages(chatId).find((message) => message.id === foreign.id))).toBe(storedForeignBefore);
+      }
+    },
+  );
+
   const seedPriorTurn = (chatId) => {
     const priorMessages = [
       {
@@ -959,6 +1364,7 @@ describe("Memory V2 P0 payload seams", () => {
         runId: "attempt-stale-first",
         callIds: { "observed-batch-call-2": "call-stale-first-late-result" },
       }));
+      firstHandlers.onRuntimeEvent(nativeObservationEvent356(3, chatId));
       await new Promise((resolve) => setTimeout(resolve, 80));
     });
     const messagesBeforeSuccessorEvent = getChatMessages(chatId);
@@ -966,6 +1372,7 @@ describe("Memory V2 P0 payload seams", () => {
       .toEqual(firstSnapshot.traceFrames);
     const successorBeforeEvent = messagesBeforeSuccessorEvent.filter((message) => message.role === "assistant")[1];
     expect(successorBeforeEvent?.traceFrames || []).toEqual([]);
+    expect(JSON.stringify(messagesBeforeSuccessorEvent)).not.toContain("NATIVE_CHILD_MODEL_OBSERVATION");
 
     await act(async () => {
       successorHandlers.onRuntimeEvent(observedBatchEvent(2, {
