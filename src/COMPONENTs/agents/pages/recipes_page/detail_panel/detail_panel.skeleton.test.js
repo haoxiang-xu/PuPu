@@ -324,13 +324,19 @@ describe("the Output Variables section in the panel", () => {
     );
   });
 
-  test("a Start shows its outputs and no inputs", () => {
-    /* A Start reads from the calling context, so it has no inputs key at all;
-       addressed by testid because the legacy Start panel heads its own section
-       with the same words. */
-    show({ document: skeleton_document, onDocumentChange: () => {}, selectedNodeId: "start" });
+  test("a Start shows outputs and locked caller input, never editable bindings", () => {
+    /* The description is editor memory. Start still has no execution.inputs
+       key, and no control may compose one. */
+    const change = jest.fn();
+    show({ document: skeleton_document, onDocumentChange: change, selectedNodeId: "start" });
     expect(screen.getByTestId("skeleton-output-variables")).toBeInTheDocument();
-    expect(screen.queryByTestId("skeleton-input-variables")).not.toBeInTheDocument();
+    const caller = screen.getByTestId("skeleton-input-variables");
+    expect(caller).toHaveTextContent("Caller input");
+    expect(within(caller).getByLabelText("Read-only caller input")).toBeInTheDocument();
+    expect(within(caller).queryByRole("button")).not.toBeInTheDocument();
+    expect(within(caller).queryByRole("textbox")).not.toBeInTheDocument();
+    expect(change).not.toHaveBeenCalled();
+    expect(skeleton_document.nodes.find((node) => node.type === "start").config.execution).not.toHaveProperty("inputs");
   });
 
   test("a Skeleton page draws one outputs section, not two", () => {
@@ -1027,11 +1033,9 @@ describe("a Subagent Pool node in the panel", () => {
 });
 
 describe("the panel header draws a node, not everything stored beside it", () => {
-  /* The same residual as the canvas, one line under the icon: the header
-     reads a node's own `label` and `override.model`, which a Skeleton node
-     does not have — measured on the real store, where even `label: "a name"`
-     is refused `unknown_field`. A stored `{"toString": null}` there threw
-     "Objects are not valid as a React child" and took the panel with it. */
+  /* Common display labels are now recognized; malformed labels remain stored
+     for repair but never reach React. Legacy override/model metadata is still
+     outside the native node contract and must not affect the header. */
 
   const node_with = (over) => ({
     schema_version: 1,
@@ -1058,14 +1062,15 @@ describe("the panel header draws a node, not everything stored beside it", () =>
     expect(document.nodes[0].label).toEqual({ toString: null });
   });
 
-  test("a stored label that IS text is still not the node's name", () => {
+  test("a valid common label names the node without changing its identity", () => {
+    const document = node_with({ label: "Pretend name" });
     show({
-      document: node_with({ label: "Pretend name" }),
+      document,
       onDocumentChange: () => {},
       selectedNodeId: "agent",
     });
-    expect(screen.getByText("agent")).toBeInTheDocument();
-    expect(screen.queryByText("Pretend name")).not.toBeInTheDocument();
+    expect(screen.getByTestId("recipe-detail-panel-header")).toHaveTextContent("Pretend name");
+    expect(document.nodes.find((node) => node.type === "agent").id).toBe("agent");
   });
 
   test("the model beside it is the same read", () => {

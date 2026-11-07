@@ -358,13 +358,15 @@ describe("the drawing is given the node, not everything beside it", () => {
     });
   });
 
-  test("a label that IS text is not drawn either, because it is not the node's", () => {
+  test("a valid common label is drawn while its stable id and stored text remain intact", () => {
     const child = stored_child("child_node_label_text");
     expect(child.nodes.find((node) => node.type === "agent").label).toBe("Child label");
     show(child);
     const drawn = within(screen.getByTestId("node-agent"));
-    expect(drawn.getAllByText("agent")).toHaveLength(2);
-    expect(drawn.queryByText("Child label")).toBeNull();
+    expect(drawn.getAllByText("agent")).toHaveLength(1);
+    expect(drawn.getByText("Child label")).toBeInTheDocument();
+    expect(lastProps.nodes.find((node) => node.id === "agent").label).toBe("Child label");
+    expect(child.nodes.find((node) => node.id === "agent").label).toBe("Child label");
   });
 
   test("the model beside it is the same read and is covered with it", () => {

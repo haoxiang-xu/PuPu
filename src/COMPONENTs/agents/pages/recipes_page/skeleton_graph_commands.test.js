@@ -99,3 +99,69 @@ test.each([null, {}, { type: "__proto__" }, { type: "delete", node_ids: [null], 
     expect(apply_graph_command(graph, next)).toMatchObject({ ok: false, document: graph });
   },
 );
+
+ describe("atomic native node rename", () => {
+  test.each(["  审核 e\u0301\n", "\ufeff", "\u0085name\u0085"])("only patches label and preserves exact text: %j", (label) => {
+    const original = seed();
+    const graph = { ...original, unrelated: { keep: true }, nodes: original.nodes.map((node) => ({ ...node, extra: { keep: true } })) };
+    const result = command(graph, "rename_node", { node_id: "agent", label });
+    expect(result.ok).toBe(true);
+    expect(result.problem).toBeNull();
+    expect(result.document).toEqual({ ...graph, nodes: graph.nodes.map((node) => node.id === "agent" ? { ...node, label } : node) });
+    expect(result.document.edges).toBe(graph.edges);
+    expect(result.document.unrelated).toBe(graph.unrelated);
+    graph.nodes.forEach((node, index) => {
+      if (node.id !== "agent") expect(result.document.nodes[index]).toBe(node);
+      else {
+        expect(result.document.nodes[index].config).toBe(node.config);
+        expect(result.document.nodes[index].extra).toBe(node.extra);
+        expect(node).not.toHaveProperty("label");
+      }
+    });
+    const same = command(result.document, "rename_node", { node_id: "agent", label });
+    expect(same.ok).toBe(true);
+    expect(same.document).toBe(result.document);
+  });
+
+  test("valid input repairs only a malformed target label", () => {
+    const original = seed();
+    const bad = { toString: null };
+    const graph = { ...original, nodes: original.nodes.map((node) => ({ ...node, label: bad })) };
+    const result = command(graph, "rename_node", { node_id: "agent", label: "Repaired" });
+    expect(result.ok).toBe(true);
+    expect(result.document.nodes.find((node) => node.id === "agent").label).toBe("Repaired");
+    expect(result.document.nodes.find((node) => node.id === "start")).toBe(graph.nodes[0]);
+    expect(graph.nodes.find((node) => node.id === "agent").label).toBe(bad);
+  });
+
+  test.each([null, undefined, true, 3, {}, [], "", " \t\u0085\u001c\u3000"])("bad label is refused atomically: %j", (label) => {
+    const graph = seed();
+    const result = command(graph, "rename_node", { node_id: "agent", label });
+    expect(result.ok).toBe(false);
+    expect(result.document).toBe(graph);
+    expect(result.problem.code).toBe(typeof label === "string" ? "invalid_value" : "invalid_type");
+  });
+
+  test.each([
+    { type: "rename_node", node_id: "agent" },
+    { type: "rename_node", node_id: "agent", label: "Valid", extra: true },
+    { type: "rename_node", node_id: {}, label: "Valid" },
+    { type: "rename_node", node_id: "", label: "Valid" },
+  ])("malformed closed rename command is refused: %j", (next) => {
+    const graph = seed();
+    const result = apply_graph_command(graph, next);
+    expect(result).toMatchObject({ ok: false, document: graph, problem: { code: "invalid_command" } });
+    expect(result.document).toBe(graph);
+  });
+
+  test("missing or duplicate ids are refused without normalizing the graph", () => {
+    const graph = seed();
+    const missing = command(graph, "rename_node", { node_id: "absent", label: "Valid" });
+    expect(missing).toMatchObject({ ok: false, problem: { code: "missing_node" } });
+    expect(missing.document).toBe(graph);
+    const ambiguous = { ...graph, nodes: [...graph.nodes, { ...graph.nodes.find((node) => node.id === "agent") }] };
+    const duplicate = command(ambiguous, "rename_node", { node_id: "agent", label: "Valid" });
+    expect(duplicate).toMatchObject({ ok: false, problem: { code: "ambiguous_node" } });
+    expect(duplicate.document).toBe(ambiguous);
+  });
+});

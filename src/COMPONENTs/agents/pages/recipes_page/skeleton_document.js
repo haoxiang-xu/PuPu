@@ -1,4 +1,5 @@
 import { own } from "./document_values";
+import { is_valid_node_label } from "./node_display_labels";
 
 /* The Skeleton document the builder edits.
  *
@@ -26,6 +27,7 @@ export const DOCUMENT_REQUIRED_KEYS = Object.freeze([
 export const DOCUMENT_OPTIONAL_KEYS = Object.freeze(["description"]);
 
 export const NODE_KEYS = Object.freeze(["id", "type", "config"]);
+export const NODE_OPTIONAL_KEYS = Object.freeze(["label"]);
 export const EDGE_KEYS = Object.freeze([
   "id",
   "kind",
@@ -165,33 +167,19 @@ export function is_skeleton_node(node) {
 
 /* The node a DRAWING is given.
  *
- * A stored node is closed to `NODE_KEYS`, and measured on the fixed pair that
- * is not a formality: a parent document carrying anything else is refused by
- * `save_draft` itself — `unknown_field` at that key — and inside an embedded
- * child, where the draft check never looks, the same key is refused at Run
- * with `unknown_field` at that key whatever its value is. `label: "a name"`
- * is refused exactly like `label: {"toString": null}`.
- *
- * So a value sitting beside `id`, `type` and `config` is not part of the
- * graph, and a drawing reading one is drawing the JSON rather than the Agent.
- * Both drawings here were: the canvas spread the stored node into the node it
- * hands the Agent drawing, which renders `label` and `model`, and the panel
- * header reads the same two. A child stored with `label: {"toString": null}`
- * — saved and read back verbatim by the real store — threw "Objects are not
- * valid as a React child" before anything appeared, and one stored with
- * `label: "Pretend name"` was quieter and worse: the editor drew a name the
- * store does not recognise and refuses.
- *
- * Nothing is rewritten. The stored node is untouched and every edit is still
- * made against the document; this is only what the drawing may read. What is
- * wrong with the node is reported where the mirror reports it — on the pool
- * entry that holds the child, at the path the store names. */
+ * The common envelope has three required keys and an optional display label.
+ * Only a valid label may reach a drawing; malformed stored values remain in
+ * the document for diagnosis and repair. Unknown metadata such as `model`
+ * never becomes a drawing field. This projection never rewrites the source. */
 export function drawn_node(node) {
   if (!is_object(node)) return node;
   const drawn = {};
   NODE_KEYS.forEach((key) => {
     if (Object.prototype.hasOwnProperty.call(node, key)) drawn[key] = node[key];
   });
+  if (Object.prototype.hasOwnProperty.call(node, "label") && is_valid_node_label(node.label)) {
+    drawn.label = node.label;
+  }
   return drawn;
 }
 
@@ -524,7 +512,14 @@ export function document_problems(document) {
   const node_ids = new Set();
   (Array.isArray(document.nodes) ? document.nodes : []).forEach((node, index) => {
     const where = `document.nodes[${index}]`;
-    if (!closed_object(node, where, NODE_KEYS, [], problems)) return;
+    if (!closed_object(node, where, NODE_KEYS, NODE_OPTIONAL_KEYS, problems)) return;
+    if (Object.prototype.hasOwnProperty.call(node, "label")) {
+      if (typeof node.label !== "string") {
+        problems.push(problem("invalid_type", `${where}.label`, "node label must be a string"));
+      } else if (!is_valid_node_label(node.label)) {
+        problems.push(problem("invalid_value", `${where}.label`, "node label must be non-blank"));
+      }
+    }
     if ("id" in node && nonempty_string(node.id, `${where}.id`, "node id", problems)) {
       if (node_ids.has(node.id)) {
         problems.push(problem("duplicate_name", `${where}.id`, "node id is duplicated"));

@@ -1,5 +1,7 @@
 import { own, safe_text } from "../document_values";
 import { TOOLKIT_POOL_TYPE, normalize_node_type } from "../recipe_graph";
+import { is_skeleton_node } from "../skeleton_document";
+import { node_display_title } from "../node_display_labels";
 
 /* Who a node is, in one table.
  *
@@ -24,12 +26,8 @@ const IDENTITY = {
   agent: {
     icon: "bot",
     gradient: "linear-gradient(135deg, #6478f6, #4a5bd8)",
-    /* An agent node is the one kind the author names, so its own label wins.
-       Through `safe_text`, because a legacy recipe's label is whatever was
-       stored: a value that refuses to become text threw here, one line under
-       the icon, before the panel appeared. A Skeleton node reaches this with
-       `label` and `override` already absent — they are not part of a node —
-       so it is drawn by its id, which is its name. */
+    /* The legacy Agent reader. Native optional labels are validated uniformly
+       in node_identity below; their label-free fallback remains the node id. */
     title: (node) => safe_text(node?.label || node?.id || "Agent"),
     subtitle: (node) =>
       safe_text(node?.override?.model || "Inherits the chat's model"),
@@ -125,7 +123,9 @@ export function node_identity(node) {
   return {
     icon: entry.icon,
     gradient: entry.gradient,
-    title: entry.title(node),
+    title: is_skeleton_node(node)
+      ? node_display_title(node, node.type === "agent" ? (typeof node.id === "string" ? node.id : "Agent") : entry.title(node))
+      : entry.title(node),
     subtitle: entry.subtitle(node),
   };
 }

@@ -89,6 +89,8 @@ export default function DetailPanel({
      node's source editor shows. An edit that types text hands it back as the
      second argument of `onDocumentChange`. */
   managedSources,
+  /* Description of this graph's identified caller; editor memory only. */
+  startContext,
 }) {
   const cfg = useContext(ConfigContext);
   const isDark = cfg?.onThemeMode === "dark_mode";
@@ -353,6 +355,7 @@ export default function DetailPanel({
               <InputVariablesSection
                 document={document}
                 node={skeleton_node}
+                startContext={startContext}
                 rowDiagnostics={routed.rows.inputs}
                 isDark={isDark}
                 onChange={onDocumentChange}
