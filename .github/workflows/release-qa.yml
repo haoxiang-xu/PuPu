@@ -33,8 +33,8 @@ on:
       unchain_ref:
         description: "Unchain source ref selected once for the immutable release artifact (release-candidate requires a full 40-character revision)"
         type: string
-        # #341 pair: Core PR77 adds portable node display labels, retaining
-        # #356 authentication and call-bound child settlement capabilities.
+        # #341/#356/#448 pair: Core PR77 adds portable node display labels,
+        # retaining authentication, child settlement and scoped current-turn reads.
         default: 2e455628b454ce225dd8e813e0ae33a85e56450a
 
 # Selected runtime source executes in reusable QA jobs. Cap their server-issued

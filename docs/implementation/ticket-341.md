@@ -215,3 +215,14 @@ updated while retaining malformed-value and identity protections. The first
 test invocation also named a nonexistent regression file; that failure is kept
 as an invocation error, not a product failure. Details and exact file hashes:
 `~/.codex/artifacts/ticket-341-close-20261106/start-cp2c/summary.json`.
+
+### Delivery integration
+
+Initial Host candidate `811c6c9c` remains recorded and reproducible. While it was
+prepared, PR460 delivered #448 into Host `dev` as `7a14fedb`. Integration keeps
+that ticket's test and plan byte-for-byte; it does not reopen its scope. The
+only conflict is the five shared Core source refs and their comment: #448 pins
+`657d64df`, which is the first parent of merged Core `2e455628`. Select the
+descendant so both delivered runtime contracts remain present. The final
+candidate and CI/App evidence bind the integrated tree rather than the obsolete
+initial Host base.
