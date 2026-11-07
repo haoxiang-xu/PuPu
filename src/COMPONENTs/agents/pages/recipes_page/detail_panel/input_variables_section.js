@@ -1,5 +1,6 @@
 import React from "react";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
+import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
 import BindingRow from "./binding_row";
 import {
   node_bindings,
@@ -10,6 +11,8 @@ import {
 } from "../skeleton_document";
 import { binding_problems, make_binding, ref_expression } from "../skeleton_io";
 import { conditional_sources } from "../skeleton_branch_config";
+import { node_display_title } from "../node_display_labels";
+import { start_context_for_view } from "../start_context";
 
 /* Input Variables: what this node reads, and from where.
  *
@@ -38,8 +41,35 @@ const SECTION_LABEL = {
 };
 
 function node_label(node) {
-  const name = node && node.config && node.config.name;
-  return typeof name === "string" && name ? name : (node && node.id) || "";
+  return node_display_title(node, node && node.id);
+}
+
+function StartCallerInputs({ context, isDark }) {
+  const fields = context.kind === "unknown"
+    ? [{ name: "Caller input", type: "object" }]
+    : context.fields;
+  return (
+    <div data-testid="skeleton-input-variables" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <span style={SECTION_LABEL}>Input Variables</span>
+      <span data-testid={context.kind === "invalid" ? "skeleton-start-context-problem" : "skeleton-start-context-caption"}
+        style={{ fontSize: 11, lineHeight: 1.5, color: isDark ? "#a1a1aa" : "#68686f" }}>
+        {context.message}
+      </span>
+      {fields.map((field) => (
+        <div key={field.name} style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0,
+          padding: "7px 8px", borderRadius: 5, background: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)" }}>
+          <span aria-label="Read-only caller input" style={{ width: 12, height: 12, flexShrink: 0 }}>
+            <Icon src="lock" />
+          </span>
+          <span style={{ fontSize: 11, flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>{field.name}</span>
+          <span style={{ fontSize: 10, color: "#86868b" }}>{field.type}</span>
+        </div>
+      ))}
+      {context.kind === "subagent" && fields.length === 0 && (
+        <span style={{ fontSize: 11, color: "#86868b" }}>This Start declares no caller fields.</span>
+      )}
+    </div>
+  );
 }
 
 export function binding_sources(document, node_id) {
@@ -68,10 +98,14 @@ export default function InputVariablesSection({
   rowDiagnostics,
   isDark,
   onChange,
+  startContext,
 }) {
-  /* Start reads from the calling context, and a pool attaches rather than runs,
-     so neither carries inputs at all — the runtime's execution config has no
-     such key for them. */
+  /* Start has no execution.inputs key: these rows describe the caller and
+     deliberately have no write callback or input controls. */
+  if (node?.type === "start") {
+    return <StartCallerInputs context={startContext || start_context_for_view([], [], document)} isDark={isDark} />;
+  }
+  /* A pool attaches rather than runs, so it carries no inputs. */
   if (!node_takes_inputs(node && node.type)) return null;
 
   const bindings = node_bindings(node);

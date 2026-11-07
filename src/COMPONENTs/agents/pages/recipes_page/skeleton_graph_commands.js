@@ -1,4 +1,5 @@
 import { add_node, connect_nodes, delete_edge, delete_node } from "./skeleton_graph_edits";
+import { is_valid_node_label } from "./node_display_labels";
 
 /* The canvas reports intent, never a replacement drawing array. Each command
  * is atomic against the latest graph; a refusal returns the original object,
@@ -49,6 +50,23 @@ export function apply_graph_command(graph, command) {
   }
   if (command.type === "add_node" && shape(command, ["type", "node_type"])) {
     return add_node(graph, { type: command.node_type });
+  }
+  if (command.type === "rename_node") {
+    if (!shape(command, ["type", "node_id", "label"]) || !text(command.node_id)) {
+      return refuse(graph, "Rename requires exactly a node id and label.");
+    }
+    if (typeof command.label !== "string") {
+      return refuse(graph, "Node label must be a string.", "invalid_type");
+    }
+    if (!is_valid_node_label(command.label)) {
+      return refuse(graph, "Node label must be non-blank.", "invalid_value");
+    }
+    const matches = graph.nodes.filter((node) => record(node) && node.id === command.node_id);
+    if (matches.length === 0) return refuse(graph, "The selected node is missing.", "missing_node");
+    if (matches.length !== 1) return refuse(graph, "The selected node id is shared by another node.", "ambiguous_node");
+    const target = matches[0];
+    if (own(target, "label") && target.label === command.label) return accept(graph);
+    return accept({ ...graph, nodes: graph.nodes.map((node) => node === target ? { ...node, label: command.label } : node) });
   }
   if (command.type === "delete" && shape(command, ["type", "node_ids", "edge_ids"]) &&
       Array.isArray(command.node_ids) && Array.isArray(command.edge_ids) &&
