@@ -148,14 +148,14 @@ def _positive_limit(value: int, *, maximum: int = MAX_PAGE_SIZE) -> int:
     return min(value, maximum)
 
 
-def _journal_failure(exc: MemoryV2Error) -> None:
+def _journal_failure(exc: MemoryV2Error) -> Exception:
     if exc.code in _JOURNAL_SCOPE_CODES:
-        raise JournalScopeError(str(exc)) from exc
+        return _caused(JournalScopeError(str(exc)), exc)
     if exc.code in _CONFLICT_CODES:
-        raise JournalConflictError(str(exc)) from exc
+        return _caused(JournalConflictError(str(exc)), exc)
     if exc.code in _NOT_FOUND_CODES or exc.status_code in {403, 404, 410}:
-        raise JournalScopeError(str(exc)) from exc
-    raise JournalRepositoryError(str(exc)) from exc
+        return _caused(JournalScopeError(str(exc)), exc)
+    return _caused(JournalRepositoryError(str(exc)), exc)
 
 
 def _caused(error: Exception, cause: BaseException) -> Exception:
@@ -338,7 +338,7 @@ def _logical_generation_rows(
                 selected.append(item)
             return selected
     except MemoryV2Error as exc:
-        _journal_failure(exc)
+        raise _journal_failure(exc)
     except sqlite3.Error as exc:
         raise JournalRepositoryError(
             "SQLite execution journal snapshot failed"
@@ -406,7 +406,7 @@ class _ExecutionBinding:
                 attempt_id=self._scope.attempt_id,
             )
         except MemoryV2Error as exc:
-            _journal_failure(exc)
+            raise _journal_failure(exc)
         if head.get("current_generation_id") != self._scope.generation_id:
             raise JournalScopeError("bound generation is no longer current")
         if state is None:
@@ -443,7 +443,7 @@ class _ExecutionBinding:
                     )
                 )
             except MemoryV2Error as exc:
-                _journal_failure(exc)
+                raise _journal_failure(exc)
             self._operation_receipts_initialized = True
             self._receipt_scan_through = max(
                 high_water,
@@ -480,7 +480,7 @@ class _ExecutionBinding:
                 include_payload=True,
             )
         except MemoryV2Error as exc:
-            _journal_failure(exc)
+            raise _journal_failure(exc)
         rows = [dict(row) for row in page.get("events", ())]
         if any(
             row.get("generation_id") != self._scope.generation_id
@@ -765,7 +765,7 @@ class PupuExecutionJournal(_ExecutionBinding, BoundExecutionJournal):
                 expected_generation_id=self._scope.generation_id,
             )
         except MemoryV2Error as exc:
-            _journal_failure(exc)
+            raise _journal_failure(exc)
         if persisted.get("generation_id") != self._scope.generation_id:
             raise JournalScopeError("bound generation is no longer current")
         cursor = EventCursor(int(persisted["store_seq"]), str(persisted["event_id"]))
@@ -978,7 +978,7 @@ class PupuExecutionJournal(_ExecutionBinding, BoundExecutionJournal):
                     include_payload=False,
                 )
             except MemoryV2Error as exc:
-                _journal_failure(exc)
+                raise _journal_failure(exc)
             rows = tuple(page.get("events") or ())
             if any(
                 row.get("generation_id") != scope.generation_id
