@@ -132,9 +132,15 @@ test("#341 Rename, Start caller context, cold read and shared shell geometry", a
   await expect(page.getByTestId("skeleton-save-state")).toHaveText("Unsaved changes");
   expect((await getResource(page, document.id)).resource).toEqual(initial.resource);
   await page.getByTitle("Undo (Ctrl+Z)", { exact: true }).getByRole("button").click();
-  await expect(page.getByTestId("skeleton-save-state")).toHaveText("Saved");
+  // Stepping is an edit by design (skeleton_resource_session.js: "the draft is
+  // unsaved"), so the state stays "Unsaved changes"; the undone document must
+  // show the saved name again and the store must be untouched.
+  await expect(page.getByTestId("skeleton-save-state")).toHaveText("Unsaved changes");
+  await expect(page.getByTestId("recipe-detail-panel-header")).not.toContainText(title.trim());
+  expect((await getResource(page, document.id)).resource).toEqual(initial.resource);
   await page.getByTitle("Redo (Ctrl+Y)", { exact: true }).getByRole("button").click();
   await expect(page.getByTestId("skeleton-save-state")).toHaveText("Unsaved changes");
+  await expect(page.getByTestId("recipe-detail-panel-header")).toContainText(title.trim());
   await startNode.click(); await page.keyboard.press("F2");
   await page.getByRole("dialog", { name: "Rename node", exact: true }).getByRole("textbox").fill("Discard me");
   await page.keyboard.press("Escape");
