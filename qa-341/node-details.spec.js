@@ -41,7 +41,11 @@ async function choose(page, id) {
   const canvas = page.getByTestId("skeleton-canvas");
   const point = await canvas.evaluate((element) => {
     const r = element.getBoundingClientRect();
-    for (const [dx, dy] of [[2, 2], [2, r.height / 2], [r.width / 2, 2], [r.width / 2, r.height / 2]]) {
+    // A drilled-in graph is centred and its chrome sits at the edges, so the
+    // four original probes can all be taken; walk an interior grid as well.
+    const probes = [[2, 2], [2, r.height / 2], [r.width / 2, 2], [r.width / 2, r.height / 2]];
+    for (const fy of [0.5, 0.25, 0.75, 0.35, 0.65]) for (const fx of [0.5, 0.15, 0.85, 0.3, 0.7]) probes.push([r.width * fx, r.height * fy]);
+    for (const [dx, dy] of probes) {
       const x = r.left + dx, y = r.top + dy;
       const hit = document.elementFromPoint(x, y);
       if (hit && element.contains(hit) && !hit.closest('button, [role="button"], input, textarea, select, [data-flow-node-id], [data-flow-edge-id], [role="listbox"]')) return { x, y };
