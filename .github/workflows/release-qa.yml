@@ -1799,7 +1799,7 @@ jobs:
           status=dict(line.split(':',1) for line in pathlib.Path('/proc/self/status').read_text().splitlines() if ':' in line)
           assert int(status['CapEff'].strip(),16)==0 and status['NoNewPrivs'].strip()=='1'
           _phase='NETWORK'
-          assert {p.name for p in pathlib.Path('/sys/class/net').iterdir()}=={'lo'}
+          assert {name for _,name in socket.if_nameindex()}=={'lo'}
           _phase='WHEEL'
           site=pathlib.Path(os.environ['QA_SITE']).resolve();wheel=pathlib.Path(os.environ['QA_WHEEL'])
           assert hashlib.sha256(wheel.read_bytes()).hexdigest()==os.environ['QA_WHEEL_SHA']
@@ -1839,6 +1839,31 @@ jobs:
           assert next(r for r in report['cases'] if r['case']=='child')['child_store'] is not None
           (root/'replay-safe/actual-imports.json').write_text(json.dumps({'mode':'runpy_full_main_direct_script_argv_path','core':core,'host':host,'manifest':os.environ['QA_MANIFEST']},sort_keys=True)+'\n')
           PY
+          cat > "$RUNNER_TEMP/356-network-control.py" <<'PY'
+          import ast,hashlib,json,os,pathlib,socket,sys
+          launcher=pathlib.Path(os.environ['RUNNER_TEMP'])/'356-verifier-main.py' if 'RUNNER_TEMP' in os.environ else pathlib.Path(__file__).with_name('356-verifier-main.py')
+          source=launcher.read_text();tree=ast.parse(source)
+          guards=[node for node in ast.walk(tree) if isinstance(node,ast.Assert) and ast.unparse(node.test)=="{name for _, name in socket.if_nameindex()} == {'lo'}"]
+          assert len(guards)==1
+          predicate=ast.get_source_segment(source,guards[0]);assert predicate is not None
+          predicate_sha=hashlib.sha256(predicate.encode()).hexdigest()
+          code=compile(ast.fix_missing_locations(ast.Module(body=guards,type_ignores=[])),'<exact-network-predicate>','exec')
+          names={name for _,name in socket.if_nameindex()};assert 0<=len(names)<=4096
+          if sys.argv[1:]==['host-negative']:
+              assert any(name!='lo' for name in names), 'host_negative_requires_actual_nonloopback'
+              try:exec(code,{'socket':socket})
+              except AssertionError:outcome='INTENDED_ASSERTION_REFUSAL'
+              else:raise AssertionError('host_nonloopback_was_accepted')
+              control='HOST_NAMESPACE_NEGATIVE'
+          else:
+              assert sys.argv[1:]==[] and os.getuid()!=0 and os.geteuid()!=0
+              status=dict(line.split(':',1) for line in pathlib.Path('/proc/self/status').read_text().splitlines() if ':' in line)
+              assert int(status['CapEff'].strip(),16)==0 and status['NoNewPrivs'].strip()=='1'
+              exec(code,{'socket':socket})
+              assert names=={'lo'}
+              control='ISOLATED_NAMESPACE_POSITIVE';outcome='EXACT_LOOPBACK_ACCEPTED'
+          print(json.dumps({'schema':'qa356.exact-network-measurement-control.v1','control':control,'outcome':outcome,'count':len(names),'only_lo':names=={'lo'},'predicate_sha256':predicate_sha},sort_keys=True))
+          PY
           cat > "$RUNNER_TEMP/356-verifier-inside.sh" <<'SH'
           set -euo pipefail
           ip link set lo up
@@ -1858,6 +1883,22 @@ jobs:
           export QA_LAUNCHER="$RUNNER_TEMP/356-verifier-main.py" QA_PRIVATE_LOG="$RUNNER_TEMP/356-verifier-private.log"
           mkdir "$QA_HOME" "$QA_TMP"
           ulimit -v 4194304
+          # Exact predicate only: host namespace must actually contain non-loopback and refuse it.
+          timeout 30s "$QA_PYTHON" -B "$RUNNER_TEMP/356-network-control.py" host-negative
+          # Positive control gets its own clean namespace; it never imports Core or verifier code.
+          export QA_LAUNCHER="$RUNNER_TEMP/356-network-control.py" QA_PRIVATE_LOG="$RUNNER_TEMP/356-network-control-private.log"
+          timeout 30s sudo --preserve-env=PATH,QA_UID,QA_GID,QA_HOME,QA_TMP,QA_SERVER,QA_CONTROL,QA_SITE,QA_OUT,QA_APP,QA_WHEEL,QA_WHEEL_SHA,QA_MANIFEST,QA_BINARY_SHA,QA_PYTHON,QA_LAUNCHER,QA_PRIVATE_LOG             unshare --net /bin/bash "$RUNNER_TEMP/356-verifier-inside.sh"
+          "$QA_PYTHON" - <<'PY'
+          import json,os,pathlib,re
+          record=json.loads((pathlib.Path(os.environ['RUNNER_TEMP'])/'356-network-control-private.log').read_text())
+          assert set(record)=={'schema','control','outcome','count','only_lo','predicate_sha256'}
+          assert record['schema']=='qa356.exact-network-measurement-control.v1' and record['control']=='ISOLATED_NAMESPACE_POSITIVE'
+          assert record['outcome']=='EXACT_LOOPBACK_ACCEPTED' and type(record['count']) is int and record['count']==1 and record['only_lo'] is True
+          assert re.fullmatch('[0-9a-f]{64}',record['predicate_sha256'])
+          print(json.dumps(record,sort_keys=True))
+          PY
+          # Full original verifier executes independently in a FRESH clean namespace.
+          export QA_LAUNCHER="$RUNNER_TEMP/356-verifier-main.py" QA_PRIVATE_LOG="$RUNNER_TEMP/356-verifier-private.log"
           timeout 300s sudo --preserve-env=PATH,QA_UID,QA_GID,QA_HOME,QA_TMP,QA_SERVER,QA_CONTROL,QA_SITE,QA_OUT,QA_APP,QA_WHEEL,QA_WHEEL_SHA,QA_MANIFEST,QA_BINARY_SHA,QA_PYTHON,QA_LAUNCHER,QA_PRIVATE_LOG             unshare --net /bin/bash "$RUNNER_TEMP/356-verifier-inside.sh"
       - name: Require immutable raw inputs and sealed inventory then final successful CI
         env:
