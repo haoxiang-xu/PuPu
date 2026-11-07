@@ -512,6 +512,9 @@ def test_real_native_subagent_and_embedded_hook_are_discovered(tmp_path, monkeyp
 
 
 def test_receipt_appended_after_prefix_only_appears_on_next_read(tmp_path, monkeypatch):
+    # The imported helper does not bring its module's autouse guard fixture.
+    # Receipt admission uses the real registry, scoped to this test's directory.
+    monkeypatch.setenv("UNCHAIN_DATA_DIR", str(tmp_path / "host-data"))
     api, launch, _, effects = _setup(tmp_path, monkeypatch)
     _projection_launch(launch)
     monkeypatch.setattr(api.time, "time_ns", lambda: 1000 * 1_000_000)
