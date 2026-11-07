@@ -15,7 +15,7 @@ import json
 import re
 import sqlite3
 from dataclasses import dataclass
-from typing import Any, Mapping, NoReturn
+from typing import Any, Mapping
 
 from memory_v2_store import (
     MAX_CONTENT_READ_BYTES,
@@ -158,22 +158,29 @@ def _journal_failure(exc: MemoryV2Error) -> None:
     raise JournalRepositoryError(str(exc)) from exc
 
 
-def _context_failure(exc: MemoryV2Error) -> NoReturn:
+def _caused(error: Exception, cause: BaseException) -> Exception:
+    """Mirror ``raise error from cause`` for an error the caller raises."""
+    error.__cause__ = cause
+    error.__suppress_context__ = True
+    return error
+
+
+def _context_failure(exc: MemoryV2Error) -> Exception:
     if exc.code in _JOURNAL_SCOPE_CODES:
-        raise ContextScopeError(str(exc)) from exc
+        return _caused(ContextScopeError(str(exc)), exc)
     if exc.code in _CONFLICT_CODES:
-        raise ContextConflictError(str(exc)) from exc
+        return _caused(ContextConflictError(str(exc)), exc)
     if exc.code in _NOT_FOUND_CODES or exc.status_code in {403, 404, 410}:
-        raise ContextScopeError(str(exc)) from exc
-    raise ContextRepositoryError(str(exc)) from exc
+        return _caused(ContextScopeError(str(exc)), exc)
+    return _caused(ContextRepositoryError(str(exc)), exc)
 
 
-def _workspace_failure(exc: MemoryV2Error) -> NoReturn:
+def _workspace_failure(exc: MemoryV2Error) -> Exception:
     if exc.code in _CONFLICT_CODES or exc.status_code == 409:
-        raise RepositoryConflictError(str(exc)) from exc
+        return _caused(RepositoryConflictError(str(exc)), exc)
     if exc.code in _NOT_FOUND_CODES or exc.status_code in {403, 404, 410}:
-        raise RepositoryNotFoundError(str(exc)) from exc
-    raise WorkspaceRepositoryError(str(exc)) from exc
+        return _caused(RepositoryNotFoundError(str(exc)), exc)
+    return _caused(WorkspaceRepositoryError(str(exc)), exc)
 
 
 class PupuRefCodec:
@@ -497,7 +504,7 @@ class _ExecutionBinding:
                     include_payload=True,
                 )
             except MemoryV2Error as exc:
-                _context_failure(exc)
+                raise _context_failure(exc)
             rows.extend(
                 dict(row)
                 for row in page.get("events", ())
@@ -1021,7 +1028,7 @@ class PupuArtifactRepository(_ExecutionBinding, BoundArtifactRepository):
                 mime_type=media_type,
             )
         except MemoryV2Error as exc:
-            _context_failure(exc)
+            raise _context_failure(exc)
         raw = response["artifact_ref"]
         return ArtifactRef(
             ref=PupuRefCodec.decode(str(raw["uri"])),
@@ -1051,7 +1058,7 @@ class PupuArtifactRepository(_ExecutionBinding, BoundArtifactRepository):
                 limit=1,
             )
         except MemoryV2Error as exc:
-            _context_failure(exc)
+            raise _context_failure(exc)
         if page.get("ref") != PupuRefCodec.encode(ref):
             raise ContextScopeError(
                 "artifact lookup returned a different reference"
@@ -1082,7 +1089,7 @@ class PupuArtifactRepository(_ExecutionBinding, BoundArtifactRepository):
                 limit=store_limit,
             )
         except MemoryV2Error as exc:
-            _context_failure(exc)
+            raise _context_failure(exc)
         data = self._verified_page_data(
             page,
             artifact=artifact,
@@ -1112,7 +1119,7 @@ class PupuArtifactRepository(_ExecutionBinding, BoundArtifactRepository):
                 limit=probe_limit,
             )
         except MemoryV2Error as exc:
-            _context_failure(exc)
+            raise _context_failure(exc)
         page_data = self._verified_page_data(
             page,
             artifact=artifact,
@@ -1126,7 +1133,7 @@ class PupuArtifactRepository(_ExecutionBinding, BoundArtifactRepository):
             try:
                 content = self._store._read_object_bytes(artifact.sha256)
             except MemoryV2Error as exc:
-                _context_failure(exc)
+                raise _context_failure(exc)
         if len(content) != artifact.byte_length:
             raise ContextRepositoryError("artifact full read byte_length mismatch")
         if hashlib.sha256(content).hexdigest() != artifact.sha256:
@@ -1304,7 +1311,7 @@ class PupuCheckpointRepository(_ExecutionBinding, BoundCheckpointRepository):
         except (ContextConflictError, ContextScopeError):
             raise
         except MemoryV2Error as exc:
-            _context_failure(exc)
+            raise _context_failure(exc)
         except (KeyError, TypeError, ValueError, sqlite3.Error) as exc:
             raise ContextRepositoryError(
                 "stored checkpoint preparation is invalid"
@@ -1324,7 +1331,7 @@ class PupuCheckpointRepository(_ExecutionBinding, BoundCheckpointRepository):
                     (operation.operation_id,),
                 ).fetchone()
         except MemoryV2Error as exc:
-            _context_failure(exc)
+            raise _context_failure(exc)
         except sqlite3.Error as exc:
             raise ContextRepositoryError(
                 "checkpoint preparation lookup failed"
@@ -1382,7 +1389,7 @@ class PupuCheckpointRepository(_ExecutionBinding, BoundCheckpointRepository):
                     ),
                 ).fetchall()
         except MemoryV2Error as exc:
-            _context_failure(exc)
+            raise _context_failure(exc)
         except sqlite3.Error as exc:
             raise ContextRepositoryError(
                 "checkpoint discovery failed"
@@ -1509,7 +1516,7 @@ class PupuCheckpointRepository(_ExecutionBinding, BoundCheckpointRepository):
                     record,
                 )
         except MemoryV2Error as exc:
-            _context_failure(exc)
+            raise _context_failure(exc)
         return self._prepared_from_record(
             record,
             operation=operation,
@@ -1569,7 +1576,7 @@ class PupuCheckpointRepository(_ExecutionBinding, BoundCheckpointRepository):
                 mime_type="text/markdown",
             )
         except MemoryV2Error as exc:
-            _context_failure(exc)
+            raise _context_failure(exc)
         if response.get("checkpoint_ref") != PupuRefCodec.encode(
             prepared.checkpoint_ref
         ):
@@ -1617,7 +1624,7 @@ class PupuCheckpointRepository(_ExecutionBinding, BoundCheckpointRepository):
                 mime_type="text/markdown",
             )
         except MemoryV2Error as exc:
-            _context_failure(exc)
+            raise _context_failure(exc)
         return PupuRefCodec.decode(str(response["checkpoint_ref"]))
 
     def read(self, *, ref: ResourceRef, offset: int = 0, limit: int = 65_536) -> bytes:
@@ -1633,7 +1640,7 @@ class PupuCheckpointRepository(_ExecutionBinding, BoundCheckpointRepository):
                 limit=limit,
             )
         except MemoryV2Error as exc:
-            _context_failure(exc)
+            raise _context_failure(exc)
         return base64.b64decode(page["data"], validate=True)
 
 
@@ -1731,7 +1738,7 @@ class PupuContextBuildRepository(_ExecutionBinding, BoundContextBuildRepository)
                             record,
                         )
         except MemoryV2Error as exc:
-            _context_failure(exc)
+            raise _context_failure(exc)
         return record
 
     def _read_claim(
@@ -1748,7 +1755,7 @@ class PupuContextBuildRepository(_ExecutionBinding, BoundContextBuildRepository)
                     (claim_id,),
                 ).fetchone()
         except MemoryV2Error as exc:
-            _context_failure(exc)
+            raise _context_failure(exc)
         except sqlite3.Error as exc:
             raise ContextRepositoryError("context build claim lookup failed") from exc
         if row is None:
@@ -1846,7 +1853,7 @@ class PupuContextBuildRepository(_ExecutionBinding, BoundContextBuildRepository)
         except (ContextConflictError, ContextRepositoryError):
             raise
         except MemoryV2Error as exc:
-            _context_failure(exc)
+            raise _context_failure(exc)
         except (KeyError, TypeError, ValueError, json.JSONDecodeError, sqlite3.Error) as exc:
             raise ContextRepositoryError(
                 "stored context build receipt is invalid"
@@ -1925,7 +1932,7 @@ class PupuContextBuildRepository(_ExecutionBinding, BoundContextBuildRepository)
                     source_event_ids=source_ids,
                 )
             except MemoryV2Error as exc:
-                _context_failure(exc)
+                raise _context_failure(exc)
             return envelope
         if not isinstance(trigger_cursor, EventCursor):
             trigger_cursor = EventCursor.from_dict(trigger_cursor)
@@ -1988,7 +1995,7 @@ class PupuContextBuildRepository(_ExecutionBinding, BoundContextBuildRepository)
                 source_event_ids=source_ids,
             )
         except MemoryV2Error as exc:
-            _context_failure(exc)
+            raise _context_failure(exc)
         receipt = self.get_by_operation(operation=operation)
         if (
             receipt is None
@@ -2015,7 +2022,7 @@ class PupuContextBuildRepository(_ExecutionBinding, BoundContextBuildRepository)
                 generation_id=generation_id,
             )
         except MemoryV2Error as exc:
-            _context_failure(exc)
+            raise _context_failure(exc)
         if payload is None:
             return None
         try:
@@ -2271,7 +2278,7 @@ class PupuPinnedTaskStateRepository(BoundPinnedTaskStateRepository):
                 attempt_id=scope.attempt_id,
             )
         except MemoryV2Error as exc:
-            _workspace_failure(exc)
+            raise _workspace_failure(exc)
         if row is None:
             return None
         if row.get("generation_id") != scope.generation_id:
@@ -2297,7 +2304,7 @@ class PupuPinnedTaskStateRepository(BoundPinnedTaskStateRepository):
                 "context_v2_generation_conflict",
             }:
                 raise RepositoryScopeError(str(exc)) from exc
-            _workspace_failure(exc)
+            raise _workspace_failure(exc)
         if response is None:
             return None
         return self._state(response, operation_sources=True)
@@ -2362,7 +2369,7 @@ class PupuPinnedTaskStateRepository(BoundPinnedTaskStateRepository):
                 expected_attempt_id=scope.attempt_id,
             )
         except MemoryV2Error as exc:
-            _workspace_failure(exc)
+            raise _workspace_failure(exc)
         persisted = self._state(response, operation_sources=True)
         if persisted != state:
             raise WorkspaceRepositoryError(
@@ -2572,7 +2579,7 @@ class PupuMemoryWorkspaceRepository(BoundMemoryWorkspaceRepository):
                     expected_attempt_id=scope.attempt_id,
                 )
         except MemoryV2Error as exc:
-            _workspace_failure(exc)
+            raise _workspace_failure(exc)
         persisted_space_revision = int(response.get("space_revision") or 0)
         if persisted_space_revision != request.expected_space_revision + 1:
             raise WorkspaceRepositoryError(
@@ -2614,7 +2621,7 @@ class PupuMemoryWorkspaceRepository(BoundMemoryWorkspaceRepository):
                 limit=limit,
             )
         except MemoryV2Error as exc:
-            _workspace_failure(exc)
+            raise _workspace_failure(exc)
         if response.get("ref") != uri:
             raise RepositoryScopeError(
                 "content capability returned a foreign reference"
@@ -2650,7 +2657,7 @@ class PupuMemoryWorkspaceRepository(BoundMemoryWorkspaceRepository):
                 namespace=self._namespace,
             )
         except MemoryV2Error as exc:
-            _workspace_failure(exc)
+            raise _workspace_failure(exc)
 
     def _current_space_revision(self) -> int:
         try:
@@ -2661,7 +2668,7 @@ class PupuMemoryWorkspaceRepository(BoundMemoryWorkspaceRepository):
                 namespace=self._namespace,
             )
         except MemoryV2Error as exc:
-            _workspace_failure(exc)
+            raise _workspace_failure(exc)
         revision = int(listing["space_revision"])
         self._space = MemorySpace(
             self.space.space_id,
@@ -2702,7 +2709,7 @@ class PupuMemoryWorkspaceRepository(BoundMemoryWorkspaceRepository):
                 limit=128 * 1024,
             )
         except MemoryV2Error as exc:
-            _workspace_failure(exc)
+            raise _workspace_failure(exc)
         if page.get("truncated"):
             chunks = [base64.b64decode(page["data"], validate=True)]
             offset = int(page["next_offset"])
@@ -2715,7 +2722,7 @@ class PupuMemoryWorkspaceRepository(BoundMemoryWorkspaceRepository):
                         limit=128 * 1024,
                     )
                 except MemoryV2Error as exc:
-                    _workspace_failure(exc)
+                    raise _workspace_failure(exc)
                 chunks.append(base64.b64decode(page["data"], validate=True))
                 if not page.get("truncated"):
                     break
@@ -2748,7 +2755,7 @@ class PupuMemoryWorkspaceRepository(BoundMemoryWorkspaceRepository):
                     namespace=self._namespace,
                 )
             except MemoryV2Error as exc:
-                _workspace_failure(exc)
+                raise _workspace_failure(exc)
         else:
             try:
                 listing = self._store.list_entries(
@@ -2758,7 +2765,7 @@ class PupuMemoryWorkspaceRepository(BoundMemoryWorkspaceRepository):
                     namespace=self._namespace,
                 )
             except MemoryV2Error as exc:
-                _workspace_failure(exc)
+                raise _workspace_failure(exc)
         rows = list(listing.get("entries") or ())
         prefix = parent_path.rstrip("/") + "/"
         rows = [
@@ -2794,7 +2801,7 @@ class PupuMemoryWorkspaceRepository(BoundMemoryWorkspaceRepository):
                 limit=_positive_limit(limit),
             )
         except MemoryV2Error as exc:
-            _workspace_failure(exc)
+            raise _workspace_failure(exc)
         return tuple(self._entry(row) for row in response.get("results") or ())
 
     def read_entry(self, *, ref: ResourceRef) -> MemoryEntry:
@@ -2853,7 +2860,7 @@ class PupuMemoryWorkspaceRepository(BoundMemoryWorkspaceRepository):
                 )
             except MemoryV2Error as exc:
                 if exc.code not in _NOT_FOUND_CODES:
-                    _workspace_failure(exc)
+                    raise _workspace_failure(exc)
             else:
                 expected_space_revision = int(prior["space_revision"]) - 1
             try:
@@ -2877,7 +2884,7 @@ class PupuMemoryWorkspaceRepository(BoundMemoryWorkspaceRepository):
                 )
             except (MemoryV2Error, TypeError) as exc:
                 if isinstance(exc, MemoryV2Error):
-                    _workspace_failure(exc)
+                    raise _workspace_failure(exc)
                 raise
             self._space = MemorySpace(
                 self.space.space_id,
@@ -2910,7 +2917,7 @@ class PupuMemoryWorkspaceRepository(BoundMemoryWorkspaceRepository):
                     namespace=self._namespace,
                 )
             except MemoryV2Error as exc:
-                _workspace_failure(exc)
+                raise _workspace_failure(exc)
             self._space = MemorySpace(
                 self.space.space_id,
                 self.space.namespace,
@@ -2940,7 +2947,7 @@ class PupuMemoryWorkspaceRepository(BoundMemoryWorkspaceRepository):
                 namespace=self._namespace,
             )
         except MemoryV2Error as exc:
-            _workspace_failure(exc)
+            raise _workspace_failure(exc)
         self._space = MemorySpace(
             self.space.space_id,
             self.space.namespace,
@@ -2968,7 +2975,7 @@ class PupuContextMemoryV2Repository:
                 session_id=scope.session_id,
             )
         except MemoryV2Error as exc:
-            _context_failure(exc)
+            raise _context_failure(exc)
         if head.get("current_generation_id") != scope.generation_id:
             raise ContextScopeError("generation is not current for the bound execution")
         return PupuExecutionCapabilities(
@@ -2998,7 +3005,7 @@ class PupuContextMemoryV2Repository:
                 operation_payload_hash=operation.payload_sha256,
             )
         except MemoryV2Error as exc:
-            _workspace_failure(exc)
+            raise _workspace_failure(exc)
         space = MemorySpace(
             space_id=str(row["space_id"]),
             namespace="chat",
