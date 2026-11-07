@@ -80,3 +80,30 @@ test("active composition keeps the host/ref and releases observers when disabled
     window.CSS = css; window.ResizeObserver = Resize;
   }
 });
+
+
+test("updates object refs when the native host type changes", () => {
+  const ref = createRef();
+  const { rerender, unmount } = render(<ShadowSurface as="button" ref={ref}>Action</ShadowSurface>);
+  expect(ref.current).toBe(screen.getByRole("button"));
+  rerender(<ShadowSurface as="a" href="#action" ref={ref}>Action</ShadowSurface>);
+  expect(ref.current).toBe(screen.getByRole("link"));
+  unmount();
+  expect(ref.current).toBeNull();
+});
+
+test("keeps callback refs stable on rerender and honors their cleanup on host replacement", () => {
+  const cleanup = jest.fn();
+  const ref = jest.fn(() => cleanup);
+  const { rerender, unmount } = render(<ShadowSurface as="button" ref={ref}>Action</ShadowSurface>);
+  expect(ref).toHaveBeenCalledTimes(1);
+  expect(ref).toHaveBeenLastCalledWith(screen.getByRole("button"));
+  rerender(<ShadowSurface as="button" ref={ref} style={{ color: "red" }}>Action</ShadowSurface>);
+  expect(ref).toHaveBeenCalledTimes(1);
+  expect(cleanup).not.toHaveBeenCalled();
+  rerender(<ShadowSurface as="a" href="#action" ref={ref}>Action</ShadowSurface>);
+  expect(cleanup).toHaveBeenCalledTimes(1);
+  expect(ref).toHaveBeenLastCalledWith(screen.getByRole("link"));
+  unmount();
+  expect(cleanup).toHaveBeenCalledTimes(2);
+});

@@ -1,4 +1,4 @@
-import { Fragment, forwardRef, useContext, useId, useImperativeHandle, useLayoutEffect, useRef, useState } from "react";
+import { Fragment, forwardRef, useContext, useId, useCallback, useLayoutEffect, useRef, useState } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import { parseSurfaceColor, THRESHOLDS } from "./surface_composite";
 
@@ -52,7 +52,20 @@ const ShadowSurface = forwardRef(function ShadowSurface({ as: Tag = "div", style
   const shadow = shadowShape?.shadow ?? style?.boxShadow;
   const path = shadowShape?.path || "";
   const eligible = supported() && typeof shadow === "string" && !!shadow && shadow !== "none" && (!style?.filter || !!path) && !style?.anchorName;
-  useImperativeHandle(forwardedRef, () => element.current, [Tag]);
+  // A stable callback follows native host replacement without resetting the
+  // caller's ref whenever shadow paint state changes.
+  const attachElement = useCallback((node) => {
+    element.current = node;
+    if (typeof forwardedRef === "function") {
+      const cleanup = forwardedRef(node);
+      if (typeof cleanup === "function") return () => {
+        element.current = null;
+        cleanup();
+      };
+    } else if (forwardedRef) {
+      forwardedRef.current = node;
+    }
+  }, [forwardedRef]);
 
   useLayoutEffect(() => {
     if (!eligible || !element.current) return undefined;
@@ -164,7 +177,7 @@ const ShadowSurface = forwardRef(function ShadowSurface({ as: Tag = "div", style
     style?.borderTopRightRadius, style?.borderBottomLeftRadius, style?.borderBottomRightRadius, style?.transform, style?.opacity, style?.color, style?.fontSize, path, shadowShape?.opacity, onThemeMode, theme?.semantic?.background]);
 
   const active = eligible && paint?.key === shadow && !props.hidden && style?.display !== "none";
-  const owner = <Tag {...props} ref={element} style={active ? { ...style, boxShadow: paint.native, ...(path ? { filter: "none" } : {}), anchorName: `--${id}` } : style}>{children}</Tag>;
+  const owner = <Tag {...props} ref={attachElement} style={active ? { ...style, boxShadow: paint.native, ...(path ? { filter: "none" } : {}), anchorName: `--${id}` } : style}>{children}</Tag>;
   if (!active) return owner;
   const { width, height, pad, radius, outer, ratio } = paint;
   const w = width + 2 * pad, h = height + 2 * pad;

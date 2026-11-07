@@ -150,4 +150,25 @@ Shared candidate source identities (SHA-256):
 - `surface_dither.js`: `a8e3c16aaa6de21811ffe2a85cab4f3b1215477cf38115160b901b83066873e2`
 - `surface_composite.js`: `15d7923e4303d56c64e1259d86ed59fa13ab9de460a6cefa3657770c8382ebc7`
 - `composited_background.js`: `3a16c542d1307b835e8360bf1439a78b3c18006934014f031720edbf7b42cd2a`
-- `shadow_surface.js`: `c90364dde7e8eeca47695a71a35efe30e5d45680314eb64b12fae9f521ee0719`
+- `shadow_surface.js`: `dd2ed6d7d2f2f0548af3e888ea5e64ef016294782e1f275b73c0fbc7974330af`
+
+
+## CI follow-up — native ref forwarding
+
+PuPu PR #468 / Release QA run 42306449239 passed frontend, Electron and Python
+backend tests, but the web production build failed because CI treats warnings
+as errors. `useImperativeHandle(..., [Tag])` produced an unnecessary dependency
+warning: its factory read only the stable ref container. Simply removing Tag
+would leave a stale forwarded ref when the native element type changed.
+
+Replace that imperative handle with a stable composed callback ref. It follows
+actual native-node replacement, preserves object refs and React 19 callback-ref
+cleanup, and avoids detach/attach on paint-only renders. Rendering is unchanged;
+BC-001 still requires matching source/test bytes in both repositories.
+
+AC-005 / SEQ-004: mount a button → rerender the same host → replace with a link
+→ unmount. Object refs follow the actual node; callback refs do not reset on
+ordinary rerenders; cleanup runs once per detached host. Added regressions pass
+in both repositories. The changed production module has zero ESLint findings.
+PuPu `CI=true PUPU_BUILD_VERSION=0.1.13 npm run build:web` passes, including the
+required version-preparation step; no version bump or installed app replacement.
