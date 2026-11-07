@@ -1757,20 +1757,63 @@ jobs:
           cat > "$RUNNER_TEMP/356-verifier-main.py" <<'PY'
           import hashlib,importlib.util,json,os,pathlib,runpy,sys,zipfile
           root=pathlib.Path('/home/runner/work/PuPu/PuPu')
+          # Diagnostic-only: observations never substitute for any acceptance assertion.
+          import builtins,socket
+          _original_excepthook=sys.excepthook
+          _phase='PYTHON_VERSION'
+          _launcher_path=pathlib.Path(__file__).resolve()
+          _verifier_path=root/'control/tools/qa356/verify_app.py'
+          _exception_types=tuple(getattr(builtins,name) for name in ('AssertionError','ImportError','ModuleNotFoundError','FileNotFoundError','PermissionError','KeyError','TypeError','ValueError','RuntimeError','OSError'))
+          def _network_observation(reader):
+              try:
+                  names=reader()
+                  count=len(names)
+                  if type(count) is not int or not 0<=count<=4096:
+                      return {'status':'unavailable','count':None,'only_lo':None}
+                  return {'status':'observed','count':count,'only_lo':set(names)=={'lo'}}
+              except Exception:
+                  return {'status':'unavailable','count':None,'only_lo':None}
+          def _failure_diagnostic(kind,value,tb):
+              try:
+                  last=tb
+                  while last is not None and last.tb_next is not None:last=last.tb_next
+                  if last is None or not 1<=last.tb_lineno<=1000000:return
+                  filename=last.tb_frame.f_code.co_filename
+                  source_label='launcher' if filename==str(_launcher_path) else 'verifier' if filename==str(_verifier_path) else 'other'
+                  exception_class=next((t.__name__ for t in _exception_types if kind is t),'OtherError')
+                  record={'schema':'qa356.verifier-failure-diagnostic.v1','status':'FAILED_DIAGNOSTIC_ONLY','phase':_phase,'exception_class':exception_class,'source_label':source_label,'line':last.tb_lineno,
+                      'launcher_sha256':hashlib.sha256(_launcher_path.read_bytes()).hexdigest(),
+                      'sysfs':_network_observation(lambda:[p.name for p in pathlib.Path('/sys/class/net').iterdir()]),
+                      'socket':_network_observation(lambda:[name for _,name in socket.if_nameindex()])}
+                  raw=(json.dumps(record,sort_keys=True)+'\n').encode()
+                  if len(raw)<=4096:(root/'replay-safe/failure-diagnostic.json').write_bytes(raw)
+              except Exception:
+                  pass
+              finally:
+                  _original_excepthook(kind,value,tb)
+          sys.excepthook=_failure_diagnostic
           assert tuple(sys.version_info[:3])==(3,12,15)
+          _phase='UID'
           assert os.getuid()!=0 and os.geteuid()!=0
+          _phase='CAPS_NNP'
           status=dict(line.split(':',1) for line in pathlib.Path('/proc/self/status').read_text().splitlines() if ':' in line)
           assert int(status['CapEff'].strip(),16)==0 and status['NoNewPrivs'].strip()=='1'
+          _phase='NETWORK'
           assert {p.name for p in pathlib.Path('/sys/class/net').iterdir()}=={'lo'}
+          _phase='WHEEL'
           site=pathlib.Path(os.environ['QA_SITE']).resolve();wheel=pathlib.Path(os.environ['QA_WHEEL'])
           assert hashlib.sha256(wheel.read_bytes()).hexdigest()==os.environ['QA_WHEEL_SHA']
+          _phase='MANIFEST_PRE'
           from unchain.runtime.runtime_protocol import runtime_protocol_manifest
           assert runtime_protocol_manifest()['manifest_digest']==os.environ['QA_MANIFEST']
+          _phase='VERIFIER_MAIN'
           helper=root/'control/tools/qa356/verify_app.py'
           sys.argv=[str(helper)];sys.path[0]=str(helper.parent)
           # Full original __main__ entrypoint, with every assertion and exception unchanged.
           runpy.run_path(str(helper),run_name='__main__')
+          _phase='MANIFEST_POST'
           assert runtime_protocol_manifest()['manifest_digest']==os.environ['QA_MANIFEST']
+          _phase='IMPORTS'
           core=[];host=[];host_sources=json.loads((root/'replay-safe/host-sources.json').read_text())
           with zipfile.ZipFile(wheel) as archive:
            for name,module in sorted(sys.modules.copy().items()):
@@ -1789,6 +1832,7 @@ jobs:
              assert str(path) in host_sources and hashlib.sha256(path.read_bytes()).hexdigest()==host_sources[str(path)]
              host.append({'module':name,'sha256':host_sources[str(path)]})
           assert core and host
+          _phase='REPORT'
           report=json.loads((root/'test-results/app/raw-lifecycle-verification.json').read_text())
           assert [r['case'] for r in report['cases']]==['approved','cancelled','child']
           assert report['wheel_sha256']==os.environ['QA_WHEEL_SHA'] and report['manifest']==os.environ['QA_MANIFEST']
@@ -1861,6 +1905,35 @@ jobs:
           set -euo pipefail
           mkdir -p replay-publish
           printf '%s\n' '{"schema":"qa356.retained-verifier-status.v1","status":"FAIL_OR_NOT_RUN","original_run":42320831594,"original_workflow_conclusion":"FAILURE"}' > replay-publish/replay-status.json
+          python - <<'PY'
+          import hashlib,json,os,pathlib,re,stat
+          def validate_diagnostic(raw,expected_launcher):
+              assert type(raw) is bytes and len(raw)<=4096
+              d=json.loads(raw)
+              assert type(d) is dict and set(d)=={'schema','status','phase','exception_class','source_label','line','launcher_sha256','sysfs','socket'}
+              assert d['schema']=='qa356.verifier-failure-diagnostic.v1' and d['status']=='FAILED_DIAGNOSTIC_ONLY'
+              assert d['phase'] in ('PYTHON_VERSION','UID','CAPS_NNP','NETWORK','WHEEL','MANIFEST_PRE','VERIFIER_MAIN','MANIFEST_POST','IMPORTS','REPORT')
+              assert d['exception_class'] in ('AssertionError','ImportError','ModuleNotFoundError','FileNotFoundError','PermissionError','KeyError','TypeError','ValueError','RuntimeError','OSError','OtherError')
+              assert d['source_label'] in ('launcher','verifier','other')
+              assert type(d['line']) is int and 1<=d['line']<=1000000
+              assert type(d['launcher_sha256']) is str and re.fullmatch('[0-9a-f]{64}',d['launcher_sha256']) and d['launcher_sha256']==expected_launcher
+              for key in ('sysfs','socket'):
+                  row=d[key];assert type(row) is dict and set(row)=={'status','count','only_lo'}
+                  if row['status']=='observed':assert type(row['count']) is int and 0<=row['count']<=4096 and type(row['only_lo']) is bool
+                  else:assert row=={'status':'unavailable','count':None,'only_lo':None}
+              assert raw==(json.dumps(d,sort_keys=True)+'\n').encode()
+              return d
+          source=pathlib.Path('replay-safe/failure-diagnostic.json')
+          try:
+              assert stat.S_ISREG(source.lstat().st_mode) and source.stat().st_size<=4096
+              raw=source.read_bytes()
+              expected=hashlib.sha256((pathlib.Path(os.environ['RUNNER_TEMP'])/'356-verifier-main.py').read_bytes()).hexdigest()
+              validate_diagnostic(raw,expected)
+          except (OSError,ValueError,AssertionError,TypeError,KeyError):
+              pass
+          else:
+              pathlib.Path('replay-publish/failure-diagnostic.json').write_bytes(raw)
+          PY
       - name: Validate the exact bounded publication allowlist
         if: always()
         id: publication
@@ -1868,13 +1941,34 @@ jobs:
         run: |
           set -euo pipefail
           python - <<'PY'
-          import json,os,pathlib,re
+          import hashlib,json,os,pathlib,re
+          def validate_diagnostic(raw,expected_launcher):
+              assert type(raw) is bytes and len(raw)<=4096
+              d=json.loads(raw)
+              assert type(d) is dict and set(d)=={'schema','status','phase','exception_class','source_label','line','launcher_sha256','sysfs','socket'}
+              assert d['schema']=='qa356.verifier-failure-diagnostic.v1' and d['status']=='FAILED_DIAGNOSTIC_ONLY'
+              assert d['phase'] in ('PYTHON_VERSION','UID','CAPS_NNP','NETWORK','WHEEL','MANIFEST_PRE','VERIFIER_MAIN','MANIFEST_POST','IMPORTS','REPORT')
+              assert d['exception_class'] in ('AssertionError','ImportError','ModuleNotFoundError','FileNotFoundError','PermissionError','KeyError','TypeError','ValueError','RuntimeError','OSError','OtherError')
+              assert d['source_label'] in ('launcher','verifier','other')
+              assert type(d['line']) is int and 1<=d['line']<=1000000
+              assert type(d['launcher_sha256']) is str and re.fullmatch('[0-9a-f]{64}',d['launcher_sha256']) and d['launcher_sha256']==expected_launcher
+              for key in ('sysfs','socket'):
+                  row=d[key];assert type(row) is dict and set(row)=={'status','count','only_lo'}
+                  if row['status']=='observed':assert type(row['count']) is int and 0<=row['count']<=4096 and type(row['only_lo']) is bool
+                  else:assert row=={'status':'unavailable','count':None,'only_lo':None}
+              assert raw==(json.dumps(d,sort_keys=True)+'\n').encode()
+              return d
           p=pathlib.Path('replay-publish'); assert p.is_dir()
           names={x.name for x in p.iterdir()}
-          assert names in ({'replay-status.json'},{'replay-receipt.json'})
+          assert names in ({'replay-status.json'},{'replay-status.json','failure-diagnostic.json'},{'replay-receipt.json'})
           for x in p.iterdir():
               assert x.is_file() and not x.is_symlink() and x.stat().st_size<=16384
-              raw=x.read_bytes();d=json.loads(raw)
+              raw=x.read_bytes()
+              if x.name=='failure-diagnostic.json':
+                  expected=hashlib.sha256((pathlib.Path(os.environ['RUNNER_TEMP'])/'356-verifier-main.py').read_bytes()).hexdigest()
+                  validate_diagnostic(raw,expected)
+                  continue
+              d=json.loads(raw)
               assert isinstance(d,dict) and d['original_run']==42320831594 and d['original_workflow_conclusion']=='FAILURE'
               if x.name=='replay-status.json':
                   assert d=={'schema':'qa356.retained-verifier-status.v1','status':'FAIL_OR_NOT_RUN','original_run':42320831594,'original_workflow_conclusion':'FAILURE'}
@@ -1902,4 +1996,5 @@ jobs:
           path: |
             replay-publish/replay-receipt.json
             replay-publish/replay-status.json
+            replay-publish/failure-diagnostic.json
           if-no-files-found: error
