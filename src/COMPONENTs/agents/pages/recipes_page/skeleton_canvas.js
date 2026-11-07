@@ -21,6 +21,10 @@ import ToolPoolNode from "./nodes/tool_pool_node";
 import { ports_for_type } from "./recipe_node_catalog";
 import { own } from "./document_values";
 import { NODE_TYPES, drawn_node } from "./skeleton_document";
+import { is_valid_node_label, node_display_title } from "./node_display_labels";
+import { node_identity } from "./detail_panel/node_identity";
+import { useNodeLabelCapability } from "./node_label_capability";
+import RenameNodeModal from "./rename_node_modal";
 import { pool_entry_rows } from "./skeleton_drill";
 import {
   readSkeletonLayout,
@@ -98,8 +102,8 @@ function renderNode(node, isDark, onOpenSubagent, view = {}) {
      its header — and its viewer hands editing to the panel, which is what
      selecting the node opens. */
   if (node.type === "code") return <CodeNode node={node} isDark={isDark} lowZoom={view.lowZoom === true} onOpenNode={view.onOpenNode} sources={view.sources} />;
-  if (node.type === "start") return <StartNode isDark={isDark} />;
-  if (node.type === "end") return <EndNode isDark={isDark} />;
+  if (node.type === "start") return <StartNode node={node} isDark={isDark} />;
+  if (node.type === "end") return <EndNode node={node} isDark={isDark} />;
   /* A type this build has no drawing for still has to appear: a graph that
      silently omitted a node would read as a graph that does not have it. */
   return (
@@ -158,8 +162,8 @@ function finder_entries(graph) {
       return {
         key: node.id,
         type: typeof node.type === "string" ? node.type : "",
-        label: node.id,
-        description: known ? known.label : String(node.type),
+        label: node_display_title(node, node.id),
+        description: `${node.id} · ${known ? known.label : typeof node.type === "string" ? node.type : "Unknown node"}`,
         icon: known ? known.icon : "circle",
       };
     });
@@ -167,7 +171,9 @@ function finder_entries(graph) {
 
 function GraphDrawing({
   resourceId,
+  commandScope,
   document: graph,
+  readOnly = false,
   onSelectNode,
   onOpenSubagent,
   onGraphCommand,
@@ -180,11 +186,21 @@ function GraphDrawing({
   managedSources,
   isDark,
 }) {
-  const canEdit = typeof onGraphCommand === "function" && (graph?.kind === "agent" || graph?.kind === "workflow") &&
+  const canEdit = !readOnly && typeof onGraphCommand === "function" && (graph?.kind === "agent" || graph?.kind === "workflow") &&
     graph?.schema_version === 1;
+  const renameScope = JSON.stringify([resourceId, commandScope, graph?.id]);
+  const labelCapability = useNodeLabelCapability(canEdit, renameScope);
+  const [rename, setRename] = useState(null);
+  const [selection, setSelection] = useState({ node_ids: [], edge_id: null });
+  const observeSelection = useCallback((next) => setSelection(next), []);
+  useEffect(() => { setRename(null); }, [renameScope, canEdit]);
   /* A Workflow is offered only what it can hold (#357 G7). */
   const addableTypes = useMemo(() => addable_node_types(graph?.kind), [graph?.kind]);
   const containerRef = useRef(null);
+  const closeRename = useCallback(() => {
+    setRename(null);
+    containerRef.current?.focus({ preventScroll: true });
+  }, []);
   const [palette, setPalette] = useState(null);
   /* Finding a node by name: the palette in its find mode, which is also the
      keyboard's way to a node (⌘F / Ctrl+F). */
@@ -229,11 +245,9 @@ function GraphDrawing({
            drawing only; nothing here reaches the document. */
         const branch = is_branch_type(node && node.type) ? branch_ports(graph, node) : null;
         return {
-          /* The node the store defines, not everything the JSON happens to
-             hold beside it: the drawings below read a node's own `label` and
-             `model`, which a Skeleton node does not have — see `drawn_node`.
-             The three fields added here are this canvas's, and the document
-             has no route to them. */
+          /* Only the common envelope, including a validated optional label.
+             Other metadata never leaks into a drawing through a spread.
+             Coordinates and ports below belong only to this canvas. */
           ...drawn_node(node),
           x: at.x,
           y: at.y,
@@ -301,6 +315,29 @@ function GraphDrawing({
     if (result.ok && command.type === "delete" && command.node_ids.length) onSelectNode?.(null);
     return result;
   }, [onGraphCommand, onSelectNode, say]);
+  const renameTarget = useCallback((id) => {
+    const matches = (graph.nodes || []).filter((node) => node && node.id === id);
+    return matches.length === 1 && NODE_TYPES.includes(matches[0].type) ? matches[0] : null;
+  }, [graph]);
+  const openRename = useCallback((id) => {
+    if (!canEdit || !labelCapability.allowed) { say(labelCapability.reason); return; }
+    const target = renameTarget(id);
+    if (!target) { say("The selected node is missing or its id is shared by another node."); return; }
+    const initialValue = node_display_title(target, node_identity(drawn_node(target))?.title || target.id);
+    setMenu(null); setPalette(null); setFinder(null);
+    setRename({ node_id: id, scope: renameScope, initialValue,
+      unchangedIsNoop: !Object.prototype.hasOwnProperty.call(target, "label") || is_valid_node_label(target.label) });
+  }, [canEdit, labelCapability, renameScope, renameTarget, say]);
+  const confirmRename = useCallback((value) => {
+    if (!canEdit || !labelCapability.allowed || rename?.scope !== renameScope) {
+      return { ok: false, problem: { message: labelCapability.reason || "This graph is no longer open for Rename." } };
+    }
+    if (!renameTarget(rename.node_id)) return { ok: false, problem: { message: "The selected node is missing or its id is shared by another node." } };
+    if (rename.unchangedIsNoop && value === rename.initialValue) { closeRename(); return { ok: true }; }
+    const result = perform({ type: "rename_node", node_id: rename.node_id, label: value });
+    if (result.ok) closeRename();
+    return result;
+  }, [canEdit, labelCapability, rename, renameScope, renameTarget, perform, closeRename]);
 
   const openPalette = useCallback((point) => {
     const rect = containerRef.current?.getBoundingClientRect();
@@ -351,6 +388,9 @@ function GraphDrawing({
       const attached = edges.some((edge) => edge.source_node_id === target.id || edge.target_node_id === target.id);
       return [
         { id: "open", label: "Open details", onClick: () => onSelectNode?.(target.id) },
+        { id: "rename", label: labelCapability.allowed ? "Rename" : `Rename unavailable · ${labelCapability.reason}`,
+          disabled: !labelCapability.allowed || !renameTarget(target.id) || selection.node_ids.length !== 1 || selection.edge_id !== null,
+          trail: "F2", onClick: () => openRename(target.id) },
         { id: "disconnect", label: "Disconnect node", disabled: !attached, onClick: () => perform({ type: "disconnect", node_id: target.id }) },
         { type: "separator" },
         { id: "delete", label: node?.deletable ? "Delete node" : "Required node", disabled: !node?.deletable, danger: true,
@@ -368,7 +408,7 @@ function GraphDrawing({
       { id: "fit", label: "Fit graph", onClick: () => setFitToken((t) => (t || 0) + 1) },
       { id: "zoom", label: "Reset zoom", onClick: () => setZoomToken((t) => (t || 0) + 1) },
     ];
-  }, [edges, menu, nodes, onSelectNode, openPalette, openFinder, perform, isMac]);
+  }, [edges, menu, nodes, onSelectNode, openPalette, openFinder, perform, isMac, labelCapability, renameTarget, selection, openRename]);
 
   /* A zoom is a wheel gesture and produces no mouseup, so remembering on
      mouseup alone kept every pan and lost every zoom. Both gestures are
@@ -410,7 +450,16 @@ function GraphDrawing({
   useEffect(() => {
     const onKey = (event) => {
       const tag = window.document.activeElement?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      const active = window.document.activeElement;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || active?.isContentEditable || active?.closest?.('[contenteditable]:not([contenteditable="false"])')) return;
+      if (event.key === "F2") {
+        const hosts = window.document.querySelectorAll("[data-pupu-modal-overlay-host]");
+        const top = hosts[hosts.length - 1];
+        if (event.defaultPrevented || rename || !canEdit || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey ||
+            (top && !top.contains(containerRef.current)) || !containerRef.current?.contains(active) ||
+            selection.node_ids.length !== 1 || selection.edge_id !== null) return;
+        event.preventDefault(); openRename(selection.node_ids[0]); return;
+      }
       if (event.key === "Home") {
         event.preventDefault();
         center();
@@ -423,15 +472,19 @@ function GraphDrawing({
     };
     window.document.addEventListener("keydown", onKey);
     return () => window.document.removeEventListener("keydown", onKey);
-  }, [center, openFinder]);
+  }, [center, openFinder, canEdit, rename, selection, openRename]);
 
   return (
     <div
       ref={containerRef}
+      tabIndex={-1}
       data-testid="skeleton-canvas"
       style={{ position: "relative", flex: 1, minHeight: 0 }}
       onMouseUp={rememberViewport}
       onWheel={rememberViewport}
+      onMouseDownCapture={(event) => {
+        if (!event.target.closest?.("input, textarea, select, button, [contenteditable]")) containerRef.current?.focus({ preventScroll: true });
+      }}
       onDoubleClick={canEdit ? (event) => {
         if (event.target.closest?.("[data-flow-node-id], [data-flow-edge-id], button")) return;
         openPalette({ client_x: event.clientX, client_y: event.clientY });
@@ -455,6 +508,7 @@ function GraphDrawing({
         nodes={nodes}
         edges={edges}
         on_select={onSelectNode}
+        on_selection_change={observeSelection}
         on_nodes_change={handleNodesChange}
         on_connect={canEdit ? (connection) => perform({ type: "connect", connection }) : undefined}
         on_delete={canEdit ? (selection) => perform({ type: "delete", ...selection }) : undefined}
@@ -484,6 +538,8 @@ function GraphDrawing({
         items={contextItems} onClose={() => setMenu(null)} isDark={isDark} />
       <RecipeNodePalette visible={!!finder} x={finder?.x || 0} y={finder?.y || 0} mode="find"
         entries={finder ? finder_entries(graph) : undefined} onPick={findNode} onClose={() => setFinder(null)} isDark={isDark} />
+      {rename && rename.scope === renameScope && canEdit && <RenameNodeModal initialValue={rename.initialValue}
+        onConfirm={confirmRename} onClose={closeRename} disabledReason={labelCapability.allowed ? null : labelCapability.reason} isDark={isDark} />}
     </div>
   );
 }

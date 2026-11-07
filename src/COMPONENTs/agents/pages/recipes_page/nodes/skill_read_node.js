@@ -1,3 +1,4 @@
+import { node_display_title } from "../node_display_labels";
 import React from "react";
 import PuzzleShape from "./puzzle_shape";
 import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
@@ -36,7 +37,7 @@ export default function SkillReadNode({ node, isDark }) {
             </div>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 12.5, fontWeight: 600, color: text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: name ? "ui-monospace, Menlo, monospace" : undefined }}>
-                {name ? safe_text(name) : "Skill read"}
+                {node_display_title(node, name ? safe_text(name) : "Skill read")}
               </div>
               <div style={{ fontSize: 10.5, color: muted, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {name ? `Skill read · ${source_label(identity.source)}` : "Skill read · pick a skill"}

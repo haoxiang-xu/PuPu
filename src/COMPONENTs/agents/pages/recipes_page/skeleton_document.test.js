@@ -514,3 +514,26 @@ describe("the node a drawing is given", () => {
     expect(drawn_node("agent")).toBe("agent");
   });
 });
+
+describe("optional common display label contract", () => {
+  const native = (label) => ({
+    schema_version: 1, kind: "agent", id: "root", name: "Root", edges: [],
+    nodes: [{ id: "n", type: "agent", config: {}, label }],
+  });
+
+  test("actual mirror accepts and actual drawing preserves a legal label", () => {
+    const value = native("  审核 e\u0301\n");
+    expect(document_problems(value)).toEqual([]);
+    expect(drawn_node(value.nodes[0])).toEqual(value.nodes[0]);
+  });
+
+  test.each([[{}, "invalid_type"], ["\u0085", "invalid_value"]])(
+    "actual mirror reports malformed label at its own path", (label, code) => {
+      const value = native(label);
+      expect(document_problems(value)).toContainEqual(expect.objectContaining({
+        code, where: "document.nodes[0].label",
+      }));
+      expect(value.nodes[0].label).toBe(label);
+    },
+  );
+});

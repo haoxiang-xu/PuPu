@@ -23,6 +23,7 @@ import SkeletonRunMenu, { RunTrigger } from "./recipes_page/skeleton_run_menu";
 import useSkeletonResource from "./recipes_page/use_skeleton_resource";
 import SkeletonCanvas from "./recipes_page/skeleton_canvas";
 import { apply_graph_command } from "./recipes_page/skeleton_graph_commands";
+import { start_context_for_view } from "./recipes_page/start_context";
 import {
   SESSION_STATUS,
   can_convert_legacy_pools,
@@ -90,7 +91,7 @@ import {
  *
  * The graph is drawn from two sources kept apart on purpose: the document says
  * what it is, and `SERVICEs/skeleton_layout` says where it is drawn. A
- * Skeleton node is closed to `{id, type, config}` and the store refuses a
+ * Skeleton node has `{id, type, config}` and an optional display label; it refuses a
  * coordinate, so a position is not something this page may persist into the
  * Agent — and because the canvas has no route to the document at all, moving a
  * node cannot change what the Agent does.
@@ -309,6 +310,10 @@ export default function SkeletonResourcePage({
   const document = steps.length === 0
     ? resource_document
     : embedded_document(resource_document, steps, revision);
+  /* Derived from this navigation, not saved in the graph or a cached frame:
+     editing Start outputs, going back, and replacing a resource immediately
+     describe the caller of the graph actually on screen. */
+  const startContext = start_context_for_view(steps, stack, document);
   const prefix = steps.length === 0
     ? ["document"]
     : embedded_path(resource_document, steps, revision);
@@ -1041,6 +1046,7 @@ export default function SkeletonResourcePage({
             onChange={() => {}}
             onChangeSilent={() => {}}
             document={document}
+            startContext={startContext}
             documentRevision={session.document_revision}
             rootDocument={session.document}
             diagnostics={diagnostics}

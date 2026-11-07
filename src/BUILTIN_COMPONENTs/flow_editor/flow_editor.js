@@ -108,6 +108,8 @@ function FlowEditor({
   on_reconnect,
   on_edge_add_node,
   on_select,
+  /* Optional read-only selection observer; payloads never share state arrays. */
+  on_selection_change,
   render_node,
   validate_connection,
   on_context_menu,
@@ -139,6 +141,14 @@ function FlowEditor({
   const [viewport, setViewport] = useState({ x: 0, y: 0, zoom: 1 });
   const [selected_node_ids, setSelectedNodeIds] = useState([]);
   const [selected_edge_id, setSelectedEdgeId] = useState(null);
+  const selectionObserverRef = useRef(on_selection_change);
+  selectionObserverRef.current = on_selection_change;
+  useEffect(() => {
+    on_selection_change?.({ node_ids: [...selected_node_ids], edge_id: selected_edge_id });
+  }, [on_selection_change, selected_node_ids, selected_edge_id]);
+  useEffect(() => () => {
+    selectionObserverRef.current?.({ node_ids: [], edge_id: null });
+  }, []);
   const [is_connecting, setIsConnecting] = useState(false);
   const [is_reconnecting, setIsReconnecting] = useState(false);
   const [dims_version, set_dims_version] = useState(0);

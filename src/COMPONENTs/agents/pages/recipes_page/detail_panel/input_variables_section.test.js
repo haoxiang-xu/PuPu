@@ -113,14 +113,14 @@ describe("what an input may read", () => {
     expect(binding_sources(document_with([]), "start")).toEqual([]);
   });
 
-  test("the section is absent for a node the runtime gives no inputs", () => {
-    /* Start reads from the calling context; its execution config has no inputs
-     * key at all, so an Input section there would compose a refused document. */
+  test("the section is absent for a pool, which attaches rather than reads inputs", () => {
+    /* Start now describes caller fields read-only without creating the
+     * forbidden execution.inputs key. A pool still has no input section. */
     const doc = document_with([]);
     const { container } = render(
       <InputVariablesSection
         document={doc}
-        node={doc.nodes[0]}
+        node={{ id: "pool", type: "toolkit_pool", config: {} }}
         diagnostics={[]}
         isDark={false}
         onChange={() => {}}

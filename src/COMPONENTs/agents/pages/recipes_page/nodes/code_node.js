@@ -1,3 +1,4 @@
+import { node_display_title } from "../node_display_labels";
 import ShadowSurface from "../../../../../BUILTIN_COMPONENTs/material/shadow_surface";
 import React, { useEffect, useRef, useState } from "react";
 import PuzzleShape from "./puzzle_shape";
@@ -76,7 +77,7 @@ function Viewer({ node, text, total, isDark, onEdit }) {
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderBottom: isDark ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(0,0,0,0.08)" }}>
-        <span style={{ fontSize: 11, fontWeight: 600, color: isDark ? "#e6e6e6" : "#222", fontFamily: "ui-monospace, Menlo, monospace" }}>{safe_text(node.id)}</span>
+        <span style={{ fontSize: 11, fontWeight: 600, color: isDark ? "#e6e6e6" : "#222", fontFamily: "ui-monospace, Menlo, monospace" }}>{node_display_title(node, safe_text(node.id))}</span>
         <span style={{ fontSize: 10.5, color: "var(--pupu-text-muted)" }}>Read-only · {total} line{total === 1 ? "" : "s"} · Esc to close</span>
         <span style={{ marginLeft: "auto" }}>
           <Button
@@ -195,7 +196,7 @@ export default function CodeNode({ node, isDark, lowZoom = false, onOpenNode, so
             </div>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 12.5, fontWeight: 600, color: text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: "ui-monospace, Menlo, monospace" }}>
-                {safe_text(node.id)}
+                {node_display_title(node, safe_text(node.id))}
               </div>
               <div style={{ fontSize: 10.5, color: muted, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {profile ? `Code · ${safe_text(profile)}` : "Code · choose a runtime"}

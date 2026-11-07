@@ -1,8 +1,9 @@
+import { node_display_title } from "../node_display_labels";
 import React from "react";
 import PuzzleShape from "./puzzle_shape";
 import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
 
-export default function EndNode({ isDark }) {
+export default function EndNode({ node, isDark }) {
   return (
     <div style={{ width: 130 }}>
       <PuzzleShape tabs={[]} cutouts={["left"]} isDark={isDark}>
@@ -26,15 +27,16 @@ export default function EndNode({ isDark }) {
                 style={{ width: 16, height: 16 }}
               />
             </div>
-            <div>
+            <div style={{ minWidth: 0 }}>
               <div
                 style={{
                   fontSize: 12.5,
                   fontWeight: 600,
+                  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                   color: isDark ? "#f0f0f3" : "#1d1d22",
                 }}
               >
-                End
+                {node_display_title(node, "End")}
               </div>
               <div
                 style={{
