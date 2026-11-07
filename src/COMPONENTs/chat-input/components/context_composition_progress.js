@@ -1,3 +1,5 @@
+import ShadowSurface from "../../../BUILTIN_COMPONENTs/material/shadow_surface";
+import { SURFACE_DITHER_STYLE } from "../../../BUILTIN_COMPONENTs/material/surface_dither";
 import {
   forwardRef,
   useImperativeHandle,
@@ -128,7 +130,7 @@ const ContextCompositionProgress = forwardRef(
        rail, 8px inset, r22, blur(20px) saturate(130%)) so this reads as one
        more menu on that bar rather than a second popup style. */
     const card = (
-      <div
+      <ShadowSurface
         ref={panelRef}
         data-testid="context-composition-popover"
         style={{
@@ -161,6 +163,7 @@ const ContextCompositionProgress = forwardRef(
           border: isDark
             ? "1px solid rgba(var(--pupu-text-rgb),0.10)"
             : "1px solid rgba(var(--pupu-text-rgb),0.09)",
+          ...SURFACE_DITHER_STYLE,
           backdropFilter: "blur(20px) saturate(130%)",
           WebkitBackdropFilter: "blur(20px) saturate(130%)",
           boxShadow: isDark
@@ -176,7 +179,7 @@ const ContextCompositionProgress = forwardRef(
           palette={palette}
           listRef={listRef}
         />
-      </div>
+      </ShadowSurface>
     );
 
     return (

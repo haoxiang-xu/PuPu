@@ -1,3 +1,4 @@
+import ShadowSurface from "../../BUILTIN_COMPONENTs/material/shadow_surface";
 import {
   useCallback,
   useContext,
@@ -1294,7 +1295,7 @@ const ChatInterface = () => {
                     const active = session.selectedModelId === chip.id;
                     const IconComp = resolveProviderIcon(chip.provider);
                     return (
-                      <button
+                      <ShadowSurface as="button"
                         key={chip.id}
                         disabled={isModelSelectionDisabled}
                         onClick={() => onSelectModel(chip.id)}
@@ -1383,7 +1384,7 @@ const ChatInterface = () => {
                           </span>
                         )}
                         {chip.label}
-                      </button>
+                      </ShadowSurface>
                     );
                   })}
                 </RiseIn>

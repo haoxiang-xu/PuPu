@@ -1,3 +1,4 @@
+import ShadowSurface from "../../../../BUILTIN_COMPONENTs/material/shadow_surface";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Icon from "../../../../BUILTIN_COMPONENTs/icon/icon";
@@ -143,7 +144,7 @@ export default function RecipeNodePalette({
   let index = -1;
 
   return createPortal(
-    <div
+    <ShadowSurface
       ref={panelRef}
       data-testid="recipe-node-palette"
       onContextMenu={(e) => e.preventDefault()}
@@ -330,7 +331,7 @@ export default function RecipeNodePalette({
           style={{ width: 12, height: 12, marginLeft: "auto", flexShrink: 0 }}
         />
       </div>
-    </div>,
+    </ShadowSurface>,
     document.body,
   );
 }

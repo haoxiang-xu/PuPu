@@ -1,3 +1,4 @@
+import ShadowSurface from "../../BUILTIN_COMPONENTs/material/shadow_surface";
 import {
   memo,
   useState,
@@ -601,7 +602,7 @@ const SubagentTag = ({ name, isDark }) => (
 
 /* double-circle point marker for subagent nodes */
 const SubagentPoint = ({ isDark }) => (
-  <div
+  <ShadowSurface
     style={{
       width: 10,
       height: 10,

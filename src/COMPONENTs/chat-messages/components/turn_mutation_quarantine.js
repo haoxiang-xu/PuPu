@@ -1,3 +1,4 @@
+import ShadowSurface from "../../../BUILTIN_COMPONENTs/material/shadow_surface";
 import { useEffect, useState } from "react";
 
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
@@ -75,7 +76,7 @@ const TurnMutationQuarantine = ({
               : `transform 0.26s ${OPEN_CURVE}`,
           }}
         >
-          <span
+          <ShadowSurface as="span"
             aria-hidden="true"
             style={{
               width: 8,

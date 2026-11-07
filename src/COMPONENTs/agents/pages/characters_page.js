@@ -1,3 +1,4 @@
+import ShadowSurface from "../../../BUILTIN_COMPONENTs/material/shadow_surface";
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../../../SERVICEs/api";
 import { getChatsStore, openCharacterChat } from "../../../SERVICEs/chat_storage";
@@ -685,7 +686,7 @@ const SwipeCardContent = ({ character, isDark, dragX }) => {
   const nopeOpacity = dragX < 0 ? Math.min(0.55, (absDrag / SWIPE_THRESHOLD) * 0.55) : 0;
 
   return (
-    <div
+    <ShadowSurface
       style={{
         width: "100%",
         height: "100%",
@@ -905,7 +906,7 @@ const SwipeCardContent = ({ character, isDark, dragX }) => {
           Drag or use buttons below
         </div>
       </div>
-    </div>
+    </ShadowSurface>
   );
 };
 

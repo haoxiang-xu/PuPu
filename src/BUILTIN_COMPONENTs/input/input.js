@@ -1,3 +1,4 @@
+import ShadowSurface from "../material/shadow_surface";
 import {
   useCallback,
   useContext,
@@ -409,7 +410,7 @@ const SinkingInput = ({
   const isLabelFloating = onFocus || hasValue;
 
   return (
-    <div
+    <ShadowSurface
       style={{
         position: "relative",
         display: "flex",
@@ -642,7 +643,7 @@ const SinkingInput = ({
           {label}
         </span>
       )}
-    </div>
+    </ShadowSurface>
   );
 };
 
@@ -737,7 +738,7 @@ const FloatingInput = ({
         if (ref?.current) ref.current.focus();
       }}
     >
-      <div
+      <ShadowSurface
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         style={{
@@ -904,7 +905,7 @@ const FloatingInput = ({
             {label}
           </span>
         )}
-      </div>
+      </ShadowSurface>
     </div>
   );
 };

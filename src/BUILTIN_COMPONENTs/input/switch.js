@@ -1,3 +1,4 @@
+import ShadowSurface from "../material/shadow_surface";
 import { useState, useEffect, useContext, useCallback, useMemo } from "react";
 import { useMouse } from "../mini_react/mini_use";
 
@@ -139,7 +140,7 @@ const SemiSwitch = ({
       }}
       draggable={false}
     >
-      <div
+      <ShadowSurface
         className="mini-ui-switch-thumb"
         style={{
           transition: theme?.switch?.transition || "none",
@@ -159,7 +160,7 @@ const SemiSwitch = ({
           boxShadow: "0 2px 4px rgba(0, 0, 0, 0.32)",
         }}
         draggable={false}
-      ></div>
+      ></ShadowSurface>
       <Icon
         src={on || defaultOn ? on_icon_src : off_icon_src}
         style={{
@@ -257,7 +258,7 @@ const MaterialSwitch = ({
       onMouseEnter={() => setOnHover(true)}
       onMouseLeave={() => setOnHover(false)}
     >
-      <div
+      <ShadowSurface
         className="mini-ui-switch-track"
         style={{
           transition: switchStyle.transition || "none",
@@ -271,8 +272,8 @@ const MaterialSwitch = ({
           borderRadius: switchStyle.height / 2 || "none",
           boxShadow: switchStyle.boxShadow || "none",
         }}
-      ></div>
-      <div
+      ></ShadowSurface>
+      <ShadowSurface
         className="mini-ui-switch-thumb-highlighter"
         style={{
           transition:
@@ -318,7 +319,7 @@ const MaterialSwitch = ({
           boxShadow: "0 2px 4px rgba(0, 0, 0, 0.32)",
         }}
       />
-      <div
+      <ShadowSurface
         className="mini-ui-switch-thumb"
         style={{
           transition: switchStyle.transition || "none",
@@ -355,7 +356,7 @@ const MaterialSwitch = ({
             width: "70%",
           }}
         />
-      </div>
+      </ShadowSurface>
     </div>
   );
 };
@@ -521,7 +522,7 @@ const PlainSwitch = ({
       }}
       draggable={false}
     >
-      <div
+      <ShadowSurface
         className="mini-ui-switch-thumb"
         style={{
           transition: theme?.switch?.transition || "none",
@@ -541,7 +542,7 @@ const PlainSwitch = ({
           backgroundColor: switchStyle.color,
           boxShadow: "0 2px 4px rgba(0, 0, 0, 0.32)",
         }}
-      ></div>
+      ></ShadowSurface>
       <Icon
         src={on || defaultOn ? on_icon_src : off_icon_src}
         style={{
@@ -660,7 +661,7 @@ const GlassSwitchImpl = ({ style, on, set_on }) => {
       draggable={false}
     >
       {/* neutral glass channel — full groove, constant size (no mini collapse) */}
-      <div
+      <ShadowSurface
         style={{
           position: "absolute",
           top: "50%",
@@ -698,7 +699,7 @@ const GlassSwitchImpl = ({ style, on, set_on }) => {
       />
       {/* frosted glass puck — icon-less; elongates into a pill on press (PlainSwitch graft).
           Fixed-px corner radius (= half height) so a wider box reads as a stadium, not an ellipse. */}
-      <div
+      <ShadowSurface
         style={{
           position: "absolute",
           top: "50%",
@@ -735,7 +736,7 @@ const GlassSwitchImpl = ({ style, on, set_on }) => {
             transition: `width 0.28s ${QELASTIC}`,
           }}
         />
-      </div>
+      </ShadowSurface>
     </div>
   );
 };

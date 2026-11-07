@@ -1,3 +1,4 @@
+import ShadowSurface from "../../BUILTIN_COMPONENTs/material/shadow_surface";
 import { useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 /* { Contexts } -------------------------------------------------------------------------------------------------------------- */
@@ -723,7 +724,7 @@ const MemoryInspectModal = ({
 
       {/* ━━ Overlay: Bottom-center control panel ━━━━━━━━━━━━━━━━━━━━━━━ */}
       {status === "ready" && (
-        <div
+        <ShadowSurface
           style={{
             position: "absolute",
             bottom: 16,
@@ -845,11 +846,11 @@ const MemoryInspectModal = ({
               />
             )}
           </div>
-        </div>
+        </ShadowSurface>
       )}
 
       {/* ━━ Overlay: Detail card (right side, animated) ━━━━━━━━━━━━━━━━ */}
-      <div
+      <ShadowSurface
         style={{
           position: "absolute",
           top: 6,
@@ -950,7 +951,7 @@ const MemoryInspectModal = ({
             />
           ) : null}
         </div>
-      </div>
+      </ShadowSurface>
 
       {/* ━━ Overlay: V2 tree + entry detail ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
           LAST child on purpose. Both of its panels carry z-index 3, the same

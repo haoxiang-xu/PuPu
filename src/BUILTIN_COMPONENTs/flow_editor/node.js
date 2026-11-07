@@ -1,3 +1,4 @@
+import ShadowSurface from "../material/shadow_surface";
 import React, { useState, useRef, useEffect } from "react";
 import { DEFAULT_PORTS } from "./utils";
 
@@ -118,7 +119,7 @@ const Port = React.memo(function Port({
   const hit_pad = 10;
 
   return (
-    <div
+    <ShadowSurface
       data-port-id={port.id}
       data-port-side={side}
       data-port-kind={kind || ""}
@@ -159,7 +160,7 @@ const Port = React.memo(function Port({
           background: "transparent",
         }}
       />
-    </div>
+    </ShadowSurface>
   );
 });
 
@@ -236,7 +237,7 @@ const FlowEditorNode = React.memo(function FlowEditorNode({
   };
 
   return (
-    <div
+    <ShadowSurface
       ref={node_ref}
       data-flow-node-id={node.id}
       style={node_style}
@@ -286,7 +287,7 @@ const FlowEditorNode = React.memo(function FlowEditorNode({
           </div>
         )}
       </div>
-    </div>
+    </ShadowSurface>
   );
 });
 

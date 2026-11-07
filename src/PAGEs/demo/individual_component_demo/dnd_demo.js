@@ -1,3 +1,4 @@
+import ShadowSurface from "../../../BUILTIN_COMPONENTs/material/shadow_surface";
 import { useContext, useState, useCallback, useMemo, useRef, useEffect } from "react";
 
 /* { Contexts } -------------------------------------------------------------------------------------------------------------- */
@@ -20,7 +21,7 @@ import { restrictToParentElement } from "@dnd-kit/modifiers";
 /* ── card used as a draggable item ────────────────────── */
 const DemoCard = ({ label, isDark, isDragOverlay }) => {
   return (
-    <div
+    <ShadowSurface
       style={{
         padding: "10px 18px",
         borderRadius: 7,
@@ -49,7 +50,7 @@ const DemoCard = ({ label, isDark, isDragOverlay }) => {
       }}
     >
       {label}
-    </div>
+    </ShadowSurface>
   );
 };
 

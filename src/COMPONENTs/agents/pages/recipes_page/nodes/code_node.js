@@ -1,3 +1,4 @@
+import ShadowSurface from "../../../../../BUILTIN_COMPONENTs/material/shadow_surface";
 import React, { useEffect, useRef, useState } from "react";
 import PuzzleShape from "./puzzle_shape";
 import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
@@ -59,7 +60,7 @@ export function code_preview(text) {
 
 function Viewer({ node, text, total, isDark, onEdit }) {
   return (
-    <div
+    <ShadowSurface
       data-testid={`code-node-${node.id}-viewer`}
       data-code-viewer={node.id}
       style={{
@@ -88,7 +89,7 @@ function Viewer({ node, text, total, isDark, onEdit }) {
       <div className="scrollable" style={{ overflow: "auto", minHeight: 0 }}>
         <Code code={text} language="python" showCopy={false} style={{ margin: 0, fontSize: 11 }} />
       </div>
-    </div>
+    </ShadowSurface>
   );
 }
 

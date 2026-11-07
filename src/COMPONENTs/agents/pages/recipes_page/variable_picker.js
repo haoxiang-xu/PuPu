@@ -1,3 +1,4 @@
+import ShadowSurface from "../../../../BUILTIN_COMPONENTs/material/shadow_surface";
 import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { ConfigContext } from "../../../../CONTAINERs/config/context";
 import { Z } from "../../../../BUILTIN_COMPONENTs/layer/z_layers";
@@ -59,7 +60,7 @@ export default function VariablePicker({ scope, onPick, onClose, position }) {
   const pos_style = position ? { left: position.x, top: position.y } : {};
 
   return (
-    <div
+    <ShadowSurface
       style={{
         position: "absolute",
         ...pos_style,
@@ -177,6 +178,6 @@ export default function VariablePicker({ scope, onPick, onClose, position }) {
           </div>
         )}
       </div>
-    </div>
+    </ShadowSurface>
   );
 }

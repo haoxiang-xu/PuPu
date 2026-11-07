@@ -1,3 +1,5 @@
+import { useSurfaceComposite } from "../../BUILTIN_COMPONENTs/material/surface_composite";
+import { SURFACE_DITHER_STYLE } from "../../BUILTIN_COMPONENTs/material/surface_dither";
 import {
   lazy,
   Suspense,
@@ -264,6 +266,7 @@ const SideMenu = () => {
   const sideMenuBackgroundColor = isDark
     ? "var(--pupu-sidebar, #151515)"
     : "var(--pupu-sidebar, rgb(245, 245, 245))";
+  const surface = useSurfaceComposite({ backgroundColor: sideMenuBackgroundColor });
   const isAgentsEnabled = featureFlags.enable_user_access_to_agents === true;
   const isCharactersEnabled =
     featureFlags.enable_user_access_to_characters === true;
@@ -560,6 +563,8 @@ const SideMenu = () => {
         bottom: 0,
         width: onFragment === "side_menu" ? 320 : 0,
         backgroundColor: sideMenuBackgroundColor,
+        ...SURFACE_DITHER_STYLE,
+        ...surface.style,
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
@@ -568,6 +573,7 @@ const SideMenu = () => {
         zIndex: Z.APP_CHROME_TOP,
       }}
     >
+      {surface.definition}
       <Button
         prefix_icon={
           onFragment === "main" ? "side_menu_left" : "side_menu_close"

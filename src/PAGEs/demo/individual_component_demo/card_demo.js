@@ -1,3 +1,4 @@
+import ShadowSurface from "../../../BUILTIN_COMPONENTs/material/shadow_surface";
 import { useContext } from "react";
 
 /* { Contexts } -------------------------------------------------------------------------------------------------------------- */
@@ -234,7 +235,7 @@ const CardDemo = () => {
             }}
           >
             <Card.Layer depth={50}>
-              <div
+              <ShadowSurface
                 style={{
                   width: 56,
                   height: 56,
@@ -253,7 +254,7 @@ const CardDemo = () => {
                   style={{ width: 28, height: 28 }}
                   color="#fff"
                 />
-              </div>
+              </ShadowSurface>
             </Card.Layer>
             <Card.Layer depth={25}>
               <div>

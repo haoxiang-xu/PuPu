@@ -1,3 +1,4 @@
+import ShadowSurface from "../../../BUILTIN_COMPONENTs/material/shadow_surface";
 import { useEffect, useId, useState } from "react";
 
 import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
@@ -231,7 +232,7 @@ const DisclosureBar = ({
   const metricColor = isDark ? "rgba(255,255,255,0.38)" : "rgba(0,0,0,0.38)";
 
   return (
-    <div
+    <ShadowSurface
       role="button"
       tabIndex={0}
       aria-expanded={open}
@@ -300,7 +301,7 @@ const DisclosureBar = ({
       </span>
       <span style={{ fontSize: 12, color: labelColor }}>{`${verb} ${noun}`}</span>
       <span style={{ fontSize: 12, color: metricColor }}>{metric}</span>
-    </div>
+    </ShadowSurface>
   );
 };
 

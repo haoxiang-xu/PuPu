@@ -1,3 +1,6 @@
+import ShadowSurface from "../material/shadow_surface";
+import { useSurfaceComposite } from "../material/surface_composite";
+import { SURFACE_DITHER_STYLE } from "../material/surface_dither";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Icon from "../icon/icon";
@@ -33,6 +36,14 @@ export function measureMenuHeight(items) {
 }
 
 export default function ContextMenu({ visible, x, y, items, onClose, isDark }) {
+  const surfaceColor = isDark
+    ? "color-mix(in srgb, var(--pupu-surface, rgb(30, 30, 30)) 85%, transparent)"
+    : "color-mix(in srgb, var(--pupu-surface, rgb(255, 255, 255)) 90%, transparent)";
+  const surface = useSurfaceComposite({
+    backgroundColor: surfaceColor,
+    backdropFilter: "blur(20px) saturate(130%)",
+    enabled: visible,
+  });
   const ref = useRef(null);
   const rowRefs = useRef([]);
   const [hoverIndex, setHoverIndex] = useState(-1);
@@ -131,7 +142,7 @@ export default function ContextMenu({ visible, x, y, items, onClose, isDark }) {
   const originY = top < y ? "bottom" : "top";
 
   return createPortal(
-    <div
+    <ShadowSurface
       ref={ref}
       onContextMenu={(e) => e.preventDefault()}
       style={{
@@ -139,11 +150,11 @@ export default function ContextMenu({ visible, x, y, items, onClose, isDark }) {
         top,
         left,
         zIndex: Z.POPOVER,
-        backgroundColor: isDark
-          ? "color-mix(in srgb, var(--pupu-surface, rgb(30, 30, 30)) 85%, transparent)"
-          : "color-mix(in srgb, var(--pupu-surface, rgb(255, 255, 255)) 90%, transparent)",
+        backgroundColor: surfaceColor,
+        ...SURFACE_DITHER_STYLE,
         backdropFilter: "blur(20px) saturate(130%)",
         WebkitBackdropFilter: "blur(20px) saturate(130%)",
+        ...surface.style,
         border,
         borderRadius: 8,
         boxShadow: shadow,
@@ -157,6 +168,7 @@ export default function ContextMenu({ visible, x, y, items, onClose, isDark }) {
       }}
       onMouseLeave={() => setHoverIndex(-1)}
     >
+      {surface.definition}
       {/* one hover pill gliding between rows (red over danger rows) */}
       <SlidingHighlight
         refs={rowRefs}
@@ -205,7 +217,7 @@ export default function ContextMenu({ visible, x, y, items, onClose, isDark }) {
           />
         );
       })}
-    </div>,
+    </ShadowSurface>,
     document.body,
   );
 }

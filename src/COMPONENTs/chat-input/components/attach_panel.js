@@ -1,3 +1,5 @@
+import ShadowSurface from "../../../BUILTIN_COMPONENTs/material/shadow_surface";
+import { SURFACE_DITHER_STYLE } from "../../../BUILTIN_COMPONENTs/material/surface_dither";
 import {
   forwardRef,
   startTransition,
@@ -321,7 +323,7 @@ const NotchSliderRow = ({
       : "rgba(0,0,0,0.55)";
 
   return (
-    <div
+    <ShadowSurface
       data-testid={testId}
       data-picked={picked ? "true" : "false"}
       title={picked ? undefined : defaultHint}
@@ -339,7 +341,7 @@ const NotchSliderRow = ({
         boxShadow: grooveShadow,
       }}
     >
-      <span
+      <ShadowSurface as="span"
         style={{
           flexShrink: 0,
           display: "flex",
@@ -370,7 +372,7 @@ const NotchSliderRow = ({
         <span style={{ display: "block", textBox: "trim-both cap alphabetic" }}>
           {label}
         </span>
-      </span>
+      </ShadowSurface>
 
       {/* 4px of inset on both ends: the glass channel already insets its
           travel by its own cap radius, so only a hair of air is needed for
@@ -421,7 +423,7 @@ const NotchSliderRow = ({
       {/* the value well — pressed into the groove like the label well, lit
           only once something is picked. It reads the notch the track rests
           on, which is also what the request will carry. */}
-      <span
+      <ShadowSurface as="span"
         data-testid={readoutTestId}
         style={{
           flexShrink: 0,
@@ -443,8 +445,8 @@ const NotchSliderRow = ({
         }}
       >
         {notches[activeIndex].label}
-      </span>
-    </div>
+      </ShadowSurface>
+    </ShadowSurface>
   );
 };
 
@@ -2292,7 +2294,7 @@ const AttachPanel = forwardRef(({
   const ghostPortal =
     dragGhost && typeof document !== "undefined"
       ? createPortal(
-          <span
+          <ShadowSurface as="span"
             data-widget={dragGhost.id}
             data-ghost="true"
             style={{
@@ -2316,7 +2318,7 @@ const AttachPanel = forwardRef(({
             <span style={{ display: "flex", pointerEvents: "none" }}>
               {renderRowWidget(dragGhost.id)}
             </span>
-          </span>,
+          </ShadowSurface>,
           document.body,
         )
       : null;
@@ -2431,7 +2433,7 @@ const AttachPanel = forwardRef(({
     );
   };
   const moreMenu = (
-    <div
+    <ShadowSurface
       ref={menuRef}
       data-testid="attach-more-menu"
       data-surface="palette"
@@ -2456,6 +2458,7 @@ const AttachPanel = forwardRef(({
         border: isDark
           ? "1px solid rgba(var(--pupu-text-rgb),0.10)"
           : "1px solid rgba(var(--pupu-text-rgb),0.09)",
+        ...SURFACE_DITHER_STYLE,
         backdropFilter: "blur(20px) saturate(130%)",
         WebkitBackdropFilter: "blur(20px) saturate(130%)",
         boxShadow: isDark
@@ -2506,7 +2509,7 @@ const AttachPanel = forwardRef(({
           ))}
         </>
       )}
-    </div>
+    </ShadowSurface>
   );
 
   const moreTargeted =
@@ -2620,7 +2623,7 @@ const AttachPanel = forwardRef(({
         isStreaming={isStreaming}
       />
 
-      <div
+      <ShadowSurface
         ref={rowRef}
         data-testid="attach-row"
         data-kb-active={kbActiveId || ""}
@@ -2641,6 +2644,7 @@ const AttachPanel = forwardRef(({
             : "1px solid transparent",
           ...(floating
             ? {
+                ...SURFACE_DITHER_STYLE,
                 backdropFilter: "blur(20px) saturate(130%)",
                 WebkitBackdropFilter: "blur(20px) saturate(130%)",
               }
@@ -2823,7 +2827,7 @@ const AttachPanel = forwardRef(({
             highlightRing={kbActiveId === "queue"}
           />
         ) : null}
-      </div>
+      </ShadowSurface>
 
       <WorkspaceModal
         open={workspaceModalOpen}

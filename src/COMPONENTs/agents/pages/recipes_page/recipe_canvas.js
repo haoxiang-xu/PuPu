@@ -1,3 +1,4 @@
+import ShadowSurface from "../../../../BUILTIN_COMPONENTs/material/shadow_surface";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FlowEditor } from "../../../../BUILTIN_COMPONENTs/flow_editor";
 import usePresentationPlatform from "../../../../BUILTIN_COMPONENTs/mini_react/use_presentation_platform";
@@ -436,7 +437,7 @@ export default function RecipeCanvas({
           reset_focus_node_id={startNodeId}
         />
 
-        <div
+        <ShadowSurface
           style={{
             position: "absolute",
             bottom: 16,
@@ -515,7 +516,7 @@ export default function RecipeCanvas({
               opacity: dirty ? 1 : 0.5,
             }}
           />
-        </div>
+        </ShadowSurface>
 
         <RecipeNodePalette
           visible={palette.visible}
