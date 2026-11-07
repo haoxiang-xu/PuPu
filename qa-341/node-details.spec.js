@@ -201,19 +201,30 @@ test("#341 Rename, Start caller context, cold read and shared shell geometry", a
         await page.mouse.wheel(0, 1600);
         if (overflows) await expect.poll(() => body.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
         const after = await header.boundingBox();
-        expect(Math.abs(after.y - before.y)).toBeLessThan(1);
-        const measurement = await body.evaluate((element) => ({
-          clientWidth: element.clientWidth, scrollWidth: element.scrollWidth,
-          clientHeight: element.clientHeight, scrollHeight: element.scrollHeight,
-          scrollTop: element.scrollTop, overflowY: getComputedStyle(element).overflowY,
-          background: getComputedStyle(document.documentElement).getPropertyValue("--pupu-background"),
-        }));
-        expect(measurement.scrollWidth).toBeLessThanOrEqual(measurement.clientWidth + 1);
-        expect(measurement.overflowY).toBe("auto");
-        if (id === "router") expect(measurement.scrollTop).toBeGreaterThan(0);
+        expect.soft(Math.abs(after.y - before.y), `${mode}/${size}/${id} header moved`).toBeLessThan(1);
+        const measurement = await body.evaluate((element) => {
+          const limit = element.getBoundingClientRect().right + 1;
+          // Read-only diagnosis of what, if anything, reaches past the body's
+          // right edge, so an overflow can be attributed to an element.
+          const wide = [...element.querySelectorAll("*")].filter((node) => node.getBoundingClientRect().right > limit)
+            .slice(0, 12).map((node) => ({ tag: node.tagName.toLowerCase(), testid: node.getAttribute("data-testid"),
+              text: (node.textContent || "").trim().slice(0, 40), right: node.getBoundingClientRect().right,
+              width: node.getBoundingClientRect().width, scrollWidth: node.scrollWidth }));
+          return {
+            clientWidth: element.clientWidth, scrollWidth: element.scrollWidth,
+            clientHeight: element.clientHeight, scrollHeight: element.scrollHeight,
+            scrollTop: element.scrollTop, overflowY: getComputedStyle(element).overflowY,
+            background: getComputedStyle(document.documentElement).getPropertyValue("--pupu-background"),
+            bodyRight: limit - 1, wide,
+          };
+        });
+        // Soft so every unit is measured; any failure still fails the test.
+        expect.soft(measurement.scrollWidth, `${mode}/${size}/${id} horizontal overflow`).toBeLessThanOrEqual(measurement.clientWidth + 1);
+        expect.soft(measurement.overflowY, `${mode}/${size}/${id} overflowY`).toBe("auto");
+        if (id === "router") expect.soft(measurement.scrollTop, `${mode}/${size}/${id} scrolled`).toBeGreaterThan(0);
         const panel = await page.getByTestId("skeleton-detail-panel-shell").boundingBox();
         // Shell border box can include its two 1px borders.
-        expect(Math.abs(panel.width - (size === "minimum" ? 300 : canvas.width / 2))).toBeLessThanOrEqual(3);
+        expect.soft(Math.abs(panel.width - (size === "minimum" ? 300 : canvas.width / 2)), `${mode}/${size}/${id} panel width`).toBeLessThanOrEqual(3);
         geometry.push({ mode, size, id, before, after, panel, canvas, ...measurement });
         await testInfo.attach(`shell-${mode}-${size}-${id}`, { body: await page.screenshot(), contentType: "image/png" });
       }
