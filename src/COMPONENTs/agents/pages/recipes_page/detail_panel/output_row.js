@@ -206,7 +206,15 @@ export default function OutputRow({
         background: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      {/* `[name] ← [kind] ×` is one line where it fits. At the panel's 300px
+          minimum it does not (the kind select keeps its own text width), so
+          the line may wrap: the name stays on the first line and `← kind ×`
+          moves whole to the next, where it still fills the width. Nothing is
+          shrunk or clipped at any width the panel allows (#341). */}
+      <div
+        data-testid={`output-row-${index}-header`}
+        style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}
+      >
         <Input
           value={(mapping && mapping.name) || ""}
           set_value={(next) => onChange({ ...mapping, name: next })}
@@ -221,45 +229,50 @@ export default function OutputRow({
             borderRadius: 5,
           }}
         />
-        <span aria-hidden="true" style={{ ...CAPTION, flexShrink: 0 }}>
-          ←
-        </span>
-        {kinds.length > 1 ? (
-          <Select
-            options={kinds.map((value) => ({ value, label: KIND_LABEL[value] }))}
-            value={kind}
-            set_value={set_kind}
-            filterable={false}
+        <div
+          data-testid={`output-row-${index}-source`}
+          style={{ display: "flex", alignItems: "center", gap: 6, flex: "1 1 auto", minWidth: 0 }}
+        >
+          <span aria-hidden="true" style={{ ...CAPTION, flexShrink: 0 }}>
+            ←
+          </span>
+          {kinds.length > 1 ? (
+            <Select
+              options={kinds.map((value) => ({ value, label: KIND_LABEL[value] }))}
+              value={kind}
+              set_value={set_kind}
+              filterable={false}
+              style={{
+                flex: 1,
+                minWidth: 0,
+                fontSize: 11.5,
+                paddingVertical: 4,
+                paddingHorizontal: 6,
+                borderRadius: 5,
+                gap: 4,
+              }}
+            />
+          ) : (
+            <span
+              data-testid={`output-row-${index}-fixed-kind`}
+              style={{ ...CAPTION, flex: 1, minWidth: 0 }}
+            >
+              {single_kind_caption}
+            </span>
+          )}
+          <Button
+            prefix_icon="close"
+            ariaLabel={`Remove ${(mapping && mapping.name) || "output"}`}
+            onClick={onRemove}
             style={{
-              flex: 1,
-              minWidth: 0,
-              fontSize: 11.5,
+              flexShrink: 0,
               paddingVertical: 4,
-              paddingHorizontal: 6,
-              borderRadius: 5,
-              gap: 4,
+              paddingHorizontal: 4,
+              borderRadius: 4,
+              content: { icon: { width: 11, height: 11 } },
             }}
           />
-        ) : (
-          <span
-            data-testid={`output-row-${index}-fixed-kind`}
-            style={{ ...CAPTION, flex: 1, minWidth: 0 }}
-          >
-            {single_kind_caption}
-          </span>
-        )}
-        <Button
-          prefix_icon="close"
-          ariaLabel={`Remove ${(mapping && mapping.name) || "output"}`}
-          onClick={onRemove}
-          style={{
-            flexShrink: 0,
-            paddingVertical: 4,
-            paddingHorizontal: 4,
-            borderRadius: 4,
-            content: { icon: { width: 11, height: 11 } },
-          }}
-        />
+        </div>
       </div>
 
       {editable && kinds.length > 1 && (

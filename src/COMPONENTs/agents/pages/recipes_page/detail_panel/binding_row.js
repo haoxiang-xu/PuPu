@@ -133,7 +133,15 @@ export default function BindingRow({
         background: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      {/* `[name] ← [source] ×` reads as one line, but the panel's 300px minimum
+          leaves 248px for it and the line needs about 326px. So the row may
+          wrap: the name keeps the first line, and `← source ×` moves whole to
+          the next one. Nothing shrinks and nothing is clipped — every control
+          stays its full size at any width the panel allows. */}
+      <div
+        data-testid={`binding-row-${index}-header`}
+        style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}
+      >
         <Input
           value={(binding && binding.name) || ""}
           set_value={(next) => onChange({ ...binding, name: next })}
@@ -148,35 +156,40 @@ export default function BindingRow({
             borderRadius: 5,
           }}
         />
-        <span aria-hidden="true" style={{ ...CAPTION, flexShrink: 0 }}>
-          ←
-        </span>
-        <Select
-          options={SOURCE_KINDS}
-          value={kind}
-          set_value={set_kind}
-          filterable={false}
-          style={{
-            width: 132,
-            flexShrink: 0,
-            fontSize: 11.5,
-            paddingVertical: 4,
-            paddingHorizontal: 6,
-            borderRadius: 5,
-            gap: 4,
-          }}
-        />
-        <Button
-          prefix_icon="close"
-          ariaLabel={`Remove ${(binding && binding.name) || "input"}`}
-          onClick={onRemove}
-          style={{
-            paddingVertical: 4,
-            paddingHorizontal: 4,
-            borderRadius: 4,
-            content: { icon: { width: 11, height: 11 } },
-          }}
-        />
+        <div
+          data-testid={`binding-row-${index}-source`}
+          style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}
+        >
+          <span aria-hidden="true" style={{ ...CAPTION, flexShrink: 0 }}>
+            ←
+          </span>
+          <Select
+            options={SOURCE_KINDS}
+            value={kind}
+            set_value={set_kind}
+            filterable={false}
+            style={{
+              width: 132,
+              flexShrink: 0,
+              fontSize: 11.5,
+              paddingVertical: 4,
+              paddingHorizontal: 6,
+              borderRadius: 5,
+              gap: 4,
+            }}
+          />
+          <Button
+            prefix_icon="close"
+            ariaLabel={`Remove ${(binding && binding.name) || "input"}`}
+            onClick={onRemove}
+            style={{
+              paddingVertical: 4,
+              paddingHorizontal: 4,
+              borderRadius: 4,
+              content: { icon: { width: 11, height: 11 } },
+            }}
+          />
+        </div>
       </div>
 
       {editable && kind === "ref" && (
