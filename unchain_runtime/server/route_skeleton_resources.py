@@ -15,6 +15,22 @@ from skeleton_resource_store import SkeletonResourceError, SkeletonResourceStore
 _logger = logging.getLogger(__name__)
 
 
+@api_blueprint.get("/skeleton_runs/observation")
+def skeleton_run_observation():
+    """Passive, authenticated observation; never the interaction recovery getter."""
+    denied = _authorized()
+    if denied is not None:
+        return denied
+    allowed = {"owner_chat_id", "execution_id", "resource_id", "root_run_id"}
+    if set(request.args) - allowed or any(len(request.args.getlist(key)) != 1 for key in request.args):
+        return jsonify({"error": {"code": "invalid_shape", "path": [],
+                                  "message": "Run observation accepts unique, known query fields only."}}), 400
+    from skeleton_run_observation import read_skeleton_run
+    return _run(lambda: read_skeleton_run(
+        owner_chat_id=request.args.get("owner_chat_id"), execution_id=request.args.get("execution_id"),
+        resource_id=request.args.get("resource_id"), root_run_id=request.args.get("root_run_id")))
+
+
 @api_blueprint.post("/skeleton_credentials/requirements")
 def skeleton_credential_requirements():
     """Main-only discovery: target metadata, never credential values.

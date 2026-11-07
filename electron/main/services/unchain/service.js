@@ -1,3 +1,4 @@
+const { buildSkeletonRunObservationRequest, checkSkeletonRunObservationRequest, checkSkeletonRunObservation, readSkeletonRunObservationResponse } = require('./skeleton_run_observation');
 const { request: nodeHttpRequest } = require("http");
 const { request: nodeHttpsRequest } = require("https");
 const { Readable } = require("stream");
@@ -82,6 +83,7 @@ const UNCHAIN_CUSTOM_PROVIDER_TEST_ENDPOINT =
   "/models/custom-providers/test";
 
 const buildSkeletonResourceRequest = (action, payload = {}) => {
+  if (action === "run_observation") return buildSkeletonRunObservationRequest(payload);
   const transfer = buildManagedTransferRequest(action, payload);
   if (transfer) return transfer;
   if (action === "workflow_tool_capabilities") {
@@ -4634,6 +4636,9 @@ const createUnchainService = ({
   };
 
   const runMisoSkeletonResourceCommand = async (action, payload = {}) => {
+    // Snapshot the validated scalar request synchronously, before any await.
+    const observationScope = action === "run_observation"
+      ? Object.freeze({ ...checkSkeletonRunObservationRequest(payload) }) : null;
     ensureMisoReady();
     if (isManagedTransferAction(action)) {
       return runManagedTransferCommand(action, payload, {
@@ -4641,7 +4646,7 @@ const createUnchainService = ({
         fetchImpl: (...args) => fetch(...args), readResponse: readSkeletonResourceResponse,
       });
     }
-    const request = buildSkeletonResourceRequest(action, payload);
+    const request = buildSkeletonResourceRequest(action, observationScope || payload);
     if (isManagedCodeAction(action) && action !== "code_capabilities") {
       const handshake = await fetch(`http://${UNCHAIN_HOST}:${unchainPort}/skeleton_resources/v2/capabilities`, {
         method: "GET", headers: unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {},
@@ -4656,7 +4661,10 @@ const createUnchainService = ({
       },
       ...(request.body ? { body: JSON.stringify(request.body) } : {}),
     });
-    const result = await readSkeletonResourceResponse(response);
+    const result = action === "run_observation"
+      ? await readSkeletonRunObservationResponse(response)
+      : await readSkeletonResourceResponse(response);
+    if (action === "run_observation") return checkSkeletonRunObservation(result, observationScope);
     return isManagedCodeAction(action) ? validateManagedCodeReply(action, result) : result;
   };
 

@@ -20,6 +20,9 @@ import {
   VISUALLY_HIDDEN,
 } from "./recipes_page/canvas_chrome";
 import SkeletonRunMenu, { RunTrigger } from "./recipes_page/skeleton_run_menu";
+import SkeletonRunView from "./recipes_page/skeleton_run_view";
+import { getChatMessages, getChatsStore } from "../../../SERVICEs/chat_storage";
+import { run_observation_scope } from "./recipes_page/run_observation_scope";
 import useSkeletonResource from "./recipes_page/use_skeleton_resource";
 import SkeletonCanvas from "./recipes_page/skeleton_canvas";
 import { apply_graph_command } from "./recipes_page/skeleton_graph_commands";
@@ -199,6 +202,7 @@ export default function SkeletonResourcePage({
   /* The control center's: Home, the Run menu, and an edit the canvas refused. */
   const [homeToken, setHomeToken] = useState(0);
   const [runOpen, setRunOpen] = useState(false);
+  const [runViewScope, setRunViewScope] = useState(null);
   const [canvasProblem, setCanvasProblem] = useState(null);
   /* The graphs left behind, outermost first. */
   const [drillFrames, setDrillStack] = useState([]);
@@ -709,7 +713,21 @@ export default function SkeletonResourcePage({
      not the sitting the view was opened from. */
   useEffect(() => {
     setPinned(null);
+    setRunViewScope(null);
   }, [session.open_id, revision]);
+
+  const open_run_view = useCallback(() => {
+    const chats = getChatsStore();
+    const scope = run_observation_scope(chats, chats?.activeChatId ? getChatMessages(chats.activeChatId) : [], session.resource_id);
+    if (!scope) {
+      setCanvasProblem("Open a chat with this Agent first; no execution identity is available to inspect.");
+      return;
+    }
+    if (pageRef.current?.contains(window.document.activeElement)) window.document.activeElement?.blur();
+    setRunOpen(false);
+    setCanvasProblem(null);
+    setRunViewScope(scope);
+  }, [session.resource_id]);
 
   /* Escape is answered by the nearest thing on top, once, and stops there; it
      reaches the Agents modal (a `window` listener, which closes the whole
@@ -753,6 +771,11 @@ export default function SkeletonResourcePage({
         event.stopPropagation();
         return;
       }
+      if (runViewScope) {
+        setRunViewScope(null);
+        take();
+        return;
+      }
       /* A pinned revision on screen is the nearest graph to leave. */
       if (close_pinned() === true) {
         take();
@@ -784,7 +807,7 @@ export default function SkeletonResourcePage({
     };
     window.document.addEventListener("keydown", onKey);
     return () => window.document.removeEventListener("keydown", onKey);
-  }, [close_pinned, drill_up, runOpen]);
+  }, [close_pinned, drill_up, runOpen, runViewScope]);
   dirtyRef.current = Boolean(session.dirty);
   useEffect(() => {
     if (!session.dirty) setEscapeHeld(false);
@@ -798,7 +821,7 @@ export default function SkeletonResourcePage({
       const tag = active?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || active?.isContentEditable) return;
       /* The editor is not on screen under a pinned revision. */
-      if (pinned) return;
+      if (pinned || runViewScope) return;
       if (!(event.metaKey || event.ctrlKey) || event.altKey) return;
       const key = typeof event.key === "string" ? event.key.toLowerCase() : "";
       if (key === "z" && !event.shiftKey) {
@@ -811,7 +834,7 @@ export default function SkeletonResourcePage({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [pinned, undo, redo]);
+  }, [pinned, runViewScope, undo, redo]);
 
   /* What the control center says belongs to the graph on screen: another
      resource or another graph inside this one starts without it. */
@@ -867,7 +890,8 @@ export default function SkeletonResourcePage({
       {/* The canvas takes its height by growing (`flex: 1`), so it needs a
           flex column that fills the page to grow into. Without it the graph
           was drawn 0px tall. */}
-      {ready && pinned && (
+      {ready && runViewScope && <SkeletonRunView scope={runViewScope} isDark={isDark} onClose={() => setRunViewScope(null)} />}
+      {ready && pinned && !runViewScope && (
         <div style={CANVAS_FRAME} data-testid="workflow-pinned-view">
         <SkeletonCanvas
           resourceId={pinned_view_key(pinned.pin)}
@@ -881,7 +905,7 @@ export default function SkeletonResourcePage({
         />
         </div>
       )}
-      {ready && !pinned && (
+      {ready && !pinned && !runViewScope && (
         <div style={CANVAS_FRAME}>
         <SkeletonCanvas
           resourceId={drill_layout_key(
@@ -925,7 +949,7 @@ export default function SkeletonResourcePage({
         </div>
       )}
 
-      {(drilled || pinned) && (
+      {!runViewScope && (drilled || pinned) && (
         <FloatingBreadcrumb
           isDark={isDark}
           crumbs={crumbs}
@@ -941,12 +965,12 @@ export default function SkeletonResourcePage({
           otherwise read as "nothing is wrong" here, and it is not what it
           means: measured on the real store, the draft check answers the same
           `[]` for an embedded child with no End as for a healthy one. */}
-      {pinned && (
+      {!runViewScope && pinned && (
         <CanvasCaptionChip isDark={isDark} testId="workflow-pinned-caption">
           <span>{pinned_view_caption(pinned.version)}</span>
         </CanvasCaptionChip>
       )}
-      {!pinned && drilled && steps.length > 0 && (
+      {!runViewScope && !pinned && drilled && steps.length > 0 && (
         <CanvasCaptionChip isDark={isDark} testId="skeleton-drill-caption">
           <span data-testid="skeleton-drill-save-target">
             {save_target_caption(resource_label)}
@@ -955,7 +979,7 @@ export default function SkeletonResourcePage({
         </CanvasCaptionChip>
       )}
 
-      {(conflict || showRun || messages.length > 0) && (
+      {!runViewScope && (conflict || showRun || messages.length > 0) && (
         <AboveControls testId="skeleton-above-controls">
           {/* A conflict is not offered as "retry". Retrying at the same token
               fails identically, and retrying at the newer one replaces the
@@ -988,13 +1012,13 @@ export default function SkeletonResourcePage({
             </ControlPopover>
           )}
           {showRun && (
-            <SkeletonRunMenu session={session} isDark={isDark} onCheck={preflight} />
+            <SkeletonRunMenu session={session} isDark={isDark} onCheck={preflight} onViewRun={open_run_view} />
           )}
           <CanvasMessageStrip isDark={isDark} items={messages} role="alert" />
         </AboveControls>
       )}
 
-      {ready && !pinned && (
+      {ready && !pinned && !runViewScope && (
         <CanvasControlCenter
           isDark={isDark}
           testId="skeleton-control-center"
@@ -1018,9 +1042,10 @@ export default function SkeletonResourcePage({
         )}
 
       {ready && (
+        <div data-testid="skeleton-editor-detail-boundary" inert={Boolean(runViewScope)} aria-hidden={runViewScope ? "true" : undefined} style={{ display: "contents" }}>
         <FloatingDetailShell
           isDark={isDark}
-          open={Boolean(selectedNodeId) && !pinned}
+          open={Boolean(selectedNodeId) && !pinned && !runViewScope}
           width={detail.width}
           minWidth={detail.minWidth}
           resizing={Boolean(detail.resizing)}
@@ -1063,6 +1088,7 @@ export default function SkeletonResourcePage({
             convertingLegacy={session.converting}
           />
         </FloatingDetailShell>
+        </div>
       )}
     </div>
   );
