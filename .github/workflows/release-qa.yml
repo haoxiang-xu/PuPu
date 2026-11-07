@@ -2,21 +2,18 @@ name: "#210 packaged-App offline acceptance (QA only, non-delivery)"
 
 # QA-only branch: replaces release-qa.yml so the ordinary PR pipeline never runs here.
 # Not for merge. Every identity is a dispatch input; nothing defaults to an old candidate.
-# DRAFT: the driver (qa-210/tools/app_control_210.cjs, verify_app_210.py) is written once
-# Codex hands over the final candidate. Until then this workflow stops after sealing.
+# Identity defaults = Codex hand-over 2026-11-07 (Host 1c5d551a, canonical wheel run 42395251373).
+# The Linux sidecar and the App are each built once here and reused; CI wheels are a separate identity.
 on:
   workflow_dispatch:
     inputs:
-      candidate_sha: { required: true, type: string }
-      candidate_tree: { required: true, type: string }
-      wheel_run_id: { required: true, type: string, description: "run holding the one Core wheel artifact" }
+      candidate_sha: { required: true, type: string, default: "1c5d551ab96af338af9993f4ba0f1a5595d81f45" }
+      candidate_tree: { required: true, type: string, default: "28fa01cef1ed0fd7239e1c0d687626da61c83b62" }
+      wheel_run_id: { required: true, type: string, default: "42395251373", description: "run holding the one Core wheel artifact (canonical)" }
       wheel_artifact: { required: true, type: string, default: "unchain-release-artifact" }
-      wheel_sha256: { required: true, type: string }
-      manifest_digest: { required: true, type: string, description: "sha256:… expected runtime protocol manifest" }
-      sidecar_run_id: { required: true, type: string, description: "run holding the Linux unchain-server built from that wheel" }
-      sidecar_artifact: { required: true, type: string }
-      sidecar_sha256: { required: true, type: string }
-      feature_snapshot_json: { required: true, type: string, description: "exact build feature flags JSON used by the delivery" }
+      wheel_sha256: { required: true, type: string, default: "c1213803c1b3bb58f4fc78a03b1a00f80e001d63be00c4afae53ab4d972b12ec" }
+      manifest_digest: { required: true, type: string, default: "sha256:c172bc02718aee771ddd4d247904f13cdaf003d3794148fd3ecd4d4e9a419e6b", description: "expected runtime protocol manifest" }
+      feature_snapshot_json: { required: true, type: string, default: '{"enable_user_access_to_agents":true,"enable_user_access_to_characters":false,"enable_custom_model_providers":true,"enable_computer_use":false}', description: "QA build feature flags (release profile yields {} = Agents hidden); disclosed" }
       run_app_control: { required: true, type: boolean, default: false, description: "false = package and seal only" }
 
 permissions:
@@ -32,7 +29,6 @@ jobs:
       QA_CANDIDATE_TREE: ${{ inputs.candidate_tree }}
       QA_WHEEL_SHA: ${{ inputs.wheel_sha256 }}
       QA_MANIFEST: ${{ inputs.manifest_digest }}
-      QA_BINARY_SHA: ${{ inputs.sidecar_sha256 }}
     steps:
       - name: Validate immutable input identities
         run: |
@@ -40,10 +36,8 @@ jobs:
           [[ "$QA_CANDIDATE" =~ ^[0-9a-f]{40}$ ]]
           [[ "$QA_CANDIDATE_TREE" =~ ^[0-9a-f]{40}$ ]]
           [[ "$QA_WHEEL_SHA" =~ ^[0-9a-f]{64}$ ]]
-          [[ "$QA_BINARY_SHA" =~ ^[0-9a-f]{64}$ ]]
           [[ "$QA_MANIFEST" =~ ^sha256:[0-9a-f]{64}$ ]]
           [[ "${{ inputs.wheel_run_id }}" =~ ^[0-9]+$ ]]
-          [[ "${{ inputs.sidecar_run_id }}" =~ ^[0-9]+$ ]]
           printf '%s' '${{ inputs.feature_snapshot_json }}' | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d.get("enable_user_access_to_agents") is True'
       - uses: actions/checkout@v4
         with: { path: control, persist-credentials: false }
@@ -65,15 +59,15 @@ jobs:
       - name: Read the one Core wheel
         uses: actions/download-artifact@v4
         with: { name: "${{ inputs.wheel_artifact }}", path: wheel, run-id: "${{ inputs.wheel_run_id }}", github-token: "${{ github.token }}" }
-      - name: Read the fixed Linux sidecar
-        uses: actions/download-artifact@v4
-        with: { name: "${{ inputs.sidecar_artifact }}", path: sidecar, run-id: "${{ inputs.sidecar_run_id }}", github-token: "${{ github.token }}" }
       - name: Verify and install the wheel (harness reader only), record the imported manifest
         working-directory: candidate
         run: |
           set -euo pipefail
           WHEEL="$(ls ../wheel/*.whl | head -1)"; test -n "$WHEEL"
+          EVIDENCE="../wheel/unchain-artifact.json"; test -f "$EVIDENCE"
           echo "$QA_WHEEL_SHA  $WHEEL" | sha256sum -c -
+          python -I -c "import json,sys; e=json.load(open(sys.argv[1])); assert e['runtime_manifest']['manifest_digest']=='$QA_MANIFEST', e['runtime_manifest']['manifest_digest']" "$EVIDENCE"
+          echo "QA_WHEEL_EVIDENCE=$(cd ../wheel && pwd)/unchain-artifact.json" >> "$GITHUB_ENV"
           python -m pip install --disable-pip-version-check -r unchain_runtime/server/requirements.txt
           python -m pip install --disable-pip-version-check --no-deps "$WHEEL"
           node scripts/release-qa/verify-unchain-artifact.mjs --wheel "$WHEEL" --sha256 "$QA_WHEEL_SHA" --installed true > ../test-results/wheel-verify.json
@@ -90,7 +84,23 @@ jobs:
           node node_modules/@playwright/test/cli.js install-deps chromium
           sudo apt-get update
           sudo apt-get install -y xvfb dbus-x11 gnome-keyring libsecret-tools tcpdump
-      - name: Package the candidate around the fixed sidecar, without publishing (cp10 recipe)
+      - name: Build the Linux sidecar ONCE from the canonical wheel (recorded, then reused)
+        working-directory: candidate
+        env:
+          UNCHAIN_ARTIFACT_PATH: ${{ env.QA_WHEEL }}
+          UNCHAIN_ARTIFACT_EVIDENCE_PATH: ${{ env.QA_WHEEL_EVIDENCE }}
+          UNCHAIN_PYTHON_BIN: ${{ env.QA_PYTHON }}
+          PUPU_BUILD_VERSION: "0.1.13"
+        run: |
+          set -euo pipefail
+          export PUPU_BUILD_VERSION="$(node -p 'require("./package.json").version')"
+          npm run build:unchain:linux
+          test -x unchain_runtime/dist/linux/unchain-server
+          QA_BINARY_SHA="$(sha256sum unchain_runtime/dist/linux/unchain-server | cut -d' ' -f1)"
+          echo "QA_BINARY_SHA=$QA_BINARY_SHA" >> "$GITHUB_ENV"
+          { echo "sidecar_sha256=$QA_BINARY_SHA"; echo "built_from_wheel=$QA_WHEEL_SHA"; } > ../test-results/sidecar-identity.txt
+          cp unchain_runtime/dist/linux/unchain-server ../test-results/unchain-server.built-once
+      - name: Package the candidate around that sidecar, without publishing (cp10 recipe)
         working-directory: candidate
         run: |
           set -euo pipefail
@@ -102,9 +112,6 @@ jobs:
           npm run build:web
           cp build/build_feature_flags.json ../test-results/build-feature-flags.packaged.json
           npm run notices
-          mkdir -p unchain_runtime/dist/linux
-          SIDECAR="$(find ../sidecar -type f -name 'unchain-server' | head -1)"; test -n "$SIDECAR"
-          install -m 0755 "$SIDECAR" unchain_runtime/dist/linux/unchain-server
           echo "$QA_BINARY_SHA  unchain_runtime/dist/linux/unchain-server" | sha256sum -c -
           node node_modules/electron-builder/cli.js --linux dir --publish never
           PACKED="$PWD/dist/linux-unpacked/resources/unchain_runtime/dist/linux/unchain-server"
@@ -139,12 +146,9 @@ jobs:
           test -x "$EXE"
           echo "QA_APP=$EXE" >> "$GITHUB_ENV"
           echo "QA_CANDIDATE_ROOT=$PWD" >> "$GITHUB_ENV"
-      - name: Packaged App #210 observation paths offline (driver pending final candidate)
+      - name: Packaged App #210 observation paths offline (loopback only)
         if: ${{ inputs.run_app_control }}
-        run: |
-          set -euo pipefail
-          test -f control/qa-210/tools/app_control_210.cjs || { echo "driver not written yet: run_app_control must stay false"; exit 1; }
-          bash control/qa-210/tools/run_offline.sh app
+        run: bash control/qa-210/tools/run_offline.sh app
       - name: Redact the capture and drop the raw pcap
         if: ${{ always() && inputs.run_app_control }}
         run: |

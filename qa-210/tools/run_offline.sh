@@ -5,8 +5,8 @@ if [[ "$1" != --inside ]]; then
   mode="$1"
   [[ "$mode" == core || "$mode" == source || "$mode" == binary || "$mode" == chat || "$mode" == app ]]
   export QA_UID="$(id -u)" QA_GID="$(id -g)"
-  export QA_HOME="$RUNNER_TEMP/356-$mode-home" QA_TMP="$RUNNER_TEMP/356-$mode-tmp"
-  export QA_SERVER="$PWD/candidate/unchain_runtime/server" QA_CONTROL="$PWD/control/tools/qa356"
+  export QA_HOME="$RUNNER_TEMP/210-$mode-home" QA_TMP="$RUNNER_TEMP/210-$mode-tmp"
+  export QA_SERVER="$PWD/candidate/unchain_runtime/server" QA_CONTROL="$PWD/control/qa-210/tools"
   export QA_CORE_TESTS="$PWD/runtime-source"
   export QA_OUT="$PWD/test-results/$mode" QA_BINARY="$PWD/candidate/unchain_runtime/dist/linux/unchain-server"
   mkdir -p "$QA_HOME" "$QA_TMP" "$QA_OUT"
