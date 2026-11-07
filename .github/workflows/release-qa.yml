@@ -7,8 +7,8 @@ on:
         description: One serial qualification lane
         required: true
         type: choice
-        options: [pair-resume]
-        default: pair-resume
+        options: [pair]
+        default: pair
       allow_provisional_pair:
         description: Allow provisional Linux pair execution pending exact required CI; final success remains mandatory
         required: false
@@ -18,22 +18,22 @@ on:
         description: Full frozen Host source SHA
         required: true
         type: string
-        default: 56dd76fdd68956a5652ccbd085b99d95db9f5a28
+        default: f1eff98ef3ae0292239e8f245bcba378e6cf629e
       candidate_tree:
         description: Full frozen Host tree
         required: true
         type: string
-        default: 735607061eb127cc549e0ef76cc94ca6e6b9eb6e
+        default: e36f0f777059ebff3190c8bd89bc9181145acabe
       wheel_run_id:
         description: Canonical successful required-CI run that uploaded the single wheel
         required: true
         type: string
-        default: "42264231815"
+        default: "42319490116"
       wheel_sha256:
         description: SHA256 of the one required-CI wheel artifact
         required: true
         type: string
-        default: 95cf58692442f3a3f709ccedd78568e5100309f439ec8785d96ee8e6b5db6ff5
+        default: 2f1296163437464d3d17f2fc98793d7bfd5f408a1f2dcec448d9fbb6cdd4bcd9
       legacy_run_id:
         description: Canonical frozen run holding the old e0162fc1 binary
         required: true
@@ -182,14 +182,14 @@ jobs:
   # Added pair/native lanes are a static draft. The source lane above remains the
   # reviewed 901 source job and is not replaced until its immutable run is saved.
   pair:
-    if: inputs.scope == 'pair-resume'
+    if: inputs.scope == 'pair'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
       QA_SCOPE: ${{ inputs.scope }}
       QA_ALLOW_PROVISIONAL_PAIR: ${{ inputs.allow_provisional_pair }}
-      QA_EXPECTED_HOST_SHA: 56dd76fdd68956a5652ccbd085b99d95db9f5a28
-      QA_EXPECTED_HOST_TREE: 735607061eb127cc549e0ef76cc94ca6e6b9eb6e
+      QA_EXPECTED_HOST_SHA: f1eff98ef3ae0292239e8f245bcba378e6cf629e
+      QA_EXPECTED_HOST_TREE: e36f0f777059ebff3190c8bd89bc9181145acabe
       QA_CORE_SHA: 369d86cc9592704c6d45017147904bf6e103a37f
       QA_CORE_TREE: 18edaf62bb41ebade4457480f1edc89af4c6780b
       QA_EXPECTED_MANIFEST: sha256:88d5f8d733e7f3dc94fb1cd20060fcc5f2611c0f94420e327bcb12664368bf2e
@@ -215,7 +215,7 @@ jobs:
           [[ "$QA_WHEEL_SHA" =~ ^[0-9a-f]{64}$ ]]
           [[ "$QA_LEGACY_RUN_ID" =~ ^[0-9]+$ ]]
           [[ "$QA_LEGACY_ARTIFACT" == 357-pair-backend-evidence ]]
-          [[ "$QA_SCOPE" == pair-resume ]]
+          [[ "$QA_SCOPE" == pair ]]
           if [[ "$QA_SCOPE" == pair-resume && "$QA_ALLOW_PROVISIONAL_PAIR" != false ]]; then
             echo 'pair-resume requires allow_provisional_pair=false' >&2
             exit 1
@@ -345,16 +345,16 @@ jobs:
           def admission(run, flag):
               assert flag in ('true','false'), 'invalid provisional boolean'
               assert isinstance(run,dict) and {'databaseId','status','conclusion','headSha'} <= run.keys(), 'missing CI metadata'
-              assert type(run['databaseId']) is int and run['databaseId']==42264231815, 'wrong CI run'
-              assert type(run['headSha']) is str and run['headSha']=='56dd76fdd68956a5652ccbd085b99d95db9f5a28', 'wrong CI head'
+              assert type(run['databaseId']) is int and run['databaseId']==42319490116, 'wrong CI run'
+              assert type(run['headSha']) is str and run['headSha']=='f1eff98ef3ae0292239e8f245bcba378e6cf629e', 'wrong CI head'
               assert type(run['status']) is str and (run['conclusion'] is None or type(run['conclusion']) is str), 'invalid CI metadata type'
               if run['status']=='completed' and run['conclusion']=='success':
                   return 'REQUIRED_CI_SUCCESS'
               if flag=='true' and os.environ.get('QA_SCOPE')=='pair' and run['status'] in ('queued','in_progress') and run['conclusion'] in (None,''):
                   return 'PROVISIONAL_PENDING'
               raise AssertionError('required CI state is not admissible')
-          assert os.environ['QA_WHEEL_RUN_ID']=='42264231815', 'wrong artifact run'
-          assert os.environ['QA_WHEEL_SHA']=='95cf58692442f3a3f709ccedd78568e5100309f439ec8785d96ee8e6b5db6ff5', 'wrong wheel identity'
+          assert os.environ['QA_WHEEL_RUN_ID']=='42319490116', 'wrong artifact run'
+          assert os.environ['QA_WHEEL_SHA']=='2f1296163437464d3d17f2fc98793d7bfd5f408a1f2dcec448d9fbb6cdd4bcd9', 'wrong wheel identity'
           run=json.load(open('test-results/pair/wheel-run.json'))
           mode=admission(run,os.environ['QA_ALLOW_PROVISIONAL_PAIR'])
           pathlib.Path('test-results/pair/required-ci-admission.json').write_text(json.dumps({'admission_mode':mode,'initial_run':run,'qualification_status':'PENDING'},indent=2)+'\n')
@@ -863,8 +863,8 @@ jobs:
           def reject_with_diagnostic(category, path, hit, actual_hash, actual_size, archive_hash, expected_hash, expected_size, evidence_index=None):
               try:
                   record={'status':'REJECTED_SECRET_PATTERN_UNCLASSIFIED','regex_sha256':hashlib.sha256(secret.pattern).hexdigest(),
-                    'host':'56dd76fdd68956a5652ccbd085b99d95db9f5a28','core':'369d86cc9592704c6d45017147904bf6e103a37f',
-                    'wheel_sha256':'95cf58692442f3a3f709ccedd78568e5100309f439ec8785d96ee8e6b5db6ff5',
+                    'host':'f1eff98ef3ae0292239e8f245bcba378e6cf629e','core':'369d86cc9592704c6d45017147904bf6e103a37f',
+                    'wheel_sha256':'2f1296163437464d3d17f2fc98793d7bfd5f408a1f2dcec448d9fbb6cdd4bcd9',
                     'qa_base':'68bff0ee65fd1e517b2828ad49e5fb751b61c2c9','qa_head':__import__('os').environ['GITHUB_SHA'],
                     'run_id':int(__import__('os').environ['GITHUB_RUN_ID']),'job_key':'pair',
                     'location':{'kind':'TAR_MEMBER' if category=='credential_like_bytes_in_tar_member:' else 'EVIDENCE_FILE',
@@ -1125,23 +1125,24 @@ jobs:
         run: |
           set -euo pipefail
           python - <<'PY'
-          import json,pathlib,subprocess,time
+          import json,os,pathlib,subprocess,time
           def admission(run, flag):
               assert flag in ('true','false'), 'invalid provisional boolean'
               assert isinstance(run,dict) and {'databaseId','status','conclusion','headSha'} <= run.keys(), 'missing CI metadata'
-              assert type(run['databaseId']) is int and run['databaseId']==42264231815, 'wrong CI run'
-              assert type(run['headSha']) is str and run['headSha']=='56dd76fdd68956a5652ccbd085b99d95db9f5a28', 'wrong CI head'
+              assert type(run['databaseId']) is int and run['databaseId']==42319490116, 'wrong CI run'
+              assert type(run['headSha']) is str and run['headSha']=='f1eff98ef3ae0292239e8f245bcba378e6cf629e', 'wrong CI head'
               assert type(run['status']) is str and (run['conclusion'] is None or type(run['conclusion']) is str), 'invalid CI metadata type'
               if run['status']=='completed' and run['conclusion']=='success':
                   return 'REQUIRED_CI_SUCCESS'
               if flag=='true' and run['status'] in ('queued','in_progress') and run['conclusion'] in (None,''):
                   return 'PROVISIONAL_PENDING'
               raise AssertionError('required CI state is not admissible')
+          flag=os.environ['QA_ALLOW_PROVISIONAL_PAIR']
           initial=json.loads(pathlib.Path('test-results/pair/required-ci-admission.json').read_text())
           while True:
-              response=subprocess.run(['gh','run','view','42264231815','--repo','haoxiang-xu/PuPu','--json','databaseId,status,conclusion,headSha'],check=True,capture_output=True,text=True,timeout=30)
+              response=subprocess.run(['gh','run','view','42319490116','--repo','haoxiang-xu/PuPu','--json','databaseId,status,conclusion,headSha'],check=True,capture_output=True,text=True,timeout=30)
               run=json.loads(response.stdout)
-              state=admission(run,'false')
+              state=admission(run,flag)
               if state=='REQUIRED_CI_SUCCESS':
                   pathlib.Path('test-results/pair/required-ci-final.json').write_text(json.dumps({'admission_mode':initial['admission_mode'],'final_run':run,'required_ci_status':'SUCCESS'},indent=2)+'\n')
                   break
