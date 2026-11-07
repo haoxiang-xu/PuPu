@@ -1,9 +1,20 @@
 /* Python str.strip() whitespace, including U+0085 and U+001C–U+001F,
  * but excluding U+FEFF. Validation never trims or normalizes accepted text. */
-const NON_PYTHON_WHITESPACE = /[^\u0009-\u000d\u001c-\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]/u;
+const PYTHON_WHITESPACE = new Set([
+  0x0009, 0x000a, 0x000b, 0x000c, 0x000d,
+  0x001c, 0x001d, 0x001e, 0x001f, 0x0020,
+  0x0085, 0x00a0, 0x1680,
+  0x2000, 0x2001, 0x2002, 0x2003, 0x2004, 0x2005,
+  0x2006, 0x2007, 0x2008, 0x2009, 0x200a,
+  0x2028, 0x2029, 0x202f, 0x205f, 0x3000,
+]);
 
 export function is_valid_node_label(value) {
-  return typeof value === "string" && NON_PYTHON_WHITESPACE.test(value);
+  if (typeof value !== "string") return false;
+  for (const character of value) {
+    if (!PYTHON_WHITESPACE.has(character.codePointAt(0))) return true;
+  }
+  return false;
 }
 
 /* Callers supply their existing type-specific title. Unknown values must not
