@@ -137,7 +137,7 @@ The backend supplies its own modules (`identity`, `capability`, `workflow`, `del
 | `_compose_agent_prompt(sections)` | Convenience wrapper: agent-only prompt (no user/builtin merge) |
 | `_extract_user_prompt_modules(options)` | Converts wire-format V2 sections into a module dict for merging |
 
-> Builtin modules currently contain only `rules` (joined from `BUILTIN_RULES`). The developer agent's unified prompt is precomposed at import via `_compose_agent_prompt(DEVELOPER_PROMPT_SECTIONS)`.
+> Builtin modules currently contain only `rules` (joined from `BUILTIN_RULES`). The developer agent's prompt is composed per request from `DEVELOPER_PROMPT_SECTIONS`.
 
 ### Agent Prompt Template (6 Sections)
 

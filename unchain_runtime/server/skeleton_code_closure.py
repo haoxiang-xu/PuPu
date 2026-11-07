@@ -8,7 +8,7 @@ from unchain.skeleton import FileCodeSourceResolver, prepare_workflow
 from unchain.skeleton.agent_preparation import execution_definition_digest
 from unchain.skeleton.code_runtime import CodeSourceSnapshot
 
-from skeleton_code_sources import ManagedCodeSourceResolver, _closed, _code_at, _content_digest
+from skeleton_code_sources import ManagedCodeSourceResolver, _closed
 from skeleton_resource_store import SkeletonResourceError, _json_bytes, _resource_id
 
 

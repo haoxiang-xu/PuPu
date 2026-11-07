@@ -139,7 +139,7 @@ class SkeletonProductionBindings:
 
         admit(selected)
         self._credentials = self._admit_credentials(options.get("skeleton_credentials", {}))
-        self._include_user_dirs, _revision = skills_options(options)
+        self._include_user_dirs = skills_options(options)[0]
         self._pack_skills = tuple(installed_pack_skill_descriptors())
         self._user_toolkit_ids = self._toolkit_ids(options.get("toolkits", []), ("options", "toolkits"))
         try:

@@ -503,7 +503,7 @@ class MemoryV2VectorCoordinator:
     def __init__(
         self,
         *,
-        store: "MemoryV2Store",
+        store: MemoryV2Store,
         config: VectorConfig,
         backend: Any,
         clock: Any | None = None,
@@ -780,7 +780,7 @@ def _build_backend(*, root_dir: Path, config: VectorConfig) -> Any:
 def get_memory_v2_vector_coordinator(
     *,
     root_dir: Path,
-    store: "MemoryV2Store",
+    store: MemoryV2Store,
     environ: Mapping[str, str] | None = None,
 ) -> MemoryV2VectorCoordinator:
     config = VectorConfig.from_environ(environ)
