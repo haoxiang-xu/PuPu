@@ -3,11 +3,10 @@ from contextlib import closing, contextmanager
 from dataclasses import replace
 from copy import deepcopy
 
-from skeleton_chat_selection import (FrozenSkeletonChatSelection, prepare_skeleton_chat_selection,
-                                     _prepare_selected_agent, _parse_selection)
+from skeleton_chat_selection import prepare_skeleton_chat_selection, _prepare_selected_agent, _parse_selection
 from skeleton_code_closure import FrozenSkeletonCodeClosure
 from skeleton_code_source_store import _frame
-from skeleton_resource_store import SkeletonResourceStore, _json_bytes, _resource_id, _digest, _strict_json
+from skeleton_resource_store import SkeletonResourceStore, _resource_id, _digest, _strict_json
 from skeleton_workflow_snapshot import freeze_skeleton_workflow_dependencies
 
 

@@ -25,10 +25,8 @@ from pathlib import Path
 from typing import Any, BinaryIO, Callable
 
 from secret_redaction import (
-    REDACTION_MARKER,
+    REDACTION_MARKER,  # read through this module by tests
     Redactor as _Redactor,
-    _percent_case_pattern,
-    _secret_encodings,
 )
 
 

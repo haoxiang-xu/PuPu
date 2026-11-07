@@ -22,7 +22,6 @@ from typing import Any, Callable, Dict, Iterable, List
 
 from skill_rows import normalize_skill_rows
 import mcp_registry
-from mcp_registry import oauth_recipe_for_entry
 from mcp_oauth import McpOAuthError
 from mcp_toolkits import (
     McpToolkitError,
@@ -1874,7 +1873,7 @@ def _graph_run_lost_ownership(error: BaseException | None) -> bool:
     would corrupt the other owner's attempt. A cancellation is not a loss.
     """
 
-    from session_execution_guard import SessionExecutionGuardError
+    import session_execution_guard
     from unchain.execution import ExecutionCancelledError, ExecutionLeaseError
 
     for candidate in (error, getattr(error, "__cause__", None)):
@@ -1882,7 +1881,7 @@ def _graph_run_lost_ownership(error: BaseException | None) -> bool:
             continue
         if isinstance(candidate, ExecutionCancelledError) or _is_execution_cancelled_error(candidate):
             return False
-        if isinstance(candidate, (ExecutionLeaseError, SessionExecutionGuardError)):
+        if isinstance(candidate, (ExecutionLeaseError, session_execution_guard.SessionExecutionGuardError)):
             return True
     return False
 
@@ -2048,7 +2047,6 @@ _TOOLKIT_NAME_ALIASES = {
     "AgentReachToolkit": "AgentReachToolkit",
 }
 _DEFAULT_MAX_ITERATIONS = 128
-_CONFIRMATION_CANCELLED_REASON = "confirmation_cancelled_stream_terminated"
 _AGENT_ORCHESTRATION_DEFAULT = "default"
 _AGENT_ORCHESTRATION_DEVELOPER_WAITING_APPROVAL = "developer_waiting_approval"
 _GENERAL_MODEL_BY_PROVIDER = {
@@ -2057,12 +2055,10 @@ _GENERAL_MODEL_BY_PROVIDER = {
     "gemini": "gemini-3.6-flash",
 }
 _DEVELOPER_AGENT_NAME = "pupu_developer"
-_DEVELOPER_SUBAGENT_TEMPLATE = "developer"
 _RUNTIME_TOOLKIT_ID_ATTR = "_pupu_toolkit_id"
 _RUNTIME_TOOLKIT_NAME_ATTR = "_pupu_toolkit_name"
 _ASK_USER_QUESTION_TOOL_NAME = "ask_user_question"
 _TIMELINE_MERGE_POLICIES = frozenset({"never", "no_feedback", "approved", "always"})
-_HUMAN_INPUT_OTHER_VALUE = "__other__"
 _SYSTEM_PROMPT_V2_MAX_SECTION_CHARS = 2000
 
 
@@ -2259,13 +2255,6 @@ def _compose_agent_prompt(sections: dict[str, str]) -> str:
     Use _build_modular_prompt() for full 3-source merging.
     """
     return _build_modular_prompt(agent_modules=sections)
-
-
-# ── Developer Agent Prompt (sectioned) ────────────────────────────────────────
-
-# _DEVELOPER_PROMPT_SECTIONS imported from prompts.agents.developer
-
-_DEVELOPER_AGENT_UNIFIED_PROMPT = _compose_agent_prompt(_DEVELOPER_PROMPT_SECTIONS)
 
 
 def _is_openai_previous_response_fallback_error(exc: Exception) -> bool:
@@ -4999,7 +4988,7 @@ def _installed_mcp_catalog_entries() -> List[Dict[str, object]]:
             # source of truth and runtime construction validates the snapshot.
             available.append(entry)
             continue
-        oauth_recipe = oauth_recipe_for_entry(curated_entry)
+        oauth_recipe = mcp_registry.oauth_recipe_for_entry(curated_entry)
         oauth_release_ready = bool(oauth_recipe) and str(
             oauth_recipe.get("releaseStatus") or ""
         ).strip().lower() == "ready"
@@ -5489,12 +5478,6 @@ _REASONING_EFFORT_LEVELS = (
 # Anthropic's effort ladder has no "none"/"minimal" rung; a request carrying
 # one would be rejected, so it is dropped and the provider default applies.
 _ANTHROPIC_EFFORT_LEVELS = ("low", "medium", "high", "xhigh", "max")
-
-# Per-protocol wire key for custom providers. Both shapes are the respective
-# protocol's own documented one, so an Anthropic-compatible endpoint gets the
-# Anthropic shape and an OpenAI-Responses-compatible one gets the OpenAI shape.
-_CUSTOM_EFFORT_PROTOCOLS = ("anthropic", "openai-responses")
-
 
 def _build_payload(
     provider: str, options: Dict[str, object], *, model: str = "",
@@ -6240,7 +6223,7 @@ def _build_selected_toolkits(
                 }:
                     _subagent_logger.warning(
                         "[mcp] selected toolkit %s is no longer available; skipping (%s)",
-                        toolkit_name,
+                        str(toolkit_name).replace("\r", "").replace("\n", "")[:200],
                         getattr(exc, "code", "mcp_unavailable"),
                     )
                     continue
@@ -6751,11 +6734,6 @@ def _disconnect_runtime_toolkits(toolkits: Iterable[Any]) -> None:
         except Exception as exc:
             _subagent_logger.warning("[toolkit] disconnect failed: %s", exc)
 
-
-_ANALYZER_READ_ONLY_TOOLS = (
-    "read_files", "read_lines", "search_text", "list_directories",
-    "file_exists", "pin_file_context", "unpin_file_context",
-)
 
 def _resolve_workspace_subagent_dir_for_loader(
     options: Dict[str, object] | None,

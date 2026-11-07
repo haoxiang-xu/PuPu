@@ -366,7 +366,6 @@ export function endpoint_is_addressable(value) {
   const mark = rest.indexOf("?");
   if (mark >= 0) {
     query = rest.slice(mark + 1);
-    rest = rest.slice(0, mark);
   }
   if (!netloc_survives_nfkc(netloc)) return false;
 

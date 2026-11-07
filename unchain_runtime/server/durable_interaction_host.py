@@ -43,12 +43,12 @@ def _interaction_writer_key(guard, source_attempt_id: str, interaction_id: str):
 
 
 def _remember_interaction_writer(*, session_id, source_attempt_id, interaction_id, owner_attempt_id):
-    from session_execution_guard import _DEFAULT_REGISTRY
+    import session_execution_guard
 
-    guard = _DEFAULT_REGISTRY.snapshot(session_id=session_id)
+    guard = session_execution_guard._DEFAULT_REGISTRY.snapshot(session_id=session_id)
     if guard is None:
         return
-    if guard.attempt_id != owner_attempt_id or _DEFAULT_REGISTRY._owner_state(guard) != "owned":
+    if guard.attempt_id != owner_attempt_id or session_execution_guard._DEFAULT_REGISTRY._owner_state(guard) != "owned":
         raise DurableInteractionHostError(
             "session_guard_interaction_owner_mismatch", "Interaction writer changed its owner",
             status_code=409, retryable=False,
@@ -62,9 +62,9 @@ def _remember_interaction_writer(*, session_id, source_attempt_id, interaction_i
 
 
 def _parked_interaction_writer_is_live(guard) -> bool:
-    from session_execution_guard import _DEFAULT_REGISTRY
+    import session_execution_guard
 
-    owner_state = _DEFAULT_REGISTRY._owner_state(guard)
+    owner_state = session_execution_guard._DEFAULT_REGISTRY._owner_state(guard)
     if owner_state == "foreign":
         # A different live process's empty local registry proves nothing.
         return True
@@ -80,12 +80,12 @@ def _parked_interaction_writer_is_live(guard) -> bool:
 
 def finish_cancelled_interaction_writer(*, session_id: str, attempt_id: str) -> None:
     """Called only after this worker's kernel and graph writers have returned."""
-    from session_execution_guard import _DEFAULT_REGISTRY
+    import session_execution_guard
 
     guard = _session_execution_guard_call("snapshot_session_guard", session_id=session_id)
     if guard is None or guard.attempt_id != attempt_id:
         return
-    if guard.operation != "run" or _DEFAULT_REGISTRY._owner_state(guard) != "owned":
+    if guard.operation != "run" or session_execution_guard._DEFAULT_REGISTRY._owner_state(guard) != "owned":
         raise DurableInteractionHostError(
             "session_guard_interaction_owner_mismatch", "Finished interaction writer changed its owner",
             status_code=409, retryable=False,
@@ -5070,8 +5070,8 @@ def cancel_chat_execution(
         runtime = _execution_runtime()
         runtime.request_cancel(session_id, attempt_id, reason=reason)
         _execution_control_cancel(session_id, attempt_id, reason=reason)
-        from session_execution_guard import snapshot_session_guard
-        guard = snapshot_session_guard(session_id=session_id)
+        import session_execution_guard
+        guard = session_execution_guard.snapshot_session_guard(session_id=session_id)
         if guard is not None and guard.state == "parked":
             skeleton_host._execution_control_call("finish_cancelled_run", session_id, attempt_id)
         if expected_interaction_id:

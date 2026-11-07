@@ -75,27 +75,10 @@ _SPECIAL_ACTIONS = frozenset({"screenshot", "wait"})
 _ACTION_ALIASES = {
     "mouse_move": "move",
 }
-# Anthropic-facing supported actions, advertised to the model in the
-# unsupported-action hint so it can self-correct in one shot. Uses the wire
-# vocabulary the model actually emits (not C1's internal ACTIONS names).
-_SUPPORTED_ACTION_HINT = (
-    "screenshot, left_click, right_click, middle_click, double_click, "
-    "triple_click, mouse_move, left_click_drag, type, key, hold_key, "
-    "left_mouse_down, left_mouse_up, scroll, wait"
-)
 # ``wait`` really sleeps the worker thread (blocking is normal tool behavior) so
 # the model doesn't screenshot an un-settled UI while being told it "waited".
 _WAIT_DEFAULT_SECONDS = 1.0
 _WAIT_MAX_SECONDS = 5.0
-# Params C1's backend.dispatch accepts (in MODEL coordinate space). Anything the
-# model sends outside this set (e.g. ``duration``) is captured but not forwarded.
-_DISPATCH_PARAMS = (
-    "coordinate",
-    "start_coordinate",
-    "text",
-    "scroll_direction",
-    "scroll_amount",
-)
 
 # ── F1 confirmation gate (SEC-001 P0 /守-defined CRITICAL) ───────────────────
 # Every action that writes to the real desktop (clicks, typing, key presses,

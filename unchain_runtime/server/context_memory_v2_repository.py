@@ -15,7 +15,7 @@ import json
 import re
 import sqlite3
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Any, Mapping, NoReturn
 
 from memory_v2_store import (
     MAX_CONTENT_READ_BYTES,
@@ -158,7 +158,7 @@ def _journal_failure(exc: MemoryV2Error) -> None:
     raise JournalRepositoryError(str(exc)) from exc
 
 
-def _context_failure(exc: MemoryV2Error) -> None:
+def _context_failure(exc: MemoryV2Error) -> NoReturn:
     if exc.code in _JOURNAL_SCOPE_CODES:
         raise ContextScopeError(str(exc)) from exc
     if exc.code in _CONFLICT_CODES:
@@ -168,7 +168,7 @@ def _context_failure(exc: MemoryV2Error) -> None:
     raise ContextRepositoryError(str(exc)) from exc
 
 
-def _workspace_failure(exc: MemoryV2Error) -> None:
+def _workspace_failure(exc: MemoryV2Error) -> NoReturn:
     if exc.code in _CONFLICT_CODES or exc.status_code == 409:
         raise RepositoryConflictError(str(exc)) from exc
     if exc.code in _NOT_FOUND_CODES or exc.status_code in {403, 404, 410}:

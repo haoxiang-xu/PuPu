@@ -47,7 +47,7 @@ const closed = (value, fields) => isRecord(value) &&
 const jsonCopy = (value, ancestors = new Set(), depth = 0) => {
   if (value === null || typeof value === "string" || typeof value === "boolean") return value;
   if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (depth > 64 || (typeof value !== "object") || value === null || ancestors.has(value)) fail("skeleton_credential_query_invalid");
+  if (depth > 64 || (typeof value !== "object") || ancestors.has(value)) fail("skeleton_credential_query_invalid");
   if (!Array.isArray(value) && !isRecord(value)) fail("skeleton_credential_query_invalid");
   ancestors.add(value);
   let result;
