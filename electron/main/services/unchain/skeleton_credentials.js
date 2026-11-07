@@ -17,7 +17,9 @@ const OFFICIAL = Object.freeze({
 const QUERY_FIELDS = ["schema", "mode", "session_id", "owner_chat_id", "interaction_id", "source_attempt_id", "selection", "recipe_name", "memory_agent_config"];
 const SCOPE_FIELDS = ["schema", "mode", "session_id", "owner_chat_id", "interaction_id", "source_attempt_id", "selection_digest", "workflows_digest", "launch_digest", "memory_provider"];
 const PROFILE_FIELDS = ["id", "credential_ref", "provider", "model", "protocol", "endpoint"];
+const AUTH_MODES = Object.freeze({ "openai-responses": ["bearer"], anthropic: ["x-api-key", "bearer"], gemini: ["api-key"], ollama: ["none", "bearer"] });
 const has = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
+const profileAuth = (profile) => has(profile, "auth_mode") ? profile.auth_mode : AUTH_MODES[profile.protocol]?.[0];
 const isRecord = (value) => value !== null && typeof value === "object" &&
   (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null);
 const exactText = (value) => typeof value === "string" && value.length > 0 && value === value.trim();
@@ -132,15 +134,18 @@ const validEndpoint = (value) => {
 };
 
 const authorizeProfile = (profile, customProviders) => {
-  if (!closed(profile, PROFILE_FIELDS) || !PROFILE_FIELDS.every((key) => exactText(profile[key])) || !validEndpoint(profile.endpoint)) fail();
+  const fields = isRecord(profile) && has(profile, "auth_mode") ? [...PROFILE_FIELDS, "auth_mode"] : PROFILE_FIELDS;
+  if (!closed(profile, fields) || !fields.every((key) => exactText(profile[key])) || !validEndpoint(profile.endpoint)) fail();
   const { provider, credential_ref: ref, protocol, endpoint, model } = profile;
+  const expectedAuth = profileAuth(profile);
+  if (!has(AUTH_MODES, protocol) || !AUTH_MODES[protocol].includes(expectedAuth)) fail("skeleton_credential_target_mismatch");
   if (has(OFFICIAL, provider)) {
     const official = OFFICIAL[provider];
-    if (ref !== provider || endpoint !== official.endpoint || protocol !== official.protocol) fail("skeleton_credential_target_mismatch");
+    if (ref !== provider || endpoint !== official.endpoint || protocol !== official.protocol || expectedAuth !== AUTH_MODES[official.protocol][0]) fail("skeleton_credential_target_mismatch");
     return { kind: "provider", id: provider, profile };
   }
   if (provider === "ollama") {
-    if (ref !== "ollama" || protocol !== "ollama") fail("skeleton_credential_target_mismatch");
+    if (ref !== "ollama" || protocol !== "ollama" || expectedAuth !== "none") fail("skeleton_credential_target_mismatch");
     return { kind: null, id: ref, profile };
   }
   const custom = CUSTOM_REF.exec(provider);
@@ -148,7 +153,7 @@ const authorizeProfile = (profile, customProviders) => {
   const matches = customProviders.filter((entry) => isRecord(entry) && has(entry, "id") && entry.id === custom[1]);
   if (matches.length !== 1) fail("skeleton_credential_target_mismatch");
   const entry = matches[0];
-  const expectedAuth = new Map([["openai-responses", "bearer"], ["anthropic", "x-api-key"], ["ollama", "none"]]).get(protocol);
+  if (!["openai-responses", "anthropic", "ollama"].includes(protocol)) fail("skeleton_credential_target_mismatch");
   const auth = entry.auth;
   const authKeys = ["mode", "header_name", "key_label", "key_hint"];
   const authIsEquivalent = isRecord(auth) && has(auth, "mode") && auth.mode === expectedAuth &&
@@ -161,7 +166,7 @@ const authorizeProfile = (profile, customProviders) => {
       !Array.isArray(entry.models) || entry.models.filter((item) => isRecord(item) && has(item, "id") && item.id === model).length !== 1) {
     fail("skeleton_credential_target_mismatch");
   }
-  return { kind: protocol === "ollama" ? null : "custom_provider", id: ref, profile };
+  return { kind: expectedAuth === "none" ? null : "custom_provider", id: ref, profile };
 };
 
 const resolveSkeletonCredentials = (requirements, query, { customProviders = [], readSecret } = {}) => {
@@ -184,7 +189,8 @@ const resolveSkeletonCredentials = (requirements, query, { customProviders = [],
     if (profiles.has(profile.id)) fail();
     profiles.set(profile.id, profile);
     const previous = targets.get(target.id);
-    if (previous && (previous.profile.provider !== profile.provider || previous.profile.endpoint !== profile.endpoint)) fail("skeleton_credential_target_mismatch");
+    if (previous && (previous.profile.provider !== profile.provider || previous.profile.endpoint !== profile.endpoint ||
+        previous.profile.protocol !== profile.protocol || profileAuth(previous.profile) !== profileAuth(profile))) fail("skeleton_credential_target_mismatch");
     if (!previous) { targets.set(target.id, target); authorized.push(target); }
   }
   const reads = new Map();

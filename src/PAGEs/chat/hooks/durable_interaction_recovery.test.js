@@ -4,12 +4,19 @@ import {
   durableInteractionRetryDelayMs,
   ensureDurableInteractionMessage,
   findDurableInteractionOwnerMessageId,
+  findRetainedNativeSkeletonApprovalOwner,
   isRetryableDurableInteractionError,
   normalizePendingInteraction,
   prepareDurableInteractionResumeMessages,
   shouldReconcileDurableResumeError,
 } from "./durable_interaction_recovery";
 import skeletonPendingCapture from "../../../SERVICEs/test_bridge/fixtures/skeleton_child_pending.json";
+import nativeColdApprovalCapture from "./fixtures/native_cold_approval.json";
+
+const rootNativeFrame = (messages) =>
+  messages[1]?.traceFrames?.find(
+    (frame) => frame?.payload?.runtime_source_type === "interaction_requested",
+  );
 
 const rawToolCall = {
   call_id: "call-1",
@@ -53,6 +60,99 @@ const rawPending = {
 };
 
 describe("durable interaction recovery helpers", () => {
+  test("retains only the unique original root owner for a native cold approval", () => {
+    const pending = normalizePendingInteraction(
+      nativeColdApprovalCapture.pending,
+      nativeColdApprovalCapture.chatId,
+    );
+    expect(
+      findRetainedNativeSkeletonApprovalOwner(
+        nativeColdApprovalCapture.messages,
+        pending,
+        nativeColdApprovalCapture.chatId,
+      ),
+    ).toBe("assistant-1793764382777-51b61d30cb204e52d2e7e9fd06609130");
+
+    const resumedOwner = {
+      ...nativeColdApprovalCapture.messages[1],
+      meta: {
+        ...nativeColdApprovalCapture.messages[1].meta,
+        attemptId: "later-resume-attempt",
+      },
+    };
+    expect(
+      findRetainedNativeSkeletonApprovalOwner(
+        [nativeColdApprovalCapture.messages[0], resumedOwner],
+        pending,
+        nativeColdApprovalCapture.chatId,
+      ),
+    ).toBe(resumedOwner.id);
+    expect(
+      findRetainedNativeSkeletonApprovalOwner(
+        [{ ...resumedOwner, meta: { ...resumedOwner.meta, executionSessionId: "foreign" } }],
+        pending,
+        nativeColdApprovalCapture.chatId,
+      ),
+    ).toBe("");
+    expect(
+      findRetainedNativeSkeletonApprovalOwner(
+        [{ ...resumedOwner, id: "assistant-durable-recovered", traceFrames: [{
+          ...pending.traceFrame,
+          stage: "durable_recovery",
+          run_id: pending.interactionSourceRunId,
+        }], subagentFrames: {} }],
+        pending,
+        nativeColdApprovalCapture.chatId,
+      ),
+    ).toBe("");
+  });
+
+  test.each([
+    ["wrong root", (messages) => { rootNativeFrame(messages).run_id = "foreign-root"; }],
+    ["wrong frame session", (messages) => { rootNativeFrame(messages).session_id = "foreign-session"; }],
+    ["wrong call", (messages) => {
+      rootNativeFrame(messages).payload.call_id = "foreign-call";
+      rootNativeFrame(messages).links.tool_call_id = "foreign-call";
+    }],
+    ["wrong interaction", (messages) => {
+      rootNativeFrame(messages).payload.confirmation_id = "foreign-interaction";
+      rootNativeFrame(messages).payload.interaction_id = "foreign-interaction";
+      rootNativeFrame(messages).links.interaction_id = "foreign-interaction";
+    }],
+    ["wrong tool arguments", (messages) => {
+      rootNativeFrame(messages).payload.arguments.path = "foreign-path";
+    }],
+    ["duplicate authoritative frame", (messages) => {
+      messages[1].traceFrames.push({ ...rootNativeFrame(messages) });
+    }],
+    ["second matching owner", (messages) => {
+      messages.push({ ...messages[1], id: "assistant-duplicate-owner" });
+    }],
+    ["settled call", (messages, pending) => {
+      messages[1].traceFrames.push({ type: "tool_result", payload: {
+        call_id: pending.callId,
+        confirmation_id: pending.interactionId,
+      } });
+    }],
+    ["cancelled owner", (messages) => { messages[1].status = "cancelled"; }],
+    ["root cancellation", (messages, pending) => {
+      messages[1].traceFrames.push({ run_id: pending.sourceRunId, type: "run.cancelled" });
+    }],
+    ["wrong active root", (_messages, pending) => { pending.activeAttemptId = "foreign-root"; }],
+    ["nonnative pending", (_messages, pending) => { pending.resumeKind = "graph_step"; }],
+  ])("rejects native approval evidence with %s", (_label, mutate) => {
+    const capture = JSON.parse(JSON.stringify(nativeColdApprovalCapture));
+    const pending = normalizePendingInteraction(capture.pending, capture.chatId);
+    mutate(capture.messages, pending);
+    expect(
+      findRetainedNativeSkeletonApprovalOwner(
+        capture.messages,
+        pending,
+        capture.chatId,
+      ),
+    ).toBe("");
+  });
+
   test.each(["awaiting", "recorded"])("recovers actual Skeleton child %s identity with root resume transport", (state) => {
     const captured = skeletonPendingCapture[state];
     const pending = normalizePendingInteraction(captured, captured.session_id);

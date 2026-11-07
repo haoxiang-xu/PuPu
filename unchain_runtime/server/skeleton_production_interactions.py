@@ -141,6 +141,56 @@ def _workflow_child(anchor, launch, *, allow_cancelled=False, allow_expired=Fals
     return child
 
 
+def _workflow_tool_child(anchor, launch, *, allow_cancelled=False, allow_expired=False):
+    """Independently prove a fixed Workflow Tool's stored parent/child lineage."""
+    from skeleton_workflow_tools import attached_workflow_tools, resolve_workflow_tool
+    active = anchor.record.state["active"]
+    request = anchor.request_payload
+    if (set(request) != _AGENT_FIELDS | {"parent_tool_call"}
+            or request.get("schema") != "pupu.skeleton_subagent_wait.v2"
+            or request.get("mode") != "workflow_tool"
+            or _node(anchor.store, active)["type"] != "agent"
+            or request["parent_graph_id"] != anchor.store.graph_id
+            or request["parent_node_invocation_id"] != active["node_invocation_id"]
+            or request["parent_kernel_node_id"] != active["node_id"]):
+        _fail("skeleton_interaction_lineage_mismatch")
+    for field in _AGENT_FIELDS - {"schema", "mode", "interaction_request"}:
+        if type(request[field]) is not str or not request[field] or "\0" in request[field]:
+            _fail("skeleton_interaction_lineage_mismatch")
+    rows = attached_workflow_tools(anchor.store.plan.snapshot()).get(active["node_id"], ())
+    candidates = [resolve_workflow_tool(pool, entry, launch.workflows.resolve) for pool, entry in rows]
+    candidates = [binding for binding in candidates if binding.entry_id == request["entry_id"]]
+    if len(candidates) != 1:
+        _fail("skeleton_interaction_lineage_mismatch")
+    binding = candidates[0]
+    call = request["parent_tool_call"]
+    if (type(call) is not dict or set(call) != {"call_id", "tool_name"}
+            or call["tool_name"] != binding.name or type(call["call_id"]) is not str
+            or not call["call_id"] or call["call_id"] != call["call_id"].strip() or "\0" in call["call_id"]):
+        _fail("skeleton_interaction_lineage_mismatch")
+    identity = json.dumps([active["node_attempt_id"], call["call_id"], binding.entry_id],
+        ensure_ascii=False, separators=(",", ":"))
+    suffix = sha256(identity.encode("utf-8")).hexdigest()
+    attempt = "workflow-tool." + suffix
+    session = anchor.store.attempt.generation.execution_id + ":workflow-tool:" + suffix
+    graph_basis = "\0".join((anchor.store.graph_id, attempt, binding.entry_id))
+    graph_id = anchor.store.graph_id + ".subagent." + sha256(graph_basis.encode("utf-8", "surrogatepass")).hexdigest()
+    wait_basis = "\0".join((graph_id, request["child_wait_id"]))
+    if (request["child_attempt_id"] != attempt or request["child_guard_session_id"] != session
+            or request["child_graph_id"] != graph_id or request["definition_digest"] != binding.definition_digest
+            or active["wait"]["id"] != "subagent." + sha256(wait_basis.encode("utf-8", "surrogatepass")).hexdigest()):
+        _fail("skeleton_interaction_lineage_mismatch")
+    child = _waiting(_child_store(anchor, binding.plan, graph_id, attempt),
+        allow_cancelled=allow_cancelled, allow_expired=allow_expired)
+    _prove_child(anchor, child)
+    child_active = child.record.state["active"]
+    if (child_active["node_invocation_id"] != request["child_node_invocation_id"]
+            or child_active["wait"]["kind"] != request["child_wait_kind"]
+            or child_active["wait"]["id"] != request["child_wait_id"]):
+        _fail("skeleton_interaction_lineage_mismatch")
+    return child, [], session
+
+
 def _agent_child(anchor, manifests, *, allow_cancelled=False, allow_expired=False):
     active = anchor.record.state["active"]
     request = anchor.request_payload
@@ -224,7 +274,12 @@ def _descend(anchor, launch, manifests, session, chain, *, allow_cancelled=False
             return _descend(_workflow_child(anchor, launch, allow_cancelled=allow_cancelled, allow_expired=allow_expired), launch, [], session, chain,
                 allow_cancelled=allow_cancelled, allow_expired=allow_expired)
         if anchor.request_payload.get("schema") in _AGENT_WAITS:
-            child, nested, child_session = _agent_child(anchor, manifests, allow_cancelled=allow_cancelled, allow_expired=allow_expired)
+            if anchor.request_payload.get("mode") == "workflow_tool":
+                child, nested, child_session = _workflow_tool_child(anchor, launch,
+                    allow_cancelled=allow_cancelled, allow_expired=allow_expired)
+            else:
+                child, nested, child_session = _agent_child(anchor, manifests,
+                    allow_cancelled=allow_cancelled, allow_expired=allow_expired)
             result = _descend(child, launch, nested, child_session, chain, allow_cancelled=allow_cancelled, allow_expired=allow_expired)
             # The wrapper is an immutable assertion of the actual child wait.
             actual = child.request_payload
@@ -808,6 +863,7 @@ def _cancel_execution(*, session_id, attempt_id, source_attempt_id, owner_chat_i
             kernel_cancelled = cancelled is not None
             cancelled_receipt = cancelled.receipt
         context_reconciled = False
+        subagent_settlements = []
         if pending is not None:
             # Reload the committed canceled graph chain. Acceptance proves these
             # exact states inside the same transaction as its semantic receipt.
@@ -833,10 +889,13 @@ def _cancel_execution(*, session_id, attempt_id, source_attempt_id, owner_chat_i
                     HostResolvedInteractionInput(_attempt(canceled_pending), canceled_pending.request.interaction_id,
                         response, "user"), precondition=accept_cancellation)
             context_reconciled = True
+            from skeleton_cancelled_subagents import settle_cancelled_subagents
+            subagent_settlements = settle_cancelled_subagents(canceled_pending)
         return {"status": "ok", "execution_id": session_id, "attempt_id": attempt_id, "source_attempt_id": root_run,
             "disposition": "cancelled", "state": "cancelled", "execution": None,
             "cancellation": {"requested_at_ms": int(time.time() * 1000), "fencing_token": None, "reason": reason},
-            "durable_interaction_cancelled": bool(pending) or kernel_cancelled, "context_interaction_reconciled": context_reconciled}
+            "durable_interaction_cancelled": bool(pending) or kernel_cancelled, "context_interaction_reconciled": context_reconciled,
+            "subagent_settlements": subagent_settlements}
 
 
 __all__ = ["SkeletonPendingInteraction", "SkeletonGraphWait", "resolve_pending_skeleton_interaction",

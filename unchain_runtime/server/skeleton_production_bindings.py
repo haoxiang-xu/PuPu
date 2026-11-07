@@ -153,8 +153,18 @@ class SkeletonProductionBindings:
             _fail("binding_closed", ("binding",), "Skeleton capability bindings are closed.")
 
     def _admit_credentials(self, value):
+        from unchain.skeleton.kernel_config import effective_kernel_auth_mode
+
         if type(value) is not dict:
             _fail("invalid_type", ("options", "skeleton_credentials"), "Credential bindings must be an object.")
+        fixed_targets = {}
+        for profile in self._profiles.values():
+            target = (profile["provider"], profile["endpoint"], profile["protocol"], effective_kernel_auth_mode(profile))
+            ref = profile["credential_ref"]
+            if ref in fixed_targets and fixed_targets[ref] != target:
+                _fail("credential_conflict", ("profile", "credential_ref"),
+                      "One credential reference cannot bind distinct fixed authentication targets.")
+            fixed_targets[ref] = target
         result = {}
         references = {profile["credential_ref"] for profile in self._profiles.values()}
         for ref, item in value.items():
@@ -174,6 +184,8 @@ class SkeletonProductionBindings:
         return result
 
     def bind_profile(self, kernel_config):
+        from unchain.skeleton.kernel_config import effective_kernel_auth_mode
+
         self._active()
         config = validate_kernel_config(kernel_config)
         if config not in self._configs:
@@ -186,7 +198,7 @@ class SkeletonProductionBindings:
             if official is not None and profile["endpoint"] == official[0]:
                 candidates = [self._options.get(key) for key in official[1]] + [os.environ.get(key) for key in official[2]]
                 credential = next((value for value in candidates if type(value) is str and value.strip()), None)
-        if credential is None and profile["protocol"] != "ollama":
+        if credential is None and effective_kernel_auth_mode(profile) != "none":
             _fail("credential_unavailable", ("profile", "credential_ref"),
                   "This provider and endpoint require a dedicated credential binding.")
         if credential is not None:
@@ -249,7 +261,8 @@ class SkeletonProductionBindings:
         config = node["config"]
         if "legacy_fields" in config:
             config = config["legacy_fields"]
-        elif set(config) != {"toolkits", "merge_with_user_selected"}:
+        elif (not {"toolkits", "merge_with_user_selected"} <= set(config)
+                or set(config) - {"toolkits", "merge_with_user_selected", "workflow_tools"}):
             _fail("invalid_shape", ("document", "nodes", node["id"], "config"), "Toolkit Pool config is invalid.")
         if type(config) is not dict or type(config.get("toolkits")) is not list or type(config.get("merge_with_user_selected")) is not bool:
             _fail("invalid_shape", ("document", "nodes", node["id"], "config"), "Toolkit Pool requires toolkits and merge_with_user_selected.")
@@ -292,8 +305,18 @@ class SkeletonProductionBindings:
         return tools
 
     def _admit_toolkits(self):
-        global_toolkits = [self._toolkit(value) for value in self._user_toolkit_ids]
+        from skeleton_workflow_tools import attached_workflow_tools, resolve_workflow_tool
+        self._workflow_tools_by_scope = {}
+        # The user's selection reaches a Kernel only through a merging pool. The
+        # catalog itself is read by Tool Call and Skill Read, including those in
+        # fixed Workflow, Hook and Workflow Tool closures, so it is built here,
+        # before any model call, only when one of them can actually run.
+        kinds = {node["type"] for document in self._reachable_documents(self._documents.values())
+                 for node in document["nodes"]}
+        global_toolkits = ([self._toolkit(value) for value in self._user_toolkit_ids]
+                           if kinds.intersection(("tool_call", "skill_read")) else [])
         for document_id, document in self._documents.items():
+            workflow_scopes = attached_workflow_tools(document)
             pools = {node["id"]: self._pool_toolkits(node) for node in document["nodes"] if node["type"] == "toolkit_pool"}
             global_toolkits.extend(toolkit for pool in pools.values() for toolkit in pool.values())
             for node in document["nodes"]:
@@ -313,6 +336,12 @@ class SkeletonProductionBindings:
                 values = tuple(selected.values())
                 key = (document_id, node["id"])
                 self._tools_by_scope[key] = tuple(self._flatten(values).values())
+                workflow_tools = tuple(resolve_workflow_tool(pool_id, entry, self._workflows.resolve)
+                    for pool_id, entry in workflow_scopes.get(node["id"], ()))
+                if {tool.name for tool in workflow_tools}.intersection(tool.name for tool in self._tools_by_scope[key]):
+                    _fail("duplicate_identity", ("document", "nodes", node["id"]),
+                        "A Workflow Tool shadows a selected Toolkit tool.")
+                self._workflow_tools_by_scope[key] = workflow_tools
                 self._metadata_by_scope[key] = (
                     tuple(section for toolkit in values for section in toolkit.prompt_sections),
                     tuple(skill for toolkit in values for skill in toolkit.skills))
@@ -332,6 +361,9 @@ class SkeletonProductionBindings:
 
     def tools_for_node(self, context):
         return self._tools_by_scope[self._scope(context)]
+
+    def workflow_tools_for_node(self, context):
+        return self._workflow_tools_by_scope[self._scope(context)]
 
     def tool_presentation(self, name):
         """Snapshot the identity of the actual resolved Tool, not a guessed owner."""
@@ -363,14 +395,8 @@ class SkeletonProductionBindings:
                                     include_user_dirs=self._include_user_dirs, extra_skills=self._pack_skills)
         return metadata, SkillsModule(config)
 
-    def handlers_for_store(self, store, plan, *, allowed_tools=None, disabled_tools=()):
-        self._active()
-        plan = checked_execution_plan(plan)
-        if type(store) is not WorkflowExecutionStore or execution_definition_digest(store.plan) != execution_definition_digest(plan):
-            _fail("identity_conflict", ("store",), "Handler plan differs from the execution store.")
-        # Workflow Call clones each provided host onto its child plan. Include
-        # the reachable children's capabilities even if the caller itself has
-        # no Code/Tool/Skill node; otherwise a valid call fails at child Start.
+    def _reachable_documents(self, roots):
+        """Every document a run can enter from roots through fixed Workflow references."""
         documents = []
         visited = set()
 
@@ -380,7 +406,9 @@ class SkeletonProductionBindings:
                 refs = ([node["config"]["workflow"]] if node["type"] == "workflow_call" else
                         [hook["workflow"] for hook in node["config"]["hooks"]
                          if hook.get("enabled") is not False]
-                        if node["type"] == "hooks_pool" else [])
+                        if node["type"] == "hooks_pool" else
+                        [entry["workflow"] for entry in node["config"].get("workflow_tools", [])]
+                        if node["type"] == "toolkit_pool" and "legacy_fields" not in node["config"] else [])
                 for ref in refs:
                     if ref.get('kind') == 'embedded':
                         visit(prepare_workflow(ref['document']).snapshot())
@@ -392,7 +420,19 @@ class SkeletonProductionBindings:
                     child = self._workflows.resolve(*key)
                     visit(prepare_workflow(child.document).snapshot())
 
-        visit(plan.snapshot())
+        for document in roots:
+            visit(document)
+        return documents
+
+    def handlers_for_store(self, store, plan, *, allowed_tools=None, disabled_tools=()):
+        self._active()
+        plan = checked_execution_plan(plan)
+        if type(store) is not WorkflowExecutionStore or execution_definition_digest(store.plan) != execution_definition_digest(plan):
+            _fail("identity_conflict", ("store",), "Handler plan differs from the execution store.")
+        # Workflow Call clones each provided host onto its child plan. Include
+        # the reachable children's capabilities even if the caller itself has
+        # no Code/Tool/Skill node; otherwise a valid call fails at child Start.
+        documents = self._reachable_documents((plan.snapshot(),))
         kinds = {node["type"] for document in documents for node in document["nodes"]}
         allowed = None if allowed_tools is None else self._policy_names(allowed_tools, ("allowed_tools",))
         disabled = self._policy_names(disabled_tools, ("disabled_tools",))

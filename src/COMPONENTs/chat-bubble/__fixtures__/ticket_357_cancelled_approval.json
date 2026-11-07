@@ -1,0 +1,366 @@
+{
+ "source": {
+  "evidence": "/Users/red/.codex/artifacts/pupu-357/hooks-combined-desktop-01-20261025",
+  "chat_id": "chat-1792944380855-00609300a51d397e359d7fe9e9d362d0",
+  "chats_db_message_sha256": "caa5d5337bbd86489b5e4f8aa8f3b521a3d49c541994848da40012af89d54ed9",
+  "cancel_response_sha256": "20cfeff1f14f63f558e43a1b8de553e26971a9e2b7a930282ce2b7db4e632182"
+ },
+ "owner_chat_id": "chat-1792944380855-00609300a51d397e359d7fe9e9d362d0",
+ "persisted_message": {
+  "id": "assistant-1792944383445-a6868e719e7a58844a967cb72aa40803",
+  "role": "assistant",
+  "content": "",
+  "createdAt": 1792944383445,
+  "updatedAt": 1792944386160,
+  "status": "done",
+  "traceFrames": [
+   {
+    "seq": 1,
+    "ts": 1792944383466,
+    "type": "stream_started",
+    "run_id": "unchain-1792944383447-3da8617664f38",
+    "stage": "runtime_event",
+    "links": {
+     "parent_run_id": null,
+     "parent_event_id": null,
+     "caused_by_event_id": null,
+     "step_id": null,
+     "tool_call_id": null,
+     "interaction_id": null,
+     "artifact_id": null,
+     "workspace_change_set_id": null,
+     "plan_id": null,
+     "channel_id": null,
+     "team_id": null
+    },
+    "event_id": "evt_701b4a23fec94b7f9ee8f120118804f3",
+    "session_id": "chat-1792944380855-00609300a51d397e359d7fe9e9d362d0",
+    "iteration": null,
+    "payload": {
+     "thread_id": "chat-1792944380855-00609300a51d397e359d7fe9e9d362d0",
+     "model": "ollama:unchain-unset",
+     "trace_level": "minimal",
+     "runtime_event_id": "evt_701b4a23fec94b7f9ee8f120118804f3"
+    }
+   },
+   {
+    "seq": 2,
+    "ts": 1792944384045,
+    "type": "iteration_started",
+    "run_id": "node-attempt.0808169fc0aae2926650d31ead44940bd18c87c01e11cd9a42fabc65064966f5",
+    "stage": "runtime_event",
+    "links": {
+     "parent_run_id": null,
+     "parent_event_id": null,
+     "caused_by_event_id": null,
+     "step_id": null,
+     "tool_call_id": null,
+     "interaction_id": null,
+     "artifact_id": null,
+     "workspace_change_set_id": null,
+     "plan_id": null,
+     "channel_id": null,
+     "team_id": null
+    },
+    "event_id": "evt_70b536f424824793bab1b09098b98f5f",
+    "session_id": "chat-1792944380855-00609300a51d397e359d7fe9e9d362d0",
+    "iteration": 0,
+    "payload": {
+     "iteration": 0,
+     "runtime_event_id": "evt_70b536f424824793bab1b09098b98f5f"
+    }
+   },
+   {
+    "seq": 4,
+    "ts": 1792944384242,
+    "type": "tool_call",
+    "run_id": "node-attempt.0808169fc0aae2926650d31ead44940bd18c87c01e11cd9a42fabc65064966f5",
+    "stage": "runtime_event",
+    "links": {
+     "parent_run_id": null,
+     "parent_event_id": null,
+     "caused_by_event_id": null,
+     "step_id": "tool:qa-hooks-cancel-write-1",
+     "tool_call_id": "qa-hooks-cancel-write-1",
+     "interaction_id": null,
+     "artifact_id": null,
+     "workspace_change_set_id": null,
+     "plan_id": null,
+     "channel_id": null,
+     "team_id": null
+    },
+    "event_id": "evt_1934f79db36b4e4d897dc0279f31a925",
+    "session_id": "chat-1792944380855-00609300a51d397e359d7fe9e9d362d0",
+    "payload": {
+     "step_id": "tool:qa-hooks-cancel-write-1",
+     "step_type": "tool",
+     "tool_name": "write",
+     "call_id": "qa-hooks-cancel-write-1",
+     "arguments": {
+      "path": "/Users/red/.codex/artifacts/pupu-357/hooks-combined-desktop-01-20261025/run-01/workspace/provider-cancel.txt",
+      "content": "offline-approved\n"
+     },
+     "runtime_source_type": "tool_call",
+     "runtime_event_id": "evt_1934f79db36b4e4d897dc0279f31a925"
+    }
+   },
+   {
+    "seq": 5,
+    "ts": 1792944385409,
+    "type": "response_received",
+    "run_id": "node-attempt.0808169fc0aae2926650d31ead44940bd18c87c01e11cd9a42fabc65064966f5",
+    "stage": "runtime_event",
+    "links": {
+     "parent_run_id": null,
+     "parent_event_id": null,
+     "caused_by_event_id": null,
+     "step_id": "model:node-attempt.0808169fc0aae2926650d31ead44940bd18c87c01e11cd9a42fabc65064966f5:turn-0:response",
+     "tool_call_id": null,
+     "interaction_id": null,
+     "artifact_id": null,
+     "workspace_change_set_id": null,
+     "plan_id": null,
+     "channel_id": null,
+     "team_id": null
+    },
+    "event_id": "evt_ba65cdf845934a888d29f56c5297dc1d",
+    "session_id": "chat-1792944380855-00609300a51d397e359d7fe9e9d362d0",
+    "iteration": 0,
+    "payload": {
+     "step_id": "model:node-attempt.0808169fc0aae2926650d31ead44940bd18c87c01e11cd9a42fabc65064966f5:turn-0:response",
+     "step_type": "model_response",
+     "status": "awaiting_interaction",
+     "response_id": "",
+     "has_tool_calls": true,
+     "usage": {
+      "model": "desktop-qa-model",
+      "consumed_tokens": 18,
+      "input_tokens": 11,
+      "output_tokens": 7,
+      "last_turn_tokens": 18,
+      "last_turn_input_tokens": 11,
+      "last_turn_output_tokens": 7,
+      "max_context_window_tokens": 8192,
+      "context_window_used_pct": 0.22,
+      "status": "running",
+      "human_input_request": null,
+      "continuation": {
+       "consumed_tokens": 18,
+       "context_version_id": "kv_8cfc3927735348b19c2bb6e363d7c87e",
+       "input_tokens": 11,
+       "interaction_id": "interaction_1269051e7768550bb0933e63e4fe1b75",
+       "iteration": 1,
+       "kind": "tool_approval",
+       "last_turn_input_tokens": 11,
+       "last_turn_output_tokens": 7,
+       "last_turn_tokens": 18,
+       "max_context_window_tokens": 8192,
+       "max_iterations": 3,
+       "memory_namespace": null,
+       "model": "desktop-qa-model",
+       "output_tokens": 7,
+       "paused_call_id": "qa-hooks-cancel-write-1",
+       "payload": {
+        "num_ctx": 8192,
+        "num_predict": 128
+       },
+       "previous_response_id": null,
+       "provider": "ollama",
+       "provider_replay_handle": {
+        "id": "provider_replay_1d23df3d03b74ebaa6fdcb0f802d7fb1",
+        "scope": "process"
+       },
+       "response_format": null,
+       "run_id": "node-attempt.0808169fc0aae2926650d31ead44940bd18c87c01e11cd9a42fabc65064966f5",
+       "session_id": "chat-1792944380855-00609300a51d397e359d7fe9e9d362d0",
+       "tool_batch_state": {
+        "executed_call_ids": [],
+        "result_messages": [],
+        "should_observe": false
+       },
+       "tool_calls": [
+        {
+         "arguments": {
+          "content": "offline-approved\n",
+          "path": "/Users/red/.codex/artifacts/pupu-357/hooks-combined-desktop-01-20261025/run-01/workspace/provider-cancel.txt"
+         },
+         "call_id": "qa-hooks-cancel-write-1",
+         "name": "write"
+        }
+       ],
+       "tool_iteration": 0,
+       "type": "tool_approval_continuation",
+       "use_openai_previous_response_chain": false,
+       "workspace_change_state": {}
+      },
+      "previous_response_id": null,
+      "iteration": 1,
+      "interaction_request": {
+       "schema_version": 1,
+       "interaction_id": "interaction_1269051e7768550bb0933e63e4fe1b75",
+       "session_id": "chat-1792944380855-00609300a51d397e359d7fe9e9d362d0",
+       "kind": "tool_approval",
+       "source_run_id": "node-attempt.0808169fc0aae2926650d31ead44940bd18c87c01e11cd9a42fabc65064966f5",
+       "occurrence": "tool:qa-hooks-cancel-write-1:0",
+       "payload": {
+        "type": "tool_confirmation_request",
+        "tool_name": "write",
+        "call_id": "qa-hooks-cancel-write-1",
+        "arguments": {
+         "content": "offline-approved\n",
+         "path": "/Users/red/.codex/artifacts/pupu-357/hooks-combined-desktop-01-20261025/run-01/workspace/provider-cancel.txt"
+        },
+        "description": "Create /Users/red/.codex/artifacts/pupu-357/hooks-combined-desktop-01-20261025/run-01/workspace/provider-cancel.txt",
+        "interact_type": "code_diff",
+        "interact_config": {
+         "title": "Create /Users/red/.codex/artifacts/pupu-357/hooks-combined-desktop-01-20261025/run-01/workspace/provider-cancel.txt",
+         "operation": "create",
+         "path": "/Users/red/.codex/artifacts/pupu-357/hooks-combined-desktop-01-20261025/run-01/workspace/provider-cancel.txt",
+         "unified_diff": "--- a//Users/red/.codex/artifacts/pupu-357/hooks-combined-desktop-01-20261025/run-01/workspace/provider-cancel.txt\n+++ b//Users/red/.codex/artifacts/pupu-357/hooks-combined-desktop-01-20261025/run-01/workspace/provider-cancel.txt\n@@ -0,0 +1 @@\n+offline-approved\n",
+         "truncated": false,
+         "total_lines": 4,
+         "displayed_lines": 4,
+         "fallback_description": "create /Users/red/.codex/artifacts/pupu-357/hooks-combined-desktop-01-20261025/run-01/workspace/provider-cancel.txt (+1 -0)"
+        },
+        "render_component": {
+         "version": 1,
+         "type": "confirmation",
+         "config": {}
+        }
+       },
+       "response_contract": {
+        "type": "object",
+        "properties": {
+         "approved": {
+          "type": "boolean"
+         },
+         "modified_arguments": {
+          "type": [
+           "object",
+           "null"
+          ]
+         },
+         "reason": {
+          "type": "string"
+         }
+        },
+        "required": [
+         "approved",
+         "modified_arguments",
+         "reason"
+        ],
+        "additionalProperties": false
+       },
+       "schema_digest": "49eefff5e9f1efed1f690f7931c8bb0e2045399644ce6587a4b6216403ec1ec4",
+       "request_digest": "1269051e7768550bb0933e63e4fe1b75d9686c856a0d5fb404b47ca27597bd0a",
+       "created_revision": 0,
+       "subject": {
+        "binding_version": 1,
+        "provider": "ollama",
+        "model": "desktop-qa-model",
+        "prompt_digest": "197b5749d48e849c613183f000bf6e57464f7b744134e6e37e106ab0f5fa0246",
+        "tool_name": "write",
+        "tool_schema_digest": "3bdca2bdc4c1b33ed2dc5f016acc3696baaf750012e5b55b20f2420eb9c0b448",
+        "extra": {
+         "context_v2_tool_authority": {
+          "schema": "unchain.context_tool_approval.v1",
+          "intent_cursor": {
+           "schema": "unchain.event_cursor.v1",
+           "store_seq": 15,
+           "event_id": "event-fde59e177051ecef6534816d79367cd446b7200554a0b3725e15de248e282b25"
+          },
+          "original_arguments_sha256": "fec6568377b5de9b1b127edabb401e32487472cb2e9f36e7aa418b62b8047279",
+          "route_kind": "normal",
+          "route_manifest_sha256": "410df55877cea622ef230a5dd1fac4b83943b08ca9fb711be938ae8112602a5b",
+          "terminal_handler_manifest_sha256": "154069987c3b98ae1432551d04f452d4a96614b2afefff2b4896d91593a3c458"
+         }
+        }
+       }
+      }
+     },
+     "runtime_event_id": "evt_ba65cdf845934a888d29f56c5297dc1d"
+    }
+   },
+   {
+    "seq": 6,
+    "ts": 1792944386158,
+    "type": "tool_call",
+    "run_id": "unchain-1792944383447-3da8617664f38",
+    "stage": "runtime_event",
+    "links": {
+     "parent_run_id": null,
+     "parent_event_id": null,
+     "caused_by_event_id": null,
+     "step_id": "tool:qa-hooks-cancel-write-1",
+     "tool_call_id": "qa-hooks-cancel-write-1",
+     "interaction_id": "interaction_1269051e7768550bb0933e63e4fe1b75",
+     "artifact_id": null,
+     "workspace_change_set_id": null,
+     "plan_id": null,
+     "channel_id": null,
+     "team_id": null,
+     "input_request_id": "interaction_1269051e7768550bb0933e63e4fe1b75"
+    },
+    "event_id": "evt_4258cbff72d140109e925a61d2e0af2f",
+    "session_id": "chat-1792944380855-00609300a51d397e359d7fe9e9d362d0",
+    "payload": {
+     "call_id": "qa-hooks-cancel-write-1",
+     "confirmation_id": "interaction_1269051e7768550bb0933e63e4fe1b75",
+     "requires_confirmation": true,
+     "tool_name": "write",
+     "description": "Create /Users/red/.codex/artifacts/pupu-357/hooks-combined-desktop-01-20261025/run-01/workspace/provider-cancel.txt",
+     "arguments": {
+      "content": "offline-approved\n",
+      "path": "/Users/red/.codex/artifacts/pupu-357/hooks-combined-desktop-01-20261025/run-01/workspace/provider-cancel.txt"
+     },
+     "interact_type": "code_diff",
+     "interact_config": {
+      "displayed_lines": 4,
+      "fallback_description": "create /Users/red/.codex/artifacts/pupu-357/hooks-combined-desktop-01-20261025/run-01/workspace/provider-cancel.txt (+1 -0)",
+      "operation": "create",
+      "path": "/Users/red/.codex/artifacts/pupu-357/hooks-combined-desktop-01-20261025/run-01/workspace/provider-cancel.txt",
+      "title": "Create /Users/red/.codex/artifacts/pupu-357/hooks-combined-desktop-01-20261025/run-01/workspace/provider-cancel.txt",
+      "total_lines": 4,
+      "truncated": false,
+      "unified_diff": "--- a//Users/red/.codex/artifacts/pupu-357/hooks-combined-desktop-01-20261025/run-01/workspace/provider-cancel.txt\n+++ b//Users/red/.codex/artifacts/pupu-357/hooks-combined-desktop-01-20261025/run-01/workspace/provider-cancel.txt\n@@ -0,0 +1 @@\n+offline-approved\n",
+      "options": []
+     },
+     "interaction_id": "interaction_1269051e7768550bb0933e63e4fe1b75",
+     "runtime_source_type": "interaction_requested",
+     "runtime_event_id": "evt_4258cbff72d140109e925a61d2e0af2f"
+    }
+   }
+  ],
+  "meta": {
+   "model": "unchain-unset",
+   "requestId": "unchain-1792944383447-3da8617664f38",
+   "attemptId": "unchain-1792944383447-3da8617664f38",
+   "executionSessionId": "chat-1792944380855-00609300a51d397e359d7fe9e9d362d0"
+  }
+ },
+ "cancel_request": {
+  "owner_chat_id": "chat-1792944380855-00609300a51d397e359d7fe9e9d362d0",
+  "execution_id": "chat-1792944380855-00609300a51d397e359d7fe9e9d362d0",
+  "attempt_id": "unchain-1792944383447-3da8617664f38",
+  "source_attempt_id": "unchain-1792944383447-3da8617664f38",
+  "interaction_id": "interaction_1269051e7768550bb0933e63e4fe1b75",
+  "reason": "user_stop",
+  "idempotency_key": "stop:unchain-1792944383447-3da8617664f38"
+ },
+ "cancel_response": {
+  "attempt_id": "unchain-1792944383447-3da8617664f38",
+  "cancellation": {
+   "fencing_token": null,
+   "reason": "user_stop",
+   "requested_at_ms": 1792944388457
+  },
+  "context_interaction_reconciled": true,
+  "disposition": "cancelled",
+  "durable_interaction_cancelled": true,
+  "execution": null,
+  "execution_id": "chat-1792944380855-00609300a51d397e359d7fe9e9d362d0",
+  "source_attempt_id": "unchain-1792944383447-3da8617664f38",
+  "state": "cancelled",
+  "status": "ok"
+ }
+}

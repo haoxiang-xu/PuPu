@@ -16,6 +16,7 @@ import { createManagedTransferApi } from "./managed_transfer_api";
 import { createSkeletonHookApi } from "./skeleton_hook_capabilities";
 import { createSkeletonHookToolSetApi } from "./skeleton_hook_tool_set_capabilities";
 import { createSkeletonHookWorkflowApi } from "./skeleton_hook_workflow_capabilities";
+import { createSkeletonWorkflowToolApi } from "./skeleton_workflow_tool_capabilities";
 import { readMemorySettings } from "../COMPONENTs/settings/memory/storage";
 import { sanitizeSystemPromptSections } from "./system_prompt_sections";
 import { DEFAULT_SYSTEM_PROMPT_V2_SECTIONS } from "./prompts/defaults";
@@ -1369,6 +1370,7 @@ export const createUnchainApi = () => {
     ...createSkeletonHookApi(assertBridgeMethod, withTimeout),
     ...createSkeletonHookToolSetApi(assertBridgeMethod, withTimeout),
     ...createSkeletonHookWorkflowApi(assertBridgeMethod, withTimeout),
+    ...createSkeletonWorkflowToolApi(assertBridgeMethod, withTimeout),
     isBridgeAvailable: () =>
       hasBridgeMethod("unchainAPI", "getStatus") &&
       hasBridgeMethod("unchainAPI", "startStream") &&

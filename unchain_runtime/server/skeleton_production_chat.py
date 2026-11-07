@@ -144,6 +144,34 @@ def _node_attachments(authorized):
     return resolve
 
 
+def _stream_worker_event(raw):
+    """Keep typed child model observations distinct from committed child End."""
+    event = dict(raw)
+    from skeleton_child_events import ChildEndAttribution, ChildNodeAttribution
+    attribution = event.get("_pupu_skeleton_child_attribution")
+    if (type(attribution) is ChildEndAttribution
+            and event.get("type") == "final_message"
+            and event.get("scope") == "child_end"
+            and event.get("run_id") == attribution.child_run_id):
+        return event
+    if type(attribution) is ChildEndAttribution or event.get("scope") == "child_end":
+        return None
+    if (type(attribution) is ChildNodeAttribution
+            and event.get("scope") == "node"
+            and event.get("type") == "final_message"
+            and event.get("run_id") == attribution.node_run_id
+            and attribution.source_type == "final_message"):
+        return event
+    if event.get("scope") == "node":
+        if event.get("type") == "final_message":
+            event["type"] = "workflow_step_final"
+        elif event.get("type") == "token_delta":
+            event["type"] = "workflow_step_delta"
+        elif event.get("type") in {"run_started", "run_completed", "run_failed", "interaction_requested"}:
+            return None
+    return event
+
+
 def _stream_worker(*, host, bridge, durability, bindings, plan, selection, workflows,
                    session_id, attempt_id, root_run_id, token, cancel_event, launch=None,
                    pending=None, response=None):
@@ -168,15 +196,13 @@ def _stream_worker(*, host, bridge, durability, bindings, plan, selection, workf
         ExecutionRuntime(durability.store).request_cancel(session_id, attempt_id, reason=reason)
         cancellation_requested = True
     def emit(raw):
-        event = dict(raw)
-        if event.get("scope") == "node":
-            # Legacy and v4 clients both reserve final_message/token_delta for
-            # the root answer. Keep node text solely on workflow progress.
-            if event.get("type") == "final_message": event["type"] = "workflow_step_final"
-            elif event.get("type") == "token_delta": event["type"] = "workflow_step_delta"
-            elif event.get("type") in {"run_started", "run_completed", "run_failed"}: return
-            elif event.get("type") == "interaction_requested": return
-        events.put(event)
+        event = _stream_worker_event(raw)
+        if event is not None:
+            from skeleton_child_events import bind_transport_attempt
+            event = bind_transport_attempt(
+                event, root_run_id=root_run_id, transport_attempt_id=attempt_id,
+            )
+            events.put(event)
     def work():
         guard = None
         execution = None
@@ -188,6 +214,7 @@ def _stream_worker(*, host, bridge, durability, bindings, plan, selection, workf
             execution = PupuSkeletonAgentExecution(plan, bridge, graph_id=launch.descriptor["graph_id"] if launch else root_run_id,
                 bind_profile=bindings.bind_profile, durability_runtime=durability, execution_guard=guard,
                 tools_for_node=bindings.tools_for_node, host_modules_for_node=bindings.modules_for_node,
+                workflow_tools_for_node=bindings.workflow_tools_for_node,
                 attachments_for_node=_node_attachments(resolved), root_handlers_factory=bindings.handlers_for_store,
                 child_handlers_factory=bindings.child_handlers_factory,
                 hook_workflow_resolver=workflows.resolve, subagent_manifests=selection.to_dict()["subagents"],

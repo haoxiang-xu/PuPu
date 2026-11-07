@@ -25,7 +25,7 @@ from interaction_channels import get_interject_channels
 from skeleton_agent_runtime import PupuSkeletonAgentExecution
 from test_memory_v2_skeleton_root_completion import _agent_document, _kernel_config
 from test_memory_v2_unchain_graph_root_completion import _NeverRunMemoryAgent, _active_bridge, _run
-from unchain.execution import ExecutionRuntime
+from unchain.execution import ExecutionLeaseConfig, ExecutionLeaseExpiredError, ExecutionRuntime
 from unchain.journal import ArtifactRef, JournalConflictError
 from unchain.journal.models import _thaw_json
 from unchain.memory import JsonFileSessionStore, KernelMemoryRuntime
@@ -1545,6 +1545,109 @@ def test_after_hook_runs_before_terminal_handoff_and_parent_end(tmp_path, monkey
     assert after_receipt.store_seq < kernel_result.store_seq
 
 
+def test_child_end_observation_cannot_bypass_after_hook_replacement(tmp_path, monkeypatch):
+    from skeleton_child_events import ChildEndAttribution, ChildNodeAttribution, strip_attribution
+    from unchain.interaction import ProgressDigest
+
+    execution_id = "skeleton-child-end-after-hook-observation"
+    bridge = _bridge(tmp_path, monkeypatch, execution_id=execution_id)
+    plan, manifests = _parent_with_pool(with_after_hook=True)
+    document = plan.snapshot()
+    hook = next(node for node in document["nodes"] if node["type"] == "hooks_pool")["config"]["hooks"][0]
+    hook["tool_name"] = "delegate_to_subagent"
+    plan = prepare_agent_graph(document)
+    client = _StrictOpenAIClient([
+        _subagent_tool_response(
+            "delegate_to_subagent", '{"target":"Reviewer","task":"audit this"}', "delegate",
+        ),
+        _final_response("RAW_MODEL"),
+        _final_response("parent safe response"),
+    ])
+    memory_store = JsonFileSessionStore(tmp_path / "kernel-sessions")
+    callbacks = []
+    hook_inputs = []
+    digest_inputs = []
+    original_digest = ProgressDigest.__call__
+
+    def observe_digest(digest, event):
+        digest_inputs.append(deepcopy(event))
+        return original_digest(digest, event)
+
+    monkeypatch.setattr(ProgressDigest, "__call__", observe_digest)
+
+    def resolve(workflow_id, revision_id):
+        return PublishedWorkflow(workflow_id, revision_id, _after_hook_execution_workflow(workflow_id))
+
+    def child_handlers(_store, _plan):
+        def code(context, inputs):
+            if context.document_id == "policy-workflow":
+                hook_inputs.append(deepcopy(inputs))
+                return WorkflowNodeCompleted({
+                    "decision": "replace", "result": {"visible": "REDACTED_B"},
+                })
+            return WorkflowNodeCompleted({"message": "SECRET_A", "evidence": "child evidence"})
+        return {"code": code}
+
+    with ExecutionRuntime(memory_store).scope(execution_id) as guard:
+        execution = _host_execution(
+            plan, bridge, client=client, guard=guard,
+            memory=KernelMemoryRuntime.from_config(store=memory_store),
+            callback=callbacks.append, subagent_manifests=manifests,
+            child_handlers_factory=child_handlers,
+            hook_workflow_resolver=resolve,
+        )
+        execution.create({})
+        completed, receipt = execution.run(original_task="observe after-hook child End")
+
+    assert completed.status == "completed" and receipt is not None, completed.error
+    assert len(client.requests) == 3
+    assert len(hook_inputs) == 1
+    assert "SECRET_A" in repr(hook_inputs[0]["raw_result"])
+    assert "SECRET_A" not in repr(client.requests[-1]["input"])
+    assert "RAW_MODEL" not in repr(client.requests[-1]["input"])
+    assert "REDACTED_B" in repr(client.requests[-1]["input"])
+    assert completed.outputs["message"] == "postprocessed End reply"
+    assert "SECRET_A" not in repr(completed.outputs)
+    assert "RAW_MODEL" not in repr(completed.outputs)
+    root_model_attempts = {
+        item["node_attempt_id"] for item in execution.store.load().state["completed"]
+        if item.get("node_id") == "model"
+    }
+    assert root_model_attempts
+
+    child_ends = []
+    child_node_attempts = set()
+    for event in callbacks:
+        clean, attribution = strip_attribution(event)
+        if type(attribution) is ChildEndAttribution:
+            child_ends.append((clean, attribution))
+        elif type(attribution) is ChildNodeAttribution:
+            child_node_attempts.add(attribution.node_run_id)
+    assert len(child_ends) == 1
+    assert child_ends[0][0]["content"] == "SECRET_A"
+    assert "RAW_MODEL" not in child_ends[0][0]["content"]
+    from skeleton_production_chat import _stream_worker_event
+    projected_native = []
+    for event in callbacks:
+        projected = _stream_worker_event(event)
+        if projected is None:
+            continue
+        clean, attribution = strip_attribution(projected)
+        if type(attribution) is ChildNodeAttribution and attribution.source_type == "final_message":
+            projected_native.append((clean, attribution))
+    expected_raw_model = _final_response("RAW_MODEL").output[0]["content"][0]["text"]
+    assert any(event.get("type") == "final_message" and event.get("content") == expected_raw_model
+               and event.get("run_id") == attribution.node_run_id
+               for event, attribution in projected_native)
+
+    assert all("SECRET_A" not in repr(event) and "RAW_MODEL" not in repr(event)
+               for event in digest_inputs)
+    assert any(event.get("run_id") in root_model_attempts for event in digest_inputs)
+    assert "REDACTED_B" in repr(digest_inputs)
+    assert not any(event.get("run_id") in child_node_attempts for event in digest_inputs)
+    assert get_interject_channels(execution_id) is None
+
+
 def _document_with_subagent_pool(document, child):
     document = deepcopy(document)
     kernel = next(node for node in document["nodes"] if node["type"] == "agent")
@@ -1703,6 +1806,70 @@ def test_skeleton_handoff_completes_only_kernel_then_code_and_parent_end(
     assert len(parent_kernel_results) >= 2
 
 
+def test_native_delegate_forwards_child_model_events_without_changing_identity(
+    tmp_path, monkeypatch,
+):
+    execution_id = "skeleton-host-child-observation"
+    bridge = _bridge(tmp_path, monkeypatch, execution_id=execution_id)
+    plan, manifests = _parent_with_pool()
+    client = _StrictOpenAIClient([
+        _subagent_tool_response(
+            "delegate_to_subagent",
+            '{"target":"Reviewer","task":"review this"}',
+            "observe",
+        ),
+        _final_response("F2_CHILD_MODEL"),
+        _final_response("F2_PARENT_MODEL"),
+    ])
+    memory_store = JsonFileSessionStore(tmp_path / "kernel-sessions")
+    memory = KernelMemoryRuntime.from_config(store=memory_store)
+    observed, child_stores = [], []
+
+    def child_handlers(store, _plan):
+        child_stores.append(store)
+        return {"code": lambda _context, inputs: WorkflowNodeCompleted({
+            "message": '{"answer":"F2_CHILD_END"}',
+            "evidence": "child derived " + inputs["model_answer"],
+        })}
+
+    with ExecutionRuntime(memory_store).scope(execution_id) as guard:
+        execution = _host_execution(
+            plan, bridge, client=client, guard=guard, memory=memory,
+            callback=observed.append, subagent_manifests=manifests,
+            child_handlers_factory=child_handlers,
+        )
+        execution.create({})
+        durable, receipt = execution.run(original_task="child observation")
+
+    assert durable.status == "completed"
+    assert receipt is not None
+    assert durable.outputs["message"] == "postprocessed End reply"
+    assert len(client.requests) == 3
+    assert len(child_stores) == 1
+    child_store = child_stores[0]
+    assert child_store.load().state["status"] == "completed"
+    journal = execution.store.journal.capture_snapshot().events
+    child_results = [
+        event for event in journal
+        if event.event_type == "skeleton.kernel_result.saved"
+        and event.payload.get("graph_id") == child_store.graph_id
+    ]
+    assert len(child_results) == 1
+    native_node_run = child_results[0].attempt.attempt_id
+    child_graph_run = child_store.attempt.attempt_id
+    root_graph_run = execution.store.attempt.attempt_id
+    assert len({native_node_run, child_graph_run, root_graph_run}) == 3
+    missing_event_types = [
+        event_type for event_type in ("request_messages", "response_received")
+        if not any(
+            event.get("type") == event_type
+            and event.get("run_id") == native_node_run
+            for event in observed
+        )
+    ]
+    assert missing_event_types == [], (missing_event_types, native_node_run)
+
+
 def test_subagent_approval_cold_resume_does_not_resend_parent_or_commit_child_reply(
     tmp_path, monkeypatch,
 ):
@@ -1798,6 +1965,366 @@ def test_subagent_approval_cold_resume_does_not_resend_parent_or_commit_child_re
             original_task="approve child",
         )
     assert tool_calls == ["approved child value"]
+
+
+def test_cold_native_child_observations_keep_durable_identity(tmp_path, monkeypatch):
+    execution_id = "skeleton-host-cold-child-observation"
+    bridge = _bridge(tmp_path, monkeypatch, execution_id=execution_id)
+    plan, manifests = _parent_with_pool()
+    first_client = _StrictOpenAIClient([_handoff_response(), _approval_tool_response()])
+    tool_calls = []
+    tool = Tool.from_callable(
+        lambda value: tool_calls.append(value) or {"applied": value},
+        name="dangerous_tool", requires_confirmation=True,
+    )
+    memory_path = tmp_path / "kernel-sessions"
+    child_stores = []
+
+    def tools_for_node(_context):
+        return (tool,)
+
+    def child_handlers(store, _plan):
+        child_stores.append(store)
+        return {"code": lambda _context, inputs: WorkflowNodeCompleted({
+            "message": '{"answer":"child approved"}',
+            "evidence": "child derived " + inputs["model_answer"],
+        })}
+
+    first_store = JsonFileSessionStore(memory_path)
+    with ExecutionRuntime(first_store).scope(execution_id) as guard:
+        first = _host_execution(
+            plan, bridge, client=first_client, guard=guard,
+            memory=KernelMemoryRuntime.from_config(store=first_store),
+            tools_for_node=tools_for_node, subagent_manifests=manifests,
+            child_handlers_factory=child_handlers,
+        )
+        first.create({})
+        waiting, receipt = first.run(original_task="approve child")
+
+    assert waiting.status == "waiting", waiting.error
+    assert receipt is None
+    assert tool_calls == []
+    assert len(first_client.requests) == 2
+    assert len(child_stores) == 1
+    root_active = first.store.load().state["active"]
+    parent_node_attempt_id = root_active["node_attempt_id"]
+    parent_node_invocation_id = root_active["node_invocation_id"]
+    parent_kernel_node_id = root_active["node_id"]
+    root_wait = root_active["wait"]
+    public_request = first.store.read_json(root_wait["request_ref"])
+    assert public_request["child_wait_kind"] == "interaction"
+    assert public_request["mode"] == "handoff"
+
+    cold_client = _StrictOpenAIClient([_final_response("child after approval")])
+    cold_store = JsonFileSessionStore(memory_path)
+    cold_observed = []
+    with ExecutionRuntime(cold_store).scope(execution_id) as guard:
+        cold = _host_execution(
+            plan, bridge, client=cold_client, guard=guard,
+            memory=KernelMemoryRuntime.from_config(store=cold_store),
+            tools_for_node=tools_for_node, subagent_manifests=manifests,
+            child_handlers_factory=child_handlers, callback=cold_observed.append,
+        )
+        completed, receipt = cold.resume_subagent_interaction(
+            root_wait["id"], True,
+            node_invocation_id=root_active["node_invocation_id"],
+            original_task="approve child",
+        )
+
+    assert completed.status == "completed"
+    assert completed.outputs["message"] == "postprocessed End reply"
+    assert receipt is not None
+    assert tool_calls == ["approved child value"]
+    assert len(first_client.requests) == 2
+    assert len(cold_client.requests) == 1
+    assert len(child_stores) == 2
+    child_store = child_stores[-1]
+    child_state = child_store.load()
+    assert child_state.state["status"] == "completed"
+    child_output = child_store.read_json(child_state.state["completed"][-1]["output_ref"])
+    assert child_output["message"] == '{"answer":"child approved"}'
+
+    journal = cold.store.journal.capture_snapshot().events
+    child_result = [
+        event for event in journal
+        if event.event_type == "skeleton.kernel_result.saved"
+        and event.payload.get("graph_id") == public_request["child_graph_id"]
+    ]
+    assert len(child_result) == 1
+    native_node_run = child_result[0].attempt.attempt_id
+    child_graph_run = child_store.attempt.attempt_id
+    parent_node_run = parent_node_attempt_id
+    root_graph_run = cold.binding.root_run_id
+    assert child_store.graph_id == public_request["child_graph_id"]
+    assert child_graph_run == public_request["child_attempt_id"]
+    assert public_request["parent_node_invocation_id"] == parent_node_invocation_id
+    assert public_request["parent_kernel_node_id"] == parent_kernel_node_id == "model"
+    completed_parent_nodes = [
+        item for item in cold.store.load().state["completed"]
+        if item.get("node_invocation_id") == parent_node_invocation_id
+    ]
+    assert len(completed_parent_nodes) == 1
+    assert completed_parent_nodes[0]["node_id"] == parent_kernel_node_id
+    assert completed_parent_nodes[0]["node_attempt_id"] == parent_node_run
+    handoff_calls = [
+        event for event in first.store.journal.capture_snapshot().events
+        if event.event_type == "tool_call"
+        and event.payload.get("call_id") == "handoff-call"
+    ]
+    assert len(handoff_calls) == 1
+    assert handoff_calls[0].attempt.attempt_id == parent_node_run
+    assert len({native_node_run, child_graph_run, parent_node_run, root_graph_run}) == 4
+
+    missing_event_types = [
+        event_type for event_type in ("request_messages", "response_received")
+        if not any(
+            event.get("type") == event_type and event.get("run_id") == native_node_run
+            for event in cold_observed
+        )
+    ]
+    observed_end = [
+        event for event in cold_observed
+        if event.get("scope") == "child_end" and event.get("run_id") == child_graph_run
+        and event.get("type") == "final_message"
+    ]
+    assert not missing_event_types, (missing_event_types, native_node_run)
+    assert len(observed_end) == 1
+    assert observed_end[0]["content"] == child_output["message"]
+
+
+def test_committed_child_end_is_observed_after_cold_unsettled_resume_without_replay(
+    tmp_path, monkeypatch,
+):
+    execution_id = "skeleton-host-child-committed-before-parent"
+    bridge = _bridge(tmp_path, monkeypatch, execution_id=execution_id)
+    plan, manifests = _parent_with_pool()
+    first_client = _StrictOpenAIClient([_handoff_response(), _approval_tool_response()])
+    tool_calls = []
+    code_calls = []
+    child_stores = []
+    tool = Tool.from_callable(
+        lambda value: tool_calls.append(value) or {"applied": value},
+        name="dangerous_tool", requires_confirmation=True,
+    )
+    memory_path = tmp_path / "kernel-sessions"
+
+    def child_handlers(store, _plan):
+        child_stores.append(store)
+
+        def complete_child(_context, inputs):
+            code_calls.append(inputs["model_answer"])
+            return WorkflowNodeCompleted({
+                "message": '{"answer":"child approved"}',
+                "evidence": "child derived " + inputs["model_answer"],
+            })
+
+        return {"code": complete_child}
+
+    first_store = JsonFileSessionStore(memory_path)
+    with ExecutionRuntime(first_store).scope(execution_id) as guard:
+        first = _host_execution(
+            plan, bridge, client=first_client, guard=guard,
+            memory=KernelMemoryRuntime.from_config(store=first_store),
+            tools_for_node=lambda _context: (tool,), subagent_manifests=manifests,
+            child_handlers_factory=child_handlers,
+        )
+        first.create({})
+        waiting, receipt = first.run(original_task="approve child")
+
+    assert waiting.status == "waiting", waiting.error
+    assert receipt is None
+    assert tool_calls == []
+    assert len(first_client.requests) == 2
+    root_active = first.store.load().state["active"]
+    wait_id = root_active["wait"]["id"]
+
+    class _CommittedBeforeParentSettlement(BaseException):
+        pass
+
+    original_settle = PupuSkeletonAgentExecution._settle_child_result
+    injected = {"raised": False}
+
+    def interrupt_parent_settlement(self, runner, current_wait_id, request, completion, *,
+                                    node_invocation_id):
+        if not injected["raised"]:
+            assert completion["status"] == "completed"
+            injected["raised"] = True
+            raise _CommittedBeforeParentSettlement()
+        return original_settle(
+            self, runner, current_wait_id, request, completion,
+            node_invocation_id=node_invocation_id,
+        )
+
+    monkeypatch.setattr(
+        PupuSkeletonAgentExecution, "_settle_child_result", interrupt_parent_settlement,
+    )
+    resumed_client = _StrictOpenAIClient([_final_response("child after approval")])
+    interrupted_observed = []
+    cold_store = JsonFileSessionStore(memory_path)
+    with ExecutionRuntime(cold_store).scope(execution_id) as guard:
+        cold = _host_execution(
+            plan, bridge, client=resumed_client, guard=guard,
+            memory=KernelMemoryRuntime.from_config(store=cold_store),
+            tools_for_node=lambda _context: (tool,), subagent_manifests=manifests,
+            child_handlers_factory=child_handlers, callback=interrupted_observed.append,
+        )
+        with pytest.raises(_CommittedBeforeParentSettlement):
+            cold.resume_subagent_interaction(
+                wait_id, True, node_invocation_id=root_active["node_invocation_id"],
+                original_task="approve child",
+            )
+
+    assert injected["raised"]
+    assert len(child_stores) == 2
+    committed_store = child_stores[-1]
+    committed_state = committed_store.load()
+    assert committed_state.state["status"] == "completed"
+    committed_output = committed_store.read_json(
+        committed_state.state["completed"][-1]["output_ref"]
+    )
+    assert committed_output["message"] == '{"answer":"child approved"}'
+    assert tool_calls == ["approved child value"]
+    assert len(code_calls) == 1
+    assert len(resumed_client.requests) == 1
+
+    retry_client = _StrictOpenAIClient([])
+    retry_observed = []
+    retry_store = JsonFileSessionStore(memory_path)
+    with ExecutionRuntime(retry_store).scope(execution_id) as guard:
+        retry = _host_execution(
+            plan, bridge, client=retry_client, guard=guard,
+            memory=KernelMemoryRuntime.from_config(store=retry_store),
+            tools_for_node=lambda _context: (tool,), subagent_manifests=manifests,
+            child_handlers_factory=child_handlers, callback=retry_observed.append,
+        )
+        completed, receipt = retry.resume_subagent_interaction(
+            wait_id, True, node_invocation_id=root_active["node_invocation_id"],
+            original_task="approve child",
+        )
+
+    assert completed.status == "completed"
+    assert receipt is not None
+    assert len(retry_client.requests) == 0
+    assert len(tool_calls) == 1
+    assert len(code_calls) == 1
+    observed_end = [
+        event for event in retry_observed
+        if event.get("scope") == "child_end" and event.get("type") == "final_message"
+    ]
+    assert len(observed_end) == 1
+    assert observed_end[0]["run_id"] == committed_store.attempt.attempt_id
+    assert observed_end[0]["content"] == committed_output["message"]
+
+
+@pytest.mark.parametrize("preflush_authority_change", ["cancel", "takeover", "ttl_expiry"])
+def test_native_wait_notifications_require_current_root_authority(
+    tmp_path, monkeypatch, preflush_authority_change,
+):
+    execution_id = f"skeleton-host-wait-{preflush_authority_change}"
+    bridge = _bridge(tmp_path, monkeypatch, execution_id=execution_id)
+    plan, manifests = _parent_with_pool()
+    client = _StrictOpenAIClient([_handoff_response(), _approval_tool_response()])
+    tool_calls = []
+    observed = []
+    child_stores = []
+    tool = Tool.from_callable(
+        lambda value: tool_calls.append(value) or {"applied": value},
+        name="dangerous_tool", requires_confirmation=True,
+    )
+    memory_path = tmp_path / "kernel-sessions"
+
+    def child_handlers(store, _plan):
+        child_stores.append(store)
+        return {"code": lambda _context, inputs: WorkflowNodeCompleted({
+            "message": '{"answer":"child approved"}',
+            "evidence": "child derived " + inputs["model_answer"],
+        })}
+
+    if preflush_authority_change == "ttl_expiry":
+        class ManualClock:
+            now_ms = 1_000
+
+            def __call__(self):
+                return self.now_ms
+
+            def advance(self, delta_ms):
+                self.now_ms += delta_ms
+
+        clock = ManualClock()
+        store = JsonFileSessionStore(memory_path, clock_ms=clock)
+        runtime = ExecutionRuntime(
+            store, ExecutionLeaseConfig(ttl_ms=100, heartbeat_interval_ms=0),
+        )
+    else:
+        clock = None
+        store = JsonFileSessionStore(memory_path)
+        runtime = ExecutionRuntime(store)
+    original_wait_request = PupuSkeletonAgentExecution._subagent_wait_request
+    root_guard = None
+
+    def change_authority_after_durable_wait(*args, **kwargs):
+        request = original_wait_request(*args, **kwargs)
+        if preflush_authority_change == "cancel":
+            runtime.request_cancel(
+                root_guard.lease.execution_id,
+                root_guard.lease.owner_id,
+                reason="cancel before native wait observation flush",
+            )
+        elif preflush_authority_change == "takeover":
+            old_lease = root_guard.lease
+            root_guard.release()
+            successor = runtime.acquire(
+                old_lease.execution_id,
+                owner_id="wait-flush-successor",
+            )
+            assert successor.lease.fencing_token > old_lease.fencing_token
+            successor.release()
+        else:
+            old_lease = root_guard.lease
+            clock.advance(old_lease.expires_at_ms - clock() + 1)
+        return request
+
+    monkeypatch.setattr(
+        PupuSkeletonAgentExecution,
+        "_subagent_wait_request",
+        staticmethod(change_authority_after_durable_wait),
+    )
+    try:
+        with runtime.scope(execution_id) as root_guard:
+            execution = _host_execution(
+                plan, bridge, client=client, guard=root_guard,
+                memory=KernelMemoryRuntime.from_config(store=store),
+                tools_for_node=lambda _context: (tool,), subagent_manifests=manifests,
+                child_handlers_factory=child_handlers, callback=observed.append,
+            )
+            execution.create({})
+            result, receipt = execution.run(original_task="approve child")
+    except ExecutionLeaseExpiredError:
+        if preflush_authority_change != "ttl_expiry":
+            raise
+
+    assert result.status != "waiting"
+    assert receipt is None
+    assert tool_calls == []
+    assert len(client.requests) == 2
+    assert len(child_stores) == 1
+    child_state = child_stores[0].load().state
+    child_native_run = child_state["active"]["node_attempt_id"]
+    assert not any(
+        event.get("run_id") == child_native_run
+        and event.get("type") in {
+            "response_received", "interaction_requested", "human_input_requested",
+        }
+        for event in observed
+    )
+    if preflush_authority_change == "ttl_expiry":
+        failures = [
+            str(event.payload.get("error") or "")
+            for event in execution.store.journal.capture_snapshot().events
+            if event.event_type == "subagent_failed"
+        ]
+        assert len(failures) == 1
+        assert "execution lease has expired" in failures[0]
 
 
 def test_subagent_approval_cold_resume_rejects_sibling_guard_session_before_effects(
@@ -2094,19 +2621,42 @@ def test_nested_handoff_completes_without_restarting_middle_model(tmp_path, monk
     ])
     tool = Tool.from_callable(lambda value: {"value": value}, name="dangerous_tool", requires_confirmation=True)
     memory_store = JsonFileSessionStore(tmp_path / "kernel-sessions")
+    child_stores = []
+
+    def nested_child_handlers(store, _plan):
+        child_stores.append(store)
+        return {"code": lambda _context, _inputs: WorkflowNodeCompleted({
+            "message": '{"answer":"nested child done"}', "evidence": "nested",
+        })}
+
     with ExecutionRuntime(memory_store).scope(execution_id) as guard:
         execution = _host_execution(
             plan, bridge, client=client, guard=guard,
             memory=KernelMemoryRuntime.from_config(store=memory_store),
             tools_for_node=lambda _context: (tool,), subagent_manifests=manifests,
-            child_handlers_factory=lambda _store, _plan: {
-                "code": lambda _context, _inputs: WorkflowNodeCompleted({
-                    "message": '{"answer":"nested child done"}', "evidence": "nested",
-                }),
-            },
+            child_handlers_factory=nested_child_handlers,
         )
         execution.create({})
         waiting, _ = execution.run(original_task="nested handoff")
+        parent_active = execution.store.load().state["active"]
+        parent_wait = parent_active["wait"]
+        parent_request = execution.store.read_json(parent_wait["request_ref"])
+        middle_store = next(
+            store for store in child_stores
+            if store.graph_id == parent_request["child_graph_id"]
+        )
+        middle_state = middle_store.load().state
+        middle_active = middle_state["active"]
+        nested_wait = middle_active["wait"]
+        nested_request = middle_store.read_json(nested_wait["request_ref"])
+        nested_leaf_request = nested_request["interaction_request"]
+        outer_node_run = middle_active["node_attempt_id"]
+        leaf_node_run = nested_leaf_request["source_run_id"]
+        assert nested_wait["kind"] == parent_request["child_wait_kind"] == "child"
+        assert nested_request["parent_graph_id"] == middle_store.graph_id
+        assert nested_request["parent_node_invocation_id"] == middle_active["node_invocation_id"]
+        assert nested_request["interaction_request"] == parent_request["interaction_request"]
+        assert outer_node_run != leaf_node_run
         completed, receipt = _resume_child_wait(execution, original_task="nested handoff")
 
     assert waiting.status == "waiting"
@@ -2115,6 +2665,208 @@ def test_nested_handoff_completes_without_restarting_middle_model(tmp_path, monk
     assert [request["model"] for request in client.requests] == [
         "test-model", "middle-model", "grand-model", "grand-model",
     ]
+
+
+def test_nested_native_child_observations_keep_each_parent_and_gate(tmp_path, monkeypatch):
+    from skeleton_child_events import ChildEndAttribution, ChildNodeAttribution, strip_attribution
+
+    execution_id = "skeleton-host-cold-nested-observation"
+    bridge = _bridge(tmp_path, monkeypatch, execution_id=execution_id)
+    plan, manifests = _parent_with_pool()
+    middle, _ = _parent_with_pool()
+    middle_document = middle.snapshot()
+    middle_document["id"] = "middle-agent"
+    middle_kernel = next(node for node in middle_document["nodes"] if node["type"] == "agent")
+    middle_kernel["config"]["kernel"]["max_iterations"] = 4
+    middle_kernel["config"]["kernel"]["profile"]["model"] = "middle-model"
+    grandchild = next(node for node in middle_document["nodes"] if node["type"] == "subagent_pool")["config"]["subagents"][0]["source"]["document"]
+    grandchild_kernel = next(node for node in grandchild["nodes"] if node["type"] == "agent")
+    grandchild_kernel["config"]["kernel"]["max_iterations"] = 4
+    grandchild_kernel["config"]["kernel"]["profile"]["model"] = "grand-model"
+    manifests[0]["document"] = middle_document
+    manifests[0]["subagents"] = [{
+        "pool_node_id": "reviewers", "kernel_node_id": middle_kernel["id"],
+        "entry_id": "reviewer", "name": "Reviewer", "description": "review",
+        "allowed_modes": ["delegate", "handoff", "worker"],
+        "output_mode": "summary", "memory_policy": "ephemeral",
+        "parallel_safe": True, "allowed_tools": None, "disabled_tools": [],
+        "source_kind": "embedded", "agent_id": None, "edit_token": None,
+        "definition_digest": "nested-fixed-by-preflight", "document": grandchild,
+        "subagents": [],
+    }]
+    initial_client = _StrictOpenAIClient([
+        _handoff_response(), _handoff_response(), _approval_tool_response(),
+    ])
+    cold_client = _StrictOpenAIClient([_final_response("grand model final")])
+    tool_calls = []
+    tool = Tool.from_callable(
+        lambda value: tool_calls.append(value) or {"value": value},
+        name="dangerous_tool", requires_confirmation=True,
+    )
+    memory_path = tmp_path / "kernel-sessions"
+    first_child_stores = []
+    cold_child_stores = []
+
+    def handlers_for(stores):
+        def build(store, _plan):
+            stores.append(store)
+            def code(context, _inputs):
+                return WorkflowNodeCompleted({
+                    "message": json.dumps({"answer": "END:" + context.document_id}),
+                    "evidence": "committed code End",
+                })
+            return {"code": code}
+        return build
+
+    first_store = JsonFileSessionStore(memory_path)
+    initial_callbacks = []
+    with ExecutionRuntime(first_store).scope(execution_id) as guard:
+        first = _host_execution(
+            plan, bridge, client=initial_client, guard=guard,
+            memory=KernelMemoryRuntime.from_config(store=first_store),
+            tools_for_node=lambda _context: (tool,), subagent_manifests=manifests,
+            child_handlers_factory=handlers_for(first_child_stores),
+            callback=initial_callbacks.append,
+        )
+        first.create({})
+        waiting, receipt = first.run(original_task="nested cold observation")
+
+    assert waiting.status == "waiting", waiting.error
+    assert receipt is None
+    assert tool_calls == []
+    assert len(initial_client.requests) == 3
+    assert len(first_child_stores) == 2
+    root_active = first.store.load().state["active"]
+    root_wait = root_active["wait"]
+    root_request = first.store.read_json(root_wait["request_ref"])
+    middle_store_before = next(store for store in first_child_stores if store.graph_id == root_request["child_graph_id"])
+    middle_active_before = middle_store_before.load().state["active"]
+    middle_wait = middle_active_before["wait"]
+    nested_request = middle_store_before.read_json(middle_wait["request_ref"])
+    assert root_request["child_wait_kind"] == "child"
+    assert nested_request["child_wait_kind"] == "interaction"
+    assert nested_request["parent_graph_id"] == middle_store_before.graph_id
+    assert nested_request["parent_node_invocation_id"] == middle_active_before["node_invocation_id"]
+    assert nested_request["interaction_request"]["source_run_id"] != root_request["child_attempt_id"]
+
+    callbacks = []
+    gate_calls = []
+    cold_store = JsonFileSessionStore(memory_path)
+    with ExecutionRuntime(cold_store).scope(execution_id) as guard:
+        cold = _host_execution(
+            plan, bridge, client=cold_client, guard=guard,
+            memory=KernelMemoryRuntime.from_config(store=cold_store),
+            tools_for_node=lambda _context: (tool,), subagent_manifests=manifests,
+            child_handlers_factory=handlers_for(cold_child_stores),
+            callback=callbacks.append,
+        )
+        original_factory = cold._make_native_child_observer
+
+        def observed_factory(parent_store, child_store, *, child_guard,
+                             parent_invocation_id, parent_node_run_id, observation_gates):
+            wrapped = []
+            for index, original_gate in enumerate(observation_gates):
+                def count_and_forward(event, *, _index=index, _gate=original_gate,
+                                      _parent=parent_store.graph_id, _child=child_store.graph_id):
+                    gate_calls.append((_parent, _child, _index, event.get("type"), event.get("run_id")))
+                    return _gate(event)
+                wrapped.append(count_and_forward)
+            return original_factory(
+                parent_store, child_store, child_guard=child_guard,
+                parent_invocation_id=parent_invocation_id, parent_node_run_id=parent_node_run_id,
+                observation_gates=tuple(wrapped),
+            )
+
+        cold._make_native_child_observer = observed_factory
+        completed, cold_receipt = cold.resume_subagent_interaction(
+            root_wait["id"], True, node_invocation_id=root_active["node_invocation_id"],
+            original_task="nested cold observation",
+        )
+
+    failure_diagnostic = {
+        "error": completed.error,
+        "root_state": {key: cold.store.load().state.get(key) for key in ("status", "error")},
+        "children": [{
+            "graph_id": store.graph_id,
+            "document_id": store.plan.document_id,
+            "status": store.load().state.get("status"),
+            "error": store.load().state.get("error"),
+            "active": ({key: store.load().state["active"].get(key)
+                        for key in ("node_id", "node_attempt_id", "wait")}
+                       if store.load().state.get("active") else None),
+        } for store in cold_child_stores],
+        "gate_calls": gate_calls,
+    }
+    assert completed.status == "completed", json.dumps(failure_diagnostic, default=str)
+    assert cold_receipt is not None
+    assert tool_calls == ["approved child value"]
+    assert len(initial_client.requests) == 3
+    assert len(cold_client.requests) == 1
+    assert len(cold_child_stores) == 2
+    middle_store = next(store for store in cold_child_stores if store.plan.document_id == "middle-agent")
+    grandchild_store = next(store for store in cold_child_stores if store.plan.document_id == "reviewer-agent")
+    assert middle_store.graph_id == root_request["child_graph_id"]
+    assert middle_store.attempt.attempt_id == root_request["child_attempt_id"]
+    assert grandchild_store.graph_id == nested_request["child_graph_id"]
+    assert grandchild_store.attempt.attempt_id == nested_request["child_attempt_id"]
+    assert nested_request["parent_node_invocation_id"] == middle_active_before["node_invocation_id"]
+
+    journal = cold.store.journal.capture_snapshot().events
+    def native_node_attempt(graph_id):
+        matches = [event for event in journal
+            if event.event_type == "skeleton.kernel_result.saved"
+            and event.payload.get("graph_id") == graph_id]
+        assert len(matches) == 1
+        return matches[0].attempt.attempt_id
+    middle_node = middle_active_before["node_attempt_id"]
+    middle_model_rows = [item for item in middle_store.load().state["completed"]
+                         if item.get("node_id") == "model"]
+    assert len(middle_model_rows) == 1
+    assert middle_model_rows[0]["node_attempt_id"] == middle_node
+    leaf_node = native_node_attempt(grandchild_store.graph_id)
+    root_node = root_active["node_attempt_id"]
+    canonical_root = cold.binding.root_run_id
+    assert len({canonical_root, root_node, middle_store.attempt.attempt_id,
+                middle_node, grandchild_store.attempt.attempt_id, leaf_node}) == 6
+
+    attributed_nodes = []
+    attributed_ends = []
+    for event in callbacks:
+        clean, attribution = strip_attribution(event)
+        if type(attribution) is ChildNodeAttribution:
+            attributed_nodes.append((clean, attribution))
+        elif type(attribution) is ChildEndAttribution:
+            attributed_ends.append((clean, attribution))
+    assert attributed_nodes and attributed_ends
+    assert all(attribution.root_run_id == canonical_root
+               for _event, attribution in attributed_nodes + attributed_ends)
+    for event_type in ("request_messages", "response_received"):
+        leaf_matches = [(event, attr) for event, attr in attributed_nodes
+                        if event.get("type") == event_type and event.get("run_id") == leaf_node]
+        assert leaf_matches, (event_type, leaf_node)
+        assert all(attr.child_run_id == grandchild_store.attempt.attempt_id
+                   and attr.graph_id == grandchild_store.graph_id
+                   and attr.parent_run_id == middle_node for _event, attr in leaf_matches)
+        hit_indices = [index for parent_graph, child_graph, index, kind, run_id in gate_calls
+                       if child_graph == grandchild_store.graph_id and kind == event_type and run_id == leaf_node]
+        assert hit_indices == [0, 1], (event_type, hit_indices)
+    ends_by_child = {attr.child_run_id: (event["content"], attr.parent_run_id)
+                     for event, attr in attributed_ends}
+    assert ends_by_child[middle_store.attempt.attempt_id] == (
+        json.dumps({"answer": "END:middle-agent"}), root_node,
+    )
+    assert ends_by_child[grandchild_store.attempt.attempt_id] == (
+        json.dumps({"answer": "END:reviewer-agent"}), middle_node,
+    )
+    raw_model_finals = [event.get("content") for event, _attr in attributed_nodes
+                        if event.get("type") == "final_message"]
+    assert json.dumps({"answer": "grand model final"}, separators=(",", ":")) in raw_model_finals
+    assert json.dumps({"answer": "END:reviewer-agent"}) not in raw_model_finals
+    initial_nested_lifecycle = [event for event in initial_callbacks if event.get("type") in {
+        "subagent_started", "subagent_handoff", "subagent_completed",
+    } and event.get("child_run_id") == grandchild_store.attempt.attempt_id]
+    assert initial_nested_lifecycle
+    assert all(event.get("root_run_id") == middle_node for event in initial_nested_lifecycle)
 
 
 def test_cancelling_parent_while_child_approval_waits_blocks_late_execution(

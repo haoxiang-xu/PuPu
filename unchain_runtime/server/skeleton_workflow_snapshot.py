@@ -75,6 +75,10 @@ def _workflow_placements(document, *, execution_frames=1, ancestors=()):
     if execution_frames > 32 or owner in ancestors:
         _snapshot_conflict(('document', 'id'))
     placement = (execution_frames + 1, ancestors + (owner,))
+    from skeleton_workflow_tools import workflow_tool_entries
+    for _pool_index, _entry_index, entry in workflow_tool_entries(document):
+        ref = entry["workflow"]
+        yield (ref["workflow_id"], ref["revision_id"]), *placement
     for node in document["nodes"]:
         references = []
         if node["type"] == "workflow_call":

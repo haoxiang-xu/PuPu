@@ -413,7 +413,8 @@ function reject(problems, code, path, message) {
 export function profile_problems(profile, base) {
   const problems = [];
   const path = [...base];
-  if (!closed(profile, path, PROFILE_KEYS, problems)) return problems;
+  const hasAuth = is_object(profile) && Object.prototype.hasOwnProperty.call(profile, "auth_mode");
+  if (!closed(profile, path, hasAuth ? [...PROFILE_KEYS, "auth_mode"] : PROFILE_KEYS, problems)) return problems;
 
   PROFILE_TEXT_KEYS.forEach((key) => {
     if (!(key in profile)) return;
@@ -426,6 +427,16 @@ export function profile_problems(profile, base) {
       );
     }
   });
+
+  if (hasAuth) {
+    const modes = { "openai-responses": ["bearer"], anthropic: ["x-api-key", "bearer"], gemini: ["api-key"], ollama: ["none", "bearer"] };
+    const native = { openai: "bearer", anthropic: "x-api-key", gemini: "api-key", ollama: "none", hyperspace: "x-api-key" };
+    const brand = typeof profile.provider === "string" ? profile.provider.toLowerCase() : "";
+    if (typeof profile.protocol !== "string" || !Object.prototype.hasOwnProperty.call(modes, profile.protocol) || !modes[profile.protocol].includes(profile.auth_mode) ||
+        (Object.prototype.hasOwnProperty.call(native, brand) && profile.auth_mode !== native[brand])) {
+      reject(problems, "unsupported_capability", [...path, "auth_mode"], "authentication mode is not supported for this provider and protocol");
+    }
+  }
 
   /* `:31`. An unknown protocol is `unsupported_capability` and not an unknown
      variant: the runtime cannot speak it, which is a statement about this

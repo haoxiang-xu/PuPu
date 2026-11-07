@@ -302,6 +302,10 @@ class SkeletonResourceStore:
             _validate_all(plan.snapshot(), agent_graph=checked["kind"] == "agent")
         except SkeletonValidationError as exc:
             raise SkeletonResourceError(exc.code, exc.path, str(exc)) from exc
+        from skeleton_workflow_tools import attached_workflow_tools, workflow_tool_entries, workflow_tool_capabilities
+        attached_workflow_tools(checked)
+        if any(workflow_tool_entries(checked)):
+            workflow_tool_capabilities()
         try:
             require_skeleton_runtime()
             if any(node['type'] == 'hooks_pool' and any('enabled' in hook for hook in node['config']['hooks'])
@@ -859,6 +863,9 @@ class SkeletonResourceStore:
         descendants: dict[tuple[str, str], set[str]] = {}
 
         def references(body, prefix):
+            from skeleton_workflow_tools import workflow_tool_entries
+            for pool_index, entry_index, entry in workflow_tool_entries(body):
+                yield entry["workflow"], prefix + ("nodes", pool_index, "config", "workflow_tools", entry_index, "workflow")
             for index, node in enumerate(body["nodes"]):
                 config_path = prefix + ("nodes", index, "config")
                 if node["type"] == "workflow_call":

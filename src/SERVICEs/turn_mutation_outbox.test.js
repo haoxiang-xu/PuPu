@@ -14,6 +14,7 @@ import {
   normalizeTurnMutationOutboxEntry,
   readTurnMutationOutbox,
   readTurnMutationOutboxState,
+  readTurnMutationAdmissionOutboxState,
   recordTurnMutationRebaseAck,
   recordTurnMutationRetryOutcome,
   recordTurnMutationV1MirrorApplied,
@@ -62,6 +63,55 @@ const rebaseAck = (overrides = {}) => ({
 
 describe("turn mutation outbox", () => {
   beforeEach(() => window.localStorage.clear());
+
+  test("admission snapshot requires a complete bounded unique read", () => {
+    expect(readTurnMutationAdmissionOutboxState({ getItem: () => null })).toEqual({
+      available: true,
+      entries: [],
+    });
+    const targetFirst = [
+      entry({ operationId: "target-op", chatId: "target-chat" }),
+      ...Array.from({ length: 32 }, (_value, index) =>
+        entry({ operationId: `other-op-${index}`, chatId: `other-chat-${index}` }),
+      ),
+    ];
+    const overflowStorage = { getItem: () => JSON.stringify(targetFirst) };
+    expect(readTurnMutationAdmissionOutboxState(overflowStorage)).toEqual({
+      available: false,
+      entries: [],
+    });
+    expect(readTurnMutationOutboxState(overflowStorage)).toMatchObject({
+      available: true,
+      entries: expect.arrayContaining([expect.objectContaining({ operationId: "other-op-31" })]),
+    });
+    expect(readTurnMutationOutboxState(overflowStorage).entries.some(
+      (value) => value.operationId === "target-op",
+    )).toBe(false);
+
+    const duplicates = [
+      entry({ operationId: "duplicate-op", chatId: "target-chat" }),
+      entry({ operationId: "duplicate-op", chatId: "other-chat" }),
+    ];
+    const duplicateStorage = { getItem: () => JSON.stringify(duplicates) };
+    expect(readTurnMutationAdmissionOutboxState(duplicateStorage)).toEqual({
+      available: false,
+      entries: [],
+    });
+    expect(readTurnMutationOutboxState(duplicateStorage).entries[0].chatId).toBe("other-chat");
+
+    for (const storage of [
+      { getItem: () => "" },
+      { getItem: () => "{broken" },
+      { getItem: () => "{}" },
+      { getItem: () => JSON.stringify([entry(), { operationId: "invalid" }]) },
+      { getItem: () => { throw new Error("blocked"); } },
+    ]) {
+      expect(readTurnMutationAdmissionOutboxState(storage)).toEqual({
+        available: false,
+        entries: [],
+      });
+    }
+  });
 
   test("persists and removes a normalized operation", () => {
     expect(enqueueTurnMutation(entry())).toEqual(

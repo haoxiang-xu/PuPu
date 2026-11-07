@@ -434,6 +434,36 @@ export const readTurnMutationOutboxState = (storage = null) => {
   }
 };
 
+export const readTurnMutationAdmissionOutboxState = (storage = null) => {
+  let resolvedStorage = null;
+  try {
+    resolvedStorage = resolveStorage(storage);
+  } catch (_error) {
+    return { available: false, entries: [] };
+  }
+  if (!resolvedStorage) return { available: false, entries: [] };
+  try {
+    const stored = resolvedStorage.getItem(STORAGE_KEY);
+    const parsed = JSON.parse(stored === null ? "[]" : stored);
+    if (!Array.isArray(parsed) || parsed.length > MAX_ENTRIES) {
+      return { available: false, entries: [] };
+    }
+    const entries = [];
+    const seenOperationIds = new Set();
+    for (const item of parsed) {
+      const normalized = normalizeTurnMutationOutboxEntry(item);
+      if (!normalized || seenOperationIds.has(normalized.operationId)) {
+        return { available: false, entries: [] };
+      }
+      seenOperationIds.add(normalized.operationId);
+      entries.push(normalized);
+    }
+    return { available: true, entries };
+  } catch (_error) {
+    return { available: false, entries: [] };
+  }
+};
+
 export const readTurnMutationOutbox = (storage = null) =>
   readTurnMutationOutboxState(storage).entries;
 

@@ -84,6 +84,12 @@ const UNCHAIN_CUSTOM_PROVIDER_TEST_ENDPOINT =
 const buildSkeletonResourceRequest = (action, payload = {}) => {
   const transfer = buildManagedTransferRequest(action, payload);
   if (transfer) return transfer;
+  if (action === "workflow_tool_capabilities") {
+    if (payload === null || typeof payload !== "object" || Array.isArray(payload) || Object.keys(payload).length !== 0) {
+      throw new Error("Workflow Tool capability reads accept no payload fields");
+    }
+    return { method: "GET", path: "/skeleton_workflow_tools/capabilities?contract=workflow_tool_v1" };
+  }
   if (action === "hook_workflow_capabilities") {
     if (payload === null || typeof payload !== "object" || Array.isArray(payload) || Object.keys(payload).length !== 0) {
       throw new Error("Hook Workflow capability reads accept no payload fields");

@@ -338,6 +338,26 @@ def preview_skeleton_skill():
     return _run(lambda: skill_preview(_payload("skill", "include_user_dirs")))
 
 
+@api_blueprint.get("/skeleton_workflow_tools/capabilities")
+def skeleton_workflow_tool_capabilities():
+    denied = _authorized()
+    if denied is not None:
+        return denied
+
+    def operation():
+        if not request.args:
+            raise SkeletonResourceError("missing_field", ("query", "contract"), "Workflow Tool contract selector is required.")
+        if set(request.args) != {"contract"}:
+            raise SkeletonResourceError("unknown_field", ("query",), "Workflow Tool capability query contains an unknown field.")
+        if len(request.args.getlist("contract")) != 1:
+            raise SkeletonResourceError("invalid_shape", ("query", "contract"), "Workflow Tool contract selector must occur once.")
+        if request.args["contract"] != "workflow_tool_v1":
+            raise SkeletonResourceError("unknown_variant", ("query", "contract"), "Workflow Tool contract selector is unknown.")
+        from skeleton_workflow_tools import workflow_tool_capabilities
+        return workflow_tool_capabilities()
+    return _run(operation)
+
+
 @api_blueprint.get("/skeleton_tools/schemas")
 def list_skeleton_tool_schemas():
     """The runtime's own argument schemas for one builtin toolkit (#352).

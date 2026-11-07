@@ -64,6 +64,7 @@ import {
   buildRecoveredConfirmationRequest,
   durableInteractionRetryDelayMs,
   ensureDurableInteractionMessage,
+  findRetainedNativeSkeletonApprovalOwner,
   isRetryableDurableInteractionError,
   normalizePendingInteraction,
   prepareDurableInteractionResumeMessages,
@@ -72,6 +73,7 @@ import {
 import {
   enqueueExecutionCancel,
   readExecutionCancelOutbox,
+  readExecutionCancelOutboxState,
   recordExecutionCancelFailure,
   removeExecutionCancel,
 } from "./execution_cancel_outbox";
@@ -116,6 +118,7 @@ import {
   createTurnMutationOperationId,
   enqueueTurnMutation,
   fingerprintTurnMutationMessages,
+  readTurnMutationAdmissionOutboxState,
   readTurnMutationOutbox,
   readTurnMutationOutboxState,
   recordTurnMutationRebaseAck,
@@ -155,6 +158,11 @@ import {
   stop as progressStop,
 } from "../../../SERVICEs/progress_bus";
 import { getChatsStore } from "../../../SERVICEs/chat_storage";
+import {
+  admitDurableInteractionCancellation,
+  settleCancelledInteraction,
+} from "../../../SERVICEs/runtime_events/cancelled_interaction_settlement";
+import { recordCancelledSubagentSettlements } from "../../../SERVICEs/runtime_events/cancelled_subagent_settlement";
 
 const CHAT_STREAM_PROGRESS_ID = "chat_stream_active";
 const STREAM_REATTACH_FLUSH_MS = 100;
@@ -3284,6 +3292,44 @@ export const useChatStream = ({
     trackedExecutionCancellationsRef.current.set(key, tracked);
     return tracked.promise;
   }, []);
+  /* A terminal cancel reply that proves the pending approval itself was
+     cancelled settles that one call; the record is kept with the message.
+     The same admitted reply may carry the producer's settlement for each
+     delegate child it committed as cancelled; each settles only its own call. */
+  const recordCancelledInteraction = useCallback(
+    (chatId, response, target) => {
+      const evidence = admitDurableInteractionCancellation(response, target || {});
+      if (!chatId || !evidence) {
+        return;
+      }
+      const isActive = activeChatIdRef.current === chatId;
+      const current = isActive
+        ? messagesRef.current
+        : storageApi.getChatMessages(chatId);
+      const settled = settleCancelledInteraction(current, evidence);
+      const delegates = recordCancelledSubagentSettlements(
+        settled.messages,
+        response,
+        target || {},
+      );
+      const nextMessages = delegates.messages;
+      if (!settled.changed && !delegates.changed) {
+        return;
+      }
+      if (activeChatIdRef.current === chatId) {
+        messagesRef.current = nextMessages;
+        setMessages(nextMessages);
+      }
+      storageApi.setChatMessages(chatId, nextMessages, {
+        source: "execution-cancel-settlement",
+      });
+    },
+    [activeChatIdRef, messagesRef, setMessages, storageApi],
+  );
+
+  // The outbox drain effect must not restart when this callback changes.
+  const recordCancelledInteractionRef = useRef(recordCancelledInteraction);
+  recordCancelledInteractionRef.current = recordCancelledInteraction;
 
   const cancelCurrentStreamAndSettleMessages = useCallback(() => {
     const currentChatId = activeChatIdRef.current;
@@ -3371,6 +3417,11 @@ export const useChatStream = ({
           queuedCancellation.attemptId,
           queuedCancellation.interactionId,
         );
+        recordCancelledInteraction(
+          currentChatId,
+          result.response,
+          queuedCancellation,
+        );
       }
     });
     cancelBackgroundPersist(currentChatId);
@@ -3417,6 +3468,7 @@ export const useChatStream = ({
     invalidateRunGeneration,
     materializeStreamingMessages,
     messagesRef,
+    recordCancelledInteraction,
     setMessages,
     requestTrackedExecutionCancellation,
     setStreamErrorForChat,
@@ -3435,6 +3487,16 @@ export const useChatStream = ({
     const reported = new Set();
 
     const drainCancellationOutbox = async () => {
+      const admissionSnapshot = readExecutionCancelOutboxState();
+      if (!admissionSnapshot.available) {
+        if (!disposed) {
+          retryTimer = setTimeout(
+            drainCancellationOutbox,
+            EXECUTION_CANCEL_OUTBOX_RETRY_MS,
+          );
+        }
+        return;
+      }
       const entries = readExecutionCancelOutbox();
       for (const entry of entries) {
         if (disposed) {
@@ -3459,6 +3521,11 @@ export const useChatStream = ({
             entry.sessionId,
             entry.attemptId,
             entry.interactionId,
+          );
+          recordCancelledInteractionRef.current(
+            entry.ownerChatId,
+            result.response,
+            entry,
           );
         } else if (result?.retryBlocked && !reported.has(key)) {
           reported.add(key);
@@ -6025,13 +6092,83 @@ export const useChatStream = ({
         (renderRuntime.subagentMetaByRunId.has(runId) ||
           renderRuntime.subagentFramesByRunId.has(runId));
 
+      /* The first time this stream sees a child, its live frame list starts
+         from the frames already saved for that child on this message, so a
+         resumed stream appends to the child's history instead of replacing
+         it when the frames are flushed back. */
+      const adoptChildFrames = (childRunId) => {
+        if (renderRuntime.subagentFramesByRunId.has(childRunId)) {
+          return renderRuntime.subagentFramesByRunId.get(childRunId);
+        }
+        const owner = streamMessages.find(
+          (message) => message.id === assistantMessageId,
+        );
+        const saved = owner?.subagentFrames?.[childRunId];
+        const frames = Array.isArray(saved) ? [...saved] : [];
+        renderRuntime.subagentFramesByRunId.set(childRunId, frames);
+        return frames;
+      };
+      /* A replayed event must not add its frame twice. */
+      const appendChildFrame = (childRunId, frame) => {
+        const frames = adoptChildFrames(childRunId);
+        const eventId =
+          typeof frame?.event_id === "string" ? frame.event_id : "";
+        if (
+          eventId &&
+          frames.some(
+            (existing) =>
+              existing?.event_id === eventId && existing?.type === frame.type,
+          )
+        ) {
+          return false;
+        }
+        frames.push(frame);
+        dirtySubagentFrameRunIds.add(childRunId);
+        return true;
+      };
+
+      /* Metadata this message saved for a child before a cold restart; the
+         first update in a resumed stream starts from it instead of from an
+         empty record, so a sparse event cannot erase it. */
+      const savedChildMeta = (childRunId) => {
+        const owner = streamMessages.find(
+          (message) => message.id === assistantMessageId,
+        );
+        const saved = owner?.subagentMetaByRunId?.[childRunId];
+        return saved && typeof saved === "object" && !Array.isArray(saved)
+          ? saved
+          : null;
+      };
+
+      // Native node lifecycle is suppressed. Only a real lifecycle child on
+      // this assistant owner can authorize its normalized node observations.
+      const linkedNativeChildParent = (frame) => {
+        if (frame?.stage !== "runtime_event") return "";
+        const runId = typeof frame.run_id === "string" ? frame.run_id : "";
+        const parentId =
+          typeof frame.links?.parent_run_id === "string"
+            ? frame.links.parent_run_id
+            : "";
+        if (!runId.trim() || !parentId.trim() || runId === parentId) return "";
+        if (!streamMessages.some((message) =>
+          message.id === assistantMessageId && message.role === "assistant",
+        )) return "";
+        const knownLifecycle = [
+          renderRuntime.subagentMetaByRunId.get(parentId),
+          savedChildMeta(parentId),
+        ].some((meta) => typeof meta?.subagentId === "string" && meta.subagentId.trim());
+        return knownLifecycle ? parentId : "";
+      };
+
       const upsertSubagentMeta = (childRunId, updates) => {
         if (typeof childRunId !== "string" || !childRunId.trim()) {
           return null;
         }
 
         const previousMeta =
-          renderRuntime.subagentMetaByRunId.get(childRunId) || {};
+          renderRuntime.subagentMetaByRunId.get(childRunId) ||
+          savedChildMeta(childRunId) ||
+          {};
         const nextMeta = {
           subagentId:
             typeof updates?.subagentId === "string"
@@ -6079,9 +6216,7 @@ export const useChatStream = ({
         };
 
         renderRuntime.subagentMetaByRunId.set(childRunId, nextMeta);
-        if (!renderRuntime.subagentFramesByRunId.has(childRunId)) {
-          renderRuntime.subagentFramesByRunId.set(childRunId, []);
-        }
+        adoptChildFrames(childRunId);
         dirtySubagentMetaRunIds.add(childRunId);
         return nextMeta;
       };
@@ -7763,6 +7898,16 @@ export const useChatStream = ({
                   typeof frame.payload?.child_run_id === "string"
                     ? frame.payload.child_run_id
                     : "";
+                /* A child terminal event that carries a settlement is kept as
+                   a frame (validated when shown), appended to that child's
+                   frames already saved on this message, so a reopened chat
+                   still has the evidence. */
+                const carriesSettlement =
+                  (frame.type === "subagent_completed" ||
+                    frame.type === "subagent_failed") &&
+                  frame.payload !== null &&
+                  typeof frame.payload === "object" &&
+                  Object.prototype.hasOwnProperty.call(frame.payload, "settlement");
                 if (childRunId) {
                   const lifecycleStatus =
                     frame.type === "subagent_spawned"
@@ -7790,32 +7935,55 @@ export const useChatStream = ({
                                     childRunId,
                                   ).status
                                 : "";
+                  /* A sparse event (e.g. a cold settlement carrying only
+                     status) leaves out fields; the projection then fills
+                     subagent_id with the run id and parent_id with the parent
+                     run link. Those stand-ins and empty values only fill a
+                     gap: they never replace a value already known for this
+                     child. Values the event really provides still apply. */
+                  const knownMeta =
+                    renderRuntime.subagentMetaByRunId.get(childRunId) ||
+                    savedChildMeta(childRunId) ||
+                    {};
+                  const provided = (value, standIn, known) => {
+                    const text = typeof value === "string" ? value : "";
+                    const isStandIn = text === "" || text === standIn;
+                    return isStandIn && typeof known === "string" && known
+                      ? undefined
+                      : text;
+                  };
                   upsertSubagentMeta(childRunId, {
-                    subagentId:
-                      typeof frame.payload?.subagent_id === "string"
-                        ? frame.payload.subagent_id
+                    subagentId: provided(
+                      frame.payload?.subagent_id,
+                      childRunId,
+                      knownMeta.subagentId,
+                    ),
+                    mode: provided(frame.payload?.mode, "", knownMeta.mode),
+                    template: provided(
+                      frame.payload?.template,
+                      "",
+                      knownMeta.template,
+                    ),
+                    batchId: provided(
+                      frame.payload?.batch_id,
+                      "",
+                      knownMeta.batchId,
+                    ),
+                    parentId: provided(
+                      frame.payload?.parent_id,
+                      typeof frame.links?.parent_run_id === "string"
+                        ? frame.links.parent_run_id
                         : "",
-                    mode:
-                      typeof frame.payload?.mode === "string"
-                        ? frame.payload.mode
-                        : "",
-                    template:
-                      typeof frame.payload?.template === "string"
-                        ? frame.payload.template
-                        : "",
-                    batchId:
-                      typeof frame.payload?.batch_id === "string"
-                        ? frame.payload.batch_id
-                        : "",
-                    parentId:
-                      typeof frame.payload?.parent_id === "string"
-                        ? frame.payload.parent_id
-                        : "",
+                      knownMeta.parentId,
+                    ),
                     lineage: Array.isArray(frame.payload?.lineage)
                       ? frame.payload.lineage
                       : undefined,
                     status: lifecycleStatus,
                   });
+                  if (carriesSettlement) {
+                    appendChildFrame(childRunId, frame);
+                  }
                   syncAssistantSubagentState(patchTime, {
                     immediate:
                       frame.type === "subagent_completed" ||
@@ -8021,12 +8189,18 @@ export const useChatStream = ({
 
               /* ── Route subagent frames to their sub-timeline ── */
               /* Known subagent: run_id already registered via lifecycle events */
+              const linkedParent = linkedNativeChildParent(frame);
+              // A foreign execution observation must not fall into root final
+              // handling merely because its known child link is inadmissible.
+              if (linkedParent && frame.session_id !== effectiveThreadId) return;
+              const isLinkedNativeChild = Boolean(linkedParent);
               const isKnownChild = isKnownSubagentRunId(frameRunId);
               /* Unknown run_id that differs from parent: likely a subagent whose
                  lifecycle event hasn't arrived yet (race condition) or whose
                  run_id format differs. Register it eagerly. */
               const isUnknownChild =
                 !isKnownChild &&
+                !isLinkedNativeChild &&
                 frameRunId.length > 0 &&
                 renderRuntime.parentRunId &&
                 frameRunId !== renderRuntime.parentRunId;
@@ -8041,18 +8215,15 @@ export const useChatStream = ({
                 });
               }
 
-              if (isKnownChild || isUnknownChild) {
+              if (isKnownChild || isLinkedNativeChild || isUnknownChild) {
                 if (isUnknownChild) {
                   /* Eagerly register this run_id as a subagent so subsequent
                      frames are also routed here. */
                   upsertSubagentMeta(frameRunId, { status: "running" });
                 }
-                if (!renderRuntime.subagentFramesByRunId.has(frameRunId)) {
-                  renderRuntime.subagentFramesByRunId.set(frameRunId, []);
-                }
+                adoptChildFrames(frameRunId);
                 processChildToolInteractionSideEffects();
-                renderRuntime.subagentFramesByRunId.get(frameRunId).push(frame);
-                dirtySubagentFrameRunIds.add(frameRunId);
+                appendChildFrame(frameRunId, frame);
 
                 if (
                   frame.type === "error" &&
@@ -10232,13 +10403,97 @@ export const useChatStream = ({
         }
 
         clearAllPendingToolConfirmations(normalizedChatId);
-        let sourceMessages =
+        const nativeColdPendingCandidate =
+          pending.resumeKind === "skeleton" &&
+          pending.status === "awaiting_response" &&
+          pending.kind === "tool_approval" &&
+          pending.resumeAvailable === true;
+        let sourceMessages = [];
+        const activeMessages =
           activeChatIdRef.current === normalizedChatId &&
           Array.isArray(messagesRef.current)
             ? messagesRef.current
-            : typeof storageApi.getChatMessages === "function"
+            : null;
+        if (activeMessages?.length > 0 || !nativeColdPendingCandidate) {
+          sourceMessages = activeMessages ||
+            (typeof storageApi.getChatMessages === "function"
               ? storageApi.getChatMessages(normalizedChatId)
-              : [];
+              : []);
+        } else {
+          try {
+            if (typeof storageApi.getChatMessages !== "function") {
+              throw new Error("Persisted chat messages are unavailable.");
+            }
+            sourceMessages = storageApi.getChatMessages(normalizedChatId);
+            if (!Array.isArray(sourceMessages)) {
+              throw new Error("Persisted chat messages are unavailable.");
+            }
+          } catch (_error) {
+            const error = new Error("Persisted chat messages are unavailable.");
+            error.code = "durable_interaction_owner_store_unavailable";
+            throw error;
+          }
+        }
+        if (!Array.isArray(sourceMessages)) {
+          if (nativeColdPendingCandidate) {
+            const error = new Error("Persisted chat messages are unavailable.");
+            error.code = "durable_interaction_owner_store_unavailable";
+            throw error;
+          }
+          sourceMessages = [];
+        }
+        const nativeColdOwnerId = findRetainedNativeSkeletonApprovalOwner(
+          sourceMessages,
+          pending,
+          normalizedChatId,
+        );
+        let nativeColdAdmission = false;
+        if (nativeColdOwnerId && !pendingOwnedByCurrentRun) {
+          const cancelOutboxState = readExecutionCancelOutboxState();
+          const mutationOutboxState = readTurnMutationAdmissionOutboxState();
+          if (!cancelOutboxState.available || !mutationOutboxState.available) {
+            const error = new Error(
+              "Local recovery fences are unavailable; the approval remains pending.",
+            );
+            error.code = "durable_interaction_fence_store_unavailable";
+            throw error;
+          }
+          const competingCancellation = cancelOutboxState.entries.some(
+            (entry) =>
+              entry.ownerChatId === normalizedChatId ||
+              entry.sessionId === pending.sessionId ||
+              entry.attemptId === pending.sourceRunId ||
+              entry.sourceAttemptId === pending.sourceRunId,
+          );
+          const competingMutation = mutationOutboxState.entries.some(
+            (entry) => entry.chatId === normalizedChatId,
+          );
+          const trackedCancellation = [
+            ...trackedExecutionCancellationsRef.current.values(),
+          ].some(
+            (tracked) =>
+              tracked?.pending === true &&
+              (tracked.identity?.ownerChatId === normalizedChatId ||
+                tracked.identity?.sessionId === pending.sessionId),
+          );
+          if (
+            isCurrentLookup() &&
+            !streamingChatIdsRef.current.has(normalizedChatId) &&
+            !streamHandlesRef.current.has(normalizedChatId) &&
+            !stoppedRunChatIdsRef.current.has(normalizedChatId) &&
+            !competingCancellation &&
+            !competingMutation &&
+            !trackedCancellation
+          ) {
+            acceptedInteractionsByChatIdRef.current.set(normalizedChatId, {
+              runGeneration: activeRunGeneration,
+              sessionId: pending.sessionId,
+              attemptIds: new Set([pending.sourceRunId]),
+              interactionIds: new Set([pending.interactionId]),
+            });
+            nativeColdAdmission = true;
+          }
+        }
         const pendingMutationEntry = readTurnMutationOutbox().find(
           (entry) => entry.chatId === normalizedChatId,
         );
@@ -10308,10 +10563,13 @@ export const useChatStream = ({
             releaseTurnMutation(mutationOwner);
           }
         }
-        const ensured = ensureDurableInteractionMessage(
-          sourceMessages,
-          pending,
-        );
+        const ensured = nativeColdAdmission
+          ? {
+              messages: sourceMessages,
+              ownerMessageId: nativeColdOwnerId,
+              created: false,
+            }
+          : ensureDurableInteractionMessage(sourceMessages, pending);
         if (ensured.created) {
           commitForegroundMessages(normalizedChatId, ensured.messages);
           storageApi.setChatMessages(normalizedChatId, ensured.messages, {
@@ -10321,7 +10579,7 @@ export const useChatStream = ({
 
         const keepPendingActionable =
           pending.status !== "receipt_recorded" &&
-          pendingOwnedByCurrentRun;
+          (pendingOwnedByCurrentRun || nativeColdAdmission);
         const resolutionOutcome = pending.resolution?.outcome;
         const recoveredDecision =
           resolutionOutcome === "approved" ||
@@ -10376,7 +10634,8 @@ export const useChatStream = ({
            live, observing a durable receipt alone must not resume it. Only
            an identity-matched explicit human-input submission may do so. */
         if (
-          !hasAuthoritativeRecordedReceipt && pendingOwnedByCurrentRun
+          !hasAuthoritativeRecordedReceipt &&
+          (pendingOwnedByCurrentRun || nativeColdAdmission)
         ) {
           return pendingWithOwner;
         }
@@ -14781,6 +15040,15 @@ export const useChatStream = ({
     const targetChatId =
       typeof chatId === "string" && chatId.trim() ? chatId.trim() : "";
     if (!targetChatId || !hookMountedRef.current) return undefined;
+
+    const admissionOutboxSnapshot = readTurnMutationAdmissionOutboxState();
+    if (!admissionOutboxSnapshot.available) {
+      setStreamErrorForChat(
+        targetChatId,
+        CONTEXT_V2_TURN_MUTATION_MESSAGES.PERSIST,
+      );
+      return undefined;
+    }
 
     const recoveryOutboxSnapshot = readTurnMutationOutboxState();
     if (!recoveryOutboxSnapshot.available) {

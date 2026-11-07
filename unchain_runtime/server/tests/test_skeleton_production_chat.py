@@ -66,6 +66,110 @@ def test_public_skeleton_chat_runs_and_commits_only_end(production):
     assert "production-test-secret" not in json.dumps(launch.descriptor)
 
 
+def test_stream_worker_preserves_only_typed_committed_child_end_final():
+    from skeleton_child_events import ChildEndAttribution, attach_end_attribution
+    from skeleton_production_chat import _stream_worker_event
+
+    node_final = _stream_worker_event({
+        "type": "final_message", "scope": "node", "run_id": "node-N",
+        "content": "raw model final",
+    })
+    node_lifecycle = _stream_worker_event({
+        "type": "run_completed", "scope": "node", "run_id": "node-N",
+    })
+    child_end = attach_end_attribution({
+        "type": "final_message", "scope": "child_end", "run_id": "child-C",
+        "content": "committed graph End",
+    }, ChildEndAttribution(
+        root_run_id="root-R", parent_run_id="parent-P", child_run_id="child-C",
+        graph_id="child-G",
+    ))
+    untyped_end = {
+        "type": "final_message", "scope": "child_end", "run_id": "child-C",
+        "content": "untyped final",
+    }
+    mapping_attribution_end = {
+        **untyped_end,
+        "_pupu_skeleton_child_attribution": {
+            "child_run_id": "child-C", "root_run_id": "root-R",
+        },
+    }
+    wrong_identity_end = {
+        **child_end,
+        "run_id": "other-child-C",
+    }
+
+    assert node_final["type"] == "workflow_step_final"
+    assert node_lifecycle is None
+    assert _stream_worker_event(child_end) == child_end
+    assert _stream_worker_event(untyped_end) is None
+    assert _stream_worker_event(mapping_attribution_end) is None
+    assert _stream_worker_event(wrong_identity_end) is None
+
+    from dataclasses import replace
+    from skeleton_child_events import (
+        ChildNodeAttribution, attach_node_attribution, bind_transport_attempt,
+        strip_attribution, project_attribution,
+    )
+    attribution = ChildNodeAttribution(
+        root_run_id="root-R", parent_run_id="parent-P", child_run_id="child-C",
+        graph_id="child-G", node_run_id="node-N", source_type="final_message",
+    )
+    typed_final = attach_node_attribution({
+        "type": "final_message", "scope": "node", "run_id": "node-N",
+        "content": "native model observation",
+    }, attribution)
+    mapping = {**typed_final, "_pupu_skeleton_child_attribution": {
+        "node_run_id": "node-N", "source_type": "final_message",
+    }}
+    assert _stream_worker_event(mapping)["type"] == "workflow_step_final"
+    wrong_source = {**typed_final, "_pupu_skeleton_child_attribution":
+                    replace(attribution, source_type="response_received")}
+    assert _stream_worker_event(wrong_source)["type"] == "workflow_step_final"
+    assert _stream_worker_event({**typed_final, "type": "token_delta"})["type"] == "workflow_step_delta"
+    for kind in ("run_started", "run_completed", "run_failed", "interaction_requested"):
+        assert _stream_worker_event({**typed_final, "type": kind}) is None
+    with pytest.raises(ValueError, match="changed before projection"):
+        strip_attribution({**typed_final, "run_id": "wrong-N"})
+    with pytest.raises(ValueError, match="another root"):
+        bind_transport_attempt(typed_final, root_run_id="wrong-R", transport_attempt_id="T")
+    bound = bind_transport_attempt(typed_final, root_run_id="root-R", transport_attempt_id="T")
+    with pytest.raises(ValueError, match="already has a transport"):
+        bind_transport_attempt(bound, root_run_id="root-R", transport_attempt_id="T2")
+    _clean, bound_attribution = strip_attribution(bound)
+    with pytest.raises(ValueError, match="another transport"):
+        project_attribution({"run_id": "node-N", "links": {}}, bound_attribution,
+                            transport_attempt_id="wrong-T")
+    assert _stream_worker_event(typed_final) == typed_final, "typed N model observation must survive production projection"
+
+
+def test_host_typed_child_final_survives_actual_core_normalization():
+    from skeleton_child_events import (
+        ChildNodeAttribution, attach_node_attribution, bind_transport_attempt,
+        strip_attribution, project_attribution,
+    )
+    from skeleton_production_chat import _stream_worker_event
+    from unchain.events.bridge import RuntimeEventBridge
+    raw = attach_node_attribution({
+        "type": "final_message", "scope": "node", "run_id": "node-N",
+        "content": "native model observation",
+    }, ChildNodeAttribution(root_run_id="root-R", parent_run_id="parent-P",
+        child_run_id="child-C", graph_id="child-G", node_run_id="node-N",
+        source_type="final_message"))
+    projected = _stream_worker_event(raw)
+    bound = bind_transport_attempt(projected, root_run_id="root-R", transport_attempt_id="transport-T")
+    clean, attribution = strip_attribution(bound)
+    bridge = RuntimeEventBridge(session_id="public-native-child-session",
+        root_run_id="transport-T", trace_level="minimal")
+    normalized = [project_attribution(event.to_dict(), attribution,
+        transport_attempt_id="transport-T") for event in bridge.normalize(clean)]
+    assert [(event["type"], event["run_id"], event["links"]["parent_run_id"],
+             event["payload"].get("final_text")) for event in normalized] == [
+        ("step.completed", "node-N", "child-C", "native model observation")
+    ], "actual Host projection must reach the real Core model final_text branch"
+    assert "_pupu_skeleton_child_attribution" not in json.dumps(normalized)
+
+
 def test_second_chat_uses_new_root_and_keeps_prior_root_history(production):
     _store, options, calls = production
     for index, text in enumerate(("first request", "second request"), 1):
@@ -134,6 +238,156 @@ def test_public_twice_approval_freezes_graph_and_cold_resumes_exact_request(prod
     roots = [e for e in events if e.get("type") == "final_message"]
     assert len(roots) == 1 and roots[0]["content"] == "Approved End"
     assert interactions.get_pending_interaction("approval-session")["status"] == "none"
+
+
+def test_public_native_child_observations_bind_canonical_root_to_cold_transport(production, monkeypatch):
+    import durable_interaction_host as interactions
+    from skeleton_child_events import ChildEndAttribution, ChildNodeAttribution, strip_attribution
+    from skeleton_production_state import load_launch
+    from skeleton_resource_store import SkeletonResourceStore
+    from skeleton_chat_selection import prepare_skeleton_chat_selection
+    from skeleton_workflow_snapshot import freeze_skeleton_workflow_dependencies
+    from test_skeleton_agent_runtime import _final_response, _handoff_response
+    from test_skeleton_production_bindings import _api as bindings_api, _pool
+
+    store, options, calls = production
+    old = store.get_resource("production-agent")
+    child = agent("reviewer-agent")
+    child_end = next(node for node in child["nodes"] if node["id"] == "end")
+    child_end["config"]["execution"] = {
+        "inputs": [{"name": "message", "value": {
+            "kind": "literal", "value": "Public child End sentinel",
+        }, "missing": "error"}],
+        "outputs": [{"name": "message", "source": {"kind": "input", "path": ["message"]}}],
+    }
+    child = _pool(child, toolkit_id="CoreToolkit", enabled=["write"])
+    document = agent("production-agent", child_source={"kind": "embedded", "document": child})
+    subagent = next(node for node in document["nodes"] if node["type"] == "subagent_pool")["config"]["subagents"][0]
+    subagent["allowed_tools"] = ["write"]
+    store.save_draft(document, expected_edit_token=old["edit_token"])
+    options["toolkits"] = ["CoreToolkit"]
+    selection = prepare_skeleton_chat_selection(options, store=store)
+    frozen = freeze_skeleton_workflow_dependencies(selection, store=store)
+    profile = next(node for node in document["nodes"] if node["id"] == "kernel")["config"]["kernel"]["profile"]
+    assert profile["credential_ref"] == "test.key"
+    assert profile["credential_ref"] in options["skeleton_credentials"]
+    assert frozen is not None
+    bindings = bindings_api()(
+        selection, frozen, options, session_id="public-native-child-session",
+        workspace_root=options["workspace_root"], resource_store=store,
+    )
+    try:
+        child_tools = bindings.tools_for_node(SimpleNamespace(document_id="reviewer-agent", node_id="kernel"))
+        assert [tool.name for tool in child_tools] == ["write"]
+        assert bindings.tool_presentation("write")["toolkit_id"] == "core"
+    finally:
+        bindings.close()
+    target = Path(options["workspace_root"]) / "approved-child-write.txt"
+    target_text = "approved child write exactly once\n"
+    from test_skeleton_agent_runtime import _OpenAIStream
+    responses = [
+        _handoff_response(),
+        SimpleNamespace(id="child-write-turn", output=[{
+            "type": "function_call", "call_id": "child-write-call", "name": "write",
+            "arguments": json.dumps({"path": str(target), "content": target_text}),
+        }], usage={"input_tokens": 5, "output_tokens": 2, "total_tokens": 7}),
+        _final_response("child model final"),
+    ]
+    import openai
+
+    def client_factory(**kwargs):
+        def create(**wire):
+            calls.append({"client": deepcopy(kwargs), "wire": deepcopy(wire)})
+            assert responses, "cold child observation must not replay the provider request"
+            return _OpenAIStream(responses.pop(0))
+        return SimpleNamespace(responses=SimpleNamespace(create=create))
+
+    monkeypatch.setattr(openai, "OpenAI", client_factory)
+    root_run_id = "public-native-root-R"
+    transport_attempt_id = "public-native-resume-T"
+    initial = list(adapter.stream_chat_events(
+        message="approve child", history=[], options=options,
+        session_id="public-native-child-session", attempt_id=root_run_id,
+    ))
+    assert not target.exists()
+    assert len(calls) == 2
+    assert not [event for event in initial if event.get("type") == "final_message" and event.get("scope") == "root"]
+    pending = interactions.get_pending_interaction("public-native-child-session")
+    assert pending["source_run_id"] == root_run_id
+    launch_before = load_launch("public-native-child-session", root_run_id)
+    assert launch_before.descriptor["root_run_id"] == root_run_id
+    interactions.record_interaction_receipt(
+        session_id="public-native-child-session",
+        interaction_id=pending["interaction_id"], approved=True,
+    )
+    monkeypatch.setattr(
+        SkeletonResourceStore, "get_resource",
+        lambda *args, **kwargs: pytest.fail("mutable Skeleton resource lookup during cold resume"),
+    )
+    resumed = list(adapter.resume_chat_interaction_events(
+        session_id="public-native-child-session",
+        interaction_id=pending["interaction_id"], options=options,
+        attempt_id=transport_attempt_id, source_attempt_id=root_run_id,
+    ))
+
+    assert target.read_text(encoding="utf-8") == target_text
+    assert len(calls) == 3
+    launch_after = load_launch("public-native-child-session", root_run_id)
+    assert launch_after.descriptor == launch_before.descriptor
+    assert launch_after.plan.snapshot() == launch_before.plan.snapshot()
+    child_node_events = []
+    child_ends = []
+    for event in resumed:
+        clean, attribution = strip_attribution(event)
+        if type(attribution) is ChildNodeAttribution:
+            assert attribution.root_run_id == root_run_id
+            assert attribution.transport_attempt_id == transport_attempt_id
+            assert clean.get("run_id") == attribution.node_run_id
+            child_node_events.append((clean, attribution))
+        elif type(attribution) is ChildEndAttribution:
+            assert attribution.root_run_id == root_run_id
+            assert attribution.transport_attempt_id == transport_attempt_id
+            assert clean.get("run_id") == attribution.child_run_id
+            child_ends.append((clean, attribution))
+    assert any(event.get("type") == "request_messages" for event, _ in child_node_events)
+    assert any(event.get("type") == "response_received" for event, _ in child_node_events)
+    assert len(child_ends) == 1
+    assert child_ends[0][0]["content"] == "Public child End sentinel"
+    assert len({child_ends[0][1].root_run_id, child_ends[0][1].transport_attempt_id}) == 2
+    roots = [event for event in resumed if event.get("type") == "final_message" and event.get("scope") == "root"]
+    assert len(roots) == 1
+    assert roots[0]["run_id"] == root_run_id
+    assert roots[0]["content"] == "Public child End sentinel"
+    assert interactions.get_pending_interaction("public-native-child-session")["status"] == "none"
+
+    # All real resource/pool/credential, cold completion and one-write/three-SDK
+    # prerequisites above must pass before the observation-content regression.
+    finals = [(event, attribution) for event, attribution in child_node_events
+              if attribution.source_type == "final_message"]
+    assert len(finals) == 1
+    assert finals[0][0]["type"] == "final_message", "real child model final was discarded by Host projection"
+    expected_native_text = _final_response("child model final").output[0]["content"][0]["text"]
+    assert finals[0][0]["content"] == expected_native_text
+    from unchain.events.bridge import RuntimeEventBridge
+    from skeleton_child_events import project_attribution
+    bridge = RuntimeEventBridge(session_id="public-native-child-session",
+        root_run_id=transport_attempt_id, trace_level="minimal")
+    normalized = []
+    for raw in resumed:
+        clean, attribution = strip_attribution(raw)
+        normalized.extend(project_attribution(event.to_dict(), attribution,
+            transport_attempt_id=transport_attempt_id) for event in bridge.normalize(clean))
+    native_final = next(event for event in normalized if
+        event["run_id"] == finals[0][1].node_run_id and
+        event["payload"].get("final_text") == expected_native_text)
+    assert native_final["links"]["parent_run_id"] == child_ends[0][1].child_run_id
+    committed = next(event for event in normalized if
+        event["run_id"] == child_ends[0][1].child_run_id and
+        event["payload"].get("final_text") == "Public child End sentinel")
+    assert committed["links"]["parent_run_id"] == child_ends[0][1].parent_run_id
+    assert len([event for event in normalized if event["run_id"] == root_run_id and
+                event["payload"].get("final_text") == "Public child End sentinel"]) == 1
+    assert "_pupu_skeleton_child_attribution" not in json.dumps(normalized)
 
 
 def test_public_cancel_wait_blocks_late_answer_and_releases_guard(production, monkeypatch):

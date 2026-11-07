@@ -219,19 +219,25 @@ def test_real_skill_registry_and_deterministic_handler_read_exact_workspace_skil
 
 def test_real_deterministic_tool_uses_selected_toolkit_and_known_failure_contract(tmp_path):
     (tmp_path / "example.txt").write_text("exact local file")
-    host, _store, _selected = _host(tmp_path, options={"toolkits": ["CoreToolkit"]})
-    document = workflow("local-tool")
-    document["nodes"][1]["type"] = "tool_call"
-    document["nodes"][1]["config"] = {"execution": {"inputs": [{"name": "path", "value": {
-        "kind": "literal", "value": str(tmp_path / "example.txt")}, "missing": "error"}],
-        "outputs": [output("value", "result", ["ok"])]},
-        "tool": {"name": "read", "on_error": "stop", "approval_timeout_ms": 1000}}
+    document = _tool_leaf("local-tool", str(tmp_path / "example.txt"))
+    store = SkeletonResourceStore(tmp_path / "resources")
+    selected = _select(store, _call_step(agent("root"), _publish(store, document)))
+    host = _api()(selected, freeze_skeleton_workflow_dependencies(selected, store=store),
+                  {"toolkits": ["CoreToolkit"]}, session_id="session", workspace_root=str(tmp_path), resource_store=store)
     plan = prepare_workflow(document)
     execution = _execution(tmp_path, plan)
     runner = DurableWorkflowRunner(execution, host.child_handlers_factory(execution, plan))
     runner.create({"value": "unused"})
     result = runner.run()
     assert result.status == "completed" and result.outputs == {"value": True}
+
+
+def test_deterministic_tool_outside_the_fixed_closure_has_no_catalog(tmp_path):
+    host, _store, _selected = _host(tmp_path, options={"toolkits": ["CoreToolkit"]})
+    plan = prepare_workflow(_tool_leaf("outside-closure"))
+    with pytest.raises(SkeletonResourceError) as caught:
+        host.child_handlers_factory(_execution(tmp_path, plan), plan)
+    assert caught.value.code == "tool_unavailable" and host._instances == {}
 
 
 def test_call_prepares_real_handlers_for_reachable_child_node_kinds(tmp_path):
@@ -282,11 +288,11 @@ def test_no_pool_does_not_grant_selected_tools_to_kernel(tmp_path):
 
 @pytest.mark.parametrize("allowed,disabled", [(["glob"], []), (None, ["read"])])
 def test_each_child_attachment_rejects_excluded_deterministic_tool(tmp_path, allowed, disabled):
-    host, _store, _selected = _host(tmp_path, options={"toolkits": ["CoreToolkit"]})
-    document = workflow("local-tool")
-    document["nodes"][1]["type"] = "tool_call"
-    document["nodes"][1]["config"] = {"execution": {"inputs": [], "outputs": []},
-        "tool": {"name": "read", "on_error": "stop", "approval_timeout_ms": 1000}}
+    document = _tool_leaf("local-tool")
+    resources = SkeletonResourceStore(tmp_path / "resources")
+    selected = _select(resources, _call_step(agent("root"), _publish(resources, document)))
+    host = _api()(selected, freeze_skeleton_workflow_dependencies(selected, store=resources),
+                  {"toolkits": ["CoreToolkit"]}, session_id="session", workspace_root=str(tmp_path), resource_store=resources)
     plan = prepare_workflow(document)
     store = _execution(tmp_path, plan)
     admitted = host.child_handlers_factory(store, plan, allowed_tools=["read"], disabled_tools=[])
@@ -392,11 +398,166 @@ def test_real_core_factory_retains_every_authorized_workspace_root(tmp_path):
     assert host.workspace_roots == (str(first), str(second))
 
 
-def test_no_authorized_workspace_rejects_real_filesystem_toolkit_without_cwd_fallback(tmp_path):
+def _publish(store, document):
+    saved = store.save_draft(document)
+    version = store.publish_workflow(saved["id"], expected_edit_token=saved["edit_token"])
+    return {"workflow_id": version["workflow_id"], "revision_id": version["revision_id"]}
+
+
+def _tool_leaf(resource_id="tool-leaf", path="unused"):
+    document = workflow(resource_id)
+    document["nodes"][1]["type"] = "tool_call"
+    document["nodes"][1]["config"] = {"execution": {"inputs": [{"name": "path", "value": {
+        "kind": "literal", "value": path}, "missing": "error"}],
+        "outputs": [output("value", "result", ["ok"])]},
+        "tool": {"name": "read", "on_error": "stop", "approval_timeout_ms": 1000}}
+    return document
+
+
+def _skill_leaf(resource_id="skill-leaf"):
+    document = workflow(resource_id)
+    document["nodes"][1]["type"] = "skill_read"
+    document["nodes"][1]["config"] = {"execution": {"inputs": [],
+        "outputs": [output("value", "result", ["content"])]},
+        "skill": {"source": "workspace", "source_id": "workspace", "name": "unused"}}
+    return document
+
+
+def _passthrough(resource_id="passthrough"):
+    document = workflow(resource_id)
+    del document["nodes"][1]
+    document["nodes"][1]["config"]["execution"]["inputs"] = [
+        {"name": "value", "value": {"kind": "ref", "node_id": "start", "path": ["value"]}, "missing": "error"}]
+    document["edges"] = [{"id": "flow", "kind": "flow", "source_node_id": "start", "source_port_id": "out",
+        "target_node_id": "end", "target_port_id": "in"}]
+    return document
+
+
+def _call_step(root, ref):
+    root["nodes"].insert(1, {"id": "invoke", "type": "workflow_call", "config": {
+        "workflow": ref, "execution": {
+            "inputs": [{"name": "value", "value": {"kind": "literal", "value": "fixed"}, "missing": "error"}],
+            "outputs": [output("value", "result", ["value"])]}}})
+    root["edges"][0]["target_node_id"] = "invoke"
+    root["edges"].append({"id": "call-kernel", "kind": "flow", "source_node_id": "invoke",
+        "source_port_id": "out", "target_node_id": "kernel", "target_port_id": "in"})
+    return root
+
+
+def _hook_pool(root, ref, **extra):
+    root["nodes"].append({"id": "hooks", "type": "hooks_pool", "config": {"hooks": [{
+        "id": "before", "order": 1, "event": "before_tool_call", "tool_name": None,
+        "force_approval": False, "workflow": ref, **extra}]}})
+    root["edges"].append({"id": "attach-hooks", "kind": "attach", "source_node_id": "kernel",
+        "source_port_id": "attach_bot", "target_node_id": "hooks", "target_port_id": "attach_top"})
+    return root
+
+
+def _workflow_tool_pool(root, ref):
+    root["nodes"].append({"id": "tools", "type": "toolkit_pool", "config": {
+        "toolkits": [], "merge_with_user_selected": False,
+        "workflow_tools": [{"id": "fixed_tool", "workflow": ref}]}})
+    root["edges"].append({"id": "attach-tools", "kind": "attach", "source_node_id": "kernel",
+        "source_port_id": "attach_bot", "target_node_id": "tools", "target_port_id": "attach_top"})
+    return root
+
+
+def _catalog_consumer(store, kind):
+    """Agents whose fixed closure really resolves through the selected catalog."""
+    if kind == "skill_read":
+        return _call_step(agent("root"), _publish(store, _skill_leaf()))
+    leaf = _publish(store, _tool_leaf())
+    if kind == "workflow_call":
+        return _call_step(agent("root"), leaf)
+    if kind == "nested_workflow_call":
+        return _call_step(agent("root"), _publish(store, workflow("middle", call=(leaf["workflow_id"], leaf["revision_id"]))))
+    if kind == "hook":
+        return _hook_pool(agent("root"), leaf)
+    if kind == "nested_hook":
+        return _hook_pool(agent("root"), _publish(store, workflow("middle", call=(leaf["workflow_id"], leaf["revision_id"]))))
+    if kind == "embedded_hook":
+        return _hook_pool(agent("root"), {"kind": "embedded", "document": _tool_leaf("embedded-leaf")})
+    if kind == "subagent_hook":
+        return agent("root", child_source={"kind": "embedded", "document": _hook_pool(agent("child"), leaf)})
+    assert kind == "workflow_tool"
+    return _workflow_tool_pool(agent("root"), leaf)
+
+
+CATALOG_CONSUMERS = ["workflow_call", "nested_workflow_call", "hook", "nested_hook", "embedded_hook",
+                     "subagent_hook", "workflow_tool", "skill_read"]
+
+
+def _unauthorized(selected, store, options):
+    return _api()(selected, freeze_skeleton_workflow_dependencies(selected, store=store), options,
+        session_id="session", workspace_root=None, workspace_roots=[], resource_store=store)
+
+
+def _refuses_unused_core(monkeypatch):
+    monkeypatch.setattr(adapter, "_build_selected_toolkits",
+        lambda *_args, **_kwargs: pytest.fail("unused selected Toolkit was initialized"))
+
+
+@pytest.mark.parametrize("selected_id", ["core", "CoreToolkit"])
+@pytest.mark.parametrize("graph", ["no_pool", "empty_pool", "workflow_tool_without_tool_call"])
+def test_default_core_is_not_built_for_a_graph_that_never_consumes_it(tmp_path, monkeypatch, graph, selected_id):
     store = SkeletonResourceStore(tmp_path / "resources")
-    selected = _select(store, agent("root"))
+    root = agent("root")
+    if graph == "empty_pool":
+        root = _pool(root)
+        root["nodes"][-1]["config"]["toolkits"] = []
+    elif graph == "workflow_tool_without_tool_call":
+        root = _workflow_tool_pool(root, _publish(store, _passthrough()))
+    selected = _select(store, root)
+    _refuses_unused_core(monkeypatch)
+    host = _unauthorized(selected, store, {"toolkits": [selected_id]})
+    assert host._instances == {} and host.workspace_roots == ()
+    assert host._user_toolkit_ids == [adapter._canonical_runtime_toolkit_id("CoreToolkit")]
+    assert host.tools_for_node(_context()) == ()
+    assert len(host.workflow_tools_for_node(_context())) == (1 if graph == "workflow_tool_without_tool_call" else 0)
+    plan = prepare_agent_graph(root)
+    assert host.handlers_for_store(_execution(tmp_path, plan), plan) == {}
+    host.close()
+
+
+def test_disabled_hook_is_not_a_catalog_consumer(tmp_path, monkeypatch):
+    store = SkeletonResourceStore(tmp_path / "resources")
+    selected = _select(store, _hook_pool(agent("root"), _publish(store, _tool_leaf()), enabled=False))
+    _refuses_unused_core(monkeypatch)
+    assert _unauthorized(selected, store, {"toolkits": ["core"]})._instances == {}
+
+
+@pytest.mark.parametrize("kind", ["explicit", "merged", *CATALOG_CONSUMERS])
+def test_no_authorized_workspace_rejects_real_filesystem_toolkit_without_cwd_fallback(tmp_path, monkeypatch, kind):
+    # The fixture must really need Core: a graph that never consumes the selected
+    # Toolkit no longer builds it, so this refusal has to stay proven where Core is
+    # used. Neither options.workspaceRoot nor the process cwd may authorize it.
+    monkeypatch.chdir(tmp_path)
+    store = SkeletonResourceStore(tmp_path / "resources")
+    if kind == "explicit":
+        root = _pool(agent("root"))
+    elif kind == "merged":
+        root = _pool(agent("root"))
+        root["nodes"][-1]["config"].update(toolkits=[], merge_with_user_selected=True)
+    else:
+        root = _catalog_consumer(store, kind)
+    selected = _select(store, root)
     with pytest.raises(SkeletonResourceError) as caught:
-        _api()(selected, freeze_skeleton_workflow_dependencies(selected, store=store),
-            {"toolkits": ["CoreToolkit"], "workspaceRoot": str(tmp_path)},
-            session_id="session", workspace_root=None, workspace_roots=[], resource_store=store)
+        _unauthorized(selected, store, {"toolkits": ["CoreToolkit"], "workspaceRoot": str(tmp_path)})
     assert caught.value.code == "workspace_unavailable"
+
+
+@pytest.mark.parametrize("kind", CATALOG_CONSUMERS)
+def test_authorized_closure_keeps_the_selected_catalog_and_cleans_it_up(tmp_path, monkeypatch, kind):
+    store = SkeletonResourceStore(tmp_path / "resources")
+    selected = _select(store, _catalog_consumer(store, kind))
+    host = _api()(selected, freeze_skeleton_workflow_dependencies(selected, store=store),
+                  {"toolkits": ["CoreToolkit"]}, session_id="session", workspace_root=str(tmp_path), resource_store=store)
+    core = host._toolkit("core")
+    assert "read" in host._toolkit_catalog.tools
+    if kind != "skill_read":
+        assert host.tool_presentation("read")["toolkit_id"] == adapter._canonical_runtime_toolkit_id("CoreToolkit")
+    calls = []
+    monkeypatch.setattr(core, "disconnect", lambda: calls.append("core"), raising=False)
+    host.close()
+    host.close()
+    assert calls == ["core"]
