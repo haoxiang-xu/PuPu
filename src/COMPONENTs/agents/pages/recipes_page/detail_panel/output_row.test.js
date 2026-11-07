@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import OutputRow from "./output_row";
 
 jest.mock("../../../../../BUILTIN_COMPONENTs/select/select", () => {
@@ -450,5 +450,25 @@ describe("the field whose legal name is the empty string", () => {
   test("it stays typeable, because an empty box and it look the same", () => {
     show(mapping("result", [""]), { resultRoots: unnamed });
     expect(screen.getByPlaceholderText("field").value).toBe("");
+  });
+});
+
+describe("a row at the panel's minimum width (#341 acceptance finding)", () => {
+  /* At 300px the agent body scrolled sideways: `[name] ← [kind] ×` kept its
+   * text width past the body's edge. jsdom lays nothing out, so this pins the
+   * structure that lets the line wrap instead — a wrapping header and one
+   * growing `← kind ×` group that carries the remove button — while the hosted
+   * Playwright control measures the twenty shell units for real. */
+  test("the header may wrap and `← kind ×` moves as one group", () => {
+    const { onRemove } = show(mapping("result", ["message"]));
+    const header = screen.getByTestId("output-row-0-header");
+    expect(header.style.flexWrap).toBe("wrap");
+    const group = within(header).getByTestId("output-row-0-source");
+    expect(group.style.flex).toBe("1 1 auto");
+    expect(group.style.minWidth).toBe("0");
+    const remove = within(group).getByRole("button", { name: "Remove a" });
+    expect(within(group).getByTestId("select")).toBeInTheDocument();
+    fireEvent.click(remove);
+    expect(onRemove).toHaveBeenCalledTimes(1);
   });
 });
