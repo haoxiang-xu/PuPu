@@ -160,7 +160,10 @@ test("#341 Rename, Start caller context, cold read and shared shell geometry", a
   await expect(page.getByTestId("skeleton-input-variables")).toContainText("message");
   await expect(page.getByTestId("skeleton-input-variables").getByRole("button")).toHaveCount(0);
   await testInfo.attach("subagent-caller-input", { body: await page.screenshot(), contentType: "image/png" });
-  await page.keyboard.press("Escape");
+  // Escape is answered by the nearest thing on top (the detail panel), not the
+  // drill; the user's way back is the breadcrumb.
+  await page.getByRole("button", { name: `Back to ${document.name}`, exact: true }).click();
+  await expect(page.getByText(/owns this embedded graph/)).toHaveCount(0);
   await choose(page, "start");
   await expect(page.getByTestId("skeleton-input-variables")).toContainText("Caller input");
 
