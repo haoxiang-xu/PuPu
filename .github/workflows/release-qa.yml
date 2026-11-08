@@ -70,7 +70,7 @@ jobs:
           echo "QA_WHEEL_EVIDENCE=$(cd ../wheel && pwd)/unchain-artifact.json" >> "$GITHUB_ENV"
           python -m pip install --disable-pip-version-check -r unchain_runtime/server/requirements.txt
           python -m pip install --disable-pip-version-check --no-deps "$WHEEL"
-          node scripts/release-qa/verify-unchain-artifact.mjs --wheel "$WHEEL" --sha256 "$QA_WHEEL_SHA" --installed true > ../test-results/wheel-verify.json
+          node scripts/release-qa/verify-unchain-artifact.mjs --artifact "$WHEEL" --evidence "$EVIDENCE" --installed true > ../test-results/wheel-verify.json
           python -I -c "import importlib,json; m=importlib.import_module('unchain.runtime.runtime_protocol').runtime_protocol_manifest(); json.dump(m, open('../test-results/imported-manifest.json','w'), indent=2); assert m['manifest_digest']=='$QA_MANIFEST', m['manifest_digest']"
           echo "QA_WHEEL=$WHEEL" >> "$GITHUB_ENV"
           echo "QA_PYTHON=$(python -c 'import sys;print(sys.executable)')" >> "$GITHUB_ENV"

@@ -61,3 +61,4 @@ Failure policy: first failure is kept as-is; QA-assembly faults are corrected an
 
 ## Not done here / out of scope
 No real model API, keys, sandbox relaxation or identity-check relaxation; no local App; no Windows/macOS; wheel not rebuilt; no merge/close/Project change; Hook invocation covered through Codex's seed (above).
+- Correction 1 (run 42428263246): `verify-unchain-artifact.mjs` takes `--artifact`/`--evidence` (as `_shared-release-package.yml` calls it), not `--wheel/--sha256`; the wheel bytes are still checked by `sha256sum -c` and by the evidence verifier.
