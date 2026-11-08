@@ -4,17 +4,21 @@ name: "#210 packaged-App offline acceptance (QA only, non-delivery)"
 # Not for merge. Every identity is a dispatch input; nothing defaults to an old candidate.
 # Identity defaults = Codex hand-over 2026-11-08 (Host 4bfc5068 / tree d98a8245, canonical wheel run 42395251373).
 # The Linux sidecar and the App are each built once here and reused; CI wheels are a separate identity.
+# mode=stop_diag (2026-11-08): directed Stop check that reuses the sealed App preserved by the green run; see the stop-check job.
 on:
   workflow_dispatch:
     inputs:
+      mode: { required: true, type: choice, default: "acceptance", options: ["package_only", "acceptance", "stop_diag"], description: "package_only = package and seal; acceptance = package, seal and run the #210 matrix; stop_diag = directed Stop check on the retained sealed App (no rebuild)" }
       candidate_sha: { required: true, type: string, default: "4bfc5068260799329c142f6015229c529d8fc89a" }
       candidate_tree: { required: true, type: string, default: "d98a8245c462cbd216972964a9e41fd680af4d56" }
       wheel_run_id: { required: true, type: string, default: "42395251373", description: "run holding the one Core wheel artifact (canonical)" }
-      wheel_artifact: { required: true, type: string, default: "unchain-release-artifact" }
       wheel_sha256: { required: true, type: string, default: "c1213803c1b3bb58f4fc78a03b1a00f80e001d63be00c4afae53ab4d972b12ec" }
       manifest_digest: { required: true, type: string, default: "sha256:c172bc02718aee771ddd4d247904f13cdaf003d3794148fd3ecd4d4e9a419e6b", description: "expected runtime protocol manifest" }
       feature_snapshot_json: { required: true, type: string, default: '{"enable_user_access_to_agents":true,"enable_user_access_to_characters":false,"enable_custom_model_providers":true,"enable_computer_use":false}', description: "QA build feature flags (release profile yields {} = Agents hidden); disclosed" }
-      run_app_control: { required: true, type: boolean, default: false, description: "false = package and seal only" }
+
+      sealed_run_id: { required: true, type: string, default: "42451198262", description: "run whose 210-sealed-app artifact is reused" }
+      sealed_tgz_sha256: { required: true, type: string, default: "35d78c4d13398ac0bd8ac64c618e0093a104ecc754ab055b8693fff1498cf48a" }
+      sidecar_sha256: { required: true, type: string, default: "c3937de4553c0593a18276542fcd4e5d83389503d06b3e900983d6e8b07e7089", description: "that run's packed unchain-server" }
 
 permissions:
   contents: read
@@ -22,6 +26,7 @@ permissions:
 
 jobs:
   app:
+    if: ${{ inputs.mode == 'acceptance' || inputs.mode == 'package_only' }}
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
@@ -58,7 +63,7 @@ jobs:
         with: { python-version: "3.12" }
       - name: Read the one Core wheel
         uses: actions/download-artifact@v4
-        with: { name: "${{ inputs.wheel_artifact }}", path: wheel, run-id: "${{ inputs.wheel_run_id }}", github-token: "${{ github.token }}" }
+        with: { name: "unchain-release-artifact", path: wheel, run-id: "${{ inputs.wheel_run_id }}", github-token: "${{ github.token }}" }
       - name: Verify and install the wheel (harness reader only), record the imported manifest
         working-directory: candidate
         run: |
@@ -147,10 +152,10 @@ jobs:
           echo "QA_APP=$EXE" >> "$GITHUB_ENV"
           echo "QA_CANDIDATE_ROOT=$PWD" >> "$GITHUB_ENV"
       - name: Packaged App #210 observation paths offline (loopback only)
-        if: ${{ inputs.run_app_control }}
+        if: ${{ inputs.mode == 'acceptance' }}
         run: bash control/qa-210/tools/run_offline.sh app
       - name: Redact the capture and drop the raw pcap
-        if: ${{ always() && inputs.run_app_control }}
+        if: ${{ always() && inputs.mode == 'acceptance' }}
         run: |
           set -euo pipefail
           PCAP=test-results/app/loopback.pcap
@@ -163,6 +168,126 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: 210-app-acceptance-evidence
+          if-no-files-found: error
+          path: |
+            test-results/**
+            !test-results/**/home/**
+  stop-check:
+    if: ${{ inputs.mode == 'stop_diag' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      QA_CANDIDATE: ${{ inputs.candidate_sha }}
+      QA_CANDIDATE_TREE: ${{ inputs.candidate_tree }}
+      QA_WHEEL_SHA: ${{ inputs.wheel_sha256 }}
+      QA_MANIFEST: ${{ inputs.manifest_digest }}
+      QA_BINARY_SHA: ${{ inputs.sidecar_sha256 }}
+      QA_STOP_WAIT_MS: "60000"
+      QA_SEALED_FILES_SHA: "4e2843bd6106b3261b3d6fecfe135bd38141956fdf8fddb594520f4173ea5e37" # app-files.json of run 42451198262
+    steps:
+      - name: Validate immutable input identities
+        run: |
+          set -euo pipefail
+          [[ "$QA_CANDIDATE" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$QA_CANDIDATE_TREE" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$QA_WHEEL_SHA" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$QA_BINARY_SHA" =~ ^[0-9a-f]{64}$ ]]
+          [[ "${{ inputs.sealed_tgz_sha256 }}" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$QA_SEALED_FILES_SHA" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$QA_MANIFEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          [[ "${{ inputs.sealed_run_id }}" =~ ^[0-9]+$ ]]
+          [[ "$QA_STOP_WAIT_MS" =~ ^[0-9]+$ ]]
+      - uses: actions/checkout@v4
+        with: { path: control, persist-credentials: false }
+      - uses: actions/checkout@v4
+        with: { ref: "${{ inputs.candidate_sha }}", path: candidate, persist-credentials: false }
+      - name: Bind the candidate (dependency source only; the App itself comes sealed)
+        working-directory: candidate
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$QA_CANDIDATE"
+          test "$(git rev-parse 'HEAD^{tree}')" = "$QA_CANDIDATE_TREE"
+          mkdir -p ../test-results
+          { echo "candidate=$QA_CANDIDATE"; echo "tree=$QA_CANDIDATE_TREE"; echo "role=playwright-dependency-source-only"; } > ../test-results/candidate-identity.txt
+          git -C ../control rev-parse HEAD > ../test-results/control-identity.txt
+      - name: Read the sealed App preserved by the green run
+        uses: actions/download-artifact@v4
+        with: { name: 210-sealed-app, path: sealed, run-id: "${{ inputs.sealed_run_id }}", github-token: "${{ github.token }}" }
+      - name: Read that run's evidence (seal, sidecar and candidate identity)
+        uses: actions/download-artifact@v4
+        with: { name: 210-app-acceptance-evidence, path: prior-evidence, run-id: "${{ inputs.sealed_run_id }}", github-token: "${{ github.token }}" }
+      - name: Verify the seal and recover the App byte for byte, or stop
+        run: |
+          set -euo pipefail
+          ls -la sealed
+          echo "${{ inputs.sealed_tgz_sha256 }}  sealed/linux-unpacked.tgz" | sha256sum -c -
+          echo "$QA_SEALED_FILES_SHA  sealed/app-files.json" | sha256sum -c -
+          # the run's own seal record must agree with the dispatch inputs
+          sed 's#sealed/##' prior-evidence/sealed-app.sha256 | (cd sealed && sha256sum -c -)
+          grep -q "sidecar_sha256=$QA_BINARY_SHA" prior-evidence/sidecar-identity.txt
+          grep -q "candidate=$QA_CANDIDATE" prior-evidence/candidate-identity.txt
+          grep -q "tree=$QA_CANDIDATE_TREE" prior-evidence/candidate-identity.txt
+          mkdir -p recovered && tar -C recovered -xzf sealed/linux-unpacked.tgz
+          python3 -I - <<'PY'
+          from pathlib import Path
+          import hashlib, json, sys
+          root = Path('recovered/linux-unpacked'); sealed = json.load(open('sealed/app-files.json'))
+          now = {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(root.rglob('*')) if p.is_file()}
+          missing = sorted(set(sealed) - set(now)); extra = sorted(set(now) - set(sealed)); changed = sorted(k for k in sealed if k in now and now[k] != sealed[k])
+          json.dump({'sealed_files': len(sealed), 'recovered_files': len(now), 'missing': missing, 'extra': extra, 'changed': changed}, open('test-results/recovered-app-check.json', 'w'), indent=2)
+          assert not missing and not extra and not changed, (missing[:5], extra[:5], changed[:5])
+          PY
+          PACKED="recovered/linux-unpacked/resources/unchain_runtime/dist/linux/unchain-server"
+          echo "$QA_BINARY_SHA  $PACKED" | sha256sum -c -
+          cp prior-evidence/sealed-app.sha256 prior-evidence/sidecar-identity.txt prior-evidence/candidate-identity.txt prior-evidence/build-feature-flags.packaged.json test-results/
+          { echo "sealed_run_id=${{ inputs.sealed_run_id }}"; echo "sealed_tgz_sha256=${{ inputs.sealed_tgz_sha256 }}"; echo "app_files_sha256=$QA_SEALED_FILES_SHA"; echo "packed_sidecar_sha256=$QA_BINARY_SHA"; echo "wheel_sha256=$QA_WHEEL_SHA"; echo "manifest=$QA_MANIFEST"; } > test-results/recovered-app-identity.txt
+          sudo chown -R "$(id -u):$(id -g)" recovered
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - name: Install the candidate's locked dependencies (Playwright for the control only; no build)
+        working-directory: candidate
+        run: |
+          set -euo pipefail
+          npm ci
+          sha256sum package-lock.json > ../test-results/package-lock.sha256
+          node node_modules/@playwright/test/cli.js install-deps chromium
+          sudo apt-get update
+          sudo apt-get install -y xvfb dbus-x11 gnome-keyring libsecret-tools tcpdump
+      - name: Keep the recovered App's original Chromium sandbox and bind the App path
+        working-directory: candidate
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/recovered/linux-unpacked"
+          SANDBOX="$ROOT/chrome-sandbox"
+          sudo chown root:root "$SANDBOX"; sudo chmod 4755 "$SANDBOX"
+          stat -c '%U %a %n' "$SANDBOX" > ../test-results/chromium-sandbox.txt
+          EXE="$(node -e 'const p=require("./package.json");console.log(require("path").resolve(process.argv[1],p.build?.linux?.executableName||p.name.toLowerCase()))' "$ROOT")"
+          test -x "$EXE"
+          echo "QA_APP=$EXE" >> "$GITHUB_ENV"
+          echo "QA_CANDIDATE_ROOT=$PWD" >> "$GITHUB_ENV"
+          echo "QA_PYTHON=$(command -v python3)" >> "$GITHUB_ENV"
+          echo "QA_SITE=$(python3 -c 'import site;print(site.getsitepackages()[0])')" >> "$GITHUB_ENV"
+          echo "QA_WHEEL=not-installed-here" >> "$GITHUB_ENV"
+      - name: Directed Stop check in the recovered App, offline (loopback only)
+        env:
+          QA_APP_DRIVER: stop_diag_210.cjs
+          QA_APP_VERIFY: none
+        run: bash control/qa-210/tools/run_offline.sh app
+      - name: Decode the capture (requests; request/response pairs for cancel and pending) and drop the raw pcap
+        if: always()
+        run: |
+          set -euo pipefail
+          PCAP=test-results/app/loopback.pcap
+          test -f "$PCAP" || exit 0
+          sha256sum "$PCAP" > test-results/app/loopback.pcap.sha256
+          python3 -I control/qa-210/tools/pcap_http.py "$PCAP" test-results/app/requests-redacted.json
+          python3 -I control/qa-210/tools/pcap_http_pairs.py "$PCAP" test-results/app/cancel-pending-pairs.json /chat/executions/cancel /interactions /pending || echo "pair decoder failed (requests-redacted.json still stands)" > test-results/app/pair-decoder-failed.txt
+          rm -f "$PCAP"
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: 210-stop-diag-evidence
           if-no-files-found: error
           path: |
             test-results/**
