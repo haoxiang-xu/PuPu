@@ -522,3 +522,79 @@ the CRITICAL reports remain recorded, not waived. FTS and process-walk limits
 remain explicit. Four independent red cases and additional preservation controls
 precede edits. Verification uses the same fixed wheel c1213803 / manifest
 c172bc02 and unchanged sidecar 2dd91647. Packaged App remains separate NOT_RUN.
+
+### Packaged acceptance repair — APP-01 / APP-02 (2026-11-08)
+
+Workspace `/Users/red/Desktop/GITRepo/pupu-473-host-fixes`, branch
+`codex/ticket-473-host-fixes`, exact frozen dependency commit
+`d152412c271931dff2c67e98aaaafd0c81153b5b` / tree `d5e9a1ab`.
+Independent clone with no shared Git objects; remote clone was stopped during
+slow history transfer and the verified local snapshot was cloned without
+hardlinks. Frozen checkouts and their evidence remain read-only. No delivery
+commit, push, merge or close in this repair phase. Same canonical c1213803 wheel
+and c172bc02 manifest; no Core source change. Artifacts:
+`~/.codex/artifacts/ticket-473-host-fixes-20261108/`.
+
+APP-01: real Builder v2 Save of a first-hop legacy graph produces a managed row,
+even with zero Code sources. Inventory currently calls the graph-only reader
+and refuses source_api_required. Upgrade must read verified graph/source frames
+and dependencies on its existing connection, using the managed-aware admission
+view rather than weakening v1 guards. For managed rows, retain source manifest
+and blobs, recompute the aggregate content digest and v2 token; persist resource,
+archive and receipt in the SAME BEGIN IMMEDIATE transaction. Verify exact stored
+aggregate and prepare bounded transport response before commit. Bare graph
+upgrade/token behavior remains unchanged. Mixed unsupported graph kinds remain
+explicit refusals; do not widen the converter to accept arbitrary Code graphs.
+
+BC-473-009 / AC-473-009: v2-save -> inventory -> preview -> atomic apply -> v2 cold
+read must preserve authored Kernel, source identity, manifests/bytes and aliases.
+Stale token, stale preview, corrupt source metadata, unsupported mixed graph and
+response rejection must leave all tables unchanged. Referenced managed native
+children must be verified in that same snapshot, without bypassing blob checks.
+SEQ-473-006: migrate -> authored v2 save -> read-only inventory/preview -> failed
+CAS -> apply -> repeat refusal -> cold read; old source/launch snapshots unchanged.
+
+APP-02: deployed child caller supplies a text value under Start output NAMES;
+migrated Start exports text from result.message, which the caller omits. Preserve
+all existing named fields and text extraction. Add ONLY a missing message alias
+when a Start output explicitly reads result with a nonempty path whose first
+segment is the string message. Never overwrite an existing named message, add
+arbitrary source-path fields, or derive attachments/default permissions. Whole
+result paths and non-message paths keep the old input object. No new durable
+schema or selection fields. Existing retained launch inputs are not rewritten;
+new child invocations compute their input from their frozen plan. The read-only
+Start caller description must show the same additional alias when applicable,
+without changing graph data. This is an additive correction to #341's named-input
+contract, not a replacement of it.
+
+BC-473-010 / AC-473-010: actual upgraded child -> public delegate -> child Start
+-> real installed Core/strict offline SDK -> child/parent End. Verify the task
+reaches the child once, names and unrelated inputs remain unchanged, and whole
+object/non-message native graphs preserve their previous shape. UI description
+matches the producer's additional alias. SEQ-473-007: upgrade child+parent ->
+delegate -> cold same-chat resend; retain previous launch/document identities.
+
+Model assessment: partially suitable. Root owns APP-01's transaction, source
+ownership and exact-pair integration. After impact results and this contract are
+settled, gpt-6-luna may implement ONLY APP-02: `_child_inputs` in
+skeleton_agent_runtime.py, focused tests (new test_skeleton_child_inputs.py), and
+start_context.js plus its tests. It must preserve the existing name-mapped input
+contract, add the conditional alias, and update the description without any
+visual redesign. Read current instructions and run impact on these symbols
+before edits using the task-local offline graph wrapper. UNKNOWN requires text
+corroboration. Tests first; no network/Core/selection/persistence/guard/QA edits,
+no commit/push. Stop after the bounded diff and red/green evidence; root reviews
+before integration. Local heavy tests require root's serial window; source edits
+and light reads may proceed while root handles the independent transaction.
+
+Repair implementation review: APP-01 reuses `_frame` and `_AdmissionStore`;
+managed non-migration resources retain source_api_required. The managed branch
+uses the aggregate v2 token and the old bare branch retains its 16-character
+suffix. Result validation remains pre-commit. APP-02's bounded gpt-6-luna work
+was reviewed by root; root also added a genuine migrated Store parent/child
+execution regression through the public delegate tool and strict offline SDK.
+Old helper: 2 calls and failure; fixed helper: parent/child/parent, child completes.
+Source regression 146 passed, caller UI 23 passed, recovery/child/cancel selection
+43 passed (28 unrelated deselected). Initial fixture/dependency/bootstrap errors
+are retained in the artifact logs. Fresh post-edit graph and exact-pair packaged
+App validation follow before any acceptance claim; current ticket stays open.

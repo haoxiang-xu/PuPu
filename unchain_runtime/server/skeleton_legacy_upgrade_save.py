@@ -23,6 +23,8 @@ from skeleton_resource_store import (
     SkeletonResourceError, _digest, _fail, _json_text, _resource_id,
 )
 from skeleton_runtime_capability import require_skeleton_runtime, SkeletonRuntimeCompatibilityError
+from skeleton_code_source_store import _frame
+from skeleton_code_sources import ManagedCodeSourceResolver, _content_digest
 
 
 _RECEIPT = "pupu.legacy_upgrade.receipt.v1:"
@@ -440,7 +442,10 @@ def _resource(store, connection, resource_id, token):
         _fail("edit_conflict", ("expected_edit_token",), "Draft changed since it was read", status=409)
     if row["kind"] != "agent" or row["archived"]:
         _fail("wrong_kind" if row["kind"] != "agent" else "resource_archived", ("resource_id",), "Only active legacy Agents can be upgraded", status=409)
-    document = store._document(row)
+    # A normal Builder v2 Save opts even a source-free graph into the managed
+    # aggregate. Verify it on this transaction; do not weaken the v1 reader.
+    document = (_frame(connection, row)["document"] if row["source_identity"] is not None
+                else store._document(row))
     if connection.execute("SELECT 1 FROM store_meta WHERE key=?", (_RECEIPT + resource_id,)).fetchone():
         _fail("legacy_upgrade_already_applied", ("resource_id",), "This Agent was already explicitly upgraded", status=409)
     migration = connection.execute("SELECT * FROM legacy_migrations WHERE source_identity=? AND target_id=?", (row["source_identity"], resource_id)).fetchone()
@@ -479,6 +484,11 @@ def _check_native_children(store, connection, document, *, stack, depth=0):
 
 
 def _project(store, connection, row, original, migration, choices):
+    from skeleton_code_admission import _AdmissionStore
+
+    # References and published dependencies share the same verified graph/source
+    # snapshot. The public graph-only Store methods keep their existing guard.
+    store = _AdmissionStore(store, connection)
     projection = _Projection(store, connection, choices)
     try:
         document = projection.convert(original)
@@ -535,6 +545,15 @@ def apply_legacy_upgrade(store, resource_id, *, expected_edit_token, expected_pr
                 digest = _digest(document)
                 revision = row["edit_revision"] + 1
                 token = f"edit-{revision}-{digest[:16]}"
+                managed = "code_sources_manifest" in row.keys() and row["code_sources_manifest"] is not None
+                frame = None
+                if managed:
+                    frame = _frame(connection, row)
+                    frame["document"] = document
+                    frame["content_digest"] = _content_digest(document, frame["sources_manifest"])
+                    # Conversion may not lose, move or invent an owned source.
+                    ManagedCodeSourceResolver(frame)
+                    token = store._token(revision, frame["content_digest"])
                 now = int(time.time() * 1000)
                 archive = {"schema": "pupu.skeleton-legacy-upgrade.source.v1", "document": original,
                            "source_identity": row["source_identity"], "source_sha256": migration["source_sha256"]}
@@ -543,13 +562,25 @@ def apply_legacy_upgrade(store, resource_id, *, expected_edit_token, expected_pr
                     "prior_edit_token": row["edit_token"], "edit_token": token, "draft_digest": digest,
                     "projection_digest": expected_projection_digest, "runtime_manifest": preview["runtime_manifest"],
                     "source_policy": preview["source_policy"]}
-                connection.execute("""UPDATE resources SET name=?,description=?,draft_json=?,draft_digest=?,
-                    edit_revision=?,edit_token=?,updated_at_ms=? WHERE resource_id=? AND edit_token=?""",
-                    (document["name"], document.get("description", ""), _json_text(document), digest, revision,
-                     token, now, row["resource_id"], expected_edit_token))
+                fields = (document["name"], document.get("description", ""), _json_text(document), digest,
+                          revision, token, now)
+                if managed:
+                    connection.create_function("pupu_managed_write", 0, lambda: 1)
+                    connection.execute("""UPDATE resources SET name=?,description=?,draft_json=?,draft_digest=?,
+                        edit_revision=?,edit_token=?,updated_at_ms=?,code_sources_manifest=?,code_content_digest=?
+                        WHERE resource_id=? AND edit_token=?""", (*fields,
+                        _json_text(frame["sources_manifest"]), frame["content_digest"], row["resource_id"], expected_edit_token))
+                else:
+                    connection.execute("""UPDATE resources SET name=?,description=?,draft_json=?,draft_digest=?,
+                        edit_revision=?,edit_token=?,updated_at_ms=? WHERE resource_id=? AND edit_token=?""",
+                        (*fields, row["resource_id"], expected_edit_token))
                 connection.execute("INSERT INTO store_meta(key,value) VALUES(?,?)", (_ARCHIVE + row["resource_id"], _json_text(archive)))
                 connection.execute("INSERT INTO store_meta(key,value) VALUES(?,?)", (_RECEIPT + row["resource_id"], _json_text(receipt)))
                 saved_row = connection.execute("SELECT * FROM resources WHERE resource_id=?", (row["resource_id"],)).fetchone()
+                if managed:
+                    # The response bound and source validation both precede
+                    # commit, so any refusal rolls back the entire upgrade.
+                    _frame(connection, saved_row)
                 result = {**store._summary(saved_row), "document": deepcopy(document), "diagnostics": store.diagnose(document)}
                 # Trusted Host-only seam: prepare/validate transport bytes while
                 # all three writes can still roll back. No wire callback and no

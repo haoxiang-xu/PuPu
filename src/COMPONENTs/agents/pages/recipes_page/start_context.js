@@ -1,8 +1,8 @@
 /* Caller input is an editor description, never graph data. The library does
  * not identify a caller. Subagent input names come from the CURRENT child
  * Start outputs, exactly as SkeletonAgentRuntime._child_inputs constructs
- * them; every name receives the same delegated message text. Output paths
- * describe what Start exports and do not name the caller's input fields. */
+ * them; every name receives the same delegated message text. When an output
+ * explicitly reads result.message, the runtime also supplies a message alias. */
 const object = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 const unknown = (hook = false) => ({
   kind: "unknown",
@@ -37,9 +37,19 @@ export function start_context_for_view(steps, frames, document) {
     if (!object(row) || typeof row.name !== "string" || row.name.length === 0 || names.has(row.name)) return invalid();
     names.add(row.name);
   }
+  const needsMessageAlias = outputs.some((row) =>
+    object(row.source)
+    && row.source.kind === "result"
+    && Array.isArray(row.source.path)
+    && row.source.path.length > 0
+    && row.source.path[0] === "message"
+  ) && !names.has("message");
+  if (needsMessageAlias) names.add("message");
   return {
     kind: "subagent",
     fields: [...names].map((name) => ({ name, type: "text" })),
-    message: "When called from this Subagent Pool, each field receives the same delegated message text. These caller fields follow this Start's output names.",
+    message: needsMessageAlias
+      ? "When called from this Subagent Pool, each field receives the same delegated message text. These caller fields follow this Start's output names, with an explicit message alias for the result.message output."
+      : "When called from this Subagent Pool, each field receives the same delegated message text. These caller fields follow this Start's output names.",
   };
 }
