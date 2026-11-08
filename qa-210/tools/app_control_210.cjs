@@ -309,7 +309,9 @@ async function main() {
   let observeResourceId = null;
   try {
     let page = await launch();
-    // authorised workspace through the real Workspaces editor (the write tool needs one)
+    // authorised workspace through the real Workspaces editor (the write tool needs one);
+    // the Workspaces entry lives in the side menu, which starts closed (width 0, overflow hidden).
+    await openSidebarIfNeeded(page);
     await page.getByRole('button', { name: 'Workspaces', exact: true }).click();
     const rootInput = page.getByRole('textbox', { name: 'default-workspace-root', exact: true });
     await rootInput.fill(workspace); await rootInput.press('Enter');
