@@ -149,8 +149,8 @@ function InventorySection({ state, document, isDark }) {
           The upgrade host is not available here: {safe_text((state.error && (state.error.message || state.error.code)) || "no answer")}
         </span>
       )}
-      {state.phase === PHASES.NATIVE && <span data-testid="legacy-upgrade-native" style={NOTE}>The host reports this draft already native: nothing needs an upgrade decision.</span>}
-      {inventory && state.phase !== PHASES.NATIVE && (
+      {inventory && inventory.state === "native_draft" && <span data-testid="legacy-upgrade-native" style={NOTE}>No upgrade decisions are needed. Preview the graph, then explicitly upgrade it.</span>}
+      {inventory && (
         <>
           <span style={NOTE}>
             {`State ${safe_text(inventory.state)} · ${inventory.requirements.length} ${inventory.requirements.length === 1 ? "item" : "items"} · source `}
@@ -241,11 +241,13 @@ function ToolkitChoice({ slot, answer, document, resourceId, missing, disabled, 
   }, [resourceId]);
   const installed = catalog.rows.find((row) => row.toolkitId === current.toolkit_id) || null;
   const names = installed ? installed.tools.map((tool) => tool.name) : [];
+  const shownNames = [...names, ...(Array.isArray(current.enabled_tools)
+    ? current.enabled_tools.filter((name) => !names.includes(name)) : [])];
   const write = (patch) => onAnswer({ ...current, ...patch });
   const toggle = (name) => {
-    const set = new Set(current.enabled_tools === null ? names : current.enabled_tools);
-    if (set.has(name)) set.delete(name); else set.add(name);
-    write({ enabled_tools: names.filter((item) => set.has(item)) });
+    const selected = current.enabled_tools === null ? names : current.enabled_tools;
+    write({ enabled_tools: selected.includes(name)
+      ? selected.filter((item) => item !== name) : [...selected, name] });
   };
   return (
     <div data-testid={`legacy-upgrade-slot-${slot.kind}`} style={card(isDark)}>
@@ -260,12 +262,13 @@ function ToolkitChoice({ slot, answer, document, resourceId, missing, disabled, 
         <Button label="Choose tools" onClick={() => write({ enabled_tools: Array.isArray(current.enabled_tools) ? current.enabled_tools : [] })} disabled={disabled} style={{ ...SMALL, color: Array.isArray(current.enabled_tools) ? "#4a5bd8" : undefined }} />
         <span style={NOTE}>{current.enabled_tools === null ? "every tool of the toolkit (null)" : `${current.enabled_tools.length} named ${current.enabled_tools.length === 1 ? "tool" : "tools"}`}</span>
       </div>
-      {Array.isArray(current.enabled_tools) && names.length > 0 && (
+      {Array.isArray(current.enabled_tools) && shownNames.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-          {names.map((name) => (
+          {shownNames.map((name) => (
             <label key={name} style={{ ...ROW, fontSize: 11.5 }}>
               <input type="checkbox" aria-label={name} checked={current.enabled_tools.includes(name)} disabled={disabled} onChange={() => toggle(name)} />
               <span style={MONO}>{name}</span>
+              {!names.includes(name) && <span style={NOTE}>not in the current tool list; kept as written</span>}
             </label>
           ))}
         </div>

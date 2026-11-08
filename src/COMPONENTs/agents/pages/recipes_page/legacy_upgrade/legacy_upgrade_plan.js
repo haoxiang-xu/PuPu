@@ -211,7 +211,9 @@ export function build_choices(slots, answers, configured) {
     if (slot.kind === "kernel") choices.kernels.push({ path: [...slot.address], kernel: clone(answer.kernel), model_policy: answer.model_policy, prompt_policy: answer.prompt_policy, accept_projection: true });
     else if (slot.kind === "toolkit") choices.toolkits.push({ path: [...slot.address], toolkit_id: answer.toolkit_id, enabled_tools: answer.enabled_tools === null ? null : [...answer.enabled_tools], discard_unsupported: answer.discard_unsupported });
     else if (slot.kind === "reference") choices.references.push({ path: [...slot.address], source_scope: answer.source_scope, agent_id: answer.agent_id });
-    else if (slot.kind === "acknowledge") choices.acknowledged.push({ path: [...slot.address], code: slot.code });
+    // Inventory can request local review without requiring a wire choice.
+    // Completeness above still requires the author to check that review.
+    else if (slot.kind === "acknowledge" && slot.send_to_host !== false) choices.acknowledged.push({ path: [...slot.address], code: slot.code });
   }
   return missing.length === 0 ? { ok: true, choices, missing } : { ok: false, choices: null, missing };
 }

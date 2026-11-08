@@ -211,7 +211,7 @@ describe("legacy upgrade controller", () => {
     const { services } = services_for(flat, { inspect: async () => ({ response: flat.inventory, payload: native }) });
     const controller = createLegacyUpgradeController(services);
     await controller.open(resource_of(flat));
-    expect(controller.current().phase).toBe(PHASES.NATIVE);
+    expect(controller.current().phase).toBe(PHASES.READY);
     expect(controller.current().slots).toEqual([]);
   });
 

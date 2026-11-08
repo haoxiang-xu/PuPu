@@ -1,3 +1,4 @@
+import { read_legacy_chat_catalog } from './legacy_chat_options';
 import { createSkeletonRunObservationApi } from './skeleton_run_observation_api';
 import {
   EMPTY_MODEL_CATALOG,
@@ -1371,6 +1372,7 @@ export const createUnchainApi = () => {
     ...createManagedCodeApi(assertBridgeMethod, withTimeout),
     ...createManagedTransferApi(assertBridgeMethod, withTimeout),
     ...createLegacyUpgradeApi(assertBridgeMethod, withTimeout),
+    getLegacyChatCatalog: () => read_legacy_chat_catalog(assertBridgeMethod, withTimeout),
     ...createSkeletonHookApi(assertBridgeMethod, withTimeout),
     ...createSkeletonHookToolSetApi(assertBridgeMethod, withTimeout),
     ...createSkeletonHookWorkflowApi(assertBridgeMethod, withTimeout),

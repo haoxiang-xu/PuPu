@@ -155,6 +155,8 @@ describe("sending with a stored Skeleton Agent", () => {
       listRecipes: jest.fn(async () => ({
         recipes: [{ name: "Default" }, { name: "Research Agent" }],
       })),
+      getLegacyChatCatalog: jest.fn(async () => ({ schema: 'pupu.legacy-chat-catalog.v1',
+        runtime_manifest_digest: 'sha256:' + 'a'.repeat(64), resources: [], aliases: [] })),
       listSkeletonResources: jest.fn(async () => ({ resources: RESOURCES })),
       startStream: jest.fn(),
       startStreamV2: jest.fn((_payload, handlers = {}) => {
@@ -236,6 +238,31 @@ describe("sending with a stored Skeleton Agent", () => {
       { label: "Default", value: "Default" },
       { label: "Research Agent", value: "Research Agent" },
     ]);
+  });
+
+  test("old chat alias switches to the upgraded saved Agent only on new send", async () => {
+    window.unchainAPI.getModelCatalog.mockResolvedValue({ activeModel: "", providers: {openai: [], ollama: [], anthropic: []}, model_capabilities: {} });
+    window.unchainAPI.getLegacyChatCatalog.mockResolvedValue({ schema: 'pupu.legacy-chat-catalog.v1',
+      runtime_manifest_digest: 'sha256:' + 'a'.repeat(64),
+      resources: [{resource_id: 'research.agent:v2', upgraded: true}],
+      aliases: [{source_scope: 'user:agent_recipes', legacy_name: 'Research Agent', resource_ids: ['research.agent:v2']}] });
+    renderChat();
+    await waitFor(() => expect(lastChatInputProps?.skeletonAgentOptions?.length).toBe(2));
+    await act(async () => lastChatInputProps.onSelectRecipe('Research Agent'));
+    await waitFor(() => expect(lastChatInputProps.sendDisabled).toBe(false));
+    await waitFor(() => {
+      const before = getChatsStore().chatsById[getChatsStore().activeChatId];
+      expect(before.selectedRecipeName).toBe('Research Agent');
+      expect(before.selectedSkeletonAgentId || '').toBe('');
+    });
+    await send('use upgraded legacy Agent');
+    await waitFor(() => expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1));
+    expect(sentOptions().skeleton_selection.resource_id).toBe('research.agent:v2');
+    expect(sentOptions()).not.toHaveProperty('recipe_name');
+    const chat = getChatsStore().chatsById[getChatsStore().activeChatId];
+    expect(chat.selectedRecipeName).toBe('Research Agent');
+    expect(chat.selectedSkeletonAgentId || '').toBe('');
+    expect(lastChatInputProps.recipeOptions).toEqual([{label: 'Default', value: 'Default'}]);
   });
 
   test("the request carries the closed three-field selection and no Recipe name", async () => {

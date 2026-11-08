@@ -188,8 +188,16 @@ def requirements_from_frozen(selection, workflows, *, mode, session_id, owner_ch
 @_safe_boundary
 def requirements_for_start(query, *, memory_provider, store=None):
     query = _query(query, "start")
-    selection = prepare_skeleton_chat_selection({"skeleton_selection": query["selection"],
-        "recipe_name": query["recipe_name"]}, store=store)
+    from skeleton_legacy_chat import resolve_legacy_chat_options
+    options = {"recipe_name": query["recipe_name"]}
+    if query["selection"] is not None:
+        options["skeleton_selection"] = query["selection"]
+    options = resolve_legacy_chat_options(options, store=store)
+    if "skeleton_selection" not in options:
+        if not query["recipe_name"]:
+            _fail(path=("query", "selection"))
+        return {"schema": _RESULT_SCHEMA, "kind": "not_skeleton"}
+    selection = prepare_skeleton_chat_selection(options, store=store)
     workflows = freeze_skeleton_workflow_dependencies(selection, store=store)
     return requirements_from_frozen(selection, workflows, mode="start", session_id=query["session_id"],
         owner_chat_id=query["owner_chat_id"], memory_provider=memory_provider)

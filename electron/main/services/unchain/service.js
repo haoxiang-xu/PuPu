@@ -1,3 +1,4 @@
+const { validateLegacyChatCatalog } = require('../../../shared/legacy_chat_catalog');
 const { buildSkeletonRunObservationRequest, checkSkeletonRunObservationRequest, checkSkeletonRunObservation, readSkeletonRunObservationResponse } = require('./skeleton_run_observation');
 const { request: nodeHttpRequest } = require("http");
 const { request: nodeHttpsRequest } = require("https");
@@ -85,6 +86,10 @@ const UNCHAIN_CUSTOM_PROVIDER_TEST_ENDPOINT =
 
 const buildSkeletonResourceRequest = (action, payload = {}) => {
   if (action === "run_observation") return buildSkeletonRunObservationRequest(payload);
+  if (action === "legacy_chat_catalog") {
+    if (!payload || typeof payload !== "object" || Array.isArray(payload) || Reflect.ownKeys(payload).length) throw new Error("Legacy chat catalog accepts no payload");
+    return { method: "GET", path: "/skeleton_resources/legacy_chat_catalog?contract=legacy_chat_v1" };
+  }
   const transfer = buildManagedTransferRequest(action, payload);
   if (transfer) return transfer;
   if (action === "workflow_tool_capabilities") {
@@ -4671,6 +4676,7 @@ const createUnchainService = ({
       ? await readSkeletonRunObservationResponse(response)
       : await readSkeletonResourceResponse(response);
     if (action === "run_observation") return checkSkeletonRunObservation(result, observationScope);
+    if (action === "legacy_chat_catalog") return validateLegacyChatCatalog(result);
     return isManagedCodeAction(action) ? validateManagedCodeReply(action, result) : result;
   };
 

@@ -71,12 +71,16 @@ const buildSkeletonCredentialQuery = (payload) => {
   if (!isRecord(payload)) return null;
   const options = isRecord(payload.options) ? payload.options : {};
   const resume = typeof payload.mode === "string" && payload.mode.trim().toLowerCase() === "resume_interaction";
-  if (!resume && !has(options, "skeleton_selection")) return null;
+  if (!resume && !has(options, "skeleton_selection") && !options.recipe_name) return null;
   // Match the actual HTTP route, not Main's legacy execution aliases. Native
   // requests need an explicit canonical thread; a separate timestamp fallback
   // could never be the identity later checked by the stream route.
   const sessionId = payload.threadId || payload.thread_id;
   const ownerChatId = payload.owner_chat_id;
+  // Old non-Context callers lack a durable identity and keep their original
+  // path. A server-side upgraded alias still refuses an ineligible launch.
+  if (!resume && !has(options, "skeleton_selection") &&
+      (!identifier(sessionId) || !identifier(ownerChatId))) return null;
   const interactionId = resume ? payload.interaction_id : "";
   const sourceAttemptId = resume ? payload.source_attempt_id ?? "" : "";
   if (!identifier(sessionId) || !identifier(ownerChatId) ||
@@ -91,7 +95,7 @@ const buildSkeletonCredentialQuery = (payload) => {
     owner_chat_id: ownerChatId,
     interaction_id: interactionId,
     source_attempt_id: sourceAttemptId,
-    selection: resume ? null : jsonCopy(options.skeleton_selection),
+    selection: resume || !has(options, "skeleton_selection") ? null : jsonCopy(options.skeleton_selection),
     recipe_name: recipeName,
     memory_agent_config: has(payload, "memory_agent_config") ? jsonCopy(payload.memory_agent_config) : null,
   };
@@ -173,7 +177,8 @@ const resolveSkeletonCredentials = (requirements, query, { customProviders = [],
   validateQuery(query);
   if (!isRecord(requirements) || ![REQUIREMENTS_SCHEMA, REQUIREMENTS_SOURCE_SCHEMA].includes(requirements.schema)) fail();
   if (requirements.kind === "not_skeleton") {
-    if (!closed(requirements, ["schema", "kind"]) || requirements.schema !== REQUIREMENTS_SCHEMA || query.mode !== "resume") fail();
+    if (!closed(requirements, ["schema", "kind"]) || requirements.schema !== REQUIREMENTS_SCHEMA ||
+        (query.mode !== "resume" && !(query.selection === null && query.recipe_name !== ""))) fail();
     return null;
   }
   if (!closed(requirements, ["schema", "kind", "scope", "profiles"]) || requirements.kind !== "skeleton" ||

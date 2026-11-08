@@ -895,6 +895,11 @@ export default function SkeletonResourcePage({
   const showRun = runOpen && ready;
   const upgradeCandidate = ready && steps.length === 0 && !pinned && !runViewScope
     && is_legacy_upgrade_candidate(session.document);
+  // First-hop migration carries its source on the root graph. Its old pool
+  // converter must not bypass the explicit, source-kind-preserving upgrade.
+  // Native graphs with a legacy pool but no migration source keep their route.
+  const migratedLegacy = ready && session.document.nodes.some((node) => node?.config
+    && Object.prototype.hasOwnProperty.call(node.config, "legacy_source"));
   const upgradeBlocked = session.dirty
     ? "Save or undo your edits first: the upgrade reads the stored Agent."
     : session.saving || session.converting
@@ -1140,8 +1145,12 @@ export default function SkeletonResourcePage({
             onOpenPinnedWorkflow={open_pinned_workflow}
             onEntryIdRepaired={entry_id_repaired}
             embedded={steps.length > 0}
-            onConvertLegacy={convertLegacyPools}
-            canConvertLegacy={can_convert_legacy_pools(session) && steps.length === 0}
+            onConvertLegacy={migratedLegacy ? () => {
+              if (upgradeCandidate && !upgradeBlocked) setUpgradeOpen(true);
+            } : convertLegacyPools}
+            canConvertLegacy={migratedLegacy
+              ? Boolean(upgradeCandidate && !upgradeBlocked)
+              : can_convert_legacy_pools(session) && steps.length === 0}
             convertingLegacy={session.converting}
           />
         </FloatingDetailShell>

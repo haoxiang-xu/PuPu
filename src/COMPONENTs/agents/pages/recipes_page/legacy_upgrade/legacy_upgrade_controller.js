@@ -129,9 +129,11 @@ export function createLegacyUpgradeController(services) {
     const payload = result && result.payload;
     const { slots, info } = slots_for_inventory(payload && payload.requirements);
     return set({
-      phase: payload && payload.state === "native_draft" ? PHASES.NATIVE : PHASES.READY,
+      // No outstanding decisions is not an explicit-upgrade receipt. Even an
+      // authored native draft still needs its preview and deliberate apply.
+      phase: PHASES.READY,
       inventory: payload || null,
-      slots,
+      slots: slots.map((slot) => slot.kind === "acknowledge" ? { ...slot, send_to_host: false } : slot),
       info,
       preview: null,
       problems: [],
@@ -186,8 +188,19 @@ export function createLegacyUpgradeController(services) {
     const refusal = refusal_of(error);
     const read = slots_for_refusal(refusal);
     const patch = { problems: [{ ...refusal, blocking: read.blocking }] };
-    if (read.slots.length > 0) patch.slots = merge_slots(state.slots, read.slots);
-    if (read.drop) {
+    if (read.slots.length > 0) {
+      patch.slots = merge_slots(state.slots, read.slots).map((slot) =>
+        slot.kind === "acknowledge" && read.slots.some((asked) => asked.key === slot.key)
+          ? { ...slot, send_to_host: true } : slot);
+    }
+    if (read.drop === "acknowledged") {
+      // Inventory review remains a deliberate local confirmation. Only the
+      // Host's exact refusal asks for a wire acknowledgement; an unused one
+      // must not erase the review or leave a permanently unanswered checkbox.
+      patch.slots = state.slots.map((slot) => slot.kind === "acknowledge"
+        ? { ...slot, send_to_host: false } : slot);
+      patch.generation = state.generation + 1;
+    } else if (read.drop) {
       const keep = {};
       for (const [key, value] of Object.entries(state.answers)) {
         const slot = state.slots.find((item) => item.key === key);

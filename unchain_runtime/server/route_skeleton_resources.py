@@ -469,3 +469,16 @@ import route_skeleton_code_sources  # noqa: E402,F401
 import route_skeleton_legacy_upgrade  # noqa: E402,F401
 
 __all__ = []
+
+
+@api_blueprint.get("/skeleton_resources/legacy_chat_catalog")
+def get_legacy_chat_catalog():
+    denied = _authorized()
+    if denied is not None:
+        return denied
+    def operation():
+        if (set(request.args) != {"contract"} or request.args.getlist("contract") != ["legacy_chat_v1"]):
+            raise SkeletonResourceError("unsupported_version", ("query", "contract"), "Expected legacy_chat_v1")
+        from skeleton_legacy_chat import legacy_chat_catalog
+        return legacy_chat_catalog()
+    return _run(operation)

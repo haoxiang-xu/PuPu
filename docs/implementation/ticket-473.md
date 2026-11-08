@@ -430,3 +430,95 @@ hard-coded English like the rest of the Builder (no `agents` locale namespace
 exists). NOT_RUN: a live source-HTTP replay of wizard-generated requests, the
 packaged App, real page-produced choices against a live store, and the
 retirement of the older "Convert to Agent entries" path (owner decision).
+
+### CP2 delivery block — chat cutover and retained runs (2026-11-08)
+
+Workspace: pupu-473-chat-compat, branch codex/ticket-473-chat-compat. Start
+from exact frozen CP1d dfd1a3a5 on dev b7953a1b. Claude owns the upgrade
+wizard and explorer; this block owns chat/Host compatibility only. No edits to
+frozen candidates. One local heavy job; no external provider or real data.
+
+BC-473-010: new legacy recipe sends resolve exact user:agent_recipes aliases
+only after verified explicit-upgrade receipt+archive. Never match display names.
+Absent alias or unupgraded alias retains original disk behavior; ambiguous,
+archived or corrupt upgraded identity refuses. Existing resource selection is
+unchanged. Main discovers Kernel credentials for explicit legacy requests;
+server start resolves the same contract again and existing credential scope
+fences concurrent definition changes. Resume never calls this resolver: native
+launch and legacy resume retain their existing snapshots and preserved files.
+
+BC-473-011: read-only CLOSED pupu.legacy-chat-catalog.v1 via authenticated
+GET /skeleton_resources/legacy_chat_catalog?contract=legacy_chat_v1 and the
+existing resource-command IPC. Exact resource/alias identities and runtime
+manifest; no inference from display name, no changes to closed list summaries.
+Picker hides unupgraded first-hop duplicates, shows upgraded native entry once,
+and maps the old selected name visually without a catalog-time storage write.
+The new request/run context carries the canonical id; the stored chat choice
+keeps its old name. Active/retained launches are unchanged.
+Unavailable catalogs retain previous options; stale responses cannot win.
+
+BC-473-012: legacy file writes and deletes hold the same SQLite write lock as
+explicit apply, reject upgraded source aliases, and preserve source files.
+No change to startup seeding or native CAS. Source files remain available for
+legacy retained resumes; explicit upgrade itself does not write them.
+
+SEQ-473-002 / AC-473-004: real offline SDK dispatch starts A, then upgrade B,
+A continues unchanged; parked A resumes after Store change/reconstruction; new
+request follows B, cancel does not publish End or replay tools. Compare frozen
+launch/document/Kernel and SDK requests, not just catalog metadata. Cover exact
+name/scope, rename, restart, ambiguous/missing/archive, failed admission, stale
+credential fence and legacy write refusal. Red tests precede implementation.
+Fresh graph impacts: credential query CRITICAL, public stream functions UNKNOWN
+(index could not resolve); text callers corroborated. Maintain public resume
+ordering; related regressions and exact new Host artifact pair required. One
+reviewable final delivery checkpoint, no per-function checkpoints.
+
+
+### CP2 repair block R-U473-01..04 (2026-11-08, Root)
+
+The owner reassigned this block from Claude to Root. Work is in independent
+`pupu-473-upgrade-fixes`, branch `codex/ticket-473-upgrade-fixes`, starting from
+exact uncommitted assembly `33ffeede` (UI `0abab5c7` plus frozen chat compatibility
+`2f2a7fb6`). Originals and frozen evidence remain read-only. Existing UI design
+choice stands. Root retains implementation: acknowledgement applicability and
+old-path routing span the strict Host semantics and the author's interaction;
+no weaker agent is dispatched for these unresolved decisions. No commit/push,
+new feature, Host/Core/schema/guard or sidecar rebuild in this block.
+
+BC-473-006/007 and BC-473-003 remain the actual versioned boundaries: no field
+is added to requests. The controller distinguishes inventory review from a Host
+request for a wire acknowledgement. Inventory review still needs an author
+checkbox. A wire acknowledgement is sent only when a preview refusal asks for
+its exact code/path; a newly requested checkbox stays unanswered unless the
+author already reviewed that same slot. If later choices make the wire entry
+unused, its local review and other author answers remain, with an explicit new
+Preview required. No automatic retry, apply, downgrade or inference of success.
+Zero inventory requirements still requires explicit preview/apply against the
+stored token; only the Host's already-applied refusal proves prior upgrade.
+
+AC-473-010 / SEQ-473-010: migrated resource read -> local review/Kernel choices
+-> preview -> exact missing acknowledgement -> author review -> preview ->
+change prompt policy -> obsolete acknowledgement refusal -> explicit preview
+-> one apply -> exact readback -> cold sidecar read. Reading, refusals, cancelling
+and choice changes cause no writes. Existing timeout/conflict/ownership tests
+must retain their expectations. Empty, null and named toolkit lists are distinct;
+absent catalog names and original allowlist order survive another tool's toggle.
+Only explicit removal can remove that absent member.
+
+The root graph's preserved `legacy_source` distinguishes the first-hop path
+from an otherwise native resource that happens to hold a legacy pool. For the
+first-hop path, the old Convert button opens the same explicit wizard and is
+held back by the same dirty/conflict/write/view restrictions. Other native
+conversion keeps its existing endpoint and tests. Host remains authoritative
+about whether preserved provenance is valid; the UI marker grants no permission.
+This supersedes the previous CP2 'older Convert owner decision' NOT_RUN line:
+R-U473-04 is a necessary implementation of the already-approved preservation AC.
+
+Pre-edit graph: bound clone index at UI HEAD, 3,495 files / 56,188 symbols /
+195,852 relationships / 1,179 flows. Controller/build_choices LOW. ToolkitChoice,
+InventorySection and SkeletonResourcePage UNKNOWN; actual JSX callers confirmed
+by text. merge_slots/slots_for_inventory returned CRITICAL and are not edited;
+the CRITICAL reports remain recorded, not waived. FTS and process-walk limits
+remain explicit. Four independent red cases and additional preservation controls
+precede edits. Verification uses the same fixed wheel c1213803 / manifest
+c172bc02 and unchanged sidecar 2dd91647. Packaged App remains separate NOT_RUN.
