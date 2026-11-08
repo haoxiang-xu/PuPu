@@ -177,7 +177,13 @@ async function main() {
       await until(async()=>['ready','previewed','prewrite_refused','unconfirmed'].includes(await wizard.getAttribute('data-phase')),30000);
       await shot(page,`${label}-preview-${attempt}`);if(await wizard.getAttribute('data-phase')==='previewed')return;
       const unaccepted=await wizard.getByRole('checkbox').evaluateAll(bs=>bs.filter(b=>!b.checked&&b.getAttribute('aria-label')?.startsWith('Acknowledge ')).map(b=>b.getAttribute('aria-label')));
-      assert(unaccepted.length,`preview refused without a new acknowledgment: ${await wizard.innerText()}`);
+      const problems=await wizard.getByTestId('legacy-upgrade-problems').innerText();
+      assert(/legacy_prompt_review_required|legacy_setting_ignored|unused_choice|toolkit_choice_required|toolkit_config_review_required/.test(problems),`unexpected preview refusal: ${problems}`);
+      mark('ui','review Host refusal and deliberately Preview again',{label,attempt,problems,unaccepted});
+      const added=wizard.getByTestId('legacy-upgrade-slot-toolkit');for(let i=0;i<await added.count();i++){
+        const slot=added.nth(i),id=slot.getByPlaceholder('toolkit id');if(await id.inputValue()==='core')await id.fill('CoreToolkit');
+        await slot.getByRole('button',{name:label==='Default'?'All tools':'Choose tools',exact:true}).click();
+      }
     }throw new Error('preview never accepted');}
   async function upgrade(page,name,{configureFirst=false,oldConvert=false,structured=false,tools=false}={}){
     await openBuilder(page,name); const list=await catalog(page);const rows=list.resources||list;assert(Array.isArray(rows),'resource list shape');const row=rows.find(r=>r.name===name);assert(row,`missing migrated ${name}`);resources[name]=row.id;
@@ -187,7 +193,7 @@ async function main() {
     else await page.getByTestId('skeleton-legacy-upgrade-open').click();
     const wizard=page.getByTestId('legacy-upgrade-wizard');await expect(wizard).toBeVisible();await until(async()=>await wizard.getAttribute('data-phase')==='ready');
     const kernels=wizard.getByTestId('legacy-upgrade-slot-kernel');for(let i=0;i<await kernels.count();i++){const slot=kernels.nth(i);await chooseKernel(slot,page);await slot.getByRole('combobox').filter({hasText:'Preserve the legacy model'}).click();await page.getByRole('listbox').getByText("Replace with this Kernel's model",{exact:true}).click();mark('ui','explicit legacy model replacement',{name,model:'gpt-6-sol',reply_budget:128});}
-    const toolkits=wizard.getByTestId('legacy-upgrade-slot-toolkit');for(let i=0;i<await toolkits.count();i++){const slot=toolkits.nth(i);const id=slot.getByPlaceholder('toolkit id');const old=await id.inputValue();if(old==='core'){await id.fill('CoreToolkit');mark('ui','explicitly choose installed CoreToolkit',{name,old});}if(!tools)await slot.getByRole('button',{name:'All tools',exact:true}).click();}
+    const toolkits=wizard.getByTestId('legacy-upgrade-slot-toolkit');for(let i=0;i<await toolkits.count();i++){const slot=toolkits.nth(i);const id=slot.getByPlaceholder('toolkit id');const old=await id.inputValue();if(old==='core'){await id.fill('CoreToolkit');mark('ui','explicitly choose installed CoreToolkit',{name,old});}if(!tools)await slot.getByRole('button',{name:name==='Default'?'All tools':'Choose tools',exact:true}).click();}
     await acknowledge(wizard);
     if(tools){await wizard.getByRole('checkbox',{name:'write',exact:true}).check();await preview(wizard,page,'tools-keeps-missing-name');await wizard.getByRole('checkbox',{name:'qa473_missing_tool',exact:true}).uncheck();}
     if(structured){await preview(wizard,page,'structured-preserve');const combo=kernels.first().getByRole('combobox').filter({hasText:'Preserve the legacy prompt'});await combo.click();await page.getByRole('listbox').getByText('Replace with the built-in prompt',{exact:true}).click();}
