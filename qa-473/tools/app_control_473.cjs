@@ -220,20 +220,26 @@ async function main() {
     // Owned old graph starts with authored Kernel controls, then the zero-choice/native inventory and the old Convert route.
     // The separately reproduced v2-save -> inventory 409 is blocking. Run independent direct-upgrade paths first; reproduce that failure LAST, never count it as passed.
     await upgrade(page,'QA473 Parent');
-    await runChat(page,'QA473 Flat','Flat',1,false);await runChat(page,'Default','Default');await runChat(page,'QA473 Parent','Parent');
+    await runChat(page,'QA473 Flat','Flat',1,false);await runChat(page,'Default','Default');
     const hot=await snapshot(page,'hot');const hotResources={};for(const [name,id]of Object.entries(resources))hotResources[name]=await readResource(page,id);write('hot-resources.json',hotResources);
     mark('supervisor','cold restart');await stop();page=await launch();const cold=await snapshot(page,'cold');assert.deepEqual(cold,hot,'cold catalog changed');const coldResources={};for(const[name,id]of Object.entries(resources))coldResources[name]=await readResource(page,id);assert.deepEqual(coldResources,hotResources,'cold resource changed');write('cold-resources.json',coldResources);
-    await runChat(page,'QA473 Flat','Flat',2);assert.deepEqual(hashes(),originalHashes,'legacy originals changed');write('legacy-originals-after.json',hashes());
+    await expect(page.getByText('QA473 done Default 1',{exact:true}).last()).toBeVisible();const coldDefault=await chatScope(page);assert.deepEqual(coldDefault.messages,chats.at(-1).messages,'cold Default messages changed');write('cold-default-chat.json',coldDefault);
+    await openSidebarIfNeeded(page);await page.getByText('QA473_RUN_Flat_T1',{exact:true}).click();const coldOld=await chatScope(page);assert.equal(coldOld.chatId,chats[0].chatId);assert.deepEqual(coldOld.messages,chats[0].messages,'cold old-reference messages changed');write('cold-old-chat.json',coldOld);
+    await runChat(page,'QA473 Flat','Flat',2,false);assert.deepEqual(hashes(),originalHashes,'legacy originals changed');write('legacy-originals-after.json',hashes());
     assert.deepEqual(errors,[]);assert(wires.every(w=>!w.error),'fixture refused a request');assert(canaries.every(c=>!c.hits.length),'forbidden service was reached');
     write('direct-result.json',{verdict:'APP_473_DIRECT_PATHS_RECORDED',tree:process.env.QA_CANDIDATE_TREE,upgrades:upgrades.map(u=>u.name),provider_requests:wires.filter(w=>w.kind==='sdk').length,real_provider_requests:0,product_renderer_sandbox:false,excluded_blocker:'v2-save then legacy-upgrade inventory source_api_required'});
-    await upgrade(page,'QA473 Native',{configureFirst:true});
-    throw new Error('PREVIOUS_SOURCE_API_REQUIRED_BLOCKER_DID_NOT_REPRODUCE; independent review required');
+    await begin(page,'QA473 Parent','QA473_RUN_Parent_T1');await expect(page.getByText('QA473 delegate failure observed',{exact:true}).last()).toBeVisible({timeout:120000});
+    const failed=wires.flatMap(w=>{try{return JSON.parse(w.request_text).input||[];}catch{return [];}}).filter(item=>item.type==='function_call_output'&&item.call_id==='call_473_delegate').map(item=>{const p=JSON.parse(item.output);return JSON.parse(p.preview);}).find(p=>p.status==='failed'&&p.template_name==='QA473 Child');
+    assert(failed&&failed.error.includes('missing_value')&&failed.error.includes("'nodes', 0"),'exact migrated child failure not reproduced');write('delegate-blocker.json',{finding:'R-473-APP-02',result:failed,scope:await chatScope(page)});
+    throw new Error('PRODUCT_BLOCKER R-473-APP-02: migrated child Start input missing_value; R-473-APP-01 remains separately verified in runtime-07');
   } finally {
     if(current?.page)await shot(current.page,'last-window');await stop();
     write('blocked-service-canaries.json',canaries.map(({port,hits})=>({port,hits})));assert(canaries.every(c=>!c.hits.length),'forbidden canary hit');
     await Promise.all([server,nonce,...canaries.map(c=>c.listener)].map(s=>new Promise(resolve=>s.close(resolve))));
     write('ledger.json',ledger);write('provider-wires.json',wires);write('errors.json',errors);write('process-generations.json',generations);write('renderer-console.json',consoleLines);
     const store=path.join(home,'.pupu');if(fs.existsSync(store))fs.cpSync(store,path.join(out,'state'),{recursive:true});
+    const databases=[];const walk=(dir)=>{for(const item of fs.readdirSync(dir,{withFileTypes:true})){const file=path.join(dir,item.name);if(item.isDirectory()&&!['GPUCache','Code Cache','node_modules'].includes(item.name))walk(file);else if(item.isFile()&&item.name==='context_v2.sqlite3')databases.push(file);}};for(const dir of [home,workspace,path.join(out,'tmp')])if(fs.existsSync(dir))walk(dir);
+    for(const [i,db]of databases.entries())fs.cpSync(path.dirname(db),path.join(out,'journal-state',String(i)),{recursive:true,filter:src=>{const s=fs.lstatSync(src);return s.isFile()||s.isDirectory();}});write('journal-copies.json',databases.map((db,i)=>({source:db,copy:`journal-state/${i}`}))); 
   }
 }
 main().catch(error=>{fs.mkdirSync(out,{recursive:true});fs.writeFileSync(path.join(out,'failure.txt'),String(error.stack||error));process.exitCode=1;});

@@ -9,8 +9,11 @@ function frameFor(body){
  assert(body.input && (typeof body.input==='string'||Array.isArray(body.input)),'input_required');
  if(body.max_output_tokens!==undefined)assert(Number.isInteger(body.max_output_tokens)&&body.max_output_tokens>0&&body.max_output_tokens<=32768,'output_budget');
  const input=JSON.stringify(body.input),names=(body.tools||[]).map(t=>t.name);let output,reply;
+ const failedDelegate=(Array.isArray(body.input)?body.input:[]).some(item=>{if(item.type!=='function_call_output'||item.call_id!=='call_473_delegate')return false;try{const carrier=JSON.parse(item.output),result=JSON.parse(carrier.preview);return result.status==='failed'&&result.template_name==='QA473 Child';}catch{return false;}});
+ const childTask=(Array.isArray(body.input)?body.input:[]).some(item=>item.role==='user'&&JSON.stringify(item.content).includes('QA473_CHILD_TASK'));
  if(input.includes('QA473_QUALIFY'))reply='QA473 qualification accepted';
- else if(input.includes('QA473_CHILD_TASK')&&!names.includes('delegate_to_subagent'))reply='QA473 child result';
+ else if(failedDelegate)reply='QA473 delegate failure observed';
+ else if(childTask)reply='QA473 child result';
  else {
   const tags=[...input.matchAll(/QA473_RUN_(Old|Flat|Explore|Default|Structured|Native|Parent)_T([12])/g)];
   assert(tags.length>0,'unrecognized_task');const [,kind,turn]=tags.at(-1);
