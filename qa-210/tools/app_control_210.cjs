@@ -36,7 +36,8 @@ function processIdentity(pid) {
     const stat = fs.readFileSync(`/proc/${pid}/stat`, 'utf8');
     const close = stat.lastIndexOf(')');
     const fields = stat.slice(close + 2).split(' ');
-    return { pid, parent: Number(fields[1]), start_ticks: Number(fields[19]), exe: (() => { try { return fs.readlinkSync(`/proc/${pid}/exe`); } catch { return ''; } })() };
+    // /proc names arrive as strings; the ownership walk compares them with numeric ppids, so normalise here.
+    return { pid: Number(pid), parent: Number(fields[1]), start_ticks: Number(fields[19]), exe: (() => { try { return fs.readlinkSync(`/proc/${pid}/exe`); } catch { return ''; } })() };
   } catch { return null; }
 }
 async function until(read, timeout = 120000) {
@@ -200,6 +201,8 @@ async function main() {
     collect();
     record.ready_ns = process.hrtime.bigint().toString(); record.processes_at_ready = [...owned.values()];
     record.sidecar_owned = [...owned.values()].some(row => path.basename(row.exe) === 'unchain-server');
+    assert.ok(owned.size > 1, 'ownership walk found no descendants of the Electron main process');
+    assert.equal(record.sidecar_owned, true, 'sidecar is not a tracked descendant of the Electron main process');
     record.proc_table_at_ready = fs.readdirSync('/proc').filter(n => /^\d+$/.test(n)).map(processIdentity).filter(Boolean)
       .map(row => ({ ...row, cmdline: (() => { try { return fs.readFileSync(`/proc/${row.pid}/cmdline`, 'utf8').split('\0').join(' ').slice(0, 200); } catch { return ''; } })() }));
     write('process-generations.json', generations);
