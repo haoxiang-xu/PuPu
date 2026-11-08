@@ -374,3 +374,59 @@ no weaker implementation worker is dispatched for this unresolved boundary.
 Fresh clone graph impact precedes every edit, UNKNOWN is corroborated and
 HIGH/CRITICAL is reported without riskSharedAxes waiver. New wire extensions,
 UI integration and active/waiting old-launch preservation remain NOT_RUN.
+
+## CP2 — upgrade wizard in the Builder (2026-11-08, Claude)
+
+Workspace /Users/red/Desktop/GITRepo/pupu-473-upgrade-ui, branch
+claude/ticket-473-upgrade-ui, base commit = frozen CP1d/CP1e candidate tree
+dfd1a3a5 replayed on dev b7953a1b. Only the four existing facade methods are
+used (`api.unchain.getSkeletonLegacyUpgradeCapabilities / inspect / preview /
+applySkeletonLegacyUpgrade`) plus the existing v2 resource read; no new wire
+field, endpoint, protocol version, Core, Main/preload, guard or chat change.
+Chat alias/picker transition and old-run snapshot compatibility stay with Codex.
+
+Entry: `skeleton_resource_page.js` offers "Legacy Agent · Upgrade…" above the
+control center while the resource's own graph (not an embedded one, not a
+pinned view, not the run view) still carries `legacy_*` node config. The offer
+is held back with a reason while the draft is dirty, saving, converting or in a
+save conflict: the upgrade reads the stored Agent at its stored token.
+
+Wizard (`recipes_page/legacy_upgrade/`):
+- `legacy_upgrade_plan.js` — pure: candidate detection; inventory requirement
+  → choice slot (kernel at `[nodes,i]`, toolkit at the legacy toolkit row,
+  acknowledgement at the prompt path); everything else informational; preview
+  or apply refusal → new slot (`kernel_choice_required`,
+  `toolkit_choice_required`, `toolkit_config_review_required`,
+  `legacy_prompt_review_required`, `legacy_setting_ignored`,
+  `ambiguous_reference`), dropped category (`unused_choice`) or blocking
+  problem; closed `choices.v1` built only from slot addresses; JSON value
+  equality for the reviewed-vs-saved document check.
+- `legacy_upgrade_controller.js` — the sitting (BC-473-006/007): every request
+  numbered and owned by resource id, read token and form generation; late
+  replies refused ownership; any answer change discards the preview; apply
+  sends exactly the reviewed preview's frozen choices and projection digest;
+  outcomes `acknowledged` (saved document must equal the reviewed document by
+  value), `prewrite_refused` (facade metadata; answers kept; `edit_conflict` /
+  manifest stale → reread at the stored token, `upgrade_preview_stale` →
+  preview again, already applied → reopen), `unconfirmed` (no retry, request
+  kept, one deliberate read classified as commit-not-observed / matching /
+  conflicting / unavailable). Tokens and digests are opaque.
+- `legacy_upgrade_wizard.js` — existing `Modal`, `Button`, `Select`, `Input`,
+  the existing `KernelSection` hosted on a one-node document for each Kernel
+  slot, toolkit allowlist from `listToolModalCatalog` (null vs named list kept
+  distinct, `discard_unsupported` ticked by hand), scoped reference picker from
+  `list_resources`, acknowledgement checkboxes, the host's real preview
+  (nodes/models/pools/policy/digests) and problems, one explicit Upgrade, then
+  reopen through `load(resource_id)` + `emitSkeletonLibraryRefresh`.
+
+Evidence: `legacy_upgrade_plan.test.js` rebuilds the producer fixture's
+accepted `choices` by value for flat/explore/default; the controller test
+replays the fixture's inventory/preview/apply captures and asserts the exact
+requests, stale-reply fencing, close, conflict, stale preview, timeout
+observations and document mismatch; the wizard test walks inventory → Kernel →
+preview → apply → reopen and the refusal/unconfirmed branches on the same
+captures; the page test covers the offer and its absence. Builder strings are
+hard-coded English like the rest of the Builder (no `agents` locale namespace
+exists). NOT_RUN: a live source-HTTP replay of wizard-generated requests, the
+packaged App, real page-produced choices against a live store, and the
+retirement of the older "Convert to Agent entries" path (owner decision).
