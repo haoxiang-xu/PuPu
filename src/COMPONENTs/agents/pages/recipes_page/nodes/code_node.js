@@ -94,10 +94,10 @@ function Viewer({ node, text, total, isDark, onEdit }) {
   );
 }
 
-export default function CodeNode({ node, isDark, lowZoom = false, onOpenNode, sources }) {
+export default function CodeNode({ node, isDark, lowZoom = false, onOpenNode, sources, recordedSourceOnly = false }) {
   const code = code_settings(node);
   const profile = code && typeof code.environment_profile_id === "string" && code.environment_profile_id ? code.environment_profile_id : null;
-  const source = code_source_text(node, sources);
+  const source = code_source_text(node, recordedSourceOnly ? null : sources);
   const preview = source.available ? code_preview(source.text) : null;
   const muted = isDark ? "#a8a8b0" : "#6b6b73";
   const text = isDark ? "#f0f0f3" : "#1d1d22";
@@ -289,7 +289,9 @@ export default function CodeNode({ node, isDark, lowZoom = false, onOpenNode, so
               data-testid={`code-node-${node.id}-source`}
               style={{ marginTop: 8, paddingTop: 6, borderTop: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}`, fontSize: 10.5, color: muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
             >
-              {source.managed ? (
+              {recordedSourceOnly ? (
+                <span title={source.path || ""}>Frozen source: {source.path || "not recorded"} · text not included in this observation</span>
+              ) : source.managed ? (
                 <span data-testid={`code-node-${node.id}-text-missing`}>Code text not loaded · reopen this Agent</span>
               ) : source.path ? (
                 <>

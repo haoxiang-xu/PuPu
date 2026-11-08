@@ -25,6 +25,7 @@ import { is_valid_node_label, node_display_title } from "./node_display_labels";
 import { node_identity } from "./detail_panel/node_identity";
 import { useNodeLabelCapability } from "./node_label_capability";
 import RenameNodeModal from "./rename_node_modal";
+import RunNodeStatus from "./nodes/run_node_status";
 import { pool_entry_rows } from "./skeleton_drill";
 import {
   readSkeletonLayout,
@@ -101,7 +102,7 @@ function renderNode(node, isDark, onOpenSubagent, view = {}) {
   /* A Code node (#357) reads the canvas's zoom — below half it falls back to
      its header — and its viewer hands editing to the panel, which is what
      selecting the node opens. */
-  if (node.type === "code") return <CodeNode node={node} isDark={isDark} lowZoom={view.lowZoom === true} onOpenNode={view.onOpenNode} sources={view.sources} />;
+  if (node.type === "code") return <CodeNode node={node} isDark={isDark} lowZoom={view.lowZoom === true} onOpenNode={view.onOpenNode} sources={view.sources} recordedSourceOnly={view.recordedSourceOnly === true} />;
   if (node.type === "start") return <StartNode node={node} isDark={isDark} />;
   if (node.type === "end") return <EndNode node={node} isDark={isDark} />;
   /* A type this build has no drawing for still has to appear: a graph that
@@ -174,6 +175,7 @@ function GraphDrawing({
   commandScope,
   document: graph,
   readOnly = false,
+  observation = null,
   onSelectNode,
   onOpenSubagent,
   onGraphCommand,
@@ -273,7 +275,15 @@ function GraphDrawing({
     [graph, moveTick, canEdit],
   );
 
-  const edges = useMemo(() => (graph && graph.edges) || [], [graph]);
+  /* Run A must never paint the editor's draft B. Only the frozen document
+     object supplied by the read-only run view carries this projection. */
+  const observed = readOnly && observation?.document === graph ? observation : null;
+  const runNodes = useMemo(() => new Map((observed?.nodes || []).map((node) => [node.node_id, node])), [observed]);
+  const edges = useMemo(() => {
+    const list = (graph && graph.edges) || [];
+    const skipped = new Set(observed?.skipped_edges || []);
+    return skipped.size ? list.map((edge) => skipped.has(edge.id) ? { ...edge, style: "dashed" } : edge) : list;
+  }, [graph, observed]);
 
   /* The only write this component makes, and it goes to the layout service. */
   const handleNodesChange = useCallback(
@@ -518,7 +528,9 @@ function GraphDrawing({
            adds no box and the editor measures the node exactly as before. */
         render_node={(node) => (
           <div data-testid={`skeleton-node-${node.id}`} style={{ display: "contents" }}>
-            {renderNode(node, isDark, onOpenSubagent, { lowZoom, onOpenNode: onSelectNode, sources: managedSources })}
+            <RunNodeStatus projection={["toolkit_pool", "subagent_pool", "hooks_pool"].includes(node.type) ? null : runNodes.get(node.id)} isDark={isDark}>
+              {renderNode(node, isDark, onOpenSubagent, { lowZoom, onOpenNode: onSelectNode, sources: managedSources, recordedSourceOnly: Boolean(observed) })}
+            </RunNodeStatus>
           </div>
         )}
         viewport_out_ref={viewportRef}

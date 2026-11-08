@@ -20,6 +20,7 @@ const invokeSkeletonResource = async (ipcRenderer, command) => {
 };
 
 const createMisoBridge = (ipcRenderer, streamClient) => ({
+  getSkeletonRunObservation: request => invokeSkeletonResource(ipcRenderer, { action: "run_observation", payload: request }),
   getSkeletonWorkflowToolCapabilities: () => invokeSkeletonResource(ipcRenderer, { action: "workflow_tool_capabilities", payload: {} }),
   getManagedSkeletonTransferCapabilities: () => invokeSkeletonResource(ipcRenderer, { action: "code_transfer_capabilities", payload: {} }),
   exportManagedSkeletonResource: (resourceId) => invokeSkeletonResource(ipcRenderer, { action: "code_export", payload: { resource_id: resourceId } }),

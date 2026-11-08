@@ -40,7 +40,7 @@ export function RunTrigger({ open, onToggle }) {
   );
 }
 
-export default function SkeletonRunMenu({ session, isDark, onCheck }) {
+export default function SkeletonRunMenu({ session, isDark, onCheck, onViewRun }) {
   /* Asked once per saved version this menu has been open for: a save while
      it is open is a new version, and the answer on screen is about the old. */
   const asked = useRef(null);
@@ -80,6 +80,8 @@ export default function SkeletonRunMenu({ session, isDark, onCheck }) {
         />
       </div>
       <div style={{ height: 1, backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)" }} />
+      {typeof onViewRun === "function" && <Button label="View current chat run" prefix_icon="eye_open" onClick={onViewRun}
+        style={{ fontSize: 11.5, paddingVertical: 4, paddingHorizontal: 10, borderRadius: 6 }} />}
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <span data-testid="skeleton-run-unavailable" style={{ flex: 1, fontSize: 11, lineHeight: 1.45, color: muted }}>
           {RUN_UNAVAILABLE}

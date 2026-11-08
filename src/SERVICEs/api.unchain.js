@@ -1,3 +1,4 @@
+import { createSkeletonRunObservationApi } from './skeleton_run_observation_api';
 import {
   EMPTY_MODEL_CATALOG,
   FrontendApiError,
@@ -1365,6 +1366,7 @@ const normalizeToolConfirmationResponse = (
 
 export const createUnchainApi = () => {
   const unchainApi = {
+    ...createSkeletonRunObservationApi(assertBridgeMethod, withTimeout),
     ...createManagedCodeApi(assertBridgeMethod, withTimeout),
     ...createManagedTransferApi(assertBridgeMethod, withTimeout),
     ...createSkeletonHookApi(assertBridgeMethod, withTimeout),
