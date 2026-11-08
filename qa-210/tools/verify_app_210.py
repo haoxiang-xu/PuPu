@@ -63,17 +63,26 @@ def expected_nodes(store, state, pending, has_child_graph):
             if wait["kind"] == "child" or has_child_graph:
                 expected[node_id] = ("waiting", "waiting_for_child")
             else:
+                # wait = {id (interaction id), kind: "interaction", request_ref, receipt_ref}; the request artifact is
+                # {schema: unchain.skeleton_tool_approval_wait.v1, interaction, expires_at_ms} for a tool approval,
+                # or a plain InteractionRequest for human input.
                 request = store.read_json(wait["request_ref"])
-                interaction_id = request.get("interaction_id") or request.get("id")
+                interaction_id = wait["id"]
+                inner = request.get("interaction") if isinstance(request.get("interaction"), dict) else request
+                is_tool_approval = (request.get("schema") == "unchain.skeleton_tool_approval_wait.v1"
+                                    or inner.get("kind") == "tool_approval")
                 if wait.get("receipt_ref") is not None or pending["status"] != "awaiting_response" or pending.get("interaction_id") != interaction_id:
                     expected[node_id] = ("waiting", "receipt_recorded")
-                elif pending.get("kind") == "tool_approval":
+                elif is_tool_approval:
                     expected[node_id] = ("waiting_approval", "awaiting_approval")
                 else:
                     expected[node_id] = ("waiting", "awaiting_input")
         else:
             expected[node_id] = ("running", state["status"])
+    # Attach-only pools carry configuration, not execution: by design they have no badge (contract plan §8.11/§8.12).
     for node in store.plan.snapshot()["nodes"]:
+        if node["type"] in {"toolkit_pool", "subagent_pool", "hooks_pool"}:
+            continue
         expected.setdefault(node["id"], ("pending", "pending"))
     return expected
 
@@ -86,14 +95,20 @@ def main():
     generations = read("process-generations.json")
     assert len(generations) == 2 and all(row["all_owned_dead"] is True for row in generations)
     for row in generations:
-        table = row.get("proc_table_at_ready") or row["processes_at_ready"]
+        table = row["processes_at_ready"]
         sidecars = [p for p in table if Path(p["exe"]).name == "unchain-server"]
-        assert sidecars, "sidecar_process_identity_missing"
-        assert all(sha256(Path(p["exe"]).read_bytes()).hexdigest() == os.environ["QA_BINARY_SHA"] for p in sidecars), "sidecar_binary_mismatch"
+        assert sidecars and row.get("sidecar_owned") is True, "sidecar_process_identity_missing"
+        if os.environ.get("QA_LOCAL_REPLAY") != "1":  # local replay of a run's evidence cannot read the runner's binary
+            assert all(sha256(Path(p["exe"]).read_bytes()).hexdigest() == os.environ["QA_BINARY_SHA"] for p in sidecars), "sidecar_binary_mismatch"
     databases = list((out / "home").rglob("context_v2.sqlite3"))
+    if os.environ.get("QA_LOCAL_REPLAY") == "1" and not databases:
+        databases = [out / "journal-verification-copy" / "context_v2.sqlite3"]
     assert len(databases) == 1, "ambiguous_context_database"
     copied = out / "journal-verification-copy"
-    shutil.copytree(databases[0].parent, copied)
+    if copied.exists() and os.environ.get("QA_LOCAL_REPLAY") == "1":
+        databases = [copied / "context_v2.sqlite3"]  # replaying a run's own checkpointed copy
+    else:
+        shutil.copytree(databases[0].parent, copied)
     database = copied / databases[0].name
     with sqlite3.connect(database) as connection:
         assert connection.execute("PRAGMA integrity_check").fetchone() == ("ok",)
@@ -139,7 +154,20 @@ def main():
             assert plan is not None, f"{obs['label']}: graph {graph['graph_id']} has no frozen plan in the launch descriptor"
             assert graph["document"] == plan.snapshot(), f"{obs['label']}: graph {graph['graph_id']} diagram is not the frozen document"
             store = WorkflowExecutionStore(journal, plan, graph_id=graph["graph_id"], attempt=AttemptRef(generation, graph["attempt_id"]))
-            record = store.load(); state = record.state
+            # The record as it stood at THIS observation: the latest saved execution event of this graph at or below the
+            # observation's high watermark (the final store state would be wrong for every historical observation).
+            records = []
+            for position, event in enumerate(events):
+                if (event.event_type != "skeleton.workflow_execution.saved" or event.attempt.attempt_id != graph["attempt_id"]
+                        or event.store_seq > run["high_watermark"]):
+                    continue
+                decoded = store._decode_event(event, position)
+                if decoded.state["graph_id"] == graph["graph_id"]:
+                    records.append(decoded)
+            assert records, f"{obs['label']}: no saved execution event for graph {graph['graph_id']} at or below watermark {run['high_watermark']}"
+            record = max(records, key=lambda item: item.event.store_seq)
+            assert record.event.event_id == graph["event_id"] and record.event.store_seq == graph["store_seq"], f"{obs['label']}: graph {graph['graph_id']} is not the latest record at watermark {run['high_watermark']} (observation event {graph['event_id']}@{graph['store_seq']} vs journal {record.event.event_id}@{record.event.store_seq})"
+            state = record.state
             assert graph["status"] == state["status"] and graph["paused"] == state["paused"] and graph["root_committed"] == state["root_committed"], f"{obs['label']}: graph {graph['graph_id']} status"
             assert graph["revision"] == record.revision, f"{obs['label']}: graph {graph['graph_id']} revision"
             assert graph["owner_liveness"] == "unknown" and graph["error"] == state["error"]
