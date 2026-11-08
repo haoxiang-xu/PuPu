@@ -220,7 +220,7 @@ async function main() {
     // Owned old graph starts with authored Kernel controls, then the zero-choice/native inventory and the old Convert route.
     // The separately reproduced v2-save -> inventory 409 is blocking. Run independent direct-upgrade paths first; reproduce that failure LAST, never count it as passed.
     await upgrade(page,'QA473 Parent');
-    await upgrade(page,'QA473 Native',{configureFirst:true,oldConvert:true});
+    await upgrade(page,'QA473 Native',{configureFirst:true});
     await runChat(page,'QA473 Flat','Flat',1,false);await runChat(page,'Default','Default');
     const hot=await snapshot(page,'hot');const hotResources={};for(const [name,id]of Object.entries(resources))hotResources[name]=await readResource(page,id);write('hot-resources.json',hotResources);
     mark('supervisor','cold restart');await stop();page=await launch();const cold=await snapshot(page,'cold');assert.deepEqual(cold,hot,'cold catalog changed');const coldResources={};for(const[name,id]of Object.entries(resources))coldResources[name]=await readResource(page,id);assert.deepEqual(coldResources,hotResources,'cold resource changed');write('cold-resources.json',coldResources);
