@@ -218,13 +218,16 @@ async function main() {
     await page.getByRole('button',{name:'New chat',exact:true}).click();await page.getByTestId('attach-agent-row').getByRole('combobox').click();await page.getByRole('listbox').getByText('QA473 Flat',{exact:true}).click();write('old-chat-selection-before-upgrade.json',await page.evaluate(()=>window.chatStorageAPI.bootstrap()));mark('ui','legacy name selected before upgrade, not sent yet');
     for(const name of ['Explore','Default','QA473 Flat','QA473 Structured','QA473 Tools','QA473 Child'])await upgrade(page,name,{structured:name==='QA473 Structured',tools:name==='QA473 Tools'});
     // Owned old graph starts with authored Kernel controls, then the zero-choice/native inventory and the old Convert route.
-    await upgrade(page,'QA473 Native',{configureFirst:true});await upgrade(page,'QA473 Parent',{configureFirst:true,oldConvert:true});
+    // The separately reproduced v2-save -> inventory 409 is blocking. Run independent direct-upgrade paths first; reproduce that failure LAST, never count it as passed.
+    await upgrade(page,'QA473 Parent');
     await runChat(page,'QA473 Flat','Flat',1,false);await runChat(page,'Default','Default');await runChat(page,'QA473 Parent','Parent');
     const hot=await snapshot(page,'hot');const hotResources={};for(const [name,id]of Object.entries(resources))hotResources[name]=await readResource(page,id);write('hot-resources.json',hotResources);
     mark('supervisor','cold restart');await stop();page=await launch();const cold=await snapshot(page,'cold');assert.deepEqual(cold,hot,'cold catalog changed');const coldResources={};for(const[name,id]of Object.entries(resources))coldResources[name]=await readResource(page,id);assert.deepEqual(coldResources,hotResources,'cold resource changed');write('cold-resources.json',coldResources);
     await runChat(page,'QA473 Flat','Flat',2);assert.deepEqual(hashes(),originalHashes,'legacy originals changed');write('legacy-originals-after.json',hashes());
     assert.deepEqual(errors,[]);assert(wires.every(w=>!w.error),'fixture refused a request');assert(canaries.every(c=>!c.hits.length),'forbidden service was reached');
-    write('functional-result.json',{verdict:'APP_473_FUNCTIONAL_RECORDED',tree:process.env.QA_CANDIDATE_TREE,upgrades:upgrades.map(u=>u.name),provider_requests:wires.filter(w=>w.kind==='sdk').length,real_provider_requests:0,product_renderer_sandbox:false});
+    write('direct-result.json',{verdict:'APP_473_DIRECT_PATHS_RECORDED',tree:process.env.QA_CANDIDATE_TREE,upgrades:upgrades.map(u=>u.name),provider_requests:wires.filter(w=>w.kind==='sdk').length,real_provider_requests:0,product_renderer_sandbox:false,excluded_blocker:'v2-save then legacy-upgrade inventory source_api_required'});
+    await upgrade(page,'QA473 Native',{configureFirst:true});
+    throw new Error('PREVIOUS_SOURCE_API_REQUIRED_BLOCKER_DID_NOT_REPRODUCE; independent review required');
   } finally {
     if(current?.page)await shot(current.page,'last-window');await stop();
     write('blocked-service-canaries.json',canaries.map(({port,hits})=>({port,hits})));assert(canaries.every(c=>!c.hits.length),'forbidden canary hit');
