@@ -1,0 +1,255 @@
+{
+  "QA473 Flat.recipe": {
+    "name": "QA473 Flat",
+    "description": "QA473 original definition",
+    "model": "openai:gpt-4.1",
+    "agent": {
+      "prompt_format": "soul",
+      "prompt": "QA473 original instructions. {{#start.text#}}"
+    },
+    "toolkits": [],
+    "subagent_pool": [],
+    "merge_with_user_selected": false
+  },
+  "QA473 Structured.recipe": {
+    "name": "QA473 Structured",
+    "description": "QA473 original definition",
+    "model": "openai:gpt-4.1",
+    "agent": {
+      "prompt_format": "skeleton",
+      "prompt": "{\"instructions\": \"QA473 original structured instructions\", \"extra\": true}"
+    },
+    "toolkits": [],
+    "subagent_pool": [],
+    "merge_with_user_selected": false
+  },
+  "QA473 Tools.recipe": {
+    "name": "QA473 Tools",
+    "description": "QA473 original definition",
+    "model": "openai:gpt-4.1",
+    "agent": {
+      "prompt_format": "soul",
+      "prompt": "QA473 original instructions. {{#start.text#}}"
+    },
+    "toolkits": [
+      {
+        "id": "core",
+        "enabled_tools": [
+          "read",
+          "qa473_missing_tool"
+        ],
+        "config": {
+          "old_setting": true
+        }
+      }
+    ],
+    "subagent_pool": [],
+    "merge_with_user_selected": false
+  },
+  "QA473 Child.recipe": {
+    "name": "QA473 Child",
+    "description": "QA473 original definition",
+    "model": "openai:gpt-4.1",
+    "agent": {
+      "prompt_format": "soul",
+      "prompt": "QA473 original instructions. {{#start.text#}}"
+    },
+    "toolkits": [],
+    "subagent_pool": [],
+    "merge_with_user_selected": false
+  },
+  "QA473 Native.recipe": {
+    "name": "QA473 Native",
+    "description": "QA473 original definition",
+    "model": "openai:gpt-4.1",
+    "agent": {
+      "prompt_format": "soul",
+      "prompt": "QA473 original instructions. {{#start.text#}}"
+    },
+    "toolkits": [],
+    "subagent_pool": [],
+    "merge_with_user_selected": false,
+    "nodes": [
+      {
+        "deletable": false,
+        "id": "start",
+        "kind": "workflow",
+        "outputs": [
+          {
+            "name": "text",
+            "type": "string"
+          },
+          {
+            "name": "images",
+            "type": "image[]"
+          },
+          {
+            "name": "files",
+            "type": "file[]"
+          }
+        ],
+        "type": "start",
+        "x": 80,
+        "y": 260
+      },
+      {
+        "deletable": true,
+        "id": "agent_main",
+        "kind": "workflow",
+        "outputs": [
+          {
+            "name": "output",
+            "type": "string"
+          }
+        ],
+        "override": {
+          "model": "openai:gpt-4.1",
+          "prompt_format": "soul",
+          "prompt": "QA473 authored graph prompt. {{#start.text#}}"
+        },
+        "type": "agent",
+        "x": 380,
+        "y": 260
+      },
+      {
+        "deletable": false,
+        "id": "end",
+        "kind": "workflow",
+        "outputs_schema": [
+          {
+            "name": "output",
+            "type": "string"
+          }
+        ],
+        "type": "end",
+        "x": 720,
+        "y": 260
+      }
+    ],
+    "edges": [
+      {
+        "id": "e_start_agent",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "agent_main",
+        "target_port_id": "in"
+      },
+      {
+        "id": "e_agent_end",
+        "kind": "flow",
+        "source_node_id": "agent_main",
+        "source_port_id": "out",
+        "target_node_id": "end",
+        "target_port_id": "in"
+      }
+    ]
+  },
+  "QA473 Parent.recipe": {
+    "name": "QA473 Parent",
+    "description": "QA473 original definition",
+    "model": "openai:gpt-4.1",
+    "agent": {
+      "prompt_format": "soul",
+      "prompt": "QA473 original instructions. {{#start.text#}}"
+    },
+    "toolkits": [],
+    "subagent_pool": [],
+    "merge_with_user_selected": false,
+    "nodes": [
+      {
+        "deletable": false,
+        "id": "start",
+        "kind": "workflow",
+        "outputs": [
+          {
+            "name": "text",
+            "type": "string"
+          },
+          {
+            "name": "images",
+            "type": "image[]"
+          },
+          {
+            "name": "files",
+            "type": "file[]"
+          }
+        ],
+        "type": "start",
+        "x": 80,
+        "y": 260
+      },
+      {
+        "deletable": true,
+        "id": "agent_main",
+        "kind": "workflow",
+        "outputs": [
+          {
+            "name": "output",
+            "type": "string"
+          }
+        ],
+        "override": {
+          "model": "openai:gpt-4.1",
+          "prompt_format": "soul",
+          "prompt": "QA473 authored graph prompt. {{#start.text#}}"
+        },
+        "type": "agent",
+        "x": 380,
+        "y": 260
+      },
+      {
+        "deletable": false,
+        "id": "end",
+        "kind": "workflow",
+        "outputs_schema": [
+          {
+            "name": "output",
+            "type": "string"
+          }
+        ],
+        "type": "end",
+        "x": 720,
+        "y": 260
+      },
+      {
+        "id": "legacy_children",
+        "type": "subagent_pool",
+        "subagents": [
+          {
+            "kind": "recipe_ref",
+            "recipe_name": "QA473 Child"
+          }
+        ],
+        "x": 380,
+        "y": 450
+      }
+    ],
+    "edges": [
+      {
+        "id": "e_start_agent",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "agent_main",
+        "target_port_id": "in"
+      },
+      {
+        "id": "e_agent_end",
+        "kind": "flow",
+        "source_node_id": "agent_main",
+        "source_port_id": "out",
+        "target_node_id": "end",
+        "target_port_id": "in"
+      },
+      {
+        "id": "attach-child",
+        "kind": "attach",
+        "source_node_id": "agent_main",
+        "source_port_id": "attach_bot",
+        "target_node_id": "legacy_children",
+        "target_port_id": "attach_top"
+      }
+    ]
+  }
+}
