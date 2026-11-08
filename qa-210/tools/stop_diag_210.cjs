@@ -221,7 +221,7 @@ async function main() {
     await until(() => agents.evaluate(el => { const r = el.getBoundingClientRect(); return document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)?.closest('button') === el; }), 10000);
     await agents.click();
     await page.getByTestId('agent-explorer').getByText(agentName, { exact: true }).click();
-    await expect(page.getByTestId('recipe-detail-panel-header')).toBeVisible();
+    await expect(page.getByTestId('skeleton-resource-page')).toBeVisible();
     mark('ui', 'Builder opened', { agentName });
   }
   async function closeBuilder(page) { await page.getByRole('button', { name: 'Close builder', exact: true }).click(); mark('ui', 'Close builder'); await expect(page.getByRole('button', { name: 'Close builder', exact: true })).toHaveCount(0); }
