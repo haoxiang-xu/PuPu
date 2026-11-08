@@ -25,7 +25,7 @@ const home = path.join(out, 'home');
 const userData = path.join(home, 'profile');
 const workspace = path.join(out, 'workspace');
 const port = 18991;
-const ledger = [], wires = [], generations = [], errors = [], observations = [];
+const ledger = [], wires = [], generations = [], errors = [], observations = [], consoleLines = [];
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 const write = (name, data) => fs.writeFileSync(path.join(out, name), `${JSON.stringify(data, null, 2)}\n`);
 const mark = (kind, action, data = {}) => ledger.push({ at_ns: process.hrtime.bigint().toString(), kind, action, ...data });
@@ -189,6 +189,7 @@ async function main() {
     const page = await until(() => browser.contexts().flatMap(c => c.pages()).find(p => /^file:|^app:/.test(p.url())));
     current.page = page;
     page.on('pageerror', error => { errors.push(String(error)); write('page-errors.json', errors); });
+    page.on('console', message => { consoleLines.push({ at_ns: process.hrtime.bigint().toString(), type: message.type(), text: message.text().slice(0, 500) }); if (consoleLines.length % 20 === 0) write('renderer-console.json', consoleLines); });
     await page.waitForLoadState('domcontentloaded'); await page.evaluate(installRecorder);
     const startup = createStartupWatch({ page, generation, out, write, mark, sleep });
     const gate = page.getByRole('button', { name: 'Click anywhere to start' });
@@ -365,14 +366,6 @@ async function main() {
     await openBuilder(page, 'QA210 Approval Agent'); const obsB = await observe(page, 'turn2-uses-B', { expectGraphs: 2 });
     assert.notEqual(obsB.bridge_after.run.definition_digest, obsDone.bridge_after.run.definition_digest, 'turn 2 did not use B');
     await backToEditor(page); await closeBuilder(page);
-    // 3b: cancel
-    await begin(page, 'QA210 Cancel Agent', 'QA210 cancel'); await visibleApproval(page);
-    const cancelWaiting = await chatScope(page); write('cancel-waiting-chat.json', cancelWaiting);
-    observeResourceId = 'qa210-cancel-agent';
-    await openBuilder(page, 'QA210 Cancel Agent'); await observe(page, 'cancel-waiting', { expectGraphs: 2 }); await backToEditor(page); await closeBuilder(page);
-    const stopButton = page.locator(`button:has(path[d^="${STOP_ICON}"])`); await expect(stopButton).toHaveCount(1); await stopButton.click(); mark('ui', 'Stop the waiting run');
-    await until(async () => (await chatScope(page)).pending.status === 'none'); const cancelled = await chatScope(page); write('cancelled-chat.json', cancelled);
-    await openBuilder(page, 'QA210 Cancel Agent'); await observe(page, 'cancelled', { expectGraphs: 2 }); await backToEditor(page); await closeBuilder(page);
     // 5a: Hook invocation (before_tool_call → embedded owned Workflow → workflow tool child parks on approval)
     await begin(page, 'QA210 Hook Agent', 'QA210 hook'); await visibleApproval(page);
     const hookWaiting = await chatScope(page); write('hook-waiting-chat.json', hookWaiting);
@@ -393,13 +386,31 @@ async function main() {
     await openBuilder(page, 'QA210 Parent Agent'); const cold = await observe(page, 'cold-parent-child', { expectGraphs: 2, switchToSecond: true }); await backToEditor(page);
     const hot = observations.find(o => o.label === 'parent-child');
     assert.deepEqual(cold.bridge_after.run, hot.bridge_after.run, 'cold observation differs from the hot one');
+    await closeBuilder(page);
+    // 3b: cancel — run LAST so a Stop problem cannot hide the rest of the matrix; Stop is pressed before any
+    // observation of this chat (round 5 showed no /chat/executions/cancel on the wire after Stop).
+    await begin(page, 'QA210 Cancel Agent', 'QA210 cancel'); await visibleApproval(page);
+    const cancelWaiting = await chatScope(page); write('cancel-waiting-chat.json', cancelWaiting);
+    const outbox = () => page.evaluate(() => Object.fromEntries(Object.keys(localStorage).filter(k => /cancel|outbox|mutation/i.test(k)).map(k => [k, localStorage.getItem(k)])));
+    const stopDiag = { outbox_before: await outbox(), pending_before: cancelWaiting.pending };
+    const stopButton = page.locator(`button:has(path[d^="${STOP_ICON}"])`); await expect(stopButton).toHaveCount(1);
+    stopDiag.stop_button = await stopButton.evaluate(el => ({ aria: el.getAttribute('aria-label'), title: el.getAttribute('title'), disabled: el.disabled, text: el.textContent.trim() }));
+    await stopButton.click(); mark('ui', 'Stop the waiting run'); stopDiag.stop_clicked_ns = process.hrtime.bigint().toString();
+    stopDiag.pending_timeline = [];
+    for (let i = 0; i < 12; i += 1) { await sleep(5000); const scope = await chatScope(page); stopDiag.pending_timeline.push({ after_s: (i + 1) * 5, status: scope.pending.status, kind: scope.pending.kind ?? null }); if (scope.pending.status === 'none') break; }
+    stopDiag.outbox_after = await outbox(); stopDiag.console_after_stop = consoleLines.filter(l => BigInt(l.at_ns) >= BigInt(stopDiag.stop_clicked_ns));
+    await shot(page, 'after-stop'); write('stop-diagnostics.json', stopDiag);
+    const cancelled = await chatScope(page); write('cancelled-chat.json', cancelled);
+    assert.equal(cancelled.pending.status, 'none', 'STOP_DID_NOT_CANCEL_PENDING_INTERACTION');
+    observeResourceId = 'qa210-cancel-agent';
+    await openBuilder(page, 'QA210 Cancel Agent'); await observe(page, 'cancelled', { expectGraphs: 2 }); await backToEditor(page); await closeBuilder(page);
     assert.deepEqual(errors, []);
     write('functional-result.json', { verdict: 'APP_210_OBSERVATION_RECORDED', observations: observations.map(o => o.label), provider_requests: wires.length, real_provider_requests: 0,
       seeding: 'real v2 bridge (disclosed); hook pool from Codex hook-seed.json', hook_invocation: 'RUN', product_renderer_sandbox: false });
   } finally {
     if (current?.page) await shot(current.page, 'last-window');
     await stop(); await new Promise(resolve => server.close(resolve));
-    write('ledger.json', ledger); write('provider-wires.json', wires); write('errors.json', errors); write('process-generations.json', generations); write('observations.json', observations);
+    write('ledger.json', ledger); write('provider-wires.json', wires); write('errors.json', errors); write('process-generations.json', generations); write('observations.json', observations); write('renderer-console.json', consoleLines);
   }
 }
 main().catch(error => { fs.mkdirSync(out, { recursive: true }); fs.writeFileSync(path.join(out, 'failure.txt'), String(error.stack || error)); process.exitCode = 1; });
