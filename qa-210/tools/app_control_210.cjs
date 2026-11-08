@@ -289,7 +289,9 @@ async function main() {
     const pages = [await readPage()]; await shot(page, `observe-${label}`);
     if (switchToSecond && before.run.graphs.length > 1) {
       for (let index = 1; index < before.run.graphs.length; index += 1) {
-        await page.getByTestId('run-observation-graph-picker').getByRole('combobox').click();
+        // The floating explorer panel's resize handle can sit over the picker's left part; open it from its right half.
+        const combo = page.getByTestId('run-observation-graph-picker').getByRole('combobox'); const box = await combo.boundingBox();
+        await combo.click({ position: { x: Math.max(24, box.width - 24), y: box.height / 2 } });
         const options = page.getByRole('listbox').getByRole('option'); await expect(options).toHaveCount(before.run.graphs.length);
         pages[0].picker_labels = pages[0].picker_labels || await options.allTextContents();
         await options.nth(index).click(); mark('ui', 'switch graph invocation', { label, index });
@@ -413,4 +415,6 @@ async function main() {
     write('ledger.json', ledger); write('provider-wires.json', wires); write('errors.json', errors); write('process-generations.json', generations); write('observations.json', observations); write('renderer-console.json', consoleLines);
   }
 }
-main().catch(error => { fs.mkdirSync(out, { recursive: true }); fs.writeFileSync(path.join(out, 'failure.txt'), String(error.stack || error)); process.exitCode = 1; });
+main().catch(error => { fs.mkdirSync(out, { recursive: true }); fs.writeFileSync(path.join(out, 'failure.txt'), String(error.stack || error)); process.exitCode = 1; })
+  .finally(() => { // whatever still holds the event loop (CDP socket, inherited fds), the control must end on its own
+    setTimeout(() => { fs.writeFileSync(path.join(out, 'forced-exit.txt'), 'event loop still alive 60s after completion; forced exit'); process.exit(process.exitCode || 0); }, 60000).unref(); });
