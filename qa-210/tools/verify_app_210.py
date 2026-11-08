@@ -1,10 +1,12 @@
 """#210 QA-only: bind every recorded observation to the real Journal on a private copy.
 
-For each observation the driver wrote (bridge_after.data.run), this reads the
-same execution from a checkpointed copy of the App's Journal, validates the
-launch descriptor, loads the frozen store state and compares: identity,
-definition digest, manifest digests, per-node states, completion/cancel status,
-and that observing added no events. Nothing here runs, resumes or writes.
+Per observation and per graph (root, Hook child, Workflow-tool child, subagent child):
+the frozen plan is rebuilt from the launch descriptor only (selection + recursive
+subagents + fixed Workflow versions + embedded Hook bodies), the frozen diagram and
+definition digest must match, and every node state/phase is derived independently
+from the Journal store record plus the chat's pending-interaction snapshot taken at
+the same moment. No loose state sets, no blanket waivers. Nothing here runs,
+resumes or writes.
 """
 from hashlib import sha256
 import json
@@ -13,27 +15,67 @@ from pathlib import Path
 import shutil
 import sqlite3
 
+from skeleton_embedded_hooks import embedded_hook_bodies
 from skeleton_production_state import canonical, validate_launch_descriptor
-from unchain.journal import ArtifactRef
+from unchain.journal import ArtifactRef, AttemptRef
 from unchain.journal.models import _thaw_json
 from unchain.persistence.sqlite_v2 import open_existing_execution_journal_readonly
+from unchain.skeleton import prepare_agent_graph, prepare_workflow
 from unchain.skeleton.agent_preparation import execution_definition_digest
 from unchain.skeleton.durable_store import WorkflowExecutionStore
 
+SCHEMA = "pupu.skeleton-run-observation.v1"
+LABELS = {"pending": "Pending", "running": "Recorded running", "waiting": "Waiting", "waiting_approval": "Waiting for approval",
+          "suspended": "Suspended", "succeeded": "Succeeded", "failed": "Failed", "cancelled": "Cancelled", "outcome_unknown": "Outcome unknown"}
+PHASE_LABELS = {"receipt_recorded": "Receipt recorded · awaiting resume", "receipt_recorded_upstream": "Receipt recorded · awaiting parent",
+                "waiting_for_child": "Waiting for child", "awaiting_input": "Waiting for input"}
 
-def node_states_from_journal(state):
-    out = {row["node_id"]: "succeeded" for row in state["completed"]}
+
+def caption(state, phase):
+    return PHASE_LABELS.get(phase) or LABELS.get(state, "State unavailable")
+
+
+def frozen_plans(descriptor):
+    documents, entries = [], [descriptor["selection"]]
+    while entries:
+        entry = entries.pop(); documents.append(entry["document"]); entries.extend(entry.get("subagents", []))
+    documents.extend(row["document"] for row in descriptor["workflows"]["workflows"])
+    documents.extend(body for document in tuple(documents) for _address, body in embedded_hook_bodies(document))
+    plans = {}
+    for document in documents:
+        plan = prepare_agent_graph(document) if document["kind"] == "agent" else prepare_workflow(document)
+        plans[(plan.document_id, execution_definition_digest(plan))] = plan
+    return plans
+
+
+def expected_nodes(store, state, pending, has_child_graph):
+    """Independent derivation: Journal record + chat pending snapshot at observation time."""
+    expected = {row["node_id"]: ("succeeded", "completed") for row in state["completed"]}
     active = state.get("active")
     if active:
+        node_id = active["node_id"]
         if state["status"] in {"failed", "cancelled", "outcome_unknown"}:
-            out[active["node_id"]] = state["status"]
+            expected[node_id] = (state["status"], state["status"])
         elif state.get("paused"):
-            out[active["node_id"]] = "suspended"
+            expected[node_id] = ("suspended", "paused")
         elif state["status"] == "waiting":
-            out[active["node_id"]] = {"waiting", "waiting_approval"}
+            wait = active["wait"]
+            if wait["kind"] == "child" or has_child_graph:
+                expected[node_id] = ("waiting", "waiting_for_child")
+            else:
+                request = store.read_json(wait["request_ref"])
+                interaction_id = request.get("interaction_id") or request.get("id")
+                if wait.get("receipt_ref") is not None or pending["status"] != "awaiting_response" or pending.get("interaction_id") != interaction_id:
+                    expected[node_id] = ("waiting", "receipt_recorded")
+                elif pending.get("kind") == "tool_approval":
+                    expected[node_id] = ("waiting_approval", "awaiting_approval")
+                else:
+                    expected[node_id] = ("waiting", "awaiting_input")
         else:
-            out[active["node_id"]] = "running"
-    return out
+            expected[node_id] = ("running", state["status"])
+    for node in store.plan.snapshot()["nodes"]:
+        expected.setdefault(node["id"], ("pending", "pending"))
+    return expected
 
 
 def main():
@@ -56,14 +98,17 @@ def main():
         assert connection.execute("PRAGMA integrity_check").fetchone() == ("ok",)
         connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
     seed = read("seed-v2-bridge.json")
+    seeded_a = seed["docs"]["qa210-approve-agent"]["resource"]["document"]
     saved_b = read("saved-B.json")["resource"]["document"]
-    results = []
-    for obs in read("observations.json"):
-        run = obs["bridge_after"]["data"]["run"]
-        assert run is not None, obs["label"]
-        assert obs["bridge_after"]["data"]["schema"] if "schema" in obs["bridge_after"]["data"] else True
+    observations = read("observations.json")
+    results, last_by_execution = [], {}
+    for obs in observations:
+        for key in ("bridge_before", "bridge_after"):
+            assert obs[key]["schema"] == SCHEMA and obs[key]["run"] is not None, f"{obs['label']}: {key}"
+        run = obs["bridge_after"]["run"]
+        assert run["high_watermark"] == obs["bridge_before"]["run"]["high_watermark"], f"{obs['label']}: watermark moved while observing"
         session = run["execution_id"]
-        assert session == obs["scope"]["execution_id"] and run["owner_chat_id"] == obs["scope"]["owner_chat_id"]
+        assert session == obs["scope"]["execution_id"] and run["owner_chat_id"] == obs["scope"]["owner_chat_id"] and run["resource_id"] == obs["scope"]["resource_id"]
         journal = open_existing_execution_journal_readonly(database_path=database, object_directory=copied / "objects", execution_id=session)
         events = journal.capture_snapshot().events
         launches = [e for e in events if e.event_type == "pupu.skeleton.launch" and e.attempt.attempt_id == run["root_run_id"]]
@@ -74,46 +119,61 @@ def main():
         assert sha256(raw).hexdigest() == payload["launch_sha256"]
         descriptor = json.loads(raw); assert canonical(descriptor) == raw
         assert descriptor["runtime_manifest"]["manifest_digest"] == os.environ["QA_MANIFEST"] == run["launch_manifest_digest"] == run["runtime_manifest_digest"]
-        _, _, plan = validate_launch_descriptor(descriptor, session_id=session, root_run_id=event.attempt.attempt_id)
-        assert run["definition_digest"] == execution_definition_digest(plan), f"{obs['label']}: digest differs from the frozen plan"
-        assert run["resource_id"] == plan.document_id == obs["scope"]["resource_id"]
-        root = run["graphs"][0]
-        store = WorkflowExecutionStore(journal, plan, graph_id=descriptor["graph_id"], attempt=event.attempt)
-        state = store.load().state
-        assert root["graph_id"] == descriptor["graph_id"] and root["status"] == state["status"] and root["root_committed"] == state["root_committed"]
-        expected = node_states_from_journal(state)
-        observed = {node["node_id"]: node["state"] for node in root["nodes"]}
-        for node_id, want in expected.items():
-            got = observed[node_id]
-            assert (got in want) if isinstance(want, set) else got == want, f"{obs['label']}: node {node_id} journal {want} vs observation {got}"
-        for node_id, got in observed.items():
-            if node_id not in expected:
-                assert got == "pending", f"{obs['label']}: unseen node {node_id} shown as {got}"
-        # the page drew exactly what the bridge returned
-        page_nodes = {n["node_id"]: n for n in obs["page"]["nodes"]}
-        for node in root["nodes"] if obs.get("page_second_graph") is None else []:
-            if node["node_id"] in page_nodes:
-                assert page_nodes[node["node_id"]]["aria"] is not None
-        assert obs["page"]["caption_present"] is True and obs["page"]["error"] is None
-        # observing the run added nothing to this execution's journal
-        assert run["high_watermark"] == obs["bridge_before"]["data"]["run"]["high_watermark"] or obs["label"].startswith("turn2") or obs["label"] in {"approve-completed", "cancelled", "parent-child", "cold-parent-child"}, obs["label"]
-        assert max(e.store_seq for e in events) >= run["high_watermark"]
-        # A versus B: the waiting/completed observations of the approval chat are the seeded A, turn 2 is B
+        assert descriptor["owner_chat_id"] == run["owner_chat_id"] and descriptor["graph_id"] == run["graphs"][0]["graph_id"]
+        _, _, root_plan = validate_launch_descriptor(descriptor, session_id=session, root_run_id=event.attempt.attempt_id)
+        assert run["definition_digest"] == execution_definition_digest(root_plan) and run["resource_id"] == root_plan.document_id
+        plans = frozen_plans(descriptor)
+        generation = event.attempt.generation
+        assert run["generation_id"] == generation.generation_id
+        graph_ids = [g["graph_id"] for g in run["graphs"]]
+        assert len(set(graph_ids)) == len(graph_ids)
+        children_of = {}
+        for g in run["graphs"]:
+            if g["parent_graph_id"] is not None:
+                children_of.setdefault(g["parent_graph_id"], []).append(g)
+        graph_results = []
+        for index, graph in enumerate(run["graphs"]):
+            final = graph["call_stack"][-1]
+            plan = plans.get((final["definition_id"], graph["definition_digest"]))
+            assert plan is not None, f"{obs['label']}: graph {graph['graph_id']} has no frozen plan in the launch descriptor"
+            assert graph["document"] == plan.snapshot(), f"{obs['label']}: graph {graph['graph_id']} diagram is not the frozen document"
+            store = WorkflowExecutionStore(journal, plan, graph_id=graph["graph_id"], attempt=AttemptRef(generation, graph["attempt_id"]))
+            record = store.load(); state = record.state
+            assert graph["status"] == state["status"] and graph["paused"] == state["paused"] and graph["root_committed"] == state["root_committed"], f"{obs['label']}: graph {graph['graph_id']} status"
+            assert graph["revision"] == record.revision, f"{obs['label']}: graph {graph['graph_id']} revision"
+            assert graph["owner_liveness"] == "unknown" and graph["error"] == state["error"]
+            if index == 0:
+                assert graph["parent_graph_id"] is None and graph["caller_node_id"] is None
+            else:
+                assert graph["parent_graph_id"] in graph_ids[:index], f"{obs['label']}: child {graph['graph_id']} parent not listed earlier"
+                assert graph["caller_node_id"] is not None
+            expected = expected_nodes(store, state, obs["pending"], graph["graph_id"] in children_of)
+            observed = {node["node_id"]: (node["state"], node["phase"]) for node in graph["nodes"]}
+            assert observed == expected, f"{obs['label']}: graph {graph['graph_id']} nodes\n observed={observed}\n expected={expected}"
+            page = obs["pages_by_graph_index"][index] if index < len(obs["pages_by_graph_index"]) else None
+            if page is not None:
+                assert page["error"] is None and page["caption_present"] is True
+                page_nodes = {n["node_id"]: n for n in page["nodes"]}
+                assert set(page_nodes) == set(observed), f"{obs['label']}: page drew {sorted(page_nodes)} vs bridge {sorted(observed)}"
+                for node_id, (state_name, phase) in observed.items():
+                    drawn = page_nodes[node_id]
+                    assert drawn["run_state"] == state_name, f"{obs['label']}: page node {node_id} state {drawn['run_state']} vs {state_name}"
+                    assert drawn["aria"] == caption(state_name, phase), f"{obs['label']}: page node {node_id} label {drawn['aria']!r} vs {caption(state_name, phase)!r}"
+            graph_results.append({"graph_id": graph["graph_id"], "status": state["status"], "nodes": observed, "page_bound": page is not None})
         selected = descriptor["selection"]["document"]
         if obs["label"] in {"approve-waiting", "approve-waiting-after-B-saved", "approve-completed"}:
-            assert selected == seed["docs"]["qa210-approve-agent"]["resource"]["document"], f"{obs['label']}: executed document is not seeded A"
-            assert selected != saved_b
+            assert selected == seeded_a and selected != saved_b, f"{obs['label']}: executed document is not the seeded A"
         if obs["label"] == "turn2-uses-B":
             assert selected == saved_b, "turn 2 did not execute the saved B"
         if obs["label"] == "cancelled":
-            assert state["status"] == "cancelled" and state["root_committed"] is False
-        if obs["label"] in {"approve-completed", "turn2-uses-B", "parent-child", "cold-parent-child"}:
-            assert state["status"] == "completed" and state["root_committed"] is True and not state["error"]
-        if len(run["graphs"]) > 1:
-            child = run["graphs"][1]
-            assert child["parent_graph_id"] == root["graph_id"] and child["caller_node_id"] == "kernel"
-        results.append({"label": obs["label"], "root_run_id": run["root_run_id"], "status": state["status"], "definition_digest": run["definition_digest"],
-                        "graphs": len(run["graphs"]), "node_states": observed, "journal_events": len(events), "high_watermark": run["high_watermark"]})
+            assert run["graphs"][0]["status"] == "cancelled" and run["graphs"][0]["root_committed"] is False
+        if obs["label"] in {"approve-completed", "turn2-uses-B", "hook-completed", "parent-child", "cold-parent-child"}:
+            assert run["graphs"][0]["status"] == "completed" and run["graphs"][0]["root_committed"] is True
+        last_by_execution[session] = (obs["label"], run["high_watermark"], max(e.store_seq for e in events))
+        results.append({"label": obs["label"], "root_run_id": run["root_run_id"], "definition_digest": run["definition_digest"],
+                        "high_watermark": run["high_watermark"], "graphs": graph_results})
+    for session, (label, watermark, journal_max) in last_by_execution.items():
+        assert watermark == journal_max, f"last observation {label} watermark {watermark} != journal max {journal_max} for {session}"
     hot = next(r for r in results if r["label"] == "parent-child"); cold = next(r for r in results if r["label"] == "cold-parent-child")
     assert {k: v for k, v in hot.items() if k != "label"} == {k: v for k, v in cold.items() if k != "label"}, "cold read differs"
     (out / "raw-observation-verification.json").write_text(json.dumps({"verdict": "RAW_210_OBSERVATION_BOUND", "results": results,

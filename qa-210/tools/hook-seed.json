@@ -1,0 +1,241 @@
+{
+  "hook_workflow": {
+    "schema_version": 1,
+    "kind": "workflow",
+    "id": "qa210-owned-before",
+    "name": "QA210 owned before Hook",
+    "nodes": [
+      {
+        "id": "start",
+        "type": "start",
+        "config": {
+          "execution": {
+            "outputs": [
+              {
+                "name": "arguments",
+                "source": {
+                  "kind": "result",
+                  "path": [
+                    "arguments"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "end",
+        "type": "end",
+        "config": {
+          "execution": {
+            "inputs": [
+              {
+                "name": "decision",
+                "value": {
+                  "kind": "literal",
+                  "value": "continue"
+                },
+                "missing": "error"
+              },
+              {
+                "name": "require_approval",
+                "value": {
+                  "kind": "literal",
+                  "value": false
+                },
+                "missing": "error"
+              },
+              {
+                "name": "arguments",
+                "value": {
+                  "kind": "ref",
+                  "node_id": "start",
+                  "path": [
+                    "arguments"
+                  ]
+                },
+                "missing": "error"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "decision",
+                "source": {
+                  "kind": "input",
+                  "path": [
+                    "decision"
+                  ]
+                }
+              },
+              {
+                "name": "require_approval",
+                "source": {
+                  "kind": "input",
+                  "path": [
+                    "require_approval"
+                  ]
+                }
+              },
+              {
+                "name": "arguments",
+                "source": {
+                  "kind": "input",
+                  "path": [
+                    "arguments"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "hook-flow",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "end",
+        "target_port_id": "in"
+      }
+    ]
+  },
+  "pool_node": {
+    "id": "observation-hooks",
+    "type": "hooks_pool",
+    "config": {
+      "hooks": [
+        {
+          "id": "qa210-observe-hook",
+          "order": 10,
+          "event": "before_tool_call",
+          "tool_name": "workflow_mutate",
+          "workflow": {
+            "kind": "embedded",
+            "document": {
+              "schema_version": 1,
+              "kind": "workflow",
+              "id": "qa210-owned-before",
+              "name": "QA210 owned before Hook",
+              "nodes": [
+                {
+                  "id": "start",
+                  "type": "start",
+                  "config": {
+                    "execution": {
+                      "outputs": [
+                        {
+                          "name": "arguments",
+                          "source": {
+                            "kind": "result",
+                            "path": [
+                              "arguments"
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "id": "end",
+                  "type": "end",
+                  "config": {
+                    "execution": {
+                      "inputs": [
+                        {
+                          "name": "decision",
+                          "value": {
+                            "kind": "literal",
+                            "value": "continue"
+                          },
+                          "missing": "error"
+                        },
+                        {
+                          "name": "require_approval",
+                          "value": {
+                            "kind": "literal",
+                            "value": false
+                          },
+                          "missing": "error"
+                        },
+                        {
+                          "name": "arguments",
+                          "value": {
+                            "kind": "ref",
+                            "node_id": "start",
+                            "path": [
+                              "arguments"
+                            ]
+                          },
+                          "missing": "error"
+                        }
+                      ],
+                      "outputs": [
+                        {
+                          "name": "decision",
+                          "source": {
+                            "kind": "input",
+                            "path": [
+                              "decision"
+                            ]
+                          }
+                        },
+                        {
+                          "name": "require_approval",
+                          "source": {
+                            "kind": "input",
+                            "path": [
+                              "require_approval"
+                            ]
+                          }
+                        },
+                        {
+                          "name": "arguments",
+                          "source": {
+                            "kind": "input",
+                            "path": [
+                              "arguments"
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              ],
+              "edges": [
+                {
+                  "id": "hook-flow",
+                  "kind": "flow",
+                  "source_node_id": "start",
+                  "source_port_id": "out",
+                  "target_node_id": "end",
+                  "target_port_id": "in"
+                }
+              ]
+            }
+          },
+          "force_approval": false
+        }
+      ]
+    }
+  },
+  "attach_edge": {
+    "id": "attach-observation-hooks",
+    "kind": "attach",
+    "source_node_id": "kernel",
+    "source_port_id": "attach_bot",
+    "target_node_id": "observation-hooks",
+    "target_port_id": "attach_top"
+  },
+  "tool_name": "workflow_mutate",
+  "expected_decision": {
+    "decision": "continue",
+    "require_approval": false,
+    "arguments": "unchanged caller arguments"
+  },
+  "scope": "QA-only before Hook, no Code, no additional approval, no added SDK call"
+}

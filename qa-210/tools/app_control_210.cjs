@@ -12,6 +12,8 @@ const { spawn } = require('child_process');
 const { createStartupWatch } = require('./app_first_run.cjs');
 const { installRecorder } = require('./enter_probe.cjs');
 const { sendOnce, STOP_ICON } = require('./composer_send.cjs');
+const HOOK_SEED = require('./hook-seed.json'); // Codex seed, integrity in ticket-210-close-20261107/hook-seed/integrity.json
+const SCHEMA = 'pupu.skeleton-run-observation.v1';
 
 const candidate = path.resolve(process.env.QA_CANDIDATE_ROOT);
 const requireCandidate = createRequire(path.join(candidate, 'package.json'));
@@ -66,7 +68,7 @@ function workflow() {
     source_node_id: a, source_port_id: 'out', target_node_id: b, target_port_id: 'in' })) };
 }
 const codeSource = `def main(input,context):\n return {'receipt':'${SENTINEL}'}\n`;
-function agentDoc(id, model, name, { tools = true, revision = null, child = null } = {}) {
+function agentDoc(id, model, name, { tools = true, revision = null, child = null, hook = false } = {}) {
   const output = { name: 'message', source: { kind: 'result', path: ['message'] } };
   const input = (node) => ({ name: 'message', value: { kind: 'ref', node_id: node, path: ['message'] }, missing: 'error' });
   const document = { schema_version: 1, kind: 'agent', id, name, nodes: [
@@ -85,6 +87,10 @@ function agentDoc(id, model, name, { tools = true, revision = null, child = null
       workflow_tools: [{ id: 'mutate', workflow: { workflow_id: 'qa210-workflow', revision_id: revision } }] } });
     document.edges.push({ id: 'attach-tools', kind: 'attach', source_node_id: 'kernel', source_port_id: 'attach_bot', target_node_id: 'tools', target_port_id: 'attach_top' });
   }
+  if (hook) {
+    // Codex's verified seed (REAL_STORE_EMBEDDED_HOOK_ATTACHMENT_ACCEPTED): before_tool_call on workflow_mutate, embedded owned Workflow answering continue.
+    document.nodes.push(copy(HOOK_SEED.pool_node)); document.edges.push(copy(HOOK_SEED.attach_edge));
+  }
   if (child) {
     document.nodes.push({ id: 'reviewers', type: 'subagent_pool', config: { subagents: [{ id: 'reviewer', name: 'Reviewer', description: 'review',
       source: { kind: 'embedded', document: child }, allowed_modes: ['delegate'], output_mode: 'summary', memory_policy: 'ephemeral',
@@ -101,11 +107,12 @@ function frameFor(body) {
   const model = body.model; const at = counts[model] || 0; counts[model] = at + 1;
   assert.equal(body.stream, true); assert.equal(body.options.num_ctx, 8192); assert.equal(body.options.num_predict, 128);
   let message;
-  if (model === 'qa210-approve' || model === 'qa210-cancel') {
-    const label = model === 'qa210-approve' ? 'approve' : 'cancel';
+  if (model === 'qa210-approve' || model === 'qa210-cancel' || model === 'qa210-hook') {
+    const label = model === 'qa210-approve' ? 'approve' : model === 'qa210-hook' ? 'hook' : 'cancel';
     const exposed = body.tools.find(tool => tool.function.name === 'workflow_mutate'); assert.ok(exposed, 'workflow tool not exposed');
     if (label === 'cancel') assert.ok(at < 1, 'cancelled run was re-dispatched');
     if (label === 'approve') assert.ok(at < 4, 'unexpected approval-model redispatch');
+    if (label === 'hook') assert.ok(at < 2, 'unexpected hook-model redispatch');
     // turn 1: tool call → park; turn 1 resume: reply; turn 2 (after B saved): tool call then reply again
     message = at % 2 === 0
       ? { role: 'assistant', content: '', tool_calls: [{ id: `${label}-call-${at}`, type: 'function', function: { name: 'workflow_mutate', arguments: { inputs: { path: path.join(workspace, `${label}-${at}.txt`) } } } }] }
@@ -264,23 +271,27 @@ async function main() {
       graph_state: document.querySelector('[data-testid="run-observation-graph-state"]')?.textContent ?? null,
       skipped: document.querySelector('[data-testid="run-observation-skipped"]')?.textContent ?? null,
       error: document.querySelector('[data-testid="run-observation-error"]')?.textContent ?? null,
-      nodes: [...document.querySelectorAll('[data-testid^="run-node-state-"]')].map(el => ({ node_id: el.getAttribute('data-testid').slice('run-node-state-'.length), text: el.textContent.trim(), aria: el.querySelector('[aria-label]')?.getAttribute('aria-label') ?? null })),
+      nodes: [...document.querySelectorAll('[data-testid^="run-node-state-"]')].map(el => ({ node_id: el.getAttribute('data-testid').slice('run-node-state-'.length), text: el.textContent.trim(), aria: el.getAttribute('aria-label'), run_state: el.getAttribute('data-run-state') })),
       picker_present: Boolean(document.querySelector('[data-testid="run-observation-graph-picker"]')),
       caption_present: Boolean([...document.querySelectorAll('span')].find(s => s.textContent.startsWith('Recorded state; live activity is unconfirmed'))),
     }));
-    const page1 = await readPage(); await shot(page, `observe-${label}`);
-    let page2 = null;
-    if (switchToSecond) {
-      await page.getByTestId('run-observation-graph-picker').getByRole('combobox').click();
-      const options = page.getByRole('listbox').getByRole('option'); await expect(options).toHaveCount(expectGraphs ?? 2);
-      await options.nth(1).click(); mark('ui', 'switch graph invocation', { label });
-      await expect(page.getByTestId('run-observation-graph-state')).toBeVisible(); page2 = await readPage(); await shot(page, `observe-${label}-child`);
+    const pages = [await readPage()]; await shot(page, `observe-${label}`);
+    if (switchToSecond && before.run.graphs.length > 1) {
+      for (let index = 1; index < before.run.graphs.length; index += 1) {
+        await page.getByTestId('run-observation-graph-picker').getByRole('combobox').click();
+        const options = page.getByRole('listbox').getByRole('option'); await expect(options).toHaveCount(before.run.graphs.length);
+        pages[0].picker_labels = pages[0].picker_labels || await options.allTextContents();
+        await options.nth(index).click(); mark('ui', 'switch graph invocation', { label, index });
+        await expect(page.getByTestId('run-observation-graph-state')).toBeVisible(); pages.push(await readPage()); await shot(page, `observe-${label}-graph${index}`);
+      }
     }
     const after = await page.evaluate(({ owner, session, resource }) => window.unchainAPI.getSkeletonRunObservation({ owner_chat_id: owner, execution_id: session, resource_id: resource }),
       { owner: scope.chatId, session: scope.session, resource: observeResourceId });
-    const record = { label, scope: { owner_chat_id: scope.chatId, execution_id: scope.session, resource_id: observeResourceId }, pending: scope.pending, bridge_before: before, bridge_after: after, page: page1, page_second_graph: page2 };
+    const record = { label, scope: { owner_chat_id: scope.chatId, execution_id: scope.session, resource_id: observeResourceId }, pending: scope.pending, bridge_before: before, bridge_after: after, pages_by_graph_index: pages };
     observations.push(record); write('observations.json', observations);
-    if (expectGraphs !== null) assert.equal(after.ok && after.data.run ? after.data.run.graphs.length : -1, expectGraphs, 'graph count');
+    for (const reply of [before, after]) { assert.equal(reply && reply.schema, SCHEMA, 'raw bridge reply schema'); assert.ok(reply.run, `${label}: run is null`); }
+    assert.equal(before.run.high_watermark, after.run.high_watermark, `${label}: observing moved the watermark`);
+    if (expectGraphs !== null) assert.equal(after.run.graphs.length, expectGraphs, 'graph count');
     return record;
   }
   async function backToEditor(page) { await page.getByRole('button', { name: 'Back to editor', exact: true }).click(); await expect(page.getByTestId('skeleton-run-observation-view')).toHaveCount(0); }
@@ -299,13 +310,14 @@ async function main() {
       const api = window.unchainAPI;
       const saved = await api.saveManagedSkeletonResource({ schema: 'pupu.skeleton-edit.v2', document: wf, expected_edit_token: null, managed_sources: [{ node_path: ['nodes', 2], text: source }] });
       const published = await api.publishManagedSkeletonWorkflow(wf.id, saved.resource.edit_token);
-      const docs = {}; for (const document of [approve, cancel]) { const tools = document.nodes.find(n => n.id === 'tools'); tools.config.workflow_tools[0].workflow.revision_id = published.version.revision_id;
+      const docs = {}; for (const document of [approve, cancel, hook]) { const tools = document.nodes.find(n => n.id === 'tools'); tools.config.workflow_tools[0].workflow.revision_id = published.version.revision_id;
         docs[document.id] = await api.saveManagedSkeletonResource({ schema: 'pupu.skeleton-edit.v2', document, expected_edit_token: null, managed_sources: [] }); }
       docs[parent.id] = await api.saveManagedSkeletonResource({ schema: 'pupu.skeleton-edit.v2', document: parent, expected_edit_token: null, managed_sources: [] });
       return { saved, published, docs, capabilities: await api.getSkeletonWorkflowToolCapabilities() };
     }, { wf: workflow(), source: codeSource, approve: agentDoc('qa210-approve-agent', 'qa210-approve', 'QA210 Approval Agent'), cancel: agentDoc('qa210-cancel-agent', 'qa210-cancel', 'QA210 Cancel Agent'),
+      hook: agentDoc('qa210-hook-agent', 'qa210-hook', 'QA210 Hook Agent', { hook: true }),
       parent: agentDoc('qa210-parent-agent', 'qa210-parent', 'QA210 Parent Agent', { tools: false, child: agentDoc('qa210-child-agent', 'qa210-child', 'Reviewer Agent', { tools: false }) }) });
-    write('seed-v2-bridge.json', seeded); mark('seed', 'workflow published and three Agents saved through the real v2 bridge; no UI authoring claim');
+    write('seed-v2-bridge.json', seeded); mark('seed', 'workflow published and four Agents saved through the real v2 bridge; no UI authoring claim');
 
     // 1+2: real run parks on approval; observe waiting
     await begin(page, 'QA210 Approval Agent', 'QA210 approve turn 1'); await visibleApproval(page);
@@ -324,8 +336,8 @@ async function main() {
     await page.getByRole('button', { name: 'Save', exact: true }).click(); await expect(page.getByTestId('skeleton-save-state')).toHaveText('Saved'); mark('ui', 'B saved while A waits');
     const savedB = await page.evaluate(() => window.unchainAPI.getManagedSkeletonResource('qa210-approve-agent')); write('saved-B.json', savedB);
     const obsAfterB = await observe(page, 'approve-waiting-after-B-saved', { expectGraphs: 2 });
-    assert.equal(obsAfterB.bridge_after.data.run.definition_digest, obsWaiting.bridge_after.data.run.definition_digest, 'A digest changed after B saved');
-    assert.equal(obsAfterB.bridge_after.data.run.high_watermark, obsWaiting.bridge_after.data.run.high_watermark, 'observation changed the journal');
+    assert.equal(obsAfterB.bridge_after.run.definition_digest, obsWaiting.bridge_after.run.definition_digest, 'A digest changed after B saved');
+    assert.equal(obsAfterB.bridge_after.run.high_watermark, obsWaiting.bridge_after.run.high_watermark, 'observation changed the journal');
     await backToEditor(page); await closeBuilder(page);
     // 3: approve → resume → completed
     await (await provenApproveCard(page, waiting.pending)).click(); mark('ui', 'Approve');
@@ -339,7 +351,7 @@ async function main() {
     await expect(page.getByText(`${REPLY.approve} 3`, { exact: true })).toBeVisible({ timeout: 120000 });
     const turn2 = await chatScope(page); write('approve-turn2-chat.json', turn2);
     await openBuilder(page, 'QA210 Approval Agent'); const obsB = await observe(page, 'turn2-uses-B', { expectGraphs: 2 });
-    assert.notEqual(obsB.bridge_after.data.run.definition_digest, obsDone.bridge_after.data.run.definition_digest, 'turn 2 did not use B');
+    assert.notEqual(obsB.bridge_after.run.definition_digest, obsDone.bridge_after.run.definition_digest, 'turn 2 did not use B');
     await backToEditor(page); await closeBuilder(page);
     // 3b: cancel
     await begin(page, 'QA210 Cancel Agent', 'QA210 cancel'); await visibleApproval(page);
@@ -349,7 +361,16 @@ async function main() {
     const stopButton = page.locator(`button:has(path[d^="${STOP_ICON}"])`); await expect(stopButton).toHaveCount(1); await stopButton.click(); mark('ui', 'Stop the waiting run');
     await until(async () => (await chatScope(page)).pending.status === 'none'); const cancelled = await chatScope(page); write('cancelled-chat.json', cancelled);
     await openBuilder(page, 'QA210 Cancel Agent'); await observe(page, 'cancelled', { expectGraphs: 2 }); await backToEditor(page); await closeBuilder(page);
-    // 5: subagent invocation
+    // 5a: Hook invocation (before_tool_call → embedded owned Workflow → workflow tool child parks on approval)
+    await begin(page, 'QA210 Hook Agent', 'QA210 hook'); await visibleApproval(page);
+    const hookWaiting = await chatScope(page); write('hook-waiting-chat.json', hookWaiting);
+    observeResourceId = 'qa210-hook-agent';
+    await openBuilder(page, 'QA210 Hook Agent'); await observe(page, 'hook-waiting', { expectGraphs: 3, switchToSecond: true }); await backToEditor(page); await closeBuilder(page);
+    await (await provenApproveCard(page, hookWaiting.pending)).click(); mark('ui', 'Approve (hook chat)');
+    await expect(page.getByText(`${REPLY.approve} 1`, { exact: true }).last()).toBeVisible({ timeout: 120000 });
+    const hookDone = await chatScope(page); write('hook-completed-chat.json', hookDone);
+    await openBuilder(page, 'QA210 Hook Agent'); await observe(page, 'hook-completed', { expectGraphs: 3, switchToSecond: true }); await backToEditor(page); await closeBuilder(page);
+    // 5b: subagent invocation
     await begin(page, 'QA210 Parent Agent', 'QA210 parent'); await expect(page.getByText(REPLY.parent, { exact: true })).toBeVisible({ timeout: 120000 });
     const parentDone = await chatScope(page); write('parent-chat.json', parentDone);
     observeResourceId = 'qa210-parent-agent';
@@ -359,10 +380,10 @@ async function main() {
     const coldScope = await chatScope(page); assert.equal(coldScope.session, parentDone.session, 'active chat changed across restart');
     await openBuilder(page, 'QA210 Parent Agent'); const cold = await observe(page, 'cold-parent-child', { expectGraphs: 2, switchToSecond: true }); await backToEditor(page);
     const hot = observations.find(o => o.label === 'parent-child');
-    assert.deepEqual(cold.bridge_after.data.run, hot.bridge_after.data.run, 'cold observation differs from the hot one');
+    assert.deepEqual(cold.bridge_after.run, hot.bridge_after.run, 'cold observation differs from the hot one');
     assert.deepEqual(errors, []);
     write('functional-result.json', { verdict: 'APP_210_OBSERVATION_RECORDED', observations: observations.map(o => o.label), provider_requests: wires.length, real_provider_requests: 0,
-      seeding: 'real v2 bridge (disclosed)', hook_invocation: 'NOT_RUN', product_renderer_sandbox: false });
+      seeding: 'real v2 bridge (disclosed); hook pool from Codex hook-seed.json', hook_invocation: 'RUN', product_renderer_sandbox: false });
   } finally {
     if (current?.page) await shot(current.page, 'last-window');
     await stop(); await new Promise(resolve => server.close(resolve));

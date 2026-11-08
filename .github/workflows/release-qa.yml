@@ -2,13 +2,13 @@ name: "#210 packaged-App offline acceptance (QA only, non-delivery)"
 
 # QA-only branch: replaces release-qa.yml so the ordinary PR pipeline never runs here.
 # Not for merge. Every identity is a dispatch input; nothing defaults to an old candidate.
-# Identity defaults = Codex hand-over 2026-11-07 (Host 1c5d551a, canonical wheel run 42395251373).
+# Identity defaults = Codex hand-over 2026-11-08 (Host 4bfc5068 / tree d98a8245, canonical wheel run 42395251373).
 # The Linux sidecar and the App are each built once here and reused; CI wheels are a separate identity.
 on:
   workflow_dispatch:
     inputs:
-      candidate_sha: { required: true, type: string, default: "1c5d551ab96af338af9993f4ba0f1a5595d81f45" }
-      candidate_tree: { required: true, type: string, default: "28fa01cef1ed0fd7239e1c0d687626da61c83b62" }
+      candidate_sha: { required: true, type: string, default: "4bfc5068260799329c142f6015229c529d8fc89a" }
+      candidate_tree: { required: true, type: string, default: "d98a8245c462cbd216972964a9e41fd680af4d56" }
       wheel_run_id: { required: true, type: string, default: "42395251373", description: "run holding the one Core wheel artifact (canonical)" }
       wheel_artifact: { required: true, type: string, default: "unchain-release-artifact" }
       wheel_sha256: { required: true, type: string, default: "c1213803c1b3bb58f4fc78a03b1a00f80e001d63be00c4afae53ab4d972b12ec" }
