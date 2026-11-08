@@ -10,7 +10,7 @@ if [[ "$1" != --inside ]]; then
   export QA_CORE_TESTS="$PWD/runtime-source"
   export QA_OUT="$PWD/test-results/$mode" QA_BINARY="$PWD/candidate/unchain_runtime/dist/linux/unchain-server"
   mkdir -p "$QA_HOME" "$QA_TMP" "$QA_OUT"
-  exec sudo --preserve-env=PATH,QA_UID,QA_GID,QA_HOME,QA_TMP,QA_SERVER,QA_CONTROL,QA_CORE_TESTS,QA_OUT,QA_BINARY,QA_BINARY_SHA,QA_OLD_BINARY,QA_PYTHON,QA_SITE,QA_WHEEL,QA_WHEEL_SHA,QA_MANIFEST,QA_CANDIDATE,QA_APP,QA_CANDIDATE_ROOT \
+  exec sudo --preserve-env=PATH,QA_UID,QA_GID,QA_HOME,QA_TMP,QA_SERVER,QA_CONTROL,QA_CORE_TESTS,QA_OUT,QA_BINARY,QA_BINARY_SHA,QA_OLD_BINARY,QA_PYTHON,QA_SITE,QA_WHEEL,QA_WHEEL_SHA,QA_MANIFEST,QA_CANDIDATE,QA_APP,QA_CANDIDATE_ROOT,QA_APP_DRIVER,QA_APP_VERIFY,QA_STOP_WAIT_MS \
     unshare --net /bin/bash "$0" --inside "$mode"
 fi
 
@@ -49,6 +49,7 @@ run=(setpriv --reuid="$QA_UID" --regid="$QA_GID" --init-groups env -i \
   QA_MANIFEST="$QA_MANIFEST" QA_BINARY="$QA_BINARY" QA_BINARY_SHA="${QA_BINARY_SHA:-}" QA_CANDIDATE="$QA_CANDIDATE" \
   QA_OLD_BINARY="${QA_OLD_BINARY:-}" \
   QA_APP="${QA_APP:-}" QA_CANDIDATE_ROOT="${QA_CANDIDATE_ROOT:-}" QA_CONTROL="$QA_CONTROL" QA_PYTHON="$QA_PYTHON" \
+  QA_APP_DRIVER="${QA_APP_DRIVER:-}" QA_APP_VERIFY="${QA_APP_VERIFY:-}" QA_STOP_WAIT_MS="${QA_STOP_WAIT_MS:-}" \
   GITHUB_ACTIONS=true RUNNER_OS=Linux XDG_CURRENT_DESKTOP=GNOME NODE_OPTIONS=--max-old-space-size=2048 "${command[@]}")
 [[ "$mode" == app ]] || exec "${run[@]}"
 # Passive copy of loopback traffic for the Main -> sidecar payloads. It only
