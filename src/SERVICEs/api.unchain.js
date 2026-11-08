@@ -14,6 +14,7 @@ import { readWorkspaces } from "../COMPONENTs/settings/runtime";
 import { invokeSkeletonBridge } from "./skeleton_resource_errors";
 import { createManagedCodeApi } from "./managed_code_api";
 import { createManagedTransferApi } from "./managed_transfer_api";
+import { createLegacyUpgradeApi } from "./legacy_upgrade_api";
 import { createSkeletonHookApi } from "./skeleton_hook_capabilities";
 import { createSkeletonHookToolSetApi } from "./skeleton_hook_tool_set_capabilities";
 import { createSkeletonHookWorkflowApi } from "./skeleton_hook_workflow_capabilities";
@@ -1369,6 +1370,7 @@ export const createUnchainApi = () => {
     ...createSkeletonRunObservationApi(assertBridgeMethod, withTimeout),
     ...createManagedCodeApi(assertBridgeMethod, withTimeout),
     ...createManagedTransferApi(assertBridgeMethod, withTimeout),
+    ...createLegacyUpgradeApi(assertBridgeMethod, withTimeout),
     ...createSkeletonHookApi(assertBridgeMethod, withTimeout),
     ...createSkeletonHookToolSetApi(assertBridgeMethod, withTimeout),
     ...createSkeletonHookWorkflowApi(assertBridgeMethod, withTimeout),

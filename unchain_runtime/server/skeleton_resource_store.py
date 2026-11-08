@@ -234,6 +234,20 @@ class SkeletonResourceStore:
         from skeleton_source_transfer import import_managed_resource
         return import_managed_resource(self, value)
 
+    def preview_legacy_upgrade(self, resource_id: str, *, expected_edit_token: str,
+                               choices: Any) -> dict[str, Any]:
+        from skeleton_legacy_upgrade_save import preview_legacy_upgrade
+        return preview_legacy_upgrade(self, resource_id,
+            expected_edit_token=expected_edit_token, choices=choices)
+
+    def apply_legacy_upgrade(self, resource_id: str, *, expected_edit_token: str,
+                             expected_projection_digest: str, choices: Any,
+                             result_check=None) -> dict[str, Any]:
+        from skeleton_legacy_upgrade_save import apply_legacy_upgrade
+        return apply_legacy_upgrade(self, resource_id, expected_edit_token=expected_edit_token,
+            expected_projection_digest=expected_projection_digest, choices=choices,
+            result_check=result_check)
+
     def publish_managed_workflow(self, resource_id, value):
         from skeleton_code_publication import publish_managed_workflow
         return publish_managed_workflow(self, resource_id, value)

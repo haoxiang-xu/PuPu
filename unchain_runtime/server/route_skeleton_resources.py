@@ -466,5 +466,6 @@ def delete_skeleton_python_profile(profile_id: str):
 # Register the explicitly versioned source API; the v1 graph-only routes above
 # keep their original field sets and refuse aggregates they cannot preserve.
 import route_skeleton_code_sources  # noqa: E402,F401
+import route_skeleton_legacy_upgrade  # noqa: E402,F401
 
 __all__ = []

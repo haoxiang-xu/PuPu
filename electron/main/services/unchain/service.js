@@ -6,6 +6,7 @@ const { CHANNELS } = require("../../../shared/channels");
 const { readSkeletonResourceResponse } = require("./skeleton_resource_response");
 const { buildManagedCodeRequest, validateManagedCodeReply, isManagedCodeAction } = require("./managed_code_transport");
 const { buildManagedTransferRequest, isManagedTransferAction, runManagedTransferCommand } = require("./managed_transfer_transport");
+const { prepareLegacyUpgradeRequest, isLegacyUpgradeAction, runLegacyUpgradeCommand } = require("./legacy_upgrade_transport");
 const {
   buildSkeletonCredentialQuery,
   resolveSkeletonCredentials,
@@ -4636,10 +4637,15 @@ const createUnchainService = ({
   };
 
   const runMisoSkeletonResourceCommand = async (action, payload = {}) => {
+    const upgrade = isLegacyUpgradeAction(action) ? prepareLegacyUpgradeRequest(action, payload) : null;
     // Snapshot the validated scalar request synchronously, before any await.
     const observationScope = action === "run_observation"
       ? Object.freeze({ ...checkSkeletonRunObservationRequest(payload) }) : null;
     ensureMisoReady();
+    if (upgrade) return runLegacyUpgradeCommand(upgrade, {
+      baseUrl: `http://${UNCHAIN_HOST}:${unchainPort}`, authToken: unchainAuthToken,
+      fetchImpl: (...args) => fetch(...args), readResponse: readSkeletonResourceResponse,
+    });
     if (isManagedTransferAction(action)) {
       return runManagedTransferCommand(action, payload, {
         baseUrl: `http://${UNCHAIN_HOST}:${unchainPort}`, authToken: unchainAuthToken,
