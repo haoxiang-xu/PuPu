@@ -86,7 +86,8 @@ def main():
     generations = read("process-generations.json")
     assert len(generations) == 2 and all(row["all_owned_dead"] is True for row in generations)
     for row in generations:
-        sidecars = [p for p in row["processes_at_ready"] if Path(p["exe"]).name == "unchain-server"]
+        table = row.get("proc_table_at_ready") or row["processes_at_ready"]
+        sidecars = [p for p in table if Path(p["exe"]).name == "unchain-server"]
         assert sidecars, "sidecar_process_identity_missing"
         assert all(sha256(Path(p["exe"]).read_bytes()).hexdigest() == os.environ["QA_BINARY_SHA"] for p in sidecars), "sidecar_binary_mismatch"
     databases = list((out / "home").rglob("context_v2.sqlite3"))

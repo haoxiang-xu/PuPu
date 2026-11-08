@@ -160,18 +160,23 @@ async function main() {
       await until(() => [...held.owned.values()].every(identity => { const alive = processIdentity(identity.pid); return !alive || alive.start_ticks !== identity.start_ticks; }),
         signal === 'SIGTERM' ? 10000 : 5000).catch(error => { if (signal === 'SIGKILL') throw error; });
     }
+    const strays = fs.readdirSync('/proc').filter(n => /^\d+$/.test(n)).map(processIdentity).filter(row => row && path.basename(row.exe) === 'unchain-server');
+    for (const row of strays) { try { process.kill(row.pid, 'SIGKILL'); } catch { /* gone */ } }
+    held.record.stray_sidecars_reaped = strays;
     held.record.stopped_ns = process.hrtime.bigint().toString();
-    held.record.all_owned_dead = true; held.record.processes = [...held.owned.values()];
+    held.record.all_owned_dead = [...held.owned.values()].every(identity => { const alive = processIdentity(identity.pid); return !alive || alive.start_ticks !== identity.start_ticks; });
+    assert.equal(held.record.all_owned_dead, true); held.record.processes = [...held.owned.values()];
     write('process-generations.json', generations); current = null;
   }
   async function launch() {
     const debug = 19220 + generations.length;
+    const generation = generations.length + 1;
+    const logFd = fs.openSync(path.join(out, `app-${generation}.log`), 'a');
     const child = spawn(app, [`--remote-debugging-port=${debug}`, `--user-data-dir=${userData}`, '--password-store=gnome-libsecret'], {
       detached: true, env: { ...process.env, HOME: home, XDG_CONFIG_HOME: path.join(home, '.config'), XDG_DATA_HOME: path.join(home, '.local/share'),
         XDG_CACHE_HOME: path.join(home, '.cache'), PUPU_E2E: '1', PUPU_COMPUTER_USE: '0', UNCHAIN_MODEL: 'environment-decoy-210', OLLAMA_HOST: 'http://127.0.0.1:18992' },
-      stdio: ['ignore', 'pipe', 'pipe'] });
-    const generation = generations.length + 1;
-    const log = fs.createWriteStream(path.join(out, `app-${generation}.log`)); child.stdout.pipe(log, { end: false }); child.stderr.pipe(log, { end: false }); child.on('exit', () => log.end());
+      stdio: ['ignore', logFd, logFd] });
+    fs.closeSync(logFd);
     const owned = new Map();
     const collect = () => { const table = fs.readdirSync('/proc').filter(n => /^\d+$/.test(n)).map(processIdentity).filter(Boolean); let changed = true;
       while (changed) { changed = false; for (const row of table) if (!owned.has(row.pid) && (row.pid === child.pid || owned.has(row.parent))) { owned.set(row.pid, row); changed = true; } } };
@@ -189,8 +194,13 @@ async function main() {
     const gate = page.getByRole('button', { name: 'Click anywhere to start' });
     await expect(gate).toBeVisible({ timeout: 120000 }); await gate.click();
     record.startup = await startup.settle();
-    await until(() => { collect(); return [...owned.values()].some(row => path.basename(row.exe) === 'unchain-server'); });
+    // Readiness is the product's own answer: getPendingInteraction throws "Miso service is not ready" until the sidecar is up.
+    await until(() => page.evaluate(() => window.unchainAPI.getPendingInteraction({ session_id: 'qa210-readiness-probe' }).then(() => true, () => false)), 180000);
+    collect();
     record.ready_ns = process.hrtime.bigint().toString(); record.processes_at_ready = [...owned.values()];
+    record.sidecar_owned = [...owned.values()].some(row => path.basename(row.exe) === 'unchain-server');
+    record.proc_table_at_ready = fs.readdirSync('/proc').filter(n => /^\d+$/.test(n)).map(processIdentity).filter(Boolean)
+      .map(row => ({ ...row, cmdline: (() => { try { return fs.readFileSync(`/proc/${row.pid}/cmdline`, 'utf8').split('\0').join(' ').slice(0, 200); } catch { return ''; } })() }));
     write('process-generations.json', generations);
     return page;
   }
