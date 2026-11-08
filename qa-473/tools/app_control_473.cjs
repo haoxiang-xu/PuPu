@@ -181,7 +181,7 @@ async function main() {
       assert(/legacy_prompt_review_required|legacy_setting_ignored|unused_choice|toolkit_choice_required|toolkit_config_review_required/.test(problems),`unexpected preview refusal: ${problems}`);
       mark('ui','review Host refusal and deliberately Preview again',{label,attempt,problems,unaccepted});
       const added=wizard.getByTestId('legacy-upgrade-slot-toolkit');for(let i=0;i<await added.count();i++){
-        const slot=added.nth(i),id=slot.getByPlaceholder('toolkit id');if(await id.inputValue()==='core')await id.fill('CoreToolkit');
+        const slot=added.nth(i);mark('ui','keep exact legacy toolkit id',{label,id:await slot.getByPlaceholder('toolkit id').inputValue()});
         await slot.getByRole('button',{name:label==='Default'?'All tools':'Choose tools',exact:true}).click();
       }
     }throw new Error('preview never accepted');}
@@ -193,7 +193,7 @@ async function main() {
     else await page.getByTestId('skeleton-legacy-upgrade-open').click();
     const wizard=page.getByTestId('legacy-upgrade-wizard');await expect(wizard).toBeVisible();await until(async()=>await wizard.getAttribute('data-phase')==='ready');
     const kernels=wizard.getByTestId('legacy-upgrade-slot-kernel');for(let i=0;i<await kernels.count();i++){const slot=kernels.nth(i);await chooseKernel(slot,page);await slot.getByRole('combobox').filter({hasText:'Preserve the legacy model'}).click();await page.getByRole('listbox').getByText("Replace with this Kernel's model",{exact:true}).click();mark('ui','explicit legacy model replacement',{name,model:'gpt-6-sol',reply_budget:128});}
-    const toolkits=wizard.getByTestId('legacy-upgrade-slot-toolkit');for(let i=0;i<await toolkits.count();i++){const slot=toolkits.nth(i);const id=slot.getByPlaceholder('toolkit id');const old=await id.inputValue();if(old==='core'){await id.fill('CoreToolkit');mark('ui','explicitly choose installed CoreToolkit',{name,old});}if(!tools)await slot.getByRole('button',{name:name==='Default'?'All tools':'Choose tools',exact:true}).click();}
+    const toolkits=wizard.getByTestId('legacy-upgrade-slot-toolkit');for(let i=0;i<await toolkits.count();i++){const slot=toolkits.nth(i);mark('ui','keep exact legacy toolkit id',{name,id:await slot.getByPlaceholder('toolkit id').inputValue()});if(!tools)await slot.getByRole('button',{name:name==='Default'?'All tools':'Choose tools',exact:true}).click();}
     await acknowledge(wizard);
     if(tools){await wizard.getByRole('checkbox',{name:'write',exact:true}).check();await preview(wizard,page,'tools-keeps-missing-name');await wizard.getByRole('checkbox',{name:'qa473_missing_tool',exact:true}).uncheck();}
     if(structured){await preview(wizard,page,'structured-preserve');const combo=kernels.first().getByRole('combobox').filter({hasText:'Preserve the legacy prompt'});await combo.click();await page.getByRole('listbox').getByText('Replace with the built-in prompt',{exact:true}).click();}
@@ -212,7 +212,7 @@ async function main() {
     const sha=require('node:crypto');const hashes=()=>Object.fromEntries(fs.readdirSync(originals).filter(n=>n.startsWith('QA473')).map(n=>[n,sha.createHash('sha256').update(fs.readFileSync(path.join(originals,n))).digest('hex')]));const originalHashes=hashes();write('legacy-originals-before.json',originalHashes);
     let page=await launch();
     const cred=await page.evaluate(key=>window.settingsStorageAPI.setProviderCredential('provider','openai',key),KEY);write('sentinel-credential-status.json',cred);mark('fixture','write-only synthetic OpenAI credential, never read');
-    await snapshot(page,'initial');
+    await snapshot(page,'initial');write('real-toolkit-catalog.json',await page.evaluate(()=>window.unchainAPI.listToolModalCatalog({strict:true})));
     await openSidebarIfNeeded(page);await page.getByRole('button',{name:'Workspaces',exact:true}).click();
     const rootInput=page.getByRole('textbox',{name:'default-workspace-root',exact:true});await rootInput.fill(workspace);await rootInput.press('Enter');await expect(page.getByText('Saved.',{exact:true})).toBeVisible();await rootInput.press('Escape');await expect(rootInput).toHaveCount(0);mark('ui','authorize only the private QA workspace');
     await page.getByRole('button',{name:'New chat',exact:true}).click();await page.getByTestId('attach-agent-row').getByRole('combobox').click();await page.getByRole('listbox').getByText('QA473 Flat',{exact:true}).click();write('old-chat-selection-before-upgrade.json',await page.evaluate(()=>window.chatStorageAPI.bootstrap()));mark('ui','legacy name selected before upgrade, not sent yet');
