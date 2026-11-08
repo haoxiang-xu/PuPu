@@ -318,7 +318,7 @@ async function main() {
     await expect(page.getByText('Saved.', { exact: true })).toBeVisible(); await rootInput.press('Escape'); await expect(rootInput).toHaveCount(0);
     mark('ui', 'default workspace saved through the editor');
     // seed (disclosed)
-    const seeded = await page.evaluate(async ({ wf, source, approve, cancel, parent }) => {
+    const seeded = await page.evaluate(async ({ wf, source, approve, cancel, hook, parent }) => {
       const api = window.unchainAPI;
       const saved = await api.saveManagedSkeletonResource({ schema: 'pupu.skeleton-edit.v2', document: wf, expected_edit_token: null, managed_sources: [{ node_path: ['nodes', 2], text: source }] });
       const published = await api.publishManagedSkeletonWorkflow(wf.id, saved.resource.edit_token);
