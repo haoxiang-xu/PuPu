@@ -33,6 +33,7 @@ finish() {
   iptables-save -c > "$QA_OUT/firewall-after.txt"; ip6tables-save -c > "$QA_OUT/firewall6-after.txt"
   sha256sum "$QA_OUT/sidecar.pcap" > "$QA_OUT/sidecar-pcap.sha256"
   "$QA_PYTHON" -I -B "$QA_CONTROL/pcap_http.py" "$QA_OUT/sidecar.pcap" "$QA_OUT/http-redacted.json" || true
+  "$QA_PYTHON" -I -B "$QA_CONTROL/pcap_http_pairs.py" "$QA_OUT/sidecar.pcap" "$QA_OUT/http-pairs.json" || true
   rm -f "$QA_OUT/sidecar.pcap" "$QA_OUT/certs/key.pem"
   chown -R "$QA_UID:$QA_GID" "$QA_OUT"
 }
@@ -43,4 +44,4 @@ setpriv --reuid="$QA_UID" --regid="$QA_GID" --init-groups env -i \
  QA_MANIFEST="$QA_MANIFEST" QA_BINARY_SHA="$QA_BINARY_SHA" QA_CANDIDATE_TREE="$QA_CANDIDATE_TREE" \
  SSL_CERT_FILE="$QA_OUT/certs/cert.pem" NODE_EXTRA_CA_CERTS="$QA_OUT/certs/cert.pem" \
  GITHUB_ACTIONS=true RUNNER_OS=Linux XDG_CURRENT_DESKTOP=GNOME NODE_OPTIONS=--max-old-space-size=2048 \
- dbus-run-session -- /bin/bash "$QA_CONTROL/run_app.sh"
+ dbus-run-session -- xvfb-run -a /bin/bash "$QA_CONTROL/run_app.sh"
