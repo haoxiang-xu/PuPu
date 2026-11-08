@@ -65,7 +65,7 @@ async function main() {
     const chunks=[];for await(const chunk of q)chunks.push(chunk);const raw=Buffer.concat(chunks).toString('utf8');
     const row={index:wires.length,method:q.method,url:q.url,authorization_is_sentinel:q.headers.authorization===`Bearer ${KEY}`,at_ns:process.hrtime.bigint().toString(),request_text:raw};wires.push(row);
     try {assert(row.authorization_is_sentinel,'fixture_authorization');
-      if(q.method==='GET'&&q.url==='/v1/models'){r.setHeader('Content-Type','application/json');r.end(JSON.stringify({object:'list',data:[{id:'gpt-4.1',object:'model',owned_by:'qa473'}]}));row.kind='catalog';}
+      if(q.method==='GET'&&q.url==='/v1/models'){r.setHeader('Content-Type','application/json');r.end(JSON.stringify({object:'list',data:[{id:'gpt-6-sol',object:'model',owned_by:'qa473'}]}));row.kind='catalog';}
       else {assert.equal(q.method,'POST');assert.equal(q.url,'/v1/responses');const event=frameFor(JSON.parse(raw));row.event=event;
         r.writeHead(200,{'Content-Type':'text/event-stream'});r.end(`event: response.completed\ndata: ${JSON.stringify(event)}\n\n`);row.kind='sdk';}
     }catch(e){row.error=String(e);r.writeHead(500);r.end(JSON.stringify({error:{message:String(e)}}));}finally{write('provider-wires.json',wires);}
@@ -170,7 +170,7 @@ async function main() {
   async function catalog(page){return page.evaluate(()=>window.unchainAPI.listSkeletonResources(false));}
   async function readResource(page,id){return page.evaluate(id=>window.unchainAPI.getManagedSkeletonResource(id),id);}
   async function snapshot(page,label){const list=await catalog(page);write(`resources-${label}.json`,list);return list;}
-  async function chooseKernel(scope,page){const model=scope.getByTestId('kernel-model').getByRole('combobox');await model.click();await page.getByRole('listbox').getByText('openai · gpt-4.1',{exact:true}).click();}
+  async function chooseKernel(scope,page){const model=scope.getByTestId('kernel-model').getByRole('combobox');await model.click();await page.getByRole('listbox').getByText('openai · gpt-6-sol',{exact:true}).click();await scope.getByText('Keep',{exact:true}).locator('..').getByRole('textbox').fill('128');}
   async function acknowledge(wizard){const boxes=wizard.getByRole('checkbox');for(let i=0;i<await boxes.count();i++){const b=boxes.nth(i);const label=await b.getAttribute('aria-label');if(label==='Accept this Kernel projection'||label==='Discard unsupported toolkit settings'||label?.startsWith('Acknowledge '))await b.check();}}
   async function preview(wizard,page,label){for(let attempt=0;attempt<5;attempt++){
       await acknowledge(wizard); const button=wizard.getByRole('button',{name:/^Preview(?: again)?$/});await expect(button).toBeEnabled();await button.click();
@@ -186,7 +186,7 @@ async function main() {
     if(oldConvert){const pool=before.resource.document.nodes.find(n=>n.type==='subagent_pool');await page.getByTestId(`skeleton-node-${pool.id}`).click();await page.getByRole('button',{name:'Convert to Agent entries',exact:true}).click();}
     else await page.getByTestId('skeleton-legacy-upgrade-open').click();
     const wizard=page.getByTestId('legacy-upgrade-wizard');await expect(wizard).toBeVisible();await until(async()=>await wizard.getAttribute('data-phase')==='ready');
-    const kernels=wizard.getByTestId('legacy-upgrade-slot-kernel');for(let i=0;i<await kernels.count();i++)await chooseKernel(kernels.nth(i),page);
+    const kernels=wizard.getByTestId('legacy-upgrade-slot-kernel');for(let i=0;i<await kernels.count();i++){const slot=kernels.nth(i);await chooseKernel(slot,page);await slot.getByRole('combobox').filter({hasText:'Preserve the legacy model'}).click();await page.getByRole('listbox').getByText("Replace with this Kernel's model",{exact:true}).click();mark('ui','explicit legacy model replacement',{name,model:'gpt-6-sol',reply_budget:128});}
     const toolkits=wizard.getByTestId('legacy-upgrade-slot-toolkit');for(let i=0;i<await toolkits.count();i++){const slot=toolkits.nth(i);const id=slot.getByPlaceholder('toolkit id');const old=await id.inputValue();if(old==='core'){await id.fill('CoreToolkit');mark('ui','explicitly choose installed CoreToolkit',{name,old});}if(!tools)await slot.getByRole('button',{name:'All tools',exact:true}).click();}
     await acknowledge(wizard);
     if(tools){await wizard.getByRole('checkbox',{name:'write',exact:true}).check();await preview(wizard,page,'tools-keeps-missing-name');await wizard.getByRole('checkbox',{name:'qa473_missing_tool',exact:true}).uncheck();}
