@@ -183,7 +183,7 @@ async function main(){
     assert(geometry.clientWidth>0);assert(geometry.controls.some(c=>c.visible));
     // Overflow is evidence, never hidden by a QA CSS override. Code textareas may scroll by design.
     const clipping=await page.getByTestId('recipe-detail-panel').evaluate(root=>{const panel=root.getBoundingClientRect();const bad=[];for(const e of root.querySelectorAll('button,[role=combobox],label,h1,h2,h3,h4')){const r=e.getBoundingClientRect();if(!r.width||!r.height)continue;const style=getComputedStyle(e);if(r.left<panel.left-2||r.right>panel.right+2||((e.scrollWidth>e.clientWidth+2)&&style.textOverflow!=='ellipsis'))bad.push({text:e.textContent,aria:e.getAttribute('aria-label'),scrollWidth:e.scrollWidth,clientWidth:e.clientWidth,left:r.left,right:r.right});}return bad;});
-    write(label+'-clipping.json',clipping);cells.push({panel,node,locale,theme,bound,shell,geometry,clipping,label_probe:{key:labelKey,expected:expectedLabel,actual:actualLabel},screenshot:label+'.png',aria:label+'.aria.txt'});write('cells.json',cells);
+    write(label+'-clipping.json',clipping);cells.push({panel,node,locale,theme,bound,shell,geometry,clipping,label_probe:{key:labelKey,expected:expectedLabel,actual:actualLabel},screenshot:label+'.png',aria:label+'.aria.txt'});write('cells.json',cells);console.log('[QA212] cell '+label+' clipping='+clipping.length);
   }
   try{
     const execProbe=require('node:util').promisify(require('node:child_process').execFile);await execProbe(process.env.QA_PYTHON,['-I','-B',path.join(__dirname,'isolation_probe.py'),out,'QA473_OWNED_NONCE']);
@@ -205,12 +205,12 @@ async function main(){
       for(const [node,panel] of [['score','code-section'],['qa212-workflow_call','workflow-call-section'],['qa212-hooks_pool','hooks-pool-section']])for(const bound of ['min','max'])await panelCell(page,node,panel,theme,bound);
     }
     await selectNode(page,'score');assert.equal(await page.getByTestId('code-text-editor').getByRole('textbox').inputValue(),author);
-    mark('save-start','one explicit GUI Save');await page.getByTestId('skeleton-control-center').getByRole('button',{name:text(locale,'agents.save.save'),exact:true}).click();
+    await width(page,'min');mark('save-start','one explicit GUI Save');await page.getByTestId('skeleton-control-center').getByRole('button',{name:text(locale,'agents.save.save'),exact:true}).click();
     const saved=await until(async()=>{const r=await read(page);return r.resource.edit_token!==seeded.resource.edit_token&&r.contents.some(c=>c.text===author)?r:null;});write('saved-resource.json',saved);mark('save-end','one explicit GUI Save');
     assert.equal(saved.resource.document.id,seed.document.id);assert(saved.contents.some(c=>c.sha256===sha(author)),'saved source hash mismatch');assert.deepEqual(saved.resource.document.nodes[1].config.code.source,{kind:'file',path:'__pupu_code__/sha256/'+sha(author)+'.py'},'source path is not its content hash');
     // Graph must remain literal; only the managed source path changes with the GUI source edit.
     const expected=JSON.parse(JSON.stringify(seeded.resource.document));expected.nodes[1].config.code.source=saved.resource.document.nodes[1].config.code.source;assert.deepEqual(saved.resource.document,expected,'author prompt/node/id changed');
-    await stop();page=await launch();const cold=await read(page);write('cold-resource.json',cold);assert.deepEqual(cold,saved,'cold read is not saved resource');
+    await stop();mark('cold-start','new Main/sidecar same HOME');page=await launch();const cold=await read(page);write('cold-resource.json',cold);mark('cold-read','authoritative resource read after cold start');assert.deepEqual(cold,saved,'cold read is not saved resource');
     // Sidebar and Agents are translated; use real localized names on cold launch.
     await openSidebarIfNeeded(page);await page.getByRole('button',{name:text(locale,'side_menu.agents'),exact:true}).click();await page.getByTestId('agent-explorer').getByText(seed.document.name,{exact:true}).click();
     await selectNode(page,'score');assert.equal(await page.getByTestId('code-text-editor').getByRole('textbox').inputValue(),author);await expect(page.getByTestId('code-runtime').getByText(text(locale,'agents.execution.code.runtime'),{exact:true})).toBeVisible();await shot(page,'cold-author');
