@@ -767,8 +767,12 @@ const AttachPanel = forwardRef(({
       ]),
     [recipeOptions, skeletonAgentOptions],
   );
+  const upgradedAliasOption = (skeletonAgentOptions || []).find(option =>
+    selectedRecipeName !== "Default" && Array.isArray(option.legacyNames) && option.legacyNames.includes(selectedRecipeName));
   const agentSelectValue = selectedSkeletonAgentId
     ? `skeleton:${selectedSkeletonAgentId}`
+    : upgradedAliasOption
+      ? `skeleton:${upgradedAliasOption.id}`
     : selectedRecipeName && selectedRecipeName !== "Default"
       ? `legacy:${selectedRecipeName}`
       : AGENT_DEFAULT;
@@ -777,7 +781,7 @@ const AttachPanel = forwardRef(({
      shows what the chat names, and says it is unavailable, rather than
      appearing to run the default Agent. */
   const agentSelectionUnavailable =
-    Boolean(selectedSkeletonAgentId) &&
+    Boolean(selectedSkeletonAgentId || (selectedRecipeName && selectedRecipeName !== "Default")) &&
     !agentChoiceByValue.has(agentSelectValue);
   const agentSelectOptions = agentSelectionUnavailable
     ? [
