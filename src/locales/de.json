@@ -2716,7 +2716,7 @@
       "tool_unlisted": "{name} (derzeit nicht in der Werkzeugbibliothek)",
       "tool_unlisted_note": " „{name}“ ist derzeit nicht in der Werkzeugbibliothek; es bleibt wie gespeichert erhalten.",
       "when": "Wann",
-      "workflow_decides": "Workflow entscheiden lassen",
+      "workflow_decides": "Workflow entscheidet",
       "workflow_embedded_shape": "Der gespeicherte Workflow ist nicht genau {kind: embedded, document}; der Lauf lehnt ihn ab.",
       "workflow_missing": "Heften Sie den veröffentlichten Workflow an, den dieser Hook ausführt.",
       "workflow_reference_shape": "Der gespeicherte Workflow-Verweis ist nicht genau {workflow_id, revision_id}, beide benannt; der Lauf lehnt ihn ab.",

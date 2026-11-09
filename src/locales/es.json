@@ -2716,7 +2716,7 @@
       "tool_unlisted": "{name} (ahora no está en la biblioteca de herramientas)",
       "tool_unlisted_note": " «{name}» no está ahora en la biblioteca de herramientas; se conserva tal como está almacenado.",
       "when": "Cuándo",
-      "workflow_decides": "Dejar que decida el Workflow",
+      "workflow_decides": "Decide el Workflow",
       "workflow_embedded_shape": "El Workflow almacenado no es exactamente {kind: embedded, document}; la ejecución lo rechaza.",
       "workflow_missing": "Fije el Workflow publicado que ejecuta este Hook.",
       "workflow_reference_shape": "La referencia de Workflow almacenada no es exactamente {workflow_id, revision_id}, ambos con nombre; la ejecución la rechaza.",

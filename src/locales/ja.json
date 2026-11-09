@@ -2716,7 +2716,7 @@
       "tool_unlisted": "{name}（現在ツールライブラリにありません）",
       "tool_unlisted_note": " 「{name}」は現在ツールライブラリにありません。保存されたまま保持されます。",
       "when": "タイミング",
-      "workflow_decides": "Workflow に判断させる",
+      "workflow_decides": "Workflow に任せる",
       "workflow_embedded_shape": "保存された Workflow は正確な {kind: embedded, document} ではありません。実行時に拒否されます。",
       "workflow_missing": "この Hook が実行する公開済み Workflow を固定してください。",
       "workflow_reference_shape": "保存された Workflow 参照は、両方に名前を指定した正確な {workflow_id, revision_id} ではありません。実行時に拒否されます。",

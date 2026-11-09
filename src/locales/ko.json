@@ -2716,7 +2716,7 @@
       "tool_unlisted": "{name}(현재 도구 라이브러리에 없음)",
       "tool_unlisted_note": " “{name}”은(는) 현재 도구 라이브러리에 없으며 저장된 그대로 유지됩니다.",
       "when": "시점",
-      "workflow_decides": "Workflow에서 결정",
+      "workflow_decides": "Workflow에 따름",
       "workflow_embedded_shape": "저장된 Workflow가 정확히 {kind: embedded, document} 형식이 아니므로 실행 시 거부됩니다.",
       "workflow_missing": "이 Hook이 실행할 게시된 Workflow를 고정하세요.",
       "workflow_reference_shape": "저장된 Workflow 참조가 두 값에 모두 이름이 있는 정확한 {workflow_id, revision_id} 형식이 아니므로 실행 시 거부됩니다.",
