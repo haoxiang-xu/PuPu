@@ -46,15 +46,15 @@ def main():
     require(result['verdict']=='APP_448_PATHS_RECORDED','driver_completed')
     require(read('errors.json')==[],'renderer_errors')
     generations=read('process-generations.json')
-    require(len(generations)==2,'actual_two_process_generations')
+    require(len(generations)==3,'setup_and_two_qualification_process_generations')
     for row in generations:
         require(row['all_owned_dead'] and row['sidecar_owned'],'owned_process_identity_and_exit')
         require(not row.get('stray_sidecars_reaped'),'no_untracked_sidecar')
         require(any(Path(p['exe']).name=='unchain-server' for p in row['processes_at_ready']),'ready_sidecar_pid')
-    require(generations[0]['main']['pid']!=generations[1]['main']['pid'],'main_pid_changed')
+    require(len({g['main']['pid'] for g in generations})==3,'main_pids_changed')
     pids=[{p['pid'] for p in g['processes_at_ready'] if Path(p['exe']).name=='unchain-server'} for g in generations]
-    require(pids[0] and pids[1] and pids[0].isdisjoint(pids[1]),'sidecar_pid_changed')
-    require(int(generations[0]['stopped_ns'])<int(generations[1]['started_ns']),'old_processes_dead_before_restart')
+    require(all(pids) and all(pids[i].isdisjoint(pids[j]) for i in range(3) for j in range(i)), 'sidecar_pids_changed')
+    require(all(int(generations[i]['stopped_ns'])<int(generations[i+1]['started_ns']) for i in range(2)), 'old_processes_dead_before_restart')
     hot,cold=read('hot-chat.json'),read('cold-chat.json')
     require(hot['chatId']==cold['chatId'] and hot['session']==cold['session'],'cold_chat_identity')
     require(hot['messages']==cold['messages'],'cold_message_exact')
@@ -72,7 +72,7 @@ def main():
     require(tests['exit']==0,'installed_five_regressions')
     require(tests['manifest']['manifest_digest']==os.environ['QA_MANIFEST'],'installed_manifest')
     import zipfile
-    wheel=next((ROOT.parents[1]/'wheel').glob('*.whl'))
+    wheel=Path(os.environ['QA_WHEEL_PATH']) if os.environ.get('QA_WHEEL_PATH') else next((ROOT.parents[1]/'wheel').glob('*.whl'))
     require(sha(wheel.read_bytes())=='c1213803c1b3bb58f4fc78a03b1a00f80e001d63be00c4afae53ab4d972b12ec','canonical_wheel')
     with zipfile.ZipFile(wheel) as archive:
         for module in tests['imports']:
@@ -107,12 +107,21 @@ def main():
         require(JournalEvent.from_dict(event).to_dict()==event,'official_event_parser')
         require(event['event_id']==row['event_id'] and event['store_seq']==row['store_seq'] and event['event_type']==row['event_type'],'physical_event_index')
         require(event['attempt']['generation']['execution_id']==row['execution_id'],'event_execution_identity');events.append(event)
+        require(event['attempt']['generation']['generation_id']==row['generation_id'] and event['attempt']['attempt_id']==row['attempt_id'] and event['operation']['operation_id']==row['operation_id'],'physical_event_full_identity')
     for row in db.execute('select * from artifacts'):
         data=bytes(row['artifact_json']);require(sha(data)==row['artifact_record_sha256'],'artifact_descriptor_digest')
         descriptor=json.loads(data);require(descriptor['sha256']==row['object_sha256'] and descriptor['byte_length']==row['byte_length'],'artifact_row_object_binding')
+        require(descriptor['ref']['id']==row['artifact_id'] and descriptor['ref']['revision']==row['revision'] and descriptor['ref']['kind']=='artifact' and descriptor['ref']['fragment']=='','artifact_ref_full_identity')
+        require(descriptor['media_type']==row['media_type'] and descriptor['preview']==row['preview'],'artifact_row_presentation_binding')
     require(not any(e['event_type'] in {'run_failed','run_cancelled'} for e in events),'no_failed_or_cancelled_run')
     own=[e for e in events if e['attempt']['generation']['execution_id']==hot['session']]
     require(bool(own),'physical_owner_session')
+    physical_events={e['event_id']:e for e in own}
+    for observed in hot_events+cold_events:
+        e=physical_events.get(observed['event_id']);require(e is not None,'api_event_has_physical_source')
+        require(observed['session_id']==hot['session'] and observed['attempt_id']==e['attempt']['attempt_id'] and observed['generation_id']==e['attempt']['generation']['generation_id'],'api_event_full_identity')
+        require(observed['store_seq']==e['store_seq'] and observed['type']==e['event_type'] and observed['payload_hash']==e['operation']['payload_sha256'],'api_event_cursor_and_digest')
+        require(observed['event']=={'type':e['event_type'],**e['payload']},'api_event_exact_payload')
     calls={e['payload']['call_id']:e for e in own if e['event_type']=='tool_call'}
     results={e['payload']['call_id']:e for e in own if e['event_type']=='tool_result'}
     grep_calls=[e for e in own if e['event_type']=='tool_call' and e['payload']['tool_name']=='grep']
@@ -166,6 +175,9 @@ def main():
             b=page['content']['text'].encode();require(page['offset']==offset and page['page_bytes']==len(b),'contiguous_official_pages');chunks.append(b);offset+=len(b)
         data=b''.join(chunks);require(len(data)==pages[-1]['total_bytes'] and sha(data)==pages[-1]['sha256'],'official_page_full_digest');return data
     event_data=combine(cold_pages);require(event_data==raw(calls['qa448_grep_0']),'cold_official_reader_equals_physical_event')
+    hot_page=state['hot_page'];require(validate_context_content_page(hot_page)==hot_page,'hot_closed_page_contract')
+    require(hot_page['ref']==cold_pages[0]['ref'] and hot_page['offset']==0 and hot_page['total_bytes']==len(event_data) and hot_page['sha256']==sha(event_data),'hot_page_exact_source_identity')
+    require(hot_page['content']['text'].encode()==event_data[:hot_page['page_bytes']],'hot_page_equals_physical_source_slice')
     result_data=combine(result_pages);ref=locator(h['tool_exchanges'][0]['full_output_ref'])
     row=db.execute('select * from artifacts where execution_id=? and artifact_id=? and revision=?',(hot['session'],ref['id'],ref['revision'])).fetchone();require(row is not None,'cold_result_exact_artifact_identity');require(result_data==objects[row['object_sha256']],'cold_official_reader_equals_physical_result')
     require(json.loads(result_data)['match_count']==1,'actual_grep_result')
@@ -183,6 +195,10 @@ def main():
     for final in replies:require(any(e['attempt']==final['attempt'] and e['store_seq']>final['store_seq'] for e in completed),'final_before_own_terminal')
     require(len([e for e in own if e['event_type']=='tool.started' and e['payload'].get('tool_name')=='grep'])==8,'eight_grep_executions_no_reexecution')
     proof=read('workspace-proof.json');require(proof['unchanged'] and proof['files']==['evidence.txt'],'readonly_workspace_exact')
+    workspace=ROOT/'workspace';require(sorted(p.name for p in workspace.iterdir())==['evidence.txt'],'physical_workspace_exact_entries')
+    f=workspace/'evidence.txt';require(f.is_file() and not f.is_symlink(),'physical_workspace_plain_file')
+    expected=('\n'.join(pattern(i) for i in range(8))+'\n').encode()
+    require(f.read_bytes()==expected and sha(expected)==proof['sha256'] and len(expected)==proof['bytes'],'physical_workspace_original_bytes')
     ledger=read('ledger.json');require(sum(r['kind']=='ui' and r['action']=='Enter' for r in ledger)==3,'three_trusted_composer_sends')
     # Entry recorder provides isTrusted; composer is not an IPC send substitute.
     for p in ROOT.glob('send-*.json'):

@@ -195,14 +195,13 @@ async function main() {
     const evidence=Array.from({length:8},(_,i)=>pattern(i)).join('\n')+'\n';fs.writeFileSync(path.join(workspace,'evidence.txt'),evidence);
     const crypto=require('node:crypto'),workspaceDigest=()=>crypto.createHash('sha256').update(fs.readFileSync(path.join(workspace,'evidence.txt'))).digest('hex');const originalWorkspace=workspaceDigest();
     let page=await launch();
-    const cred=await page.evaluate(key=>window.settingsStorageAPI.setProviderCredential('provider','openai',key),KEY);write('sentinel-credential-status.json',cred);mark('fixture','write-only synthetic OpenAI credential, followed by page reload so renderer reads persisted presence');
-    await page.reload();await page.waitForLoadState('domcontentloaded');await page.evaluate(installRecorder);
-    const reloadGate=page.getByRole('button',{name:'Click anywhere to start'});if(await reloadGate.isVisible())await reloadGate.click();
-    await createStartupWatch({page,generation:'credential-reload',out,write,mark,sleep}).settle();
+    const cred=await page.evaluate(key=>window.settingsStorageAPI.setProviderCredential('provider','openai',key),KEY);write('sentinel-credential-status.json',cred);assert.equal(cred.status,'stored');mark('fixture','write-only synthetic OpenAI credential, followed by full setup restart before model selection');
+    await stop();page=await launch();
+    const presence=await page.evaluate(()=>{const s=window.settingsStorageAPI.bootstrap();return {available:s.available,configuredCredentials:s.configuredCredentials,secretStorageStatus:s.secretStorageStatus};});write('credential-presence-after-restart.json',presence);assert(presence.configuredCredentials.includes('openai'),'stored_credential_not_present_after_restart');
     await openSidebarIfNeeded(page);await page.getByRole('button',{name:'Workspaces',exact:true}).click();
     const rootInput=page.getByRole('textbox',{name:'default-workspace-root',exact:true});await rootInput.fill(workspace);await rootInput.press('Enter');await expect(page.getByText('Saved.',{exact:true})).toBeVisible();await rootInput.press('Escape');await expect(rootInput).toHaveCount(0);mark('ui','authorize only private QA workspace');
     await page.getByRole('button',{name:'New chat',exact:true}).click();
-    const model=page.getByTestId('attach-row').getByRole('combobox').first();write('model-before.json',{text:await model.innerText()});await model.click();
+    const model=page.locator('[data-testid="attach-row"] [role="combobox"]:not([data-testid="attach-agent-row"] [role="combobox"])');await expect(model).toHaveCount(1,{timeout:30000});write('model-before.json',{text:await model.innerText()});await model.click();
     const search=page.getByPlaceholder(/^Search models/);await search.fill('gpt-6-sol');
     await page.getByRole('listbox').getByText('gpt-6-sol',{exact:true}).click();
     await page.getByRole('textbox',{name:'Message PuPu...',exact:true}).click();
