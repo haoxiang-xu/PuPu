@@ -184,7 +184,7 @@ async function main(){
     write(label+'-clipping.json',clipping);assert.deepEqual(clipping,[],'translated visible controls clip horizontally');cells.push({panel,node,locale,theme,bound,shell,geometry,label_probe:{key:labelKey,expected:expectedLabel,actual:actualLabel},screenshot:label+'.png',aria:label+'.aria.txt'});write('cells.json',cells);
   }
   try{
-    const {execFileSync}=require('node:child_process');execFileSync(process.env.QA_PYTHON,['-I','-B',path.join(__dirname,'isolation_probe.py'),out,'QA473_OWNED_NONCE']);
+    const execProbe=require('node:util').promisify(require('node:child_process').execFile);await execProbe(process.env.QA_PYTHON,['-I','-B',path.join(__dirname,'isolation_probe.py'),out,'QA473_OWNED_NONCE']);
     let page=await launch();write('seed-edit.json',seed);
     // Only setup mutation through a bridge. No credentials or provider configured.
     const seeded=await page.evaluate(edit=>window.unchainAPI.saveManagedSkeletonResource(edit),seed);write('seeded-resource.json',seeded);
