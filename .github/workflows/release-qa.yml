@@ -2,7 +2,7 @@ name: "#473 packaged-App offline acceptance (QA only, non-delivery)"
 
 # QA-only branch: replaces release-qa.yml so the ordinary PR pipeline never runs here.
 # Not for merge. Every identity is a dispatch input; nothing defaults to an old candidate.
-# Identity = final delivery tree 001409d3; canonical wheel run42395251373.
+# Identity = final delivery tree bbb26cc2; canonical wheel run42395251373.
 # The qualified sidecar c91baa27 is reused after proving all 190 Host production modules unchanged.
 # The final App is built and sealed once; CI wheels are a separate identity.
 # Runtime starts only in the strict private namespace, with a qualified local TLS fixture.
@@ -10,8 +10,8 @@ on:
   workflow_dispatch:
     inputs:
       mode: { required: true, type: choice, default: "acceptance", options: ["acceptance", "package_only"], description: "Build and seal exactly the fixed candidate; runtime acceptance uses this retained App in a later serial job" }
-      candidate_sha: { required: true, type: string, default: "5b94f79a867a37b40c79035cd6c58afef3aa68b4" }
-      candidate_tree: { required: true, type: string, default: "001409d373925a68fe2add816361ec56b3690fff" }
+      candidate_sha: { required: true, type: string, default: "94868ea0bdff3b0a6e69f869fe75b66c4b28276a" }
+      candidate_tree: { required: true, type: string, default: "bbb26cc25b9f438df2a1b6ac3a9877736b26334c" }
       wheel_run_id: { required: true, type: string, default: "42395251373", description: "run holding the one Core wheel artifact (canonical)" }
       wheel_sha256: { required: true, type: string, default: "c1213803c1b3bb58f4fc78a03b1a00f80e001d63be00c4afae53ab4d972b12ec" }
       manifest_digest: { required: true, type: string, default: "sha256:c172bc02718aee771ddd4d247904f13cdaf003d3794148fd3ecd4d4e9a419e6b", description: "expected runtime protocol manifest" }
