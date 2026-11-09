@@ -1,0 +1,11 @@
+{
+  "paths": [
+    "src/COMPONENTs/agents/pages/recipes_page/inspectors/agent_inspector.js",
+    "src/COMPONENTs/agents/pages/recipes_page/inspectors/pool_inspector.js",
+    "src/COMPONENTs/agents/pages/recipes_page/inspectors/toolkit_inspector.js",
+    "src/COMPONENTs/agents/pages/recipes_page/skeleton_drill_breadcrumb.js",
+    "src/COMPONENTs/agents/pages/recipes_page/skeleton_save_bar.js",
+    "src/COMPONENTs/agents/pages/recipes_page/variable_picker.js"
+  ],
+  "basis": "No path from src/index.js through literal import/export/require/dynamic import; graph incoming empty and source import corroboration retained in qa-leaf-*.log/qa-reachability.json. Three inspectors only imported by the unreachable RecipeInspector; other three have test imports only. Actual bundle may still include them; exemption is from mandatory inclusion only. Not removed from delivery or source review."
+}

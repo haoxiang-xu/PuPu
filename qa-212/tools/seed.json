@@ -1,0 +1,285 @@
+{
+  "schema": "pupu.skeleton-edit.v2",
+  "document": {
+    "schema_version": 1,
+    "kind": "agent",
+    "id": "qa212-native",
+    "name": "QA212 Auteur 原文 Deutsch",
+    "nodes": [
+      {
+        "id": "start",
+        "type": "start",
+        "config": {
+          "execution": {
+            "outputs": []
+          }
+        }
+      },
+      {
+        "id": "score",
+        "type": "code",
+        "config": {
+          "execution": {
+            "inputs": [],
+            "outputs": []
+          },
+          "code": {
+            "source": {
+              "kind": "file",
+              "path": "tools/placeholder.py"
+            },
+            "environment_profile_id": "offline-python",
+            "timeout_ms": 5000,
+            "max_result_bytes": 10000,
+            "max_log_bytes": 10000,
+            "result_schema": {
+              "type": "object",
+              "properties": {
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "message"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      {
+        "id": "end",
+        "type": "end",
+        "config": {
+          "execution": {
+            "inputs": [],
+            "outputs": []
+          }
+        }
+      },
+      {
+        "id": "qa212-agent",
+        "type": "agent",
+        "config": {
+          "execution": {
+            "inputs": [
+              {
+                "name": "message",
+                "value": {
+                  "kind": "ref",
+                  "node_id": "start",
+                  "path": [
+                    "message"
+                  ]
+                },
+                "missing": "error"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "message",
+                "source": {
+                  "kind": "result",
+                  "path": [
+                    "message"
+                  ]
+                }
+              },
+              {
+                "name": "context",
+                "source": {
+                  "kind": "result",
+                  "path": [
+                    "context"
+                  ]
+                }
+              }
+            ]
+          },
+          "kernel": {
+            "schema_version": 1,
+            "profile": {
+              "id": "test",
+              "provider": "openai",
+              "model": "test-model",
+              "protocol": "openai-responses",
+              "endpoint": "https://example.test/v1",
+              "credential_ref": "test.key",
+              "context_window": 8192,
+              "output_limit": 2048,
+              "capabilities": {
+                "json_schema": true,
+                "images": true,
+                "files": true
+              }
+            },
+            "prompt": "AUTHOR literal résumé 中文 Deutsch {raw_id}",
+            "max_iterations": 8,
+            "output_tokens": 512,
+            "history": "root",
+            "overflow": "error",
+            "json_schema": null
+          }
+        }
+      },
+      {
+        "config": {
+          "hooks": [
+            {
+              "event": "after_tool_call",
+              "force_approval": false,
+              "id": "audit",
+              "order": 20,
+              "tool_name": "read",
+              "workflow": {
+                "revision_id": "rev-1-36974132bbdd12ee",
+                "workflow_id": "wf-hook-replace"
+              }
+            },
+            {
+              "event": "before_tool_call",
+              "force_approval": true,
+              "id": "guard",
+              "order": 10,
+              "tool_name": null,
+              "workflow": {
+                "revision_id": "rev-1-79014cc892fd6640",
+                "workflow_id": "wf-hook-continue"
+              }
+            }
+          ]
+        },
+        "id": "qa212-hooks_pool",
+        "type": "hooks_pool"
+      },
+      {
+        "config": {
+          "execution": {
+            "inputs": [
+              {
+                "missing": "error",
+                "name": "message",
+                "value": {
+                  "kind": "ref",
+                  "node_id": "start",
+                  "path": [
+                    "message"
+                  ]
+                }
+              },
+              {
+                "missing": "error",
+                "name": "limit",
+                "value": {
+                  "kind": "ref",
+                  "node_id": "start",
+                  "path": [
+                    "message"
+                  ]
+                }
+              }
+            ],
+            "outputs": [
+              {
+                "name": "summary",
+                "source": {
+                  "kind": "result",
+                  "path": [
+                    "summary"
+                  ]
+                }
+              }
+            ]
+          },
+          "workflow": {
+            "revision_id": "rev-1-0e8ec716e4c5f617",
+            "workflow_id": "wf-summarize"
+          }
+        },
+        "id": "qa212-workflow_call",
+        "type": "workflow_call"
+      },
+      {
+        "id": "qa212-toolkit_pool",
+        "type": "toolkit_pool",
+        "config": {
+          "toolkits": [
+            {
+              "id": "core",
+              "enabled_tools": [
+                "read",
+                "write"
+              ]
+            }
+          ],
+          "merge_with_user_selected": false
+        }
+      },
+      {
+        "id": "qa212-subagent_pool",
+        "type": "subagent_pool",
+        "config": {
+          "subagents": []
+        }
+      },
+      {
+        "id": "qa212-tool",
+        "type": "tool_call",
+        "config": {
+          "execution": {
+            "inputs": [],
+            "outputs": []
+          },
+          "tool": {
+            "name": "read",
+            "on_error": "continue",
+            "approval_timeout_ms": 60000
+          }
+        }
+      },
+      {
+        "id": "qa212-skill",
+        "type": "skill_read",
+        "config": {
+          "execution": {
+            "inputs": [],
+            "outputs": []
+          },
+          "skill": {
+            "source": "user-unchain",
+            "source_id": "/Users/red/.codex/artifacts/pupu-356/356-parallel-dispatch-20261022/native-advanced/steps-352/probe/skill-capture-sandbox-01/.unchain/skills/notes/SKILL.md",
+            "name": "notes"
+          }
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "flow-start-score",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "score",
+        "target_port_id": "in"
+      },
+      {
+        "id": "flow-score-end",
+        "kind": "flow",
+        "source_node_id": "score",
+        "source_port_id": "out",
+        "target_node_id": "end",
+        "target_port_id": "in"
+      }
+    ]
+  },
+  "expected_edit_token": null,
+  "managed_sources": [
+    {
+      "node_path": [
+        "nodes",
+        1
+      ],
+      "text": "def main(input, context):\n\t# tab, trailing spaces   \n    return {\"message\": \"résumé 中文 😀\"}"
+    }
+  ]
+}
