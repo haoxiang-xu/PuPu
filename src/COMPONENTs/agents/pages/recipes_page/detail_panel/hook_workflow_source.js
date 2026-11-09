@@ -175,20 +175,20 @@ export default function HookWorkflowSource({ entry, index, nodeId, parentId, pin
           ) : (
             <span style={problem_style(isDark)}>{t("agents.hook_source.unreadable")}</span>
           )}
-          <div style={ROW}>
+          <div style={{ ...ROW, flexWrap: "wrap" }}>
             <Button
               label={t("agents.hook_source.open")}
               ariaLabel={t("agents.hook_source.open_hook", { value1: safe_text(entry.id) })}
               disabled={!offered || !record(body) || typeof onOpen !== "function"}
               onClick={() => onOpen({ pool_node_id: nodeId, entry_id: entry.id, entry_index: index })}
-              style={{ ...SMALL, color: "#4a5bd8" }}
+              style={{ ...SMALL, color: "#4a5bd8", flexShrink: 0 }}
             />
             {!saveAs && (
               <Button
                 label={t("agents.hook_source.save_as")}
                 disabled={!record(body)}
                 onClick={() => startSaveAs({ id: "", name: record(body) && typeof body.name === "string" ? body.name : "" })}
-                style={SMALL}
+                style={{ ...SMALL, flexShrink: 0 }}
               />
             )}
           </div>

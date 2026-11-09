@@ -344,7 +344,7 @@ export default function WorkflowCallSection({ document, node, rowDiagnostics, is
                 set_value={setTypedRevision}
                 style={{ ...FIELD, ...MONO }}
               />
-              <Button label={t("agents.workflow.pin")} ariaLabel={t("agents.workflow.pin_revision")} disabled={working || !typedRevision.trim()} onClick={pinTyped} style={SMALL} />
+              <Button label={t("agents.workflow.pin")} ariaLabel={t("agents.workflow.pin_revision")} disabled={working || !typedRevision.trim()} onClick={pinTyped} style={{ ...SMALL, flexShrink: 0 }} />
             </div>
             <span style={NOTE}>{t("agents.workflow.revision_explanation")}</span>
           </>
@@ -419,8 +419,8 @@ export default function WorkflowCallSection({ document, node, rowDiagnostics, is
           }
           return (
             <div key={`extra-${index}`} data-testid={`workflow-call-extra-${index}`} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              <div style={{ ...ROW, justifyContent: "space-between" }}>
-                <span style={shape || duplicate ? problem_style(isDark) : NOTE}>
+              <div style={{ ...ROW, justifyContent: "space-between", flexWrap: "wrap" }}>
+                <span style={{ ...(shape || duplicate ? problem_style(isDark) : NOTE), flex: "1 1 160px", minWidth: 0, overflowWrap: "anywhere" }}>
                   {(duplicate ? t("agents.workflow.duplicate_input", { name: "\uE000", value: "\uE001" })
                     : shape ? t("agents.workflow.ignored_input", { name: "\uE000", value: "\uE001" })
                       : t("agents.workflow.stored_input", { name: "\uE000", value: "\uE001" }))
@@ -434,7 +434,7 @@ export default function WorkflowCallSection({ document, node, rowDiagnostics, is
                   ariaLabel={t("agents.workflow.remove_input", { name })}
                   disabled={!editable}
                   onClick={() => commit(remove_call_input(document, node.id, index))}
-                  style={{ fontSize: 10.5, paddingVertical: 2, paddingHorizontal: 6, borderRadius: 5 }}
+                  style={{ fontSize: 10.5, paddingVertical: 2, paddingHorizontal: 6, borderRadius: 5, flexShrink: 0 }}
                 />
               </div>
               <Diagnostics index={index} testid={`workflow-call-extra-${index}`} />

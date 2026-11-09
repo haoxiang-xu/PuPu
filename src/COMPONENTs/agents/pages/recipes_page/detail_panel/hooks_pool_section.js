@@ -571,14 +571,14 @@ export default function HooksPoolSection({ document, node, isDark, onChange, man
           const count = hook_entry_problems(entry, { siblings: entries, scope_duplicates: scopeDuplicates, capability, toolSetCapability, workflowCapability }, t).length;
           return (
             <div key={rowId} data-testid={`hook-row-${index}`} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <div style={{ ...ROW, justifyContent: "space-between" }}>
-                <span style={{ minWidth: 0 }}>
+              <div style={{ ...ROW, justifyContent: "space-between", flexWrap: "wrap" }}>
+                <span style={{ flex: "1 1 160px", minWidth: 0, overflowWrap: "anywhere" }}>
                   <span style={{ ...MONO, fontSize: 11.5 }}>{safe_text(label.title)}</span>
                   <span style={{ ...NOTE, marginLeft: 6 }}>{safe_text(label.detail)}</span>
                   {count > 0 && <span style={{ ...problem_style(isDark), marginLeft: 6 }}>{t("agents.hooks.to_fix", { count })}</span>}
                 </span>
                 {record(entry) ? (
-                  <Button label={open_index === index ? t("agents.import.close") : t("agents.hooks.edit")} ariaLabel={t(open_index === index ? "agents.hooks.close_hook" : "agents.hooks.edit_hook", { index: index + 1 })} onClick={() => setOpen(open_index === index ? null : rowId)} style={SMALL} />
+                  <Button label={open_index === index ? t("agents.import.close") : t("agents.hooks.edit")} ariaLabel={t(open_index === index ? "agents.hooks.close_hook" : "agents.hooks.edit_hook", { index: index + 1 })} onClick={() => setOpen(open_index === index ? null : rowId)} style={{ ...SMALL, flexShrink: 0 }} />
                 ) : (
                   <Button
                     label={t("agents.execution.tool.remove")}
