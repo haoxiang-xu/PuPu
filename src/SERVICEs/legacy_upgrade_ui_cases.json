@@ -1,0 +1,3065 @@
+{
+  "manifest": {
+    "manifest_digest": "sha256:c172bc02718aee771ddd4d247904f13cdaf003d3794148fd3ecd4d4e9a419e6b",
+    "protocols": [
+      {
+        "features": [
+          "artifact_handoff",
+          "canonical_journal",
+          "chat_deletion_sqlite_scope_closure",
+          "context_compiler",
+          "context_content_paging_v1",
+          "context_content_paging_v2",
+          "context_content_read_recovery_v1",
+          "context_contribution_manifest_v1",
+          "durable_interaction_settlement_fence_v1",
+          "generation_rebase_live_interaction_cycles",
+          "graph_failure_terminals_v1",
+          "historical_evidence_guidance_v1",
+          "interaction_resolution_compat",
+          "long_term_promotion",
+          "memory_curator",
+          "memory_toolkit",
+          "memory_workspace",
+          "provider_context_limit_recovery_v1",
+          "small_tool_output_inline_v1",
+          "tool_output_management_v1"
+        ],
+        "id": "context_memory",
+        "major": 1,
+        "minor": 0
+      },
+      {
+        "features": [
+          "cancel_pending",
+          "expected_interaction_id_cas",
+          "fresh_run_lineage",
+          "graph_interaction_lineage_preflight_v1",
+          "host_controlled_resume",
+          "interaction_resolution_atomic_acceptance_v1"
+        ],
+        "id": "durable_interaction",
+        "major": 1,
+        "minor": 0
+      },
+      {
+        "features": [
+          "atomic_receipt_cas",
+          "auxiliary_calls",
+          "enforce_mode",
+          "graph_runs",
+          "memory_off",
+          "ollama_reasoning_preview_v1",
+          "provider_response_outcomes_v1",
+          "provider_uncertainty_diagnostics_v1",
+          "subagent_runs"
+        ],
+        "id": "provider_turn_ownership",
+        "major": 1,
+        "minor": 0
+      },
+      {
+        "features": [
+          "canonical_metrics",
+          "completion_diagnostics_ref",
+          "context_composition_ref_v1",
+          "continuation_claim",
+          "immutable_pricing_snapshot",
+          "provider_call_set_union",
+          "provider_call_usage_v1",
+          "run_bundle_v1",
+          "run_bundle_v2"
+        ],
+        "id": "run_bundle",
+        "major": 1,
+        "minor": 0
+      },
+      {
+        "features": [
+          "code_python_v1",
+          "draft_diagnostics_v1",
+          "durable_exclusive_dag_v2",
+          "end_only_root_completion_v1",
+          "explicit_bindings_v1",
+          "hook_embedded_workflow_v1",
+          "hook_enable_v1",
+          "hook_phase_receipts_v1",
+          "hook_tool_set_v1",
+          "kernel_profile_auth_v1",
+          "kernel_profiles_v1",
+          "legacy_conversion_v1",
+          "node_display_label_v1",
+          "non_llm_workflow_v1",
+          "pinned_workflow_calls_v1",
+          "production_host_bindings_v1",
+          "skill_read_v1",
+          "structured_output_v1",
+          "subagent_graphs_v1",
+          "subagent_native_observation_v1",
+          "subagent_tool_settlement_projection_v1",
+          "tool_call_v1"
+        ],
+        "id": "skeleton_execution",
+        "major": 1,
+        "minor": 8
+      },
+      {
+        "features": [
+          "active_skills_snapshot_v1",
+          "catalog_v1",
+          "skill_md_registry_v1",
+          "skill_tool_v1",
+          "toolkit_embedded_skills_v1",
+          "user_invocation_v1"
+        ],
+        "id": "skills",
+        "major": 1,
+        "minor": 0
+      }
+    ],
+    "runtime": "unchain",
+    "schema": "unchain.runtime_protocol_manifest.v1"
+  },
+  "native_ready": {
+    "resource": {
+      "id": "legacy-53c0e1b7e027162a2af7db63",
+      "kind": "agent",
+      "name": "NativeReady",
+      "description": "source description",
+      "archived": false,
+      "edit_token": "edit-2-4ff67d1a7b674efe9281a000",
+      "draft_digest": "4ff67d1a7b674efe9281a000ffe41cb2cd234fbddb637a6adf836967b2517063",
+      "source_identity": "NativeReady.recipe",
+      "document": {
+        "description": "source description",
+        "edges": [
+          {
+            "id": "a",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "worker",
+            "target_port_id": "in"
+          },
+          {
+            "id": "b",
+            "kind": "flow",
+            "source_node_id": "worker",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          }
+        ],
+        "id": "legacy-53c0e1b7e027162a2af7db63",
+        "kind": "agent",
+        "name": "NativeReady",
+        "nodes": [
+          {
+            "config": {
+              "legacy_fields": {},
+              "legacy_source": {
+                "document": {
+                  "agent": {
+                    "prompt": "Read {{#start.text#}}",
+                    "prompt_format": "soul"
+                  },
+                  "description": "source description",
+                  "edges": [
+                    {
+                      "id": "a",
+                      "kind": "flow",
+                      "source_node_id": "start",
+                      "source_port_id": "out",
+                      "target_node_id": "worker",
+                      "target_port_id": "in"
+                    },
+                    {
+                      "id": "b",
+                      "kind": "flow",
+                      "source_node_id": "worker",
+                      "source_port_id": "out",
+                      "target_node_id": "end",
+                      "target_port_id": "in"
+                    }
+                  ],
+                  "merge_with_user_selected": false,
+                  "model": null,
+                  "name": "NativeReady",
+                  "nodes": [
+                    {
+                      "id": "start",
+                      "type": "start"
+                    },
+                    {
+                      "id": "worker",
+                      "override": {
+                        "prompt": "old instructions"
+                      },
+                      "type": "agent"
+                    },
+                    {
+                      "id": "end",
+                      "type": "end"
+                    }
+                  ],
+                  "subagent_pool": [],
+                  "toolkits": []
+                },
+                "format": "recipe"
+              }
+            },
+            "id": "start",
+            "type": "start"
+          },
+          {
+            "config": {
+              "kernel": {
+                "history": "root",
+                "json_schema": null,
+                "max_iterations": 8,
+                "output_tokens": 512,
+                "overflow": "error",
+                "profile": {
+                  "capabilities": {
+                    "files": false,
+                    "images": false,
+                    "json_schema": true
+                  },
+                  "context_window": 8192,
+                  "credential_ref": "test.key",
+                  "endpoint": "https://example.test/v1",
+                  "id": "author-choice",
+                  "model": "test-model",
+                  "output_limit": 2048,
+                  "protocol": "openai-responses",
+                  "provider": "openai"
+                },
+                "prompt": "author prompt",
+                "schema_version": 1
+              },
+              "legacy_fields": {
+                "override": {
+                  "prompt": "old instructions"
+                }
+              },
+              "legacy_recipe": {
+                "agent": {
+                  "prompt": "Read {{#start.text#}}",
+                  "prompt_format": "soul"
+                },
+                "description": "source description",
+                "edges": [
+                  {
+                    "id": "a",
+                    "kind": "flow",
+                    "source_node_id": "start",
+                    "source_port_id": "out",
+                    "target_node_id": "worker",
+                    "target_port_id": "in"
+                  },
+                  {
+                    "id": "b",
+                    "kind": "flow",
+                    "source_node_id": "worker",
+                    "source_port_id": "out",
+                    "target_node_id": "end",
+                    "target_port_id": "in"
+                  }
+                ],
+                "merge_with_user_selected": false,
+                "model": null,
+                "name": "NativeReady",
+                "nodes": [
+                  {
+                    "id": "start",
+                    "type": "start"
+                  },
+                  {
+                    "id": "worker",
+                    "override": {
+                      "prompt": "old instructions"
+                    },
+                    "type": "agent"
+                  },
+                  {
+                    "id": "end",
+                    "type": "end"
+                  }
+                ],
+                "subagent_pool": [],
+                "toolkits": []
+              },
+              "prompt": {
+                "kind": "text",
+                "text": "old instructions"
+              }
+            },
+            "id": "worker",
+            "type": "agent"
+          },
+          {
+            "config": {
+              "legacy_fields": {}
+            },
+            "id": "end",
+            "type": "end"
+          }
+        ],
+        "schema_version": 1
+      },
+      "diagnostics": []
+    },
+    "inventory": {
+      "schema": "pupu.skeleton-legacy-upgrade.inventory.v1",
+      "resource_id": "legacy-53c0e1b7e027162a2af7db63",
+      "edit_token": "edit-2-4ff67d1a7b674efe9281a000",
+      "source_identity": "NativeReady.recipe",
+      "state": "native_draft",
+      "requirements": []
+    },
+    "choices": {
+      "schema": "pupu.skeleton-legacy-upgrade.choices.v1",
+      "kernels": [],
+      "toolkits": [],
+      "references": [],
+      "acknowledged": []
+    },
+    "preview": {
+      "schema": "pupu.skeleton-legacy-upgrade.preview.v1",
+      "resource_id": "legacy-53c0e1b7e027162a2af7db63",
+      "edit_token": "edit-2-4ff67d1a7b674efe9281a000",
+      "source_identity": "NativeReady.recipe",
+      "source_sha256": "71f582e9a364b4d0ae905461d93ca87719ed72e3ad82d7c6a0628c3c48504feb",
+      "runtime_manifest": {
+        "manifest_digest": "sha256:c172bc02718aee771ddd4d247904f13cdaf003d3794148fd3ecd4d4e9a419e6b",
+        "protocols": [
+          {
+            "features": [
+              "artifact_handoff",
+              "canonical_journal",
+              "chat_deletion_sqlite_scope_closure",
+              "context_compiler",
+              "context_content_paging_v1",
+              "context_content_paging_v2",
+              "context_content_read_recovery_v1",
+              "context_contribution_manifest_v1",
+              "durable_interaction_settlement_fence_v1",
+              "generation_rebase_live_interaction_cycles",
+              "graph_failure_terminals_v1",
+              "historical_evidence_guidance_v1",
+              "interaction_resolution_compat",
+              "long_term_promotion",
+              "memory_curator",
+              "memory_toolkit",
+              "memory_workspace",
+              "provider_context_limit_recovery_v1",
+              "small_tool_output_inline_v1",
+              "tool_output_management_v1"
+            ],
+            "id": "context_memory",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "features": [
+              "cancel_pending",
+              "expected_interaction_id_cas",
+              "fresh_run_lineage",
+              "graph_interaction_lineage_preflight_v1",
+              "host_controlled_resume",
+              "interaction_resolution_atomic_acceptance_v1"
+            ],
+            "id": "durable_interaction",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "features": [
+              "atomic_receipt_cas",
+              "auxiliary_calls",
+              "enforce_mode",
+              "graph_runs",
+              "memory_off",
+              "ollama_reasoning_preview_v1",
+              "provider_response_outcomes_v1",
+              "provider_uncertainty_diagnostics_v1",
+              "subagent_runs"
+            ],
+            "id": "provider_turn_ownership",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "features": [
+              "canonical_metrics",
+              "completion_diagnostics_ref",
+              "context_composition_ref_v1",
+              "continuation_claim",
+              "immutable_pricing_snapshot",
+              "provider_call_set_union",
+              "provider_call_usage_v1",
+              "run_bundle_v1",
+              "run_bundle_v2"
+            ],
+            "id": "run_bundle",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "features": [
+              "code_python_v1",
+              "draft_diagnostics_v1",
+              "durable_exclusive_dag_v2",
+              "end_only_root_completion_v1",
+              "explicit_bindings_v1",
+              "hook_embedded_workflow_v1",
+              "hook_enable_v1",
+              "hook_phase_receipts_v1",
+              "hook_tool_set_v1",
+              "kernel_profile_auth_v1",
+              "kernel_profiles_v1",
+              "legacy_conversion_v1",
+              "node_display_label_v1",
+              "non_llm_workflow_v1",
+              "pinned_workflow_calls_v1",
+              "production_host_bindings_v1",
+              "skill_read_v1",
+              "structured_output_v1",
+              "subagent_graphs_v1",
+              "subagent_native_observation_v1",
+              "subagent_tool_settlement_projection_v1",
+              "tool_call_v1"
+            ],
+            "id": "skeleton_execution",
+            "major": 1,
+            "minor": 8
+          },
+          {
+            "features": [
+              "active_skills_snapshot_v1",
+              "catalog_v1",
+              "skill_md_registry_v1",
+              "skill_tool_v1",
+              "toolkit_embedded_skills_v1",
+              "user_invocation_v1"
+            ],
+            "id": "skills",
+            "major": 1,
+            "minor": 0
+          }
+        ],
+        "runtime": "unchain",
+        "schema": "unchain.runtime_protocol_manifest.v1"
+      },
+      "document": {
+        "description": "source description",
+        "edges": [
+          {
+            "id": "a",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "worker",
+            "target_port_id": "in"
+          },
+          {
+            "id": "b",
+            "kind": "flow",
+            "source_node_id": "worker",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          }
+        ],
+        "id": "legacy-53c0e1b7e027162a2af7db63",
+        "kind": "agent",
+        "name": "NativeReady",
+        "nodes": [
+          {
+            "config": {
+              "execution": {
+                "outputs": [
+                  {
+                    "name": "text",
+                    "source": {
+                      "kind": "result",
+                      "path": [
+                        "message"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "images",
+                    "source": {
+                      "kind": "result",
+                      "path": [
+                        "images"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "files",
+                    "source": {
+                      "kind": "result",
+                      "path": [
+                        "files"
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "id": "start",
+            "type": "start"
+          },
+          {
+            "config": {
+              "execution": {
+                "inputs": [
+                  {
+                    "name": "text",
+                    "value": {
+                      "kind": "ref",
+                      "node_id": "start",
+                      "path": [
+                        "text"
+                      ]
+                    },
+                    "missing": "error"
+                  },
+                  {
+                    "name": "images",
+                    "value": {
+                      "kind": "ref",
+                      "node_id": "start",
+                      "path": [
+                        "images"
+                      ]
+                    },
+                    "missing": "null"
+                  },
+                  {
+                    "name": "files",
+                    "value": {
+                      "kind": "ref",
+                      "node_id": "start",
+                      "path": [
+                        "files"
+                      ]
+                    },
+                    "missing": "null"
+                  }
+                ],
+                "outputs": [
+                  {
+                    "name": "message",
+                    "source": {
+                      "kind": "result",
+                      "path": [
+                        "message"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "context",
+                    "source": {
+                      "kind": "result",
+                      "path": [
+                        "context"
+                      ]
+                    }
+                  }
+                ]
+              },
+              "kernel": {
+                "history": "root",
+                "json_schema": null,
+                "max_iterations": 8,
+                "output_tokens": 512,
+                "overflow": "error",
+                "profile": {
+                  "capabilities": {
+                    "files": false,
+                    "images": false,
+                    "json_schema": true
+                  },
+                  "context_window": 8192,
+                  "credential_ref": "test.key",
+                  "endpoint": "https://example.test/v1",
+                  "id": "author-choice",
+                  "model": "test-model",
+                  "output_limit": 2048,
+                  "protocol": "openai-responses",
+                  "provider": "openai"
+                },
+                "prompt": "author prompt",
+                "schema_version": 1
+              }
+            },
+            "id": "worker",
+            "type": "agent"
+          },
+          {
+            "config": {
+              "execution": {
+                "inputs": [
+                  {
+                    "name": "message",
+                    "value": {
+                      "kind": "ref",
+                      "node_id": "worker",
+                      "path": [
+                        "message"
+                      ]
+                    },
+                    "missing": "error"
+                  },
+                  {
+                    "name": "context",
+                    "value": {
+                      "kind": "ref",
+                      "node_id": "worker",
+                      "path": [
+                        "context"
+                      ]
+                    },
+                    "missing": "null"
+                  }
+                ],
+                "outputs": [
+                  {
+                    "name": "message",
+                    "source": {
+                      "kind": "input",
+                      "path": [
+                        "message"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "context",
+                    "source": {
+                      "kind": "input",
+                      "path": [
+                        "context"
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "id": "end",
+            "type": "end"
+          }
+        ],
+        "schema_version": 1
+      },
+      "definition_digest": "19a853ca56c20fc15367158c24a372965f2a75a357aa84d019c139538f7d162a",
+      "subagents": [],
+      "dependencies": [],
+      "source_policy": {
+        "allowed_modes": [
+          "delegate"
+        ],
+        "output_mode": "summary",
+        "memory_policy": "ephemeral",
+        "parallel_safe": false,
+        "allowed_tools": null
+      },
+      "projection_digest": "f842a44964867f7f3023b44caa33518f333054ae120deb8bfb1d31df5b81e2b8"
+    },
+    "saved": {
+      "id": "legacy-53c0e1b7e027162a2af7db63",
+      "kind": "agent",
+      "name": "NativeReady",
+      "description": "source description",
+      "archived": false,
+      "edit_token": "edit-3-19a853ca56c20fc1",
+      "draft_digest": "19a853ca56c20fc15367158c24a372965f2a75a357aa84d019c139538f7d162a",
+      "source_identity": "NativeReady.recipe",
+      "document": {
+        "description": "source description",
+        "edges": [
+          {
+            "id": "a",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "worker",
+            "target_port_id": "in"
+          },
+          {
+            "id": "b",
+            "kind": "flow",
+            "source_node_id": "worker",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          }
+        ],
+        "id": "legacy-53c0e1b7e027162a2af7db63",
+        "kind": "agent",
+        "name": "NativeReady",
+        "nodes": [
+          {
+            "config": {
+              "execution": {
+                "outputs": [
+                  {
+                    "name": "text",
+                    "source": {
+                      "kind": "result",
+                      "path": [
+                        "message"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "images",
+                    "source": {
+                      "kind": "result",
+                      "path": [
+                        "images"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "files",
+                    "source": {
+                      "kind": "result",
+                      "path": [
+                        "files"
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "id": "start",
+            "type": "start"
+          },
+          {
+            "config": {
+              "execution": {
+                "inputs": [
+                  {
+                    "name": "text",
+                    "value": {
+                      "kind": "ref",
+                      "node_id": "start",
+                      "path": [
+                        "text"
+                      ]
+                    },
+                    "missing": "error"
+                  },
+                  {
+                    "name": "images",
+                    "value": {
+                      "kind": "ref",
+                      "node_id": "start",
+                      "path": [
+                        "images"
+                      ]
+                    },
+                    "missing": "null"
+                  },
+                  {
+                    "name": "files",
+                    "value": {
+                      "kind": "ref",
+                      "node_id": "start",
+                      "path": [
+                        "files"
+                      ]
+                    },
+                    "missing": "null"
+                  }
+                ],
+                "outputs": [
+                  {
+                    "name": "message",
+                    "source": {
+                      "kind": "result",
+                      "path": [
+                        "message"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "context",
+                    "source": {
+                      "kind": "result",
+                      "path": [
+                        "context"
+                      ]
+                    }
+                  }
+                ]
+              },
+              "kernel": {
+                "history": "root",
+                "json_schema": null,
+                "max_iterations": 8,
+                "output_tokens": 512,
+                "overflow": "error",
+                "profile": {
+                  "capabilities": {
+                    "files": false,
+                    "images": false,
+                    "json_schema": true
+                  },
+                  "context_window": 8192,
+                  "credential_ref": "test.key",
+                  "endpoint": "https://example.test/v1",
+                  "id": "author-choice",
+                  "model": "test-model",
+                  "output_limit": 2048,
+                  "protocol": "openai-responses",
+                  "provider": "openai"
+                },
+                "prompt": "author prompt",
+                "schema_version": 1
+              }
+            },
+            "id": "worker",
+            "type": "agent"
+          },
+          {
+            "config": {
+              "execution": {
+                "inputs": [
+                  {
+                    "name": "message",
+                    "value": {
+                      "kind": "ref",
+                      "node_id": "worker",
+                      "path": [
+                        "message"
+                      ]
+                    },
+                    "missing": "error"
+                  },
+                  {
+                    "name": "context",
+                    "value": {
+                      "kind": "ref",
+                      "node_id": "worker",
+                      "path": [
+                        "context"
+                      ]
+                    },
+                    "missing": "null"
+                  }
+                ],
+                "outputs": [
+                  {
+                    "name": "message",
+                    "source": {
+                      "kind": "input",
+                      "path": [
+                        "message"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "context",
+                    "source": {
+                      "kind": "input",
+                      "path": [
+                        "context"
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "id": "end",
+            "type": "end"
+          }
+        ],
+        "schema_version": 1
+      },
+      "diagnostics": []
+    }
+  },
+  "unused_ack": {
+    "resource": {
+      "id": "legacy-9bf7fabe2e6a3a06a1bb167b",
+      "kind": "agent",
+      "name": "Structured",
+      "description": "source description",
+      "archived": false,
+      "edit_token": "edit-1-d65a8bb77c17aaa87c107f74",
+      "draft_digest": "d65a8bb77c17aaa87c107f749459b2628edbd96ad6777d410162761a8225260b",
+      "source_identity": "Structured.recipe",
+      "document": {
+        "description": "source description",
+        "edges": [
+          {
+            "id": "start-agent",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "agent",
+            "target_port_id": "in"
+          },
+          {
+            "id": "agent-end",
+            "kind": "flow",
+            "source_node_id": "agent",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          }
+        ],
+        "id": "legacy-9bf7fabe2e6a3a06a1bb167b",
+        "kind": "agent",
+        "name": "Structured",
+        "nodes": [
+          {
+            "config": {
+              "legacy_source": {
+                "document": {
+                  "agent": {
+                    "prompt": "{\"instructions\": \"old instructions\", \"extra\": true}",
+                    "prompt_format": "skeleton"
+                  },
+                  "description": "source description",
+                  "merge_with_user_selected": false,
+                  "model": null,
+                  "name": "Structured",
+                  "subagent_pool": [],
+                  "toolkits": []
+                },
+                "format": "recipe"
+              }
+            },
+            "id": "start",
+            "type": "start"
+          },
+          {
+            "config": {
+              "legacy_recipe": {
+                "agent": {
+                  "prompt": "{\"instructions\": \"old instructions\", \"extra\": true}",
+                  "prompt_format": "skeleton"
+                },
+                "description": "source description",
+                "merge_with_user_selected": false,
+                "model": null,
+                "name": "Structured",
+                "subagent_pool": [],
+                "toolkits": []
+              },
+              "prompt": {
+                "kind": "text",
+                "text": "old instructions"
+              }
+            },
+            "id": "agent",
+            "type": "agent"
+          },
+          {
+            "config": {},
+            "id": "end",
+            "type": "end"
+          }
+        ],
+        "schema_version": 1
+      },
+      "diagnostics": []
+    },
+    "inventory": {
+      "schema": "pupu.skeleton-legacy-upgrade.inventory.v1",
+      "resource_id": "legacy-9bf7fabe2e6a3a06a1bb167b",
+      "edit_token": "edit-1-d65a8bb77c17aaa87c107f74",
+      "source_identity": "Structured.recipe",
+      "state": "needs_upgrade",
+      "requirements": [
+        {
+          "code": "root_toolkit_pool_required",
+          "path": [
+            "nodes",
+            1,
+            "config",
+            "legacy_recipe",
+            "toolkits"
+          ],
+          "message": "The legacy recipe has root toolkit policy that needs an attached native Toolkit Pool."
+        },
+        {
+          "code": "legacy_prompt_review_required",
+          "path": [
+            "nodes",
+            1,
+            "config",
+            "legacy_recipe",
+            "agent",
+            "prompt"
+          ],
+          "message": "Legacy structured prompt contains settings that need explicit review."
+        },
+        {
+          "code": "kernel_required",
+          "path": [
+            "nodes",
+            1,
+            "config",
+            "kernel"
+          ],
+          "message": "Choose and configure a Kernel for this Agent."
+        }
+      ]
+    },
+    "choices": {
+      "schema": "pupu.skeleton-legacy-upgrade.choices.v1",
+      "kernels": [
+        {
+          "path": [
+            "nodes",
+            1
+          ],
+          "kernel": {
+            "schema_version": 1,
+            "profile": {
+              "id": "author-choice",
+              "provider": "openai",
+              "model": "test-model",
+              "protocol": "openai-responses",
+              "endpoint": "https://example.test/v1",
+              "credential_ref": "test.key",
+              "context_window": 8192,
+              "output_limit": 2048,
+              "capabilities": {
+                "json_schema": true,
+                "images": false,
+                "files": false
+              }
+            },
+            "prompt": "author prompt",
+            "max_iterations": 8,
+            "output_tokens": 512,
+            "history": "root",
+            "overflow": "error",
+            "json_schema": null
+          },
+          "model_policy": "preserve",
+          "prompt_policy": "replace",
+          "accept_projection": true
+        }
+      ],
+      "toolkits": [],
+      "references": [],
+      "acknowledged": [
+        {
+          "code": "legacy_prompt_review_required",
+          "path": [
+            "nodes",
+            1,
+            "config",
+            "legacy_recipe",
+            "agent",
+            "prompt"
+          ]
+        }
+      ]
+    },
+    "refusal": {
+      "code": "unused_choice",
+      "path": [
+        "choices",
+        "acknowledged"
+      ],
+      "message": "An acknowledgement was not applicable",
+      "status": 400
+    },
+    "choices_without_ack": {
+      "schema": "pupu.skeleton-legacy-upgrade.choices.v1",
+      "kernels": [
+        {
+          "path": [
+            "nodes",
+            1
+          ],
+          "kernel": {
+            "schema_version": 1,
+            "profile": {
+              "id": "author-choice",
+              "provider": "openai",
+              "model": "test-model",
+              "protocol": "openai-responses",
+              "endpoint": "https://example.test/v1",
+              "credential_ref": "test.key",
+              "context_window": 8192,
+              "output_limit": 2048,
+              "capabilities": {
+                "json_schema": true,
+                "images": false,
+                "files": false
+              }
+            },
+            "prompt": "author prompt",
+            "max_iterations": 8,
+            "output_tokens": 512,
+            "history": "root",
+            "overflow": "error",
+            "json_schema": null
+          },
+          "model_policy": "preserve",
+          "prompt_policy": "replace",
+          "accept_projection": true
+        }
+      ],
+      "toolkits": [],
+      "references": [],
+      "acknowledged": []
+    },
+    "preview_without_ack": {
+      "schema": "pupu.skeleton-legacy-upgrade.preview.v1",
+      "resource_id": "legacy-9bf7fabe2e6a3a06a1bb167b",
+      "edit_token": "edit-1-d65a8bb77c17aaa87c107f74",
+      "source_identity": "Structured.recipe",
+      "source_sha256": "f3c32e1ec2a6ba8fe744bb4a50dc121e6d969cab227b739d3e1d1f57704746e0",
+      "runtime_manifest": {
+        "manifest_digest": "sha256:c172bc02718aee771ddd4d247904f13cdaf003d3794148fd3ecd4d4e9a419e6b",
+        "protocols": [
+          {
+            "features": [
+              "artifact_handoff",
+              "canonical_journal",
+              "chat_deletion_sqlite_scope_closure",
+              "context_compiler",
+              "context_content_paging_v1",
+              "context_content_paging_v2",
+              "context_content_read_recovery_v1",
+              "context_contribution_manifest_v1",
+              "durable_interaction_settlement_fence_v1",
+              "generation_rebase_live_interaction_cycles",
+              "graph_failure_terminals_v1",
+              "historical_evidence_guidance_v1",
+              "interaction_resolution_compat",
+              "long_term_promotion",
+              "memory_curator",
+              "memory_toolkit",
+              "memory_workspace",
+              "provider_context_limit_recovery_v1",
+              "small_tool_output_inline_v1",
+              "tool_output_management_v1"
+            ],
+            "id": "context_memory",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "features": [
+              "cancel_pending",
+              "expected_interaction_id_cas",
+              "fresh_run_lineage",
+              "graph_interaction_lineage_preflight_v1",
+              "host_controlled_resume",
+              "interaction_resolution_atomic_acceptance_v1"
+            ],
+            "id": "durable_interaction",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "features": [
+              "atomic_receipt_cas",
+              "auxiliary_calls",
+              "enforce_mode",
+              "graph_runs",
+              "memory_off",
+              "ollama_reasoning_preview_v1",
+              "provider_response_outcomes_v1",
+              "provider_uncertainty_diagnostics_v1",
+              "subagent_runs"
+            ],
+            "id": "provider_turn_ownership",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "features": [
+              "canonical_metrics",
+              "completion_diagnostics_ref",
+              "context_composition_ref_v1",
+              "continuation_claim",
+              "immutable_pricing_snapshot",
+              "provider_call_set_union",
+              "provider_call_usage_v1",
+              "run_bundle_v1",
+              "run_bundle_v2"
+            ],
+            "id": "run_bundle",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "features": [
+              "code_python_v1",
+              "draft_diagnostics_v1",
+              "durable_exclusive_dag_v2",
+              "end_only_root_completion_v1",
+              "explicit_bindings_v1",
+              "hook_embedded_workflow_v1",
+              "hook_enable_v1",
+              "hook_phase_receipts_v1",
+              "hook_tool_set_v1",
+              "kernel_profile_auth_v1",
+              "kernel_profiles_v1",
+              "legacy_conversion_v1",
+              "node_display_label_v1",
+              "non_llm_workflow_v1",
+              "pinned_workflow_calls_v1",
+              "production_host_bindings_v1",
+              "skill_read_v1",
+              "structured_output_v1",
+              "subagent_graphs_v1",
+              "subagent_native_observation_v1",
+              "subagent_tool_settlement_projection_v1",
+              "tool_call_v1"
+            ],
+            "id": "skeleton_execution",
+            "major": 1,
+            "minor": 8
+          },
+          {
+            "features": [
+              "active_skills_snapshot_v1",
+              "catalog_v1",
+              "skill_md_registry_v1",
+              "skill_tool_v1",
+              "toolkit_embedded_skills_v1",
+              "user_invocation_v1"
+            ],
+            "id": "skills",
+            "major": 1,
+            "minor": 0
+          }
+        ],
+        "runtime": "unchain",
+        "schema": "unchain.runtime_protocol_manifest.v1"
+      },
+      "document": {
+        "description": "source description",
+        "edges": [
+          {
+            "id": "start-agent",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "agent",
+            "target_port_id": "in"
+          },
+          {
+            "id": "agent-end",
+            "kind": "flow",
+            "source_node_id": "agent",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          },
+          {
+            "id": "attach-78470d45fcdb2af965b4750128c23a25",
+            "kind": "attach",
+            "source_node_id": "agent",
+            "source_port_id": "attach_top",
+            "target_node_id": "upgrade-b14bcee6ea1aafda02736a39a329c5db",
+            "target_port_id": "attach_bot"
+          }
+        ],
+        "id": "legacy-9bf7fabe2e6a3a06a1bb167b",
+        "kind": "agent",
+        "name": "Structured",
+        "nodes": [
+          {
+            "config": {
+              "execution": {
+                "outputs": [
+                  {
+                    "name": "text",
+                    "source": {
+                      "kind": "result",
+                      "path": [
+                        "message"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "images",
+                    "source": {
+                      "kind": "result",
+                      "path": [
+                        "images"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "files",
+                    "source": {
+                      "kind": "result",
+                      "path": [
+                        "files"
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "id": "start",
+            "type": "start"
+          },
+          {
+            "config": {
+              "execution": {
+                "inputs": [
+                  {
+                    "name": "text",
+                    "value": {
+                      "kind": "ref",
+                      "node_id": "start",
+                      "path": [
+                        "text"
+                      ]
+                    },
+                    "missing": "error"
+                  },
+                  {
+                    "name": "images",
+                    "value": {
+                      "kind": "ref",
+                      "node_id": "start",
+                      "path": [
+                        "images"
+                      ]
+                    },
+                    "missing": "null"
+                  },
+                  {
+                    "name": "files",
+                    "value": {
+                      "kind": "ref",
+                      "node_id": "start",
+                      "path": [
+                        "files"
+                      ]
+                    },
+                    "missing": "null"
+                  }
+                ],
+                "outputs": [
+                  {
+                    "name": "message",
+                    "source": {
+                      "kind": "result",
+                      "path": [
+                        "message"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "context",
+                    "source": {
+                      "kind": "result",
+                      "path": [
+                        "context"
+                      ]
+                    }
+                  }
+                ]
+              },
+              "kernel": {
+                "schema_version": 1,
+                "profile": {
+                  "id": "author-choice",
+                  "provider": "openai",
+                  "model": "test-model",
+                  "protocol": "openai-responses",
+                  "endpoint": "https://example.test/v1",
+                  "credential_ref": "test.key",
+                  "context_window": 8192,
+                  "output_limit": 2048,
+                  "capabilities": {
+                    "json_schema": true,
+                    "images": false,
+                    "files": false
+                  }
+                },
+                "prompt": "author prompt",
+                "max_iterations": 8,
+                "output_tokens": 512,
+                "history": "root",
+                "overflow": "error",
+                "json_schema": null
+              }
+            },
+            "id": "agent",
+            "type": "agent"
+          },
+          {
+            "config": {
+              "execution": {
+                "inputs": [
+                  {
+                    "name": "message",
+                    "value": {
+                      "kind": "ref",
+                      "node_id": "agent",
+                      "path": [
+                        "message"
+                      ]
+                    },
+                    "missing": "error"
+                  },
+                  {
+                    "name": "context",
+                    "value": {
+                      "kind": "ref",
+                      "node_id": "agent",
+                      "path": [
+                        "context"
+                      ]
+                    },
+                    "missing": "null"
+                  }
+                ],
+                "outputs": [
+                  {
+                    "name": "message",
+                    "source": {
+                      "kind": "input",
+                      "path": [
+                        "message"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "context",
+                    "source": {
+                      "kind": "input",
+                      "path": [
+                        "context"
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "id": "end",
+            "type": "end"
+          },
+          {
+            "id": "upgrade-b14bcee6ea1aafda02736a39a329c5db",
+            "type": "toolkit_pool",
+            "config": {
+              "toolkits": [],
+              "merge_with_user_selected": false
+            }
+          }
+        ],
+        "schema_version": 1
+      },
+      "definition_digest": "2c875fb87bdb5fe1511a02444fb1a434eb1fdc230e7829616fd12dcb4fc2caef",
+      "subagents": [],
+      "dependencies": [],
+      "source_policy": {
+        "allowed_modes": [
+          "delegate"
+        ],
+        "output_mode": "summary",
+        "memory_policy": "ephemeral",
+        "parallel_safe": false,
+        "allowed_tools": null
+      },
+      "projection_digest": "82bec41854760b36ddfae07ea5b38f830d6e3355422337c3cdef6ffdfacb0e36"
+    }
+  },
+  "unknown_tool": {
+    "resource": {
+      "id": "legacy-a6fb7f35473fd759d19bf327",
+      "kind": "agent",
+      "name": "UnknownTool",
+      "description": "source description",
+      "archived": false,
+      "edit_token": "edit-1-49ddcbc1c221f5a1d0910625",
+      "draft_digest": "49ddcbc1c221f5a1d0910625be96bdd3fb8a4465822d99b33e24b3426aa1e815",
+      "source_identity": "UnknownTool.recipe",
+      "document": {
+        "description": "source description",
+        "edges": [
+          {
+            "id": "start-agent",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "agent",
+            "target_port_id": "in"
+          },
+          {
+            "id": "agent-end",
+            "kind": "flow",
+            "source_node_id": "agent",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          }
+        ],
+        "id": "legacy-a6fb7f35473fd759d19bf327",
+        "kind": "agent",
+        "name": "UnknownTool",
+        "nodes": [
+          {
+            "config": {
+              "legacy_source": {
+                "document": {
+                  "agent": {
+                    "prompt": "Read {{#start.text#}}",
+                    "prompt_format": "soul"
+                  },
+                  "description": "source description",
+                  "merge_with_user_selected": false,
+                  "model": null,
+                  "name": "UnknownTool",
+                  "subagent_pool": [],
+                  "toolkits": [
+                    {
+                      "config": {
+                        "old_setting": 9
+                      },
+                      "enabled_tools": [
+                        "read",
+                        "old_tool"
+                      ],
+                      "id": "core"
+                    }
+                  ]
+                },
+                "format": "recipe"
+              }
+            },
+            "id": "start",
+            "type": "start"
+          },
+          {
+            "config": {
+              "legacy_recipe": {
+                "agent": {
+                  "prompt": "Read {{#start.text#}}",
+                  "prompt_format": "soul"
+                },
+                "description": "source description",
+                "merge_with_user_selected": false,
+                "model": null,
+                "name": "UnknownTool",
+                "subagent_pool": [],
+                "toolkits": [
+                  {
+                    "config": {
+                      "old_setting": 9
+                    },
+                    "enabled_tools": [
+                      "read",
+                      "old_tool"
+                    ],
+                    "id": "core"
+                  }
+                ]
+              },
+              "prompt": {
+                "kind": "text",
+                "text": "Read {{#start.text#}}"
+              }
+            },
+            "id": "agent",
+            "type": "agent"
+          },
+          {
+            "config": {},
+            "id": "end",
+            "type": "end"
+          }
+        ],
+        "schema_version": 1
+      },
+      "diagnostics": []
+    },
+    "inventory": {
+      "schema": "pupu.skeleton-legacy-upgrade.inventory.v1",
+      "resource_id": "legacy-a6fb7f35473fd759d19bf327",
+      "edit_token": "edit-1-49ddcbc1c221f5a1d0910625",
+      "source_identity": "UnknownTool.recipe",
+      "state": "needs_upgrade",
+      "requirements": [
+        {
+          "code": "toolkit_config_review_required",
+          "path": [
+            "nodes",
+            1,
+            "config",
+            "legacy_recipe",
+            "toolkits",
+            0,
+            "config"
+          ],
+          "message": "Legacy toolkit configuration is not projected into native settings."
+        },
+        {
+          "code": "root_toolkit_pool_required",
+          "path": [
+            "nodes",
+            1,
+            "config",
+            "legacy_recipe",
+            "toolkits"
+          ],
+          "message": "The legacy recipe has root toolkit policy that needs an attached native Toolkit Pool."
+        },
+        {
+          "code": "kernel_required",
+          "path": [
+            "nodes",
+            1,
+            "config",
+            "kernel"
+          ],
+          "message": "Choose and configure a Kernel for this Agent."
+        }
+      ]
+    },
+    "choices": {
+      "schema": "pupu.skeleton-legacy-upgrade.choices.v1",
+      "kernels": [
+        {
+          "path": [
+            "nodes",
+            1
+          ],
+          "kernel": {
+            "schema_version": 1,
+            "profile": {
+              "id": "author-choice",
+              "provider": "openai",
+              "model": "test-model",
+              "protocol": "openai-responses",
+              "endpoint": "https://example.test/v1",
+              "credential_ref": "test.key",
+              "context_window": 8192,
+              "output_limit": 2048,
+              "capabilities": {
+                "json_schema": true,
+                "images": false,
+                "files": false
+              }
+            },
+            "prompt": "author prompt",
+            "max_iterations": 8,
+            "output_tokens": 512,
+            "history": "root",
+            "overflow": "error",
+            "json_schema": null
+          },
+          "model_policy": "preserve",
+          "prompt_policy": "preserve",
+          "accept_projection": true
+        }
+      ],
+      "toolkits": [
+        {
+          "path": [
+            "nodes",
+            1,
+            "config",
+            "legacy_recipe",
+            "toolkits",
+            0
+          ],
+          "toolkit_id": "core",
+          "enabled_tools": [
+            "read",
+            "old_tool"
+          ],
+          "discard_unsupported": true
+        }
+      ],
+      "references": [],
+      "acknowledged": []
+    },
+    "preview": {
+      "schema": "pupu.skeleton-legacy-upgrade.preview.v1",
+      "resource_id": "legacy-a6fb7f35473fd759d19bf327",
+      "edit_token": "edit-1-49ddcbc1c221f5a1d0910625",
+      "source_identity": "UnknownTool.recipe",
+      "source_sha256": "18ea242a3b89411e3c7b39b72af07e9754170b7aaa7f71c38bdf46f3f83ab835",
+      "runtime_manifest": {
+        "manifest_digest": "sha256:c172bc02718aee771ddd4d247904f13cdaf003d3794148fd3ecd4d4e9a419e6b",
+        "protocols": [
+          {
+            "features": [
+              "artifact_handoff",
+              "canonical_journal",
+              "chat_deletion_sqlite_scope_closure",
+              "context_compiler",
+              "context_content_paging_v1",
+              "context_content_paging_v2",
+              "context_content_read_recovery_v1",
+              "context_contribution_manifest_v1",
+              "durable_interaction_settlement_fence_v1",
+              "generation_rebase_live_interaction_cycles",
+              "graph_failure_terminals_v1",
+              "historical_evidence_guidance_v1",
+              "interaction_resolution_compat",
+              "long_term_promotion",
+              "memory_curator",
+              "memory_toolkit",
+              "memory_workspace",
+              "provider_context_limit_recovery_v1",
+              "small_tool_output_inline_v1",
+              "tool_output_management_v1"
+            ],
+            "id": "context_memory",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "features": [
+              "cancel_pending",
+              "expected_interaction_id_cas",
+              "fresh_run_lineage",
+              "graph_interaction_lineage_preflight_v1",
+              "host_controlled_resume",
+              "interaction_resolution_atomic_acceptance_v1"
+            ],
+            "id": "durable_interaction",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "features": [
+              "atomic_receipt_cas",
+              "auxiliary_calls",
+              "enforce_mode",
+              "graph_runs",
+              "memory_off",
+              "ollama_reasoning_preview_v1",
+              "provider_response_outcomes_v1",
+              "provider_uncertainty_diagnostics_v1",
+              "subagent_runs"
+            ],
+            "id": "provider_turn_ownership",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "features": [
+              "canonical_metrics",
+              "completion_diagnostics_ref",
+              "context_composition_ref_v1",
+              "continuation_claim",
+              "immutable_pricing_snapshot",
+              "provider_call_set_union",
+              "provider_call_usage_v1",
+              "run_bundle_v1",
+              "run_bundle_v2"
+            ],
+            "id": "run_bundle",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "features": [
+              "code_python_v1",
+              "draft_diagnostics_v1",
+              "durable_exclusive_dag_v2",
+              "end_only_root_completion_v1",
+              "explicit_bindings_v1",
+              "hook_embedded_workflow_v1",
+              "hook_enable_v1",
+              "hook_phase_receipts_v1",
+              "hook_tool_set_v1",
+              "kernel_profile_auth_v1",
+              "kernel_profiles_v1",
+              "legacy_conversion_v1",
+              "node_display_label_v1",
+              "non_llm_workflow_v1",
+              "pinned_workflow_calls_v1",
+              "production_host_bindings_v1",
+              "skill_read_v1",
+              "structured_output_v1",
+              "subagent_graphs_v1",
+              "subagent_native_observation_v1",
+              "subagent_tool_settlement_projection_v1",
+              "tool_call_v1"
+            ],
+            "id": "skeleton_execution",
+            "major": 1,
+            "minor": 8
+          },
+          {
+            "features": [
+              "active_skills_snapshot_v1",
+              "catalog_v1",
+              "skill_md_registry_v1",
+              "skill_tool_v1",
+              "toolkit_embedded_skills_v1",
+              "user_invocation_v1"
+            ],
+            "id": "skills",
+            "major": 1,
+            "minor": 0
+          }
+        ],
+        "runtime": "unchain",
+        "schema": "unchain.runtime_protocol_manifest.v1"
+      },
+      "document": {
+        "description": "source description",
+        "edges": [
+          {
+            "id": "start-agent",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "agent",
+            "target_port_id": "in"
+          },
+          {
+            "id": "agent-end",
+            "kind": "flow",
+            "source_node_id": "agent",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          },
+          {
+            "id": "attach-d0427f3ea93ec792acf5ba5c32798c8b",
+            "kind": "attach",
+            "source_node_id": "agent",
+            "source_port_id": "attach_top",
+            "target_node_id": "upgrade-2c3bd21f61b1a7eac927167bf534d3ae",
+            "target_port_id": "attach_bot"
+          }
+        ],
+        "id": "legacy-a6fb7f35473fd759d19bf327",
+        "kind": "agent",
+        "name": "UnknownTool",
+        "nodes": [
+          {
+            "config": {
+              "execution": {
+                "outputs": [
+                  {
+                    "name": "text",
+                    "source": {
+                      "kind": "result",
+                      "path": [
+                        "message"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "images",
+                    "source": {
+                      "kind": "result",
+                      "path": [
+                        "images"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "files",
+                    "source": {
+                      "kind": "result",
+                      "path": [
+                        "files"
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "id": "start",
+            "type": "start"
+          },
+          {
+            "config": {
+              "execution": {
+                "inputs": [
+                  {
+                    "name": "text",
+                    "value": {
+                      "kind": "ref",
+                      "node_id": "start",
+                      "path": [
+                        "text"
+                      ]
+                    },
+                    "missing": "error"
+                  },
+                  {
+                    "name": "images",
+                    "value": {
+                      "kind": "ref",
+                      "node_id": "start",
+                      "path": [
+                        "images"
+                      ]
+                    },
+                    "missing": "null"
+                  },
+                  {
+                    "name": "files",
+                    "value": {
+                      "kind": "ref",
+                      "node_id": "start",
+                      "path": [
+                        "files"
+                      ]
+                    },
+                    "missing": "null"
+                  },
+                  {
+                    "name": "__legacy_prompt_0",
+                    "value": {
+                      "kind": "ref",
+                      "node_id": "start",
+                      "path": [
+                        "text"
+                      ]
+                    },
+                    "missing": "error"
+                  }
+                ],
+                "outputs": [
+                  {
+                    "name": "message",
+                    "source": {
+                      "kind": "result",
+                      "path": [
+                        "message"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "context",
+                    "source": {
+                      "kind": "result",
+                      "path": [
+                        "context"
+                      ]
+                    }
+                  }
+                ]
+              },
+              "kernel": {
+                "schema_version": 1,
+                "profile": {
+                  "id": "author-choice",
+                  "provider": "openai",
+                  "model": "test-model",
+                  "protocol": "openai-responses",
+                  "endpoint": "https://example.test/v1",
+                  "credential_ref": "test.key",
+                  "context_window": 8192,
+                  "output_limit": 2048,
+                  "capabilities": {
+                    "json_schema": true,
+                    "images": false,
+                    "files": false
+                  }
+                },
+                "prompt": "Read {{#input.__legacy_prompt_0#}}",
+                "max_iterations": 8,
+                "output_tokens": 512,
+                "history": "root",
+                "overflow": "error",
+                "json_schema": null
+              }
+            },
+            "id": "agent",
+            "type": "agent"
+          },
+          {
+            "config": {
+              "execution": {
+                "inputs": [
+                  {
+                    "name": "message",
+                    "value": {
+                      "kind": "ref",
+                      "node_id": "agent",
+                      "path": [
+                        "message"
+                      ]
+                    },
+                    "missing": "error"
+                  },
+                  {
+                    "name": "context",
+                    "value": {
+                      "kind": "ref",
+                      "node_id": "agent",
+                      "path": [
+                        "context"
+                      ]
+                    },
+                    "missing": "null"
+                  }
+                ],
+                "outputs": [
+                  {
+                    "name": "message",
+                    "source": {
+                      "kind": "input",
+                      "path": [
+                        "message"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "context",
+                    "source": {
+                      "kind": "input",
+                      "path": [
+                        "context"
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "id": "end",
+            "type": "end"
+          },
+          {
+            "id": "upgrade-2c3bd21f61b1a7eac927167bf534d3ae",
+            "type": "toolkit_pool",
+            "config": {
+              "toolkits": [
+                {
+                  "id": "core",
+                  "enabled_tools": [
+                    "read",
+                    "old_tool"
+                  ]
+                }
+              ],
+              "merge_with_user_selected": false
+            }
+          }
+        ],
+        "schema_version": 1
+      },
+      "definition_digest": "cfac896749ae4b675d24f9af26420b0a8bd5f50d1689c8ecce14ce23398889a5",
+      "subagents": [],
+      "dependencies": [],
+      "source_policy": {
+        "allowed_modes": [
+          "delegate"
+        ],
+        "output_mode": "summary",
+        "memory_policy": "ephemeral",
+        "parallel_safe": false,
+        "allowed_tools": null
+      },
+      "projection_digest": "f62a52227afbc958b2201a3ca4b2cff2647cec1dcb1db353305d64f9b4cda413"
+    },
+    "saved": {
+      "id": "legacy-a6fb7f35473fd759d19bf327",
+      "kind": "agent",
+      "name": "UnknownTool",
+      "description": "source description",
+      "archived": false,
+      "edit_token": "edit-2-cfac896749ae4b67",
+      "draft_digest": "cfac896749ae4b675d24f9af26420b0a8bd5f50d1689c8ecce14ce23398889a5",
+      "source_identity": "UnknownTool.recipe",
+      "document": {
+        "description": "source description",
+        "edges": [
+          {
+            "id": "start-agent",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "agent",
+            "target_port_id": "in"
+          },
+          {
+            "id": "agent-end",
+            "kind": "flow",
+            "source_node_id": "agent",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          },
+          {
+            "id": "attach-d0427f3ea93ec792acf5ba5c32798c8b",
+            "kind": "attach",
+            "source_node_id": "agent",
+            "source_port_id": "attach_top",
+            "target_node_id": "upgrade-2c3bd21f61b1a7eac927167bf534d3ae",
+            "target_port_id": "attach_bot"
+          }
+        ],
+        "id": "legacy-a6fb7f35473fd759d19bf327",
+        "kind": "agent",
+        "name": "UnknownTool",
+        "nodes": [
+          {
+            "config": {
+              "execution": {
+                "outputs": [
+                  {
+                    "name": "text",
+                    "source": {
+                      "kind": "result",
+                      "path": [
+                        "message"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "images",
+                    "source": {
+                      "kind": "result",
+                      "path": [
+                        "images"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "files",
+                    "source": {
+                      "kind": "result",
+                      "path": [
+                        "files"
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "id": "start",
+            "type": "start"
+          },
+          {
+            "config": {
+              "execution": {
+                "inputs": [
+                  {
+                    "name": "text",
+                    "value": {
+                      "kind": "ref",
+                      "node_id": "start",
+                      "path": [
+                        "text"
+                      ]
+                    },
+                    "missing": "error"
+                  },
+                  {
+                    "name": "images",
+                    "value": {
+                      "kind": "ref",
+                      "node_id": "start",
+                      "path": [
+                        "images"
+                      ]
+                    },
+                    "missing": "null"
+                  },
+                  {
+                    "name": "files",
+                    "value": {
+                      "kind": "ref",
+                      "node_id": "start",
+                      "path": [
+                        "files"
+                      ]
+                    },
+                    "missing": "null"
+                  },
+                  {
+                    "name": "__legacy_prompt_0",
+                    "value": {
+                      "kind": "ref",
+                      "node_id": "start",
+                      "path": [
+                        "text"
+                      ]
+                    },
+                    "missing": "error"
+                  }
+                ],
+                "outputs": [
+                  {
+                    "name": "message",
+                    "source": {
+                      "kind": "result",
+                      "path": [
+                        "message"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "context",
+                    "source": {
+                      "kind": "result",
+                      "path": [
+                        "context"
+                      ]
+                    }
+                  }
+                ]
+              },
+              "kernel": {
+                "schema_version": 1,
+                "profile": {
+                  "id": "author-choice",
+                  "provider": "openai",
+                  "model": "test-model",
+                  "protocol": "openai-responses",
+                  "endpoint": "https://example.test/v1",
+                  "credential_ref": "test.key",
+                  "context_window": 8192,
+                  "output_limit": 2048,
+                  "capabilities": {
+                    "json_schema": true,
+                    "images": false,
+                    "files": false
+                  }
+                },
+                "prompt": "Read {{#input.__legacy_prompt_0#}}",
+                "max_iterations": 8,
+                "output_tokens": 512,
+                "history": "root",
+                "overflow": "error",
+                "json_schema": null
+              }
+            },
+            "id": "agent",
+            "type": "agent"
+          },
+          {
+            "config": {
+              "execution": {
+                "inputs": [
+                  {
+                    "name": "message",
+                    "value": {
+                      "kind": "ref",
+                      "node_id": "agent",
+                      "path": [
+                        "message"
+                      ]
+                    },
+                    "missing": "error"
+                  },
+                  {
+                    "name": "context",
+                    "value": {
+                      "kind": "ref",
+                      "node_id": "agent",
+                      "path": [
+                        "context"
+                      ]
+                    },
+                    "missing": "null"
+                  }
+                ],
+                "outputs": [
+                  {
+                    "name": "message",
+                    "source": {
+                      "kind": "input",
+                      "path": [
+                        "message"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "context",
+                    "source": {
+                      "kind": "input",
+                      "path": [
+                        "context"
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "id": "end",
+            "type": "end"
+          },
+          {
+            "id": "upgrade-2c3bd21f61b1a7eac927167bf534d3ae",
+            "type": "toolkit_pool",
+            "config": {
+              "toolkits": [
+                {
+                  "id": "core",
+                  "enabled_tools": [
+                    "read",
+                    "old_tool"
+                  ]
+                }
+              ],
+              "merge_with_user_selected": false
+            }
+          }
+        ],
+        "schema_version": 1
+      },
+      "diagnostics": []
+    }
+  },
+  "old_conversion": {
+    "resource": {
+      "id": "legacy-6c0679d51b26322e8ca00a06",
+      "kind": "agent",
+      "name": "RefParent",
+      "description": "source description",
+      "archived": false,
+      "edit_token": "edit-2-11a0fd55e0bc5f7bc9ae85b9",
+      "draft_digest": "11a0fd55e0bc5f7bc9ae85b95f82389a4774b0ecae6ce795a95852b5c9a358bf",
+      "source_identity": "RefParent.recipe",
+      "document": {
+        "description": "source description",
+        "edges": [
+          {
+            "id": "a",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "worker",
+            "target_port_id": "in"
+          },
+          {
+            "id": "b",
+            "kind": "flow",
+            "source_node_id": "worker",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          },
+          {
+            "id": "attach",
+            "kind": "attach",
+            "source_node_id": "worker",
+            "source_port_id": "attach_bot",
+            "target_node_id": "pool",
+            "target_port_id": "attach_top"
+          }
+        ],
+        "id": "legacy-6c0679d51b26322e8ca00a06",
+        "kind": "agent",
+        "name": "RefParent",
+        "nodes": [
+          {
+            "config": {
+              "legacy_fields": {},
+              "legacy_source": {
+                "document": {
+                  "agent": {
+                    "prompt": "Read {{#start.text#}}",
+                    "prompt_format": "soul"
+                  },
+                  "description": "source description",
+                  "edges": [
+                    {
+                      "id": "a",
+                      "kind": "flow",
+                      "source_node_id": "start",
+                      "source_port_id": "out",
+                      "target_node_id": "worker",
+                      "target_port_id": "in"
+                    },
+                    {
+                      "id": "b",
+                      "kind": "flow",
+                      "source_node_id": "worker",
+                      "source_port_id": "out",
+                      "target_node_id": "end",
+                      "target_port_id": "in"
+                    },
+                    {
+                      "id": "attach",
+                      "kind": "attach",
+                      "source_node_id": "worker",
+                      "source_port_id": "attach_bot",
+                      "target_node_id": "pool",
+                      "target_port_id": "attach_top"
+                    }
+                  ],
+                  "merge_with_user_selected": false,
+                  "model": null,
+                  "name": "RefParent",
+                  "nodes": [
+                    {
+                      "id": "start",
+                      "type": "start"
+                    },
+                    {
+                      "id": "worker",
+                      "override": {
+                        "prompt": "old instructions"
+                      },
+                      "type": "agent"
+                    },
+                    {
+                      "id": "end",
+                      "type": "end"
+                    },
+                    {
+                      "id": "pool",
+                      "subagents": [
+                        {
+                          "kind": "recipe_ref",
+                          "recipe_name": "RefChild"
+                        }
+                      ],
+                      "type": "subagent_pool"
+                    }
+                  ],
+                  "subagent_pool": [],
+                  "toolkits": []
+                },
+                "format": "recipe"
+              }
+            },
+            "id": "start",
+            "type": "start"
+          },
+          {
+            "config": {
+              "kernel": {
+                "history": "root",
+                "json_schema": null,
+                "max_iterations": 8,
+                "output_tokens": 512,
+                "overflow": "error",
+                "profile": {
+                  "capabilities": {
+                    "files": false,
+                    "images": false,
+                    "json_schema": true
+                  },
+                  "context_window": 8192,
+                  "credential_ref": "test.key",
+                  "endpoint": "https://example.test/v1",
+                  "id": "author-choice",
+                  "model": "test-model",
+                  "output_limit": 2048,
+                  "protocol": "openai-responses",
+                  "provider": "openai"
+                },
+                "prompt": "author prompt",
+                "schema_version": 1
+              },
+              "legacy_fields": {
+                "override": {
+                  "prompt": "old instructions"
+                }
+              },
+              "legacy_recipe": {
+                "agent": {
+                  "prompt": "Read {{#start.text#}}",
+                  "prompt_format": "soul"
+                },
+                "description": "source description",
+                "edges": [
+                  {
+                    "id": "a",
+                    "kind": "flow",
+                    "source_node_id": "start",
+                    "source_port_id": "out",
+                    "target_node_id": "worker",
+                    "target_port_id": "in"
+                  },
+                  {
+                    "id": "b",
+                    "kind": "flow",
+                    "source_node_id": "worker",
+                    "source_port_id": "out",
+                    "target_node_id": "end",
+                    "target_port_id": "in"
+                  },
+                  {
+                    "id": "attach",
+                    "kind": "attach",
+                    "source_node_id": "worker",
+                    "source_port_id": "attach_bot",
+                    "target_node_id": "pool",
+                    "target_port_id": "attach_top"
+                  }
+                ],
+                "merge_with_user_selected": false,
+                "model": null,
+                "name": "RefParent",
+                "nodes": [
+                  {
+                    "id": "start",
+                    "type": "start"
+                  },
+                  {
+                    "id": "worker",
+                    "override": {
+                      "prompt": "old instructions"
+                    },
+                    "type": "agent"
+                  },
+                  {
+                    "id": "end",
+                    "type": "end"
+                  },
+                  {
+                    "id": "pool",
+                    "subagents": [
+                      {
+                        "kind": "recipe_ref",
+                        "recipe_name": "RefChild"
+                      }
+                    ],
+                    "type": "subagent_pool"
+                  }
+                ],
+                "subagent_pool": [],
+                "toolkits": []
+              },
+              "prompt": {
+                "kind": "text",
+                "text": "old instructions"
+              }
+            },
+            "id": "worker",
+            "type": "agent"
+          },
+          {
+            "config": {
+              "legacy_fields": {}
+            },
+            "id": "end",
+            "type": "end"
+          },
+          {
+            "config": {
+              "legacy_fields": {
+                "subagents": [
+                  {
+                    "kind": "recipe_ref",
+                    "recipe_name": "RefChild"
+                  }
+                ]
+              }
+            },
+            "id": "pool",
+            "type": "subagent_pool"
+          }
+        ],
+        "schema_version": 1
+      },
+      "diagnostics": []
+    },
+    "converted": {
+      "id": "legacy-6c0679d51b26322e8ca00a06",
+      "kind": "agent",
+      "name": "RefParent",
+      "description": "source description",
+      "archived": false,
+      "edit_token": "edit-3-f4cbd291611eb796406a8c3a",
+      "draft_digest": "f4cbd291611eb796406a8c3a4bf4b8b0aacd318021b12031cc7b536236846ce1",
+      "source_identity": "RefParent.recipe",
+      "document": {
+        "description": "source description",
+        "edges": [
+          {
+            "id": "a",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "worker",
+            "target_port_id": "in"
+          },
+          {
+            "id": "b",
+            "kind": "flow",
+            "source_node_id": "worker",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          },
+          {
+            "id": "attach",
+            "kind": "attach",
+            "source_node_id": "worker",
+            "source_port_id": "attach_bot",
+            "target_node_id": "pool",
+            "target_port_id": "attach_top"
+          }
+        ],
+        "id": "legacy-6c0679d51b26322e8ca00a06",
+        "kind": "agent",
+        "name": "RefParent",
+        "nodes": [
+          {
+            "config": {
+              "legacy_fields": {},
+              "legacy_source": {
+                "document": {
+                  "agent": {
+                    "prompt": "Read {{#start.text#}}",
+                    "prompt_format": "soul"
+                  },
+                  "description": "source description",
+                  "edges": [
+                    {
+                      "id": "a",
+                      "kind": "flow",
+                      "source_node_id": "start",
+                      "source_port_id": "out",
+                      "target_node_id": "worker",
+                      "target_port_id": "in"
+                    },
+                    {
+                      "id": "b",
+                      "kind": "flow",
+                      "source_node_id": "worker",
+                      "source_port_id": "out",
+                      "target_node_id": "end",
+                      "target_port_id": "in"
+                    },
+                    {
+                      "id": "attach",
+                      "kind": "attach",
+                      "source_node_id": "worker",
+                      "source_port_id": "attach_bot",
+                      "target_node_id": "pool",
+                      "target_port_id": "attach_top"
+                    }
+                  ],
+                  "merge_with_user_selected": false,
+                  "model": null,
+                  "name": "RefParent",
+                  "nodes": [
+                    {
+                      "id": "start",
+                      "type": "start"
+                    },
+                    {
+                      "id": "worker",
+                      "override": {
+                        "prompt": "old instructions"
+                      },
+                      "type": "agent"
+                    },
+                    {
+                      "id": "end",
+                      "type": "end"
+                    },
+                    {
+                      "id": "pool",
+                      "subagents": [
+                        {
+                          "kind": "recipe_ref",
+                          "recipe_name": "RefChild"
+                        }
+                      ],
+                      "type": "subagent_pool"
+                    }
+                  ],
+                  "subagent_pool": [],
+                  "toolkits": []
+                },
+                "format": "recipe"
+              }
+            },
+            "id": "start",
+            "type": "start"
+          },
+          {
+            "config": {
+              "kernel": {
+                "history": "root",
+                "json_schema": null,
+                "max_iterations": 8,
+                "output_tokens": 512,
+                "overflow": "error",
+                "profile": {
+                  "capabilities": {
+                    "files": false,
+                    "images": false,
+                    "json_schema": true
+                  },
+                  "context_window": 8192,
+                  "credential_ref": "test.key",
+                  "endpoint": "https://example.test/v1",
+                  "id": "author-choice",
+                  "model": "test-model",
+                  "output_limit": 2048,
+                  "protocol": "openai-responses",
+                  "provider": "openai"
+                },
+                "prompt": "author prompt",
+                "schema_version": 1
+              },
+              "legacy_fields": {
+                "override": {
+                  "prompt": "old instructions"
+                }
+              },
+              "legacy_recipe": {
+                "agent": {
+                  "prompt": "Read {{#start.text#}}",
+                  "prompt_format": "soul"
+                },
+                "description": "source description",
+                "edges": [
+                  {
+                    "id": "a",
+                    "kind": "flow",
+                    "source_node_id": "start",
+                    "source_port_id": "out",
+                    "target_node_id": "worker",
+                    "target_port_id": "in"
+                  },
+                  {
+                    "id": "b",
+                    "kind": "flow",
+                    "source_node_id": "worker",
+                    "source_port_id": "out",
+                    "target_node_id": "end",
+                    "target_port_id": "in"
+                  },
+                  {
+                    "id": "attach",
+                    "kind": "attach",
+                    "source_node_id": "worker",
+                    "source_port_id": "attach_bot",
+                    "target_node_id": "pool",
+                    "target_port_id": "attach_top"
+                  }
+                ],
+                "merge_with_user_selected": false,
+                "model": null,
+                "name": "RefParent",
+                "nodes": [
+                  {
+                    "id": "start",
+                    "type": "start"
+                  },
+                  {
+                    "id": "worker",
+                    "override": {
+                      "prompt": "old instructions"
+                    },
+                    "type": "agent"
+                  },
+                  {
+                    "id": "end",
+                    "type": "end"
+                  },
+                  {
+                    "id": "pool",
+                    "subagents": [
+                      {
+                        "kind": "recipe_ref",
+                        "recipe_name": "RefChild"
+                      }
+                    ],
+                    "type": "subagent_pool"
+                  }
+                ],
+                "subagent_pool": [],
+                "toolkits": []
+              },
+              "prompt": {
+                "kind": "text",
+                "text": "old instructions"
+              }
+            },
+            "id": "worker",
+            "type": "agent"
+          },
+          {
+            "config": {
+              "legacy_fields": {}
+            },
+            "id": "end",
+            "type": "end"
+          },
+          {
+            "config": {
+              "subagents": [
+                {
+                  "allowed_modes": [
+                    "delegate",
+                    "worker"
+                  ],
+                  "allowed_tools": null,
+                  "description": "",
+                  "disabled_tools": [],
+                  "id": "legacy-pool-0",
+                  "memory_policy": "ephemeral",
+                  "name": "RefChild",
+                  "output_mode": "summary",
+                  "parallel_safe": true,
+                  "source": {
+                    "agent_id": "legacy-16848a0851542e63ec52c9f9",
+                    "kind": "agent_ref"
+                  }
+                }
+              ]
+            },
+            "id": "pool",
+            "type": "subagent_pool"
+          }
+        ],
+        "schema_version": 1
+      },
+      "diagnostics": []
+    },
+    "child": {
+      "id": "legacy-16848a0851542e63ec52c9f9",
+      "kind": "agent",
+      "name": "RefChild",
+      "description": "source description",
+      "archived": false,
+      "edit_token": "edit-2-4cbc39172418be70",
+      "draft_digest": "4cbc39172418be70be65836e4a80097c419b87c23f94441f8c00c43d314e6b5b",
+      "source_identity": "RefChild.recipe",
+      "document": {
+        "description": "source description",
+        "edges": [
+          {
+            "id": "start-agent",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "agent",
+            "target_port_id": "in"
+          },
+          {
+            "id": "agent-end",
+            "kind": "flow",
+            "source_node_id": "agent",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          },
+          {
+            "id": "attach-9e6a67c4c8c23cc4099e9f5ce59b183f",
+            "kind": "attach",
+            "source_node_id": "agent",
+            "source_port_id": "attach_top",
+            "target_node_id": "upgrade-d9fbdb7f7099a847371f8028dd3fcd2c",
+            "target_port_id": "attach_bot"
+          }
+        ],
+        "id": "legacy-16848a0851542e63ec52c9f9",
+        "kind": "agent",
+        "name": "RefChild",
+        "nodes": [
+          {
+            "config": {
+              "execution": {
+                "outputs": [
+                  {
+                    "name": "text",
+                    "source": {
+                      "kind": "result",
+                      "path": [
+                        "message"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "images",
+                    "source": {
+                      "kind": "result",
+                      "path": [
+                        "images"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "files",
+                    "source": {
+                      "kind": "result",
+                      "path": [
+                        "files"
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "id": "start",
+            "type": "start"
+          },
+          {
+            "config": {
+              "execution": {
+                "inputs": [
+                  {
+                    "name": "text",
+                    "value": {
+                      "kind": "ref",
+                      "node_id": "start",
+                      "path": [
+                        "text"
+                      ]
+                    },
+                    "missing": "error"
+                  },
+                  {
+                    "name": "images",
+                    "value": {
+                      "kind": "ref",
+                      "node_id": "start",
+                      "path": [
+                        "images"
+                      ]
+                    },
+                    "missing": "null"
+                  },
+                  {
+                    "name": "files",
+                    "value": {
+                      "kind": "ref",
+                      "node_id": "start",
+                      "path": [
+                        "files"
+                      ]
+                    },
+                    "missing": "null"
+                  },
+                  {
+                    "name": "__legacy_prompt_0",
+                    "value": {
+                      "kind": "ref",
+                      "node_id": "start",
+                      "path": [
+                        "text"
+                      ]
+                    },
+                    "missing": "error"
+                  }
+                ],
+                "outputs": [
+                  {
+                    "name": "message",
+                    "source": {
+                      "kind": "result",
+                      "path": [
+                        "message"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "context",
+                    "source": {
+                      "kind": "result",
+                      "path": [
+                        "context"
+                      ]
+                    }
+                  }
+                ]
+              },
+              "kernel": {
+                "schema_version": 1,
+                "profile": {
+                  "id": "author-choice",
+                  "provider": "openai",
+                  "model": "test-model",
+                  "protocol": "openai-responses",
+                  "endpoint": "https://example.test/v1",
+                  "credential_ref": "test.key",
+                  "context_window": 8192,
+                  "output_limit": 2048,
+                  "capabilities": {
+                    "json_schema": true,
+                    "images": false,
+                    "files": false
+                  }
+                },
+                "prompt": "Read {{#input.__legacy_prompt_0#}}",
+                "max_iterations": 8,
+                "output_tokens": 512,
+                "history": "root",
+                "overflow": "error",
+                "json_schema": null
+              }
+            },
+            "id": "agent",
+            "type": "agent"
+          },
+          {
+            "config": {
+              "execution": {
+                "inputs": [
+                  {
+                    "name": "message",
+                    "value": {
+                      "kind": "ref",
+                      "node_id": "agent",
+                      "path": [
+                        "message"
+                      ]
+                    },
+                    "missing": "error"
+                  },
+                  {
+                    "name": "context",
+                    "value": {
+                      "kind": "ref",
+                      "node_id": "agent",
+                      "path": [
+                        "context"
+                      ]
+                    },
+                    "missing": "null"
+                  }
+                ],
+                "outputs": [
+                  {
+                    "name": "message",
+                    "source": {
+                      "kind": "input",
+                      "path": [
+                        "message"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "context",
+                    "source": {
+                      "kind": "input",
+                      "path": [
+                        "context"
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "id": "end",
+            "type": "end"
+          },
+          {
+            "id": "upgrade-d9fbdb7f7099a847371f8028dd3fcd2c",
+            "type": "toolkit_pool",
+            "config": {
+              "toolkits": [],
+              "merge_with_user_selected": false
+            }
+          }
+        ],
+        "schema_version": 1
+      },
+      "diagnostics": []
+    }
+  }
+}

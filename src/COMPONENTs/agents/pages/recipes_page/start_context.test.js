@@ -6,6 +6,10 @@ const graph = (names = ["question", "notes"]) => ({ nodes: [{
   })) } },
 }] });
 
+const graphWithOutputs = (outputs) => ({ nodes: [{
+  id: "start", type: "start", config: { execution: { outputs } },
+}] });
+
 test("a standalone library graph does not invent Chat fields or an input key", () => {
   const result = start_context_for_view([], [], graph());
   expect(result.kind).toBe("unknown");
@@ -24,6 +28,48 @@ test("embedded and referenced Subagents use the current Start output names, not 
     document.nodes[0].config.execution.outputs[0].name = "edited";
     expect(start_context_for_view(steps, frames, document).fields[0].name).toBe("edited");
   }
+});
+
+test("explicit result.message paths add the same read-only caller alias as the runtime", () => {
+  const document = graphWithOutputs([
+    { name: "question", source: { kind: "result", path: ["message", "text"] } },
+    { name: "notes", source: { kind: "result", path: ["notes"] } },
+  ]);
+  const before = JSON.stringify(document);
+  const result = start_context_for_view([{}], [], document);
+  expect(result.fields).toEqual([
+    { name: "question", type: "text" },
+    { name: "notes", type: "text" },
+    { name: "message", type: "text" },
+  ]);
+  expect(result.message).toMatch(/same delegated message text/i);
+  expect(JSON.stringify(document)).toBe(before);
+});
+
+test.each([
+  [[
+    { name: "message", source: { kind: "result", path: ["message"] } },
+    { name: "other", source: { kind: "result", path: ["message", "content"] } },
+  ], ["message", "other"]],
+  [[
+    { name: "input_message", source: { kind: "input", path: ["message"] } },
+    { name: "other", source: { kind: "result", path: ["other"] } },
+  ], ["input_message", "other"]],
+  [[
+    { name: "whole", source: { kind: "result", path: [] } },
+    { name: "other", source: { kind: "result", path: ["other"] } },
+  ], ["whole", "other"]],
+  [[
+    { name: "nested", source: { kind: "result", path: ["result", "message"] } },
+    { name: "other", source: { kind: "result", path: ["other"] } },
+  ], ["nested", "other"]],
+  [[
+    { name: "nonstring", source: { kind: "result", path: [null, "message"] } },
+    { name: "other", source: { kind: "result", path: ["other"] } },
+  ], ["nonstring", "other"]],
+])("read-only caller fields add no duplicate or unrelated aliases for %p", (outputs, names) => {
+  const result = start_context_for_view([{}], [], graphWithOutputs(outputs));
+  expect(result.fields).toEqual([...names].map((name) => ({ name, type: "text" })));
 });
 
 test.each(["hooks", "unknown", null, false])("member %s is not guessed to be a Subagent", (member) => {

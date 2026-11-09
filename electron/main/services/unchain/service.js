@@ -1,3 +1,4 @@
+const { validateLegacyChatCatalog } = require('../../../shared/legacy_chat_catalog');
 const { buildSkeletonRunObservationRequest, checkSkeletonRunObservationRequest, checkSkeletonRunObservation, readSkeletonRunObservationResponse } = require('./skeleton_run_observation');
 const { request: nodeHttpRequest } = require("http");
 const { request: nodeHttpsRequest } = require("https");
@@ -6,6 +7,7 @@ const { CHANNELS } = require("../../../shared/channels");
 const { readSkeletonResourceResponse } = require("./skeleton_resource_response");
 const { buildManagedCodeRequest, validateManagedCodeReply, isManagedCodeAction } = require("./managed_code_transport");
 const { buildManagedTransferRequest, isManagedTransferAction, runManagedTransferCommand } = require("./managed_transfer_transport");
+const { prepareLegacyUpgradeRequest, isLegacyUpgradeAction, runLegacyUpgradeCommand } = require("./legacy_upgrade_transport");
 const {
   buildSkeletonCredentialQuery,
   resolveSkeletonCredentials,
@@ -84,6 +86,10 @@ const UNCHAIN_CUSTOM_PROVIDER_TEST_ENDPOINT =
 
 const buildSkeletonResourceRequest = (action, payload = {}) => {
   if (action === "run_observation") return buildSkeletonRunObservationRequest(payload);
+  if (action === "legacy_chat_catalog") {
+    if (!payload || typeof payload !== "object" || Array.isArray(payload) || Reflect.ownKeys(payload).length) throw new Error("Legacy chat catalog accepts no payload");
+    return { method: "GET", path: "/skeleton_resources/legacy_chat_catalog?contract=legacy_chat_v1" };
+  }
   const transfer = buildManagedTransferRequest(action, payload);
   if (transfer) return transfer;
   if (action === "workflow_tool_capabilities") {
@@ -4636,10 +4642,15 @@ const createUnchainService = ({
   };
 
   const runMisoSkeletonResourceCommand = async (action, payload = {}) => {
+    const upgrade = isLegacyUpgradeAction(action) ? prepareLegacyUpgradeRequest(action, payload) : null;
     // Snapshot the validated scalar request synchronously, before any await.
     const observationScope = action === "run_observation"
       ? Object.freeze({ ...checkSkeletonRunObservationRequest(payload) }) : null;
     ensureMisoReady();
+    if (upgrade) return runLegacyUpgradeCommand(upgrade, {
+      baseUrl: `http://${UNCHAIN_HOST}:${unchainPort}`, authToken: unchainAuthToken,
+      fetchImpl: (...args) => fetch(...args), readResponse: readSkeletonResourceResponse,
+    });
     if (isManagedTransferAction(action)) {
       return runManagedTransferCommand(action, payload, {
         baseUrl: `http://${UNCHAIN_HOST}:${unchainPort}`, authToken: unchainAuthToken,
@@ -4665,6 +4676,7 @@ const createUnchainService = ({
       ? await readSkeletonRunObservationResponse(response)
       : await readSkeletonResourceResponse(response);
     if (action === "run_observation") return checkSkeletonRunObservation(result, observationScope);
+    if (action === "legacy_chat_catalog") return validateLegacyChatCatalog(result);
     return isManagedCodeAction(action) ? validateManagedCodeReply(action, result) : result;
   };
 

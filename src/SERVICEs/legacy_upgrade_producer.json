@@ -1,0 +1,2286 @@
+{
+  "capabilities": {
+    "apply_policy": "explicit-cas-preview",
+    "choices_schema": "pupu.skeleton-legacy-upgrade.choices.v1",
+    "contract": "legacy_upgrade_v1",
+    "request_bytes": 4194304,
+    "request_schema": "pupu.skeleton-legacy-upgrade.request.v1",
+    "response_bytes": 16777216,
+    "response_schema": "pupu.skeleton-legacy-upgrade.response.v1",
+    "runtime_manifest": {
+      "manifest_digest": "sha256:c172bc02718aee771ddd4d247904f13cdaf003d3794148fd3ecd4d4e9a419e6b",
+      "protocols": [
+        {
+          "features": [
+            "artifact_handoff",
+            "canonical_journal",
+            "chat_deletion_sqlite_scope_closure",
+            "context_compiler",
+            "context_content_paging_v1",
+            "context_content_paging_v2",
+            "context_content_read_recovery_v1",
+            "context_contribution_manifest_v1",
+            "durable_interaction_settlement_fence_v1",
+            "generation_rebase_live_interaction_cycles",
+            "graph_failure_terminals_v1",
+            "historical_evidence_guidance_v1",
+            "interaction_resolution_compat",
+            "long_term_promotion",
+            "memory_curator",
+            "memory_toolkit",
+            "memory_workspace",
+            "provider_context_limit_recovery_v1",
+            "small_tool_output_inline_v1",
+            "tool_output_management_v1"
+          ],
+          "id": "context_memory",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "features": [
+            "cancel_pending",
+            "expected_interaction_id_cas",
+            "fresh_run_lineage",
+            "graph_interaction_lineage_preflight_v1",
+            "host_controlled_resume",
+            "interaction_resolution_atomic_acceptance_v1"
+          ],
+          "id": "durable_interaction",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "features": [
+            "atomic_receipt_cas",
+            "auxiliary_calls",
+            "enforce_mode",
+            "graph_runs",
+            "memory_off",
+            "ollama_reasoning_preview_v1",
+            "provider_response_outcomes_v1",
+            "provider_uncertainty_diagnostics_v1",
+            "subagent_runs"
+          ],
+          "id": "provider_turn_ownership",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "features": [
+            "canonical_metrics",
+            "completion_diagnostics_ref",
+            "context_composition_ref_v1",
+            "continuation_claim",
+            "immutable_pricing_snapshot",
+            "provider_call_set_union",
+            "provider_call_usage_v1",
+            "run_bundle_v1",
+            "run_bundle_v2"
+          ],
+          "id": "run_bundle",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "features": [
+            "code_python_v1",
+            "draft_diagnostics_v1",
+            "durable_exclusive_dag_v2",
+            "end_only_root_completion_v1",
+            "explicit_bindings_v1",
+            "hook_embedded_workflow_v1",
+            "hook_enable_v1",
+            "hook_phase_receipts_v1",
+            "hook_tool_set_v1",
+            "kernel_profile_auth_v1",
+            "kernel_profiles_v1",
+            "legacy_conversion_v1",
+            "node_display_label_v1",
+            "non_llm_workflow_v1",
+            "pinned_workflow_calls_v1",
+            "production_host_bindings_v1",
+            "skill_read_v1",
+            "structured_output_v1",
+            "subagent_graphs_v1",
+            "subagent_native_observation_v1",
+            "subagent_tool_settlement_projection_v1",
+            "tool_call_v1"
+          ],
+          "id": "skeleton_execution",
+          "major": 1,
+          "minor": 8
+        },
+        {
+          "features": [
+            "active_skills_snapshot_v1",
+            "catalog_v1",
+            "skill_md_registry_v1",
+            "skill_tool_v1",
+            "toolkit_embedded_skills_v1",
+            "user_invocation_v1"
+          ],
+          "id": "skills",
+          "major": 1,
+          "minor": 0
+        }
+      ],
+      "runtime": "unchain",
+      "schema": "unchain.runtime_protocol_manifest.v1"
+    },
+    "schema": "pupu.skeleton-legacy-upgrade.capabilities.v1",
+    "scope": "one-existing-agent"
+  },
+  "cases": {
+    "flat": {
+      "request": {
+        "resource_id": "legacy-b212a963176e02e61e362943",
+        "schema": "pupu.skeleton-legacy-upgrade.request.v1",
+        "expected_edit_token": "edit-1-4d807182a953cba47a8937da",
+        "expected_runtime_manifest_digest": "sha256:c172bc02718aee771ddd4d247904f13cdaf003d3794148fd3ecd4d4e9a419e6b",
+        "choices": {
+          "schema": "pupu.skeleton-legacy-upgrade.choices.v1",
+          "kernels": [
+            {
+              "path": [
+                "nodes",
+                1
+              ],
+              "kernel": {
+                "schema_version": 1,
+                "profile": {
+                  "id": "author-choice",
+                  "provider": "openai",
+                  "model": "test-model",
+                  "protocol": "openai-responses",
+                  "endpoint": "https://example.test/v1",
+                  "credential_ref": "test.key",
+                  "context_window": 8192,
+                  "output_limit": 2048,
+                  "capabilities": {
+                    "json_schema": true,
+                    "images": false,
+                    "files": false
+                  }
+                },
+                "prompt": "author prompt",
+                "max_iterations": 8,
+                "output_tokens": 512,
+                "history": "root",
+                "overflow": "error",
+                "json_schema": null
+              },
+              "model_policy": "preserve",
+              "prompt_policy": "preserve",
+              "accept_projection": true
+            }
+          ],
+          "toolkits": [],
+          "references": [],
+          "acknowledged": []
+        }
+      },
+      "before": {
+        "id": "legacy-b212a963176e02e61e362943",
+        "kind": "agent",
+        "name": "Flat",
+        "description": "source description",
+        "archived": false,
+        "edit_token": "edit-1-4d807182a953cba47a8937da",
+        "draft_digest": "4d807182a953cba47a8937da3f385b5c6bc0d4795ac47b39c8bcb88405a07c93",
+        "source_identity": "fixture-flat",
+        "document": {
+          "description": "source description",
+          "edges": [
+            {
+              "id": "start-agent",
+              "kind": "flow",
+              "source_node_id": "start",
+              "source_port_id": "out",
+              "target_node_id": "agent",
+              "target_port_id": "in"
+            },
+            {
+              "id": "agent-end",
+              "kind": "flow",
+              "source_node_id": "agent",
+              "source_port_id": "out",
+              "target_node_id": "end",
+              "target_port_id": "in"
+            }
+          ],
+          "id": "legacy-b212a963176e02e61e362943",
+          "kind": "agent",
+          "name": "Flat",
+          "nodes": [
+            {
+              "config": {
+                "legacy_source": {
+                  "document": {
+                    "agent": {
+                      "prompt": "Read {{#start.text#}}",
+                      "prompt_format": "soul"
+                    },
+                    "description": "source description",
+                    "merge_with_user_selected": false,
+                    "model": null,
+                    "name": "Flat",
+                    "subagent_pool": [],
+                    "toolkits": []
+                  },
+                  "format": "recipe"
+                }
+              },
+              "id": "start",
+              "type": "start"
+            },
+            {
+              "config": {
+                "legacy_recipe": {
+                  "agent": {
+                    "prompt": "Read {{#start.text#}}",
+                    "prompt_format": "soul"
+                  },
+                  "description": "source description",
+                  "merge_with_user_selected": false,
+                  "model": null,
+                  "name": "Flat",
+                  "subagent_pool": [],
+                  "toolkits": []
+                },
+                "prompt": {
+                  "kind": "text",
+                  "text": "Read {{#start.text#}}"
+                }
+              },
+              "id": "agent",
+              "type": "agent"
+            },
+            {
+              "config": {},
+              "id": "end",
+              "type": "end"
+            }
+          ],
+          "schema_version": 1
+        },
+        "diagnostics": []
+      },
+      "inventory": {
+        "expected_edit_token": "edit-1-4d807182a953cba47a8937da",
+        "operation": "inventory",
+        "payload_json": "{\"edit_token\":\"edit-1-4d807182a953cba47a8937da\",\"requirements\":[{\"code\":\"root_toolkit_pool_required\",\"message\":\"The legacy recipe has root toolkit policy that needs an attached native Toolkit Pool.\",\"path\":[\"nodes\",1,\"config\",\"legacy_recipe\",\"toolkits\"]},{\"code\":\"kernel_required\",\"message\":\"Choose and configure a Kernel for this Agent.\",\"path\":[\"nodes\",1,\"config\",\"kernel\"]}],\"resource_id\":\"legacy-b212a963176e02e61e362943\",\"schema\":\"pupu.skeleton-legacy-upgrade.inventory.v1\",\"source_identity\":\"fixture-flat\",\"state\":\"needs_upgrade\"}",
+        "payload_sha256": "f2bdca6dc0dbc31f5054686fc476f19fc5a880381143461a910c3d00bfae811d",
+        "projection_digest": null,
+        "resource_id": "legacy-b212a963176e02e61e362943",
+        "runtime_manifest_digest": "sha256:c172bc02718aee771ddd4d247904f13cdaf003d3794148fd3ecd4d4e9a419e6b",
+        "schema": "pupu.skeleton-legacy-upgrade.response.v1"
+      },
+      "preview": {
+        "expected_edit_token": "edit-1-4d807182a953cba47a8937da",
+        "operation": "preview",
+        "payload_json": "{\"definition_digest\":\"fc16ad6a99ac4c63d217ce655f50da20b6e54c1e4ac93b4c47a90bd5f65795fe\",\"dependencies\":[],\"document\":{\"description\":\"source description\",\"edges\":[{\"id\":\"start-agent\",\"kind\":\"flow\",\"source_node_id\":\"start\",\"source_port_id\":\"out\",\"target_node_id\":\"agent\",\"target_port_id\":\"in\"},{\"id\":\"agent-end\",\"kind\":\"flow\",\"source_node_id\":\"agent\",\"source_port_id\":\"out\",\"target_node_id\":\"end\",\"target_port_id\":\"in\"},{\"id\":\"attach-8b98c2bbaf5aaf3bc36dafe4066d511a\",\"kind\":\"attach\",\"source_node_id\":\"agent\",\"source_port_id\":\"attach_top\",\"target_node_id\":\"upgrade-a325c23792fd425d21b96edf39dbe6f3\",\"target_port_id\":\"attach_bot\"}],\"id\":\"legacy-b212a963176e02e61e362943\",\"kind\":\"agent\",\"name\":\"Flat\",\"nodes\":[{\"config\":{\"execution\":{\"outputs\":[{\"name\":\"text\",\"source\":{\"kind\":\"result\",\"path\":[\"message\"]}},{\"name\":\"images\",\"source\":{\"kind\":\"result\",\"path\":[\"images\"]}},{\"name\":\"files\",\"source\":{\"kind\":\"result\",\"path\":[\"files\"]}}]}},\"id\":\"start\",\"type\":\"start\"},{\"config\":{\"execution\":{\"inputs\":[{\"missing\":\"error\",\"name\":\"text\",\"value\":{\"kind\":\"ref\",\"node_id\":\"start\",\"path\":[\"text\"]}},{\"missing\":\"null\",\"name\":\"images\",\"value\":{\"kind\":\"ref\",\"node_id\":\"start\",\"path\":[\"images\"]}},{\"missing\":\"null\",\"name\":\"files\",\"value\":{\"kind\":\"ref\",\"node_id\":\"start\",\"path\":[\"files\"]}},{\"missing\":\"error\",\"name\":\"__legacy_prompt_0\",\"value\":{\"kind\":\"ref\",\"node_id\":\"start\",\"path\":[\"text\"]}}],\"outputs\":[{\"name\":\"message\",\"source\":{\"kind\":\"result\",\"path\":[\"message\"]}},{\"name\":\"context\",\"source\":{\"kind\":\"result\",\"path\":[\"context\"]}}]},\"kernel\":{\"history\":\"root\",\"json_schema\":null,\"max_iterations\":8,\"output_tokens\":512,\"overflow\":\"error\",\"profile\":{\"capabilities\":{\"files\":false,\"images\":false,\"json_schema\":true},\"context_window\":8192,\"credential_ref\":\"test.key\",\"endpoint\":\"https://example.test/v1\",\"id\":\"author-choice\",\"model\":\"test-model\",\"output_limit\":2048,\"protocol\":\"openai-responses\",\"provider\":\"openai\"},\"prompt\":\"Read {{#input.__legacy_prompt_0#}}\",\"schema_version\":1}},\"id\":\"agent\",\"type\":\"agent\"},{\"config\":{\"execution\":{\"inputs\":[{\"missing\":\"error\",\"name\":\"message\",\"value\":{\"kind\":\"ref\",\"node_id\":\"agent\",\"path\":[\"message\"]}},{\"missing\":\"null\",\"name\":\"context\",\"value\":{\"kind\":\"ref\",\"node_id\":\"agent\",\"path\":[\"context\"]}}],\"outputs\":[{\"name\":\"message\",\"source\":{\"kind\":\"input\",\"path\":[\"message\"]}},{\"name\":\"context\",\"source\":{\"kind\":\"input\",\"path\":[\"context\"]}}]}},\"id\":\"end\",\"type\":\"end\"},{\"config\":{\"merge_with_user_selected\":false,\"toolkits\":[]},\"id\":\"upgrade-a325c23792fd425d21b96edf39dbe6f3\",\"type\":\"toolkit_pool\"}],\"schema_version\":1},\"edit_token\":\"edit-1-4d807182a953cba47a8937da\",\"projection_digest\":\"b9f7842d98d2b5eb5b7afa60e7b81c008273e3ffc5c2d7d01fe3bfff5e8b3788\",\"resource_id\":\"legacy-b212a963176e02e61e362943\",\"runtime_manifest\":{\"manifest_digest\":\"sha256:c172bc02718aee771ddd4d247904f13cdaf003d3794148fd3ecd4d4e9a419e6b\",\"protocols\":[{\"features\":[\"artifact_handoff\",\"canonical_journal\",\"chat_deletion_sqlite_scope_closure\",\"context_compiler\",\"context_content_paging_v1\",\"context_content_paging_v2\",\"context_content_read_recovery_v1\",\"context_contribution_manifest_v1\",\"durable_interaction_settlement_fence_v1\",\"generation_rebase_live_interaction_cycles\",\"graph_failure_terminals_v1\",\"historical_evidence_guidance_v1\",\"interaction_resolution_compat\",\"long_term_promotion\",\"memory_curator\",\"memory_toolkit\",\"memory_workspace\",\"provider_context_limit_recovery_v1\",\"small_tool_output_inline_v1\",\"tool_output_management_v1\"],\"id\":\"context_memory\",\"major\":1,\"minor\":0},{\"features\":[\"cancel_pending\",\"expected_interaction_id_cas\",\"fresh_run_lineage\",\"graph_interaction_lineage_preflight_v1\",\"host_controlled_resume\",\"interaction_resolution_atomic_acceptance_v1\"],\"id\":\"durable_interaction\",\"major\":1,\"minor\":0},{\"features\":[\"atomic_receipt_cas\",\"auxiliary_calls\",\"enforce_mode\",\"graph_runs\",\"memory_off\",\"ollama_reasoning_preview_v1\",\"provider_response_outcomes_v1\",\"provider_uncertainty_diagnostics_v1\",\"subagent_runs\"],\"id\":\"provider_turn_ownership\",\"major\":1,\"minor\":0},{\"features\":[\"canonical_metrics\",\"completion_diagnostics_ref\",\"context_composition_ref_v1\",\"continuation_claim\",\"immutable_pricing_snapshot\",\"provider_call_set_union\",\"provider_call_usage_v1\",\"run_bundle_v1\",\"run_bundle_v2\"],\"id\":\"run_bundle\",\"major\":1,\"minor\":0},{\"features\":[\"code_python_v1\",\"draft_diagnostics_v1\",\"durable_exclusive_dag_v2\",\"end_only_root_completion_v1\",\"explicit_bindings_v1\",\"hook_embedded_workflow_v1\",\"hook_enable_v1\",\"hook_phase_receipts_v1\",\"hook_tool_set_v1\",\"kernel_profile_auth_v1\",\"kernel_profiles_v1\",\"legacy_conversion_v1\",\"node_display_label_v1\",\"non_llm_workflow_v1\",\"pinned_workflow_calls_v1\",\"production_host_bindings_v1\",\"skill_read_v1\",\"structured_output_v1\",\"subagent_graphs_v1\",\"subagent_native_observation_v1\",\"subagent_tool_settlement_projection_v1\",\"tool_call_v1\"],\"id\":\"skeleton_execution\",\"major\":1,\"minor\":8},{\"features\":[\"active_skills_snapshot_v1\",\"catalog_v1\",\"skill_md_registry_v1\",\"skill_tool_v1\",\"toolkit_embedded_skills_v1\",\"user_invocation_v1\"],\"id\":\"skills\",\"major\":1,\"minor\":0}],\"runtime\":\"unchain\",\"schema\":\"unchain.runtime_protocol_manifest.v1\"},\"schema\":\"pupu.skeleton-legacy-upgrade.preview.v1\",\"source_identity\":\"fixture-flat\",\"source_policy\":{\"allowed_modes\":[\"delegate\"],\"allowed_tools\":null,\"memory_policy\":\"ephemeral\",\"output_mode\":\"summary\",\"parallel_safe\":false},\"source_sha256\":\"e86b32cdf9cbfef342cfa9f6f9f910041515a4733cb5752dc85fcf5c5c091298\",\"subagents\":[]}",
+        "payload_sha256": "3b3d3bcd3cc5b633eef23db3f21ac0b31aa781d6cb129f2deef1ffcf71fc5be0",
+        "projection_digest": "b9f7842d98d2b5eb5b7afa60e7b81c008273e3ffc5c2d7d01fe3bfff5e8b3788",
+        "resource_id": "legacy-b212a963176e02e61e362943",
+        "runtime_manifest_digest": "sha256:c172bc02718aee771ddd4d247904f13cdaf003d3794148fd3ecd4d4e9a419e6b",
+        "schema": "pupu.skeleton-legacy-upgrade.response.v1"
+      },
+      "apply_request": {
+        "resource_id": "legacy-b212a963176e02e61e362943",
+        "schema": "pupu.skeleton-legacy-upgrade.request.v1",
+        "expected_edit_token": "edit-1-4d807182a953cba47a8937da",
+        "expected_runtime_manifest_digest": "sha256:c172bc02718aee771ddd4d247904f13cdaf003d3794148fd3ecd4d4e9a419e6b",
+        "choices": {
+          "schema": "pupu.skeleton-legacy-upgrade.choices.v1",
+          "kernels": [
+            {
+              "path": [
+                "nodes",
+                1
+              ],
+              "kernel": {
+                "schema_version": 1,
+                "profile": {
+                  "id": "author-choice",
+                  "provider": "openai",
+                  "model": "test-model",
+                  "protocol": "openai-responses",
+                  "endpoint": "https://example.test/v1",
+                  "credential_ref": "test.key",
+                  "context_window": 8192,
+                  "output_limit": 2048,
+                  "capabilities": {
+                    "json_schema": true,
+                    "images": false,
+                    "files": false
+                  }
+                },
+                "prompt": "author prompt",
+                "max_iterations": 8,
+                "output_tokens": 512,
+                "history": "root",
+                "overflow": "error",
+                "json_schema": null
+              },
+              "model_policy": "preserve",
+              "prompt_policy": "preserve",
+              "accept_projection": true
+            }
+          ],
+          "toolkits": [],
+          "references": [],
+          "acknowledged": []
+        },
+        "expected_projection_digest": "b9f7842d98d2b5eb5b7afa60e7b81c008273e3ffc5c2d7d01fe3bfff5e8b3788"
+      },
+      "applied": {
+        "expected_edit_token": "edit-1-4d807182a953cba47a8937da",
+        "operation": "apply",
+        "payload_json": "{\"archived\":false,\"description\":\"source description\",\"diagnostics\":[],\"document\":{\"description\":\"source description\",\"edges\":[{\"id\":\"start-agent\",\"kind\":\"flow\",\"source_node_id\":\"start\",\"source_port_id\":\"out\",\"target_node_id\":\"agent\",\"target_port_id\":\"in\"},{\"id\":\"agent-end\",\"kind\":\"flow\",\"source_node_id\":\"agent\",\"source_port_id\":\"out\",\"target_node_id\":\"end\",\"target_port_id\":\"in\"},{\"id\":\"attach-8b98c2bbaf5aaf3bc36dafe4066d511a\",\"kind\":\"attach\",\"source_node_id\":\"agent\",\"source_port_id\":\"attach_top\",\"target_node_id\":\"upgrade-a325c23792fd425d21b96edf39dbe6f3\",\"target_port_id\":\"attach_bot\"}],\"id\":\"legacy-b212a963176e02e61e362943\",\"kind\":\"agent\",\"name\":\"Flat\",\"nodes\":[{\"config\":{\"execution\":{\"outputs\":[{\"name\":\"text\",\"source\":{\"kind\":\"result\",\"path\":[\"message\"]}},{\"name\":\"images\",\"source\":{\"kind\":\"result\",\"path\":[\"images\"]}},{\"name\":\"files\",\"source\":{\"kind\":\"result\",\"path\":[\"files\"]}}]}},\"id\":\"start\",\"type\":\"start\"},{\"config\":{\"execution\":{\"inputs\":[{\"missing\":\"error\",\"name\":\"text\",\"value\":{\"kind\":\"ref\",\"node_id\":\"start\",\"path\":[\"text\"]}},{\"missing\":\"null\",\"name\":\"images\",\"value\":{\"kind\":\"ref\",\"node_id\":\"start\",\"path\":[\"images\"]}},{\"missing\":\"null\",\"name\":\"files\",\"value\":{\"kind\":\"ref\",\"node_id\":\"start\",\"path\":[\"files\"]}},{\"missing\":\"error\",\"name\":\"__legacy_prompt_0\",\"value\":{\"kind\":\"ref\",\"node_id\":\"start\",\"path\":[\"text\"]}}],\"outputs\":[{\"name\":\"message\",\"source\":{\"kind\":\"result\",\"path\":[\"message\"]}},{\"name\":\"context\",\"source\":{\"kind\":\"result\",\"path\":[\"context\"]}}]},\"kernel\":{\"history\":\"root\",\"json_schema\":null,\"max_iterations\":8,\"output_tokens\":512,\"overflow\":\"error\",\"profile\":{\"capabilities\":{\"files\":false,\"images\":false,\"json_schema\":true},\"context_window\":8192,\"credential_ref\":\"test.key\",\"endpoint\":\"https://example.test/v1\",\"id\":\"author-choice\",\"model\":\"test-model\",\"output_limit\":2048,\"protocol\":\"openai-responses\",\"provider\":\"openai\"},\"prompt\":\"Read {{#input.__legacy_prompt_0#}}\",\"schema_version\":1}},\"id\":\"agent\",\"type\":\"agent\"},{\"config\":{\"execution\":{\"inputs\":[{\"missing\":\"error\",\"name\":\"message\",\"value\":{\"kind\":\"ref\",\"node_id\":\"agent\",\"path\":[\"message\"]}},{\"missing\":\"null\",\"name\":\"context\",\"value\":{\"kind\":\"ref\",\"node_id\":\"agent\",\"path\":[\"context\"]}}],\"outputs\":[{\"name\":\"message\",\"source\":{\"kind\":\"input\",\"path\":[\"message\"]}},{\"name\":\"context\",\"source\":{\"kind\":\"input\",\"path\":[\"context\"]}}]}},\"id\":\"end\",\"type\":\"end\"},{\"config\":{\"merge_with_user_selected\":false,\"toolkits\":[]},\"id\":\"upgrade-a325c23792fd425d21b96edf39dbe6f3\",\"type\":\"toolkit_pool\"}],\"schema_version\":1},\"draft_digest\":\"fc16ad6a99ac4c63d217ce655f50da20b6e54c1e4ac93b4c47a90bd5f65795fe\",\"edit_token\":\"edit-2-fc16ad6a99ac4c63\",\"id\":\"legacy-b212a963176e02e61e362943\",\"kind\":\"agent\",\"name\":\"Flat\",\"source_identity\":\"fixture-flat\"}",
+        "payload_sha256": "b248eadfe67137448a0ac763c0cfc553f2bca7696548490aa00c855a782b8da3",
+        "projection_digest": "b9f7842d98d2b5eb5b7afa60e7b81c008273e3ffc5c2d7d01fe3bfff5e8b3788",
+        "resource_id": "legacy-b212a963176e02e61e362943",
+        "runtime_manifest_digest": "sha256:c172bc02718aee771ddd4d247904f13cdaf003d3794148fd3ecd4d4e9a419e6b",
+        "schema": "pupu.skeleton-legacy-upgrade.response.v1"
+      },
+      "saved": {
+        "id": "legacy-b212a963176e02e61e362943",
+        "kind": "agent",
+        "name": "Flat",
+        "description": "source description",
+        "archived": false,
+        "edit_token": "edit-2-fc16ad6a99ac4c63",
+        "draft_digest": "fc16ad6a99ac4c63d217ce655f50da20b6e54c1e4ac93b4c47a90bd5f65795fe",
+        "source_identity": "fixture-flat",
+        "document": {
+          "description": "source description",
+          "edges": [
+            {
+              "id": "start-agent",
+              "kind": "flow",
+              "source_node_id": "start",
+              "source_port_id": "out",
+              "target_node_id": "agent",
+              "target_port_id": "in"
+            },
+            {
+              "id": "agent-end",
+              "kind": "flow",
+              "source_node_id": "agent",
+              "source_port_id": "out",
+              "target_node_id": "end",
+              "target_port_id": "in"
+            },
+            {
+              "id": "attach-8b98c2bbaf5aaf3bc36dafe4066d511a",
+              "kind": "attach",
+              "source_node_id": "agent",
+              "source_port_id": "attach_top",
+              "target_node_id": "upgrade-a325c23792fd425d21b96edf39dbe6f3",
+              "target_port_id": "attach_bot"
+            }
+          ],
+          "id": "legacy-b212a963176e02e61e362943",
+          "kind": "agent",
+          "name": "Flat",
+          "nodes": [
+            {
+              "config": {
+                "execution": {
+                  "outputs": [
+                    {
+                      "name": "text",
+                      "source": {
+                        "kind": "result",
+                        "path": [
+                          "message"
+                        ]
+                      }
+                    },
+                    {
+                      "name": "images",
+                      "source": {
+                        "kind": "result",
+                        "path": [
+                          "images"
+                        ]
+                      }
+                    },
+                    {
+                      "name": "files",
+                      "source": {
+                        "kind": "result",
+                        "path": [
+                          "files"
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              "id": "start",
+              "type": "start"
+            },
+            {
+              "config": {
+                "execution": {
+                  "inputs": [
+                    {
+                      "missing": "error",
+                      "name": "text",
+                      "value": {
+                        "kind": "ref",
+                        "node_id": "start",
+                        "path": [
+                          "text"
+                        ]
+                      }
+                    },
+                    {
+                      "missing": "null",
+                      "name": "images",
+                      "value": {
+                        "kind": "ref",
+                        "node_id": "start",
+                        "path": [
+                          "images"
+                        ]
+                      }
+                    },
+                    {
+                      "missing": "null",
+                      "name": "files",
+                      "value": {
+                        "kind": "ref",
+                        "node_id": "start",
+                        "path": [
+                          "files"
+                        ]
+                      }
+                    },
+                    {
+                      "missing": "error",
+                      "name": "__legacy_prompt_0",
+                      "value": {
+                        "kind": "ref",
+                        "node_id": "start",
+                        "path": [
+                          "text"
+                        ]
+                      }
+                    }
+                  ],
+                  "outputs": [
+                    {
+                      "name": "message",
+                      "source": {
+                        "kind": "result",
+                        "path": [
+                          "message"
+                        ]
+                      }
+                    },
+                    {
+                      "name": "context",
+                      "source": {
+                        "kind": "result",
+                        "path": [
+                          "context"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                "kernel": {
+                  "history": "root",
+                  "json_schema": null,
+                  "max_iterations": 8,
+                  "output_tokens": 512,
+                  "overflow": "error",
+                  "profile": {
+                    "capabilities": {
+                      "files": false,
+                      "images": false,
+                      "json_schema": true
+                    },
+                    "context_window": 8192,
+                    "credential_ref": "test.key",
+                    "endpoint": "https://example.test/v1",
+                    "id": "author-choice",
+                    "model": "test-model",
+                    "output_limit": 2048,
+                    "protocol": "openai-responses",
+                    "provider": "openai"
+                  },
+                  "prompt": "Read {{#input.__legacy_prompt_0#}}",
+                  "schema_version": 1
+                }
+              },
+              "id": "agent",
+              "type": "agent"
+            },
+            {
+              "config": {
+                "execution": {
+                  "inputs": [
+                    {
+                      "missing": "error",
+                      "name": "message",
+                      "value": {
+                        "kind": "ref",
+                        "node_id": "agent",
+                        "path": [
+                          "message"
+                        ]
+                      }
+                    },
+                    {
+                      "missing": "null",
+                      "name": "context",
+                      "value": {
+                        "kind": "ref",
+                        "node_id": "agent",
+                        "path": [
+                          "context"
+                        ]
+                      }
+                    }
+                  ],
+                  "outputs": [
+                    {
+                      "name": "message",
+                      "source": {
+                        "kind": "input",
+                        "path": [
+                          "message"
+                        ]
+                      }
+                    },
+                    {
+                      "name": "context",
+                      "source": {
+                        "kind": "input",
+                        "path": [
+                          "context"
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              "id": "end",
+              "type": "end"
+            },
+            {
+              "config": {
+                "merge_with_user_selected": false,
+                "toolkits": []
+              },
+              "id": "upgrade-a325c23792fd425d21b96edf39dbe6f3",
+              "type": "toolkit_pool"
+            }
+          ],
+          "schema_version": 1
+        },
+        "diagnostics": []
+      }
+    },
+    "explore": {
+      "request": {
+        "resource_id": "legacy-f69b666b0570b05074a06f70",
+        "schema": "pupu.skeleton-legacy-upgrade.request.v1",
+        "expected_edit_token": "edit-1-7b672e83155c362b73d512aa",
+        "expected_runtime_manifest_digest": "sha256:c172bc02718aee771ddd4d247904f13cdaf003d3794148fd3ecd4d4e9a419e6b",
+        "choices": {
+          "schema": "pupu.skeleton-legacy-upgrade.choices.v1",
+          "kernels": [
+            {
+              "path": [
+                "nodes",
+                1
+              ],
+              "kernel": {
+                "schema_version": 1,
+                "profile": {
+                  "id": "author-choice",
+                  "provider": "openai",
+                  "model": "test-model",
+                  "protocol": "openai-responses",
+                  "endpoint": "https://example.test/v1",
+                  "credential_ref": "test.key",
+                  "context_window": 8192,
+                  "output_limit": 2048,
+                  "capabilities": {
+                    "json_schema": true,
+                    "images": false,
+                    "files": false
+                  }
+                },
+                "prompt": "author prompt",
+                "max_iterations": 8,
+                "output_tokens": 512,
+                "history": "root",
+                "overflow": "error",
+                "json_schema": null
+              },
+              "model_policy": "preserve",
+              "prompt_policy": "preserve",
+              "accept_projection": true
+            }
+          ],
+          "toolkits": [],
+          "references": [],
+          "acknowledged": []
+        }
+      },
+      "before": {
+        "id": "legacy-f69b666b0570b05074a06f70",
+        "kind": "agent",
+        "name": "Explore",
+        "description": "Fast agent specialized for exploring codebases. Use this when you need to quickly find files by patterns, search code for keywords, or answer questions about the codebase. Specify desired thoroughness level in the task: 'quick', 'medium', or 'very thorough'.",
+        "archived": false,
+        "edit_token": "edit-1-7b672e83155c362b73d512aa",
+        "draft_digest": "7b672e83155c362b73d512aa6416b6bb0c2ca94cbe8d80b3f8a60e5b1418e0f9",
+        "source_identity": "fixture-explore",
+        "document": {
+          "description": "Fast agent specialized for exploring codebases. Use this when you need to quickly find files by patterns, search code for keywords, or answer questions about the codebase. Specify desired thoroughness level in the task: 'quick', 'medium', or 'very thorough'.",
+          "edges": [
+            {
+              "id": "e_start_agent",
+              "kind": "flow",
+              "source_node_id": "start",
+              "source_port_id": "out",
+              "target_node_id": "agent_main",
+              "target_port_id": "in"
+            },
+            {
+              "id": "e_agent_end",
+              "kind": "flow",
+              "source_node_id": "agent_main",
+              "source_port_id": "out",
+              "target_node_id": "end",
+              "target_port_id": "in"
+            },
+            {
+              "id": "e_agent_tp",
+              "kind": "attach",
+              "source_node_id": "agent_main",
+              "source_port_id": "attach_top",
+              "target_node_id": "tp_1",
+              "target_port_id": "attach_bot"
+            }
+          ],
+          "id": "legacy-f69b666b0570b05074a06f70",
+          "kind": "agent",
+          "name": "Explore",
+          "nodes": [
+            {
+              "config": {
+                "legacy_fields": {
+                  "deletable": false,
+                  "kind": "workflow",
+                  "outputs": [
+                    {
+                      "name": "text",
+                      "type": "string"
+                    },
+                    {
+                      "name": "images",
+                      "type": "image[]"
+                    },
+                    {
+                      "name": "files",
+                      "type": "file[]"
+                    }
+                  ],
+                  "x": 80,
+                  "y": 260
+                },
+                "legacy_source": {
+                  "document": {
+                    "agent": {
+                      "prompt": "{{#start.text#}}\n{{#start.images#}}\n{{#start.files#}}\n\n## Identity\nYou are Explore — a read-only codebase exploration specialist. You find files,\nsearch code, answer questions about the codebase. You do not edit, write, or\nexecute mutations. Your output feeds a parent agent that relies on you for\naccurate, well-cited findings.\n\n## Capabilities\nYou have these tools: read, grep, glob, lsp, web_fetch, shell, ask_user_question.\nTreat shell as read-only: ls, file, wc, du, find -type f, head, tail. Never run\ncommands that mutate filesystem, network, or process state (rm, mv, cp, git\ncommit, npm install, curl with POST, etc.).\n\n## Thoroughness Levels\nThe parent agent will tell you one of:\n- \"quick\" — single-pass. 1-3 tool calls. Return best-effort answer.\n- \"medium\" — iterate until confident. 3-10 tool calls. Cross-check with one\n  alternate search.\n- \"very thorough\" — exhaustive. 10+ tool calls. Multiple search strategies,\n  cross-reference naming conventions, verify by reading actual file content,\n  check tests/docs.\n\nIf unspecified, default to \"medium\".\n\n## Workflow\n1. Parse the task. Identify key symbols, concepts, file patterns.\n2. Start broad with grep/glob to map the territory.\n3. Narrow to candidate files. Read them in full when relevant.\n4. For code understanding: use lsp to find definitions/references.\n5. For conceptual questions: cross-reference at least 2 different search angles\n   before concluding.\n6. Before returning: re-check your claim against at least one primary source.\n\n## Output Format\nReturn a markdown report with these sections (omit sections that don't apply):\n\n### Summary\nOne to three sentences directly answering the task.\n\n### Key Findings\n- path/to/file.py:42 — what's there, why it matters\n- path/to/other.ts:17-31 — ...\n(cite specific line ranges; never cite without line numbers)\n\n### Relevant Files\n- path/to/file.py — one-line description of relevance\n(comprehensive list, ranked by relevance)\n\n### Uncertainty\n- Anything you couldn't verify\n- Assumptions you had to make\n- Questions the parent agent should clarify before acting\n\n## Constraints\n- NEVER write, edit, or mutate files.\n- NEVER run shell commands that can change state.\n- NEVER fabricate file paths or line numbers. If unsure, say so in Uncertainty.\n- NEVER invoke another subagent. You are a leaf.\n- Use absolute paths when possible; relative paths only within reports where\n  clarity wins.\n- If the task is genuinely ambiguous, ask_user_question BEFORE exploring —\n  don't burn tools on guesses.\n\n## Anti-Patterns (what to avoid)\n- Returning only a summary without Key Findings citations.\n- Claiming \"X doesn't exist\" without showing the grep / glob queries tried.\n- Over-reading: if grep narrows you to one file, don't read the whole directory.\n- Under-reading: if a function name matches but you didn't open the file, you\n  don't actually know what it does — open it.\n- Infinite exploration: at \"quick\" level, stop after the first confident answer.\n",
+                      "prompt_format": "soul"
+                    },
+                    "description": "Fast agent specialized for exploring codebases. Use this when you need to quickly find files by patterns, search code for keywords, or answer questions about the codebase. Specify desired thoroughness level in the task: 'quick', 'medium', or 'very thorough'.",
+                    "edges": [
+                      {
+                        "id": "e_start_agent",
+                        "kind": "flow",
+                        "source_node_id": "start",
+                        "source_port_id": "out",
+                        "target_node_id": "agent_main",
+                        "target_port_id": "in"
+                      },
+                      {
+                        "id": "e_agent_end",
+                        "kind": "flow",
+                        "source_node_id": "agent_main",
+                        "source_port_id": "out",
+                        "target_node_id": "end",
+                        "target_port_id": "in"
+                      },
+                      {
+                        "id": "e_agent_tp",
+                        "kind": "attach",
+                        "source_node_id": "agent_main",
+                        "source_port_id": "attach_top",
+                        "target_node_id": "tp_1",
+                        "target_port_id": "attach_bot"
+                      }
+                    ],
+                    "max_iterations": null,
+                    "merge_with_user_selected": false,
+                    "model": null,
+                    "name": "Explore",
+                    "nodes": [
+                      {
+                        "deletable": false,
+                        "id": "start",
+                        "kind": "workflow",
+                        "outputs": [
+                          {
+                            "name": "text",
+                            "type": "string"
+                          },
+                          {
+                            "name": "images",
+                            "type": "image[]"
+                          },
+                          {
+                            "name": "files",
+                            "type": "file[]"
+                          }
+                        ],
+                        "type": "start",
+                        "x": 80,
+                        "y": 260
+                      },
+                      {
+                        "deletable": true,
+                        "id": "agent_main",
+                        "kind": "workflow",
+                        "outputs": [
+                          {
+                            "name": "output",
+                            "type": "string"
+                          }
+                        ],
+                        "override": {
+                          "model": "",
+                          "prompt": "{{#start.text#}}\n{{#start.images#}}\n{{#start.files#}}\n\n## Identity\nYou are Explore — a read-only codebase exploration specialist. You find files,\nsearch code, answer questions about the codebase. You do not edit, write, or\nexecute mutations. Your output feeds a parent agent that relies on you for\naccurate, well-cited findings.\n\n## Capabilities\nYou have these tools: read, grep, glob, lsp, web_fetch, shell, ask_user_question.\nTreat shell as read-only: ls, file, wc, du, find -type f, head, tail. Never run\ncommands that mutate filesystem, network, or process state (rm, mv, cp, git\ncommit, npm install, curl with POST, etc.).\n\n## Thoroughness Levels\nThe parent agent will tell you one of:\n- \"quick\" — single-pass. 1-3 tool calls. Return best-effort answer.\n- \"medium\" — iterate until confident. 3-10 tool calls. Cross-check with one\n  alternate search.\n- \"very thorough\" — exhaustive. 10+ tool calls. Multiple search strategies,\n  cross-reference naming conventions, verify by reading actual file content,\n  check tests/docs.\n\nIf unspecified, default to \"medium\".\n\n## Workflow\n1. Parse the task. Identify key symbols, concepts, file patterns.\n2. Start broad with grep/glob to map the territory.\n3. Narrow to candidate files. Read them in full when relevant.\n4. For code understanding: use lsp to find definitions/references.\n5. For conceptual questions: cross-reference at least 2 different search angles\n   before concluding.\n6. Before returning: re-check your claim against at least one primary source.\n\n## Output Format\nReturn a markdown report with these sections (omit sections that don't apply):\n\n### Summary\nOne to three sentences directly answering the task.\n\n### Key Findings\n- path/to/file.py:42 — what's there, why it matters\n- path/to/other.ts:17-31 — ...\n(cite specific line ranges; never cite without line numbers)\n\n### Relevant Files\n- path/to/file.py — one-line description of relevance\n(comprehensive list, ranked by relevance)\n\n### Uncertainty\n- Anything you couldn't verify\n- Assumptions you had to make\n- Questions the parent agent should clarify before acting\n\n## Constraints\n- NEVER write, edit, or mutate files.\n- NEVER run shell commands that can change state.\n- NEVER fabricate file paths or line numbers. If unsure, say so in Uncertainty.\n- NEVER invoke another subagent. You are a leaf.\n- Use absolute paths when possible; relative paths only within reports where\n  clarity wins.\n- If the task is genuinely ambiguous, ask_user_question BEFORE exploring —\n  don't burn tools on guesses.\n\n## Anti-Patterns (what to avoid)\n- Returning only a summary without Key Findings citations.\n- Claiming \"X doesn't exist\" without showing the grep / glob queries tried.\n- Over-reading: if grep narrows you to one file, don't read the whole directory.\n- Under-reading: if a function name matches but you didn't open the file, you\n  don't actually know what it does — open it.\n- Infinite exploration: at \"quick\" level, stop after the first confident answer.\n",
+                          "prompt_format": "soul"
+                        },
+                        "type": "agent",
+                        "x": 380,
+                        "y": 260
+                      },
+                      {
+                        "deletable": false,
+                        "id": "end",
+                        "kind": "workflow",
+                        "outputs_schema": [
+                          {
+                            "name": "output",
+                            "type": "string"
+                          }
+                        ],
+                        "type": "end",
+                        "x": 720,
+                        "y": 260
+                      },
+                      {
+                        "deletable": true,
+                        "id": "tp_1",
+                        "kind": "plugin",
+                        "merge_with_user_selected": false,
+                        "toolkits": [
+                          {
+                            "config": {},
+                            "enabled_tools": [
+                              "read",
+                              "grep",
+                              "glob",
+                              "lsp",
+                              "web_fetch",
+                              "shell",
+                              "ask_user_question"
+                            ],
+                            "id": "core"
+                          }
+                        ],
+                        "type": "toolkit_pool",
+                        "x": 380,
+                        "y": 80
+                      }
+                    ],
+                    "subagent_pool": [],
+                    "subagent_profile": {
+                      "allowed_modes": [
+                        "delegate",
+                        "worker"
+                      ],
+                      "memory_policy": "ephemeral",
+                      "output_mode": "summary",
+                      "parallel_safe": true
+                    },
+                    "toolkits": [
+                      {
+                        "enabled_tools": [
+                          "read",
+                          "grep",
+                          "glob",
+                          "lsp",
+                          "web_fetch",
+                          "shell",
+                          "ask_user_question"
+                        ],
+                        "id": "core"
+                      }
+                    ]
+                  },
+                  "format": "recipe"
+                }
+              },
+              "id": "start",
+              "type": "start"
+            },
+            {
+              "config": {
+                "legacy_fields": {
+                  "deletable": true,
+                  "kind": "workflow",
+                  "outputs": [
+                    {
+                      "name": "output",
+                      "type": "string"
+                    }
+                  ],
+                  "override": {
+                    "model": "",
+                    "prompt": "{{#start.text#}}\n{{#start.images#}}\n{{#start.files#}}\n\n## Identity\nYou are Explore — a read-only codebase exploration specialist. You find files,\nsearch code, answer questions about the codebase. You do not edit, write, or\nexecute mutations. Your output feeds a parent agent that relies on you for\naccurate, well-cited findings.\n\n## Capabilities\nYou have these tools: read, grep, glob, lsp, web_fetch, shell, ask_user_question.\nTreat shell as read-only: ls, file, wc, du, find -type f, head, tail. Never run\ncommands that mutate filesystem, network, or process state (rm, mv, cp, git\ncommit, npm install, curl with POST, etc.).\n\n## Thoroughness Levels\nThe parent agent will tell you one of:\n- \"quick\" — single-pass. 1-3 tool calls. Return best-effort answer.\n- \"medium\" — iterate until confident. 3-10 tool calls. Cross-check with one\n  alternate search.\n- \"very thorough\" — exhaustive. 10+ tool calls. Multiple search strategies,\n  cross-reference naming conventions, verify by reading actual file content,\n  check tests/docs.\n\nIf unspecified, default to \"medium\".\n\n## Workflow\n1. Parse the task. Identify key symbols, concepts, file patterns.\n2. Start broad with grep/glob to map the territory.\n3. Narrow to candidate files. Read them in full when relevant.\n4. For code understanding: use lsp to find definitions/references.\n5. For conceptual questions: cross-reference at least 2 different search angles\n   before concluding.\n6. Before returning: re-check your claim against at least one primary source.\n\n## Output Format\nReturn a markdown report with these sections (omit sections that don't apply):\n\n### Summary\nOne to three sentences directly answering the task.\n\n### Key Findings\n- path/to/file.py:42 — what's there, why it matters\n- path/to/other.ts:17-31 — ...\n(cite specific line ranges; never cite without line numbers)\n\n### Relevant Files\n- path/to/file.py — one-line description of relevance\n(comprehensive list, ranked by relevance)\n\n### Uncertainty\n- Anything you couldn't verify\n- Assumptions you had to make\n- Questions the parent agent should clarify before acting\n\n## Constraints\n- NEVER write, edit, or mutate files.\n- NEVER run shell commands that can change state.\n- NEVER fabricate file paths or line numbers. If unsure, say so in Uncertainty.\n- NEVER invoke another subagent. You are a leaf.\n- Use absolute paths when possible; relative paths only within reports where\n  clarity wins.\n- If the task is genuinely ambiguous, ask_user_question BEFORE exploring —\n  don't burn tools on guesses.\n\n## Anti-Patterns (what to avoid)\n- Returning only a summary without Key Findings citations.\n- Claiming \"X doesn't exist\" without showing the grep / glob queries tried.\n- Over-reading: if grep narrows you to one file, don't read the whole directory.\n- Under-reading: if a function name matches but you didn't open the file, you\n  don't actually know what it does — open it.\n- Infinite exploration: at \"quick\" level, stop after the first confident answer.\n",
+                    "prompt_format": "soul"
+                  },
+                  "x": 380,
+                  "y": 260
+                },
+                "legacy_recipe": {
+                  "agent": {
+                    "prompt": "{{#start.text#}}\n{{#start.images#}}\n{{#start.files#}}\n\n## Identity\nYou are Explore — a read-only codebase exploration specialist. You find files,\nsearch code, answer questions about the codebase. You do not edit, write, or\nexecute mutations. Your output feeds a parent agent that relies on you for\naccurate, well-cited findings.\n\n## Capabilities\nYou have these tools: read, grep, glob, lsp, web_fetch, shell, ask_user_question.\nTreat shell as read-only: ls, file, wc, du, find -type f, head, tail. Never run\ncommands that mutate filesystem, network, or process state (rm, mv, cp, git\ncommit, npm install, curl with POST, etc.).\n\n## Thoroughness Levels\nThe parent agent will tell you one of:\n- \"quick\" — single-pass. 1-3 tool calls. Return best-effort answer.\n- \"medium\" — iterate until confident. 3-10 tool calls. Cross-check with one\n  alternate search.\n- \"very thorough\" — exhaustive. 10+ tool calls. Multiple search strategies,\n  cross-reference naming conventions, verify by reading actual file content,\n  check tests/docs.\n\nIf unspecified, default to \"medium\".\n\n## Workflow\n1. Parse the task. Identify key symbols, concepts, file patterns.\n2. Start broad with grep/glob to map the territory.\n3. Narrow to candidate files. Read them in full when relevant.\n4. For code understanding: use lsp to find definitions/references.\n5. For conceptual questions: cross-reference at least 2 different search angles\n   before concluding.\n6. Before returning: re-check your claim against at least one primary source.\n\n## Output Format\nReturn a markdown report with these sections (omit sections that don't apply):\n\n### Summary\nOne to three sentences directly answering the task.\n\n### Key Findings\n- path/to/file.py:42 — what's there, why it matters\n- path/to/other.ts:17-31 — ...\n(cite specific line ranges; never cite without line numbers)\n\n### Relevant Files\n- path/to/file.py — one-line description of relevance\n(comprehensive list, ranked by relevance)\n\n### Uncertainty\n- Anything you couldn't verify\n- Assumptions you had to make\n- Questions the parent agent should clarify before acting\n\n## Constraints\n- NEVER write, edit, or mutate files.\n- NEVER run shell commands that can change state.\n- NEVER fabricate file paths or line numbers. If unsure, say so in Uncertainty.\n- NEVER invoke another subagent. You are a leaf.\n- Use absolute paths when possible; relative paths only within reports where\n  clarity wins.\n- If the task is genuinely ambiguous, ask_user_question BEFORE exploring —\n  don't burn tools on guesses.\n\n## Anti-Patterns (what to avoid)\n- Returning only a summary without Key Findings citations.\n- Claiming \"X doesn't exist\" without showing the grep / glob queries tried.\n- Over-reading: if grep narrows you to one file, don't read the whole directory.\n- Under-reading: if a function name matches but you didn't open the file, you\n  don't actually know what it does — open it.\n- Infinite exploration: at \"quick\" level, stop after the first confident answer.\n",
+                    "prompt_format": "soul"
+                  },
+                  "description": "Fast agent specialized for exploring codebases. Use this when you need to quickly find files by patterns, search code for keywords, or answer questions about the codebase. Specify desired thoroughness level in the task: 'quick', 'medium', or 'very thorough'.",
+                  "edges": [
+                    {
+                      "id": "e_start_agent",
+                      "kind": "flow",
+                      "source_node_id": "start",
+                      "source_port_id": "out",
+                      "target_node_id": "agent_main",
+                      "target_port_id": "in"
+                    },
+                    {
+                      "id": "e_agent_end",
+                      "kind": "flow",
+                      "source_node_id": "agent_main",
+                      "source_port_id": "out",
+                      "target_node_id": "end",
+                      "target_port_id": "in"
+                    },
+                    {
+                      "id": "e_agent_tp",
+                      "kind": "attach",
+                      "source_node_id": "agent_main",
+                      "source_port_id": "attach_top",
+                      "target_node_id": "tp_1",
+                      "target_port_id": "attach_bot"
+                    }
+                  ],
+                  "max_iterations": null,
+                  "merge_with_user_selected": false,
+                  "model": null,
+                  "name": "Explore",
+                  "nodes": [
+                    {
+                      "deletable": false,
+                      "id": "start",
+                      "kind": "workflow",
+                      "outputs": [
+                        {
+                          "name": "text",
+                          "type": "string"
+                        },
+                        {
+                          "name": "images",
+                          "type": "image[]"
+                        },
+                        {
+                          "name": "files",
+                          "type": "file[]"
+                        }
+                      ],
+                      "type": "start",
+                      "x": 80,
+                      "y": 260
+                    },
+                    {
+                      "deletable": true,
+                      "id": "agent_main",
+                      "kind": "workflow",
+                      "outputs": [
+                        {
+                          "name": "output",
+                          "type": "string"
+                        }
+                      ],
+                      "override": {
+                        "model": "",
+                        "prompt": "{{#start.text#}}\n{{#start.images#}}\n{{#start.files#}}\n\n## Identity\nYou are Explore — a read-only codebase exploration specialist. You find files,\nsearch code, answer questions about the codebase. You do not edit, write, or\nexecute mutations. Your output feeds a parent agent that relies on you for\naccurate, well-cited findings.\n\n## Capabilities\nYou have these tools: read, grep, glob, lsp, web_fetch, shell, ask_user_question.\nTreat shell as read-only: ls, file, wc, du, find -type f, head, tail. Never run\ncommands that mutate filesystem, network, or process state (rm, mv, cp, git\ncommit, npm install, curl with POST, etc.).\n\n## Thoroughness Levels\nThe parent agent will tell you one of:\n- \"quick\" — single-pass. 1-3 tool calls. Return best-effort answer.\n- \"medium\" — iterate until confident. 3-10 tool calls. Cross-check with one\n  alternate search.\n- \"very thorough\" — exhaustive. 10+ tool calls. Multiple search strategies,\n  cross-reference naming conventions, verify by reading actual file content,\n  check tests/docs.\n\nIf unspecified, default to \"medium\".\n\n## Workflow\n1. Parse the task. Identify key symbols, concepts, file patterns.\n2. Start broad with grep/glob to map the territory.\n3. Narrow to candidate files. Read them in full when relevant.\n4. For code understanding: use lsp to find definitions/references.\n5. For conceptual questions: cross-reference at least 2 different search angles\n   before concluding.\n6. Before returning: re-check your claim against at least one primary source.\n\n## Output Format\nReturn a markdown report with these sections (omit sections that don't apply):\n\n### Summary\nOne to three sentences directly answering the task.\n\n### Key Findings\n- path/to/file.py:42 — what's there, why it matters\n- path/to/other.ts:17-31 — ...\n(cite specific line ranges; never cite without line numbers)\n\n### Relevant Files\n- path/to/file.py — one-line description of relevance\n(comprehensive list, ranked by relevance)\n\n### Uncertainty\n- Anything you couldn't verify\n- Assumptions you had to make\n- Questions the parent agent should clarify before acting\n\n## Constraints\n- NEVER write, edit, or mutate files.\n- NEVER run shell commands that can change state.\n- NEVER fabricate file paths or line numbers. If unsure, say so in Uncertainty.\n- NEVER invoke another subagent. You are a leaf.\n- Use absolute paths when possible; relative paths only within reports where\n  clarity wins.\n- If the task is genuinely ambiguous, ask_user_question BEFORE exploring —\n  don't burn tools on guesses.\n\n## Anti-Patterns (what to avoid)\n- Returning only a summary without Key Findings citations.\n- Claiming \"X doesn't exist\" without showing the grep / glob queries tried.\n- Over-reading: if grep narrows you to one file, don't read the whole directory.\n- Under-reading: if a function name matches but you didn't open the file, you\n  don't actually know what it does — open it.\n- Infinite exploration: at \"quick\" level, stop after the first confident answer.\n",
+                        "prompt_format": "soul"
+                      },
+                      "type": "agent",
+                      "x": 380,
+                      "y": 260
+                    },
+                    {
+                      "deletable": false,
+                      "id": "end",
+                      "kind": "workflow",
+                      "outputs_schema": [
+                        {
+                          "name": "output",
+                          "type": "string"
+                        }
+                      ],
+                      "type": "end",
+                      "x": 720,
+                      "y": 260
+                    },
+                    {
+                      "deletable": true,
+                      "id": "tp_1",
+                      "kind": "plugin",
+                      "merge_with_user_selected": false,
+                      "toolkits": [
+                        {
+                          "config": {},
+                          "enabled_tools": [
+                            "read",
+                            "grep",
+                            "glob",
+                            "lsp",
+                            "web_fetch",
+                            "shell",
+                            "ask_user_question"
+                          ],
+                          "id": "core"
+                        }
+                      ],
+                      "type": "toolkit_pool",
+                      "x": 380,
+                      "y": 80
+                    }
+                  ],
+                  "subagent_pool": [],
+                  "subagent_profile": {
+                    "allowed_modes": [
+                      "delegate",
+                      "worker"
+                    ],
+                    "memory_policy": "ephemeral",
+                    "output_mode": "summary",
+                    "parallel_safe": true
+                  },
+                  "toolkits": [
+                    {
+                      "enabled_tools": [
+                        "read",
+                        "grep",
+                        "glob",
+                        "lsp",
+                        "web_fetch",
+                        "shell",
+                        "ask_user_question"
+                      ],
+                      "id": "core"
+                    }
+                  ]
+                },
+                "prompt": {
+                  "kind": "text",
+                  "text": "{{#start.text#}}\n{{#start.images#}}\n{{#start.files#}}\n\n## Identity\nYou are Explore — a read-only codebase exploration specialist. You find files,\nsearch code, answer questions about the codebase. You do not edit, write, or\nexecute mutations. Your output feeds a parent agent that relies on you for\naccurate, well-cited findings.\n\n## Capabilities\nYou have these tools: read, grep, glob, lsp, web_fetch, shell, ask_user_question.\nTreat shell as read-only: ls, file, wc, du, find -type f, head, tail. Never run\ncommands that mutate filesystem, network, or process state (rm, mv, cp, git\ncommit, npm install, curl with POST, etc.).\n\n## Thoroughness Levels\nThe parent agent will tell you one of:\n- \"quick\" — single-pass. 1-3 tool calls. Return best-effort answer.\n- \"medium\" — iterate until confident. 3-10 tool calls. Cross-check with one\n  alternate search.\n- \"very thorough\" — exhaustive. 10+ tool calls. Multiple search strategies,\n  cross-reference naming conventions, verify by reading actual file content,\n  check tests/docs.\n\nIf unspecified, default to \"medium\".\n\n## Workflow\n1. Parse the task. Identify key symbols, concepts, file patterns.\n2. Start broad with grep/glob to map the territory.\n3. Narrow to candidate files. Read them in full when relevant.\n4. For code understanding: use lsp to find definitions/references.\n5. For conceptual questions: cross-reference at least 2 different search angles\n   before concluding.\n6. Before returning: re-check your claim against at least one primary source.\n\n## Output Format\nReturn a markdown report with these sections (omit sections that don't apply):\n\n### Summary\nOne to three sentences directly answering the task.\n\n### Key Findings\n- path/to/file.py:42 — what's there, why it matters\n- path/to/other.ts:17-31 — ...\n(cite specific line ranges; never cite without line numbers)\n\n### Relevant Files\n- path/to/file.py — one-line description of relevance\n(comprehensive list, ranked by relevance)\n\n### Uncertainty\n- Anything you couldn't verify\n- Assumptions you had to make\n- Questions the parent agent should clarify before acting\n\n## Constraints\n- NEVER write, edit, or mutate files.\n- NEVER run shell commands that can change state.\n- NEVER fabricate file paths or line numbers. If unsure, say so in Uncertainty.\n- NEVER invoke another subagent. You are a leaf.\n- Use absolute paths when possible; relative paths only within reports where\n  clarity wins.\n- If the task is genuinely ambiguous, ask_user_question BEFORE exploring —\n  don't burn tools on guesses.\n\n## Anti-Patterns (what to avoid)\n- Returning only a summary without Key Findings citations.\n- Claiming \"X doesn't exist\" without showing the grep / glob queries tried.\n- Over-reading: if grep narrows you to one file, don't read the whole directory.\n- Under-reading: if a function name matches but you didn't open the file, you\n  don't actually know what it does — open it.\n- Infinite exploration: at \"quick\" level, stop after the first confident answer.\n"
+                }
+              },
+              "id": "agent_main",
+              "type": "agent"
+            },
+            {
+              "config": {
+                "legacy_fields": {
+                  "deletable": false,
+                  "kind": "workflow",
+                  "outputs_schema": [
+                    {
+                      "name": "output",
+                      "type": "string"
+                    }
+                  ],
+                  "x": 720,
+                  "y": 260
+                }
+              },
+              "id": "end",
+              "type": "end"
+            },
+            {
+              "config": {
+                "legacy_fields": {
+                  "deletable": true,
+                  "kind": "plugin",
+                  "merge_with_user_selected": false,
+                  "toolkits": [
+                    {
+                      "config": {},
+                      "enabled_tools": [
+                        "read",
+                        "grep",
+                        "glob",
+                        "lsp",
+                        "web_fetch",
+                        "shell",
+                        "ask_user_question"
+                      ],
+                      "id": "core"
+                    }
+                  ],
+                  "x": 380,
+                  "y": 80
+                }
+              },
+              "id": "tp_1",
+              "type": "toolkit_pool"
+            }
+          ],
+          "schema_version": 1
+        },
+        "diagnostics": []
+      },
+      "inventory": {
+        "expected_edit_token": "edit-1-7b672e83155c362b73d512aa",
+        "operation": "inventory",
+        "payload_json": "{\"edit_token\":\"edit-1-7b672e83155c362b73d512aa\",\"requirements\":[{\"code\":\"kernel_required\",\"message\":\"Choose and configure a Kernel for this Agent.\",\"path\":[\"nodes\",1,\"config\",\"kernel\"]},{\"code\":\"toolkit_pool_conversion_required\",\"message\":\"Convert the preserved toolkit references into native Toolkit settings.\",\"path\":[\"nodes\",3,\"config\",\"toolkits\"]}],\"resource_id\":\"legacy-f69b666b0570b05074a06f70\",\"schema\":\"pupu.skeleton-legacy-upgrade.inventory.v1\",\"source_identity\":\"fixture-explore\",\"state\":\"needs_upgrade\"}",
+        "payload_sha256": "50ecd1a789d302d9c4f281be2f61431df377ea5f83bb230eff9eb9fcce5dadd9",
+        "projection_digest": null,
+        "resource_id": "legacy-f69b666b0570b05074a06f70",
+        "runtime_manifest_digest": "sha256:c172bc02718aee771ddd4d247904f13cdaf003d3794148fd3ecd4d4e9a419e6b",
+        "schema": "pupu.skeleton-legacy-upgrade.response.v1"
+      },
+      "preview": {
+        "expected_edit_token": "edit-1-7b672e83155c362b73d512aa",
+        "operation": "preview",
+        "payload_json": "{\"definition_digest\":\"03b3abcd51e1c8824892eb2e8e693f2ebebd42f3ec098ad845b7ec40456beeb8\",\"dependencies\":[],\"document\":{\"description\":\"Fast agent specialized for exploring codebases. Use this when you need to quickly find files by patterns, search code for keywords, or answer questions about the codebase. Specify desired thoroughness level in the task: 'quick', 'medium', or 'very thorough'.\",\"edges\":[{\"id\":\"e_start_agent\",\"kind\":\"flow\",\"source_node_id\":\"start\",\"source_port_id\":\"out\",\"target_node_id\":\"agent_main\",\"target_port_id\":\"in\"},{\"id\":\"e_agent_end\",\"kind\":\"flow\",\"source_node_id\":\"agent_main\",\"source_port_id\":\"out\",\"target_node_id\":\"end\",\"target_port_id\":\"in\"},{\"id\":\"e_agent_tp\",\"kind\":\"attach\",\"source_node_id\":\"agent_main\",\"source_port_id\":\"attach_top\",\"target_node_id\":\"tp_1\",\"target_port_id\":\"attach_bot\"}],\"id\":\"legacy-f69b666b0570b05074a06f70\",\"kind\":\"agent\",\"name\":\"Explore\",\"nodes\":[{\"config\":{\"execution\":{\"outputs\":[{\"name\":\"text\",\"source\":{\"kind\":\"result\",\"path\":[\"message\"]}},{\"name\":\"images\",\"source\":{\"kind\":\"result\",\"path\":[\"images\"]}},{\"name\":\"files\",\"source\":{\"kind\":\"result\",\"path\":[\"files\"]}}]}},\"id\":\"start\",\"type\":\"start\"},{\"config\":{\"execution\":{\"inputs\":[{\"missing\":\"error\",\"name\":\"text\",\"value\":{\"kind\":\"ref\",\"node_id\":\"start\",\"path\":[\"text\"]}},{\"missing\":\"null\",\"name\":\"images\",\"value\":{\"kind\":\"ref\",\"node_id\":\"start\",\"path\":[\"images\"]}},{\"missing\":\"null\",\"name\":\"files\",\"value\":{\"kind\":\"ref\",\"node_id\":\"start\",\"path\":[\"files\"]}}],\"outputs\":[{\"name\":\"message\",\"source\":{\"kind\":\"result\",\"path\":[\"message\"]}},{\"name\":\"context\",\"source\":{\"kind\":\"result\",\"path\":[\"context\"]}}]},\"kernel\":{\"history\":\"root\",\"json_schema\":null,\"max_iterations\":8,\"output_tokens\":512,\"overflow\":\"error\",\"profile\":{\"capabilities\":{\"files\":false,\"images\":false,\"json_schema\":true},\"context_window\":8192,\"credential_ref\":\"test.key\",\"endpoint\":\"https://example.test/v1\",\"id\":\"author-choice\",\"model\":\"test-model\",\"output_limit\":2048,\"protocol\":\"openai-responses\",\"provider\":\"openai\"},\"prompt\":\"## Identity\\nYou are Explore — a read-only codebase exploration specialist. You find files,\\nsearch code, answer questions about the codebase. You do not edit, write, or\\nexecute mutations. Your output feeds a parent agent that relies on you for\\naccurate, well-cited findings.\\n\\n## Capabilities\\nYou have these tools: read, grep, glob, lsp, web_fetch, shell, ask_user_question.\\nTreat shell as read-only: ls, file, wc, du, find -type f, head, tail. Never run\\ncommands that mutate filesystem, network, or process state (rm, mv, cp, git\\ncommit, npm install, curl with POST, etc.).\\n\\n## Thoroughness Levels\\nThe parent agent will tell you one of:\\n- \\\"quick\\\" — single-pass. 1-3 tool calls. Return best-effort answer.\\n- \\\"medium\\\" — iterate until confident. 3-10 tool calls. Cross-check with one\\n  alternate search.\\n- \\\"very thorough\\\" — exhaustive. 10+ tool calls. Multiple search strategies,\\n  cross-reference naming conventions, verify by reading actual file content,\\n  check tests/docs.\\n\\nIf unspecified, default to \\\"medium\\\".\\n\\n## Workflow\\n1. Parse the task. Identify key symbols, concepts, file patterns.\\n2. Start broad with grep/glob to map the territory.\\n3. Narrow to candidate files. Read them in full when relevant.\\n4. For code understanding: use lsp to find definitions/references.\\n5. For conceptual questions: cross-reference at least 2 different search angles\\n   before concluding.\\n6. Before returning: re-check your claim against at least one primary source.\\n\\n## Output Format\\nReturn a markdown report with these sections (omit sections that don't apply):\\n\\n### Summary\\nOne to three sentences directly answering the task.\\n\\n### Key Findings\\n- path/to/file.py:42 — what's there, why it matters\\n- path/to/other.ts:17-31 — ...\\n(cite specific line ranges; never cite without line numbers)\\n\\n### Relevant Files\\n- path/to/file.py — one-line description of relevance\\n(comprehensive list, ranked by relevance)\\n\\n### Uncertainty\\n- Anything you couldn't verify\\n- Assumptions you had to make\\n- Questions the parent agent should clarify before acting\\n\\n## Constraints\\n- NEVER write, edit, or mutate files.\\n- NEVER run shell commands that can change state.\\n- NEVER fabricate file paths or line numbers. If unsure, say so in Uncertainty.\\n- NEVER invoke another subagent. You are a leaf.\\n- Use absolute paths when possible; relative paths only within reports where\\n  clarity wins.\\n- If the task is genuinely ambiguous, ask_user_question BEFORE exploring —\\n  don't burn tools on guesses.\\n\\n## Anti-Patterns (what to avoid)\\n- Returning only a summary without Key Findings citations.\\n- Claiming \\\"X doesn't exist\\\" without showing the grep / glob queries tried.\\n- Over-reading: if grep narrows you to one file, don't read the whole directory.\\n- Under-reading: if a function name matches but you didn't open the file, you\\n  don't actually know what it does — open it.\\n- Infinite exploration: at \\\"quick\\\" level, stop after the first confident answer.\",\"schema_version\":1}},\"id\":\"agent_main\",\"type\":\"agent\"},{\"config\":{\"execution\":{\"inputs\":[{\"missing\":\"error\",\"name\":\"message\",\"value\":{\"kind\":\"ref\",\"node_id\":\"agent_main\",\"path\":[\"message\"]}},{\"missing\":\"null\",\"name\":\"context\",\"value\":{\"kind\":\"ref\",\"node_id\":\"agent_main\",\"path\":[\"context\"]}}],\"outputs\":[{\"name\":\"message\",\"source\":{\"kind\":\"input\",\"path\":[\"message\"]}},{\"name\":\"context\",\"source\":{\"kind\":\"input\",\"path\":[\"context\"]}}]}},\"id\":\"end\",\"type\":\"end\"},{\"config\":{\"merge_with_user_selected\":false,\"toolkits\":[{\"enabled_tools\":[\"read\",\"grep\",\"glob\",\"lsp\",\"web_fetch\",\"shell\",\"ask_user_question\"],\"id\":\"core\"}]},\"id\":\"tp_1\",\"type\":\"toolkit_pool\"}],\"schema_version\":1},\"edit_token\":\"edit-1-7b672e83155c362b73d512aa\",\"projection_digest\":\"e55c2353e14f7a9d65797f89b426795411c9c92ba6f79f371984d5ecb78f0abd\",\"resource_id\":\"legacy-f69b666b0570b05074a06f70\",\"runtime_manifest\":{\"manifest_digest\":\"sha256:c172bc02718aee771ddd4d247904f13cdaf003d3794148fd3ecd4d4e9a419e6b\",\"protocols\":[{\"features\":[\"artifact_handoff\",\"canonical_journal\",\"chat_deletion_sqlite_scope_closure\",\"context_compiler\",\"context_content_paging_v1\",\"context_content_paging_v2\",\"context_content_read_recovery_v1\",\"context_contribution_manifest_v1\",\"durable_interaction_settlement_fence_v1\",\"generation_rebase_live_interaction_cycles\",\"graph_failure_terminals_v1\",\"historical_evidence_guidance_v1\",\"interaction_resolution_compat\",\"long_term_promotion\",\"memory_curator\",\"memory_toolkit\",\"memory_workspace\",\"provider_context_limit_recovery_v1\",\"small_tool_output_inline_v1\",\"tool_output_management_v1\"],\"id\":\"context_memory\",\"major\":1,\"minor\":0},{\"features\":[\"cancel_pending\",\"expected_interaction_id_cas\",\"fresh_run_lineage\",\"graph_interaction_lineage_preflight_v1\",\"host_controlled_resume\",\"interaction_resolution_atomic_acceptance_v1\"],\"id\":\"durable_interaction\",\"major\":1,\"minor\":0},{\"features\":[\"atomic_receipt_cas\",\"auxiliary_calls\",\"enforce_mode\",\"graph_runs\",\"memory_off\",\"ollama_reasoning_preview_v1\",\"provider_response_outcomes_v1\",\"provider_uncertainty_diagnostics_v1\",\"subagent_runs\"],\"id\":\"provider_turn_ownership\",\"major\":1,\"minor\":0},{\"features\":[\"canonical_metrics\",\"completion_diagnostics_ref\",\"context_composition_ref_v1\",\"continuation_claim\",\"immutable_pricing_snapshot\",\"provider_call_set_union\",\"provider_call_usage_v1\",\"run_bundle_v1\",\"run_bundle_v2\"],\"id\":\"run_bundle\",\"major\":1,\"minor\":0},{\"features\":[\"code_python_v1\",\"draft_diagnostics_v1\",\"durable_exclusive_dag_v2\",\"end_only_root_completion_v1\",\"explicit_bindings_v1\",\"hook_embedded_workflow_v1\",\"hook_enable_v1\",\"hook_phase_receipts_v1\",\"hook_tool_set_v1\",\"kernel_profile_auth_v1\",\"kernel_profiles_v1\",\"legacy_conversion_v1\",\"node_display_label_v1\",\"non_llm_workflow_v1\",\"pinned_workflow_calls_v1\",\"production_host_bindings_v1\",\"skill_read_v1\",\"structured_output_v1\",\"subagent_graphs_v1\",\"subagent_native_observation_v1\",\"subagent_tool_settlement_projection_v1\",\"tool_call_v1\"],\"id\":\"skeleton_execution\",\"major\":1,\"minor\":8},{\"features\":[\"active_skills_snapshot_v1\",\"catalog_v1\",\"skill_md_registry_v1\",\"skill_tool_v1\",\"toolkit_embedded_skills_v1\",\"user_invocation_v1\"],\"id\":\"skills\",\"major\":1,\"minor\":0}],\"runtime\":\"unchain\",\"schema\":\"unchain.runtime_protocol_manifest.v1\"},\"schema\":\"pupu.skeleton-legacy-upgrade.preview.v1\",\"source_identity\":\"fixture-explore\",\"source_policy\":{\"allowed_modes\":[\"delegate\",\"worker\"],\"allowed_tools\":null,\"memory_policy\":\"ephemeral\",\"output_mode\":\"summary\",\"parallel_safe\":true},\"source_sha256\":\"2396a4e8e98267d506932c2a83d70a26fdd01e10992c59390b262899f633cb93\",\"subagents\":[]}",
+        "payload_sha256": "0913dd9050868fd0261ce203954a665fef70419ccc6dc9ec76186462676aaba8",
+        "projection_digest": "e55c2353e14f7a9d65797f89b426795411c9c92ba6f79f371984d5ecb78f0abd",
+        "resource_id": "legacy-f69b666b0570b05074a06f70",
+        "runtime_manifest_digest": "sha256:c172bc02718aee771ddd4d247904f13cdaf003d3794148fd3ecd4d4e9a419e6b",
+        "schema": "pupu.skeleton-legacy-upgrade.response.v1"
+      },
+      "apply_request": {
+        "resource_id": "legacy-f69b666b0570b05074a06f70",
+        "schema": "pupu.skeleton-legacy-upgrade.request.v1",
+        "expected_edit_token": "edit-1-7b672e83155c362b73d512aa",
+        "expected_runtime_manifest_digest": "sha256:c172bc02718aee771ddd4d247904f13cdaf003d3794148fd3ecd4d4e9a419e6b",
+        "choices": {
+          "schema": "pupu.skeleton-legacy-upgrade.choices.v1",
+          "kernels": [
+            {
+              "path": [
+                "nodes",
+                1
+              ],
+              "kernel": {
+                "schema_version": 1,
+                "profile": {
+                  "id": "author-choice",
+                  "provider": "openai",
+                  "model": "test-model",
+                  "protocol": "openai-responses",
+                  "endpoint": "https://example.test/v1",
+                  "credential_ref": "test.key",
+                  "context_window": 8192,
+                  "output_limit": 2048,
+                  "capabilities": {
+                    "json_schema": true,
+                    "images": false,
+                    "files": false
+                  }
+                },
+                "prompt": "author prompt",
+                "max_iterations": 8,
+                "output_tokens": 512,
+                "history": "root",
+                "overflow": "error",
+                "json_schema": null
+              },
+              "model_policy": "preserve",
+              "prompt_policy": "preserve",
+              "accept_projection": true
+            }
+          ],
+          "toolkits": [],
+          "references": [],
+          "acknowledged": []
+        },
+        "expected_projection_digest": "e55c2353e14f7a9d65797f89b426795411c9c92ba6f79f371984d5ecb78f0abd"
+      },
+      "applied": {
+        "expected_edit_token": "edit-1-7b672e83155c362b73d512aa",
+        "operation": "apply",
+        "payload_json": "{\"archived\":false,\"description\":\"Fast agent specialized for exploring codebases. Use this when you need to quickly find files by patterns, search code for keywords, or answer questions about the codebase. Specify desired thoroughness level in the task: 'quick', 'medium', or 'very thorough'.\",\"diagnostics\":[],\"document\":{\"description\":\"Fast agent specialized for exploring codebases. Use this when you need to quickly find files by patterns, search code for keywords, or answer questions about the codebase. Specify desired thoroughness level in the task: 'quick', 'medium', or 'very thorough'.\",\"edges\":[{\"id\":\"e_start_agent\",\"kind\":\"flow\",\"source_node_id\":\"start\",\"source_port_id\":\"out\",\"target_node_id\":\"agent_main\",\"target_port_id\":\"in\"},{\"id\":\"e_agent_end\",\"kind\":\"flow\",\"source_node_id\":\"agent_main\",\"source_port_id\":\"out\",\"target_node_id\":\"end\",\"target_port_id\":\"in\"},{\"id\":\"e_agent_tp\",\"kind\":\"attach\",\"source_node_id\":\"agent_main\",\"source_port_id\":\"attach_top\",\"target_node_id\":\"tp_1\",\"target_port_id\":\"attach_bot\"}],\"id\":\"legacy-f69b666b0570b05074a06f70\",\"kind\":\"agent\",\"name\":\"Explore\",\"nodes\":[{\"config\":{\"execution\":{\"outputs\":[{\"name\":\"text\",\"source\":{\"kind\":\"result\",\"path\":[\"message\"]}},{\"name\":\"images\",\"source\":{\"kind\":\"result\",\"path\":[\"images\"]}},{\"name\":\"files\",\"source\":{\"kind\":\"result\",\"path\":[\"files\"]}}]}},\"id\":\"start\",\"type\":\"start\"},{\"config\":{\"execution\":{\"inputs\":[{\"missing\":\"error\",\"name\":\"text\",\"value\":{\"kind\":\"ref\",\"node_id\":\"start\",\"path\":[\"text\"]}},{\"missing\":\"null\",\"name\":\"images\",\"value\":{\"kind\":\"ref\",\"node_id\":\"start\",\"path\":[\"images\"]}},{\"missing\":\"null\",\"name\":\"files\",\"value\":{\"kind\":\"ref\",\"node_id\":\"start\",\"path\":[\"files\"]}}],\"outputs\":[{\"name\":\"message\",\"source\":{\"kind\":\"result\",\"path\":[\"message\"]}},{\"name\":\"context\",\"source\":{\"kind\":\"result\",\"path\":[\"context\"]}}]},\"kernel\":{\"history\":\"root\",\"json_schema\":null,\"max_iterations\":8,\"output_tokens\":512,\"overflow\":\"error\",\"profile\":{\"capabilities\":{\"files\":false,\"images\":false,\"json_schema\":true},\"context_window\":8192,\"credential_ref\":\"test.key\",\"endpoint\":\"https://example.test/v1\",\"id\":\"author-choice\",\"model\":\"test-model\",\"output_limit\":2048,\"protocol\":\"openai-responses\",\"provider\":\"openai\"},\"prompt\":\"## Identity\\nYou are Explore — a read-only codebase exploration specialist. You find files,\\nsearch code, answer questions about the codebase. You do not edit, write, or\\nexecute mutations. Your output feeds a parent agent that relies on you for\\naccurate, well-cited findings.\\n\\n## Capabilities\\nYou have these tools: read, grep, glob, lsp, web_fetch, shell, ask_user_question.\\nTreat shell as read-only: ls, file, wc, du, find -type f, head, tail. Never run\\ncommands that mutate filesystem, network, or process state (rm, mv, cp, git\\ncommit, npm install, curl with POST, etc.).\\n\\n## Thoroughness Levels\\nThe parent agent will tell you one of:\\n- \\\"quick\\\" — single-pass. 1-3 tool calls. Return best-effort answer.\\n- \\\"medium\\\" — iterate until confident. 3-10 tool calls. Cross-check with one\\n  alternate search.\\n- \\\"very thorough\\\" — exhaustive. 10+ tool calls. Multiple search strategies,\\n  cross-reference naming conventions, verify by reading actual file content,\\n  check tests/docs.\\n\\nIf unspecified, default to \\\"medium\\\".\\n\\n## Workflow\\n1. Parse the task. Identify key symbols, concepts, file patterns.\\n2. Start broad with grep/glob to map the territory.\\n3. Narrow to candidate files. Read them in full when relevant.\\n4. For code understanding: use lsp to find definitions/references.\\n5. For conceptual questions: cross-reference at least 2 different search angles\\n   before concluding.\\n6. Before returning: re-check your claim against at least one primary source.\\n\\n## Output Format\\nReturn a markdown report with these sections (omit sections that don't apply):\\n\\n### Summary\\nOne to three sentences directly answering the task.\\n\\n### Key Findings\\n- path/to/file.py:42 — what's there, why it matters\\n- path/to/other.ts:17-31 — ...\\n(cite specific line ranges; never cite without line numbers)\\n\\n### Relevant Files\\n- path/to/file.py — one-line description of relevance\\n(comprehensive list, ranked by relevance)\\n\\n### Uncertainty\\n- Anything you couldn't verify\\n- Assumptions you had to make\\n- Questions the parent agent should clarify before acting\\n\\n## Constraints\\n- NEVER write, edit, or mutate files.\\n- NEVER run shell commands that can change state.\\n- NEVER fabricate file paths or line numbers. If unsure, say so in Uncertainty.\\n- NEVER invoke another subagent. You are a leaf.\\n- Use absolute paths when possible; relative paths only within reports where\\n  clarity wins.\\n- If the task is genuinely ambiguous, ask_user_question BEFORE exploring —\\n  don't burn tools on guesses.\\n\\n## Anti-Patterns (what to avoid)\\n- Returning only a summary without Key Findings citations.\\n- Claiming \\\"X doesn't exist\\\" without showing the grep / glob queries tried.\\n- Over-reading: if grep narrows you to one file, don't read the whole directory.\\n- Under-reading: if a function name matches but you didn't open the file, you\\n  don't actually know what it does — open it.\\n- Infinite exploration: at \\\"quick\\\" level, stop after the first confident answer.\",\"schema_version\":1}},\"id\":\"agent_main\",\"type\":\"agent\"},{\"config\":{\"execution\":{\"inputs\":[{\"missing\":\"error\",\"name\":\"message\",\"value\":{\"kind\":\"ref\",\"node_id\":\"agent_main\",\"path\":[\"message\"]}},{\"missing\":\"null\",\"name\":\"context\",\"value\":{\"kind\":\"ref\",\"node_id\":\"agent_main\",\"path\":[\"context\"]}}],\"outputs\":[{\"name\":\"message\",\"source\":{\"kind\":\"input\",\"path\":[\"message\"]}},{\"name\":\"context\",\"source\":{\"kind\":\"input\",\"path\":[\"context\"]}}]}},\"id\":\"end\",\"type\":\"end\"},{\"config\":{\"merge_with_user_selected\":false,\"toolkits\":[{\"enabled_tools\":[\"read\",\"grep\",\"glob\",\"lsp\",\"web_fetch\",\"shell\",\"ask_user_question\"],\"id\":\"core\"}]},\"id\":\"tp_1\",\"type\":\"toolkit_pool\"}],\"schema_version\":1},\"draft_digest\":\"03b3abcd51e1c8824892eb2e8e693f2ebebd42f3ec098ad845b7ec40456beeb8\",\"edit_token\":\"edit-2-03b3abcd51e1c882\",\"id\":\"legacy-f69b666b0570b05074a06f70\",\"kind\":\"agent\",\"name\":\"Explore\",\"source_identity\":\"fixture-explore\"}",
+        "payload_sha256": "6e185177836d5828118bf49e138f9eab4dadb6d1d87a3fd99e13387cbe2ccff3",
+        "projection_digest": "e55c2353e14f7a9d65797f89b426795411c9c92ba6f79f371984d5ecb78f0abd",
+        "resource_id": "legacy-f69b666b0570b05074a06f70",
+        "runtime_manifest_digest": "sha256:c172bc02718aee771ddd4d247904f13cdaf003d3794148fd3ecd4d4e9a419e6b",
+        "schema": "pupu.skeleton-legacy-upgrade.response.v1"
+      },
+      "saved": {
+        "id": "legacy-f69b666b0570b05074a06f70",
+        "kind": "agent",
+        "name": "Explore",
+        "description": "Fast agent specialized for exploring codebases. Use this when you need to quickly find files by patterns, search code for keywords, or answer questions about the codebase. Specify desired thoroughness level in the task: 'quick', 'medium', or 'very thorough'.",
+        "archived": false,
+        "edit_token": "edit-2-03b3abcd51e1c882",
+        "draft_digest": "03b3abcd51e1c8824892eb2e8e693f2ebebd42f3ec098ad845b7ec40456beeb8",
+        "source_identity": "fixture-explore",
+        "document": {
+          "description": "Fast agent specialized for exploring codebases. Use this when you need to quickly find files by patterns, search code for keywords, or answer questions about the codebase. Specify desired thoroughness level in the task: 'quick', 'medium', or 'very thorough'.",
+          "edges": [
+            {
+              "id": "e_start_agent",
+              "kind": "flow",
+              "source_node_id": "start",
+              "source_port_id": "out",
+              "target_node_id": "agent_main",
+              "target_port_id": "in"
+            },
+            {
+              "id": "e_agent_end",
+              "kind": "flow",
+              "source_node_id": "agent_main",
+              "source_port_id": "out",
+              "target_node_id": "end",
+              "target_port_id": "in"
+            },
+            {
+              "id": "e_agent_tp",
+              "kind": "attach",
+              "source_node_id": "agent_main",
+              "source_port_id": "attach_top",
+              "target_node_id": "tp_1",
+              "target_port_id": "attach_bot"
+            }
+          ],
+          "id": "legacy-f69b666b0570b05074a06f70",
+          "kind": "agent",
+          "name": "Explore",
+          "nodes": [
+            {
+              "config": {
+                "execution": {
+                  "outputs": [
+                    {
+                      "name": "text",
+                      "source": {
+                        "kind": "result",
+                        "path": [
+                          "message"
+                        ]
+                      }
+                    },
+                    {
+                      "name": "images",
+                      "source": {
+                        "kind": "result",
+                        "path": [
+                          "images"
+                        ]
+                      }
+                    },
+                    {
+                      "name": "files",
+                      "source": {
+                        "kind": "result",
+                        "path": [
+                          "files"
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              "id": "start",
+              "type": "start"
+            },
+            {
+              "config": {
+                "execution": {
+                  "inputs": [
+                    {
+                      "missing": "error",
+                      "name": "text",
+                      "value": {
+                        "kind": "ref",
+                        "node_id": "start",
+                        "path": [
+                          "text"
+                        ]
+                      }
+                    },
+                    {
+                      "missing": "null",
+                      "name": "images",
+                      "value": {
+                        "kind": "ref",
+                        "node_id": "start",
+                        "path": [
+                          "images"
+                        ]
+                      }
+                    },
+                    {
+                      "missing": "null",
+                      "name": "files",
+                      "value": {
+                        "kind": "ref",
+                        "node_id": "start",
+                        "path": [
+                          "files"
+                        ]
+                      }
+                    }
+                  ],
+                  "outputs": [
+                    {
+                      "name": "message",
+                      "source": {
+                        "kind": "result",
+                        "path": [
+                          "message"
+                        ]
+                      }
+                    },
+                    {
+                      "name": "context",
+                      "source": {
+                        "kind": "result",
+                        "path": [
+                          "context"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                "kernel": {
+                  "history": "root",
+                  "json_schema": null,
+                  "max_iterations": 8,
+                  "output_tokens": 512,
+                  "overflow": "error",
+                  "profile": {
+                    "capabilities": {
+                      "files": false,
+                      "images": false,
+                      "json_schema": true
+                    },
+                    "context_window": 8192,
+                    "credential_ref": "test.key",
+                    "endpoint": "https://example.test/v1",
+                    "id": "author-choice",
+                    "model": "test-model",
+                    "output_limit": 2048,
+                    "protocol": "openai-responses",
+                    "provider": "openai"
+                  },
+                  "prompt": "## Identity\nYou are Explore — a read-only codebase exploration specialist. You find files,\nsearch code, answer questions about the codebase. You do not edit, write, or\nexecute mutations. Your output feeds a parent agent that relies on you for\naccurate, well-cited findings.\n\n## Capabilities\nYou have these tools: read, grep, glob, lsp, web_fetch, shell, ask_user_question.\nTreat shell as read-only: ls, file, wc, du, find -type f, head, tail. Never run\ncommands that mutate filesystem, network, or process state (rm, mv, cp, git\ncommit, npm install, curl with POST, etc.).\n\n## Thoroughness Levels\nThe parent agent will tell you one of:\n- \"quick\" — single-pass. 1-3 tool calls. Return best-effort answer.\n- \"medium\" — iterate until confident. 3-10 tool calls. Cross-check with one\n  alternate search.\n- \"very thorough\" — exhaustive. 10+ tool calls. Multiple search strategies,\n  cross-reference naming conventions, verify by reading actual file content,\n  check tests/docs.\n\nIf unspecified, default to \"medium\".\n\n## Workflow\n1. Parse the task. Identify key symbols, concepts, file patterns.\n2. Start broad with grep/glob to map the territory.\n3. Narrow to candidate files. Read them in full when relevant.\n4. For code understanding: use lsp to find definitions/references.\n5. For conceptual questions: cross-reference at least 2 different search angles\n   before concluding.\n6. Before returning: re-check your claim against at least one primary source.\n\n## Output Format\nReturn a markdown report with these sections (omit sections that don't apply):\n\n### Summary\nOne to three sentences directly answering the task.\n\n### Key Findings\n- path/to/file.py:42 — what's there, why it matters\n- path/to/other.ts:17-31 — ...\n(cite specific line ranges; never cite without line numbers)\n\n### Relevant Files\n- path/to/file.py — one-line description of relevance\n(comprehensive list, ranked by relevance)\n\n### Uncertainty\n- Anything you couldn't verify\n- Assumptions you had to make\n- Questions the parent agent should clarify before acting\n\n## Constraints\n- NEVER write, edit, or mutate files.\n- NEVER run shell commands that can change state.\n- NEVER fabricate file paths or line numbers. If unsure, say so in Uncertainty.\n- NEVER invoke another subagent. You are a leaf.\n- Use absolute paths when possible; relative paths only within reports where\n  clarity wins.\n- If the task is genuinely ambiguous, ask_user_question BEFORE exploring —\n  don't burn tools on guesses.\n\n## Anti-Patterns (what to avoid)\n- Returning only a summary without Key Findings citations.\n- Claiming \"X doesn't exist\" without showing the grep / glob queries tried.\n- Over-reading: if grep narrows you to one file, don't read the whole directory.\n- Under-reading: if a function name matches but you didn't open the file, you\n  don't actually know what it does — open it.\n- Infinite exploration: at \"quick\" level, stop after the first confident answer.",
+                  "schema_version": 1
+                }
+              },
+              "id": "agent_main",
+              "type": "agent"
+            },
+            {
+              "config": {
+                "execution": {
+                  "inputs": [
+                    {
+                      "missing": "error",
+                      "name": "message",
+                      "value": {
+                        "kind": "ref",
+                        "node_id": "agent_main",
+                        "path": [
+                          "message"
+                        ]
+                      }
+                    },
+                    {
+                      "missing": "null",
+                      "name": "context",
+                      "value": {
+                        "kind": "ref",
+                        "node_id": "agent_main",
+                        "path": [
+                          "context"
+                        ]
+                      }
+                    }
+                  ],
+                  "outputs": [
+                    {
+                      "name": "message",
+                      "source": {
+                        "kind": "input",
+                        "path": [
+                          "message"
+                        ]
+                      }
+                    },
+                    {
+                      "name": "context",
+                      "source": {
+                        "kind": "input",
+                        "path": [
+                          "context"
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              "id": "end",
+              "type": "end"
+            },
+            {
+              "config": {
+                "merge_with_user_selected": false,
+                "toolkits": [
+                  {
+                    "enabled_tools": [
+                      "read",
+                      "grep",
+                      "glob",
+                      "lsp",
+                      "web_fetch",
+                      "shell",
+                      "ask_user_question"
+                    ],
+                    "id": "core"
+                  }
+                ]
+              },
+              "id": "tp_1",
+              "type": "toolkit_pool"
+            }
+          ],
+          "schema_version": 1
+        },
+        "diagnostics": []
+      }
+    },
+    "default": {
+      "request": {
+        "resource_id": "legacy-a1c73f673501e5060c7e9541",
+        "schema": "pupu.skeleton-legacy-upgrade.request.v1",
+        "expected_edit_token": "edit-1-cbace4c59d4c314b5acb783b",
+        "expected_runtime_manifest_digest": "sha256:c172bc02718aee771ddd4d247904f13cdaf003d3794148fd3ecd4d4e9a419e6b",
+        "choices": {
+          "schema": "pupu.skeleton-legacy-upgrade.choices.v1",
+          "kernels": [
+            {
+              "path": [
+                "nodes",
+                1
+              ],
+              "kernel": {
+                "schema_version": 1,
+                "profile": {
+                  "id": "author-choice",
+                  "provider": "openai",
+                  "model": "test-model",
+                  "protocol": "openai-responses",
+                  "endpoint": "https://example.test/v1",
+                  "credential_ref": "test.key",
+                  "context_window": 8192,
+                  "output_limit": 2048,
+                  "capabilities": {
+                    "json_schema": true,
+                    "images": false,
+                    "files": false
+                  }
+                },
+                "prompt": "author prompt",
+                "max_iterations": 8,
+                "output_tokens": 512,
+                "history": "root",
+                "overflow": "error",
+                "json_schema": null
+              },
+              "model_policy": "preserve",
+              "prompt_policy": "preserve",
+              "accept_projection": true
+            }
+          ],
+          "toolkits": [
+            {
+              "path": [
+                "nodes",
+                3,
+                "config",
+                "legacy_fields",
+                "toolkits",
+                0
+              ],
+              "toolkit_id": "core",
+              "enabled_tools": null,
+              "discard_unsupported": true
+            }
+          ],
+          "references": [],
+          "acknowledged": []
+        }
+      },
+      "before": {
+        "id": "legacy-a1c73f673501e5060c7e9541",
+        "kind": "agent",
+        "name": "Default",
+        "description": "PuPu 默认 agent 配置（复刻内置行为）",
+        "archived": false,
+        "edit_token": "edit-1-cbace4c59d4c314b5acb783b",
+        "draft_digest": "cbace4c59d4c314b5acb783b1e368c182e238823dd6727366fde9b243590aa2f",
+        "source_identity": "fixture-default",
+        "document": {
+          "description": "PuPu 默认 agent 配置（复刻内置行为）",
+          "edges": [
+            {
+              "id": "e_start_agent",
+              "kind": "flow",
+              "source_node_id": "start",
+              "source_port_id": "out",
+              "target_node_id": "agent_main",
+              "target_port_id": "in"
+            },
+            {
+              "id": "e_agent_end",
+              "kind": "flow",
+              "source_node_id": "agent_main",
+              "source_port_id": "out",
+              "target_node_id": "end",
+              "target_port_id": "in"
+            },
+            {
+              "id": "e_agent_tp",
+              "kind": "attach",
+              "source_node_id": "agent_main",
+              "source_port_id": "attach_top",
+              "target_node_id": "tp_1",
+              "target_port_id": "attach_bot"
+            },
+            {
+              "id": "e_agent_sp",
+              "kind": "attach",
+              "source_node_id": "agent_main",
+              "source_port_id": "attach_bot",
+              "target_node_id": "sp_1",
+              "target_port_id": "attach_top"
+            }
+          ],
+          "id": "legacy-a1c73f673501e5060c7e9541",
+          "kind": "agent",
+          "name": "Default",
+          "nodes": [
+            {
+              "config": {
+                "legacy_fields": {
+                  "deletable": false,
+                  "kind": "workflow",
+                  "outputs": [
+                    {
+                      "name": "text",
+                      "type": "string"
+                    },
+                    {
+                      "name": "images",
+                      "type": "image[]"
+                    },
+                    {
+                      "name": "files",
+                      "type": "file[]"
+                    }
+                  ],
+                  "x": 80,
+                  "y": 260
+                },
+                "legacy_source": {
+                  "document": {
+                    "agent": {
+                      "prompt": "{{USE_BUILTIN_DEVELOPER_PROMPT}}",
+                      "prompt_format": "skeleton"
+                    },
+                    "description": "PuPu 默认 agent 配置（复刻内置行为）",
+                    "edges": [
+                      {
+                        "id": "e_start_agent",
+                        "kind": "flow",
+                        "source_node_id": "start",
+                        "source_port_id": "out",
+                        "target_node_id": "agent_main",
+                        "target_port_id": "in"
+                      },
+                      {
+                        "id": "e_agent_end",
+                        "kind": "flow",
+                        "source_node_id": "agent_main",
+                        "source_port_id": "out",
+                        "target_node_id": "end",
+                        "target_port_id": "in"
+                      },
+                      {
+                        "id": "e_agent_tp",
+                        "kind": "attach",
+                        "source_node_id": "agent_main",
+                        "source_port_id": "attach_top",
+                        "target_node_id": "tp_1",
+                        "target_port_id": "attach_bot"
+                      },
+                      {
+                        "id": "e_agent_sp",
+                        "kind": "attach",
+                        "source_node_id": "agent_main",
+                        "source_port_id": "attach_bot",
+                        "target_node_id": "sp_1",
+                        "target_port_id": "attach_top"
+                      }
+                    ],
+                    "max_iterations": null,
+                    "merge_with_user_selected": true,
+                    "model": null,
+                    "name": "Default",
+                    "nodes": [
+                      {
+                        "deletable": false,
+                        "id": "start",
+                        "kind": "workflow",
+                        "outputs": [
+                          {
+                            "name": "text",
+                            "type": "string"
+                          },
+                          {
+                            "name": "images",
+                            "type": "image[]"
+                          },
+                          {
+                            "name": "files",
+                            "type": "file[]"
+                          }
+                        ],
+                        "type": "start",
+                        "x": 80,
+                        "y": 260
+                      },
+                      {
+                        "deletable": true,
+                        "id": "agent_main",
+                        "kind": "workflow",
+                        "outputs": [
+                          {
+                            "name": "output",
+                            "type": "string"
+                          }
+                        ],
+                        "override": {
+                          "model": "",
+                          "prompt": "{{USE_BUILTIN_DEVELOPER_PROMPT}}",
+                          "prompt_format": "skeleton"
+                        },
+                        "type": "agent",
+                        "x": 380,
+                        "y": 260
+                      },
+                      {
+                        "deletable": false,
+                        "id": "end",
+                        "kind": "workflow",
+                        "outputs_schema": [
+                          {
+                            "name": "output",
+                            "type": "string"
+                          }
+                        ],
+                        "type": "end",
+                        "x": 720,
+                        "y": 260
+                      },
+                      {
+                        "deletable": true,
+                        "id": "tp_1",
+                        "kind": "plugin",
+                        "merge_with_user_selected": true,
+                        "toolkits": [
+                          {
+                            "config": {},
+                            "id": "core"
+                          }
+                        ],
+                        "type": "toolkit_pool",
+                        "x": 380,
+                        "y": 80
+                      },
+                      {
+                        "deletable": true,
+                        "id": "sp_1",
+                        "kind": "plugin",
+                        "subagents": [
+                          {
+                            "disabled_tools": [],
+                            "kind": "recipe_ref",
+                            "recipe_name": "Explore"
+                          }
+                        ],
+                        "type": "subagent_pool",
+                        "x": 380,
+                        "y": 440
+                      }
+                    ],
+                    "subagent_pool": [
+                      {
+                        "disabled_tools": [],
+                        "kind": "recipe_ref",
+                        "recipe_name": "Explore"
+                      }
+                    ],
+                    "toolkits": [
+                      {
+                        "enabled_tools": null,
+                        "id": "core"
+                      }
+                    ]
+                  },
+                  "format": "recipe"
+                }
+              },
+              "id": "start",
+              "type": "start"
+            },
+            {
+              "config": {
+                "legacy_fields": {
+                  "deletable": true,
+                  "kind": "workflow",
+                  "outputs": [
+                    {
+                      "name": "output",
+                      "type": "string"
+                    }
+                  ],
+                  "override": {
+                    "model": "",
+                    "prompt": "{{USE_BUILTIN_DEVELOPER_PROMPT}}",
+                    "prompt_format": "skeleton"
+                  },
+                  "x": 380,
+                  "y": 260
+                },
+                "legacy_recipe": {
+                  "agent": {
+                    "prompt": "{{USE_BUILTIN_DEVELOPER_PROMPT}}",
+                    "prompt_format": "skeleton"
+                  },
+                  "description": "PuPu 默认 agent 配置（复刻内置行为）",
+                  "edges": [
+                    {
+                      "id": "e_start_agent",
+                      "kind": "flow",
+                      "source_node_id": "start",
+                      "source_port_id": "out",
+                      "target_node_id": "agent_main",
+                      "target_port_id": "in"
+                    },
+                    {
+                      "id": "e_agent_end",
+                      "kind": "flow",
+                      "source_node_id": "agent_main",
+                      "source_port_id": "out",
+                      "target_node_id": "end",
+                      "target_port_id": "in"
+                    },
+                    {
+                      "id": "e_agent_tp",
+                      "kind": "attach",
+                      "source_node_id": "agent_main",
+                      "source_port_id": "attach_top",
+                      "target_node_id": "tp_1",
+                      "target_port_id": "attach_bot"
+                    },
+                    {
+                      "id": "e_agent_sp",
+                      "kind": "attach",
+                      "source_node_id": "agent_main",
+                      "source_port_id": "attach_bot",
+                      "target_node_id": "sp_1",
+                      "target_port_id": "attach_top"
+                    }
+                  ],
+                  "max_iterations": null,
+                  "merge_with_user_selected": true,
+                  "model": null,
+                  "name": "Default",
+                  "nodes": [
+                    {
+                      "deletable": false,
+                      "id": "start",
+                      "kind": "workflow",
+                      "outputs": [
+                        {
+                          "name": "text",
+                          "type": "string"
+                        },
+                        {
+                          "name": "images",
+                          "type": "image[]"
+                        },
+                        {
+                          "name": "files",
+                          "type": "file[]"
+                        }
+                      ],
+                      "type": "start",
+                      "x": 80,
+                      "y": 260
+                    },
+                    {
+                      "deletable": true,
+                      "id": "agent_main",
+                      "kind": "workflow",
+                      "outputs": [
+                        {
+                          "name": "output",
+                          "type": "string"
+                        }
+                      ],
+                      "override": {
+                        "model": "",
+                        "prompt": "{{USE_BUILTIN_DEVELOPER_PROMPT}}",
+                        "prompt_format": "skeleton"
+                      },
+                      "type": "agent",
+                      "x": 380,
+                      "y": 260
+                    },
+                    {
+                      "deletable": false,
+                      "id": "end",
+                      "kind": "workflow",
+                      "outputs_schema": [
+                        {
+                          "name": "output",
+                          "type": "string"
+                        }
+                      ],
+                      "type": "end",
+                      "x": 720,
+                      "y": 260
+                    },
+                    {
+                      "deletable": true,
+                      "id": "tp_1",
+                      "kind": "plugin",
+                      "merge_with_user_selected": true,
+                      "toolkits": [
+                        {
+                          "config": {},
+                          "id": "core"
+                        }
+                      ],
+                      "type": "toolkit_pool",
+                      "x": 380,
+                      "y": 80
+                    },
+                    {
+                      "deletable": true,
+                      "id": "sp_1",
+                      "kind": "plugin",
+                      "subagents": [
+                        {
+                          "disabled_tools": [],
+                          "kind": "recipe_ref",
+                          "recipe_name": "Explore"
+                        }
+                      ],
+                      "type": "subagent_pool",
+                      "x": 380,
+                      "y": 440
+                    }
+                  ],
+                  "subagent_pool": [
+                    {
+                      "disabled_tools": [],
+                      "kind": "recipe_ref",
+                      "recipe_name": "Explore"
+                    }
+                  ],
+                  "toolkits": [
+                    {
+                      "enabled_tools": null,
+                      "id": "core"
+                    }
+                  ]
+                },
+                "prompt": {
+                  "kind": "builtin_developer_prompt"
+                }
+              },
+              "id": "agent_main",
+              "type": "agent"
+            },
+            {
+              "config": {
+                "legacy_fields": {
+                  "deletable": false,
+                  "kind": "workflow",
+                  "outputs_schema": [
+                    {
+                      "name": "output",
+                      "type": "string"
+                    }
+                  ],
+                  "x": 720,
+                  "y": 260
+                }
+              },
+              "id": "end",
+              "type": "end"
+            },
+            {
+              "config": {
+                "legacy_fields": {
+                  "deletable": true,
+                  "kind": "plugin",
+                  "merge_with_user_selected": true,
+                  "toolkits": [
+                    {
+                      "config": {},
+                      "id": "core"
+                    }
+                  ],
+                  "x": 380,
+                  "y": 80
+                }
+              },
+              "id": "tp_1",
+              "type": "toolkit_pool"
+            },
+            {
+              "config": {
+                "legacy_fields": {
+                  "deletable": true,
+                  "kind": "plugin",
+                  "subagents": [
+                    {
+                      "disabled_tools": [],
+                      "kind": "recipe_ref",
+                      "recipe_name": "Explore"
+                    }
+                  ],
+                  "x": 380,
+                  "y": 440
+                }
+              },
+              "id": "sp_1",
+              "type": "subagent_pool"
+            }
+          ],
+          "schema_version": 1
+        },
+        "diagnostics": []
+      },
+      "inventory": {
+        "expected_edit_token": "edit-1-cbace4c59d4c314b5acb783b",
+        "operation": "inventory",
+        "payload_json": "{\"edit_token\":\"edit-1-cbace4c59d4c314b5acb783b\",\"requirements\":[{\"code\":\"legacy_prompt_review_required\",\"message\":\"Legacy structured prompt metadata needs review.\",\"path\":[\"nodes\",1,\"config\",\"legacy_recipe\",\"agent\",\"prompt\"]},{\"code\":\"legacy_prompt_review_required\",\"message\":\"Legacy structured prompt metadata needs review.\",\"path\":[\"nodes\",1,\"config\",\"legacy_fields\",\"override\",\"prompt\"]},{\"code\":\"kernel_required\",\"message\":\"Choose and configure a Kernel for this Agent.\",\"path\":[\"nodes\",1,\"config\",\"kernel\"]},{\"code\":\"builtin_prompt_review_required\",\"message\":\"The built-in prompt requires an explicit upgrade review.\",\"path\":[\"nodes\",1,\"config\",\"prompt\"]},{\"code\":\"toolkit_pool_conversion_required\",\"message\":\"Convert the preserved toolkit references into native Toolkit settings.\",\"path\":[\"nodes\",3,\"config\",\"toolkits\"]},{\"code\":\"tool_selection_required\",\"message\":\"Choose which tools this reference enables.\",\"path\":[\"nodes\",3,\"config\",\"legacy_fields\",\"toolkits\",0,\"enabled_tools\"]},{\"code\":\"subagent_pool_conversion_required\",\"message\":\"Convert the preserved subagent references into native Subagent settings.\",\"path\":[\"nodes\",4,\"config\",\"subagents\"]}],\"resource_id\":\"legacy-a1c73f673501e5060c7e9541\",\"schema\":\"pupu.skeleton-legacy-upgrade.inventory.v1\",\"source_identity\":\"fixture-default\",\"state\":\"needs_upgrade\"}",
+        "payload_sha256": "ec701eed9e4d6fdbeb8f14ada92b78163a4ef329a3bf8b8ca4cee6d7f4670dd3",
+        "projection_digest": null,
+        "resource_id": "legacy-a1c73f673501e5060c7e9541",
+        "runtime_manifest_digest": "sha256:c172bc02718aee771ddd4d247904f13cdaf003d3794148fd3ecd4d4e9a419e6b",
+        "schema": "pupu.skeleton-legacy-upgrade.response.v1"
+      },
+      "preview": {
+        "expected_edit_token": "edit-1-cbace4c59d4c314b5acb783b",
+        "operation": "preview",
+        "payload_json": "{\"definition_digest\":\"08ba1c3dc78ceb8c3181464a384f6152724a18030870e4240f1b01c6eb7cc316\",\"dependencies\":[],\"document\":{\"description\":\"PuPu 默认 agent 配置（复刻内置行为）\",\"edges\":[{\"id\":\"e_start_agent\",\"kind\":\"flow\",\"source_node_id\":\"start\",\"source_port_id\":\"out\",\"target_node_id\":\"agent_main\",\"target_port_id\":\"in\"},{\"id\":\"e_agent_end\",\"kind\":\"flow\",\"source_node_id\":\"agent_main\",\"source_port_id\":\"out\",\"target_node_id\":\"end\",\"target_port_id\":\"in\"},{\"id\":\"e_agent_tp\",\"kind\":\"attach\",\"source_node_id\":\"agent_main\",\"source_port_id\":\"attach_top\",\"target_node_id\":\"tp_1\",\"target_port_id\":\"attach_bot\"},{\"id\":\"e_agent_sp\",\"kind\":\"attach\",\"source_node_id\":\"agent_main\",\"source_port_id\":\"attach_bot\",\"target_node_id\":\"sp_1\",\"target_port_id\":\"attach_top\"}],\"id\":\"legacy-a1c73f673501e5060c7e9541\",\"kind\":\"agent\",\"name\":\"Default\",\"nodes\":[{\"config\":{\"execution\":{\"outputs\":[{\"name\":\"text\",\"source\":{\"kind\":\"result\",\"path\":[\"message\"]}},{\"name\":\"images\",\"source\":{\"kind\":\"result\",\"path\":[\"images\"]}},{\"name\":\"files\",\"source\":{\"kind\":\"result\",\"path\":[\"files\"]}}]}},\"id\":\"start\",\"type\":\"start\"},{\"config\":{\"execution\":{\"inputs\":[{\"missing\":\"error\",\"name\":\"text\",\"value\":{\"kind\":\"ref\",\"node_id\":\"start\",\"path\":[\"text\"]}},{\"missing\":\"null\",\"name\":\"images\",\"value\":{\"kind\":\"ref\",\"node_id\":\"start\",\"path\":[\"images\"]}},{\"missing\":\"null\",\"name\":\"files\",\"value\":{\"kind\":\"ref\",\"node_id\":\"start\",\"path\":[\"files\"]}}],\"outputs\":[{\"name\":\"message\",\"source\":{\"kind\":\"result\",\"path\":[\"message\"]}},{\"name\":\"context\",\"source\":{\"kind\":\"result\",\"path\":[\"context\"]}}]},\"kernel\":{\"history\":\"root\",\"json_schema\":null,\"max_iterations\":8,\"output_tokens\":512,\"overflow\":\"error\",\"profile\":{\"capabilities\":{\"files\":false,\"images\":false,\"json_schema\":true},\"context_window\":8192,\"credential_ref\":\"test.key\",\"endpoint\":\"https://example.test/v1\",\"id\":\"author-choice\",\"model\":\"test-model\",\"output_limit\":2048,\"protocol\":\"openai-responses\",\"provider\":\"openai\"},\"prompt\":\"You are a highly experienced, professional software developer with sharp logical thinking and a structured, methodical approach to problem-solving.\\n\\n[Capabilities]\\nYou have the user's selected model, workspace access, and selected toolkits. You can read and write files, search code, run terminal commands, and interact with the user via structured questions.\\n\\n[Rules]\\nOnce you start your final answer, treat that single message as the final deliverable. Output may be truncated, so do not depend on follow-up continuation.\\nTool use is optional. Call tools only when they are genuinely necessary to produce a correct and useful answer.\\nIf important information is missing, the requirements are ambiguous, or there are multiple materially different approaches, you may use one or more ask-user tool calls before the final answer to resolve the uncertainty. Prefer asking over guessing when the choice would meaningfully affect the outcome. Before responding, gather enough information to make the final answer as complete and actionable as possible.\\nIn the final response, aim to deliver a full result whenever feasible: a concrete plan, a direct answer, a finished artifact, or the best available outcome for the task, rather than a partial handoff.\\nAll file creation and modification must happen inside the user's workspace. Never write files outside the workspace unless the user explicitly provides an absolute path in their message.\\n\\n[Workflow]\\n- If the task depends on the current codebase, use tools to inspect code before planning. Ground your work in facts.\\n- For non-trivial changes, produce a complete implementation plan first and wait for user approval before executing.\\n- When the user approves, execute the plan. If they revise scope, update the plan and wait again.\\n- When executing, use tools rather than speculating. Read the code, make changes, and run validation when possible.\\n- Be conservative with tool use and iteration count. Prefer the cheapest path that still produces a correct result.\\n\\n[Delegation]\\nYou have subagent capabilities for context isolation and parallelism.\\nCheck [Context Status] in the system messages to see your current context window usage. As usage rises above 50%, prefer delegation more aggressively to keep your context lean.\\n\\nCRITICAL: When you delegate a task, TRUST the subagent's output. Do NOT re-read the same files or re-run the same commands yourself afterward. If the output is insufficient, delegate again with a more specific task — never fall back to doing it yourself.\\n\\nDecision rule:\\n- 1 small file or 1 command → do it directly.\\n- Multiple files, cross-directory search, or several commands → delegate when the target lists delegate.\\n- 2+ independent tasks → use spawn_worker_batch only when every task's target lists worker; otherwise delegate supported targets sequentially or proceed directly.\\n\\nEach subagent costs ~1000 tokens of fixed overhead but discards all intermediate tool output — only its summary enters your context.\\n\\nAvailable subagents:\\n{{SUBAGENT_LIST}}\\n\\nEach subagent entry lists its allowed modes. Treat that list as authoritative.\\n\\nIf the list above shows (no subagents registered), subagent tools are unavailable — proceed without them.\\n\\nCalls:\\n- Use delegate_to_subagent(...) only for a target listing delegate.\\n- Use handoff_to_subagent(...) only for a target listing handoff.\\n- Use spawn_worker_batch(...) only when every selected target lists worker.\\n- Do not attempt an unsupported mode and then retry after runtime rejection.\\n\\nTask descriptions must be self-contained — the subagent has zero access to your conversation history.\\n\\n[Constraints]\\n- Never fabricate file contents or command outputs. If you don't know, use a tool to find out.\\n- Never modify files outside the user's selected workspace roots.\\n- Do not use subagents for tasks you can accomplish with a single direct tool call.\\n\\n[Fallback]\\nFor non-development conversations, answer directly without tools.\",\"schema_version\":1}},\"id\":\"agent_main\",\"type\":\"agent\"},{\"config\":{\"execution\":{\"inputs\":[{\"missing\":\"error\",\"name\":\"message\",\"value\":{\"kind\":\"ref\",\"node_id\":\"agent_main\",\"path\":[\"message\"]}},{\"missing\":\"null\",\"name\":\"context\",\"value\":{\"kind\":\"ref\",\"node_id\":\"agent_main\",\"path\":[\"context\"]}}],\"outputs\":[{\"name\":\"message\",\"source\":{\"kind\":\"input\",\"path\":[\"message\"]}},{\"name\":\"context\",\"source\":{\"kind\":\"input\",\"path\":[\"context\"]}}]}},\"id\":\"end\",\"type\":\"end\"},{\"config\":{\"merge_with_user_selected\":true,\"toolkits\":[{\"enabled_tools\":null,\"id\":\"core\"}]},\"id\":\"tp_1\",\"type\":\"toolkit_pool\"},{\"config\":{\"subagents\":[{\"allowed_modes\":[\"delegate\",\"worker\"],\"allowed_tools\":null,\"description\":\"Fast agent specialized for exploring codebases. Use this when you need to quickly find files by patterns, search code for keywords, or answer questions about the codebase. Specify desired thoroughness level in the task: 'quick', 'medium', or 'very thorough'.\",\"disabled_tools\":[],\"id\":\"legacy-4349aadf182dbdb7a69e380a\",\"memory_policy\":\"ephemeral\",\"name\":\"Explore\",\"output_mode\":\"summary\",\"parallel_safe\":true,\"source\":{\"agent_id\":\"legacy-f69b666b0570b05074a06f70\",\"kind\":\"agent_ref\"}}]},\"id\":\"sp_1\",\"type\":\"subagent_pool\"}],\"schema_version\":1},\"edit_token\":\"edit-1-cbace4c59d4c314b5acb783b\",\"projection_digest\":\"7218d62ddc6d3d377f3462e9193c05fb4de66012df7090b6e82d5de8779f753c\",\"resource_id\":\"legacy-a1c73f673501e5060c7e9541\",\"runtime_manifest\":{\"manifest_digest\":\"sha256:c172bc02718aee771ddd4d247904f13cdaf003d3794148fd3ecd4d4e9a419e6b\",\"protocols\":[{\"features\":[\"artifact_handoff\",\"canonical_journal\",\"chat_deletion_sqlite_scope_closure\",\"context_compiler\",\"context_content_paging_v1\",\"context_content_paging_v2\",\"context_content_read_recovery_v1\",\"context_contribution_manifest_v1\",\"durable_interaction_settlement_fence_v1\",\"generation_rebase_live_interaction_cycles\",\"graph_failure_terminals_v1\",\"historical_evidence_guidance_v1\",\"interaction_resolution_compat\",\"long_term_promotion\",\"memory_curator\",\"memory_toolkit\",\"memory_workspace\",\"provider_context_limit_recovery_v1\",\"small_tool_output_inline_v1\",\"tool_output_management_v1\"],\"id\":\"context_memory\",\"major\":1,\"minor\":0},{\"features\":[\"cancel_pending\",\"expected_interaction_id_cas\",\"fresh_run_lineage\",\"graph_interaction_lineage_preflight_v1\",\"host_controlled_resume\",\"interaction_resolution_atomic_acceptance_v1\"],\"id\":\"durable_interaction\",\"major\":1,\"minor\":0},{\"features\":[\"atomic_receipt_cas\",\"auxiliary_calls\",\"enforce_mode\",\"graph_runs\",\"memory_off\",\"ollama_reasoning_preview_v1\",\"provider_response_outcomes_v1\",\"provider_uncertainty_diagnostics_v1\",\"subagent_runs\"],\"id\":\"provider_turn_ownership\",\"major\":1,\"minor\":0},{\"features\":[\"canonical_metrics\",\"completion_diagnostics_ref\",\"context_composition_ref_v1\",\"continuation_claim\",\"immutable_pricing_snapshot\",\"provider_call_set_union\",\"provider_call_usage_v1\",\"run_bundle_v1\",\"run_bundle_v2\"],\"id\":\"run_bundle\",\"major\":1,\"minor\":0},{\"features\":[\"code_python_v1\",\"draft_diagnostics_v1\",\"durable_exclusive_dag_v2\",\"end_only_root_completion_v1\",\"explicit_bindings_v1\",\"hook_embedded_workflow_v1\",\"hook_enable_v1\",\"hook_phase_receipts_v1\",\"hook_tool_set_v1\",\"kernel_profile_auth_v1\",\"kernel_profiles_v1\",\"legacy_conversion_v1\",\"node_display_label_v1\",\"non_llm_workflow_v1\",\"pinned_workflow_calls_v1\",\"production_host_bindings_v1\",\"skill_read_v1\",\"structured_output_v1\",\"subagent_graphs_v1\",\"subagent_native_observation_v1\",\"subagent_tool_settlement_projection_v1\",\"tool_call_v1\"],\"id\":\"skeleton_execution\",\"major\":1,\"minor\":8},{\"features\":[\"active_skills_snapshot_v1\",\"catalog_v1\",\"skill_md_registry_v1\",\"skill_tool_v1\",\"toolkit_embedded_skills_v1\",\"user_invocation_v1\"],\"id\":\"skills\",\"major\":1,\"minor\":0}],\"runtime\":\"unchain\",\"schema\":\"unchain.runtime_protocol_manifest.v1\"},\"schema\":\"pupu.skeleton-legacy-upgrade.preview.v1\",\"source_identity\":\"fixture-default\",\"source_policy\":{\"allowed_modes\":[\"delegate\"],\"allowed_tools\":null,\"memory_policy\":\"ephemeral\",\"output_mode\":\"summary\",\"parallel_safe\":false},\"source_sha256\":\"f42b84f12d8a925f43d8369b50987d4c246949b3b18ea99a7030f6780fb66f3c\",\"subagents\":[{\"agent_id\":\"legacy-f69b666b0570b05074a06f70\",\"allowed_modes\":[\"delegate\",\"worker\"],\"allowed_tools\":null,\"definition_digest\":\"03b3abcd51e1c8824892eb2e8e693f2ebebd42f3ec098ad845b7ec40456beeb8\",\"description\":\"Fast agent specialized for exploring codebases. Use this when you need to quickly find files by patterns, search code for keywords, or answer questions about the codebase. Specify desired thoroughness level in the task: 'quick', 'medium', or 'very thorough'.\",\"disabled_tools\":[],\"document\":{\"description\":\"Fast agent specialized for exploring codebases. Use this when you need to quickly find files by patterns, search code for keywords, or answer questions about the codebase. Specify desired thoroughness level in the task: 'quick', 'medium', or 'very thorough'.\",\"edges\":[{\"id\":\"e_start_agent\",\"kind\":\"flow\",\"source_node_id\":\"start\",\"source_port_id\":\"out\",\"target_node_id\":\"agent_main\",\"target_port_id\":\"in\"},{\"id\":\"e_agent_end\",\"kind\":\"flow\",\"source_node_id\":\"agent_main\",\"source_port_id\":\"out\",\"target_node_id\":\"end\",\"target_port_id\":\"in\"},{\"id\":\"e_agent_tp\",\"kind\":\"attach\",\"source_node_id\":\"agent_main\",\"source_port_id\":\"attach_top\",\"target_node_id\":\"tp_1\",\"target_port_id\":\"attach_bot\"}],\"id\":\"legacy-f69b666b0570b05074a06f70\",\"kind\":\"agent\",\"name\":\"Explore\",\"nodes\":[{\"config\":{\"execution\":{\"outputs\":[{\"name\":\"text\",\"source\":{\"kind\":\"result\",\"path\":[\"message\"]}},{\"name\":\"images\",\"source\":{\"kind\":\"result\",\"path\":[\"images\"]}},{\"name\":\"files\",\"source\":{\"kind\":\"result\",\"path\":[\"files\"]}}]}},\"id\":\"start\",\"type\":\"start\"},{\"config\":{\"execution\":{\"inputs\":[{\"missing\":\"error\",\"name\":\"text\",\"value\":{\"kind\":\"ref\",\"node_id\":\"start\",\"path\":[\"text\"]}},{\"missing\":\"null\",\"name\":\"images\",\"value\":{\"kind\":\"ref\",\"node_id\":\"start\",\"path\":[\"images\"]}},{\"missing\":\"null\",\"name\":\"files\",\"value\":{\"kind\":\"ref\",\"node_id\":\"start\",\"path\":[\"files\"]}}],\"outputs\":[{\"name\":\"message\",\"source\":{\"kind\":\"result\",\"path\":[\"message\"]}},{\"name\":\"context\",\"source\":{\"kind\":\"result\",\"path\":[\"context\"]}}]},\"kernel\":{\"history\":\"root\",\"json_schema\":null,\"max_iterations\":8,\"output_tokens\":512,\"overflow\":\"error\",\"profile\":{\"capabilities\":{\"files\":false,\"images\":false,\"json_schema\":true},\"context_window\":8192,\"credential_ref\":\"test.key\",\"endpoint\":\"https://example.test/v1\",\"id\":\"author-choice\",\"model\":\"test-model\",\"output_limit\":2048,\"protocol\":\"openai-responses\",\"provider\":\"openai\"},\"prompt\":\"## Identity\\nYou are Explore — a read-only codebase exploration specialist. You find files,\\nsearch code, answer questions about the codebase. You do not edit, write, or\\nexecute mutations. Your output feeds a parent agent that relies on you for\\naccurate, well-cited findings.\\n\\n## Capabilities\\nYou have these tools: read, grep, glob, lsp, web_fetch, shell, ask_user_question.\\nTreat shell as read-only: ls, file, wc, du, find -type f, head, tail. Never run\\ncommands that mutate filesystem, network, or process state (rm, mv, cp, git\\ncommit, npm install, curl with POST, etc.).\\n\\n## Thoroughness Levels\\nThe parent agent will tell you one of:\\n- \\\"quick\\\" — single-pass. 1-3 tool calls. Return best-effort answer.\\n- \\\"medium\\\" — iterate until confident. 3-10 tool calls. Cross-check with one\\n  alternate search.\\n- \\\"very thorough\\\" — exhaustive. 10+ tool calls. Multiple search strategies,\\n  cross-reference naming conventions, verify by reading actual file content,\\n  check tests/docs.\\n\\nIf unspecified, default to \\\"medium\\\".\\n\\n## Workflow\\n1. Parse the task. Identify key symbols, concepts, file patterns.\\n2. Start broad with grep/glob to map the territory.\\n3. Narrow to candidate files. Read them in full when relevant.\\n4. For code understanding: use lsp to find definitions/references.\\n5. For conceptual questions: cross-reference at least 2 different search angles\\n   before concluding.\\n6. Before returning: re-check your claim against at least one primary source.\\n\\n## Output Format\\nReturn a markdown report with these sections (omit sections that don't apply):\\n\\n### Summary\\nOne to three sentences directly answering the task.\\n\\n### Key Findings\\n- path/to/file.py:42 — what's there, why it matters\\n- path/to/other.ts:17-31 — ...\\n(cite specific line ranges; never cite without line numbers)\\n\\n### Relevant Files\\n- path/to/file.py — one-line description of relevance\\n(comprehensive list, ranked by relevance)\\n\\n### Uncertainty\\n- Anything you couldn't verify\\n- Assumptions you had to make\\n- Questions the parent agent should clarify before acting\\n\\n## Constraints\\n- NEVER write, edit, or mutate files.\\n- NEVER run shell commands that can change state.\\n- NEVER fabricate file paths or line numbers. If unsure, say so in Uncertainty.\\n- NEVER invoke another subagent. You are a leaf.\\n- Use absolute paths when possible; relative paths only within reports where\\n  clarity wins.\\n- If the task is genuinely ambiguous, ask_user_question BEFORE exploring —\\n  don't burn tools on guesses.\\n\\n## Anti-Patterns (what to avoid)\\n- Returning only a summary without Key Findings citations.\\n- Claiming \\\"X doesn't exist\\\" without showing the grep / glob queries tried.\\n- Over-reading: if grep narrows you to one file, don't read the whole directory.\\n- Under-reading: if a function name matches but you didn't open the file, you\\n  don't actually know what it does — open it.\\n- Infinite exploration: at \\\"quick\\\" level, stop after the first confident answer.\",\"schema_version\":1}},\"id\":\"agent_main\",\"type\":\"agent\"},{\"config\":{\"execution\":{\"inputs\":[{\"missing\":\"error\",\"name\":\"message\",\"value\":{\"kind\":\"ref\",\"node_id\":\"agent_main\",\"path\":[\"message\"]}},{\"missing\":\"null\",\"name\":\"context\",\"value\":{\"kind\":\"ref\",\"node_id\":\"agent_main\",\"path\":[\"context\"]}}],\"outputs\":[{\"name\":\"message\",\"source\":{\"kind\":\"input\",\"path\":[\"message\"]}},{\"name\":\"context\",\"source\":{\"kind\":\"input\",\"path\":[\"context\"]}}]}},\"id\":\"end\",\"type\":\"end\"},{\"config\":{\"merge_with_user_selected\":false,\"toolkits\":[{\"enabled_tools\":[\"read\",\"grep\",\"glob\",\"lsp\",\"web_fetch\",\"shell\",\"ask_user_question\"],\"id\":\"core\"}]},\"id\":\"tp_1\",\"type\":\"toolkit_pool\"}],\"schema_version\":1},\"edit_token\":\"edit-2-03b3abcd51e1c882\",\"entry_id\":\"legacy-4349aadf182dbdb7a69e380a\",\"kernel_node_id\":\"agent_main\",\"memory_policy\":\"ephemeral\",\"name\":\"Explore\",\"output_mode\":\"summary\",\"parallel_safe\":true,\"pool_node_id\":\"sp_1\",\"source_kind\":\"agent_ref\",\"subagents\":[]}]}",
+        "payload_sha256": "0b54e0036440ff1cca366e71668e9fc95f9258e7b5367b9d2964d89f15e95f0a",
+        "projection_digest": "7218d62ddc6d3d377f3462e9193c05fb4de66012df7090b6e82d5de8779f753c",
+        "resource_id": "legacy-a1c73f673501e5060c7e9541",
+        "runtime_manifest_digest": "sha256:c172bc02718aee771ddd4d247904f13cdaf003d3794148fd3ecd4d4e9a419e6b",
+        "schema": "pupu.skeleton-legacy-upgrade.response.v1"
+      },
+      "apply_request": {
+        "resource_id": "legacy-a1c73f673501e5060c7e9541",
+        "schema": "pupu.skeleton-legacy-upgrade.request.v1",
+        "expected_edit_token": "edit-1-cbace4c59d4c314b5acb783b",
+        "expected_runtime_manifest_digest": "sha256:c172bc02718aee771ddd4d247904f13cdaf003d3794148fd3ecd4d4e9a419e6b",
+        "choices": {
+          "schema": "pupu.skeleton-legacy-upgrade.choices.v1",
+          "kernels": [
+            {
+              "path": [
+                "nodes",
+                1
+              ],
+              "kernel": {
+                "schema_version": 1,
+                "profile": {
+                  "id": "author-choice",
+                  "provider": "openai",
+                  "model": "test-model",
+                  "protocol": "openai-responses",
+                  "endpoint": "https://example.test/v1",
+                  "credential_ref": "test.key",
+                  "context_window": 8192,
+                  "output_limit": 2048,
+                  "capabilities": {
+                    "json_schema": true,
+                    "images": false,
+                    "files": false
+                  }
+                },
+                "prompt": "author prompt",
+                "max_iterations": 8,
+                "output_tokens": 512,
+                "history": "root",
+                "overflow": "error",
+                "json_schema": null
+              },
+              "model_policy": "preserve",
+              "prompt_policy": "preserve",
+              "accept_projection": true
+            }
+          ],
+          "toolkits": [
+            {
+              "path": [
+                "nodes",
+                3,
+                "config",
+                "legacy_fields",
+                "toolkits",
+                0
+              ],
+              "toolkit_id": "core",
+              "enabled_tools": null,
+              "discard_unsupported": true
+            }
+          ],
+          "references": [],
+          "acknowledged": []
+        },
+        "expected_projection_digest": "7218d62ddc6d3d377f3462e9193c05fb4de66012df7090b6e82d5de8779f753c"
+      },
+      "applied": {
+        "expected_edit_token": "edit-1-cbace4c59d4c314b5acb783b",
+        "operation": "apply",
+        "payload_json": "{\"archived\":false,\"description\":\"PuPu 默认 agent 配置（复刻内置行为）\",\"diagnostics\":[],\"document\":{\"description\":\"PuPu 默认 agent 配置（复刻内置行为）\",\"edges\":[{\"id\":\"e_start_agent\",\"kind\":\"flow\",\"source_node_id\":\"start\",\"source_port_id\":\"out\",\"target_node_id\":\"agent_main\",\"target_port_id\":\"in\"},{\"id\":\"e_agent_end\",\"kind\":\"flow\",\"source_node_id\":\"agent_main\",\"source_port_id\":\"out\",\"target_node_id\":\"end\",\"target_port_id\":\"in\"},{\"id\":\"e_agent_tp\",\"kind\":\"attach\",\"source_node_id\":\"agent_main\",\"source_port_id\":\"attach_top\",\"target_node_id\":\"tp_1\",\"target_port_id\":\"attach_bot\"},{\"id\":\"e_agent_sp\",\"kind\":\"attach\",\"source_node_id\":\"agent_main\",\"source_port_id\":\"attach_bot\",\"target_node_id\":\"sp_1\",\"target_port_id\":\"attach_top\"}],\"id\":\"legacy-a1c73f673501e5060c7e9541\",\"kind\":\"agent\",\"name\":\"Default\",\"nodes\":[{\"config\":{\"execution\":{\"outputs\":[{\"name\":\"text\",\"source\":{\"kind\":\"result\",\"path\":[\"message\"]}},{\"name\":\"images\",\"source\":{\"kind\":\"result\",\"path\":[\"images\"]}},{\"name\":\"files\",\"source\":{\"kind\":\"result\",\"path\":[\"files\"]}}]}},\"id\":\"start\",\"type\":\"start\"},{\"config\":{\"execution\":{\"inputs\":[{\"missing\":\"error\",\"name\":\"text\",\"value\":{\"kind\":\"ref\",\"node_id\":\"start\",\"path\":[\"text\"]}},{\"missing\":\"null\",\"name\":\"images\",\"value\":{\"kind\":\"ref\",\"node_id\":\"start\",\"path\":[\"images\"]}},{\"missing\":\"null\",\"name\":\"files\",\"value\":{\"kind\":\"ref\",\"node_id\":\"start\",\"path\":[\"files\"]}}],\"outputs\":[{\"name\":\"message\",\"source\":{\"kind\":\"result\",\"path\":[\"message\"]}},{\"name\":\"context\",\"source\":{\"kind\":\"result\",\"path\":[\"context\"]}}]},\"kernel\":{\"history\":\"root\",\"json_schema\":null,\"max_iterations\":8,\"output_tokens\":512,\"overflow\":\"error\",\"profile\":{\"capabilities\":{\"files\":false,\"images\":false,\"json_schema\":true},\"context_window\":8192,\"credential_ref\":\"test.key\",\"endpoint\":\"https://example.test/v1\",\"id\":\"author-choice\",\"model\":\"test-model\",\"output_limit\":2048,\"protocol\":\"openai-responses\",\"provider\":\"openai\"},\"prompt\":\"You are a highly experienced, professional software developer with sharp logical thinking and a structured, methodical approach to problem-solving.\\n\\n[Capabilities]\\nYou have the user's selected model, workspace access, and selected toolkits. You can read and write files, search code, run terminal commands, and interact with the user via structured questions.\\n\\n[Rules]\\nOnce you start your final answer, treat that single message as the final deliverable. Output may be truncated, so do not depend on follow-up continuation.\\nTool use is optional. Call tools only when they are genuinely necessary to produce a correct and useful answer.\\nIf important information is missing, the requirements are ambiguous, or there are multiple materially different approaches, you may use one or more ask-user tool calls before the final answer to resolve the uncertainty. Prefer asking over guessing when the choice would meaningfully affect the outcome. Before responding, gather enough information to make the final answer as complete and actionable as possible.\\nIn the final response, aim to deliver a full result whenever feasible: a concrete plan, a direct answer, a finished artifact, or the best available outcome for the task, rather than a partial handoff.\\nAll file creation and modification must happen inside the user's workspace. Never write files outside the workspace unless the user explicitly provides an absolute path in their message.\\n\\n[Workflow]\\n- If the task depends on the current codebase, use tools to inspect code before planning. Ground your work in facts.\\n- For non-trivial changes, produce a complete implementation plan first and wait for user approval before executing.\\n- When the user approves, execute the plan. If they revise scope, update the plan and wait again.\\n- When executing, use tools rather than speculating. Read the code, make changes, and run validation when possible.\\n- Be conservative with tool use and iteration count. Prefer the cheapest path that still produces a correct result.\\n\\n[Delegation]\\nYou have subagent capabilities for context isolation and parallelism.\\nCheck [Context Status] in the system messages to see your current context window usage. As usage rises above 50%, prefer delegation more aggressively to keep your context lean.\\n\\nCRITICAL: When you delegate a task, TRUST the subagent's output. Do NOT re-read the same files or re-run the same commands yourself afterward. If the output is insufficient, delegate again with a more specific task — never fall back to doing it yourself.\\n\\nDecision rule:\\n- 1 small file or 1 command → do it directly.\\n- Multiple files, cross-directory search, or several commands → delegate when the target lists delegate.\\n- 2+ independent tasks → use spawn_worker_batch only when every task's target lists worker; otherwise delegate supported targets sequentially or proceed directly.\\n\\nEach subagent costs ~1000 tokens of fixed overhead but discards all intermediate tool output — only its summary enters your context.\\n\\nAvailable subagents:\\n{{SUBAGENT_LIST}}\\n\\nEach subagent entry lists its allowed modes. Treat that list as authoritative.\\n\\nIf the list above shows (no subagents registered), subagent tools are unavailable — proceed without them.\\n\\nCalls:\\n- Use delegate_to_subagent(...) only for a target listing delegate.\\n- Use handoff_to_subagent(...) only for a target listing handoff.\\n- Use spawn_worker_batch(...) only when every selected target lists worker.\\n- Do not attempt an unsupported mode and then retry after runtime rejection.\\n\\nTask descriptions must be self-contained — the subagent has zero access to your conversation history.\\n\\n[Constraints]\\n- Never fabricate file contents or command outputs. If you don't know, use a tool to find out.\\n- Never modify files outside the user's selected workspace roots.\\n- Do not use subagents for tasks you can accomplish with a single direct tool call.\\n\\n[Fallback]\\nFor non-development conversations, answer directly without tools.\",\"schema_version\":1}},\"id\":\"agent_main\",\"type\":\"agent\"},{\"config\":{\"execution\":{\"inputs\":[{\"missing\":\"error\",\"name\":\"message\",\"value\":{\"kind\":\"ref\",\"node_id\":\"agent_main\",\"path\":[\"message\"]}},{\"missing\":\"null\",\"name\":\"context\",\"value\":{\"kind\":\"ref\",\"node_id\":\"agent_main\",\"path\":[\"context\"]}}],\"outputs\":[{\"name\":\"message\",\"source\":{\"kind\":\"input\",\"path\":[\"message\"]}},{\"name\":\"context\",\"source\":{\"kind\":\"input\",\"path\":[\"context\"]}}]}},\"id\":\"end\",\"type\":\"end\"},{\"config\":{\"merge_with_user_selected\":true,\"toolkits\":[{\"enabled_tools\":null,\"id\":\"core\"}]},\"id\":\"tp_1\",\"type\":\"toolkit_pool\"},{\"config\":{\"subagents\":[{\"allowed_modes\":[\"delegate\",\"worker\"],\"allowed_tools\":null,\"description\":\"Fast agent specialized for exploring codebases. Use this when you need to quickly find files by patterns, search code for keywords, or answer questions about the codebase. Specify desired thoroughness level in the task: 'quick', 'medium', or 'very thorough'.\",\"disabled_tools\":[],\"id\":\"legacy-4349aadf182dbdb7a69e380a\",\"memory_policy\":\"ephemeral\",\"name\":\"Explore\",\"output_mode\":\"summary\",\"parallel_safe\":true,\"source\":{\"agent_id\":\"legacy-f69b666b0570b05074a06f70\",\"kind\":\"agent_ref\"}}]},\"id\":\"sp_1\",\"type\":\"subagent_pool\"}],\"schema_version\":1},\"draft_digest\":\"08ba1c3dc78ceb8c3181464a384f6152724a18030870e4240f1b01c6eb7cc316\",\"edit_token\":\"edit-2-08ba1c3dc78ceb8c\",\"id\":\"legacy-a1c73f673501e5060c7e9541\",\"kind\":\"agent\",\"name\":\"Default\",\"source_identity\":\"fixture-default\"}",
+        "payload_sha256": "7db41842f5b82d90f9f6121e9c57c2e2b372da9224f185fd3b0d6f65a783908e",
+        "projection_digest": "7218d62ddc6d3d377f3462e9193c05fb4de66012df7090b6e82d5de8779f753c",
+        "resource_id": "legacy-a1c73f673501e5060c7e9541",
+        "runtime_manifest_digest": "sha256:c172bc02718aee771ddd4d247904f13cdaf003d3794148fd3ecd4d4e9a419e6b",
+        "schema": "pupu.skeleton-legacy-upgrade.response.v1"
+      },
+      "saved": {
+        "id": "legacy-a1c73f673501e5060c7e9541",
+        "kind": "agent",
+        "name": "Default",
+        "description": "PuPu 默认 agent 配置（复刻内置行为）",
+        "archived": false,
+        "edit_token": "edit-2-08ba1c3dc78ceb8c",
+        "draft_digest": "08ba1c3dc78ceb8c3181464a384f6152724a18030870e4240f1b01c6eb7cc316",
+        "source_identity": "fixture-default",
+        "document": {
+          "description": "PuPu 默认 agent 配置（复刻内置行为）",
+          "edges": [
+            {
+              "id": "e_start_agent",
+              "kind": "flow",
+              "source_node_id": "start",
+              "source_port_id": "out",
+              "target_node_id": "agent_main",
+              "target_port_id": "in"
+            },
+            {
+              "id": "e_agent_end",
+              "kind": "flow",
+              "source_node_id": "agent_main",
+              "source_port_id": "out",
+              "target_node_id": "end",
+              "target_port_id": "in"
+            },
+            {
+              "id": "e_agent_tp",
+              "kind": "attach",
+              "source_node_id": "agent_main",
+              "source_port_id": "attach_top",
+              "target_node_id": "tp_1",
+              "target_port_id": "attach_bot"
+            },
+            {
+              "id": "e_agent_sp",
+              "kind": "attach",
+              "source_node_id": "agent_main",
+              "source_port_id": "attach_bot",
+              "target_node_id": "sp_1",
+              "target_port_id": "attach_top"
+            }
+          ],
+          "id": "legacy-a1c73f673501e5060c7e9541",
+          "kind": "agent",
+          "name": "Default",
+          "nodes": [
+            {
+              "config": {
+                "execution": {
+                  "outputs": [
+                    {
+                      "name": "text",
+                      "source": {
+                        "kind": "result",
+                        "path": [
+                          "message"
+                        ]
+                      }
+                    },
+                    {
+                      "name": "images",
+                      "source": {
+                        "kind": "result",
+                        "path": [
+                          "images"
+                        ]
+                      }
+                    },
+                    {
+                      "name": "files",
+                      "source": {
+                        "kind": "result",
+                        "path": [
+                          "files"
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              "id": "start",
+              "type": "start"
+            },
+            {
+              "config": {
+                "execution": {
+                  "inputs": [
+                    {
+                      "missing": "error",
+                      "name": "text",
+                      "value": {
+                        "kind": "ref",
+                        "node_id": "start",
+                        "path": [
+                          "text"
+                        ]
+                      }
+                    },
+                    {
+                      "missing": "null",
+                      "name": "images",
+                      "value": {
+                        "kind": "ref",
+                        "node_id": "start",
+                        "path": [
+                          "images"
+                        ]
+                      }
+                    },
+                    {
+                      "missing": "null",
+                      "name": "files",
+                      "value": {
+                        "kind": "ref",
+                        "node_id": "start",
+                        "path": [
+                          "files"
+                        ]
+                      }
+                    }
+                  ],
+                  "outputs": [
+                    {
+                      "name": "message",
+                      "source": {
+                        "kind": "result",
+                        "path": [
+                          "message"
+                        ]
+                      }
+                    },
+                    {
+                      "name": "context",
+                      "source": {
+                        "kind": "result",
+                        "path": [
+                          "context"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                "kernel": {
+                  "history": "root",
+                  "json_schema": null,
+                  "max_iterations": 8,
+                  "output_tokens": 512,
+                  "overflow": "error",
+                  "profile": {
+                    "capabilities": {
+                      "files": false,
+                      "images": false,
+                      "json_schema": true
+                    },
+                    "context_window": 8192,
+                    "credential_ref": "test.key",
+                    "endpoint": "https://example.test/v1",
+                    "id": "author-choice",
+                    "model": "test-model",
+                    "output_limit": 2048,
+                    "protocol": "openai-responses",
+                    "provider": "openai"
+                  },
+                  "prompt": "You are a highly experienced, professional software developer with sharp logical thinking and a structured, methodical approach to problem-solving.\n\n[Capabilities]\nYou have the user's selected model, workspace access, and selected toolkits. You can read and write files, search code, run terminal commands, and interact with the user via structured questions.\n\n[Rules]\nOnce you start your final answer, treat that single message as the final deliverable. Output may be truncated, so do not depend on follow-up continuation.\nTool use is optional. Call tools only when they are genuinely necessary to produce a correct and useful answer.\nIf important information is missing, the requirements are ambiguous, or there are multiple materially different approaches, you may use one or more ask-user tool calls before the final answer to resolve the uncertainty. Prefer asking over guessing when the choice would meaningfully affect the outcome. Before responding, gather enough information to make the final answer as complete and actionable as possible.\nIn the final response, aim to deliver a full result whenever feasible: a concrete plan, a direct answer, a finished artifact, or the best available outcome for the task, rather than a partial handoff.\nAll file creation and modification must happen inside the user's workspace. Never write files outside the workspace unless the user explicitly provides an absolute path in their message.\n\n[Workflow]\n- If the task depends on the current codebase, use tools to inspect code before planning. Ground your work in facts.\n- For non-trivial changes, produce a complete implementation plan first and wait for user approval before executing.\n- When the user approves, execute the plan. If they revise scope, update the plan and wait again.\n- When executing, use tools rather than speculating. Read the code, make changes, and run validation when possible.\n- Be conservative with tool use and iteration count. Prefer the cheapest path that still produces a correct result.\n\n[Delegation]\nYou have subagent capabilities for context isolation and parallelism.\nCheck [Context Status] in the system messages to see your current context window usage. As usage rises above 50%, prefer delegation more aggressively to keep your context lean.\n\nCRITICAL: When you delegate a task, TRUST the subagent's output. Do NOT re-read the same files or re-run the same commands yourself afterward. If the output is insufficient, delegate again with a more specific task — never fall back to doing it yourself.\n\nDecision rule:\n- 1 small file or 1 command → do it directly.\n- Multiple files, cross-directory search, or several commands → delegate when the target lists delegate.\n- 2+ independent tasks → use spawn_worker_batch only when every task's target lists worker; otherwise delegate supported targets sequentially or proceed directly.\n\nEach subagent costs ~1000 tokens of fixed overhead but discards all intermediate tool output — only its summary enters your context.\n\nAvailable subagents:\n{{SUBAGENT_LIST}}\n\nEach subagent entry lists its allowed modes. Treat that list as authoritative.\n\nIf the list above shows (no subagents registered), subagent tools are unavailable — proceed without them.\n\nCalls:\n- Use delegate_to_subagent(...) only for a target listing delegate.\n- Use handoff_to_subagent(...) only for a target listing handoff.\n- Use spawn_worker_batch(...) only when every selected target lists worker.\n- Do not attempt an unsupported mode and then retry after runtime rejection.\n\nTask descriptions must be self-contained — the subagent has zero access to your conversation history.\n\n[Constraints]\n- Never fabricate file contents or command outputs. If you don't know, use a tool to find out.\n- Never modify files outside the user's selected workspace roots.\n- Do not use subagents for tasks you can accomplish with a single direct tool call.\n\n[Fallback]\nFor non-development conversations, answer directly without tools.",
+                  "schema_version": 1
+                }
+              },
+              "id": "agent_main",
+              "type": "agent"
+            },
+            {
+              "config": {
+                "execution": {
+                  "inputs": [
+                    {
+                      "missing": "error",
+                      "name": "message",
+                      "value": {
+                        "kind": "ref",
+                        "node_id": "agent_main",
+                        "path": [
+                          "message"
+                        ]
+                      }
+                    },
+                    {
+                      "missing": "null",
+                      "name": "context",
+                      "value": {
+                        "kind": "ref",
+                        "node_id": "agent_main",
+                        "path": [
+                          "context"
+                        ]
+                      }
+                    }
+                  ],
+                  "outputs": [
+                    {
+                      "name": "message",
+                      "source": {
+                        "kind": "input",
+                        "path": [
+                          "message"
+                        ]
+                      }
+                    },
+                    {
+                      "name": "context",
+                      "source": {
+                        "kind": "input",
+                        "path": [
+                          "context"
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              "id": "end",
+              "type": "end"
+            },
+            {
+              "config": {
+                "merge_with_user_selected": true,
+                "toolkits": [
+                  {
+                    "enabled_tools": null,
+                    "id": "core"
+                  }
+                ]
+              },
+              "id": "tp_1",
+              "type": "toolkit_pool"
+            },
+            {
+              "config": {
+                "subagents": [
+                  {
+                    "allowed_modes": [
+                      "delegate",
+                      "worker"
+                    ],
+                    "allowed_tools": null,
+                    "description": "Fast agent specialized for exploring codebases. Use this when you need to quickly find files by patterns, search code for keywords, or answer questions about the codebase. Specify desired thoroughness level in the task: 'quick', 'medium', or 'very thorough'.",
+                    "disabled_tools": [],
+                    "id": "legacy-4349aadf182dbdb7a69e380a",
+                    "memory_policy": "ephemeral",
+                    "name": "Explore",
+                    "output_mode": "summary",
+                    "parallel_safe": true,
+                    "source": {
+                      "agent_id": "legacy-f69b666b0570b05074a06f70",
+                      "kind": "agent_ref"
+                    }
+                  }
+                ]
+              },
+              "id": "sp_1",
+              "type": "subagent_pool"
+            }
+          ],
+          "schema_version": 1
+        },
+        "diagnostics": []
+      }
+    }
+  },
+  "refusals": {
+    "stale": {
+      "status": 409,
+      "body": {
+        "error": {
+          "code": "edit_conflict",
+          "message": "Draft changed since it was read",
+          "path": [
+            "expected_edit_token"
+          ]
+        }
+      }
+    }
+  },
+  "scope": "actual Flask HTTP producer + private SQLite + fixed installed Core; in-process capture, not TCP or App"
+}

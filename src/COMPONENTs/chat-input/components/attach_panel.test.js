@@ -687,13 +687,16 @@ describe("AttachPanel toolkit selector refresh", () => {
 
     /* Naming one that is not on offer any more: still this chat's Agent, said
        out loud, rather than a row that looks like the default. */
-    render(<AttachPanel {...base} selectedSkeletonAgentId="gone.agent" />);
+    const unavailable = render(<AttachPanel {...base} selectedSkeletonAgentId="gone.agent" />);
     expect(screen.getByTestId("attach-agent-row").getAttribute("title")).toMatch(
       /not available/i,
     );
     expect(
       screen.getByTestId("option-skeleton:gone.agent"),
     ).toBeInTheDocument();
+    unavailable.rerender(<AttachPanel {...base} selectedSkeletonAgentId="" selectedRecipeName="Old missing" recipeOptions={[]} />);
+    expect(screen.getByTestId("attach-agent-row").getAttribute("title")).toMatch(/not available/i);
+    expect(screen.getByTestId("option-legacy:Old missing")).toBeInTheDocument();
   });
 
   test("opening the Agent row says the saved library has to be re-read", async () => {

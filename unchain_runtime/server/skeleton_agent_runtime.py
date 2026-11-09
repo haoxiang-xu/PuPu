@@ -251,8 +251,20 @@ class PupuSkeletonAgentExecution:
             str(item.get("content") or "") for item in messages if type(item) is dict
         )
         start = next(node for node in plan.snapshot()["nodes"] if node["type"] == "start")
-        names = [item["name"] for item in start["config"]["execution"]["outputs"]]
-        return {name: text for name in names}
+        outputs = start["config"]["execution"]["outputs"]
+        inputs = {item["name"]: text for item in outputs}
+        needs_message_alias = any(
+            type(item.get("source")) is dict
+            and item["source"].get("kind") == "result"
+            and type(item["source"].get("path")) is list
+            and bool(item["source"]["path"])
+            and type(item["source"]["path"][0]) is str
+            and item["source"]["path"][0] == "message"
+            for item in outputs
+        )
+        if needs_message_alias and "message" not in inputs:
+            inputs["message"] = text
+        return inputs
 
     def _handlers_for_child(self, store, plan, adapter=None):
         if self._child_handlers_factory is not None:

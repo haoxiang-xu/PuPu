@@ -76,6 +76,9 @@ import {
   with_embedded_document,
 } from "./recipes_page/skeleton_drill";
 import { read_workflow_revision_view } from "./recipes_page/skeleton_resources";
+import LegacyUpgradeWizard from "./recipes_page/legacy_upgrade/legacy_upgrade_wizard";
+import { is_legacy_upgrade_candidate } from "./recipes_page/legacy_upgrade/legacy_upgrade_plan";
+import { emitSkeletonLibraryRefresh } from "../../../SERVICEs/skeleton_library_refresh";
 import {
   PIN_CHANGED_MESSAGE,
   pin_still_held,
@@ -215,6 +218,12 @@ export default function SkeletonResourcePage({
   /* Escape was pressed with nothing above the graph to close and an unsaved
      edit: the Builder stayed open, and says why, until the edit is saved. */
   const [escapeHeld, setEscapeHeld] = useState(false);
+  /* The explicit legacy upgrade (#473 CP2): offered while the resource's own
+     graph still carries first-hop provenance, opened by the author, and a
+     write only through the host's compare-and-set apply. The offer is read
+     from the stored document, so a draft with unsaved edits is told to save
+     first rather than upgraded under the author's typing. */
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
   const pageRef = useRef(null);
   const dirtyRef = useRef(false);
   /* The pinned revision on screen, read-only, or null: `{pin, node_id,
@@ -884,6 +893,29 @@ export default function SkeletonResourcePage({
       : null,
   ].filter(Boolean);
   const showRun = runOpen && ready;
+  const upgradeCandidate = ready && steps.length === 0 && !pinned && !runViewScope
+    && is_legacy_upgrade_candidate(session.document);
+  // First-hop migration carries its source on the root graph. Its old pool
+  // converter must not bypass the explicit, source-kind-preserving upgrade.
+  // Native graphs with a legacy pool but no migration source keep their route.
+  const migratedLegacy = ready && session.document.nodes.some((node) => node?.config
+    && Object.prototype.hasOwnProperty.call(node.config, "legacy_source"));
+  const upgradeBlocked = session.dirty
+    ? "Save or undo your edits first: the upgrade reads the stored Agent."
+    : session.saving || session.converting
+      ? "Wait for the current write to finish."
+      : session.conflict
+        ? "Resolve the save conflict first."
+        : null;
+  const upgradeResource = upgradeCandidate && session.resource_id
+    ? { id: session.resource_id, edit_token: session.edit_token, document: session.document, name: typeof session.document?.name === "string" ? session.document.name : "" }
+    : null;
+  const reopen_after_upgrade = () => {
+    emitSkeletonLibraryRefresh({ reason: "resource_saved", resource_id: session.resource_id || "" });
+    setUpgradeOpen(false);
+    setSelectedNodeId(null);
+    load(session.resource_id);
+  };
 
   return (
     <div ref={pageRef} style={PAGE(isDark)} data-testid="skeleton-resource-page">
@@ -979,8 +1011,28 @@ export default function SkeletonResourcePage({
         </CanvasCaptionChip>
       )}
 
-      {!runViewScope && (conflict || showRun || messages.length > 0) && (
+      {!runViewScope && (conflict || showRun || messages.length > 0 || upgradeCandidate) && (
         <AboveControls testId="skeleton-above-controls">
+          {upgradeCandidate && !conflict && (
+            <ControlPopover isDark={isDark} testId="skeleton-legacy-upgrade-offer">
+              <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: 0.3 }}>
+                Legacy Agent
+              </span>
+              <span style={{ fontSize: 11, lineHeight: 1.45 }}>
+                This graph still carries its old definition. Upgrading converts it into a native graph you can edit, after you review what the host asks for. Nothing is written until you confirm.
+              </span>
+              {upgradeBlocked && <span style={{ fontSize: 11, lineHeight: 1.45, opacity: 0.8 }}>{upgradeBlocked}</span>}
+              <div style={{ display: "flex", gap: 6 }}>
+                <Button
+                  label="Upgrade…"
+                  disabled={Boolean(upgradeBlocked)}
+                  onClick={() => setUpgradeOpen(true)}
+                  dom_props={{ "data-testid": "skeleton-legacy-upgrade-open" }}
+                  style={{ fontSize: 11.5, paddingVertical: 4, paddingHorizontal: 10, borderRadius: 6, color: upgradeBlocked ? undefined : (isDark ? "#60a5fa" : "#4a5bd8") }}
+                />
+              </div>
+            </ControlPopover>
+          )}
           {/* A conflict is not offered as "retry". Retrying at the same token
               fails identically, and retrying at the newer one replaces the
               other person's work without anyone seeing it happen. The two
@@ -1041,6 +1093,16 @@ export default function SkeletonResourcePage({
           </span>
         )}
 
+      {upgradeResource && (
+        <LegacyUpgradeWizard
+          open={upgradeOpen}
+          resource={upgradeResource}
+          isDark={isDark}
+          onClose={() => setUpgradeOpen(false)}
+          onUpgraded={reopen_after_upgrade}
+          onReopen={reopen_after_upgrade}
+        />
+      )}
       {ready && (
         <div data-testid="skeleton-editor-detail-boundary" inert={Boolean(runViewScope)} aria-hidden={runViewScope ? "true" : undefined} style={{ display: "contents" }}>
         <FloatingDetailShell
@@ -1083,8 +1145,12 @@ export default function SkeletonResourcePage({
             onOpenPinnedWorkflow={open_pinned_workflow}
             onEntryIdRepaired={entry_id_repaired}
             embedded={steps.length > 0}
-            onConvertLegacy={convertLegacyPools}
-            canConvertLegacy={can_convert_legacy_pools(session) && steps.length === 0}
+            onConvertLegacy={migratedLegacy ? () => {
+              if (upgradeCandidate && !upgradeBlocked) setUpgradeOpen(true);
+            } : convertLegacyPools}
+            canConvertLegacy={migratedLegacy
+              ? Boolean(upgradeCandidate && !upgradeBlocked)
+              : can_convert_legacy_pools(session) && steps.length === 0}
             convertingLegacy={session.converting}
           />
         </FloatingDetailShell>

@@ -11477,6 +11477,8 @@ def stream_chat(
     options: Dict[str, object],
     session_id: str = "",
 ) -> Iterable[str]:
+    from skeleton_legacy_chat import resolve_legacy_chat_options
+    options = resolve_legacy_chat_options(options)
     if isinstance(options, dict) and "skeleton_selection" in options:
         for event in stream_chat_events(message=message, history=history, attachments=attachments,
                 options=options, session_id=session_id, attempt_id=str(_uuid.uuid4())):
@@ -11730,7 +11732,8 @@ def stream_chat_events(
 ) -> Iterable[Dict[str, Any]]:
     normalized_session_id = str(session_id or "").strip()
     normalized_attempt_id = str(attempt_id or "").strip()
-    options = dict(options) if isinstance(options, dict) else {}
+    from skeleton_legacy_chat import resolve_legacy_chat_options
+    options = resolve_legacy_chat_options(options)
     if "skeleton_selection" in options:
         from skeleton_production_chat import stream_skeleton_chat_events
         yield from stream_skeleton_chat_events(message=message, history=history, attachments=attachments,

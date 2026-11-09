@@ -121,6 +121,8 @@ describe("the saved Agent library of a chat that is already open", () => {
         model_capabilities: {},
       })),
       listRecipes: jest.fn(async () => ({ recipes: [{ name: "Default" }] })),
+      getLegacyChatCatalog: jest.fn(async () => ({schema:'pupu.legacy-chat-catalog.v1',
+        runtime_manifest_digest:'sha256:'+'a'.repeat(64), resources:[], aliases:[]})),
       listSkeletonResources: jest.fn(async () => ({ resources: listing })),
       startStream: jest.fn(),
       startStreamV2: jest.fn(() => ({ cancel: jest.fn() })),

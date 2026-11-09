@@ -746,8 +746,12 @@ describe("a legacy inline subagent, converted on the real page", () => {
     await act(async () => {});
   };
 
-  test("the write names the model its pool is attached to, and sends none", async () => {
-    await open_pool(legacy_agent());
+  test("a native resource with a legacy pool still names its attached model and sends none", async () => {
+    const document = legacy_agent();
+    // This control is a native resource, not a first-hop migration. A migrated
+    // source now routes to #473's explicit wizard (covered with real captures).
+    delete document.nodes[0].config.legacy_source;
+    await open_pool(document);
     expect(
       screen.getByTestId("subagent-pool-legacy-kernel-chosen").textContent,
     ).toMatch(/on openai:gpt-4\.1, the model configured on the Agent node this pool is attached to \(a1\)/);

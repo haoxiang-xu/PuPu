@@ -1,3 +1,4 @@
+import { legacy_chat_agent_id, legacy_chat_options } from '../../SERVICEs/legacy_chat_options';
 import ShadowSurface from "../../BUILTIN_COMPONENTs/material/shadow_surface";
 import {
   useCallback,
@@ -378,8 +379,9 @@ const ChatInterface = () => {
   const runsStoredSkeletonAgent = useMemo(
     () =>
       !session.isCharacterChat &&
-      Boolean(skeleton_selection_payload(session.selectedSkeletonAgentId)),
-    [session.isCharacterChat, session.selectedSkeletonAgentId],
+      Boolean(skeleton_selection_payload(legacy_chat_agent_id(skeletonAgentOptions,
+        session.selectedRecipeName, session.selectedSkeletonAgentId))),
+    [session.isCharacterChat, session.selectedSkeletonAgentId, session.selectedRecipeName, skeletonAgentOptions],
   );
 
   const activeModelCapabilities = useMemo(() => {
@@ -497,7 +499,11 @@ const ChatInterface = () => {
     selectedToolkits: effectiveSelectedToolkits,
     selectedWorkspaceIds: effectiveSelectedWorkspaceIds,
     selectedRecipeName: session.selectedRecipeName,
-    selectedSkeletonAgentId: session.selectedSkeletonAgentId,
+    // Per-send projection only: library refresh does not rewrite the stored
+    // chat choice. The outgoing request carries the canonical resource id;
+    // resumed execution is admitted from its retained launch.
+    selectedSkeletonAgentId: legacy_chat_agent_id(skeletonAgentOptions,
+      session.selectedRecipeName, session.selectedSkeletonAgentId),
     chatKind: session.activeChatKind,
     characterId: session.activeCharacterId,
     threadIdRef: session.threadIdRef,
@@ -729,13 +735,25 @@ const ChatInterface = () => {
          offered as one. */
       const answer = await api.unchain.listSkeletonResources(false);
       resources = answer ? answer.resources : null;
+      // Both catalogs belong to this request. Never publish a partial cutover.
+      if (typeof api.unchain.getLegacyChatCatalog === "function") {
+        const [catalog, legacy] = await Promise.all([
+          api.unchain.getLegacyChatCatalog(), api.unchain.listRecipes(),
+        ]);
+        const options = legacy_chat_options(resources, legacy.recipes, catalog);
+        if (requestId !== skeletonLibraryRequestRef.current) return;
+        skeletonLibraryAppliedRef.current = requestId;
+        setSkeletonAgentOptions(options.agents);
+        setRecipeOptions(options.recipes);
+        return;
+      }
     } catch (_exc) {
       return;
     }
     if (!Array.isArray(resources)) {
       return;
     }
-    if (requestId < skeletonLibraryAppliedRef.current) {
+    if (requestId !== skeletonLibraryRequestRef.current) {
       return;
     }
     skeletonLibraryAppliedRef.current = requestId;
@@ -793,7 +811,7 @@ const ChatInterface = () => {
           label: r.name,
           value: r.name,
         }));
-        setRecipeOptions(options);
+        if (typeof api.unchain.getLegacyChatCatalog !== "function") setRecipeOptions(options);
       } catch (_exc) {
         // ignore; recipes are optional
       }
