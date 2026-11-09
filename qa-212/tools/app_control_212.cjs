@@ -135,10 +135,13 @@ async function main(){
     await settingsViaTab(page,input);
     // Settings opens on Appearance by default. The two Select controls are the native theme/language primitives.
     const settings=page.getByRole('dialog').filter({has:page.getByRole('button',{name:'Close settings',exact:true})});await expect(settings).toHaveCount(1);
-    const combos=settings.getByRole('combobox');await expect(combos).toHaveCount(2);
+    const combos=settings.getByRole('combobox');
+    const language=combos.filter({hasText:/English|简体中文|Deutsch/});await expect(language).toHaveCount(1);
     async function choose(combo,label){const listId=await combo.getAttribute('aria-controls');assert(listId);await combo.click();const list=page.locator('[id='+JSON.stringify(listId)+']');await expect(list).toHaveAttribute('role','listbox');await list.getByText(label,{exact:true}).click();}
-    await choose(combos.nth(1),{'en':'English','zh-CN':'简体中文','de':'Deutsch'}[nextLocale]);locale=nextLocale;
-    await choose(combos.nth(0),text(locale,'appearance.theme_'+theme));
+    await choose(language,{'en':'English','zh-CN':'简体中文','de':'Deutsch'}[nextLocale]);locale=nextLocale;
+    const labels=['light','dark','system'].map(value=>text(locale,'appearance.theme_'+value));
+    const themeChoices=[];for(const combo of await combos.all())if(labels.includes((await combo.textContent()).trim()))themeChoices.push(combo);assert.equal(themeChoices.length,1,'unique Settings theme choice');
+    await choose(themeChoices[0],text(locale,'appearance.theme_'+theme));
     await page.getByRole('button',{name:'Close settings',exact:true}).click();
     const after=await read(page);assert.deepEqual(after,before,'locale silently saved resource or changed raw author data');
     mark('locale-end','locale-only interval',{locale,theme,before,after});

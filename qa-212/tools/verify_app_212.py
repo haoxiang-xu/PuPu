@@ -1,5 +1,5 @@
 """Offline evidence validator. Absence or partial evidence fails closed; no count-only PASS."""
-import hashlib,itertools,json,sqlite3,sys
+import hashlib,itertools,json,sqlite3,sys,os
 from pathlib import Path
 root=Path(sys.argv[1]);r=root/'runtime'
 def load(name):return json.loads((r/name).read_text())
@@ -58,6 +58,18 @@ for item in load('database-copies.json'):
  matched.append({'db':item['copy'],'resource_id':resource_id,'edit_token':token,'draft_digest':digest,'edit_revision':revision});connection.close()
 need(len(matched)==1,'exactly one authoritative resource DB expected')
 source=json.loads((root/'source-identity.json').read_text());need(source['matched'] and source['source_count']>0,'App source hash mismatch')
+candidate=Path(os.environ['QA_CANDIDATE_ROOT'])
+for item in source['sources']:
+ path=candidate/item['source']
+ need(path.is_file() and hashlib.sha256(path.read_bytes()).hexdigest()==item['sha256'],'App source hash mismatch')
+need(set(source['required'])<=set(item['source'] for item in source['sources']),'required App source absent')
+catalog=json.loads((root/'catalog-bundle-identity.json').read_text())
+need(catalog['complete_catalogs']==11 and set(catalog['expected'])==set(catalog['matches']),'complete catalog binding absent')
+for name,digest in catalog['expected'].items():
+ value=json.loads((candidate/'src/locales'/name).read_text())
+ canonical=json.dumps(value,ensure_ascii=False,sort_keys=True,separators=(',',':'))
+ need(hashlib.sha256(canonical.encode()).hexdigest()==digest,'compiled locale differs from candidate')
+ need(all(item['catalog_canonical_sha256']==digest for item in catalog['matches'][name]),'compiled catalog hash mismatch')
 need(json.loads((root/'app-after.json').read_text())['matched']>0,'sealed App changed')
 (root/'validator-result.json').write_text(json.dumps({'verdict':'PASS','candidate':identity,'db_matches':matched,'cells':len(cells)},indent=2)+'\n')
 print('APP212_EVIDENCE_VALIDATED')
