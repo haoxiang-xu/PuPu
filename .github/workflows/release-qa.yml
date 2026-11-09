@@ -10,7 +10,7 @@ on:
         required: true
         type: choice
         default: acceptance
-        options: [acceptance]
+        options: [acceptance, verify_only]
         description: Run the offline packaged-App #448 acceptance against the sealed App.
 
 permissions:
@@ -193,3 +193,74 @@ jobs:
             !test-results/runtime/**/*.pcap
             !test-results/runtime/**/key.pem
             !test-results/runtime/state/**
+
+  verify-448-retained:
+    if: ${{ inputs.mode == 'verify_only' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      QA_CANDIDATE_TREE: bbb26cc25b9f438df2a1b6ac3a9877736b26334c
+      QA_MANIFEST: sha256:c172bc02718aee771ddd4d247904f13cdaf003d3794148fd3ecd4d4e9a419e6b
+      QA_OUT: ${{ github.workspace }}/verification/runtime
+    steps:
+      - uses: actions/checkout@v4
+        with: { path: control, persist-credentials: false }
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - uses: actions/download-artifact@v4
+        with:
+          name: ticket-448-app-acceptance-evidence
+          path: raw-evidence
+          run-id: 42565248774
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: unchain-release-artifact
+          path: wheel
+          run-id: 42395251373
+          github-token: ${{ github.token }}
+      - name: Bind original evidence and canonical reader
+        run: |
+          set -euo pipefail
+          mkdir -p proof
+          python - <<'PYCODE'
+          from pathlib import Path
+          import hashlib,json
+          root=Path('raw-evidence')
+          files={str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(root.rglob('*')) if p.is_file()}
+          Path('proof/raw-files-before.json').write_text(json.dumps(files,sort_keys=True,indent=2)+'\n')
+          PYCODE
+          cp -a raw-evidence verification
+          WHEEL="$(find wheel -maxdepth 1 -name '*.whl' -print -quit)"
+          echo "c1213803c1b3bb58f4fc78a03b1a00f80e001d63be00c4afae53ab4d972b12ec  $WHEEL" | sha256sum -c -
+          python -m pip install --disable-pip-version-check -r control/unchain_runtime/server/requirements.txt
+          python -m pip install --disable-pip-version-check --no-deps "$WHEEL"
+          echo "QA_WHEEL_PATH=$PWD/$WHEEL" >> "$GITHUB_ENV"
+          echo "QA_PYTHON=$(python -c 'import sys;print(sys.executable)')" >> "$GITHUB_ENV"
+      - name: Replay only the corrected raw verifier without network
+        run: |
+          set -euo pipefail
+          sudo unshare --net --fork /usr/bin/env -i PATH="$PATH" \
+            QA_OUT="$QA_OUT" QA_CANDIDATE_TREE="$QA_CANDIDATE_TREE" \
+            QA_MANIFEST="$QA_MANIFEST" QA_WHEEL_PATH="$QA_WHEEL_PATH" \
+            "$QA_PYTHON" -I -B "$PWD/control/qa-448/tools/verify_app_448.py" | tee proof/verifier.log
+      - name: Confirm original input unchanged and retain exact verifier bytes
+        if: always()
+        run: |
+          python - <<'PYCODE'
+          from pathlib import Path
+          import hashlib,json
+          root=Path('raw-evidence')
+          before=json.loads(Path('proof/raw-files-before.json').read_text())
+          after={str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(root.rglob('*')) if p.is_file()}
+          assert before==after
+          Path('proof/raw-after.json').write_text(json.dumps({'unchanged':len(after),'source_run':42565248774},indent=2)+'\n')
+          PYCODE
+          cp control/qa-448/tools/verify_app_448.py proof/verifier-as-run.py
+          test ! -f verification/runtime/raw-verification.json || cp verification/runtime/raw-verification.json proof/raw-verification.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ticket-448-retained-verification
+          if-no-files-found: warn
+          path: proof/**

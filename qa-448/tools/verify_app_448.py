@@ -16,6 +16,22 @@ def require(value, reason):
 def read(name):return json.loads((ROOT/name).read_text())
 def raw(value):return json.dumps(value,ensure_ascii=False,sort_keys=True,separators=(',',':'),allow_nan=False).encode()
 def sha(value):return hashlib.sha256(value).hexdigest()
+def api_projection(value):
+    # Public events serialize verified ResourceRef objects as stable PuPu URIs.
+    # Compare the complete transformed payload; do not discard the ref fields.
+    if isinstance(value,dict):
+        if value.get('schema')=='unchain.resource_ref.v1':
+            from unchain.journal import ResourceRef
+            try:ref=ResourceRef.from_dict(value)
+            except (TypeError,ValueError):ref=None
+            if ref is not None:
+                if ref.kind=='artifact' and not ref.fragment:return f'pupu://artifact/{ref.resource_id}@{ref.revision}'
+                if ref.kind=='memory' and ref.fragment:return f'pupu://memory/{ref.fragment}/{ref.resource_id}@{ref.revision}'
+                if ref.kind=='checkpoint' and ref.revision==1 and not ref.fragment:return f'pupu://context/checkpoint/{ref.resource_id}'
+                if ref.kind=='context_event' and not ref.fragment:return f'pupu://context/event/{ref.resource_id}'
+        return {str(k):api_projection(v) for k,v in value.items()}
+    if isinstance(value,list):return [api_projection(v) for v in value]
+    return value
 def strings(value):
     if isinstance(value,str):yield value
     elif isinstance(value,dict):
@@ -29,7 +45,9 @@ def dictionaries(value):
     elif isinstance(value,list):
         for item in value:yield from dictionaries(item)
     elif isinstance(value,str) and value[:1] in '{[':
-        try:yield from dictionaries(json.loads(value))
+        try:
+            encoded=value.split('\n',2)[2] if value.startswith('[MEMORY_V2_EVIDENCE_HISTORY]') else value
+            yield from dictionaries(json.loads(encoded))
         except (ValueError,RecursionError):pass
 def pattern(i):return f'QA448_PATTERN_{i}_'+'x'*(40*1024)+'_é🂡'
 def locator(value):
@@ -125,7 +143,7 @@ def main():
         e=physical_events.get(observed['event_id']);require(e is not None,'api_event_has_physical_source')
         require(observed['session_id']==hot['session'] and observed['attempt_id']==e['attempt']['attempt_id'] and observed['generation_id']==e['attempt']['generation']['generation_id'],'api_event_full_identity')
         require(observed['store_seq']==e['store_seq'] and observed['type']==e['event_type'] and observed['payload_hash']==e['operation']['payload_sha256'],'api_event_cursor_and_digest')
-        require(observed['event']=={'type':e['event_type'],**e['payload']},'api_event_exact_payload')
+        require(observed['event']=={'type':e['event_type'],**api_projection(e['payload'])},'api_event_exact_payload')
     calls={e['payload']['call_id']:e for e in own if e['event_type']=='tool_call'}
     results={e['payload']['call_id']:e for e in own if e['event_type']=='tool_result'}
     grep_calls=[e for e in own if e['event_type']=='tool_call' and e['payload']['tool_name']=='grep']
