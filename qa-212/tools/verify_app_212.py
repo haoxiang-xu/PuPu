@@ -1,5 +1,5 @@
 """Offline evidence validator. Absence or partial evidence fails closed; no count-only PASS."""
-import hashlib,itertools,json,sqlite3,sys,os,subprocess,math
+import hashlib,itertools,json,sqlite3,sys,os,subprocess,math,shutil,tempfile
 from pathlib import Path
 root=Path(sys.argv[1]);r=root/'runtime'
 def load(name):return json.loads((r/name).read_text())
@@ -88,15 +88,23 @@ matched=[]
 for item in load('database-copies.json'):
  db=r/item['copy'];need(db.is_file(),'DB copy missing')
  if not item['source'].endswith('/resources.sqlite3'):continue
- connection=sqlite3.connect(f'file:{db}?mode=ro',uri=True)
- need(connection.execute('PRAGMA integrity_check').fetchall()==[('ok',)],'resource DB integrity failed')
- rows=connection.execute('SELECT resource_id,draft_json,draft_digest,edit_revision,edit_token FROM resources WHERE resource_id=?',(saved['resource']['id'],)).fetchall()
- need(len(rows)==1,'resource DB identity is missing or nonunique')
- resource_id,draft,digest,revision,token=rows[0]
- need(hashlib.sha256(draft.encode()).hexdigest()==digest,'DB canonical draft digest mismatch')
- need(json.loads(draft)==saved['resource']['document'],'DB draft differs from saved document')
- need(token==saved['resource']['edit_token'] and digest==saved['resource']['draft_digest'] and isinstance(revision,int) and revision>0,'DB token/digest/revision differs from saved resource')
- matched.append({'db':item['copy'],'resource_id':resource_id,'edit_token':token,'draft_digest':digest,'edit_revision':revision});connection.close()
+ # SQLite may update WAL/SHM bookkeeping even for read-only connections. Never open the retained evidence in place.
+ with tempfile.TemporaryDirectory(prefix='qa212-db-read-') as temp_root:
+  private=Path(temp_root)/db.name
+  shutil.copyfile(db,private)
+  for suffix in ('-wal','-shm'):
+   if Path(str(db)+suffix).exists():shutil.copyfile(Path(str(db)+suffix),Path(str(private)+suffix))
+  connection=sqlite3.connect(private)
+  try:
+   need(connection.execute('PRAGMA integrity_check').fetchall()==[('ok',)],'resource DB integrity failed')
+   rows=connection.execute('SELECT resource_id,draft_json,draft_digest,edit_revision,edit_token FROM resources WHERE resource_id=?',(saved['resource']['id'],)).fetchall()
+   need(len(rows)==1,'resource DB identity is missing or nonunique')
+   resource_id,draft,digest,revision,token=rows[0]
+   need(hashlib.sha256(draft.encode()).hexdigest()==digest,'DB canonical draft digest mismatch')
+   need(json.loads(draft)==saved['resource']['document'],'DB draft differs from saved document')
+   need(token==saved['resource']['edit_token'] and digest==saved['resource']['draft_digest'] and isinstance(revision,int) and revision>0,'DB token/digest/revision differs from saved resource')
+   matched.append({'db':item['copy'],'resource_id':resource_id,'edit_token':token,'draft_digest':digest,'edit_revision':revision})
+  finally:connection.close()
 need(len(matched)==1,'exactly one authoritative resource DB expected')
 source=json.loads((root/'source-identity.json').read_text());need(source['matched'] and source['source_count']==len(source['sources']) and source['source_count']>0,'App source hash mismatch')
 candidate=Path(os.environ['QA_CANDIDATE_ROOT'])
