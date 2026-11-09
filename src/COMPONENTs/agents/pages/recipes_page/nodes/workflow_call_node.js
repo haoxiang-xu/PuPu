@@ -1,3 +1,4 @@
+import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { node_display_title } from "../node_display_labels";
 import React from "react";
 import PuzzleShape from "./puzzle_shape";
@@ -16,6 +17,7 @@ import { useWorkflowVersions, workflow_version_state } from "../workflow_version
 const MAX_ROWS = 4;
 
 export default function WorkflowCallNode({ node, isDark }) {
+  const { t } = useTranslation();
   const pin = pinned_reference(node);
   useWorkflowVersions(pin ? [pin] : []);
   const state = pin ? workflow_version_state(pin.workflow_id, pin.revision_id) : null;
@@ -25,12 +27,12 @@ export default function WorkflowCallNode({ node, isDark }) {
   const muted = isDark ? "#a8a8b0" : "#6b6b73";
   const text = isDark ? "#f0f0f3" : "#1d1d22";
   const subtitle = !pin
-    ? "Workflow call · pin a revision"
+    ? t("agents.nodes.workflow_pin")
     : version
-      ? `Workflow call · revision ${version.ordinal}`
+      ? t("agents.nodes.workflow_revision", { revision: version.ordinal })
       : state && (state.status === "refused" || state.status === "unavailable")
-        ? "Workflow call · revision unreadable"
-        : "Workflow call · reading the revision…";
+        ? t("agents.nodes.workflow_unreadable")
+        : t("agents.nodes.workflow_reading");
   const bindings = node_bindings(node);
   const rows = shape && shape.readable
     ? shape.inputs.map(({ key }) => ({ key, bound: bindings.some((binding) => binding && binding.name === key) }))
@@ -59,7 +61,7 @@ export default function WorkflowCallNode({ node, isDark }) {
             </div>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 12.5, fontWeight: 600, color: text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {node_display_title(node, name ? safe_text(name) : "Workflow call")}
+                {node_display_title(node, name ? safe_text(name) : t("agents.nodes.workflow_call"))}
               </div>
               <div data-testid={`workflow-call-node-${node.id}-revision`} style={{ fontSize: 10.5, color: muted, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {subtitle}
@@ -75,13 +77,13 @@ export default function WorkflowCallNode({ node, isDark }) {
                   style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, fontFamily: "ui-monospace, Menlo, monospace", color: text }}
                 >
                   <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{safe_text(row.key)}</span>
-                  <span style={{ marginLeft: "auto", fontSize: 10.5, color: row.bound ? muted : "#d23f37" }}>{row.bound ? "set" : "missing"}</span>
+                  <span style={{ marginLeft: "auto", fontSize: 10.5, color: row.bound ? muted : "#d23f37" }}>{row.bound ? t("agents.nodes.set") : t("agents.nodes.missing")}</span>
                 </div>
               ))}
-              {overflow > 0 && <div style={{ fontSize: 10.5, color: muted }}>+{overflow} more</div>}
+              {overflow > 0 && <div style={{ fontSize: 10.5, color: muted }}>{t("agents.nodes.more", { count: overflow })}</div>}
               {shape && shape.readable && (
                 <div data-testid={`workflow-call-node-${node.id}-exports`} style={{ fontSize: 10.5, color: muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {shape.outputs.length ? `→ ${shape.outputs.map((output) => safe_text(output)).join(", ")}` : "→ nothing exported"}
+                  {shape.outputs.length ? `→ ${shape.outputs.map((output) => safe_text(output)).join(", ")}` : t("agents.nodes.nothing_exported")}
                 </div>
               )}
             </div>

@@ -1,3 +1,4 @@
+import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import React from "react";
 import Select from "../../../../../BUILTIN_COMPONENTs/select/select";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
@@ -17,6 +18,7 @@ const SECTION_LABEL = {
 };
 
 export default function StartPanel({ node, recipe, onChange, isDark }) {
+  const { t } = useTranslation();
   function update_outputs(next) {
     onChange({
       ...recipe,
@@ -55,10 +57,9 @@ export default function StartPanel({ node, recipe, onChange, isDark }) {
   return (
     <>
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <span style={SECTION_LABEL}>Input Variables</span>
+        <span style={SECTION_LABEL}>{t("agents.io.input_variables")}</span>
         <span style={{ fontSize: 10.5, color: muted, lineHeight: 1.45 }}>
-          Fixed by how the graph is entered — a chat turn fills these, so they
-          cannot be added to or renamed here.
+          {t("agents.io.start_fixed_inputs")}
         </span>
         {sources.map((s) => (
           <div
@@ -103,7 +104,9 @@ export default function StartPanel({ node, recipe, onChange, isDark }) {
                 whiteSpace: "nowrap",
               }}
             >
-              {s.description}
+              {s.name === "text" ? t("agents.io.the_message_the_user_sent")
+                : s.name === "images" ? t("agents.io.images_attached_to_it")
+                  : s.name === "files" ? t("agents.io.files_attached_to_it") : s.description}
             </span>
           </div>
         ))}
@@ -117,9 +120,9 @@ export default function StartPanel({ node, recipe, onChange, isDark }) {
             alignItems: "center",
           }}
         >
-          <span style={SECTION_LABEL}>Output Variables</span>
+          <span style={SECTION_LABEL}>{t("agents.io.output_variables")}</span>
           <Button
-            label="+ Add output"
+            label={t("agents.io.add_output")}
             onClick={add_row}
             disabled={available.length === 0}
             style={{
@@ -134,7 +137,7 @@ export default function StartPanel({ node, recipe, onChange, isDark }) {
 
         {rows.length === 0 && (
           <span style={{ fontSize: 11, color: muted }}>
-            Nothing exported yet.
+            {t("agents.io.nothing_exported_yet")}
           </span>
         )}
 
@@ -177,7 +180,7 @@ export default function StartPanel({ node, recipe, onChange, isDark }) {
               ) : (
                 <span
                   data-testid={`start-output-invalid-${i}`}
-                  title="Start does not produce this. The runtime would leave it empty."
+                  title={t("agents.io.start_does_not_produce_this_the_runtime_would_leave_it_empty")}
                   style={{
                     flex: 1,
                     minWidth: 0,
@@ -191,7 +194,7 @@ export default function StartPanel({ node, recipe, onChange, isDark }) {
                     whiteSpace: "nowrap",
                   }}
                 >
-                  {o.name || "(unnamed)"} — not produced here
+                  {o.name ? t("agents.io.not_produced_named", { name: o.name }) : t("agents.io.not_produced_unnamed")}
                 </span>
               )}
               <span
@@ -219,8 +222,7 @@ export default function StartPanel({ node, recipe, onChange, isDark }) {
         })}
 
         <span style={{ fontSize: 10.5, color: muted, lineHeight: 1.45 }}>
-          An output is picked from what this node already has, and carries that
-          source's type — nothing is invented here.
+          {t("agents.io.start_output_caption")}
         </span>
       </div>
     </>

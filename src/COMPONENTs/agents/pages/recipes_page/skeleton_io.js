@@ -1,3 +1,4 @@
+import { agentEnglishText } from "./agents_i18n";
 /* What the builder writes for a node's inputs and outputs.
  *
  * PuPu is the producer here: the panels compose these objects and the Skeleton
@@ -116,32 +117,32 @@ const PATH_ITEM = (item) =>
   typeof item === "string" ||
   (typeof item === "number" && Number.isInteger(item) && item >= 0);
 
-function path_problem(path, where) {
-  if (!Array.isArray(path)) return { code: "invalid_type", where, message: "path must be an array" };
+function path_problem(path, where, t = agentEnglishText) {
+  if (!Array.isArray(path)) return { code: "invalid_type", where, message: t("agents.io.validation.path_must_be_an_array") };
   const bad = path.findIndex((item) => !PATH_ITEM(item));
   if (bad !== -1) {
     return {
       code: "invalid_path",
       where: `${where}[${bad}]`,
-      message: "path item must be a string or a non-negative integer",
+      message: t("agents.io.validation.path_item_must_be_a_string_or_a_non_negative_integer"),
     };
   }
   return null;
 }
 
-function expression_problem(expression, where) {
+function expression_problem(expression, where, t = agentEnglishText) {
   if (!expression || typeof expression !== "object") {
-    return { code: "invalid_type", where, message: "value must be an object" };
+    return { code: "invalid_type", where, message: t("agents.io.validation.value_must_be_an_object") };
   }
   const { kind } = expression;
   if (!EXPRESSION_KINDS.includes(kind)) {
-    return { code: "unknown_variant", where, message: "unknown value expression" };
+    return { code: "unknown_variant", where, message: t("agents.io.validation.unknown_value_expression") };
   }
   if (kind === "ref") {
     if (typeof expression.node_id !== "string" || !expression.node_id) {
-      return { code: "invalid_value", where: `${where}.node_id`, message: "node_id must be a non-empty string" };
+      return { code: "invalid_value", where: `${where}.node_id`, message: t("agents.io.validation.node_id_must_be_a_non_empty_string") };
     }
-    return path_problem(expression.path, `${where}.path`);
+    return path_problem(expression.path, `${where}.path`, t);
   }
   if (kind === "first_present") {
     const values = expression.values;
@@ -149,11 +150,11 @@ function expression_problem(expression, where) {
       return {
         code: "invalid_value",
         where: `${where}.values`,
-        message: "first_present requires at least two values",
+        message: t("agents.io.validation.first_present_requires_at_least_two_values"),
       };
     }
     for (let i = 0; i < values.length; i += 1) {
-      const problem = expression_problem(values[i], `${where}.values[${i}]`);
+      const problem = expression_problem(values[i], `${where}.values[${i}]`, t);
       if (problem) return problem;
     }
   }
@@ -164,52 +165,52 @@ function expression_problem(expression, where) {
  * compose a document the runtime would reject, and say which row is at fault.
  * It is not a substitute for that validator — it never decides admission, it
  * only keeps the builder from producing something it already knows is wrong. */
-export function binding_problems(bindings) {
+export function binding_problems(bindings, t = agentEnglishText) {
   const problems = [];
   const seen = new Set();
   (Array.isArray(bindings) ? bindings : []).forEach((binding, index) => {
     const where = `bindings[${index}]`;
     if (typeof binding?.name !== "string" || !binding.name) {
-      problems.push({ code: "invalid_value", where: `${where}.name`, message: "name must be a non-empty string" });
+      problems.push({ code: "invalid_value", where: `${where}.name`, message: t("agents.io.validation.name_must_be_a_non_empty_string") });
     } else if (seen.has(binding.name)) {
-      problems.push({ code: "duplicate_name", where: `${where}.name`, message: "binding name is duplicated" });
+      problems.push({ code: "duplicate_name", where: `${where}.name`, message: t("agents.io.validation.binding_name_is_duplicated") });
     } else {
       seen.add(binding.name);
     }
     if (!MISSING_POLICY_VALUES.includes(binding?.missing)) {
-      problems.push({ code: "invalid_value", where: `${where}.missing`, message: "unknown missing policy" });
+      problems.push({ code: "invalid_value", where: `${where}.missing`, message: t("agents.io.validation.unknown_missing_policy") });
     } else if (binding.missing === "default" && !("default" in binding)) {
-      problems.push({ code: "missing_field", where: `${where}.default`, message: "default policy requires default" });
+      problems.push({ code: "missing_field", where: `${where}.default`, message: t("agents.io.validation.default_policy_requires_default") });
     } else if (binding.missing !== "default" && "default" in binding) {
-      problems.push({ code: "unknown_field", where: `${where}.default`, message: "default is only allowed for default policy" });
+      problems.push({ code: "unknown_field", where: `${where}.default`, message: t("agents.io.validation.default_is_only_allowed_for_default_policy") });
     }
-    const problem = expression_problem(binding?.value, `${where}.value`);
+    const problem = expression_problem(binding?.value, `${where}.value`, t);
     if (problem) problems.push(problem);
   });
   return problems;
 }
 
-export function output_mapping_problems(mappings) {
+export function output_mapping_problems(mappings, t = agentEnglishText) {
   const problems = [];
   const seen = new Set();
   (Array.isArray(mappings) ? mappings : []).forEach((mapping, index) => {
     const where = `mappings[${index}]`;
     if (typeof mapping?.name !== "string" || !mapping.name) {
-      problems.push({ code: "invalid_value", where: `${where}.name`, message: "name must be a non-empty string" });
+      problems.push({ code: "invalid_value", where: `${where}.name`, message: t("agents.io.validation.name_must_be_a_non_empty_string") });
     } else if (seen.has(mapping.name)) {
-      problems.push({ code: "duplicate_name", where: `${where}.name`, message: "output name is duplicated" });
+      problems.push({ code: "duplicate_name", where: `${where}.name`, message: t("agents.io.validation.output_name_is_duplicated") });
     } else {
       seen.add(mapping.name);
     }
     const source = mapping?.source;
     if (!source || typeof source !== "object") {
-      problems.push({ code: "invalid_type", where: `${where}.source`, message: "source must be an object" });
+      problems.push({ code: "invalid_type", where: `${where}.source`, message: t("agents.io.validation.source_must_be_an_object") });
       return;
     }
     if (!OUTPUT_SOURCE_KINDS.includes(source.kind)) {
-      problems.push({ code: "unknown_variant", where: `${where}.source.kind`, message: "source must be input or result" });
+      problems.push({ code: "unknown_variant", where: `${where}.source.kind`, message: t("agents.io.validation.source_must_be_input_or_result") });
     }
-    const problem = path_problem(source.path, `${where}.source.path`);
+    const problem = path_problem(source.path, `${where}.source.path`, t);
     if (problem) problems.push(problem);
   });
   return problems;
@@ -280,8 +281,8 @@ export function expression_is_editable(expression, depth = 0) {
 }
 
 /* The original value, readable, for a row that cannot offer controls. */
-export function expression_summary(expression) {
-  if (expression === undefined) return "(nothing)";
+export function expression_summary(expression, t = agentEnglishText) {
+  if (expression === undefined) return t("agents.io.nothing");
   try {
     const text = JSON.stringify(expression);
     return text === undefined ? String(expression) : text;

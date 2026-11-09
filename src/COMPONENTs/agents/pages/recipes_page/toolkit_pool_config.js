@@ -1,4 +1,5 @@
 import { python_strip } from "./kernel_config";
+import { agentEnglishText } from "./agents_i18n";
 
 const record = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const own = (v, k) => Object.prototype.hasOwnProperty.call(v, k);
@@ -41,27 +42,26 @@ export function read_toolkit_catalog(payload) {
 
 /* Structural feedback only. Host-owned alias/availability/workspace/model
    resolution and collisions between attached pools are checked when run. */
-export function toolkit_pool_problems(config) {
-  if (!record(config)) return ["Toolkit Pool configuration must be an object."];
+export function toolkit_pool_problems(config, t = agentEnglishText) {
+  if (!record(config)) return [t("agents.toolkit.config_object")];
   const problems = [];
   const configKeys = own(config, "workflow_tools") ? ["toolkits", "merge_with_user_selected", "workflow_tools"] : ["toolkits", "merge_with_user_selected"];
-  if (!shape(config, configKeys)) problems.push("Toolkit Pool needs toolkits and merge_with_user_selected; workflow_tools is optional.");
-  if (typeof config.merge_with_user_selected !== "boolean") problems.push("Include chat-selected toolkits must be on or off.");
-  if (!Array.isArray(config.toolkits)) return [...problems, "The stored toolkit list must be a list."];
+  if (!shape(config, configKeys)) problems.push(t("agents.toolkit.config_shape"));
+  if (typeof config.merge_with_user_selected !== "boolean") problems.push(t("agents.toolkit.merge_boolean"));
+  if (!Array.isArray(config.toolkits)) return [...problems, t("agents.toolkit.list_required")];
   const ids = new Set();
   config.toolkits.forEach((entry, index) => {
-    const prefix = `Toolkit ${index + 1}: `;
-    if (!record(entry)) { problems.push(prefix + "the entry must be an object."); return; }
-    if (!shape(entry, ["id", "enabled_tools"])) problems.push(prefix + "needs only id and enabled_tools.");
-    if (!exact(entry.id)) problems.push(prefix + "id must be an exact non-empty string.");
-    else if (ids.has(entry.id)) problems.push(prefix + "the toolkit is included more than once.");
+    if (!record(entry)) { problems.push(t("agents.toolkit.entry_object", { index: index + 1 })); return; }
+    if (!shape(entry, ["id", "enabled_tools"])) problems.push(t("agents.toolkit.entry_shape", { index: index + 1 }));
+    if (!exact(entry.id)) problems.push(t("agents.toolkit.entry_id", { index: index + 1 }));
+    else if (ids.has(entry.id)) problems.push(t("agents.toolkit.entry_duplicate", { index: index + 1 }));
     else ids.add(entry.id);
     if (entry.enabled_tools === null) return;
-    if (!Array.isArray(entry.enabled_tools)) { problems.push(prefix + "choose all tools or a list of tool names."); return; }
+    if (!Array.isArray(entry.enabled_tools)) { problems.push(t("agents.toolkit.entry_selection", { index: index + 1 })); return; }
     const names = new Set();
     entry.enabled_tools.forEach((name) => {
-      if (!exact(name)) problems.push(prefix + "tool names must be exact non-empty strings.");
-      else if (names.has(name)) problems.push(prefix + "a tool name is included more than once.");
+      if (!exact(name)) problems.push(t("agents.toolkit.entry_tool_name", { index: index + 1 }));
+      else if (names.has(name)) problems.push(t("agents.toolkit.entry_tool_duplicate", { index: index + 1 }));
       else names.add(name);
     });
   });

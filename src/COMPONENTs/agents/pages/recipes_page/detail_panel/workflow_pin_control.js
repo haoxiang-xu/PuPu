@@ -4,6 +4,8 @@ import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
 import Select from "../../../../../BUILTIN_COMPONENTs/select/select";
 import { subscribeSkeletonLibraryRefresh } from "../../../../../SERVICEs/skeleton_library_refresh";
 import { safe_text } from "../document_values";
+import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
+import { agentError, agentMessage, renderAgentMessage } from "../agents_i18n";
 import { is_unavailable, list_resources, load_resource, publish_workflow } from "../skeleton_resources";
 import { remember_workflow_version, request_workflow_version, useWorkflowVersions, workflow_version_state } from "../workflow_versions";
 
@@ -34,12 +36,14 @@ const ROW = { display: "flex", alignItems: "center", gap: 6 };
 const FIELD = { width: "100%", fontSize: 11.5, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 5 };
 const SMALL = { fontSize: 10.5, paddingVertical: 2, paddingHorizontal: 8, borderRadius: 5 };
 const problem_style = (isDark) => ({ fontSize: 10.5, lineHeight: 1.45, color: isDark ? "rgba(255,140,140,0.95)" : "rgba(176,32,32,0.95)" });
+const PUBLISHING = agentMessage("agents.workflow.publishing");
 const record = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 
 function refusal_text(result, fallback) {
-  if (is_unavailable(result)) return "The store could not be reached.";
+  if (is_unavailable(result)) return agentMessage("agents.workflow.store_unreachable");
   const error = result && result.error;
-  return safe_text((error && (error.message || error.code)) || fallback);
+  if (error && renderAgentMessage(error, agentMessage) !== error) return renderAgentMessage(error, agentMessage);
+  return error && (error.message || error.code) ? safe_text(error.message || error.code) : fallback;
 }
 
 /* The Workflows the store lists, archived ones left out of the request. */
@@ -54,7 +58,7 @@ export function useWorkflowLibrary() {
       ? result.data
       : result.ok && record(result.data) && Array.isArray(result.data.resources) ? result.data.resources : null;
     if (rows) setState({ status: "ready", rows: rows.filter((row) => record(row) && row.kind === "workflow" && typeof row.id === "string"), error: null });
-    else setState({ status: "error", rows: [], error: result.ok ? { error: { message: "The library answer was not a list." } } : result });
+    else setState({ status: "error", rows: [], error: result.ok ? { error: agentError("agents.workflow.bad_library") } : result });
   }, []);
   useEffect(() => {
     read();
@@ -68,13 +72,14 @@ export function useWorkflowLibrary() {
 }
 
 export default function WorkflowPinControl({ pin, stored, editable, onPin, isDark, testid }) {
+  const { t } = useTranslation();
   const [library, reloadLibrary] = useWorkflowLibrary();
   useWorkflowVersions(pin ? [pin] : []);
   const state = pin ? workflow_version_state(pin.workflow_id, pin.revision_id) : null;
   const version = state && state.status === "ready" ? state.version : null;
   const [chosen, setChosen] = useState(pin ? pin.workflow_id : record(stored) && typeof stored.workflow_id === "string" ? stored.workflow_id : "");
   const listed = library.rows.find((row) => row.id === chosen) || null;
-  const name = (version && typeof version.document.name === "string" && version.document.name) || (listed && listed.name) || chosen || "the Workflow";
+  const name = (version && typeof version.document.name === "string" && version.document.name) || (listed && listed.name) || chosen || t("agents.workflow.the_workflow");
 
   const latest = useRef({ editable, onPin });
   latest.current = { editable, onPin };
@@ -100,12 +105,12 @@ export default function WorkflowPinControl({ pin, stored, editable, onPin, isDar
   };
   const publishAndPin = async () => {
     const workflow_id = chosen;
-    const ticket = begin("Publishing…");
+    const ticket = begin(PUBLISHING);
     const opened = await load_resource(workflow_id);
     if (intent.current.pending !== ticket) return;
     if (!opened.ok) {
       settle(ticket, workflow_id, null);
-      if (intent.current.mounted) setPinState({ status: "refused", message: `The Workflow could not be read: ${refusal_text(opened, "the store refused")}.` });
+      if (intent.current.mounted) setPinState({ status: "refused", message: agentMessage("agents.workflow.read_failed", { message: refusal_text(opened, agentMessage("agents.workflow.store_refused")) }) });
       return;
     }
     const published = await publish_workflow(workflow_id, opened.data.edit_token);
@@ -113,24 +118,24 @@ export default function WorkflowPinControl({ pin, stored, editable, onPin, isDar
     if (!settle(ticket, workflow_id, published.ok ? published.data : null)) return;
     if (!intent.current.mounted) return;
     setPinState(published.ok
-      ? { status: "done", message: `Pinned revision ${published.data.ordinal}.` }
-      : { status: "refused", message: `Nothing was pinned: ${refusal_text(published, "the store refused the publication")}.` });
+      ? { status: "done", message: agentMessage("agents.workflow.pinned_ordinal", { ordinal: published.data.ordinal }) }
+      : { status: "refused", message: agentMessage("agents.workflow.pin_failed", { message: refusal_text(published, agentMessage("agents.workflow.publication_refused")) }) });
   };
   const pinTyped = async () => {
     const workflow_id = chosen;
     const revision_id = typed.trim();
     if (!revision_id) return;
-    const ticket = begin("Reading that revision…");
+    const ticket = begin(agentMessage("agents.workflow.reading_revision"));
     const answer = await request_workflow_version(workflow_id, revision_id);
     const ok = answer && answer.status === "ready";
     if (!settle(ticket, workflow_id, ok ? answer.version : null)) return;
     if (!intent.current.mounted) return;
     if (ok) {
       setTyped("");
-      setPinState({ status: "done", message: `Pinned revision ${answer.version.ordinal}.` });
+      setPinState({ status: "done", message: agentMessage("agents.workflow.pinned_ordinal", { ordinal: answer.version.ordinal }) });
     } else {
       const missing = answer && answer.error && answer.error.code === "resource_missing";
-      setPinState({ status: "refused", message: missing ? `“${safe_text(workflow_id)}” has no published revision “${safe_text(revision_id)}”. Nothing was pinned.` : `Nothing was pinned: ${refusal_text(answer, "the store refused")}.` });
+      setPinState({ status: "refused", message: missing ? agentMessage("agents.workflow.revision_absent", { workflow: safe_text(workflow_id), revision: safe_text(revision_id) }) : agentMessage("agents.workflow.pin_failed", { message: refusal_text(answer, agentMessage("agents.workflow.store_refused")) }) });
     }
   };
   const choose = (value) => {
@@ -141,10 +146,10 @@ export default function WorkflowPinControl({ pin, stored, editable, onPin, isDar
     setChosen(value);
   };
   const options = [
-    ...(chosen && library.status === "ready" && !listed ? [{ value: chosen, label: `${safe_text(chosen)} (not in the library now)` }] : []),
+    ...(chosen && library.status === "ready" && !listed ? [{ value: chosen, label: t("agents.workflow.not_listed", { workflow: safe_text(chosen) }) }] : []),
     ...library.rows.map((row) => {
       const count = Number.isSafeInteger(row.published_revisions) ? row.published_revisions : 0;
-      return { value: row.id, label: `${safe_text(row.name || row.id)} · ${count === 0 ? "never published" : `${count} published`}` };
+      return { value: row.id, label: count === 0 ? t("agents.workflow.unpublished", { name: safe_text(row.name || row.id) }) : t("agents.workflow.published", { name: safe_text(row.name || row.id), count }) };
     }),
   ];
   const working = pinState.status === "working";
@@ -152,70 +157,72 @@ export default function WorkflowPinControl({ pin, stored, editable, onPin, isDar
 
   return (
     <div data-testid={testid} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <span style={LABEL}>Workflow</span>
+      <span style={LABEL}>{t("agents.workflow.workflow")}</span>
       <span data-testid={`${testid}-picker`}>
         <Select
           options={options}
           value={chosen || null}
           set_value={choose}
           filterable={false}
-          placeholder={library.status === "loading" ? "reading the library…" : "choose a Workflow"}
+          placeholder={library.status === "loading" ? t("agents.workflow.reading_library") : t("agents.workflow.choose")}
           disabled={!editable || library.status !== "ready"}
           style={FIELD}
         />
       </span>
       {library.status === "error" && (
         <span style={problem_style(isDark)}>
-          The library could not be read: {refusal_text(library.error, "the store refused")}.{" "}
-          <Button label="Try again" onClick={reloadLibrary} style={{ fontSize: 10.5, paddingVertical: 1, paddingHorizontal: 6 }} />
+          {t("agents.workflow.library_failed", { message: renderAgentMessage(refusal_text(library.error, agentMessage("agents.workflow.store_refused")), t) })}{" "}
+          <Button label={t("agents.explorer.try_again")} onClick={reloadLibrary} style={{ fontSize: 10.5, paddingVertical: 1, paddingHorizontal: 6 }} />
         </span>
       )}
       {record(stored) && !pin && (
         <span data-testid={`${testid}-stored-invalid`} style={problem_style(isDark)}>
-          Stored: <span style={MONO}>{safe_text(JSON.stringify(stored))}</span>. Kept as it is until you pin a revision.
+          {t("agents.workflow.stored", { value: "\uE000" }).split("\uE000").map((part, index) => <React.Fragment key={index}>{index > 0 && <span style={MONO}>{safe_text(JSON.stringify(stored))}</span>}{part}</React.Fragment>)}
         </span>
       )}
       {stored !== undefined && !record(stored) && (
         <span data-testid={`${testid}-stored-invalid`} style={problem_style(isDark)}>
-          Stored: <span style={MONO}>{safe_text(JSON.stringify(stored))}</span>, which is not a reference. Kept as it is until you pin a revision.
+          {t("agents.workflow.stored_not_ref", { value: "\uE000" }).split("\uE000").map((part, index) => <React.Fragment key={index}>{index > 0 && <span style={MONO}>{safe_text(JSON.stringify(stored))}</span>}{part}</React.Fragment>)}
         </span>
       )}
       {pin && (
         <span data-testid={`${testid}-pinned`} style={NOTE}>
           {version
-            ? <>Pinned: revision <b>{version.ordinal}</b> of <b>{safe_text(name)}</b> · <span style={MONO}>{safe_text(pin.revision_id)}</span></>
+            ? <>{t("agents.workflow.pinned", { ordinal: "\uE000", name: "\uE001", id: "\uE002" }).split(/(\uE000|\uE001|\uE002)/).map((part, index) => part === "\uE000"
+                ? <b key={index}>{version.ordinal}</b> : part === "\uE001" ? <b key={index}>{safe_text(name)}</b>
+                  : part === "\uE002" ? <span key={index} style={MONO}>{safe_text(pin.revision_id)}</span> : part)}</>
             : state && state.status === "loading"
-              ? <>Reading <span style={MONO}>{safe_text(pin.revision_id)}</span>…</>
-              : <>Pinned: <span style={MONO}>{safe_text(pin.workflow_id)} · {safe_text(pin.revision_id)}</span></>}
+              ? <>{t("agents.workflow.reading_pin", { id: "\uE000" }).split("\uE000").map((part, index) => <React.Fragment key={index}>{index > 0 && <span style={MONO}>{safe_text(pin.revision_id)}</span>}{part}</React.Fragment>)}</>
+              : <>{t("agents.workflow.pinned_id", { id: "\uE000" }).split("\uE000").map((part, index) => <React.Fragment key={index}>{index > 0 && <span style={MONO}>{safe_text(pin.workflow_id)} · {safe_text(pin.revision_id)}</span>}{part}</React.Fragment>)}</>}
         </span>
       )}
       {pin && state && (state.status === "refused" || state.status === "unavailable") && (
         <span style={{ ...ROW, ...problem_style(isDark) }}>
           {state.error && state.error.code === "resource_missing"
-            ? `No published revision “${safe_text(pin.revision_id)}” of “${safe_text(pin.workflow_id)}” exists; the run refuses it.`
-            : `The pinned revision could not be read: ${refusal_text(state, "the store refused")}.`}
-          <Button label="Read it again" onClick={() => request_workflow_version(pin.workflow_id, pin.revision_id)} style={SMALL} />
+            ? t("agents.workflow.missing_revision", { revision: safe_text(pin.revision_id), workflow: safe_text(pin.workflow_id) })
+            : t("agents.workflow.revision_failed", { message: renderAgentMessage(refusal_text(state, agentMessage("agents.workflow.store_refused")), t) })}
+          <Button label={t("agents.workflow.read_again")} onClick={() => request_workflow_version(pin.workflow_id, pin.revision_id)} style={SMALL} />
         </span>
       )}
       {chosen && editable && (
         <>
           <div style={ROW}>
             <Button
-              label={working && pinState.message === "Publishing…" ? "Publishing…" : pin_here ? "Publish its current draft and pin again" : "Publish its current draft and pin it"}
+              label={working && pinState.message === PUBLISHING ? t("agents.workflow.publishing") : pin_here ? t("agents.workflow.publish_again") : t("agents.workflow.publish")}
               disabled={working}
               onClick={publishAndPin}
               style={{ ...SMALL, color: "#4a5bd8" }}
             />
           </div>
-          <span style={NOTE}>Publishing writes {safe_text(listed ? listed.name || chosen : chosen)}: it stores a new revision only if the draft changed since its last one, and pins the revision it answers with.</span>
+          <span style={NOTE}>{t("agents.workflow.publish_contract", { name: safe_text(listed ? listed.name || chosen : chosen) })}</span>
           <div style={ROW}>
-            <Input value={typed} placeholder="or a revision id, e.g. rev-2-…" set_value={setTyped} style={{ ...FIELD, ...MONO }} />
-            <Button label="Pin" ariaLabel="Pin this revision" disabled={working || !typed.trim()} onClick={pinTyped} style={SMALL} />
+            <Input value={typed} placeholder={t("agents.workflow.revision_placeholder")} set_value={setTyped} style={{ ...FIELD, ...MONO }} />
+            <Button label={t("agents.workflow.pin")} ariaLabel={t("agents.workflow.pin_revision")} disabled={working || !typed.trim()} onClick={pinTyped} style={SMALL} />
           </div>
         </>
       )}
       {pinState.message && pinState.status !== "idle" && (
-        <span data-testid={`${testid}-pin-state`} style={pinState.status === "refused" ? problem_style(isDark) : NOTE}>{pinState.message}</span>
+        <span data-testid={`${testid}-pin-state`} style={pinState.status === "refused" ? problem_style(isDark) : NOTE}>{renderAgentMessage(pinState.message, t)}</span>
       )}
     </div>
   );

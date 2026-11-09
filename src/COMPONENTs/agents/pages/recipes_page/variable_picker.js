@@ -1,3 +1,4 @@
+import { useTranslation } from "../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import ShadowSurface from "../../../../BUILTIN_COMPONENTs/material/shadow_surface";
 import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { ConfigContext } from "../../../../CONTAINERs/config/context";
@@ -10,6 +11,7 @@ const SOURCE_DOT_COLOR = {
 };
 
 export default function VariablePicker({ scope, onPick, onClose, position }) {
+  const { t } = useTranslation();
   const cfg = useContext(ConfigContext);
   const isDark = cfg?.onThemeMode === "dark_mode";
   const [query, setQuery] = useState("");
@@ -88,7 +90,7 @@ export default function VariablePicker({ scope, onPick, onClose, position }) {
       >
         <input
           ref={search_ref}
-          placeholder="Search variables…"
+          placeholder={t("agents.variables.search_variables")}
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
@@ -122,7 +124,7 @@ export default function VariablePicker({ scope, onPick, onClose, position }) {
                 letterSpacing: 0.5,
               }}
             >
-              From {node_id}
+              {t("agents.variables.from", { node: node_id })}
             </div>
             {vars.map((v) => {
               const flat_idx = filtered.indexOf(v);
@@ -174,7 +176,7 @@ export default function VariablePicker({ scope, onPick, onClose, position }) {
         ))}
         {filtered.length === 0 && (
           <div style={{ padding: 12, fontSize: 12, color: "#86868b" }}>
-            No variables in scope.
+            {t("agents.variables.no_variables_in_scope")}
           </div>
         )}
       </div>

@@ -1,3 +1,4 @@
+import { agentEnglishText } from "./agents_i18n";
 import { catalog_entry, ports_for_type } from "./recipe_node_catalog";
 
 /* One builder per right-click target.
@@ -40,11 +41,11 @@ export function buildRecipeCanvasContextMenuItems({
   onFitToView,
   onResetZoom,
   isMac = false,
-}) {
+}, t = agentEnglishText) {
   return [
     {
       id: "add_node",
-      label: "Add node…",
+      label: t("agents.canvas.menu.add_node"),
       prefix_icon: "add",
       ...OPENS_ANOTHER_SURFACE,
       onClick: onAddNode,
@@ -52,7 +53,7 @@ export function buildRecipeCanvasContextMenuItems({
     SEPARATOR,
     {
       id: "paste",
-      label: "Paste",
+      label: t("agents.canvas.menu.paste"),
       icon: "paste",
       ...shortcut("V", isMac),
       disabled: !canPaste,
@@ -60,7 +61,7 @@ export function buildRecipeCanvasContextMenuItems({
     },
     {
       id: "select_all",
-      label: "Select all",
+      label: t("agents.canvas.menu.select_all"),
       icon: "shape",
       ...shortcut("A", isMac),
       onClick: onSelectAll,
@@ -70,12 +71,12 @@ export function buildRecipeCanvasContextMenuItems({
      * either — they are view plumbing, not actions on the graph. */
     {
       id: "fit_to_view",
-      label: "Fit to view",
+      label: t("agents.canvas.menu.fit_to_view"),
       onClick: onFitToView,
     },
     {
       id: "reset_zoom",
-      label: "Reset zoom",
+      label: t("agents.canvas.menu.reset_zoom"),
       onClick: onResetZoom,
     },
   ];
@@ -92,7 +93,7 @@ export function buildRecipeNodeContextMenuItems({
   onDisconnect,
   onDelete,
   isMac = false,
-}) {
+}, t = agentEnglishText) {
   if (!node) return [];
   const type = node.type;
   const attach_only = is_attach_only(type);
@@ -102,7 +103,7 @@ export function buildRecipeNodeContextMenuItems({
   const items = [
     {
       id: "open_detail",
-      label: "Open detail",
+      label: t("agents.canvas.menu.open_detail"),
       icon: "eye_open",
       onClick: onOpenDetail,
     },
@@ -110,13 +111,13 @@ export function buildRecipeNodeContextMenuItems({
   if (onEditGraph) {
     items.push({
       id: "edit_graph",
-      label: "Edit graph",
+      label: t("agents.canvas.menu.edit_graph"),
       icon: "enter_key",
       onClick: onEditGraph,
     });
   }
   if (onViewCode) {
-    items.push({ id: "view_code", label: "View code", icon: "code", onClick: onViewCode });
+    items.push({ id: "view_code", label: t("agents.canvas.menu.view_code"), icon: "code", onClick: onViewCode });
   }
 
   /* Group 2 — identity. Renaming needs a name the node actually renders, and
@@ -128,18 +129,18 @@ export function buildRecipeNodeContextMenuItems({
   if (onRename) {
     items.push({
       id: "rename",
-      label: "Rename",
+      label: t("agents.explorer.menu.rename"),
       icon: "rename",
-      trail: type === "agent" ? "F2" : "fixed",
+      trail: type === "agent" ? "F2" : t("agents.canvas.menu.fixed"),
       disabled: type !== "agent",
       onClick: onRename,
     });
   }
   items.push({
     id: "copy",
-    label: "Copy",
+    label: t("agents.canvas.menu.copy"),
     icon: "copy",
-    ...(can_copy ? shortcut("C", isMac) : { trail: "one only" }),
+    ...(can_copy ? shortcut("C", isMac) : { trail: t("agents.canvas.menu.one_only") }),
     disabled: !can_copy,
     onClick: onCopy,
   });
@@ -149,7 +150,7 @@ export function buildRecipeNodeContextMenuItems({
   if (has_out_port(type)) {
     items.push({
       id: "insert_after",
-      label: "Insert node after…",
+      label: t("agents.canvas.menu.insert_after"),
       prefix_icon: "add",
       ...OPENS_ANOTHER_SURFACE,
       onClick: onInsertAfter,
@@ -157,7 +158,7 @@ export function buildRecipeNodeContextMenuItems({
   }
   items.push({
     id: "disconnect",
-    label: attach_only ? "Detach" : "Disconnect",
+    label: attach_only ? t("agents.canvas.menu.detach") : t("agents.canvas.menu.disconnect"),
     icon: "unlink",
     onClick: onDisconnect,
   });
@@ -167,10 +168,10 @@ export function buildRecipeNodeContextMenuItems({
   const can_delete = node.deletable !== false;
   items.push(SEPARATOR, {
     id: "delete",
-    label: "Delete",
+    label: t("agents.canvas.menu.delete"),
     icon: "delete",
     danger: true,
-    trail: can_delete ? "⌫" : "required",
+    trail: can_delete ? "⌫" : t("agents.canvas.menu.required"),
     disabled: !can_delete,
     onClick: onDelete,
   });
@@ -182,7 +183,7 @@ export function buildRecipeEdgeContextMenuItems({
   edgeIsAttach = false,
   onInsertNodeHere,
   onDeleteConnection,
-}) {
+}, t = agentEnglishText) {
   /* Splicing a step into attach wiring means nothing — an attachment carries
    * configuration, not flow — so that row simply is not offered there. */
   const items = [];
@@ -190,7 +191,7 @@ export function buildRecipeEdgeContextMenuItems({
     items.push(
       {
         id: "insert_node_here",
-        label: "Insert node here…",
+        label: t("agents.canvas.menu.insert_here"),
         prefix_icon: "add",
         ...OPENS_ANOTHER_SURFACE,
         onClick: onInsertNodeHere,
@@ -200,7 +201,7 @@ export function buildRecipeEdgeContextMenuItems({
   }
   items.push({
     id: "delete_connection",
-    label: "Delete connection",
+    label: t("agents.canvas.menu.delete_connection"),
     icon: "delete",
     danger: true,
     trail: "⌫",
@@ -209,8 +210,8 @@ export function buildRecipeEdgeContextMenuItems({
   return items;
 }
 
-export function buildRecipeContextMenuItems(target, handlers) {
-  if (target?.kind === "node") return buildRecipeNodeContextMenuItems(handlers);
-  if (target?.kind === "edge") return buildRecipeEdgeContextMenuItems(handlers);
-  return buildRecipeCanvasContextMenuItems(handlers);
+export function buildRecipeContextMenuItems(target, handlers, t = agentEnglishText) {
+  if (target?.kind === "node") return buildRecipeNodeContextMenuItems(handlers, t);
+  if (target?.kind === "edge") return buildRecipeEdgeContextMenuItems(handlers, t);
+  return buildRecipeCanvasContextMenuItems(handlers, t);
 }

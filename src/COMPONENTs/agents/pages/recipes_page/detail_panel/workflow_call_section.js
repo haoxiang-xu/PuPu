@@ -6,6 +6,8 @@ import { subscribeSkeletonLibraryRefresh } from "../../../../../SERVICEs/skeleto
 import { ArgumentRow } from "./tool_call_section";
 import { binding_sources } from "./input_variables_section";
 import { safe_text } from "../document_values";
+import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
+import { agentError, agentMessage, renderAgentMessage } from "../agents_i18n";
 import { node_bindings } from "../skeleton_document";
 import { expression_summary } from "../skeleton_io";
 import { is_unavailable, list_resources, load_resource, publish_workflow } from "../skeleton_resources";
@@ -16,7 +18,6 @@ import {
   workflow_version_state,
 } from "../workflow_versions";
 import {
-  WORKFLOW_CALL_FAILURE_NOTE,
   call_input_layout,
   callee_interface,
   pinned_reference,
@@ -55,6 +56,7 @@ const problem_style = (isDark) => ({
   lineHeight: 1.45,
   color: isDark ? "rgba(255,140,140,0.95)" : "rgba(176,32,32,0.95)",
 });
+const PUBLISHING = agentMessage("agents.workflow.publishing");
 const record = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 
 function Divider({ isDark }) {
@@ -62,9 +64,10 @@ function Divider({ isDark }) {
 }
 
 function refusal_text(result, fallback) {
-  if (is_unavailable(result)) return "The store could not be reached.";
+  if (is_unavailable(result)) return agentMessage("agents.workflow.store_unreachable");
   const error = result && result.error;
-  return safe_text((error && (error.message || error.code)) || fallback);
+  if (error && renderAgentMessage(error, agentMessage) !== error) return renderAgentMessage(error, agentMessage);
+  return error && (error.message || error.code) ? safe_text(error.message || error.code) : fallback;
 }
 
 /* The Workflows the store lists, archived ones left out of the request: an
@@ -85,7 +88,7 @@ function useWorkflowLibrary() {
     if (rows) {
       setState({ status: "ready", rows: rows.filter((row) => record(row) && row.kind === "workflow" && typeof row.id === "string"), error: null });
     } else {
-      setState({ status: "error", rows: [], error: result.ok ? { error: { message: "The library answer was not a list." } } : result });
+      setState({ status: "error", rows: [], error: result.ok ? { error: agentError("agents.workflow.bad_library") } : result });
     }
   }, []);
   useEffect(() => {
@@ -100,6 +103,7 @@ function useWorkflowLibrary() {
 }
 
 export default function WorkflowCallSection({ document, node, rowDiagnostics, isDark, onChange, onOpenPinned }) {
+  const { t } = useTranslation();
   const [library, reloadLibrary] = useWorkflowLibrary();
   const pin = pinned_reference(node);
   const stored = workflow_reference(node);
@@ -121,7 +125,7 @@ export default function WorkflowCallSection({ document, node, rowDiagnostics, is
   const [chosen, setChosen] = useState(pin ? pin.workflow_id : record(stored) && typeof stored.workflow_id === "string" ? stored.workflow_id : "");
   const listed = library.rows.find((row) => row.id === chosen) || null;
   const workflow_name = (version && version.document && typeof version.document.name === "string" && version.document.name)
-    || (listed && listed.name) || chosen || "the Workflow";
+    || (listed && listed.name) || chosen || t("agents.workflow.the_workflow");
 
   /* A pin answers later than the click that asked for it. Like the Code
      panel's profile registration (R-357-01), only the request the author is
@@ -168,12 +172,12 @@ export default function WorkflowCallSection({ document, node, rowDiagnostics, is
   };
   const publishAndPin = async () => {
     const workflow_id = chosen;
-    const ticket = begin("Publishing…");
+    const ticket = begin(PUBLISHING);
     const opened = await load_resource(workflow_id);
     if (intent.current.pending !== ticket) return;
     if (!opened.ok) {
       settle(ticket, workflow_id, null);
-      if (intent.current.mounted) setPinState({ status: "refused", message: `The Workflow could not be read: ${refusal_text(opened, "the store refused")}.` });
+      if (intent.current.mounted) setPinState({ status: "refused", message: agentMessage("agents.workflow.read_failed", { message: refusal_text(opened, agentMessage("agents.workflow.store_refused")) }) });
       return;
     }
     const published = await publish_workflow(workflow_id, opened.data.edit_token);
@@ -181,24 +185,24 @@ export default function WorkflowCallSection({ document, node, rowDiagnostics, is
     if (!settle(ticket, workflow_id, published.ok ? published.data : null)) return;
     if (!intent.current.mounted) return;
     setPinState(published.ok
-      ? { status: "done", message: `Pinned revision ${published.data.ordinal}.` }
-      : { status: "refused", message: `Nothing was pinned: ${refusal_text(published, "the store refused the publication")}.` });
+      ? { status: "done", message: agentMessage("agents.workflow.pinned_ordinal", { ordinal: published.data.ordinal }) }
+      : { status: "refused", message: agentMessage("agents.workflow.pin_failed", { message: refusal_text(published, agentMessage("agents.workflow.publication_refused")) }) });
   };
   const pinTyped = async () => {
     const workflow_id = chosen;
     const revision_id = typedRevision.trim();
     if (!revision_id) return;
-    const ticket = begin("Reading that revision…");
+    const ticket = begin(agentMessage("agents.workflow.reading_revision"));
     const answer = await request_workflow_version(workflow_id, revision_id);
     const ok = answer && answer.status === "ready";
     if (!settle(ticket, workflow_id, ok ? answer.version : null)) return;
     if (!intent.current.mounted) return;
     if (ok) {
       setTypedRevision("");
-      setPinState({ status: "done", message: `Pinned revision ${answer.version.ordinal}.` });
+      setPinState({ status: "done", message: agentMessage("agents.workflow.pinned_ordinal", { ordinal: answer.version.ordinal }) });
     } else {
       const missing = answer && answer.error && answer.error.code === "resource_missing";
-      setPinState({ status: "refused", message: missing ? `“${safe_text(workflow_id)}” has no published revision “${safe_text(revision_id)}”. Nothing was pinned.` : `Nothing was pinned: ${refusal_text(answer, "the store refused")}.` });
+      setPinState({ status: "refused", message: missing ? agentMessage("agents.workflow.revision_absent", { workflow: safe_text(workflow_id), revision: safe_text(revision_id) }) : agentMessage("agents.workflow.pin_failed", { message: refusal_text(answer, agentMessage("agents.workflow.store_refused")) }) });
     }
   };
   const choose = (value) => {
@@ -210,10 +214,10 @@ export default function WorkflowCallSection({ document, node, rowDiagnostics, is
   };
 
   const options = [
-    ...(chosen && library.status === "ready" && !listed ? [{ value: chosen, label: `${safe_text(chosen)} (not in the library now)` }] : []),
+    ...(chosen && library.status === "ready" && !listed ? [{ value: chosen, label: t("agents.workflow.not_listed", { workflow: safe_text(chosen) }) }] : []),
     ...library.rows.map((row) => {
       const count = Number.isSafeInteger(row.published_revisions) ? row.published_revisions : 0;
-      return { value: row.id, label: `${safe_text(row.name || row.id)} · ${count === 0 ? "never published" : `${count} published`}` };
+      return { value: row.id, label: count === 0 ? t("agents.workflow.unpublished", { name: safe_text(row.name || row.id) }) : t("agents.workflow.published", { name: safe_text(row.name || row.id), count }) };
     }),
   ];
   const chosen_count = listed && Number.isSafeInteger(listed.published_revisions) ? listed.published_revisions : null;
@@ -251,59 +255,61 @@ export default function WorkflowCallSection({ document, node, rowDiagnostics, is
     <span key={at} data-testid={`${testid}-diagnostic-${at}`} style={problem_style(isDark)}>{safe_text(item && item.message)}</span>
   ));
   const sources = binding_sources(document, node.id);
-  const problems = workflow_call_problems(node);
+  const problems = workflow_call_problems(node, t);
 
   return (
     <section data-testid="workflow-call-section" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {!editable && (
         <div style={problem_style(isDark)}>
-          {!unique ? "Duplicate node ids prevent editing this step." : "These stored settings are read-only here."}
+          {!unique ? t("agents.execution.read_only.duplicate_ids") : t("agents.execution.read_only.stored")}
         </div>
       )}
 
       <div data-testid="workflow-call-target" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <span style={LABEL}>Workflow</span>
+        <span style={LABEL}>{t("agents.workflow.workflow")}</span>
         <span data-testid="workflow-call-picker">
           <Select
             options={options}
             value={chosen || null}
             set_value={choose}
             filterable={false}
-            placeholder={library.status === "loading" ? "reading the library…" : "choose a Workflow"}
+            placeholder={library.status === "loading" ? t("agents.workflow.reading_library") : t("agents.workflow.choose")}
             disabled={!editable || library.status !== "ready"}
             style={FIELD}
           />
         </span>
         {library.status === "error" && (
           <span data-testid="workflow-call-library-error" style={problem_style(isDark)}>
-            The library could not be read: {refusal_text(library.error, "the store refused")}.{" "}
-            <Button label="Try again" onClick={reloadLibrary} style={{ fontSize: 10.5, paddingVertical: 1, paddingHorizontal: 6 }} />
+            {t("agents.workflow.library_failed", { message: renderAgentMessage(refusal_text(library.error, agentMessage("agents.workflow.store_refused")), t) })}{" "}
+            <Button label={t("agents.explorer.try_again")} onClick={reloadLibrary} style={{ fontSize: 10.5, paddingVertical: 1, paddingHorizontal: 6 }} />
           </span>
         )}
         {library.status === "ready" && library.rows.length === 0 && (
-          <span style={NOTE}>There are no Workflows in the library. A Workflow Call runs a published revision of one.</span>
+          <span style={NOTE}>{t("agents.workflow.no_workflows")}</span>
         )}
         {record(stored) && !pin && (
           <span data-testid="workflow-call-stored-invalid" style={problem_style(isDark)}>
-            Stored: <span style={MONO}>{safe_text(JSON.stringify(stored))}</span>. Kept as it is until you pin a revision.
+            {t("agents.workflow.stored", { value: "\uE000" }).split("\uE000").map((part, index) => <React.Fragment key={index}>{index > 0 && <span style={MONO}>{safe_text(JSON.stringify(stored))}</span>}{part}</React.Fragment>)}
           </span>
         )}
       </div>
 
       <div data-testid="workflow-call-revision" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <span style={LABEL}>Revision</span>
+        <span style={LABEL}>{t("agents.workflow.revision")}</span>
         {pin && (
           <span data-testid="workflow-call-pinned" style={NOTE}>
             {version
-              ? <>Pinned: revision <b>{version.ordinal}</b> of <b>{safe_text(workflow_name)}</b> · <span style={MONO}>{safe_text(pin.revision_id)}</span></>
+              ? <>{t("agents.workflow.pinned", { ordinal: "\uE000", name: "\uE001", id: "\uE002" }).split(/(\uE000|\uE001|\uE002)/).map((part, index) => part === "\uE000"
+                ? <b key={index}>{version.ordinal}</b> : part === "\uE001" ? <b key={index}>{safe_text(workflow_name)}</b>
+                  : part === "\uE002" ? <span key={index} style={MONO}>{safe_text(pin.revision_id)}</span> : part)}</>
               : state && state.status === "loading"
-                ? <>Reading <span style={MONO}>{safe_text(pin.revision_id)}</span>…</>
-                : <>Pinned: <span style={MONO}>{safe_text(pin.workflow_id)} · {safe_text(pin.revision_id)}</span></>}
+                ? <>{t("agents.workflow.reading_pin", { id: "\uE000" }).split("\uE000").map((part, index) => <React.Fragment key={index}>{index > 0 && <span style={MONO}>{safe_text(pin.revision_id)}</span>}{part}</React.Fragment>)}</>
+                : <>{t("agents.workflow.pinned_id", { id: "\uE000" }).split("\uE000").map((part, index) => <React.Fragment key={index}>{index > 0 && <span style={MONO}>{safe_text(pin.workflow_id)} · {safe_text(pin.revision_id)}</span>}{part}</React.Fragment>)}</>}
           </span>
         )}
         {pin && state && (state.status === "refused" || state.status === "unavailable") && (
           <span style={ROW}>
-            <Button label="Read it again" onClick={() => request_workflow_version(pin.workflow_id, pin.revision_id)} style={SMALL} />
+            <Button label={t("agents.workflow.read_again")} onClick={() => request_workflow_version(pin.workflow_id, pin.revision_id)} style={SMALL} />
           </span>
         )}
         {/* Offered whatever this node's own settings allow: looking at the
@@ -311,8 +317,8 @@ export default function WorkflowCallSection({ document, node, rowDiagnostics, is
         {pin && typeof onOpenPinned === "function" && (
           <span style={ROW}>
             <Button
-              label={opening ? "Opening…" : "Open the pinned graph (read-only)"}
-              ariaLabel="Open the pinned graph (read-only)"
+              label={opening ? t("agents.workflow.opening") : t("agents.workflow.open_pinned")}
+              ariaLabel={t("agents.workflow.open_pinned")}
               onClick={openPinned}
               style={SMALL}
             />
@@ -322,53 +328,53 @@ export default function WorkflowCallSection({ document, node, rowDiagnostics, is
           <>
             <div style={ROW}>
               <Button
-                label={working && pinState.message === "Publishing…" ? "Publishing…" : pin_here ? "Publish its current draft and pin again" : "Publish its current draft and pin it"}
+                label={working && pinState.message === PUBLISHING ? t("agents.workflow.publishing") : pin_here ? t("agents.workflow.publish_again") : t("agents.workflow.publish")}
                 disabled={working}
                 onClick={publishAndPin}
                 style={{ ...SMALL, color: "var(--pupu-accent)" }}
               />
             </div>
             <span style={NOTE}>
-              Publishing writes {safe_text(listed ? listed.name || chosen : chosen)}: it stores a new revision only if the draft changed since its last one, and pins the revision it answers with.{chosen_count !== null ? ` It has ${chosen_count} published.` : ""}
+              {t("agents.workflow.publish_contract", { name: safe_text(listed ? listed.name || chosen : chosen) })}{chosen_count !== null ? t("agents.workflow.published_count", { count: chosen_count }) : ""}
             </span>
             <div style={ROW}>
               <Input
                 value={typedRevision}
-                placeholder="or a revision id, e.g. rev-2-…"
+                placeholder={t("agents.workflow.revision_placeholder")}
                 set_value={setTypedRevision}
                 style={{ ...FIELD, ...MONO }}
               />
-              <Button label="Pin" ariaLabel="Pin this revision" disabled={working || !typedRevision.trim()} onClick={pinTyped} style={SMALL} />
+              <Button label={t("agents.workflow.pin")} ariaLabel={t("agents.workflow.pin_revision")} disabled={working || !typedRevision.trim()} onClick={pinTyped} style={SMALL} />
             </div>
-            <span style={NOTE}>The host lists how many revisions a Workflow has, not their ids; a typed id is read back before it is pinned.</span>
+            <span style={NOTE}>{t("agents.workflow.revision_explanation")}</span>
           </>
         )}
         {pinState.message && pinState.status !== "idle" && (
-          <span data-testid="workflow-call-pin-state" style={pinState.status === "refused" ? problem_style(isDark) : NOTE}>{pinState.message}</span>
+          <span data-testid="workflow-call-pin-state" style={pinState.status === "refused" ? problem_style(isDark) : NOTE}>{renderAgentMessage(pinState.message, t)}</span>
         )}
       </div>
 
       <Divider isDark={isDark} />
 
       <div data-testid="workflow-call-inputs" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        <span style={LABEL}>Inputs</span>
-        {!pin && <span style={NOTE}>Pin a revision; its Start decides which values this call passes.</span>}
-        {pin && !version && <span style={NOTE}>The inputs are listed once the pinned revision has been read.</span>}
+        <span style={LABEL}>{t("agents.workflow.inputs")}</span>
+        {!pin && <span style={NOTE}>{t("agents.workflow.pin_for_inputs")}</span>}
+        {pin && !version && <span style={NOTE}>{t("agents.workflow.inputs_loading")}</span>}
         {shape && !shape.readable && (
-          <span style={problem_style(isDark)}>The pinned revision's Start and End are not a shape this editor can read, so its inputs are not listed.</span>
+          <span style={problem_style(isDark)}>{t("agents.workflow.unreadable_interface")}</span>
         )}
         {shape && shape.readable && shape.inputs.length === 0 && !shape.whole && (
-          <span style={NOTE}>{safe_text(workflow_name)} reads nothing from its run input.</span>
+          <span style={NOTE}>{t("agents.workflow.reads_nothing", { name: safe_text(workflow_name) })}</span>
         )}
         {shape && shape.whole && (
           <span data-testid="workflow-call-whole-input" style={NOTE}>
-            Its Start also reads the whole input object, so every row below is passed in and read, including ones it does not name. Add any other key it should receive.
+            {t("agents.workflow.whole_input")}
           </span>
         )}
         {shape && layout.rows.map((row) => (
           <div key={row.name} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
             <ArgumentRow
-              row={{ name: row.name, required: true, type: null, description: `its Start reads it as ${row.read_as.map((name) => safe_text(name)).join(", ")}`, binding: row.binding }}
+              row={{ name: row.name, required: true, type: null, description: t("agents.workflow.read_as", { names: row.read_as.map((name) => safe_text(name)).join(t("agents.schema.fields.list_separator")) }), binding: row.binding }}
               sources={sources}
               toolName={workflow_name}
               editable={editable}
@@ -393,7 +399,7 @@ export default function WorkflowCallSection({ document, node, rowDiagnostics, is
             return (
               <div key={`named-${name}`} data-testid={pending ? `workflow-call-added-${name}` : `workflow-call-extra-${index}`} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                 <ArgumentRow
-                  row={{ name, required: false, type: null, description: "its Start reads the whole input, so this key is passed in", binding }}
+                  row={{ name, required: false, type: null, description: t("agents.workflow.whole_key"), binding }}
                   sources={sources}
                   toolName={workflow_name}
                   editable={editable}
@@ -415,17 +421,17 @@ export default function WorkflowCallSection({ document, node, rowDiagnostics, is
             <div key={`extra-${index}`} data-testid={`workflow-call-extra-${index}`} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
               <div style={{ ...ROW, justifyContent: "space-between" }}>
                 <span style={shape || duplicate ? problem_style(isDark) : NOTE}>
-                  <span style={MONO}>{safe_text(name) || "(unnamed)"}</span>
-                  {record(binding) && binding.value ? <> · <span style={MONO}>{safe_text(expression_summary(binding.value))}</span></> : null}
-                  {duplicate
-                    ? " is listed again: another row already passes it, and the store refuses a second one. Remove the one you do not mean."
-                    : shape
-                      ? " is not read by the pinned revision; the call passes it and the Workflow ignores it."
-                      : " is stored for this call."}
+                  {(duplicate ? t("agents.workflow.duplicate_input", { name: "\uE000", value: "\uE001" })
+                    : shape ? t("agents.workflow.ignored_input", { name: "\uE000", value: "\uE001" })
+                      : t("agents.workflow.stored_input", { name: "\uE000", value: "\uE001" }))
+                    .split(/(\uE000|\uE001)/).map((part, at) => part === "\uE000"
+                      ? <span key={at} style={MONO}>{safe_text(name) || t("agents.workflow.unnamed")}</span>
+                      : part === "\uE001" ? record(binding) && binding.value
+                        ? <React.Fragment key={at}> · <span style={MONO}>{safe_text(expression_summary(binding.value, t))}</span></React.Fragment> : null : part)}
                 </span>
                 <Button
-                  label="Remove"
-                  ariaLabel={`Remove stored input ${name}`}
+                  label={t("agents.workflow.remove")}
+                  ariaLabel={t("agents.workflow.remove_input", { name })}
                   disabled={!editable}
                   onClick={() => commit(remove_call_input(document, node.id, index))}
                   style={{ fontSize: 10.5, paddingVertical: 2, paddingHorizontal: 6, borderRadius: 5 }}
@@ -437,9 +443,9 @@ export default function WorkflowCallSection({ document, node, rowDiagnostics, is
         })}
         {whole && editable && (
           <div style={ROW}>
-            <Input value={newName} placeholder="another input name" set_value={setNewName} style={{ ...FIELD, ...MONO }} />
+            <Input value={newName} placeholder={t("agents.workflow.input_placeholder")} set_value={setNewName} style={{ ...FIELD, ...MONO }} />
             <Button
-              label="Add input"
+              label={t("agents.workflow.add_input")}
               disabled={!newName.trim() || taken.has(newName.trim())}
               onClick={() => {
                 setAdded([...added, newName.trim()]);
@@ -454,13 +460,13 @@ export default function WorkflowCallSection({ document, node, rowDiagnostics, is
       {shape && shape.readable && (
         <span data-testid="workflow-call-exports" style={NOTE}>
           {shape.outputs.length === 0
-            ? `${safe_text(workflow_name)}'s End exports nothing.`
-            : <>It gives back <span style={MONO}>{shape.outputs.map((name) => safe_text(name)).join(", ")}</span>; pick them in the Output Variables below.</>}
+            ? t("agents.workflow.no_exports", { name: safe_text(workflow_name) })
+            : <>{t("agents.workflow.exports", { names: "\uE000" }).split("\uE000").map((part, index) => <React.Fragment key={index}>{index > 0 && <span style={MONO}>{shape.outputs.map((name) => safe_text(name)).join(t("agents.schema.fields.list_separator"))}</span>}{part}</React.Fragment>)}</>}
         </span>
       )}
 
       <span data-testid="workflow-call-failure" style={NOTE}>
-        {WORKFLOW_CALL_FAILURE_NOTE} The run uses exactly the pinned revision, whatever the Workflow's draft holds later.
+        {t("agents.workflow.failure")} {t("agents.workflow.pinned_contract")}
       </span>
 
       {problems.length > 0 && (

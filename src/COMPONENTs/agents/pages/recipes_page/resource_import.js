@@ -1,5 +1,6 @@
 import { safe_text } from "./document_values";
 import { owned_code_nodes } from "./managed_code_sources";
+import { agentEnglishText, agentError, renderAgentMessage } from "./agents_i18n";
 
 /* Importing one Agent or Workflow file (#357).
  *
@@ -21,53 +22,54 @@ function read_bytes(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result);
-    reader.onerror = () => reject(reader.error || new Error("The file could not be read."));
+    reader.onerror = () => reject(reader.error || agentError("agents.import.file_read_failed"));
     reader.readAsArrayBuffer(file);
   });
 }
 
 /* `{ok: true, text}` or `{ok: false, message}`. The limit is the host's
    advertised file size, checked before anything is read. */
-export async function read_import_file(file, max_bytes) {
-  if (!file || typeof file.size !== "number") return { ok: false, message: "No file was chosen." };
+export async function read_import_file(file, max_bytes, t = agentEnglishText) {
+  if (!file || typeof file.size !== "number") return { ok: false, message: t("agents.import.no_file") };
   if (Number.isSafeInteger(max_bytes) && file.size > max_bytes) {
-    return { ok: false, message: `The file is ${file.size} bytes; the host takes at most ${max_bytes}.` };
+    return { ok: false, message: t("agents.import.file_too_large", { size: file.size, max: max_bytes }) };
   }
   if (typeof TextDecoder !== "function") {
-    return { ok: false, message: "This build cannot read a file as UTF-8 text, so nothing was read." };
+    return { ok: false, message: t("agents.import.utf8_unavailable") };
   }
   let bytes;
   try {
     bytes = await read_bytes(file);
   } catch (error) {
-    return { ok: false, message: `The file could not be read: ${safe_text(error && error.message)}` };
+    const owned = renderAgentMessage(error, t);
+    return { ok: false, message: t("agents.import.read_failed", { message: owned === error ? safe_text(error && error.message) : owned }) };
   }
   try {
     return { ok: true, text: new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes) };
   } catch (_error) {
-    return { ok: false, message: "The file is not UTF-8 text. Nothing in it was changed or replaced; choose the file as it was exported." };
+    return { ok: false, message: t("agents.import.not_utf8") };
   }
 }
 
 /* Why the text cannot be imported, or its document: an exported snapshot
    (the host's closed five-field frame) or a native graph. Only for showing
    it — the text itself is what is sent. */
-export function import_document(text) {
+export function import_document(text, t = agentEnglishText) {
   let value;
   const stripped = typeof text === "string" && text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
   try {
     value = JSON.parse(stripped);
   } catch (_error) {
-    return { ok: false, message: "The file is not JSON." };
+    return { ok: false, message: t("agents.import.not_json") };
   }
-  if (!record(value)) return { ok: false, message: "The file is not an exported Agent or Workflow." };
+  if (!record(value)) return { ok: false, message: t("agents.import.not_export") };
   if (own(value, "schema")) {
     if (value.schema !== SNAPSHOT_SCHEMA || !record(value.document)) {
-      return { ok: false, message: `The file is a “${safe_text(value.schema)}”, not an export this build reads.` };
+      return { ok: false, message: t("agents.import.unknown_schema", { schema: safe_text(value.schema) }) };
     }
     return { ok: true, document: value.document, snapshot: true };
   }
-  if (!own(value, "schema_version")) return { ok: false, message: "The file is not an exported Agent or Workflow." };
+  if (!own(value, "schema_version")) return { ok: false, message: t("agents.import.not_export") };
   return { ok: true, document: value, snapshot: false };
 }
 
@@ -83,7 +85,7 @@ const EMBEDDED_CONTAINERS = [
 /* One owned Code node and where it sits, said in the author's words: the
    step's id and the embedded graphs it is inside. The address is the key —
    two embedded graphs can each hold a step with the same id. */
-export function import_occurrences(document) {
+export function import_occurrences(document, t = agentEnglishText) {
   return owned_code_nodes(document).map(({ node_path, node }) => {
     const inside = [];
     let body = document;
@@ -95,11 +97,15 @@ export function import_occurrences(document) {
       /* `owned_code_nodes` only ever walks into these two; anything else is
          an address this build cannot describe, and is said so. */
       if (!container) {
-        inside.push("(an embedded graph this build cannot name)");
+        inside.push(t("agents.import.unnamed_embedded"));
         break;
       }
       const entry = pool.config[container.member][node_path[at + 4]];
-      inside.push(container.says(safe_text(pool.id), safe_text(record(entry) ? entry.id : node_path[at + 4])));
+      const pool_id = safe_text(pool.id);
+      const entry_id = safe_text(record(entry) ? entry.id : node_path[at + 4]);
+      inside.push(container.pool === "hooks_pool"
+        ? t("agents.import.hook_path", { pool: pool_id, entry: entry_id })
+        : container.says(pool_id, entry_id));
       body = entry[container.slot].document;
     }
     return {
@@ -130,16 +136,16 @@ export function import_payload(text, occurrences, choices) {
 
 /* The host's refusal, kept whole: its code and path are shown as they came,
    with a sentence for the two an author acts on. */
-export function import_refusal(error, document, occurrences) {
+export function import_refusal(error, document, occurrences, t = agentEnglishText) {
   const code = (error && error.code) || "import_failed";
   const path = Array.isArray(error && error.path) ? error.path : [];
-  const message = safe_text((error && error.message) || "The host refused the import.");
+  const message = error && error.message ? safe_text(error.message) : t("agents.import.refused");
   let sentence = null;
   if (code === "import_conflict") {
     const id = record(document) ? safe_text(document.id) : "";
-    sentence = `“${id}” already exists here with different content. Nothing was changed: an import never replaces what an id holds and never makes a new id for it. A file can be imported under an id only while that id is unused here or already holds exactly this content.`;
+    sentence = t("agents.import.conflict", { id });
   } else if (code === "profile_missing" && path[0] === "runtime_bindings" && Number.isSafeInteger(path[1]) && occurrences && occurrences[path[1]]) {
-    sentence = `The Python chosen for ${occurrences[path[1]].node_id} is not on this machine. Nothing was imported.`;
+    sentence = t("agents.import.profile_missing", { node: occurrences[path[1]].node_id });
   }
   return { code, path: JSON.stringify(path), message, sentence };
 }

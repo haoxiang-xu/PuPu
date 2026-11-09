@@ -1,8 +1,10 @@
+import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
 import TextField from "../../../../../BUILTIN_COMPONENTs/input/textfield";
 import SegmentedButton from "../../../../../BUILTIN_COMPONENTs/input/segmented_button";
 
 export default function AgentInspector({ recipe, onRecipeChange, isDark }) {
+  const { t } = useTranslation();
   const label = (text) => (
     <div
       style={{
@@ -38,26 +40,26 @@ export default function AgentInspector({ recipe, onRecipeChange, isDark }) {
         {recipe.name}
       </div>
       <div style={{ fontSize: 11, color: "#888", marginTop: 2 }}>
-        Agent node
+        {t("agents.inspector.agent_node")}
       </div>
 
-      {label("Description")}
+      {label(t("agents.inspector.description"))}
       <Input
         value={recipe.description || ""}
         set_value={(v) => onRecipeChange({ ...recipe, description: v })}
-        placeholder="Short description"
+        placeholder={t("agents.inspector.short_description")}
         style={inputStyle}
       />
 
-      {label("Model")}
+      {label(t("agents.inspector.model"))}
       <Input
         value={recipe.model || ""}
         set_value={(v) => onRecipeChange({ ...recipe, model: v || null })}
-        placeholder="e.g., anthropic:claude-sonnet-4-6"
+        placeholder={t("agents.inspector.model_example", { model: "anthropic:claude-sonnet-4-6" })}
         style={inputStyle}
       />
 
-      {label("Max iterations")}
+      {label(t("agents.inspector.max_iterations"))}
       <Input
         value={recipe.max_iterations != null ? String(recipe.max_iterations) : ""}
         set_value={(v) => {
@@ -68,15 +70,15 @@ export default function AgentInspector({ recipe, onRecipeChange, isDark }) {
             max_iterations: Number.isFinite(next) ? next : null,
           });
         }}
-        placeholder="system default"
+        placeholder={t("agents.inspector.system_default")}
         style={inputStyle}
       />
 
-      {label("Prompt format")}
+      {label(t("agents.inspector.prompt_format"))}
       <SegmentedButton
         options={[
-          { label: "Soul", value: "soul" },
-          { label: "Skeleton", value: "skeleton" },
+          { label: t("agents.inspector.soul"), value: "soul" },
+          { label: t("agents.inspector.skeleton"), value: "skeleton" },
         ]}
         value={recipe.agent.prompt_format}
         on_change={(v) =>
@@ -90,8 +92,8 @@ export default function AgentInspector({ recipe, onRecipeChange, isDark }) {
 
       {label(
         recipe.agent.prompt_format === "soul"
-          ? "Prompt (soul body)"
-          : "Prompt (skeleton JSON)",
+          ? t("agents.inspector.soul_prompt")
+          : t("agents.inspector.skeleton_prompt"),
       )}
       <TextField
         value={recipe.agent.prompt || ""}
@@ -103,7 +105,7 @@ export default function AgentInspector({ recipe, onRecipeChange, isDark }) {
         }
         min_rows={10}
         max_display_rows={20}
-        placeholder="Enter prompt..."
+        placeholder={t("agents.inspector.enter_prompt")}
         style={{
           fontSize: 12,
           fontFamily: "ui-monospace, monospace",

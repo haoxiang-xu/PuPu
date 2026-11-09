@@ -1,3 +1,4 @@
+import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { node_display_title } from "../node_display_labels";
 import React from "react";
 import PuzzleShape from "./puzzle_shape";
@@ -11,6 +12,7 @@ import { skill_identity, source_label } from "../skill_read_config";
  * one way out on the right. Nothing here edits; the panel does. */
 
 export default function SkillReadNode({ node, isDark }) {
+  const { t } = useTranslation();
   const identity = skill_identity(node);
   const name = identity && typeof identity.name === "string" && identity.name ? identity.name : null;
   const muted = isDark ? "#a8a8b0" : "#6b6b73";
@@ -37,10 +39,10 @@ export default function SkillReadNode({ node, isDark }) {
             </div>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 12.5, fontWeight: 600, color: text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: name ? "ui-monospace, Menlo, monospace" : undefined }}>
-                {node_display_title(node, name ? safe_text(name) : "Skill read")}
+                {node_display_title(node, name ? safe_text(name) : t("agents.nodes.skill_read"))}
               </div>
               <div style={{ fontSize: 10.5, color: muted, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {name ? `Skill read · ${source_label(identity.source)}` : "Skill read · pick a skill"}
+                {name ? t("agents.nodes.skill_read_source", { source: source_label(identity.source, t) }) : t("agents.nodes.skill_read_pick")}
               </div>
             </div>
           </div>

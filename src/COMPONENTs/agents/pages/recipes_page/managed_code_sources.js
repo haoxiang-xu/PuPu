@@ -1,3 +1,4 @@
+import { agentEnglishText, agentProblem, copyAgentProblem } from "./agents_i18n";
 /* Code text the host keeps for a Code node (#357, G1).
  *
  * The host owns it; the document does not carry it. What the document carries
@@ -166,11 +167,11 @@ export function sha256_text(text) {
 }
 
 /* What the host would refuse about one text, said before Save is pressed. */
-export function text_problem(text) {
-  if (typeof text !== "string") return { code: "invalid_type", message: "Code text must be text." };
+export function text_problem(text, t = agentEnglishText) {
+  if (typeof text !== "string") return (t === agentEnglishText ? agentProblem("agents.local_validation.text_required", undefined, { code: "invalid_type" }) : { code: "invalid_type", message: t("agents.local_validation.text_required") });
   const bytes = utf8_bytes(text);
-  if (!bytes) return { code: "invalid_value", message: "This code contains a character that is not valid Unicode, so it cannot be stored." };
-  if (bytes.length > MAX_SOURCE_BYTES) return { code: "limit_bytes", message: "This code is larger than 4 MiB, the most one Code node can store." };
+  if (!bytes) return (t === agentEnglishText ? agentProblem("agents.local_validation.unicode_required", undefined, { code: "invalid_value" }) : { code: "invalid_value", message: t("agents.local_validation.unicode_required") });
+  if (bytes.length > MAX_SOURCE_BYTES) return (t === agentEnglishText ? agentProblem("agents.local_validation.source_size", undefined, { code: "limit_bytes" }) : { code: "limit_bytes", message: t("agents.local_validation.source_size") });
   return null;
 }
 
@@ -267,8 +268,8 @@ function compare_addresses(left, right) {
 
 /* ── The reply ─────────────────────────────────────────────────────────── */
 
-function protocol(message) {
-  return { ok: false, error: { code: PROTOCOL_ERROR, path: [], message } };
+function protocol(key) {
+  return { ok: false, error: agentProblem(key, undefined, { code: PROTOCOL_ERROR, path: [] }) };
 }
 
 /* A v2 resource aggregate, admitted on its own terms here as well as in Main:
@@ -286,15 +287,15 @@ function protocol(message) {
  * Answers `{ok, resource, sources}` with the text table, or a refusal. */
 export function admit_resource_aggregate(value) {
   if (!closed(value, ["schema", "resource", "sources_manifest", "contents", "content_digest"])) {
-    return protocol("The resource reply is not a v2 aggregate.");
+    return protocol("agents.managed.resource_aggregate");
   }
-  if (value.schema !== RESOURCE_SCHEMA) return protocol("The resource reply has an unsupported schema.");
+  if (value.schema !== RESOURCE_SCHEMA) return protocol("agents.managed.resource_schema");
   const resource = value.resource;
   if (!record(resource) || !record(resource.document) || typeof resource.id !== "string" || resource.document.id !== resource.id) {
-    return protocol("The resource reply does not carry its own document.");
+    return protocol("agents.managed.resource_document");
   }
   if (typeof resource.edit_token !== "string" || !resource.edit_token) {
-    return protocol("The resource reply carries no edit token.");
+    return protocol("agents.managed.resource_token");
   }
   const admitted = admit_sources(resource.document, value);
   return admitted.ok ? { ok: true, resource, sources: admitted.sources } : admitted;
@@ -309,20 +310,20 @@ export function admit_resource_aggregate(value) {
  * lets a caller keep the admitted answer. */
 export function admit_version_aggregate(value) {
   if (!closed(value, ["schema", "version", "sources_manifest", "contents", "content_digest"])) {
-    return protocol("The version reply is not a v2 aggregate.");
+    return protocol("agents.managed.version_aggregate");
   }
-  if (value.schema !== VERSION_SCHEMA) return protocol("The version reply has an unsupported schema.");
+  if (value.schema !== VERSION_SCHEMA) return protocol("agents.managed.version_schema");
   const version = value.version;
   if (!closed(version, ["workflow_id", "revision_id", "ordinal", "definition_digest", "document", "dependencies"])) {
-    return protocol("The version reply does not carry a Workflow revision.");
+    return protocol("agents.managed.version_revision");
   }
   if (typeof version.workflow_id !== "string" || !version.workflow_id || typeof version.revision_id !== "string" || !version.revision_id
       || !Number.isSafeInteger(version.ordinal) || version.ordinal < 1 || typeof version.definition_digest !== "string"
       || !DIGEST.test(version.definition_digest) || !Array.isArray(version.dependencies)) {
-    return protocol("The Workflow revision's identity is malformed.");
+    return protocol("agents.managed.revision_identity");
   }
   if (!record(version.document) || version.document.id !== version.workflow_id || version.document.kind !== "workflow") {
-    return protocol("The Workflow revision does not carry its own Workflow document.");
+    return protocol("agents.managed.revision_document");
   }
   const admitted = admit_sources(version.document, value);
   return admitted.ok ? { ok: true, version, sources: admitted.sources } : admitted;
@@ -332,30 +333,30 @@ export function admit_version_aggregate(value) {
    describe. */
 function admit_sources(document, value) {
   if (typeof value.content_digest !== "string" || !DIGEST.test(value.content_digest)) {
-    return protocol("The reply carries no aggregate digest.");
+    return protocol("agents.managed.aggregate_digest");
   }
   const manifest = value.sources_manifest;
   if (!closed(manifest, ["schema", "entries"]) || manifest.schema !== MANIFEST_SCHEMA || !Array.isArray(manifest.entries)) {
-    return protocol("The source manifest is not a v1 manifest.");
+    return protocol("agents.managed.manifest_schema");
   }
   if (manifest.entries.length > MAX_BINDINGS || !Array.isArray(value.contents) || value.contents.length > MAX_BINDINGS) {
-    return protocol("The reply binds more sources than the host allows.");
+    return protocol("agents.managed.binding_count");
   }
   const bound = new Set();
   const needed = new Set();
   let previous = null;
   for (const entry of manifest.entries) {
     if (!closed(entry, ["node_path", "sha256"]) || typeof entry.sha256 !== "string" || !DIGEST.test(entry.sha256)) {
-      return protocol("A source binding is malformed.");
+      return protocol("agents.managed.binding_shape");
     }
     const node = code_node_at(document, entry.node_path);
     if (!node || managed_sha(source_of(node)) !== entry.sha256) {
-      return protocol("A source binding does not match the Code node at its address.");
+      return protocol("agents.managed.binding_address");
     }
     const key = JSON.stringify(entry.node_path);
-    if (bound.has(key)) return protocol("A Code node is bound twice.");
+    if (bound.has(key)) return protocol("agents.managed.binding_duplicate");
     if (previous && compare_addresses(previous, entry.node_path) >= 0) {
-      return protocol("The source bindings are not in canonical order.");
+      return protocol("agents.managed.binding_order");
     }
     previous = entry.node_path;
     bound.add(key);
@@ -366,25 +367,25 @@ function admit_sources(document, value) {
   let last = "";
   for (const row of value.contents) {
     if (!closed(row, ["sha256", "text"]) || typeof row.sha256 !== "string" || !DIGEST.test(row.sha256) || typeof row.text !== "string") {
-      return protocol("A source body is malformed.");
+      return protocol("agents.managed.body_shape");
     }
     const bytes = utf8_bytes(row.text);
-    if (!bytes || bytes.length > MAX_SOURCE_BYTES) return protocol("A source body is not storable text.");
-    if (row.sha256 <= last) return protocol("The source bodies are not sorted and unique.");
-    if (!needed.has(row.sha256)) return protocol("A source body is not bound to any Code node.");
-    if (sha256_bytes(bytes) !== row.sha256) return protocol("A source body does not match its digest.");
+    if (!bytes || bytes.length > MAX_SOURCE_BYTES) return protocol("agents.managed.body_text");
+    if (row.sha256 <= last) return protocol("agents.managed.body_order");
+    if (!needed.has(row.sha256)) return protocol("agents.managed.body_unbound");
+    if (sha256_bytes(bytes) !== row.sha256) return protocol("agents.managed.body_digest");
     total += bytes.length;
-    if (total > MAX_TOTAL_BYTES) return protocol("The source bodies exceed the host's limit.");
+    if (total > MAX_TOTAL_BYTES) return protocol("agents.managed.body_total");
     last = row.sha256;
     sources[row.sha256] = row.text;
   }
-  if (Object.keys(sources).length !== needed.size) return protocol("A bound source has no body.");
+  if (Object.keys(sources).length !== needed.size) return protocol("agents.managed.body_missing");
   for (const { node_path, node } of owned_code_nodes(document)) {
     const source = source_of(node);
     const path = record(source) ? source.path : undefined;
     if (!is_reserved_path(path)) continue;
     if (managed_sha(source) === null || !bound.has(JSON.stringify(node_path))) {
-      return protocol("A Code node names host-kept text that the reply does not carry.");
+      return protocol("agents.managed.code_unbound");
     }
   }
   return { ok: true, sources };
@@ -410,13 +411,13 @@ export function managed_rows(document, sources) {
     const where = ["document", ...node_path, "config", "code", "source"];
     const sha = managed_sha(source);
     if (sha === null) {
-      return { ok: false, error: { code: "managed_source_invalid", path: where, message: "A Code node names a host-kept source this editor cannot read." } };
+      return { ok: false, error: agentProblem("agents.managed.source_invalid", undefined, { code: "managed_source_invalid", path: where }) };
     }
     if (!record(sources) || !own(sources, sha) || typeof sources[sha] !== "string") {
-      return { ok: false, error: { code: "managed_source_missing", path: where, message: "The text of a Code node is not loaded here, so nothing was saved. Reopen this Agent before saving." } };
+      return { ok: false, error: agentProblem("agents.managed.source_unloaded", undefined, { code: "managed_source_missing", path: where }) };
     }
     const problem = text_problem(sources[sha]);
-    if (problem) return { ok: false, error: { code: problem.code, path: where, message: problem.message } };
+    if (problem) return { ok: false, error: copyAgentProblem(problem, { code: problem.code, path: where, message: problem.message }) };
     rows.push({ node_path, text: sources[sha] });
   }
   return { ok: true, rows };

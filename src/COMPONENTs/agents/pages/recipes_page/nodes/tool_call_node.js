@@ -1,3 +1,5 @@
+import { agentEnglishText } from "../agents_i18n";
+import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { node_display_title } from "../node_display_labels";
 import React from "react";
 import PuzzleShape from "./puzzle_shape";
@@ -13,7 +15,7 @@ import { tool_settings } from "../tool_call_config";
 
 const MAX_ROWS = 5;
 
-function value_label(binding) {
+function value_label(binding, t = agentEnglishText) {
   const value = binding && binding.value;
   if (!value || typeof value !== "object") return { bound: false, text: "?" };
   if (value.kind === "literal") {
@@ -27,17 +29,18 @@ function value_label(binding) {
     const parts = Array.isArray(value.path) ? value.path : [];
     const readable = typeof value.node_id === "string" && value.node_id !== ""
       && parts.every((part) => typeof part === "string" || Number.isSafeInteger(part));
-    if (!readable) return { bound: true, text: "an unreadable source" };
+    if (!readable) return { bound: true, text: t("agents.nodes.unreadable_source") };
     return { bound: true, text: parts.length ? `${value.node_id}.${parts.join(".")}` : value.node_id };
   }
   if (value.kind === "first_present") {
     const count = Array.isArray(value.values) ? value.values.length : 0;
-    return { bound: true, text: `first of ${count}` };
+    return { bound: true, text: t("agents.nodes.first_of", { count }) };
   }
   return { bound: false, text: "?" };
 }
 
 export default function ToolCallNode({ node, isDark }) {
+  const { t } = useTranslation();
   const tool = tool_settings(node);
   const name = tool && typeof tool.name === "string" && tool.name ? tool.name : null;
   const execution = node && node.config && node.config.execution;
@@ -68,17 +71,17 @@ export default function ToolCallNode({ node, isDark }) {
             </div>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 12.5, fontWeight: 600, color: text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: name ? "ui-monospace, Menlo, monospace" : undefined }}>
-                {node_display_title(node, name ? safe_text(name) : "Tool call")}
+                {node_display_title(node, name ? safe_text(name) : t("agents.nodes.tool_call"))}
               </div>
               <div style={{ fontSize: 10.5, color: muted, marginTop: 2 }}>
-                {name ? "Tool call" : "Tool call · pick a tool"}
+                {name ? t("agents.nodes.tool_call") : t("agents.nodes.tool_call_pick")}
               </div>
             </div>
           </div>
           {shown.length > 0 && (
             <div style={{ marginTop: 8, paddingTop: 6, borderTop: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}`, display: "flex", flexDirection: "column", gap: 2 }}>
               {shown.map((binding, index) => {
-                const label = value_label(binding);
+                const label = value_label(binding, t);
                 return (
                   <div
                     key={index}
@@ -93,7 +96,7 @@ export default function ToolCallNode({ node, isDark }) {
                   </div>
                 );
               })}
-              {overflow > 0 && <div style={{ fontSize: 10.5, color: muted }}>+{overflow} more</div>}
+              {overflow > 0 && <div style={{ fontSize: 10.5, color: muted }}>{t("agents.nodes.more", { count: overflow })}</div>}
             </div>
           )}
         </div>

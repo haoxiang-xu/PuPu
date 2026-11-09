@@ -1,6 +1,8 @@
+import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { is_skeleton_node } from "../skeleton_document";
 import { node_display_title } from "../node_display_labels";
 import React from "react";
+import { agentEnglishText, agentMessage, renderAgentMessage } from "../agents_i18n";
 import PuzzleShape from "./puzzle_shape";
 import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
 import { entry_reference } from "../subagent_eligibility";
@@ -26,16 +28,16 @@ import {
 const MAX_ROWS = 5;
 
 /* The legacy recipe shape, resolved the way it always was. */
-function legacy_rows(entries, recipes) {
+function legacy_rows(entries, recipes, t = agentEnglishText) {
   return entries.map((entry) => {
-    const { name, source } = entry_reference(entry);
+    const { name, source } = entry_reference(entry, t);
     const present = reference_exists(entry, recipes);
     return {
       name,
-      note: present ? source : "missing",
+      note: present ? source : t("agents.nodes.missing"),
       openable: can_drill(entry) && present,
       missing: !present,
-      reason: present ? drill_unavailable_reason(entry) : null,
+      reason: present ? drill_unavailable_reason(entry, agentMessage) : null,
       entry,
     };
   });
@@ -49,8 +51,9 @@ export default function SubagentPoolNode({
   rows,
   onOpenRow,
 }) {
+  const { t } = useTranslation();
   const entries = node.subagents || [];
-  const all = Array.isArray(rows) ? rows : legacy_rows(entries, recipes);
+  const all = Array.isArray(rows) ? rows : legacy_rows(entries, recipes, t);
   const shown = all.slice(0, MAX_ROWS);
   const overflow = all.length - shown.length;
   const open = (row) => {
@@ -92,10 +95,12 @@ export default function SubagentPoolNode({
                   color: isDark ? "#f0f0f3" : "#1d1d22",
                 }}
               >
-                {is_skeleton_node(node) ? node_display_title(node, "Subagent Pool") : "Subagent Pool"}
+                {is_skeleton_node(node) ? node_display_title(node, t("agents.nodes.subagent_pool")) : t("agents.nodes.subagent_pool")}
               </div>
               <div style={{ fontSize: 10.5, color: muted, marginTop: 2 }}>
-                {all.length} {all.length === 1 ? "subagent" : "subagents"}
+                {all.length === 1
+                  ? t("agents.nodes.subagent_count_one", { count: all.length })
+                  : t("agents.nodes.subagent_count_other", { count: all.length })}
               </div>
             </div>
           </div>
@@ -113,11 +118,11 @@ export default function SubagentPoolNode({
                 const { name, note, openable, missing } = row;
                 const present = !missing;
                 const title = openable
-                  ? `Double-click to open ${name}`
-                  : row.reason ||
+                  ? t("agents.nodes.open_subagent", { name })
+                  : renderAgentMessage(row.reason, t) ||
                     (missing
-                      ? `${name} is no longer in the Agent library`
-                      : `${name} cannot be opened`);
+                      ? t("agents.nodes.subagent_missing", { name })
+                      : t("agents.nodes.subagent_unopenable", { name }));
                 return (
                   <div
                     key={row.key || i}
@@ -160,14 +165,14 @@ export default function SubagentPoolNode({
                         flexShrink: 0,
                       }}
                     >
-                      {note}
+                      {renderAgentMessage(note, t)}
                     </span>
                   </div>
                 );
               })}
               {overflow > 0 && (
                 <div style={{ fontSize: 9.5, color: muted, marginTop: 1 }}>
-                  +{overflow} more
+                  {t("agents.nodes.more", { count: overflow })}
                 </div>
               )}
             </div>

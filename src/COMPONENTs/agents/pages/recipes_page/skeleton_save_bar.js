@@ -1,3 +1,5 @@
+import { agentProblemMessage } from "./agents_i18n";
+import { useTranslation } from "../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import React from "react";
 import Button from "../../../../BUILTIN_COMPONENTs/input/button";
 import {
@@ -46,33 +48,33 @@ export default function SkeletonSaveBar({
   onTakeTheirs,
   onPreflight,
 }) {
+  const { t } = useTranslation();
   if (!session || session.status === SESSION_STATUS.EMPTY) return null;
 
   if (session.status === SESSION_STATUS.UNAVAILABLE) {
     return (
       <div data-testid="skeleton-store-unavailable" style={BAR(isDark)}>
         <span style={NOTE}>
-          The Agent library is not reachable in this build, so nothing here can
-          be saved or run.
+          {t("agents.save.store_unavailable")}
         </span>
       </div>
     );
   }
 
-  const conflict = conflict_message(session);
-  const preflight = preflight_message(session);
+  const conflict = conflict_message(session, t);
+  const preflight = preflight_message(session, t);
 
   return (
     <div data-testid="skeleton-save-bar" style={BAR(isDark)}>
       {conflict && (
         <div data-testid="skeleton-save-conflict" style={CONFLICT_BOX(isDark)}>
           <span style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: 0.3 }}>
-            Saved somewhere else
+            {t("agents.save.saved_elsewhere")}
           </span>
           <span style={{ fontSize: 10.5, lineHeight: 1.45 }}>{conflict}</span>
           <div style={{ display: "flex", gap: 6 }}>
             <Button
-              label="Look at theirs"
+              label={t("agents.save.look_at_theirs")}
               onClick={onTakeTheirs}
               style={{
                 fontSize: 11,
@@ -82,7 +84,7 @@ export default function SkeletonSaveBar({
               }}
             />
             <Button
-              label="Keep mine and replace it"
+              label={t("agents.save.keep_mine")}
               onClick={onKeepMine}
               style={{
                 fontSize: 11,
@@ -98,7 +100,7 @@ export default function SkeletonSaveBar({
 
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <Button
-          label={session.saving ? "Saving…" : "Save"}
+          label={session.saving ? t("agents.save.saving") : t("agents.save.save")}
           onClick={onSave}
           disabled={!can_save(session)}
           style={{
@@ -110,7 +112,7 @@ export default function SkeletonSaveBar({
           }}
         />
         <Button
-          label="Check it can run"
+          label={t("agents.save.check_can_run")}
           onClick={onPreflight}
           disabled={!can_preflight(session)}
           style={{
@@ -121,13 +123,13 @@ export default function SkeletonSaveBar({
           }}
         />
         <span data-testid="skeleton-save-state" style={{ ...NOTE, marginLeft: "auto" }}>
-          {session.dirty ? "Unsaved changes" : "Saved"}
+          {session.dirty ? t("agents.save.unsaved_changes") : t("agents.save.saved")}
         </span>
       </div>
 
       {!session.dirty || session.conflict ? null : (
         <span style={NOTE}>
-          Checking it can run asks the saved version, so save first.
+          {t("agents.save.save_before_check")}
         </span>
       )}
 
@@ -146,7 +148,7 @@ export default function SkeletonSaveBar({
             color: isDark ? "rgba(255,140,140,0.95)" : "rgba(176,32,32,0.95)",
           }}
         >
-          {session.error.message || session.error.code}
+          {agentProblemMessage(session.error, t) || session.error.code}
         </span>
       )}
     </div>

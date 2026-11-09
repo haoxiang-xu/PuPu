@@ -1,3 +1,4 @@
+import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { lazy, Suspense, useContext, useEffect, useState } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import Modal from "../../BUILTIN_COMPONENTs/modal/modal";
@@ -43,6 +44,7 @@ export const AgentsModal = ({
   isCharactersEnabled = true,
 }) => {
   useModalLifecycle("agents-modal", open);
+  const { t } = useTranslation();
   const defaultSection = isAgentsEnabled ? "agents" : "characters";
   const [selectedSection, setSelectedSection] = useState(defaultSection);
   const [selectedNodeId, setSelectedNodeId] = useState(null);
@@ -115,7 +117,7 @@ export const AgentsModal = ({
               detached, because its padding doubles the apparent gap. */}
           <Button
             prefix_icon="fullscreen_exit"
-            ariaLabel="Exit fullscreen"
+            ariaLabel={t("agents.shell.exit_fullscreen")}
             onClick={() => setFullscreen(false)}
             style={windowControlStyle("fullscreen_exit")}
           />
@@ -128,7 +130,7 @@ export const AgentsModal = ({
               one row whether or not the panel is open. */}
           <Button
             prefix_icon={fullscreen ? "fullscreen_exit" : "fullscreen"}
-            ariaLabel={fullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+            ariaLabel={fullscreen ? t("agents.shell.exit_fullscreen") : t("agents.shell.enter_fullscreen")}
             onClick={() => setFullscreen((f) => !f)}
             style={{
               position: "absolute",
@@ -154,7 +156,7 @@ export const AgentsModal = ({
           />
           <Button
             prefix_icon="close"
-            ariaLabel="Close builder"
+            ariaLabel={t("agents.shell.close_builder")}
             /* The button sits on the top strip, apart from the detail panel,
                so it always means the whole modal; Escape still steps back
                out of a selected node first. */

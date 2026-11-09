@@ -1,3 +1,4 @@
+import { agentEnglishText } from "./agents_i18n";
 import { node_bindings, with_node_bindings } from "./skeleton_document";
 
 /* The Tool Call node's configuration (#352).
@@ -107,30 +108,30 @@ export function argument_layout(parameters, bindings) {
 
 const JSON_TYPES = { object: (value) => record(value), array: (value) => Array.isArray(value) };
 
-export function literal_from_text(text, type) {
+export function literal_from_text(text, type, t = agentEnglishText) {
   const raw = typeof text === "string" ? text : "";
   if (type === "integer") {
-    if (!/^-?\d+$/.test(raw.trim())) return { ok: false, problem: "Enter a whole number." };
+    if (!/^-?\d+$/.test(raw.trim())) return { ok: false, problem: t("agents.execution.tool.enter_a_whole_number") };
     const value = Number(raw.trim());
-    return Number.isSafeInteger(value) ? { ok: true, value } : { ok: false, problem: "This number is too large." };
+    return Number.isSafeInteger(value) ? { ok: true, value } : { ok: false, problem: t("agents.execution.tool.number_too_large") };
   }
   if (type === "number") {
     const trimmed = raw.trim();
     const value = Number(trimmed);
-    if (trimmed === "" || !Number.isFinite(value)) return { ok: false, problem: "Enter a number." };
+    if (trimmed === "" || !Number.isFinite(value)) return { ok: false, problem: t("agents.execution.tool.enter_a_number") };
     return { ok: true, value };
   }
   if (type === "boolean") {
     if (raw === "true") return { ok: true, value: true };
     if (raw === "false") return { ok: true, value: false };
-    return { ok: false, problem: "Choose true or false." };
+    return { ok: false, problem: t("agents.execution.tool.choose_true_or_false") };
   }
   if (own(JSON_TYPES, type)) {
     try {
       const value = JSON.parse(raw);
-      return JSON_TYPES[type](value) ? { ok: true, value } : { ok: false, problem: `Enter a JSON ${type}.` };
+      return JSON_TYPES[type](value) ? { ok: true, value } : { ok: false, problem: t("agents.execution.tool.enter_a_json_type", { type: type }) };
     } catch (_error) {
-      return { ok: false, problem: `Enter a JSON ${type}.` };
+      return { ok: false, problem: t("agents.execution.tool.enter_a_json_type", { type: type }) };
     }
   }
   return { ok: true, value: raw };
@@ -147,38 +148,38 @@ export function literal_to_text(value, type) {
 
 /* ── What the panel says is wrong ─────────────────────────────────────── */
 
-export function tool_call_problems(node, parameters) {
+export function tool_call_problems(node, parameters, t = agentEnglishText) {
   const tool = tool_settings(node);
   if (!tool || typeof tool.name !== "string" || !tool.name) {
-    return [{ code: "tool_missing", message: "Pick the tool this step runs." }];
+    return [{ code: "tool_missing", message: t("agents.execution.tool.selection_missing") }];
   }
   const problems = [];
   if (!own(tool, "on_error")) {
-    problems.push({ code: "on_error_missing", message: "Choose what happens when the tool fails." });
+    problems.push({ code: "on_error_missing", message: t("agents.execution.tool.on_error_missing") });
   } else if (!ON_ERROR_CHOICES.some((choice) => choice.value === tool.on_error)) {
-    problems.push({ code: "on_error_invalid", message: "The stored error choice is not one this runtime knows. Choose again." });
+    problems.push({ code: "on_error_invalid", message: t("agents.execution.tool.on_error_invalid") });
   }
   if (!own(tool, "approval_timeout_ms")) {
-    problems.push({ code: "approval_limit_missing", message: "Set how long to wait for an approval." });
+    problems.push({ code: "approval_limit_missing", message: t("agents.execution.tool.approval_limit_missing") });
   } else {
     const value = tool.approval_timeout_ms;
     if (!Number.isSafeInteger(value) || value < APPROVAL_LIMIT_MS.min || value > APPROVAL_LIMIT_MS.max) {
-      problems.push({ code: "approval_limit_invalid", message: "The approval wait must be between 1 millisecond and 24 hours." });
+      problems.push({ code: "approval_limit_invalid", message: t("agents.execution.tool.approval_limit_invalid") });
     }
   }
   Object.keys(tool).filter((key) => !SETTING_KEYS.includes(key)).forEach((key) => {
-    problems.push({ code: "unknown_setting", setting: key, message: `This runtime does not read the setting “${key}”.` });
+    problems.push({ code: "unknown_setting", setting: key, message: t("agents.execution.tool.unknown_setting", { key: key }) });
   });
 
   const bindings = node_bindings(node);
   if (record(parameters)) {
     const layout = argument_layout(parameters, bindings);
     layout.rows.filter((row) => row.required && !row.binding).forEach((row) => {
-      problems.push({ code: "required_argument_unset", argument: row.name, message: `“${row.name}” is required by ${tool.name}.` });
+      problems.push({ code: "required_argument_unset", argument: row.name, message: t("agents.execution.tool.required_argument", { row_name: row.name, tool_name: tool.name }) });
     });
     layout.extras.forEach(({ binding }) => {
       const name = record(binding) && typeof binding.name === "string" ? binding.name : "";
-      problems.push({ code: "unknown_argument", argument: name, message: `${tool.name} has no argument “${name}”; the tool would refuse it.` });
+      problems.push({ code: "unknown_argument", argument: name, message: t("agents.execution.tool.unknown_argument", { tool_name: tool.name, name: name }) });
     });
   }
   const seen = new Set();
@@ -190,7 +191,7 @@ export function tool_call_problems(node, parameters) {
     seen.add(name);
   });
   repeated.forEach((name) => {
-    problems.push({ code: "duplicate_argument", argument: name, message: `“${name}” is given more than once.` });
+    problems.push({ code: "duplicate_argument", argument: name, message: t("agents.execution.tool.duplicate_argument", { name: name }) });
   });
   return problems;
 }

@@ -1,3 +1,4 @@
+import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import React from "react";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
@@ -45,12 +46,13 @@ function node_label(node) {
 }
 
 function StartCallerInputs({ context, isDark }) {
+  const { t } = useTranslation();
   const fields = context.kind === "unknown"
     ? [{ name: "Caller input", type: "object" }]
     : context.fields;
   return (
     <div data-testid="skeleton-input-variables" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <span style={SECTION_LABEL}>Input Variables</span>
+      <span style={SECTION_LABEL}>{t("agents.io.input_variables")}</span>
       <span data-testid={context.kind === "invalid" ? "skeleton-start-context-problem" : "skeleton-start-context-caption"}
         style={{ fontSize: 11, lineHeight: 1.5, color: isDark ? "#a1a1aa" : "#68686f" }}>
         {context.message}
@@ -58,15 +60,15 @@ function StartCallerInputs({ context, isDark }) {
       {fields.map((field) => (
         <div key={field.name} style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0,
           padding: "7px 8px", borderRadius: 5, background: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)" }}>
-          <span aria-label="Read-only caller input" style={{ width: 12, height: 12, flexShrink: 0 }}>
+          <span aria-label={t("agents.io.read_only_caller_input")} style={{ width: 12, height: 12, flexShrink: 0 }}>
             <Icon src="lock" />
           </span>
-          <span style={{ fontSize: 11, flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>{field.name}</span>
+          <span style={{ fontSize: 11, flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>{context.kind === "unknown" ? t("agents.io.caller_input") : field.name}</span>
           <span style={{ fontSize: 10, color: isDark ? "#a1a1aa" : "#68686f" }}>{field.type}</span>
         </div>
       ))}
       {context.kind === "subagent" && fields.length === 0 && (
-        <span style={{ fontSize: 11, color: isDark ? "#a1a1aa" : "#68686f" }}>This Start declares no caller fields.</span>
+        <span style={{ fontSize: 11, color: isDark ? "#a1a1aa" : "#68686f" }}>{t("agents.io.this_start_declares_no_caller_fields")}</span>
       )}
     </div>
   );
@@ -100,10 +102,11 @@ export default function InputVariablesSection({
   onChange,
   startContext,
 }) {
+  const { t } = useTranslation();
   /* Start has no execution.inputs key: these rows describe the caller and
      deliberately have no write callback or input controls. */
   if (node?.type === "start") {
-    return <StartCallerInputs context={startContext || start_context_for_view([], [], document)} isDark={isDark} />;
+    return <StartCallerInputs context={startContext || start_context_for_view([], [], document, t)} isDark={isDark} />;
   }
   /* A pool attaches rather than runs, so it carries no inputs. */
   if (!node_takes_inputs(node && node.type)) return null;
@@ -112,7 +115,7 @@ export default function InputVariablesSection({
   const sources = binding_sources(document, node && node.id);
   /* The builder's own check, so a row says what is wrong with it before any
      round trip. It mirrors `resolve_inputs`; it never decides admission. */
-  const composed = binding_problems(bindings);
+  const composed = binding_problems(bindings, t);
 
   function set_bindings(next) {
     onChange(with_node_bindings(document, node.id, next));
@@ -147,9 +150,9 @@ export default function InputVariablesSection({
           alignItems: "center",
         }}
       >
-        <span style={SECTION_LABEL}>Input Variables</span>
+        <span style={SECTION_LABEL}>{t("agents.io.input_variables")}</span>
         <Button
-          label="+ Add input"
+          label={t("agents.io.add_input")}
           onClick={add_binding}
           style={{
             fontSize: 11,
@@ -163,7 +166,7 @@ export default function InputVariablesSection({
 
       {bindings.length === 0 && (
         <span style={{ fontSize: 11, color: "#86868b" }}>
-          This node reads nothing from the graph.
+          {t("agents.io.this_node_reads_nothing_from_the_graph")}
         </span>
       )}
 

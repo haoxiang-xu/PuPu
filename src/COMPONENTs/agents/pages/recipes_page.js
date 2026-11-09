@@ -1,3 +1,5 @@
+import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
+import { agentMessage, agentProblemMessage, agentError } from "./recipes_page/agents_i18n";
 import ShadowSurface from "../../../BUILTIN_COMPONENTs/material/shadow_surface";
 import { useSurfaceComposite } from "../../../BUILTIN_COMPONENTs/material/surface_composite";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -52,6 +54,7 @@ export default function RecipesPage({
   fullscreen,
 }) {
   /* One centerline for every control on the modal's top strip (#339). */
+  const { t } = useTranslation();
   const {
     center: topStripCenter,
     left: topStripLeft,
@@ -228,7 +231,7 @@ export default function RecipesPage({
         const nativeLibrary = typeof api?.unchain?.listSkeletonResources === "function";
         if (known.length > 0 && !nativeLibrary) setActiveName(known[0].name);
       } catch (error) {
-        setNotices([library_unavailable_message(error)]);
+        setNotices([library_unavailable_message(error, agentMessage)]);
       }
     })();
   }, []);
@@ -253,7 +256,7 @@ export default function RecipesPage({
       const stale = frame_is_stale(handed, savedVersionsRef.current);
       importHistory(stale ? null : handed.history);
       if (stale) {
-        setNotices((prev) => [...prev, stale_frame_message(handed.name)]);
+        setNotices((prev) => [...prev, stale_frame_message(handed.name, agentMessage)]);
       }
       restoreTokenRef.current += 1;
       setRestoreViewport({
@@ -265,12 +268,12 @@ export default function RecipesPage({
     (async () => {
       try {
         const r = await api.unchain.getRecipe(activeName);
-        if (!r) throw new Error("the definition came back empty");
+        if (!r) throw agentError("agents.graph.definition_empty");
         setActiveRecipeSilent(r);
         onSelectNode(null);
         setDirty(false);
       } catch (error) {
-        setNotices([read_failure_message(activeName, error)]);
+        setNotices([read_failure_message(activeName, error, agentMessage)]);
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -281,32 +284,32 @@ export default function RecipesPage({
       setNotices([]);
       const target = drill_target(entry);
       if (target.kind !== DRILL.REFERENCE) {
-        setNotices([drill_unavailable_reason(entry)].filter(Boolean));
+        setNotices([drill_unavailable_reason(entry, agentMessage)].filter(Boolean));
         return;
       }
       /* Read before navigating, and say which reference broke. Landing on the
          library's first entry would read as the subagent having been replaced
          by a different one. */
       if (!reference_exists(entry, recipesRef.current)) {
-        setNotices([missing_reference_message(target.name)]);
+        setNotices([missing_reference_message(target.name, agentMessage)]);
         return;
       }
       let loaded = null;
       try {
         loaded = await api.unchain.getRecipe(target.name);
       } catch (error) {
-        setNotices([read_failure_message(target.name, error)]);
+        setNotices([read_failure_message(target.name, error, agentMessage)]);
         return;
       }
       if (!loaded) {
-        setNotices([read_failure_message(target.name, null)]);
+        setNotices([read_failure_message(target.name, null, agentMessage)]);
         return;
       }
       setDrillStack((stack) =>
         push_drill_frame(stack, {
           name: activeName,
           label: activeRecipe?.name || activeName,
-          via_label: "Subagent Pool",
+          via_label: agentMessage("agents.drill.subagent_pool"),
           recipe: activeRecipe,
           dirty,
           selectedNodeId,
@@ -335,7 +338,7 @@ export default function RecipesPage({
          That has to be visible — one keypress is a light gesture for losing
          work without a word. */
       setNotices(
-        dirty && activeName ? [left_behind_message(activeName)] : [],
+        dirty && activeName ? [left_behind_message(activeName, agentMessage)] : [],
       );
       const { frame, stack } = unwind_drill_stack(drillStack, depth);
       if (!frame) return;
@@ -357,6 +360,7 @@ export default function RecipesPage({
   const crumbs = drill_crumbs(
     drillStack,
     activeRecipe?.name || activeName || "",
+    t,
   );
 
   const handleRecipeChange = (next) => {
@@ -413,8 +417,8 @@ export default function RecipesPage({
     } catch (error) {
       const message =
         error && typeof error.message === "string"
-          ? error.message
-          : "Recipe graph is invalid";
+          ? agentProblemMessage(error, agentMessage)
+          : agentMessage("agents.graph.legacy_invalid");
       setSaveError(message);
     }
   };
@@ -608,7 +612,7 @@ export default function RecipesPage({
         <Button
           prefix_icon="side_menu_left"
           onClick={() => setListCollapsed(false)}
-          ariaLabel="Show agents"
+          ariaLabel={t("agents.editor.show_agents")}
           style={{
             ...headerButtonStyle,
             position: "absolute",

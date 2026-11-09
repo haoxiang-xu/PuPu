@@ -1,3 +1,4 @@
+import { agentEnglishText } from "./agents_i18n";
 /* The Kernel Loop's own configuration — the model it runs on, and how.
  *
  * `validate_kernel_config` (`unchain/skeleton/kernel_config.py`) closes an
@@ -160,17 +161,17 @@ export function kernel_where(path) {
    named one problem at a time would make the author guess how many are left.
    The capture test therefore checks that the runtime's single verdict is
    among these, not that it is the only one. */
-function closed(value, path, required, problems) {
+function closed(value, path, required, problems, t = agentEnglishText) {
   if (!is_object(value)) {
     problems.push(
-      problem("invalid_type", kernel_where(path), "value must be an object"),
+      problem("invalid_type", kernel_where(path), t("agents.execution.kernel.object_required")),
     );
     return false;
   }
   Object.keys(value).forEach((key) => {
     if (!required.includes(key)) {
       problems.push(
-        problem("unknown_field", kernel_where([...path, key]), "unknown field"),
+        problem("unknown_field", kernel_where([...path, key]), t("agents.execution.kernel.unknown_field")),
       );
     }
   });
@@ -180,7 +181,7 @@ function closed(value, path, required, problems) {
         problem(
           "missing_field",
           kernel_where([...path, key]),
-          "required field is missing",
+          t("agents.execution.kernel.field_missing"),
         ),
       );
     }
@@ -409,11 +410,11 @@ function reject(problems, code, path, message) {
   problems.push(problem(code, kernel_where(path), message));
 }
 
-export function profile_problems(profile, base) {
+export function profile_problems(profile, base, t = agentEnglishText) {
   const problems = [];
   const path = [...base];
   const hasAuth = is_object(profile) && Object.prototype.hasOwnProperty.call(profile, "auth_mode");
-  if (!closed(profile, path, hasAuth ? [...PROFILE_KEYS, "auth_mode"] : PROFILE_KEYS, problems)) return problems;
+  if (!closed(profile, path, hasAuth ? [...PROFILE_KEYS, "auth_mode"] : PROFILE_KEYS, problems, t)) return problems;
 
   PROFILE_TEXT_KEYS.forEach((key) => {
     if (!(key in profile)) return;
@@ -422,7 +423,7 @@ export function profile_problems(profile, base) {
         problems,
         "invalid_value",
         [...path, key],
-        `${key} must be an exact non-empty string`,
+        t("agents.execution.kernel.exact_text_required", { key: key }),
       );
     }
   });
@@ -433,7 +434,7 @@ export function profile_problems(profile, base) {
     const brand = typeof profile.provider === "string" ? profile.provider.toLowerCase() : "";
     if (typeof profile.protocol !== "string" || !Object.prototype.hasOwnProperty.call(modes, profile.protocol) || !modes[profile.protocol].includes(profile.auth_mode) ||
         (Object.prototype.hasOwnProperty.call(native, brand) && profile.auth_mode !== native[brand])) {
-      reject(problems, "unsupported_capability", [...path, "auth_mode"], "authentication mode is not supported for this provider and protocol");
+      reject(problems, "unsupported_capability", [...path, "auth_mode"], t("agents.execution.kernel.auth_unsupported"));
     }
   }
 
@@ -449,7 +450,7 @@ export function profile_problems(profile, base) {
       problems,
       "unsupported_capability",
       [...path, "protocol"],
-      "this build speaks openai-responses, anthropic, gemini and ollama",
+      t("agents.execution.kernel.protocol_unsupported"),
     );
   }
 
@@ -458,7 +459,7 @@ export function profile_problems(profile, base) {
       problems,
       "invalid_value",
       [...path, "endpoint"],
-      "endpoint must be an http or https address with no credentials, query or fragment",
+      t("agents.execution.kernel.endpoint_invalid"),
     );
   }
 
@@ -469,7 +470,7 @@ export function profile_problems(profile, base) {
         problems,
         "invalid_value",
         [...path, key],
-        `${key} must be a whole number of tokens`,
+        t("agents.execution.kernel.token_count_required", { key: key }),
       );
     }
   });
@@ -486,6 +487,8 @@ export function profile_problems(profile, base) {
       [...path, "capabilities"],
       CAPABILITY_KEYS,
       problems,
+      t,
+      t,
     );
     const stated = readable
       ? CAPABILITY_KEYS.filter((key) => key in capabilities)
@@ -495,7 +498,7 @@ export function profile_problems(profile, base) {
         problems,
         "invalid_type",
         [...path, "capabilities"],
-        "every capability must be stated as true or false",
+        t("agents.execution.kernel.capability_boolean"),
       );
     }
   }
@@ -517,7 +520,7 @@ export function profile_problems(profile, base) {
  * such wherever it is shown. */
 export const PROVIDER_PROTOCOL_CONFLICT = "provider_protocol_conflict";
 
-export function transport_problems(profile, base) {
+export function transport_problems(profile, base, t = agentEnglishText) {
   if (!is_object(profile)) return [];
   const { provider, protocol } = profile;
   if (!is_exact_text(provider) || !is_exact_text(protocol)) return [];
@@ -535,7 +538,7 @@ export function transport_problems(profile, base) {
     problem(
       PROVIDER_PROTOCOL_CONFLICT,
       kernel_where([...base, "protocol"]),
-      `${provider} is reached over ${expected}, so this Kernel would fail on its first turn`,
+      t("agents.execution.kernel.transport_conflict", { provider: provider, expected: expected }),
     ),
   ];
 }
@@ -549,10 +552,10 @@ export function transport_problems(profile, base) {
  * `json_schema` keeps the root the runtime gives it — `validate_output_schema`
  * reports under `schema`, not under `kernel.json_schema` — because that is
  * the path the author would see in a store refusal. */
-export function kernel_admission_problems(kernel, base = [KERNEL_CONFIG_KEY]) {
+export function kernel_admission_problems(kernel, base = [KERNEL_CONFIG_KEY], t = agentEnglishText) {
   const problems = [];
   const path = [...base];
-  if (!closed(kernel, path, KERNEL_KEYS, problems)) return problems;
+  if (!closed(kernel, path, KERNEL_KEYS, problems, t)) return problems;
 
   if (
     "schema_version" in kernel &&
@@ -562,12 +565,12 @@ export function kernel_admission_problems(kernel, base = [KERNEL_CONFIG_KEY]) {
       problems,
       "unknown_variant",
       [...path, "schema_version"],
-      "this build writes and reads version one",
+      t("agents.execution.kernel.version_unsupported"),
     );
   }
 
   if ("profile" in kernel) {
-    problems.push(...profile_problems(kernel.profile, [...path, "profile"]));
+    problems.push(...profile_problems(kernel.profile, [...path, "profile"], t));
   }
 
   ["max_iterations", "output_tokens"].forEach((key) => {
@@ -577,7 +580,7 @@ export function kernel_admission_problems(kernel, base = [KERNEL_CONFIG_KEY]) {
         problems,
         "invalid_value",
         [...path, key],
-        `${key} must be a whole number of one or more`,
+        t("agents.execution.kernel.positive_count_required", { key: key }),
       );
     }
   });
@@ -599,14 +602,14 @@ export function kernel_admission_problems(kernel, base = [KERNEL_CONFIG_KEY]) {
         "invalid_value",
         [...path, "output_tokens"],
         over_limit
-          ? "the reply reservation is larger than this model's output limit"
-          : "the reply reservation leaves no room in the context window",
+          ? t("agents.execution.kernel.reply_over_limit")
+          : t("agents.execution.kernel.reply_fills_window"),
       );
     }
   }
 
   if ("prompt" in kernel && typeof kernel.prompt !== "string") {
-    reject(problems, "invalid_type", [...path, "prompt"], "prompt must be text");
+    reject(problems, "invalid_type", [...path, "prompt"], t("agents.execution.kernel.prompt_must_be_text"));
   }
 
   if ("history" in kernel && !HISTORY_SCOPES.includes(kernel.history)) {
@@ -614,7 +617,7 @@ export function kernel_admission_problems(kernel, base = [KERNEL_CONFIG_KEY]) {
       problems,
       "unknown_variant",
       [...path, "history"],
-      "history is either the root session or nothing",
+      t("agents.execution.kernel.history_invalid"),
     );
   }
 
@@ -623,7 +626,7 @@ export function kernel_admission_problems(kernel, base = [KERNEL_CONFIG_KEY]) {
       problems,
       "unknown_variant",
       [...path, "overflow"],
-      "an overflowing window either stops the run or is compressed",
+      t("agents.execution.kernel.overflow_invalid"),
     );
   }
 
@@ -641,10 +644,10 @@ export function kernel_admission_problems(kernel, base = [KERNEL_CONFIG_KEY]) {
         problems,
         "unsupported_capability",
         [...path, "json_schema"],
-        "this model cannot be asked for structured output",
+        t("agents.execution.kernel.structured_output_unsupported"),
       );
     } else {
-      problems.push(...output_schema_problems(kernel.json_schema));
+      problems.push(...output_schema_problems(kernel.json_schema, t));
     }
   }
 
@@ -657,12 +660,12 @@ export function kernel_admission_problems(kernel, base = [KERNEL_CONFIG_KEY]) {
  * only check a mirror of the validator against the validator, and a mirror
  * that quietly carried an extra rule would have to be excused case by case,
  * which is how a mirror stops being evidence. */
-export function kernel_problems(kernel, base = [KERNEL_CONFIG_KEY]) {
-  const problems = kernel_admission_problems(kernel, base);
+export function kernel_problems(kernel, base = [KERNEL_CONFIG_KEY], t = agentEnglishText) {
+  const problems = kernel_admission_problems(kernel, base, t);
   if (!is_object(kernel)) return problems;
   return [
     ...problems,
-    ...transport_problems(kernel.profile, [...base, "profile"]),
+    ...transport_problems(kernel.profile, [...base, "profile"], t),
   ];
 }
 

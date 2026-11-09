@@ -37,6 +37,7 @@
  * draft check still does not do is read a referenced Agent, so an empty list
  * is not Run admission. */
 
+import { agentEnglishText, agentProblemMessage, agentMessage, renderAgentMessage } from "./agents_i18n";
 import { identity_of, safe_text } from "./document_values";
 import {
   find_node,
@@ -154,12 +155,10 @@ const DRAWN_NAMES = Object.freeze({
   ],
 });
 
-const NOT_A_LIST = (key) =>
-  `This entry's embedded graph does not hold a list of ${key}, so there is no graph to draw. The store refuses it at Run.`;
-const NOT_READABLE = (key) =>
-  `This entry's embedded graph holds something in its ${key} that cannot be drawn: the drawing needs an object whose names are text. The store refuses it at Run.`;
+const NOT_A_LIST = (key, t = agentEnglishText) => t("agents.drill.not_list", { key });
+const NOT_READABLE = (key, t = agentEnglishText) => t("agents.drill.undrawable", { key });
 
-function undrawable_reason(document) {
+function undrawable_reason(document, t = agentEnglishText) {
   const found = Object.keys(DRAWN_NAMES).find((key) => {
     const list = document[key];
     return (
@@ -172,7 +171,7 @@ function undrawable_reason(document) {
     );
   });
   if (found === undefined) return null;
-  return Array.isArray(document[found]) ? NOT_READABLE(found) : NOT_A_LIST(found);
+  return Array.isArray(document[found]) ? NOT_READABLE(found, t) : NOT_A_LIST(found, t);
 }
 
 /* An embedded graph that is not an Agent has no Agent graph to open, and the
@@ -180,12 +179,12 @@ function undrawable_reason(document) {
    requires agent kind". Nothing in this editor can change a document's kind,
    so opening it would be a canvas full of Agent panels over a graph that can
    never be one. The pool row's own problem rows report the refusal. */
-function embedded_not_an_agent_reason(document) {
+function embedded_not_an_agent_reason(document, t = agentEnglishText) {
   const kind = is_object(document) ? document.kind : null;
   if (kind === "agent") return null;
   return kind === "workflow"
-    ? "This entry's embedded graph declares itself a Workflow, and a Subagent Pool holds Agents."
-    : "This entry's embedded graph does not declare itself an Agent, so there is no Agent graph to open.";
+    ? t("agents.drill.embedded_workflow")
+    : t("agents.drill.embedded_unknown");
 }
 
 function entry_source(entry) {
@@ -193,30 +192,30 @@ function entry_source(entry) {
 }
 
 /* What an entry points at, decided by `source.kind` alone. */
-export function drill_target(entry) {
+export function drill_target(entry, t = agentEnglishText) {
   const source = entry_source(entry);
-  if (source === null) return { kind: DRILL.UNREADABLE, reason: NO_SOURCE };
+  if (source === null) return { kind: DRILL.UNREADABLE, reason: t === agentEnglishText ? NO_SOURCE : t("agents.drill.no_source") };
   if (source.kind === "agent_ref") {
     const agent_id = source.agent_id;
-    const refused = why_not_this_reference(agent_id, null);
+    const refused = why_not_this_reference(agent_id, null, t);
     return refused === null
       ? { kind: DRILL.REFERENCE, agent_id }
       : { kind: DRILL.UNREADABLE, reason: refused };
   }
   if (source.kind === "embedded") {
     if (!is_object(source.document)) {
-      return { kind: DRILL.UNREADABLE, reason: NOT_A_DOCUMENT };
+      return { kind: DRILL.UNREADABLE, reason: t === agentEnglishText ? NOT_A_DOCUMENT : t("agents.drill.not_document") };
     }
     const refused =
-      embedded_not_an_agent_reason(source.document) ||
-      undrawable_reason(source.document);
+      embedded_not_an_agent_reason(source.document, t) ||
+      undrawable_reason(source.document, t);
     return refused === null
       ? { kind: DRILL.EMBEDDED }
       : { kind: DRILL.UNREADABLE, reason: refused };
   }
   return {
     kind: DRILL.UNREADABLE,
-    reason: `This entry's source is ${safe_text(source.kind)}, and the store knows agent_ref and embedded. There is no graph to open.`,
+    reason: t("agents.drill.unknown_source", { kind: safe_text(source.kind) }),
   };
 }
 
@@ -231,14 +230,14 @@ export function can_drill(entry) {
    A legacy pool draws its own entries — they are the subagents the author
    has, and a pool that showed nothing until it was converted would read as an
    empty pool. */
-export function pool_entry_rows(node) {
+export function pool_entry_rows(node, t = agentEnglishText) {
   if (node_pool_is_legacy(node)) {
-    return legacy_pool_rows(node);
+    return legacy_pool_rows(node, t);
   }
   const entries = node_subagents(node);
   if (!Array.isArray(entries)) return [];
   return entries.map((entry, index) => {
-    const target = drill_target(entry);
+    const target = drill_target(entry, t);
     return {
       /* Drawn under its place as well as its id: a draft the store accepts
          can hold two entries with one id, and two rows under one key is a
@@ -251,7 +250,7 @@ export function pool_entry_rows(node) {
       name: is_object(entry) && typeof entry.name === "string" && entry.name
         ? entry.name
         : safe_text(is_object(entry) ? entry.name : entry),
-      note: entry_source_label(entry),
+      note: entry_source_label(entry, t),
       openable: target.kind !== DRILL.UNREADABLE,
       reason: target.kind === DRILL.UNREADABLE ? target.reason : null,
     };
@@ -264,15 +263,15 @@ export function pool_entry_rows(node) {
    one name is how a message stops matching the row it points at. These rows
    are never openable — `drill_unavailable_reason` says why once, for the
    pool. */
-function legacy_pool_rows(node) {
+function legacy_pool_rows(node, t = agentEnglishText) {
   return node_legacy_pool_entries(node).map((entry, index) => ({
     key: identity_of(["legacy", index]),
     entry_id: null,
     index,
     name: legacy_entry_label(entry),
-    note: "Legacy",
+    note: t === agentEnglishText ? "Legacy" : t("agents.drill.legacy_label"),
     openable: false,
-    reason: LEGACY_FIRST,
+    reason: t === agentEnglishText ? LEGACY_FIRST : t("agents.drill.legacy_first"),
   }));
 }
 
@@ -445,16 +444,16 @@ export function drill_step({ node_id, entry_id, found, revision, member }) {
 /* What a Hook's Workflow is: an embedded graph this resource owns and the
    canvas can draw, or nothing to open. A pinned reference is a published
    revision, opened read-only from the Workflow Call panel's own control. */
-export function hook_drill_target(entry) {
+export function hook_drill_target(entry, t = agentEnglishText) {
   const source = is_object(entry) && is_object(entry.workflow) ? entry.workflow : null;
   if (source === null || source.kind !== "embedded") {
-    return { kind: DRILL.UNREADABLE, reason: "This hook runs a pinned Workflow, not one of its own." };
+    return { kind: DRILL.UNREADABLE, reason: t("agents.drill.hook_pinned") };
   }
-  if (!is_object(source.document)) return { kind: DRILL.UNREADABLE, reason: NOT_A_DOCUMENT };
+  if (!is_object(source.document)) return { kind: DRILL.UNREADABLE, reason: t === agentEnglishText ? NOT_A_DOCUMENT : t("agents.drill.not_document") };
   if (source.document.kind !== "workflow") {
-    return { kind: DRILL.UNREADABLE, reason: "This hook's embedded graph does not declare itself a Workflow, so there is no Workflow graph to open." };
+    return { kind: DRILL.UNREADABLE, reason: t("agents.drill.hook_unknown") };
   }
-  const refused = undrawable_reason(source.document);
+  const refused = undrawable_reason(source.document, t);
   return refused === null ? { kind: DRILL.EMBEDDED } : { kind: DRILL.UNREADABLE, reason: refused };
 }
 
@@ -735,20 +734,20 @@ export function graph_label(document, fallback) {
   return typeof name === "string" && name ? name : fallback || "";
 }
 
-export function save_target_caption(label) {
-  return `Save writes ${label}, which owns this embedded graph.`;
+export function save_target_caption(label, t = agentEnglishText) {
+  return t("agents.drill.save_target", { name: label });
 }
 
-export function open_failed_message(agent_id, error) {
+export function open_failed_message(agent_id, error, t = agentEnglishText) {
   const detail =
     error && typeof error.message === "string" && error.message
-      ? ` — ${error.message}`
+      ? t("agents.drill.error_detail", { message: agentProblemMessage(error, t) })
       : "";
-  return `The Agent ${safe_text(agent_id)} could not be opened${detail}`;
+  return t("agents.drill.open_failed", { name: safe_text(agent_id), detail });
 }
 
-export function gone_message(label) {
-  return `${label} is no longer in this pool, so it was closed.`;
+export function gone_message(label, t = agentEnglishText) {
+  return t("agents.drill.gone", { name: label });
 }
 
 /* Why the open graph cannot be shown any more, in the words for the reason it
@@ -768,7 +767,13 @@ export function gone_message(label) {
 const UNIDENTIFIED_STEP =
   "Two entries in that pool share one id, and the version now open was written somewhere else — nothing in it says which of the two you had open, so it was closed. Open the one you want from the pool.";
 
-export function drill_lost_reason(document, steps, revision) {
+const LOST_NOTICES = Object.freeze({
+  unidentified: agentMessage("agents.drill.unidentified"),
+  subagents: agentMessage("agents.drill.lost_subagent"),
+  hooks: agentMessage("agents.drill.lost_hook"),
+});
+
+export function drill_lost_reason(document, steps, revision, t = agentEnglishText) {
   const list = Array.isArray(steps) ? steps : [];
   let current = document;
   for (const step of list) {
@@ -789,19 +794,21 @@ export function drill_lost_reason(document, steps, revision) {
       step,
       revision,
     );
-    return answer && answer.unidentified
-      ? UNIDENTIFIED_STEP
-      : gone_message(container.gone);
+    if (t === agentEnglishText) return answer && answer.unidentified ? UNIDENTIFIED_STEP : gone_message(container.gone);
+    if (answer && answer.unidentified) return t === agentMessage ? LOST_NOTICES.unidentified : t("agents.drill.unidentified");
+    return container === CONTAINERS.hooks
+      ? t === agentMessage ? LOST_NOTICES.hooks : t("agents.drill.lost_hook")
+      : t === agentMessage ? LOST_NOTICES.subagents : t("agents.drill.lost_subagent");
   }
   return null;
 }
 
-export function left_behind_message(label) {
-  return `Unsaved changes to ${label} were left behind. Opening it again reads the stored version.`;
+export function left_behind_message(label, t = agentEnglishText) {
+  return t("agents.drill.left", { name: label });
 }
 
-export function stale_frame_message(label) {
-  return `${label} was saved again further in, so this copy is older than the stored one. Saving here raises a conflict you can resolve.`;
+export function stale_frame_message(label, t = agentEnglishText) {
+  return t("agents.drill.stale", { name: label });
 }
 
 /* Opening a subagent while a write is in flight would answer about the graph
@@ -819,10 +826,12 @@ const WRITE_IN_FLIGHT = Object.freeze({
     "The conversion is still being written. Wait for it before opening a subagent.",
 });
 
-export function drill_blocked_reason(session) {
+const WRITE_NOTICES = Object.freeze({ saving: agentMessage("agents.drill.saving"), converting: agentMessage("agents.drill.converting") });
+
+export function drill_blocked_reason(session, t = agentEnglishText) {
   if (!session) return null;
-  if (session.saving) return WRITE_IN_FLIGHT.saving;
-  if (session.converting) return WRITE_IN_FLIGHT.converting;
+  if (session.saving) return t === agentEnglishText ? WRITE_IN_FLIGHT.saving : t === agentMessage ? WRITE_NOTICES.saving : t("agents.drill.saving");
+  if (session.converting) return t === agentEnglishText ? WRITE_IN_FLIGHT.converting : t === agentMessage ? WRITE_NOTICES.converting : t("agents.drill.converting");
   return null;
 }
 
@@ -837,7 +846,7 @@ const WRITE_MESSAGES = new Set(Object.values(WRITE_IN_FLIGHT));
 export function notices_still_true(notices, session) {
   const writing = drill_blocked_reason(session) !== null;
   return (Array.isArray(notices) ? notices : []).filter(
-    (message) => writing || !WRITE_MESSAGES.has(message),
+    (message) => writing || !WRITE_MESSAGES.has(renderAgentMessage(message)),
   );
 }
 
@@ -845,7 +854,9 @@ export function notices_still_true(notices, session) {
    navigated elsewhere has no sentence: the author is looking at another
    graph, and a notice about the one they left would read as a problem with
    this one. */
-export function drill_obsolete_reason(blocked) {
+export function drill_obsolete_reason(blocked, t = agentEnglishText) {
+  if (blocked === "saving" || blocked === "converting") return t === agentEnglishText ? WRITE_IN_FLIGHT[blocked]
+    : t === agentMessage ? WRITE_NOTICES[blocked] : blocked === "saving" ? t("agents.drill.saving") : t("agents.drill.converting");
   return (typeof blocked === "string" && WRITE_IN_FLIGHT[blocked]) || null;
 }
 

@@ -4,6 +4,8 @@ import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
 import { api } from "../../../../../SERVICEs/api";
 import { checkSkeletonWorkflowToolCapabilities } from "../../../../../SERVICEs/skeleton_workflow_tool_capabilities";
 import { safe_text } from "../document_values";
+import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
+import { agentMessage, renderAgentMessage } from "../agents_i18n";
 import { python_strip } from "../kernel_config";
 import useListIdentities from "./list_identity";
 import usePendingText from "./pending_text";
@@ -30,6 +32,7 @@ export function workflow_tool_ids(document, poolId) {
 }
 
 function WorkflowToolRow({ entry, index, identity, canEdit, canRemove, onSet, onRemove, isDark }) {
+  const { t } = useTranslation();
   const valid = record(entry);
   const id = valid ? entry.id : undefined;
   const pending = usePendingText(id, identity);
@@ -38,12 +41,12 @@ function WorkflowToolRow({ entry, index, identity, canEdit, canRemove, onSet, on
   const set = (patch) => onSet((current) => ({ ...current, ...patch }));
   return <div data-testid={`native-workflow-tool-row-${index}`} style={{ display: "flex", flexDirection: "column", gap: 7, padding: 10, border: isDark ? "1px solid #ffffff20" : "1px solid #00000016", borderRadius: 8 }}>
     <div style={{ ...ROW, justifyContent: "space-between" }}>
-      <strong style={{ fontSize: 12 }}>Workflow tool {index + 1}</strong>
-      <Button label="Remove" ariaLabel="Remove Workflow tool" disabled={!canRemove} onClick={onRemove} />
+      <strong style={{ fontSize: 12 }}>{t("agents.workflow_tools.row", { index: index + 1 })}</strong>
+      <Button label={t("agents.workflow_tools.remove")} ariaLabel={t("agents.workflow_tools.remove_tool")} disabled={!canRemove} onClick={onRemove} />
     </div>
-    {!valid ? <span style={problem}>Stored entry is not an object: {safe_text(entry)}. Remove it to replace it.</span> : <>
+    {!valid ? <span style={problem}>{t("agents.workflow_tools.bad_entry", { value: safe_text(entry) })}</span> : <>
       <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <span style={NOTE}>Workflow tool id</span>
+        <span style={NOTE}>{t("agents.workflow_tools.id")}</span>
         <Input value={pending.text ?? (typeof id === "string" ? id : "")} disabled={!canEdit}
           set_value={(value) => {
             if (!id_ok(value)) { pending.hold(value); return; }
@@ -51,14 +54,14 @@ function WorkflowToolRow({ entry, index, identity, canEdit, canRemove, onSet, on
             if (value !== id) set({ id: value });
           }} style={{ width: "100%", fontSize: 12 }} />
       </label>
-      {id_ok(id) ? <span style={NOTE}>Function name: <code>{`workflow_${id}`}</code></span> : <span style={problem}>Stored id is invalid: {safe_text(id)}. Use 1–48 letters, digits, underscores or hyphens.</span>}
-      {pending.text !== null && <span style={problem}>This id cannot be written. Use 1–48 letters, digits, underscores or hyphens.</span>}
-      {!pin && <span style={problem}>{has(entry, "workflow") ? `Stored Workflow reference is invalid: ${safe_text(entry.workflow)}.` : "Pin a published Workflow before running."}</span>}
+      {id_ok(id) ? <span style={NOTE}>{t("agents.workflow_tools.function_name", { name: "\uE000" }).split("\uE000").map((part, at) => <React.Fragment key={at}>{at > 0 && <code>{`workflow_${id}`}</code>}{part}</React.Fragment>)}</span> : <span style={problem}>{t("agents.workflow_tools.bad_id", { id: safe_text(id) })}</span>}
+      {pending.text !== null && <span style={problem}>{t("agents.workflow_tools.pending_id")}</span>}
+      {!pin && <span style={problem}>{has(entry, "workflow") ? t("agents.workflow_tools.bad_reference", { value: safe_text(entry.workflow) }) : t("agents.workflow_tools.pin_required")}</span>}
       <WorkflowPinControl pin={pin} stored={entry.workflow} editable={canEdit} onPin={(workflow_id, revision_id) => set({ workflow: { workflow_id, revision_id } })}
         isDark={isDark} testid={`native-workflow-tool-pin-${identity}`} />
       {Object.keys(entry).filter((key) => key !== "id" && key !== "workflow").map((key) => <div key={key} style={ROW}>
-        <span style={problem}>Unsupported setting: {key} = {safe_text(entry[key])}</span>
-        <Button label="Remove setting" ariaLabel={`Remove Workflow tool setting ${key}`} disabled={!canEdit} onClick={() => onSet((current) => { const next = { ...current }; delete next[key]; return next; })} />
+        <span style={problem}>{t("agents.workflow_tools.unsupported", { key, value: safe_text(entry[key]) })}</span>
+        <Button label={t("agents.workflow_tools.remove_setting")} ariaLabel={t("agents.workflow_tools.remove_setting_key", { key })} disabled={!canEdit} onClick={() => onSet((current) => { const next = { ...current }; delete next[key]; return next; })} />
       </div>)}
     </>}
   </div>;
@@ -67,6 +70,7 @@ function WorkflowToolRow({ entry, index, identity, canEdit, canRemove, onSet, on
 // The facade validates the host's CLOSED capability. No capability means no
 // authoring support; saved values remain visible and explicitly removable.
 export default function WorkflowToolsSection({ document, node, editable, commit, isDark }) {
+  const { t } = useTranslation();
   const config = node.config;
   const rows = Array.isArray(config.workflow_tools) ? config.workflow_tools : [];
   const identities = useListIdentities(node.id, rows.length, config.workflow_tools);
@@ -75,14 +79,14 @@ export default function WorkflowToolsSection({ document, node, editable, commit,
     let live = true;
     const read = api?.unchain?.getSkeletonWorkflowToolCapabilities;
     if (typeof read !== "function") {
-      setCapability({ status: "unavailable", reason: "This host has no Workflow Tool contract." });
+      setCapability({ status: "unavailable", reason: agentMessage("agents.workflow_tools.no_contract") });
       return undefined;
     }
     Promise.resolve().then(() => read()).then((reply) => {
       checkSkeletonWorkflowToolCapabilities(reply);
       if (live) setCapability({ status: "ready" });
     }).catch((error) => {
-      if (live) setCapability({ status: "unavailable", reason: safe_text(error?.code || error?.message || "The host did not answer.") });
+      if (live) setCapability({ status: "unavailable", reason: error?.code || error?.message ? safe_text(error.code || error.message) : agentMessage("agents.workflow_tools.no_answer") });
     });
     return () => { live = false; };
   }, []);
@@ -104,25 +108,25 @@ export default function WorkflowToolsSection({ document, node, editable, commit,
   const supported = capability.status === "ready";
   const problem = { ...NOTE, color: isDark ? "rgba(255,140,140,0.95)" : "rgba(176,32,32,0.95)" };
   return <section data-testid={`native-workflow-tools-${capability.status}`} style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-    <strong style={{ ...NOTE, textTransform: "uppercase", letterSpacing: 0.4 }}>Workflows as tools</strong>
-    <span style={NOTE}>The attached Agent can call each fixed Workflow with an inputs object. Only that Workflow's End exports are returned. It uses the normal tool permissions, Hooks and approvals.</span>
-    {capability.status === "loading" && <span style={NOTE}>Reading the Workflow Tool contract…</span>}
-    {capability.status === "unavailable" && <span style={problem}>Workflow Tool editing is unavailable: {capability.reason} Stored references are kept.</span>}
+    <strong style={{ ...NOTE, textTransform: "uppercase", letterSpacing: 0.4 }}>{t("agents.workflow_tools.title")}</strong>
+    <span style={NOTE}>{t("agents.workflow_tools.contract")}</span>
+    {capability.status === "loading" && <span style={NOTE}>{t("agents.workflow_tools.reading")}</span>}
+    {capability.status === "unavailable" && <span style={problem}>{t("agents.workflow_tools.unavailable", { reason: renderAgentMessage(capability.reason, t) })}</span>}
     {has(config, "workflow_tools") && !Array.isArray(config.workflow_tools) && <>
-      <span style={problem}>Stored Workflow tools must be a list: {safe_text(config.workflow_tools)}</span>
-      {supported && <Button label="Replace invalid Workflow tools with an empty list" disabled={!editable} onClick={() => writeRows([])} />}
+      <span style={problem}>{t("agents.workflow_tools.list_required", { value: safe_text(config.workflow_tools) })}</span>
+      {supported && <Button label={t("agents.workflow_tools.replace_list")} disabled={!editable} onClick={() => writeRows([])} />}
     </>}
     {rows.map((entry, index) => <WorkflowToolRow key={identities.ids[index]} entry={entry} index={index} identity={identities.ids[index]}
       canEdit={editable && supported} canRemove={editable} isDark={isDark} onSet={(change) => updateRow(identities.ids[index], change)}
       onRemove={() => { identities.removed(index); writeRows(rows.filter((_, at) => at !== index)); }} />)}
-    {supported && (!has(config, "workflow_tools") || Array.isArray(config.workflow_tools)) && <Button label="Add Workflow tool" disabled={!editable} onClick={() => {
+    {supported && (!has(config, "workflow_tools") || Array.isArray(config.workflow_tools)) && <Button label={t("agents.workflow_tools.add")} disabled={!editable} onClick={() => {
       const used = workflow_tool_ids(document, node.id);
       let index = 1;
       while (used.has(`tool-${index}`)) index += 1;
       identities.added();
       writeRows([...rows, { id: `tool-${index}` }]);
     }} />}
-    {has(config, "workflow_tools") && <Button label="Remove Workflow tools setting" disabled={!editable} onClick={() => {
+    {has(config, "workflow_tools") && <Button label={t("agents.workflow_tools.remove_all")} disabled={!editable} onClick={() => {
       const current = latest.current;
       const next = { ...current.config };
       delete next.workflow_tools;

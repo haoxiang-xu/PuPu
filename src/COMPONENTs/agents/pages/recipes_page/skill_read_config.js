@@ -1,4 +1,5 @@
 import { node_bindings, with_node_bindings } from "./skeleton_document";
+import { agentEnglishText } from "./agents_i18n";
 
 /* The Skill Read node's configuration (#352).
  *
@@ -85,20 +86,20 @@ export function without_inputs(document, node_id) {
 
 /* `rows` is the skill list when it was read, or null when it was not; an
    identity is only reported as not listed against a list that was read. */
-export function skill_read_problems(node, rows) {
+export function skill_read_problems(node, rows, t = agentEnglishText) {
   const identity = skill_identity(node);
-  if (!identity) return [{ code: "skill_missing", message: "Pick the skill this step reads." }];
+  if (!identity) return [{ code: "skill_missing", message: t("agents.execution.skill.selection_missing") }];
   const problems = [];
   if (!exact_identity(identity)) {
-    problems.push({ code: "skill_incomplete", message: "The stored skill is not one the runtime can identify. Pick it again." });
+    problems.push({ code: "skill_incomplete", message: t("agents.execution.skill.identity_incomplete") });
   } else if (Array.isArray(rows) && !rows.some((row) => same_identity(row.identity, identity))) {
-    problems.push({ code: "skill_not_listed", message: `“${identity.name}” is not in the skill list now; the run would fail to read it.` });
+    problems.push({ code: "skill_not_listed", message: t("agents.execution.skill.unlisted_skill", { identity_name: identity.name }) });
   }
   if (node_bindings(node).length > 0) {
-    problems.push({ code: "inputs_present", message: "A Skill Read takes no inputs; the runtime refuses a step that has them." });
+    problems.push({ code: "inputs_present", message: t("agents.execution.skill.inputs_refused") });
   }
   Object.keys(node.config).filter((key) => !SETTING_KEYS.includes(key)).forEach((key) => {
-    problems.push({ code: "unknown_setting", setting: key, message: `This runtime does not read the setting “${key}”.` });
+    problems.push({ code: "unknown_setting", setting: key, message: t("agents.execution.skill.unknown_setting", { key: key }) });
   });
   return problems;
 }
@@ -112,7 +113,11 @@ const SOURCE_LABELS = {
 /* The store keeps any JSON shape at skill.source and the canvas draws it
    before the author can repair it (R-352-02), so only text is ever looked up
    or shown; anything else is never coerced into a key or a label. */
-export function source_label(source) {
-  if (!text(source)) return "an unreadable source";
-  return Object.prototype.hasOwnProperty.call(SOURCE_LABELS, source) ? SOURCE_LABELS[source] : source;
+export function source_label(source, t = agentEnglishText) {
+  if (!text(source)) return t("agents.nodes.unreadable_source");
+  if (!Object.prototype.hasOwnProperty.call(SOURCE_LABELS, source)) return source;
+  if (source === "user-unchain") return t("agents.skill.your_skills", { path: "~/.unchain" });
+  if (source === "user-agents") return t("agents.skill.your_skills", { path: "~/.agents" });
+  if (source === "skillpack") return t("agents.skill.skill_pack");
+  return SOURCE_LABELS[source];
 }

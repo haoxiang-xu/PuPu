@@ -1,3 +1,5 @@
+import { agentEnglishText } from "../agents_i18n";
+import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import React from "react";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import OutputRow from "./output_row";
@@ -52,7 +54,7 @@ function input_names(node) {
    rule the draft diagnose states in words: "end outputs may only use inputs".
    Both are reachable from a loaded draft even though the controls will not
    compose them, so both have to be sayable on a row. */
-export function output_surface_problems(node, mappings) {
+export function output_surface_problems(node, mappings, t = agentEnglishText) {
   const problems = [];
   const names = input_names(node);
   const type = node && node.type;
@@ -64,7 +66,7 @@ export function output_surface_problems(node, mappings) {
       problems.push({
         code: "invalid_value",
         where: `${where}.kind`,
-        message: "An End can only export what it was given, not a result.",
+        message: t("agents.io.an_end_can_only_export_what_it_was_given_not_a_result"),
       });
       return;
     }
@@ -80,7 +82,7 @@ export function output_surface_problems(node, mappings) {
       problems.push({
         code: "missing_value",
         where: `${where}.path[0]`,
-        message: "A list position cannot name an input. Choose one by name.",
+        message: t("agents.io.a_list_position_cannot_name_an_input_choose_one_by_name"),
       });
       return;
     }
@@ -89,20 +91,14 @@ export function output_surface_problems(node, mappings) {
       problems.push({
         code: "missing_value",
         where: `${where}.path[0]`,
-        message: `This node has no input named "${first}".`,
+        message: t("agents.io.validation.input_absent", { name: first }),
       });
     }
   });
   return problems;
 }
 
-const PRODUCER_LABEL = {
-  agent: "An Agent",
-  tool_call: "A Tool Call",
-  skill_read: "A Skill Read",
-  code: "This Code node's Result",
-  workflow_call: "The called Workflow's End",
-};
+
 
 /* What the runtime will refuse, said earlier.
  *
@@ -117,10 +113,19 @@ const PRODUCER_LABEL = {
  * names, and the runtime publishes them. A list that may be incomplete cannot
  * prove a name absent, so an open one says nothing at all rather than
  * something categorical about a field that really does arrive. */
-export function result_root_problems(node, mappings) {
-  const roots = result_roots_for(node);
+export function result_root_problems(node, mappings, t = agentEnglishText) {
+  const roots = result_roots_for(node, t);
   if (!roots.known || !roots.closed) return [];
-  const label = PRODUCER_LABEL[node && node.type] || "This node";
+  const captions = {
+    agent: { object: "agents.io.validation.agent_result_object", absent: "agents.io.validation.agent_result_absent" },
+    tool_call: { object: "agents.io.validation.tool_call_result_object", absent: "agents.io.validation.tool_call_result_absent" },
+    skill_read: { object: "agents.io.validation.skill_read_result_object", absent: "agents.io.validation.skill_read_result_absent" },
+    code: { object: "agents.io.validation.code_result_object", absent: "agents.io.validation.code_result_absent" },
+    workflow_call: { object: "agents.io.validation.workflow_call_result_object", absent: "agents.io.validation.workflow_call_result_absent" },
+  };
+  const caption = Object.prototype.hasOwnProperty.call(captions, node && node.type)
+    ? captions[node.type]
+    : { object: "agents.io.validation.other_result_object", absent: "agents.io.validation.other_result_absent" };
   const problems = [];
   mappings.forEach((mapping, index) => {
     const source = mapping && mapping.source;
@@ -135,7 +140,7 @@ export function result_root_problems(node, mappings) {
         problems.push({
           code: "missing_value",
           where,
-          message: `${label}'s result is an object, so a list position cannot name a field of it.`,
+          message: t(caption.object),
         });
       }
       return;
@@ -144,7 +149,7 @@ export function result_root_problems(node, mappings) {
       problems.push({
         code: "missing_value",
         where,
-        message: `${label} produces no result named "${first}".`,
+        message: t(caption.absent, { name: first }),
       });
     }
   });
@@ -161,6 +166,7 @@ export default function OutputVariablesSection({
   isDark,
   onChange,
 }) {
+  const { t } = useTranslation();
   /* A branch selects an outlet rather than producing a value, and a pool
      attaches rather than runs, so neither has an outputs key at all. */
   if (!node_declares_outputs(node && node.type)) return null;
@@ -168,11 +174,11 @@ export default function OutputVariablesSection({
   const mappings = node_output_mappings(node);
   const kinds = output_source_kinds_for(node.type);
   const names = input_names(node);
-  const roots = result_roots_for(node);
+  const roots = result_roots_for(node, t);
   const composed = [
-    ...output_mapping_problems(mappings),
-    ...output_surface_problems(node, mappings),
-    ...result_root_problems(node, mappings),
+    ...output_mapping_problems(mappings, t),
+    ...output_surface_problems(node, mappings, t),
+    ...result_root_problems(node, mappings, t),
   ];
 
   function set_mappings(next) {
@@ -209,9 +215,9 @@ export default function OutputVariablesSection({
           alignItems: "center",
         }}
       >
-        <span style={SECTION_LABEL}>Output Variables</span>
+        <span style={SECTION_LABEL}>{t("agents.io.output_variables")}</span>
         <Button
-          label="+ Add output"
+          label={t("agents.io.add_output")}
           onClick={add_mapping}
           style={{
             fontSize: 11,
@@ -225,7 +231,7 @@ export default function OutputVariablesSection({
 
       {mappings.length === 0 && (
         <span style={{ fontSize: 11, color: "#86868b" }}>
-          This node passes nothing on, so nothing downstream can read from it.
+          {t("agents.io.this_node_passes_nothing_on_so_nothing_downstream_can_read_from_it")}
         </span>
       )}
 

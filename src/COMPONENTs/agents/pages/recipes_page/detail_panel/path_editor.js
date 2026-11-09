@@ -3,6 +3,7 @@ import usePendingText from "./pending_text";
 import useListIdentities from "./list_identity";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
+import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 
 /* Where inside a value to read.
  *
@@ -59,6 +60,7 @@ export function index_from_text(text) {
  * not the same step. Only the editor below knows an edit moved things, so the
  * identity is kept there and spent as this component's key. */
 function Step({ segment, index, testid, onReplace, onRemove }) {
+  const { t } = useTranslation();
   const kind = path_segment_kind(segment);
   const pending = usePendingText(segment);
   const refused = kind === "index" && pending.text !== null;
@@ -88,8 +90,8 @@ function Step({ segment, index, testid, onReplace, onRemove }) {
           label={kind === "index" ? "[n]" : ".key"}
           ariaLabel={
             kind === "index"
-              ? `Step ${index + 1} reads a list position; switch to a field name`
-              : `Step ${index + 1} reads a field name; switch to a list position`
+              ? t("agents.path.step_index", { step: index + 1 })
+              : t("agents.path.step_key", { step: index + 1 })
           }
           onClick={flip}
           style={{
@@ -104,7 +106,7 @@ function Step({ segment, index, testid, onReplace, onRemove }) {
         <Input
           value={pending.text !== null ? pending.text : String(segment)}
           set_value={(next) => (kind === "index" ? type_index(next) : onReplace(next))}
-          placeholder={kind === "index" ? "0" : "field"}
+          placeholder={kind === "index" ? "0" : t("agents.path.field")}
           style={{
             flex: 1,
             minWidth: 0,
@@ -117,7 +119,7 @@ function Step({ segment, index, testid, onReplace, onRemove }) {
         />
         <Button
           prefix_icon="close"
-          ariaLabel={`Remove step ${index + 1}`}
+          ariaLabel={t("agents.path.remove_step", { step: index + 1 })}
           onClick={onRemove}
           style={{
             flexShrink: 0,
@@ -137,9 +139,7 @@ function Step({ segment, index, testid, onReplace, onRemove }) {
               one may well have been stored — `1` is a position even though
               `1-` is not — so "this was not stored" alone leaves the author
               guessing which of the two the path now reads. */}
-          {`A list position is a whole number, 0 or more. This was not stored — step ${
-            index + 1
-          } is still ${segment}.`}
+          {t("agents.path.invalid_index", { step: index + 1, value: segment })}
         </span>
       )}
     </div>
@@ -151,13 +151,14 @@ export default function PathEditor({
   testid,
   onChange,
   leading,
-  addLabel = "+ Add a step",
+  addLabel,
   /* Who this whole editor belongs to — a node, a row. When that changes these
      are different steps even if they look identical, so the ids are reminted.
      Defaulted to the testid so a lone editor still has one rather than
      silently sharing `undefined`. */
   identity = testid,
 }) {
+  const { t } = useTranslation();
   const segments = Array.isArray(path) ? path : [];
   /* `leading` renders segment 0 itself — the input side picks it from a list
      rather than typing it — so the steps below it start one later. */
@@ -197,7 +198,7 @@ export default function PathEditor({
       ))}
 
       <Button
-        label={addLabel}
+        label={addLabel === undefined ? t("agents.path.add_step") : addLabel}
         onClick={add}
         style={{
           alignSelf: "flex-start",
@@ -211,7 +212,7 @@ export default function PathEditor({
 
       {steps.length === 0 && !leading && (
         <span data-testid={`${testid}-whole`} style={CAPTION}>
-          The whole value is exported as it is.
+          {t("agents.path.whole")}
         </span>
       )}
     </div>

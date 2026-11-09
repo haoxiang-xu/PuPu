@@ -1,3 +1,4 @@
+import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import React, { useEffect, useMemo, useState } from "react";
 import { api } from "../../../../../SERVICEs/api";
 import { Input } from "../../../../../BUILTIN_COMPONENTs/input/input";
@@ -45,6 +46,7 @@ const TABS = [
 ];
 
 export default function ToolPoolPanel({ node, recipe, onChange, isDark }) {
+  const { t } = useTranslation();
   const [catalog, setCatalog] = useState([]);
   const [active_tab, setActiveTab] = useState("installed");
   const [search, setSearch] = useState("");
@@ -191,12 +193,12 @@ export default function ToolPoolPanel({ node, recipe, onChange, isDark }) {
           }}
         >
           <span style={{ fontSize: 12, fontWeight: 500 }}>
-            Merge with user-selected
+            {t("agents.legacy_tools.merge")}
           </span>
           <span style={{ fontSize: 10.5, color: muted }}>
             {merge_on
-              ? "This pool + user's chat-time selection"
-              : "This pool only (ignore user selection)"}
+              ? t("agents.legacy_tools.merge_on")
+              : t("agents.legacy_tools.merge_off")}
           </span>
         </div>
         <Switch on={merge_on} set_on={set_merge} style={BUILDER_SWITCH_SIZE} />
@@ -210,14 +212,14 @@ export default function ToolPoolPanel({ node, recipe, onChange, isDark }) {
             alignItems: "center",
           }}
         >
-          <span style={SECTION_LABEL}>Pool</span>
+          <span style={SECTION_LABEL}>{t("agents.legacy_tools.pool")}</span>
           <span style={{ fontSize: 11, color: muted }}>
-            {toolkits.length} toolkit{toolkits.length === 1 ? "" : "s"}
+            {t(toolkits.length === 1 ? "agents.legacy_tools.kit_count_one" : "agents.legacy_tools.kit_count_other", { count: toolkits.length })}
           </span>
         </div>
         {toolkits.length === 0 && (
           <span style={{ fontSize: 11, color: muted }}>
-            Add toolkits from the list below.
+            {t("agents.legacy_tools.empty")}
           </span>
         )}
         {toolkits.map((entry) => {
@@ -302,7 +304,7 @@ export default function ToolPoolPanel({ node, recipe, onChange, isDark }) {
                       padding: "0 2px",
                     }}
                   >
-                    {all_on ? "None" : "All"}
+                    {all_on ? t("agents.legacy_tools.none") : t("agents.legacy_tools.all")}
                   </span>
                 )}
                 <Button
@@ -330,7 +332,7 @@ export default function ToolPoolPanel({ node, recipe, onChange, isDark }) {
                 >
                   {tools.length === 0 && (
                     <span style={{ fontSize: 11, color: muted }}>
-                      No tools.
+                      {t("agents.legacy_tools.no_tools")}
                     </span>
                   )}
                   {tools.map((t) => {
@@ -379,7 +381,7 @@ export default function ToolPoolPanel({ node, recipe, onChange, isDark }) {
               <Button
                 key={tab.key}
                 prefix_icon={tab.icon}
-                label={tab.label}
+                label={t(tab.key === "installed" ? "agents.legacy_tools.installed" : "agents.legacy_tools.store")}
                 onClick={() => setActiveTab(tab.key)}
                 style={{
                   fontSize: 11.5,
@@ -402,7 +404,7 @@ export default function ToolPoolPanel({ node, recipe, onChange, isDark }) {
               prefix_icon="search"
               value={search}
               set_value={setSearch}
-              placeholder="Search tools..."
+              placeholder={t("agents.legacy_tools.search")}
               style={{
                 fontSize: 12,
                 paddingVertical: 5,
@@ -414,10 +416,10 @@ export default function ToolPoolPanel({ node, recipe, onChange, isDark }) {
               {filtered_installed.length === 0 && (
                 <span style={{ fontSize: 11, color: muted }}>
                   {catalog.length === 0
-                    ? "No toolkits installed."
+                    ? t("agents.legacy_tools.none_installed")
                     : added_set.size === catalog.length
-                      ? "All installed toolkits are in the pool."
-                      : `No toolkits matching "${search.trim()}"`}
+                      ? t("agents.legacy_tools.all_added")
+                      : t("agents.legacy_tools.no_match", { search: search.trim() })}
                 </span>
               )}
               {filtered_installed.map((tk) => {
@@ -472,12 +474,12 @@ export default function ToolPoolPanel({ node, recipe, onChange, isDark }) {
                           whiteSpace: "nowrap",
                         }}
                       >
-                        {tk.toolkitDescription || `${tools.length} tools`}
+                        {tk.toolkitDescription || t(tools.length === 1 ? "agents.legacy_tools.tool_count_one" : "agents.legacy_tools.tool_count_other", { count: tools.length })}
                       </span>
                     </div>
                     <Button
                       prefix_icon="add"
-                      label="Add"
+                      label={t("agents.legacy_tools.add")}
                       onClick={() => add_toolkit(tk.toolkitId)}
                       style={{
                         fontSize: 11,
@@ -506,7 +508,7 @@ export default function ToolPoolPanel({ node, recipe, onChange, isDark }) {
               color: muted,
             }}
           >
-            Tool Store coming soon.
+            {t("agents.legacy_tools.soon")}
           </div>
         )}
       </div>

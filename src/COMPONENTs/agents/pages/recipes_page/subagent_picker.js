@@ -1,3 +1,4 @@
+import { useTranslation } from "../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { useEffect, useState } from "react";
 import Modal from "../../../../BUILTIN_COMPONENTs/modal/modal";
 import Input from "../../../../BUILTIN_COMPONENTs/input/input";
@@ -13,6 +14,7 @@ export default function SubagentPicker({
   isDark,
   currentRecipeName = "",
 }) {
+  const { t } = useTranslation();
   const [tab, setTab] = useState("reference");
   const [recipes, setRecipes] = useState([]);
   const [inlineName, setInlineName] = useState("");
@@ -68,12 +70,12 @@ export default function SubagentPicker({
       }}
     >
       <div style={{ padding: "12px 16px", borderBottom: divider }}>
-        <div style={{ fontWeight: 600 }}>Add subagent</div>
+        <div style={{ fontWeight: 600 }}>{t("agents.legacy_picker.title")}</div>
         <div style={{ marginTop: 10 }}>
           <SegmentedButton
             options={[
-              { label: "Reference an Agent", value: "reference" },
-              { label: "Author inline", value: "inline" },
+              { label: t("agents.legacy_picker.reference"), value: "reference" },
+              { label: t("agents.legacy_picker.inline"), value: "inline" },
             ]}
             value={tab}
             on_change={setTab}
@@ -89,7 +91,7 @@ export default function SubagentPicker({
           <div>
             {availableAgents.length === 0 ? (
               <div style={{ color: "#888" }}>
-                No other Agents available.
+                {t("agents.legacy_picker.empty")}
               </div>
             ) : (
               availableAgents.map((r) => (
@@ -106,7 +108,7 @@ export default function SubagentPicker({
                 >
                   <div style={{ fontWeight: 600 }}>{r.name}</div>
                   <div style={{ fontSize: 11, color: "#888" }}>
-                    {r.description || "Agent"}
+                    {r.description || t("agents.legacy_picker.agent")}
                   </div>
                 </div>
               ))
@@ -119,15 +121,15 @@ export default function SubagentPicker({
               <Input
                 value={inlineName}
                 set_value={setInlineName}
-                placeholder="Subagent name"
+                placeholder={t("agents.legacy_picker.name")}
                 style={{ width: "100%", fontSize: 12, borderRadius: 6 }}
               />
             </div>
             <div style={{ marginBottom: 8 }}>
               <SegmentedButton
                 options={[
-                  { label: "Soul", value: "soul" },
-                  { label: "Skeleton", value: "skeleton" },
+                  { label: t("agents.legacy_picker.soul"), value: "soul" },
+                  { label: t("agents.legacy_picker.skeleton"), value: "skeleton" },
                 ]}
                 value={inlineFormat}
                 on_change={setInlineFormat}
@@ -139,8 +141,8 @@ export default function SubagentPicker({
               set_value={setInlinePrompt}
               placeholder={
                 inlineFormat === "skeleton"
-                  ? "(instructions text)"
-                  : "You are..."
+                  ? t("agents.legacy_picker.instructions")
+                  : t("agents.legacy_picker.prompt")
               }
               min_rows={10}
               max_display_rows={12}
@@ -154,7 +156,7 @@ export default function SubagentPicker({
             />
             <div style={{ marginTop: 12, textAlign: "right" }}>
               <Button
-                label="Add"
+                label={t("agents.legacy_picker.add")}
                 onClick={pickInline}
                 disabled={!inlineName.trim()}
                 style={{

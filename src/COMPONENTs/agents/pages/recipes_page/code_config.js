@@ -1,3 +1,4 @@
+import { agentEnglishText } from "./agents_i18n";
 import { safe_text } from "./document_values";
 import { schema_root_scope } from "./output_schema";
 import { is_reserved_path, managed_sha, text_problem } from "./managed_code_sources";
@@ -81,35 +82,35 @@ export function with_code_settings(document, node_id, code) {
    normalized relative path with no empty, `.` or `..` segment and no NUL. The
    runtime admits an absolute path at preflight and refuses it only when the
    node runs, so this is one of the places the editor speaks sooner. */
-export function source_path_problem(path) {
-  if (typeof path !== "string") return "The source must be text naming a file.";
-  if (path === "") return "Name the file that holds main(input, context).";
+export function source_path_problem(path, t = agentEnglishText) {
+  if (typeof path !== "string") return t("agents.execution.code.path_text_required");
+  if (path === "") return t("agents.execution.code.path_missing");
   /* The host's own space for text written here: a workspace file of that
      name would be taken for host-kept text, and a typed digest names text
      nobody wrote. */
-  if (is_reserved_path(path)) return "Paths under __pupu_code__/ are kept for code written in this panel; choose another file.";
-  if (path.includes("\u0000")) return "The path cannot contain a NUL character.";
+  if (is_reserved_path(path)) return t("agents.execution.code.reserved_path");
+  if (path.includes("\u0000")) return t("agents.execution.code.path_nul");
   if (path.startsWith("/") || /^[A-Za-z]:[\\/]/.test(path) || path.startsWith("\\")) {
-    return "The path is read inside the run's workspace, so it must be relative to it.";
+    return t("agents.execution.code.path_absolute");
   }
   const parts = path.split("/");
-  if (parts.includes("..")) return "The path cannot step out of the workspace with \"..\".";
-  if (parts.includes(".")) return "The path cannot contain a \".\" segment.";
-  if (parts.includes("")) return "The path cannot contain an empty segment.";
+  if (parts.includes("..")) return t("agents.execution.code.path_parent");
+  if (parts.includes(".")) return t("agents.execution.code.path_dot");
+  if (parts.includes("")) return t("agents.execution.code.path_empty_segment");
   return null;
 }
 
-function source_problem(source, sources) {
+function source_problem(source, sources, t = agentEnglishText) {
   if (!record(source) || Object.keys(source).length !== 2 || source.kind !== "file" || !has(source, "path")) {
-    return "The source must be exactly one file reference: {kind: \"file\", path}.";
+    return t("agents.execution.code.source_shape");
   }
   const sha = managed_sha(source);
   if (sha !== null) {
-    if (!has(sources, sha)) return "The text of this code is not loaded here, so it cannot be shown or saved. Reopen this Agent.";
-    const problem = text_problem(sources[sha]);
+    if (!has(sources, sha)) return t("agents.execution.code.text_unloaded_save");
+    const problem = text_problem(sources[sha], t);
     return problem ? problem.message : null;
   }
-  return source_path_problem(source.path);
+  return source_path_problem(source.path, t);
 }
 
 /* The one reader the code block, the viewer and the panel's editor draw
@@ -122,39 +123,39 @@ function source_problem(source, sources) {
  * it gets there, under that run's workspace root, and nothing carries its
  * text, so it answers "not here" with the path, and the drawings fall back
  * to the node's header. */
-export function code_source_text(node, sources) {
+export function code_source_text(node, sources, t = agentEnglishText) {
   const code = code_settings(node);
   const source = code ? code.source : null;
   const path = record(source) && typeof source.path === "string" ? source.path : null;
   if (!code) {
-    return { available: false, managed: false, text: null, path: null, reason: "No code settings yet." };
+    return { available: false, managed: false, text: null, path: null, reason: t("agents.execution.code.no_settings") };
   }
   const sha = managed_sha(source);
   if (sha !== null) {
     return has(sources, sha) && typeof sources[sha] === "string"
       ? { available: true, managed: true, text: sources[sha], path, reason: null }
-      : { available: false, managed: true, text: null, path, reason: "The text of this code is not loaded here. Reopen this Agent to read it." };
+      : { available: false, managed: true, text: null, path, reason: t("agents.execution.code.text_unloaded_read") };
   }
   if (is_reserved_path(path)) {
-    return { available: false, managed: true, text: null, path, reason: "This source names host-kept code in a form this editor cannot read." };
+    return { available: false, managed: true, text: null, path, reason: t("agents.execution.code.unreadable_managed_source") };
   }
   return {
     managed: false,
     available: false,
     text: null,
     path,
-    reason: "The code is read from this file inside the run's workspace when the run gets here; its text is not stored in the Agent.",
+    reason: t("agents.execution.code.workspace_source_note"),
   };
 }
 
 /* ── Limits ───────────────────────────────────────────────────────────── */
 
-export function limit_from_text(text, limit) {
+export function limit_from_text(text, limit, t = agentEnglishText) {
   const raw = typeof text === "string" ? text.trim() : "";
-  if (!/^\d+$/.test(raw)) return { ok: false, problem: "Enter a whole number." };
+  if (!/^\d+$/.test(raw)) return { ok: false, problem: t("agents.execution.code.enter_a_whole_number") };
   const value = Number(raw);
   if (!Number.isSafeInteger(value) || value < limit.min || value > limit.max) {
-    return { ok: false, problem: `Enter a whole number from ${limit.min} to ${limit.max}.` };
+    return { ok: false, problem: t("agents.execution.code.bounded_integer_required", { limit_min: limit.min, limit_max: limit.max }) };
   }
   return { ok: true, value };
 }
@@ -166,14 +167,14 @@ const limit_ok = (value, limit) => Number.isSafeInteger(value) && value >= limit
 /* What the store lists: `{id, kind: bundled|venv, executable, fingerprint,
    available, changed, edit_token}`. A version is known only from a probe the
    author asks for, so the label never pretends to one. */
-export function profile_label(profile) {
-  if (!record(profile) || typeof profile.id !== "string") return "(unreadable profile)";
+export function profile_label(profile, t = agentEnglishText) {
+  if (!record(profile) || typeof profile.id !== "string") return t("agents.execution.code.unreadable_profile");
   const where = profile.kind === "bundled"
-    ? "built-in Python"
+    ? t("agents.execution.code.built_in_python")
     : typeof profile.executable === "string" && profile.executable
       ? safe_text(profile.executable.split("/").filter(Boolean).pop() || profile.executable)
-      : "a named Python";
-  return `${safe_text(profile.id)} · ${where}${profile.available === false ? " (unavailable)" : ""}`;
+      : t("agents.execution.code.a_named_python");
+  return profile.available === false ? t("agents.execution.code.profile_unavailable_caption", { profile: safe_text(profile.id), location: where }) : t("agents.execution.code.profile_caption", { profile: safe_text(profile.id), location: where });
 }
 
 /* ── What the result declares ─────────────────────────────────────────── */
@@ -182,7 +183,7 @@ export function profile_label(profile) {
    and the Output Variables pick from them. Closed only when the schema closes
    its own key list — an open schema may carry fields it does not name, and
    the runtime publishes them. */
-export function code_result_roots(node) {
+export function code_result_roots(node, t = agentEnglishText) {
   const code = code_settings(node);
   const schema = code ? code.result_schema : undefined;
   if (!record(schema) || schema.type !== "object") {
@@ -191,8 +192,8 @@ export function code_result_roots(node) {
       roots: [],
       closed: false,
       reason: code
-        ? "This Code node's Result schema is not a shape this editor can read, so its fields are not listed."
-        : "Declare the fields main() returns in Result; the Output Variables pick from them.",
+        ? t("agents.execution.code.result_schema_unreadable")
+        : t("agents.execution.code.result_schema_missing"),
     };
   }
   const scope = schema_root_scope(schema);
@@ -202,62 +203,62 @@ export function code_result_roots(node) {
     closed: scope.closed,
     reason: scope.closed
       ? null
-      : "This Result schema does not close its own field list, so the result can carry a field it does not name.",
+      : t("agents.execution.code.result_schema_open"),
   };
 }
 
 /* ── What the panel says is wrong ─────────────────────────────────────── */
 
-export function code_problems(node, profiles, sources) {
+export function code_problems(node, profiles, sources, t = agentEnglishText) {
   const code = code_settings(node);
   if (!code) {
-    return [{ code: "code_missing", message: "Choose a runtime, name the source file, set the limits and declare the Result." }];
+    return [{ code: "code_missing", message: t("agents.execution.code.settings_missing") }];
   }
   const problems = [];
   REQUIRED_KEYS.filter((key) => !has(code, key)).forEach((key) => {
     if (LIMIT_KEYS.includes(key)) {
-      problems.push({ code: "limit_missing", setting: key, message: `Set ${key.replace(/_/g, " ")}; the runtime requires it.` });
+      problems.push({ code: "limit_missing", setting: key, message: t("agents.execution.code.limit_missing", { value1: key.replace(/_/g, " ") }) });
     } else if (key === "source") {
-      problems.push({ code: "source_missing", message: "Write the code that defines main(input, context), or name the file that holds it." });
+      problems.push({ code: "source_missing", message: t("agents.execution.code.source_missing") });
     } else if (key === "environment_profile_id") {
-      problems.push({ code: "profile_missing", message: "Choose the Python this code runs with." });
+      problems.push({ code: "profile_missing", message: t("agents.execution.code.profile_missing") });
     } else {
-      problems.push({ code: "schema_missing", message: "Declare the Result: the fields main() returns." });
+      problems.push({ code: "schema_missing", message: t("agents.execution.code.schema_missing") });
     }
   });
   Object.keys(code).filter((key) => !CODE_SETTING_KEYS.includes(key)).forEach((key) => {
-    problems.push({ code: "unknown_setting", setting: key, message: `This runtime does not read the setting “${safe_text(key)}”.` });
+    problems.push({ code: "unknown_setting", setting: key, message: t("agents.execution.code.unknown_setting", { key: safe_text(key) }) });
   });
   if (has(code, "source")) {
-    const problem = source_problem(code.source, sources);
+    const problem = source_problem(code.source, sources, t);
     if (problem) problems.push({ code: "source_invalid", message: problem });
   }
   if (has(code, "environment_profile_id")) {
     const id = code.environment_profile_id;
     if (typeof id !== "string" || !id) {
-      problems.push({ code: "profile_invalid", message: "The runtime profile must be named." });
+      problems.push({ code: "profile_invalid", message: t("agents.execution.code.profile_name_required") });
     } else if (Array.isArray(profiles)) {
       const listed = profiles.find((profile) => record(profile) && profile.id === id);
       if (!listed) {
-        problems.push({ code: "profile_unknown", message: `No Python profile named “${safe_text(id)}” is on this machine. Choose one, or add it.` });
+        problems.push({ code: "profile_unknown", message: t("agents.execution.code.profile_unknown", { id: safe_text(id) }) });
       } else if (listed.available === false) {
-        problems.push({ code: "profile_unavailable", message: `The Python profile “${safe_text(id)}” is not available on this machine right now.` });
+        problems.push({ code: "profile_unavailable", message: t("agents.execution.code.profile_unavailable", { id: safe_text(id) }) });
       }
     }
   }
   LIMIT_KEYS.filter((key) => has(code, key)).forEach((key) => {
     if (!limit_ok(code[key], CODE_LIMITS[key])) {
-      problems.push({ code: "limit_invalid", setting: key, message: `${key.replace(/_/g, " ")} must be a whole number from ${CODE_LIMITS[key].min} to ${CODE_LIMITS[key].max}.` });
+      problems.push({ code: "limit_invalid", setting: key, message: t("agents.execution.code.limit_invalid", { value1: key.replace(/_/g, " "), value2_min: CODE_LIMITS[key].min, value3_max: CODE_LIMITS[key].max }) });
     }
   });
   if (has(code, "result_schema")) {
-    const problem = schema_shape_problem(code.result_schema);
+    const problem = schema_shape_problem(code.result_schema, t);
     if (problem) problems.push({ code: "schema_invalid", message: problem });
   }
   if (has(code, "artifacts")) {
     const artifacts = code.artifacts;
     if (!Array.isArray(artifacts) || artifacts.some((item) => !record(artifact_ok(item)))) {
-      problems.push({ code: "artifacts_invalid", message: "The stored artifacts are not a list this runtime reads." });
+      problems.push({ code: "artifacts_invalid", message: t("agents.execution.code.artifacts_invalid") });
     }
   }
   return problems;
@@ -268,18 +269,18 @@ export function code_problems(node, profiles, sources) {
    rows compose and the output rows read: an object whose `properties` is an
    object, whose `required` names strings and whose `additionalProperties`, if
    stated, is a boolean. Anything else is left to the store's refusal. */
-function schema_shape_problem(schema) {
+function schema_shape_problem(schema, t = agentEnglishText) {
   if (!record(schema) || schema.type !== "object") {
-    return "The Result schema must describe an object: the fields main() returns.";
+    return t("agents.execution.code.schema_object_required");
   }
   if (has(schema, "properties") && !record(schema.properties)) {
-    return "The Result schema's properties must be an object of named fields.";
+    return t("agents.execution.code.schema_properties_object");
   }
   if (has(schema, "required") && (!Array.isArray(schema.required) || schema.required.some((name) => typeof name !== "string"))) {
-    return "The Result schema's required list must name fields.";
+    return t("agents.execution.code.schema_required_list");
   }
   if (has(schema, "additionalProperties") && typeof schema.additionalProperties !== "boolean" && !record(schema.additionalProperties)) {
-    return "The Result schema's additionalProperties must be true, false or a schema.";
+    return t("agents.execution.code.schema_additional_properties");
   }
   return null;
 }

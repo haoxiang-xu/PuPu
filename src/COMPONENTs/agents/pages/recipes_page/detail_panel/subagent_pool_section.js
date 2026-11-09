@@ -1,3 +1,5 @@
+import { agentEnglishText, agentMessage, renderAgentMessage } from "../agents_i18n";
+import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
@@ -82,14 +84,11 @@ const MONO = { fontFamily: "ui-monospace, Menlo, monospace" };
 const PROBLEM = { fontSize: 10.5, lineHeight: 1.45 };
 const REFUSED = { ...PROBLEM, color: "rgba(176,32,32,0.95)" };
 
-const SECTION_CAPTION =
-  "Each entry is an Agent with its own graph. This panel manages the entries and how this Agent uses them; a subagent's own contents are edited by opening its graph.";
 
-const EMPTY_CAPTION =
-  "This pool holds no Agent yet. A pool that holds nothing is refused when the Agent runs, so add one or remove the pool node.";
 
-const LEGACY_CAPTION =
-  "This pool came from a legacy definition. Its entries are shown as they are stored, and nothing here is editable until they are converted — an edit would stop the conversion from happening and the subagents would be lost. Converting is one write covering every Subagent Pool in this Agent, and it keeps the tools, delegation modes, memory and parallel safety each subagent already declared.";
+
+
+
 
 /* Which entries this statement is about, and where they are.
  *
@@ -153,7 +152,19 @@ function owners_label(owners) {
  * the conversion deliberately does not carry over: the owner's Kernel is
  * copied with its prompt and output schema cleared, so a subagent is not
  * given this Agent's output contract. */
-function conversion_caption(plan, node_id) {
+function conversion_caption(plan, node_id, t = agentEnglishText) {
+  if (t !== agentEnglishText) {
+    const here = plan_for_pool(plan, node_id);
+    const others = plan.pools.filter((id) => id !== node_id);
+    const declared = plan.entries.filter((entry) => entry.pool_id === node_id && entry.declared !== null);
+    return t(`agents.subagents.convert_${plan.pools.includes(node_id) ? others.length === 0 ? "here" : others.length === 1 ? "here_else_one" : "here_else_many" : others.length === 1 ? "else_one" : "else_many"}${here && here.chosen ? here.owners.length === 1 ? "_owner_one" : "_owner_many" : ""}`, {
+      pools: others.join(t("agents.schema.fields.list_separator")),
+      model: here && here.chosen ? visible(here.chosen) : "",
+      owners: here && here.chosen ? here.owners.map(visible).join(t("agents.schema.fields.list_separator")) : "",
+      kept: declared.length === 0 ? "" : declared.length === 1 ? t("agents.subagents.convert_declared_one") : t("agents.subagents.convert_declared_other", { count: declared.length }),
+      elsewhere: others.length === 0 ? "" : t(others.length === 1 ? "agents.subagents.convert_elsewhere_one" : "agents.subagents.convert_elsewhere_many", { pools: others.map(visible).join(t("agents.schema.fields.list_separator")) }),
+    });
+  }
   const subject = inline_subject(plan.pools, node_id);
   const here = plan_for_pool(plan, node_id);
   const named =
@@ -183,7 +194,31 @@ function conversion_caption(plan, node_id) {
  * resolves the model — and the write covers all of them, so the pool the
  * author is looking at can be fine and the button still withheld. Which pool
  * is named either way. */
-function refusal_caption(plan, node_id) {
+function refusal_caption(plan, node_id, t = agentEnglishText) {
+  if (t !== agentEnglishText) {
+    const refusal = plan.refusal;
+    const here = refusal.pool_id === node_id;
+    const atomic = here ? "" : t("agents.subagents.convert_atomic_note");
+    if (refusal.code === CONVERSION_OWNER_REQUIRED) {
+      return t(here ? "agents.subagents.convert_refused_owner_required_here" : "agents.subagents.convert_refused_owner_required_else", { pool_id: visible(refusal.pool_id), atomic });
+    }
+    if (refusal.code === CONVERSION_KERNEL_ABSENT) {
+      return t(here ? "agents.subagents.convert_refused_kernel_absent_here" : "agents.subagents.convert_refused_kernel_absent_else", { pool_id: visible(refusal.pool_id), node: visible(refusal.node_id), atomic });
+    }
+    if (refusal.code === CONVERSION_KERNEL_REFUSED) {
+      return t("agents.subagents.convert_kernel_refused", { node: visible(refusal.node_id), code: refusal.problem.code, where: refusal.problem.where, atomic });
+    }
+    if (refusal.code === CONVERSION_KERNEL_AMBIGUOUS) {
+      return t(here ? "agents.subagents.convert_refused_kernel_ambiguous_here" : "agents.subagents.convert_refused_kernel_ambiguous_else", { pool_id: visible(refusal.pool_id), nodes: refusal.nodes.map(visible).join(t("agents.schema.fields.list_separator")), atomic });
+    }
+    if (refusal.code === CONVERSION_MODEL_MISMATCH) {
+      return t(here ? "agents.subagents.convert_model_mismatch_here" : "agents.subagents.convert_model_mismatch_else", {
+        declarations: refusal.entries.map((entry) => t("agents.subagents.convert_declares", { name: visible(entry.name), model: visible(entry.declared) })).join(t("agents.execution.kernel.list_separator")),
+        pool_id: visible(refusal.pool_id), model: visible(refusal.chosen), atomic,
+      });
+    }
+    return t("agents.subagents.conversion_unavailable");
+  }
   const refusal = plan.refusal;
   const here = refusal.pool_id === node_id;
   const pool = here ? "This pool" : `The pool ${visible(refusal.pool_id)}`;
@@ -214,23 +249,17 @@ function refusal_caption(plan, node_id) {
   return "Converting is not available for this Agent, and the reason is not one this panel can state.";
 }
 
-const LEGACY_CONVERTING =
-  "Converting. The store is writing the entries into this definition; it will be here when that lands.";
 
-const LEGACY_SAVE_FIRST =
-  "Converting rewrites what the store holds, so save this draft first — otherwise the conversion would move the resource on and leave your unsaved work unable to save.";
 
-const LEGACY_EMBEDDED =
-  "This graph is embedded in another Agent. Converting rewrites the whole resource, so it is done from the Agent that owns this graph.";
 
-const LEGACY_UNREACHABLE =
-  "The conversion writes to the Agent library, which this build cannot reach, so the entries stay as they are.";
 
-const UNAVAILABLE_CAPTION =
-  "The Agent library is not reachable in this build, so an Agent cannot be referenced yet. Entries already stored are shown below.";
 
-const TOOLS_CAPTION =
-  "Tool restrictions are shown as stored. They are not edited here: the runtime accepts any tool name without checking it, so a name typed here could silently restrict nothing.";
+
+
+
+
+
+
 
 const MODE_CAPTION = {
   delegate: "delegate — called as a tool, its result comes back here",
@@ -281,44 +310,45 @@ function problems_at(problems, prefix) {
   );
 }
 
-function tools_text(entry) {
+function tools_text(entry, t = agentEnglishText) {
   const allowed = entry.allowed_tools;
   const disabled = Array.isArray(entry.disabled_tools) ? entry.disabled_tools : [];
   /* `null` is "every tool" and `[]` is "no tool" — the wire's own
      distinction. An absent key is neither: the entry does not say, and
      reading it as "every tool" would state something the document does not,
      over a draft the runtime refuses for the missing field. */
-  const names = (list) => list.map(safe_text).join(", ");
+  const names = (list) => list.map(safe_text).join(t("agents.schema.fields.list_separator"));
   const allowed_text =
     allowed === null
-      ? "every tool"
+      ? t("agents.subagents.tools_all")
       : allowed === undefined
-        ? "not stated"
+        ? t("agents.subagents.tools_unspecified")
         : Array.isArray(allowed)
           ? allowed.length === 0
-            ? "no tool"
+            ? t("agents.subagents.tools_none")
             : names(allowed)
-          : "an unreadable list";
+          : t("agents.subagents.tools_unreadable");
   return disabled.length > 0
-    ? `Tools: ${allowed_text}, except ${names(disabled)}`
-    : `Tools: ${allowed_text}`;
+    ? t("agents.subagents.tools_except", { value1: allowed_text, value2: names(disabled) })
+    : t("agents.subagents.tools_label", { tools: allowed_text });
 }
 
 /* Every entry can be removed, whatever shape it is in. The row that said
    "remove it and add the Agent again" offered no way to do that, which left
    the author on a page that named the repair and withheld it. A name that is
    not a string cannot be in the label either. */
-function remove_label(entry, index) {
+function remove_label(entry, index, t = agentEnglishText) {
   return is_object(entry) && typeof entry.name === "string" && entry.name
-    ? `Remove ${entry.name}`
-    : `Remove entry ${index + 1}`;
+    ? t("agents.subagents.remove_named", { value1: entry.name })
+    : t("agents.subagents.remove_entry", { value1: index + 1 });
 }
 
 function ModeToggle({ mode, on, onToggle }) {
+  const { t } = useTranslation();
   return (
     <Button
       label={mode}
-      ariaLabel={`${on ? "Stop allowing" : "Allow"} ${mode}`}
+      ariaLabel={t(on ? "agents.subagents.mode_disallow" : "agents.subagents.mode_allow", { mode })}
       onClick={onToggle}
       style={{
         flexShrink: 0,
@@ -352,6 +382,7 @@ function EntryRow({
   onRepairId,
   onOpen,
 }) {
+  const { t } = useTranslation();
   /* Held text belongs to this ROW, which is what the list's own identity
      names.
      It used to be held against the resource, the pool and the entry's id,
@@ -383,8 +414,8 @@ function EntryRow({
   const refused =
     agent_id === null
       ? null
-      : why_not_this_reference(agent_id, { owner_id }) ||
-        (referenced === null ? null : why_not_a_subagent(referenced, { owner_id }));
+      : why_not_this_reference(agent_id, { owner_id }, t) ||
+        (referenced === null ? null : why_not_a_subagent(referenced, { owner_id }, t));
   const name_editable = typeof entry.name === "string";
   const description_editable =
     typeof entry.description === "string" || entry.description === undefined;
@@ -427,7 +458,7 @@ function EntryRow({
                 const stored = name.type(next);
                 if (stored !== null) set({ name: stored });
               }}
-              placeholder="name"
+              placeholder={t("agents.subagents.name_placeholder")}
               style={{
                 width: 140,
                 fontSize: 11.5,
@@ -448,13 +479,13 @@ function EntryRow({
           {name.held !== null && (
             <span data-testid={`subagent-entry-${index}-name-taken`} style={REFUSED}>
               {name.taken
-                ? `Another subagent is already called ${name.held || "that"}. This was not stored.`
-                : "This was not stored. The name is free now — type it again to use it."}
+                ? name.held ? t("agents.subagents.name_taken", { name: name.held }) : t("agents.subagents.name_taken_empty")
+                : t("agents.subagents.name_free_retry")}
             </span>
           )}
         </div>
         <span data-testid={`subagent-entry-${index}-source`} style={{ ...CAPTION, flex: 1, minWidth: 0 }}>
-          {`${entry_source_label(entry)}${
+          {`${entry_source_label(entry, t)}${
             referenced !== null
               ? ` · ${resource_label(referenced)}`
               : agent_id !== null
@@ -472,8 +503,8 @@ function EntryRow({
           refused === null &&
           !missing && (
           <Button
-            label="Open"
-            ariaLabel={`Open ${typeof entry.name === "string" && entry.name ? entry.name : `entry ${index + 1}`}`}
+            label={t("agents.subagents.open")}
+            ariaLabel={typeof entry.name === "string" && entry.name ? t("agents.subagents.open_named", { name: entry.name }) : t("agents.subagents.open_entry", { index: index + 1 })}
             onClick={onOpen}
             style={{
               flexShrink: 0,
@@ -487,7 +518,7 @@ function EntryRow({
         )}
         <Button
           prefix_icon="close"
-          ariaLabel={remove_label(entry, index)}
+          ariaLabel={remove_label(entry, index, t)}
           onClick={onRemove}
           style={{
             flexShrink: 0,
@@ -512,15 +543,11 @@ function EntryRow({
           style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}
         >
           <span style={{ ...REFUSED, flex: 1, minWidth: 0 }}>
-            {`Another subagent in this pool uses the id ${entry.id}. The pool cannot tell them apart, so neither of them runs.`}
+            {t("agents.subagents.shared_id", { value1: entry.id })}
           </span>
           <Button
-            label="Use a free id"
-            ariaLabel={`Give ${
-              typeof entry.name === "string" && entry.name
-                ? entry.name
-                : `entry ${index + 1}`
-            } an id of its own`}
+            label={t("agents.subagents.repair_id")}
+            ariaLabel={typeof entry.name === "string" && entry.name ? t("agents.subagents.repair_named", { name: entry.name }) : t("agents.subagents.repair_entry", { index: index + 1 })}
             onClick={onRepairId}
             style={{
               flexShrink: 0,
@@ -542,7 +569,7 @@ function EntryRow({
 
       {missing && refused === null && (
         <span data-testid={`subagent-entry-${index}-missing`} style={REFUSED}>
-          {`No Agent with the id ${agent_id} is in the library, so this entry cannot run. Remove it or reference an Agent that exists.`}
+          {t("agents.subagents.reference_missing", { value1: agent_id })}
         </span>
       )}
 
@@ -550,7 +577,7 @@ function EntryRow({
         <Input
           value={typeof entry.description === "string" ? entry.description : ""}
           set_value={(next) => set({ description: next })}
-          placeholder="what it is for (optional)"
+          placeholder={t("agents.subagents.description_placeholder")}
           style={{
             width: "100%",
             fontSize: 11,
@@ -569,7 +596,7 @@ function EntryRow({
       )}
 
       <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
-        <span style={{ ...CAPTION, flexShrink: 0 }}>called as</span>
+        <span style={{ ...CAPTION, flexShrink: 0 }}>{t("agents.subagents.called_as")}</span>
         {SUBAGENT_MODES.map((mode) => (
           <ModeToggle
             key={mode}
@@ -580,15 +607,15 @@ function EntryRow({
         ))}
       </div>
       {modes.length === 1 && own(MODE_CAPTION, modes[0]) !== undefined && (
-        <span style={CAPTION}>{own(MODE_CAPTION, modes[0])}</span>
+        <span style={CAPTION}>{t(`agents.subagents.mode_${modes[0]}`, { mode: modes[0] })}</span>
       )}
 
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-        <span style={{ ...CAPTION, flexShrink: 0 }}>this Agent reads</span>
+        <span style={{ ...CAPTION, flexShrink: 0 }}>{t("agents.subagents.reads")}</span>
         <Select
           options={SUBAGENT_OUTPUT_MODES.map((value) => ({
             value,
-            label: OUTPUT_MODE_LABEL[value],
+            label: own(OUTPUT_MODE_LABEL, value) !== undefined ? t(({ __proto__: null, summary: "agents.subagents.output_summary", last_message: "agents.subagents.output_last_message", full_trace: "agents.subagents.output_full_trace" })[value]) : OUTPUT_MODE_LABEL[value],
           }))}
           value={entry.output_mode}
           set_value={(next) => set({ output_mode: next })}
@@ -603,11 +630,11 @@ function EntryRow({
             gap: 4,
           }}
         />
-        <span style={{ ...CAPTION, flexShrink: 0 }}>its memory</span>
+        <span style={{ ...CAPTION, flexShrink: 0 }}>{t("agents.subagents.memory")}</span>
         <Select
           options={SUBAGENT_MEMORY_POLICIES.map((value) => ({
             value,
-            label: MEMORY_LABEL[value],
+            label: own(MEMORY_LABEL, value) !== undefined ? t(({ __proto__: null, ephemeral: "agents.subagents.memory_ephemeral", scoped_persistent: "agents.subagents.memory_scoped" })[value]) : MEMORY_LABEL[value],
           }))}
           value={entry.memory_policy}
           set_value={(next) => set({ memory_policy: next })}
@@ -632,13 +659,13 @@ function EntryRow({
         />
         <span style={CAPTION}>
           {entry.parallel_safe === true
-            ? "May run beside other subagents."
-            : "Runs on its own, never beside another subagent."}
+            ? t("agents.subagents.parallel_note")
+            : t("agents.subagents.serial_note")}
         </span>
       </div>
 
       <span data-testid={`subagent-entry-${index}-tools`} style={CAPTION}>
-        {tools_text(entry)}
+        {tools_text(entry, t)}
       </span>
 
       {problems.map((problem, position) => (
@@ -684,6 +711,7 @@ export default function SubagentPoolSection({
      navigation — a step, a frame or a layout key that named the old id. */
   onEntryIdRepaired,
 }) {
+  const { t } = useTranslation();
   /* The library is read once per panel, for two jobs: offering Agents to
      reference, and saying that an entry's reference is no longer there. A
      build that cannot reach the store says so rather than looking like an
@@ -793,7 +821,7 @@ export default function SubagentPoolSection({
      describe it wrongly — `legacy_fields` would read as an unknown field and
      the missing `subagents` as a missing one, for a document the store
      expands on its own. */
-  const problems = legacy ? [] : subagent_pool_problems(node.config);
+  const problems = legacy ? [] : subagent_pool_problems(node.config, ["config"], t);
   /* What is taken, read only from entries that state it. A broken entry does
      not occupy the empty name — that would make the one name the wire allows
      unusable because of a value nobody can see. */
@@ -908,7 +936,7 @@ export default function SubagentPoolSection({
 
   function create_embedded() {
     if (!canCreateEmbedded) return;
-    const created = new_embedded_entry({ rootDocument, entries });
+    const created = new_embedded_entry({ rootDocument, entries }, agentMessage);
     if (!created.ok) {
       setCreationError({ scope: creationScope, message: created.problem });
       return;
@@ -932,10 +960,10 @@ export default function SubagentPoolSection({
           alignItems: "center",
         }}
       >
-        <span style={SECTION_LABEL}>Subagents</span>
+        <span style={SECTION_LABEL}>{t("agents.subagents.title")}</span>
         {!legacy && (
           <Button
-            label={picking ? "Cancel" : "+ Add an Agent"}
+            label={picking ? t("agents.explorer.cancel") : t("agents.subagents.add_agent")}
             /* Read again on the way in. Within one sitting the library can
                only change from somewhere else — another window, another
                process — and the two things that go wrong then are both worth
@@ -956,31 +984,31 @@ export default function SubagentPoolSection({
         )}
       </div>
 
-      <span style={CAPTION}>{SECTION_CAPTION}</span>
+      <span style={CAPTION}>{t("agents.subagents.intro")}</span>
 
       {!legacy && <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <Button label="New embedded Agent" disabled={!canCreateEmbedded} onClick={create_embedded}
+        <Button label={t("agents.subagents.new_embedded")} disabled={!canCreateEmbedded} onClick={create_embedded}
           style={{ alignSelf: "flex-start", fontSize: 11, paddingVertical: 3, paddingHorizontal: 8 }} />
-        <span style={CAPTION}>Lives inside this Agent. Open it to choose its model and edit its graph; Save keeps it in the owning Agent.</span>
-        {!canCreateEmbedded && <span style={REFUSED}>A readable entry list and an unambiguous pool in an Agent graph are needed to add an embedded Agent.</span>}
-        {creationError?.scope === creationScope && <span role="alert" style={REFUSED}>{creationError.message}</span>}
+        <span style={CAPTION}>{t("agents.subagents.embedded_note")}</span>
+        {!canCreateEmbedded && <span style={REFUSED}>{t("agents.subagents.embedded_unavailable")}</span>}
+        {creationError?.scope === creationScope && <span role="alert" style={REFUSED}>{renderAgentMessage(creationError.message, t)}</span>}
       </div>}
 
       {legacy && (
         <span data-testid="subagent-pool-legacy" style={CAPTION}>
-          {LEGACY_CAPTION}
+          {t("agents.subagents.legacy_note")}
         </span>
       )}
 
       {legacy && plan.refusal && (
         <span data-testid="subagent-pool-legacy-needs-kernel" style={CAPTION}>
-          {refusal_caption(plan, node.id)}
+          {refusal_caption(plan, node.id, t)}
         </span>
       )}
 
       {legacy && !plan.refusal && plan.required && (
         <span data-testid="subagent-pool-legacy-kernel-chosen" style={CAPTION}>
-          {conversion_caption(plan, node.id)}
+          {conversion_caption(plan, node.id, t)}
         </span>
       )}
 
@@ -988,23 +1016,23 @@ export default function SubagentPoolSection({
         !plan.refusal &&
         (typeof onConvertLegacy !== "function" ? (
           <span data-testid="subagent-pool-legacy-unreachable" style={CAPTION}>
-            {LEGACY_UNREACHABLE}
+            {t("agents.subagents.conversion_unreachable")}
           </span>
         ) : convertingLegacy ? (
           <span data-testid="subagent-pool-legacy-converting" style={CAPTION}>
-            {LEGACY_CONVERTING}
+            {t("agents.subagents.converting")}
           </span>
         ) : embedded ? (
           <span data-testid="subagent-pool-legacy-embedded" style={CAPTION}>
-            {LEGACY_EMBEDDED}
+            {t("agents.subagents.embedded_conversion_owner")}
           </span>
         ) : canConvertLegacy === false ? (
           <span data-testid="subagent-pool-legacy-save-first" style={CAPTION}>
-            {LEGACY_SAVE_FIRST}
+            {t("agents.subagents.save_before_convert")}
           </span>
         ) : (
           <Button
-            label="Convert to Agent entries"
+            label={t("agents.subagents.convert")}
             onClick={onConvertLegacy}
             style={{
               alignSelf: "flex-start",
@@ -1035,7 +1063,7 @@ export default function SubagentPoolSection({
 
       {!legacy && entries.length === 0 && (
         <span data-testid="subagent-pool-empty" style={CAPTION}>
-          {EMPTY_CAPTION}
+          {t("agents.subagents.empty")}
         </span>
       )}
 
@@ -1089,10 +1117,7 @@ export default function SubagentPoolSection({
                 <span
                   data-testid={`subagent-entry-${index}-unreadable`}
                   style={{ ...REFUSED, flex: 1, minWidth: 0 }}
-                >
-                  This entry is not an object, so none of its controls can be
-                  shown. Remove it and add the Agent again.
-                </span>
+                >{t("agents.subagents.entry_unreadable")}</span>
                 <Button
                   prefix_icon="close"
                   ariaLabel={remove_label(entry, index)}
@@ -1131,27 +1156,23 @@ export default function SubagentPoolSection({
           unreachable-UI shape, which this panel has already paid for once. */}
       {!legacy && entries.length > 0 && (
         <span data-testid="subagent-pool-tools-note" style={CAPTION}>
-          {TOOLS_CAPTION}
+          {t("agents.subagents.tool_restrictions_note")}
         </span>
       )}
 
       {!legacy && picking && library.reading && (
-        <span data-testid="subagent-library-reading" style={CAPTION}>
-          Reading the Agent library…
-        </span>
+        <span data-testid="subagent-library-reading" style={CAPTION}>{t("agents.subagents.library_reading")}</span>
       )}
 
       {!legacy && picking && !library.reading && library.status === "unavailable" && (
         <span data-testid="subagent-library-unavailable" style={CAPTION}>
-          {UNAVAILABLE_CAPTION}
+          {t("agents.subagents.library_unreachable")}
         </span>
       )}
 
       {!legacy && picking && !library.reading && library.status === "failed" && (
         <span data-testid="subagent-library-failed" style={REFUSED}>
-          {`The Agent library could not be read, so nothing can be referenced: ${
-            (library.error && library.error.message) || "the store refused the request."
-          }`}
+          {t("agents.subagents.library_failed", { message: (library.error && library.error.message) || t("agents.subagents.store_refused") })}
         </span>
       )}
 
@@ -1161,16 +1182,13 @@ export default function SubagentPoolSection({
           style={{ display: "flex", flexDirection: "column", gap: 4 }}
         >
           {offered.length === 0 && (
-            <span data-testid="subagent-picker-empty" style={CAPTION}>
-              There is no other Agent to reference yet. An Agent is built in
-              this builder and appears here once it is saved.
-            </span>
+            <span data-testid="subagent-picker-empty" style={CAPTION}>{t("agents.subagents.library_empty")}</span>
           )}
           {offered.map((resource) => (
             <Button
               key={resource.id}
               label={resource_label(resource)}
-              ariaLabel={`Reference ${resource_label(resource)}`}
+              ariaLabel={t("agents.subagents.reference", { value1: resource_label(resource) })}
               onClick={() => add(resource)}
               style={{
                 alignSelf: "stretch",
@@ -1183,9 +1201,7 @@ export default function SubagentPoolSection({
           ))}
           {withheld > 0 && (
             <span data-testid="subagent-picker-withheld" style={CAPTION}>
-              {`${withheld} other ${
-                withheld === 1 ? "resource is" : "resources are"
-              } not offered: a Subagent Pool holds Agents, and not this Agent itself.`}
+              {t(withheld === 1 ? "agents.subagents.withheld_one" : "agents.subagents.withheld_other", { count: withheld })}
             </span>
           )}
         </div>

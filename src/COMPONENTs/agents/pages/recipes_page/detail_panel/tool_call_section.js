@@ -1,3 +1,5 @@
+import { agentEnglishText } from "../agents_i18n";
+import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
@@ -59,10 +61,10 @@ function Divider({ isDark }) {
   return <div style={{ height: 1, margin: "2px 0", background: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)" }} />;
 }
 
-function type_hint(row) {
-  const parts = [row.type || "any value"];
-  if (row.required) parts.push("required");
-  if (row.has_default) parts.push(`defaults to ${literal_to_text(row.default, row.type)}`);
+function type_hint(row, t = agentEnglishText) {
+  const parts = [row.type || t("agents.execution.tool.any_value")];
+  if (row.required) parts.push(t("agents.schema.required"));
+  if (row.has_default) parts.push(t("agents.execution.tool.default_value", { value1: literal_to_text(row.default, row.type) }));
   return parts.join(" · ");
 }
 
@@ -70,6 +72,7 @@ function type_hint(row) {
    that type is held here and never written, so the document only ever carries
    what the tool can take. */
 function LiteralField({ row, binding, onSet, editable, isDark, testid }) {
+  const { t } = useTranslation();
   const stored = binding && binding.value && binding.value.kind === "literal" ? binding.value.value : undefined;
   const shown = stored === undefined ? "" : literal_to_text(stored, row.type);
   const pending = usePendingText(shown, testid);
@@ -83,20 +86,20 @@ function LiteralField({ row, binding, onSet, editable, isDark, testid }) {
         value={stored === undefined ? null : JSON.stringify(stored)}
         set_value={(next) => write(JSON.parse(next))}
         filterable={false}
-        placeholder="choose a value"
+        placeholder={t("agents.execution.tool.choose_a_value")}
         disabled={!editable}
         style={FIELD}
       />
     );
   }
   const text = pending.text !== null ? pending.text : shown;
-  const parsed = pending.text !== null ? literal_from_text(pending.text, row.type) : null;
+  const parsed = pending.text !== null ? literal_from_text(pending.text, row.type, t) : null;
   return (
     <span style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minWidth: 0 }}>
       <Input
         value={text}
         disabled={!editable}
-        placeholder={row.type === "object" || row.type === "array" ? `a JSON ${row.type}` : "a value written here"}
+        placeholder={row.type === "object" || row.type === "array" ? t("agents.execution.tool.json_placeholder", { type: row.type }) : t("agents.execution.tool.literal_placeholder")}
         set_value={(next) => {
           const result = literal_from_text(next, row.type);
           if (!result.ok) {
@@ -112,7 +115,7 @@ function LiteralField({ row, binding, onSet, editable, isDark, testid }) {
       />
       {parsed && !parsed.ok && (
         <span data-testid={`${testid}-problem`} style={problem_style(isDark)}>
-          {parsed.problem} Nothing is stored until it is one.
+          {t("agents.execution.tool.pending_literal", { problem: parsed.problem })}
         </span>
       )}
     </span>
@@ -120,6 +123,7 @@ function LiteralField({ row, binding, onSet, editable, isDark, testid }) {
 }
 
 export function ArgumentRow({ row, sources, toolName, editable, onSet, isDark }) {
+  const { t } = useTranslation();
   const binding = row.binding;
   const testid = `tool-call-argument-${row.name}`;
   const stored_mode = !binding ? null : binding.value && binding.value.kind === "literal" ? "value" : "variable";
@@ -139,11 +143,11 @@ export function ArgumentRow({ row, sources, toolName, editable, onSet, isDark })
       <div style={{ ...ROW, justifyContent: "space-between" }}>
         <span style={{ ...MONO, fontSize: 11 }}>
           {row.name}
-          {row.required && <span aria-label="required" style={{ color: problem_style(isDark).color, marginLeft: 3 }}>*</span>}
+          {row.required && <span aria-label={t("agents.schema.required")} style={{ color: problem_style(isDark).color, marginLeft: 3 }}>*</span>}
         </span>
         <span data-testid={`${testid}-mode`} style={{ opacity: editable ? 1 : 0.5, pointerEvents: editable ? "auto" : "none" }}>
           <SegmentedButton
-            options={[{ value: "value", label: "Value" }, { value: "variable", label: "Variable" }]}
+            options={[{ value: "value", label: t("agents.execution.tool.value_mode") }, { value: "variable", label: t("agents.execution.tool.variable_mode") }]}
             value={mode}
             on_change={setMode}
             disabled={!editable}
@@ -155,7 +159,7 @@ export function ArgumentRow({ row, sources, toolName, editable, onSet, isDark })
 
       {mode === null && (
         <span data-testid={`${testid}-unset`} style={row.required ? problem_style(isDark) : NOTE}>
-          {row.required ? `Required by ${toolName}. Choose a value or a variable.` : `Not set. ${toolName} uses its own default.`}
+          {row.required ? t("agents.execution.tool.required_unset", { toolName: toolName }) : t("agents.execution.tool.unset_default", { toolName: toolName })}
         </span>
       )}
       {/* Each mode always opens its editor. A required argument has no Unset,
@@ -186,7 +190,7 @@ export function ArgumentRow({ row, sources, toolName, editable, onSet, isDark })
           cannot read. */}
       {binding && ((mode === "value" && kind !== "literal") || (mode === "variable" && !picked)) && (
         <span data-testid={`${testid}-kept`} style={NOTE}>
-          Stored: <span style={MONO}>{safe_text(expression_summary(binding.value))}</span>. Kept as it is until you replace it.
+          {t("agents.execution.tool.stored_value", { value: "{value}" }).split(/(\{value\})/g).map((part, index) => ({ __proto__: null, "{value}": (<span key={index} style={MONO}>{safe_text(expression_summary(binding.value, t))}</span>) }[part] || part))}
         </span>
       )}
       {binding && kind !== "literal" && (
@@ -197,14 +201,14 @@ export function ArgumentRow({ row, sources, toolName, editable, onSet, isDark })
         />
       )}
       <span style={NOTE}>
-        {type_hint(row)}
+        {type_hint(row, t)}
         {row.description ? ` — ${row.description}` : ""}
       </span>
       {binding && !row.required && editable && (
         <span>
           <Button
-            label="Unset"
-            ariaLabel={`Unset ${row.name}`}
+            label={t("agents.execution.tool.unset")}
+            ariaLabel={t("agents.execution.tool.unset_argument", { row_name: row.name })}
             onClick={() => {
               setMode(null);
               onSet(null);
@@ -270,6 +274,7 @@ function useToolSchemas(toolkitId) {
 }
 
 export default function ToolCallSection({ document, node, isDark, onChange }) {
+  const { t } = useTranslation();
   const [library, reloadLibrary] = useToolLibrary();
   const tool = tool_settings(node);
   const name = tool && typeof tool.name === "string" ? tool.name : "";
@@ -295,7 +300,7 @@ export default function ToolCallSection({ document, node, isDark, onChange }) {
 
   const options = [
     ...(name && !home && library.status === "ready"
-      ? [{ value: `${KEY}${name}`, label: `${name} (${homes.length > 1 ? "in more than one toolkit" : "not in the tool library now"})` }]
+      ? [{ value: `${KEY}${name}`, label: homes.length > 1 ? t("agents.execution.tool.ambiguous_option", { name }) : t("agents.execution.tool.unlisted_option", { name }) }]
       : []),
     ...visible.flatMap((kit) => kit.tools.filter((item) => item.hidden !== true).map((item) => ({
       value: `${kit.toolkitId}${KEY}${item.name}`,
@@ -307,7 +312,7 @@ export default function ToolCallSection({ document, node, isDark, onChange }) {
   const layout = argument_layout(parameters, node_bindings(node));
   const order = layout.rows.map((row) => row.name);
   const sources = binding_sources(document, node.id);
-  const problems = tool_call_problems(node, parameters);
+  const problems = tool_call_problems(node, parameters, t);
   const extras_keys = tool ? Object.keys(tool).filter((key) => !["name", "on_error", "approval_timeout_ms"].includes(key)) : [];
   const seconds = tool && Number.isSafeInteger(tool.approval_timeout_ms) ? tool.approval_timeout_ms / 1000 : null;
   const pendingSeconds = usePendingText(seconds === null ? "" : String(seconds), `tool-call-approval-${node.id}`);
@@ -316,12 +321,12 @@ export default function ToolCallSection({ document, node, isDark, onChange }) {
     <section data-testid="tool-call-section" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {!editable && (
         <div style={problem_style(isDark)}>
-          {!unique ? "Duplicate node ids prevent editing this step." : "These stored settings are read-only here."}
+          {!unique ? t("agents.execution.read_only.duplicate_ids") : t("agents.execution.read_only.stored")}
         </div>
       )}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <span style={LABEL}>Tool</span>
+        <span style={LABEL}>{t("agents.execution.tool.tool")}</span>
         <span data-testid="tool-call-picker">
           <Select
             options={options}
@@ -331,28 +336,27 @@ export default function ToolCallSection({ document, node, isDark, onChange }) {
               if (picked && picked !== name) setTool({ ...(tool || {}), name: picked });
             }}
             filterable
-            placeholder={library.status === "loading" ? "reading the tool library…" : "pick a tool"}
+            placeholder={library.status === "loading" ? t("agents.execution.tool.reading_library") : t("agents.execution.tool.pick_tool")}
             disabled={!editable}
             dropdown_style={{ maxHeight: "min(280px, 40vh)" }}
             style={FIELD}
           />
         </span>
         {library.status === "error" && (
-          <span data-testid="tool-call-library-error" style={problem_style(isDark)}>
-            The tool library could not be read. <Button label="Try again" onClick={reloadLibrary} style={{ fontSize: 10.5, paddingVertical: 1, paddingHorizontal: 6 }} />
+          <span data-testid="tool-call-library-error" style={problem_style(isDark)}>{t("agents.execution.tool.library_failed")}<Button label={t("agents.explorer.try_again")} onClick={reloadLibrary} style={{ fontSize: 10.5, paddingVertical: 1, paddingHorizontal: 6 }} />
           </span>
         )}
         {listed && listed.description && <span style={NOTE}>{listed.description}</span>}
         {listed && (
           <span data-testid="tool-call-confirmation" style={NOTE}>
             {listed.requiresConfirmation
-              ? "This tool asks for approval each time it runs. The run waits for it; configuring this step approves nothing."
-              : "This tool runs without asking for approval."}
+              ? t("agents.execution.tool.approval_required_note")
+              : t("agents.execution.tool.no_approval_note")}
           </span>
         )}
         {home && tool_availability(document, name, home.toolkitId) === "chat_only" && (
           <span data-testid="tool-call-availability" style={NOTE}>
-            No Toolkit Pool in this Agent includes {home.toolkitName || home.toolkitId}, so this step runs only when that toolkit is selected for the chat.
+            {t("agents.execution.tool.chat_only", { toolkit: home.toolkitName || home.toolkitId })}
           </span>
         )}
       </div>
@@ -360,24 +364,24 @@ export default function ToolCallSection({ document, node, isDark, onChange }) {
       <Divider isDark={isDark} />
 
       <div data-testid="tool-call-arguments" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        <span style={LABEL}>Arguments</span>
-        {!name && <span style={NOTE}>Pick a tool first. Its arguments come from the tool itself.</span>}
-        {name && home && schemas.status === "loading" && <span style={NOTE}>Reading {name}’s arguments…</span>}
+        <span style={LABEL}>{t("agents.execution.tool.arguments")}</span>
+        {!name && <span style={NOTE}>{t("agents.execution.tool.pick_before_arguments")}</span>}
+        {name && home && schemas.status === "loading" && <span style={NOTE}>{t("agents.execution.tool.reading_arguments", { tool: name })}</span>}
         {name && home && schemas.status === "error" && (
           <span data-testid="tool-call-schema-error" style={problem_style(isDark)}>
-            {safe_text((schemas.error && schemas.error.message) || "The tool's arguments could not be read.")}{" "}
-            <Button label="Try again" onClick={reloadSchemas} style={{ fontSize: 10.5, paddingVertical: 1, paddingHorizontal: 6 }} />
+            {safe_text((schemas.error && schemas.error.message) || t("agents.execution.tool.arguments_failed"))}{" "}
+            <Button label={t("agents.explorer.try_again")} onClick={reloadSchemas} style={{ fontSize: 10.5, paddingVertical: 1, paddingHorizontal: 6 }} />
           </span>
         )}
         {name && home && schemas.status === "ready" && !schema && (
-          <span style={problem_style(isDark)}>The runtime lists no schema for {name}, so its arguments cannot be shown.</span>
+          <span style={problem_style(isDark)}>{t("agents.execution.tool.no_schema", { tool: name })}</span>
         )}
         {name && !home && library.status === "ready" && (
           <span style={problem_style(isDark)}>
-            {homes.length > 1 ? `${name} is in more than one toolkit, so its arguments cannot be told apart here.` : `${name} is not in the tool library now. Its stored arguments are kept.`}
+            {homes.length > 1 ? t("agents.execution.tool.ambiguous_arguments", { name }) : t("agents.execution.tool.unlisted_arguments", { name })}
           </span>
         )}
-        {schema && layout.readable && layout.rows.length === 0 && <span style={NOTE}>{name} takes no arguments.</span>}
+        {schema && layout.readable && layout.rows.length === 0 && <span style={NOTE}>{t("agents.execution.tool.no_arguments", { tool: name })}</span>}
         {schema && layout.rows.map((row) => (
           <ArgumentRow
             key={row.name}
@@ -394,12 +398,12 @@ export default function ToolCallSection({ document, node, isDark, onChange }) {
           return (
             <div key={`extra-${index}`} data-testid={`tool-call-extra-${index}`} style={{ ...ROW, justifyContent: "space-between" }}>
               <span style={problem_style(isDark)}>
-                <span style={MONO}>{safe_text(extraName) || "(unnamed)"}</span>{schema ? ` is not an argument of ${name}; the tool would refuse it.` : " is stored for this step."}
+                {schema ? t("agents.execution.tool.extra_argument", { argument: "{argument}", tool: "{tool}" }).split(/(\{argument\}|\{tool\})/g).map((part, index) => ({ __proto__: null, "{argument}": (<span key={index} style={MONO}>{safe_text(extraName) || t("agents.execution.tool.unnamed")}</span>), "{tool}": name }[part] || part)) : t("agents.execution.tool.stored_argument", { argument: "{argument}" }).split(/(\{argument\})/g).map((part, index) => ({ __proto__: null, "{argument}": (<span key={index} style={MONO}>{safe_text(extraName) || t("agents.execution.tool.unnamed")}</span>), "{tool}": name }[part] || part))}
               </span>
               {schema && (
                 <Button
-                  label="Remove"
-                  ariaLabel={`Remove stored argument ${extraName}`}
+                  label={t("agents.execution.tool.remove")}
+                  ariaLabel={t("agents.execution.tool.remove_stored_argument", { extraName: extraName })}
                   disabled={!editable}
                   onClick={() => commit(with_argument(document, node.id, extraName, null, order))}
                   style={{ fontSize: 10.5, paddingVertical: 2, paddingHorizontal: 6, borderRadius: 5 }}
@@ -413,10 +417,10 @@ export default function ToolCallSection({ document, node, isDark, onChange }) {
       <Divider isDark={isDark} />
 
       <div data-testid="tool-call-on-error" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <span style={LABEL}>On error</span>
+        <span style={LABEL}>{t("agents.execution.tool.on_error")}</span>
         <span style={{ opacity: editable && name ? 1 : 0.5, pointerEvents: editable && name ? "auto" : "none" }}>
           <SegmentedButton
-            options={ON_ERROR_CHOICES}
+            options={ON_ERROR_CHOICES.map((choice) => ({ ...choice, label: choice.value === "stop" ? t("agents.execution.tool.fail_run") : t("agents.execution.tool.continue") }))}
             value={tool?.on_error ?? null}
             on_change={(value) => setTool({ ...(tool || {}), on_error: value })}
             disabled={!editable || !name}
@@ -428,21 +432,17 @@ export default function ToolCallSection({ document, node, isDark, onChange }) {
             a result object with `ok: false` or a non-null `error` is a failure,
             as is a denied approval; returned text never is, whatever it says. */}
         <span data-testid="tool-call-on-error-note" style={NOTE}>
-          A call fails when it is denied, or when the tool answers with <span style={MONO}>ok</span> false or an
-          {" "}<span style={MONO}>error</span>; text the tool returns is never read as a failure. Continue finishes this
-          step with <span style={MONO}>ok</span> false, an <span style={MONO}>error</span> code (<span style={MONO}>denied</span>
-          {" "}or <span style={MONO}>tool_error</span>) and whatever the tool returned in <span style={MONO}>result</span>, so an
-          If / Else downstream can handle it. Fail the run stops the run with <span style={MONO}>tool_failed</span>.
+          {t("agents.execution.tool.error_contract", { ok: "{ok}", error: "{error}", denied: "{denied}", tool_error: "{tool_error}", result: "{result}", tool_failed: "{tool_failed}" }).split(/(\{ok\}|\{error\}|\{denied\}|\{tool_error\}|\{result\}|\{tool_failed\})/g).map((part, index) => ({ __proto__: null, "{ok}": (<span key={index} style={MONO}>ok</span>), "{error}": (<span key={index} style={MONO}>error</span>), "{denied}": (<span key={index} style={MONO}>denied</span>), "{tool_error}": (<span key={index} style={MONO}>tool_error</span>), "{result}": (<span key={index} style={MONO}>result</span>), "{tool_failed}": (<span key={index} style={MONO}>tool_failed</span>) }[part] || part))}
         </span>
       </div>
 
       <div data-testid="tool-call-approval" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <span style={LABEL}>Approval wait</span>
+        <span style={LABEL}>{t("agents.execution.tool.approval_wait")}</span>
         <div style={ROW}>
           <Input
             value={pendingSeconds.text !== null ? pendingSeconds.text : seconds === null ? "" : String(seconds)}
             disabled={!editable || !name}
-            placeholder="seconds"
+            placeholder={t("agents.execution.tool.seconds")}
             set_value={(text) => {
               const parsed = /^\d+$/.test(text.trim()) ? Number(text.trim()) : NaN;
               const ms = parsed * 1000;
@@ -455,24 +455,20 @@ export default function ToolCallSection({ document, node, isDark, onChange }) {
             }}
             style={{ ...FIELD, width: 120 }}
           />
-          <span style={NOTE}>seconds</span>
+          <span style={NOTE}>{t("agents.execution.tool.seconds")}</span>
         </div>
         {pendingSeconds.text !== null && (
-          <span data-testid="tool-call-approval-problem" style={problem_style(isDark)}>
-            Enter whole seconds from 1 to 86400 (24 hours). Nothing is stored until it is one.
-          </span>
+          <span data-testid="tool-call-approval-problem" style={problem_style(isDark)}>{t("agents.execution.tool.pending_approval_wait")}</span>
         )}
-        <span style={NOTE}>
-          If the tool asks for approval, the run waits up to this long for an answer. The runtime requires a limit, at most 24 hours.
-        </span>
+        <span style={NOTE}>{t("agents.execution.tool.approval_limit_note")}</span>
       </div>
 
       {extras_keys.map((key) => (
         <div key={key} data-testid={`tool-call-setting-${key}`} style={{ ...ROW, justifyContent: "space-between" }}>
-          <span style={problem_style(isDark)}>Unsupported setting: {safe_text(key)}</span>
+          <span style={problem_style(isDark)}>{t("agents.execution.tool.unsupported_setting", { key: safe_text(key) })}</span>
           <Button
-            label="Remove setting"
-            ariaLabel={`Remove setting ${key}`}
+            label={t("agents.execution.tool.remove_setting")}
+            ariaLabel={t("agents.execution.tool.remove_setting_key", { key: key })}
             disabled={!editable}
             onClick={() => {
               const next = { ...tool };

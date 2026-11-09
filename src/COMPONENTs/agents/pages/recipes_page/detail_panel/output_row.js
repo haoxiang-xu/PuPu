@@ -1,3 +1,4 @@
+import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import React from "react";
 import Select from "../../../../../BUILTIN_COMPONENTs/select/select";
 import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
@@ -70,10 +71,10 @@ const NONE = "\u0000none";
    control pins this exact string — so they cannot both be satisfied and
    neither is the requirement. The behaviour is: an empty path is a choice in
    the same list as the fields, and selecting it stores exactly `[]`. */
-const WHOLE_INPUT = "Everything it was given";
-const WHOLE_RESULT = "The whole result";
-const OTHER_LABEL = "A field it does not list\u2026";
-const UNNAMED_LABEL = "(the field with no name)";
+
+
+
+
 
 /* Which option the stored path already is. Derived, never remembered: a
    remembered choice is a second account of the document, and the two come
@@ -102,6 +103,7 @@ export function root_is_typed(choice) {
    does not close itself can carry a field it never named and the runtime
    publishes it. */
 function RootPicker({ roots, wholeLabel, open, choice, path, onPath }) {
+  const { t } = useTranslation();
   const rest = Array.isArray(path) ? path.slice(1) : [];
   return (
     <Select
@@ -109,9 +111,9 @@ function RootPicker({ roots, wholeLabel, open, choice, path, onPath }) {
         { value: WHOLE, label: wholeLabel },
         ...roots.map((name) => ({
           value: name,
-          label: name === "" ? UNNAMED_LABEL : name,
+          label: name === "" ? t("agents.io.the_field_with_no_name") : name,
         })),
-        ...(open ? [{ value: OTHER, label: OTHER_LABEL }] : []),
+        ...(open ? [{ value: OTHER, label: t("agents.io.a_field_it_does_not_list") }] : []),
       ]}
       value={choice}
       set_value={(next) => {
@@ -134,11 +136,9 @@ function RootPicker({ roots, wholeLabel, open, choice, path, onPath }) {
   );
 }
 
-const START_RESULT_CAPTION =
-  "A Start's result is what the run was called with, so this reads from the run's own inputs.";
 
-const END_INPUT_CAPTION =
-  "An End exports the graph's result, and it can only export what it was given — so these read from the inputs above.";
+
+
 
 export default function OutputRow({
   mapping,
@@ -153,6 +153,7 @@ export default function OutputRow({
   onChange,
   onRemove,
 }) {
+  const { t } = useTranslation();
   const source = (mapping && mapping.source) || {};
   const kind = source.kind;
   /* A source the controls cannot take apart is shown rather than edited, for
@@ -189,10 +190,11 @@ export default function OutputRow({
 
   const single_kind_caption =
     nodeType === "start"
-      ? START_RESULT_CAPTION
+      ? t("agents.io.start_result_caption")
       : nodeType === "end"
-        ? END_INPUT_CAPTION
-        : KIND_CAPTION[kinds[0]];
+        ? t("agents.io.end_input_caption")
+        : kinds[0] === "input" ? t("agents.io.read_from_the_inputs_above_after_they_resolve")
+          : kinds[0] === "result" ? t("agents.io.read_from_the_node_s_own_result_once_it_has_run") : KIND_CAPTION[kinds[0]];
 
   return (
     <div
@@ -218,7 +220,7 @@ export default function OutputRow({
         <Input
           value={(mapping && mapping.name) || ""}
           set_value={(next) => onChange({ ...mapping, name: next })}
-          placeholder="name"
+          placeholder={t("agents.io.name_placeholder")}
           style={{
             width: 120,
             flexShrink: 0,
@@ -238,7 +240,8 @@ export default function OutputRow({
           </span>
           {kinds.length > 1 ? (
             <Select
-              options={kinds.map((value) => ({ value, label: KIND_LABEL[value] }))}
+              options={kinds.map((value) => ({ value, label: value === "input" ? t("agents.io.what_this_node_was_given")
+                : value === "result" ? t("agents.io.what_this_node_produced") : KIND_LABEL[value] }))}
               value={kind}
               set_value={set_kind}
               filterable={false}
@@ -262,7 +265,7 @@ export default function OutputRow({
           )}
           <Button
             prefix_icon="close"
-            ariaLabel={`Remove ${(mapping && mapping.name) || "output"}`}
+            ariaLabel={mapping && mapping.name ? t("agents.io.remove_output", { name: mapping.name }) : t("agents.io.remove_output_unnamed")}
             onClick={onRemove}
             style={{
               flexShrink: 0,
@@ -276,14 +279,15 @@ export default function OutputRow({
       </div>
 
       {editable && kinds.length > 1 && (
-        <span style={CAPTION}>{KIND_CAPTION[kind]}</span>
+        <span style={CAPTION}>{(kind === "input" ? t("agents.io.read_from_the_inputs_above_after_they_resolve")
+          : kind === "result" ? t("agents.io.read_from_the_node_s_own_result_once_it_has_run") : KIND_CAPTION[kind])}</span>
       )}
 
       {editable && roots !== null && (
         <>
           <RootPicker
             roots={roots}
-            wholeLabel={kind === "input" ? WHOLE_INPUT : WHOLE_RESULT}
+            wholeLabel={kind === "input" ? t("agents.io.everything_it_was_given") : t("agents.io.the_whole_result")}
             open={open}
             choice={choice}
             path={path}
@@ -304,14 +308,13 @@ export default function OutputRow({
               testid={`output-row-${index}`}
               identity={identity}
               onChange={(next) => set_source({ path: next })}
-              addLabel="+ Go deeper"
+              addLabel={t("agents.io.go_deeper")}
               leading={typed_root ? null : <span />}
             />
           )}
           {kind === "input" && inputNames.length === 0 && (
             <span data-testid={`output-row-${index}-no-inputs`} style={CAPTION}>
-              This node reads nothing yet, so everything it was given is an
-              empty object. Add an input above to export one by name.
+              {t("agents.io.no_inputs_to_export")}
             </span>
           )}
         </>
@@ -339,8 +342,7 @@ export default function OutputRow({
           style={{ display: "flex", flexDirection: "column", gap: 4 }}
         >
           <span style={CAPTION}>
-            This source is not a shape the editor can take apart, so it is left
-            exactly as it is. Remove the row to replace it.
+            {t("agents.io.unreadable_output")}
           </span>
           <span
             style={{

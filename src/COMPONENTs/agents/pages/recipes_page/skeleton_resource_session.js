@@ -1,3 +1,4 @@
+import { agentEnglishText, agentProblemMessage } from "./agents_i18n";
 /* One resource, open for editing.
  *
  * Load, edit, save against the token the edit was based on, reload, preflight.
@@ -601,12 +602,12 @@ export function preflight_refused(session, result, issued) {
 
 /* ── What the UI should say ─────────────────────────────────────────────── */
 
-export function conflict_message(session) {
+export function conflict_message(session, t = agentEnglishText) {
   if (!session || !session.conflict) return null;
   if (session.conflict.stale_choice) {
-    return "You changed this draft after choosing, so nothing was replaced. Choose again for what is on screen now — look at the newer version, or keep yours and replace it.";
+    return t("agents.save.conflict_stale_choice");
   }
-  return "This was saved somewhere else after you opened it. Nothing has been overwritten — look at the newer version, or keep yours and replace it.";
+  return t("agents.save.conflict_saved_elsewhere");
 }
 
 export function can_save(session) {
@@ -699,16 +700,17 @@ export function conversion_failed(session, result, issued) {
   return save_refused(settled, result, null);
 }
 
-export function preflight_message(session) {
+export function preflight_message(session, t = agentEnglishText) {
   const preflight = session && session.preflight;
   if (!preflight) return null;
   if (preflight.stale) {
-    return "This Agent was saved somewhere else, so the check ran against that newer version, not the one open here. Reload before relying on it.";
+    return t("agents.save.preflight_stale");
   }
-  if (preflight.ok) return "Ready to run.";
+  if (preflight.ok) return t("agents.save.ready_to_run");
   const error = preflight.error || {};
-  const detail = error.message ? ` — ${error.message}` : "";
   /* Named as the first problem, not the only one: the store stops at the one
      it hits, while `diagnose` lists them all. */
-  return `Not ready to run yet${detail}`;
+  return error.message
+    ? t("agents.save.not_ready_to_run_detail", { message: agentProblemMessage(error, t) })
+    : t("agents.save.not_ready_to_run");
 }

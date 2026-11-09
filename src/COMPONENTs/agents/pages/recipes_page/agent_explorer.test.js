@@ -5,6 +5,7 @@ import AgentExplorer from "./agent_explorer";
 import { api } from "../../../../SERVICEs/api";
 import { emitSkeletonLibraryRefresh } from "../../../../SERVICEs/skeleton_library_refresh";
 import { getFolderState, resetAgentFolderStorageForTests, setFolderState } from "../../../../SERVICEs/agent_folder_storage";
+import { LocaleContext } from "../../../../CONTAINERs/config/context";
 
 /* The Agents side menu (owner decision 2026-10-22: back to the original
  * explorer, native Agents only, legacy folders carried over by alias). The
@@ -79,6 +80,77 @@ beforeEach(() => {
   resetAgentFolderStorageForTests();
   Object.keys(api.unchain).forEach((key) => delete api.unchain[key]);
   api.unchain.saveSkeletonResource = jest.fn();
+});
+
+describe("locale changes preserve the live resource action", () => {
+  test("switching language preserves the rename control, selection and raw name without reading or writing", async () => {
+    const rawName = "agents.save.saved {name} · é";
+    const nextName = "  My raw 名称 {value}  ";
+    const item = Object.freeze(agent("id-{raw}", rawName));
+    api.unchain.listSkeletonResources = jest.fn().mockResolvedValue([item]);
+    api.unchain.renameSkeletonResource = jest.fn().mockResolvedValue(agent(item.id, nextName.trim()));
+    const p = props({ activeId: item.id });
+    const tree = (locale) => <LocaleContext.Provider value={{ locale }}><AgentExplorer {...p} /></LocaleContext.Provider>;
+    const view = render(tree("en"));
+    await screen.findByTestId(`row-resource:${item.id}`);
+    openMenu(`resource:${item.id}`);
+    fireEvent.click(menuItem("Rename"));
+    const input = within(screen.getByTestId(`row-resource:${item.id}`)).getByRole("textbox");
+    fireEvent.change(input, { target: { value: nextName } });
+    input.focus();
+    input.setSelectionRange(3, 9);
+    const folderBefore = JSON.stringify(getFolderState());
+    for (const locale of ["zh-CN", "de", "en"]) {
+      view.rerender(tree(locale));
+      const current = within(screen.getByTestId(`row-resource:${item.id}`)).getByRole("textbox");
+      expect(current).toBe(input);
+      expect(current).toHaveFocus();
+      expect(current).toHaveValue(nextName);
+      expect([current.selectionStart, current.selectionEnd]).toEqual([3, 9]);
+      expect(api.unchain.listSkeletonResources).toHaveBeenCalledTimes(1);
+      expect(api.unchain.renameSkeletonResource).not.toHaveBeenCalled();
+      expect(api.unchain.saveSkeletonResource).not.toHaveBeenCalled();
+      expect(JSON.stringify(getFolderState())).toBe(folderBefore);
+      expect(p.onActiveChanged).not.toHaveBeenCalled();
+    }
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(api.unchain.renameSkeletonResource).toHaveBeenCalledTimes(1));
+    expect(api.unchain.renameSkeletonResource).toHaveBeenCalledWith(item.id, nextName.trim(), item.edit_token);
+    expect(item.name).toBe(rawName);
+  });
+
+  test("an in-flight refusal resolves in the current language and later locale changes only repaint its owned explanation", async () => {
+    const pending = deferred();
+    const rawName = "agents.explorer.rename_failed {name}";
+    const rawError = "RAW_BACKEND {message} é document.nodes[0]";
+    const item = Object.freeze(agent("opaque-resource-id", rawName));
+    api.unchain.listSkeletonResources = jest.fn().mockResolvedValue([item]);
+    api.unchain.renameSkeletonResource = jest.fn().mockReturnValue(pending.promise);
+    const p = props({ activeId: item.id });
+    const tree = (locale) => <LocaleContext.Provider value={{ locale }}><AgentExplorer {...p} /></LocaleContext.Provider>;
+    const view = render(tree("en"));
+    await screen.findByTestId(`row-resource:${item.id}`);
+    openMenu(`resource:${item.id}`);
+    fireEvent.click(menuItem("Rename"));
+    const input = within(screen.getByTestId(`row-resource:${item.id}`)).getByRole("textbox");
+    fireEvent.change(input, { target: { value: "New authored name" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    view.rerender(tree("zh-CN"));
+    await act(async () => { pending.resolve(Promise.reject(Object.assign(new Error(rawError), { code: "raw_code" }))); });
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(`无法重命名“${rawName}”：${rawError}`);
+    const readsAfterAction = api.unchain.listSkeletonResources.mock.calls.length;
+    expect(readsAfterAction).toBe(2);
+    view.rerender(tree("en"));
+    expect(screen.getByRole("alert")).toHaveTextContent(`Could not rename “${rawName}”: ${rawError}`);
+    view.rerender(tree("zh-CN"));
+    expect(screen.getByRole("alert")).toHaveTextContent(`无法重命名“${rawName}”：${rawError}`);
+    expect(api.unchain.listSkeletonResources).toHaveBeenCalledTimes(readsAfterAction);
+    expect(api.unchain.renameSkeletonResource).toHaveBeenCalledTimes(1);
+    expect(api.unchain.saveSkeletonResource).not.toHaveBeenCalled();
+    expect(p.onActiveChanged).not.toHaveBeenCalled();
+    expect(item.name).toBe(rawName);
+  });
 });
 
 describe("what is listed", () => {

@@ -1,3 +1,4 @@
+import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { node_display_title } from "../node_display_labels";
 import React from "react";
 import PuzzleShape from "./puzzle_shape";
@@ -25,6 +26,7 @@ const IDENTITY = {
 };
 
 export default function BranchNode({ node, rows, summary, isDark }) {
+  const { t } = useTranslation();
   const identity = IDENTITY[node.type] || IDENTITY.if_else;
   const list = Array.isArray(rows) ? rows : [];
   const height = (Math.max(list.length, 1) + 1) * BRANCH_ROW_HEIGHT;
@@ -43,7 +45,7 @@ export default function BranchNode({ node, rows, summary, isDark }) {
             </div>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 12.5, fontWeight: 600, lineHeight: 1.15, color: isDark ? "#f0f0f3" : "#1d1d22", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                {node_display_title(node, identity.title)}
+                {node_display_title(node, node.type === "switch_case" ? t("agents.nodes.switch_case") : t("agents.nodes.if_else"))}
               </div>
               <div data-testid={`branch-node-${node.id}-summary`} style={{
                 fontSize: 10.5, color: muted, marginTop: 2,
@@ -60,7 +62,7 @@ export default function BranchNode({ node, rows, summary, isDark }) {
             {list.map((row, index) => (
               <div key={`${index}:${row.port_id}`} data-testid={`branch-row-${node.id}-${index}`}
                 data-port-row={row.port_id}
-                title={row.declared ? undefined : "This outlet is not declared any more. Its connection stops the run; delete it or add the case back."}
+                title={row.declared ? undefined : t("agents.nodes.outlet_undeclared")}
                 style={{ height: BRANCH_ROW_HEIGHT, display: "flex", alignItems: "center", justifyContent: "flex-end", paddingRight: 10, minWidth: 0 }}>
                 <span style={{
                   fontSize: 10.5, lineHeight: "16px", padding: "0 7px", borderRadius: 8, maxWidth: 94,

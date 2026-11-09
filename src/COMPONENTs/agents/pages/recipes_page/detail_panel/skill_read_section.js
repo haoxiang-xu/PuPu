@@ -1,3 +1,5 @@
+import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
+import { agentEnglishText } from "../agents_i18n";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import Select from "../../../../../BUILTIN_COMPONENTs/select/select";
@@ -49,15 +51,15 @@ function Divider({ isDark }) {
   return <div style={{ height: 1, margin: "2px 0", background: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)" }} />;
 }
 
-const size_text = (bytes) => (bytes < 1024 ? `${bytes} bytes` : `${(bytes / 1024).toFixed(1)} KB`);
+const size_text = (bytes, t = agentEnglishText) => (bytes < 1024 ? t("agents.execution.skill.bytes", { count: bytes }) : t("agents.execution.skill.kilobytes", { count: (bytes / 1024).toFixed(1) }));
 
-function refusal_text(error) {
+function refusal_text(error, t = agentEnglishText) {
   const code = error && error.code;
   if (code === "identity_mismatch") {
-    return "This skill is not available as it was picked: its exact source, location and name could not be read. The run would fail to read it.";
+    return t("agents.execution.skill.identity_mismatch");
   }
-  if (code === "skill_unavailable") return "This skill could not be read. The run would fail to read it too.";
-  return safe_text((error && error.message) || "The skill could not be previewed.");
+  if (code === "skill_unavailable") return t("agents.execution.skill.unavailable");
+  return safe_text((error && error.message) || t("agents.execution.skill.preview_failed"));
 }
 
 function useSkillList(includeUserDirs) {
@@ -108,6 +110,7 @@ function usePreview(identity, includeUserDirs) {
 }
 
 export default function SkillReadSection({ document, node, isDark, onChange }) {
+  const { t } = useTranslation();
   const [includeUserDirs] = useState(() => readSkillsIncludeUserDirsSetting());
   const [list, reloadList] = useSkillList(includeUserDirs);
   const identity = skill_identity(node);
@@ -131,14 +134,14 @@ export default function SkillReadSection({ document, node, isDark, onChange }) {
     ...(identity && at === -1 && list.status === "ready"
       ? [{
         value: STORED,
-        label: `${safe_text(identity.name) || "(unnamed)"} (${exact ? "not in the skill list now" : "stored in a form the runtime cannot read"})`,
+        label: exact ? t("agents.execution.skill.unlisted_option", { name: safe_text(identity.name) || t("agents.execution.skill.unnamed") }) : t("agents.execution.skill.unreadable_option", { name: safe_text(identity.name) || t("agents.execution.skill.unnamed") }),
       }]
       : []),
-    ...rows.map((row, index) => ({ value: String(index), label: `${row.identity.name} · ${source_label(row.identity.source)}` })),
+    ...rows.map((row, index) => ({ value: String(index), label: `${row.identity.name} · ${source_label(row.identity.source, t)}` })),
   ];
   const selected = !identity ? null : at === -1 ? STORED : String(at);
   const listed = at === -1 ? null : rows[at];
-  const problems = skill_read_problems(node, list.status === "ready" ? list.rows : null);
+  const problems = skill_read_problems(node, list.status === "ready" ? list.rows : null, t);
   const inputs = node_bindings(node);
   const extras = Object.keys(node.config || {}).filter((key) => !["execution", "skill"].includes(key));
 
@@ -146,21 +149,21 @@ export default function SkillReadSection({ document, node, isDark, onChange }) {
     <section data-testid="skill-read-section" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {!editable && (
         <div style={problem_style(isDark)}>
-          {!unique ? "Duplicate node ids prevent editing this step." : "These stored settings are read-only here."}
+          {!unique ? t("agents.execution.read_only.duplicate_ids") : t("agents.execution.read_only.stored")}
         </div>
       )}
 
       <div data-testid="skill-read-inputs" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <span style={LABEL}>Input Variables</span>
+        <span style={LABEL}>{t("agents.io.input_variables")}</span>
         {inputs.length === 0 ? (
-          <span style={NOTE}>No inputs. A Skill Read takes none.</span>
+          <span style={NOTE}>{t("agents.execution.skill.no_inputs")}</span>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <span style={problem_style(isDark)}>
-              {inputs.length === 1 ? "One input is" : `${inputs.length} inputs are`} stored for this step; the runtime refuses a Skill Read that has any.
+              {inputs.length === 1 ? t("agents.execution.skill.one_input") : t("agents.execution.skill.many_inputs", { count: inputs.length })}
             </span>
             <span>
-              <Button label="Remove inputs" disabled={!editable} onClick={() => commit(without_inputs(document, node.id))}
+              <Button label={t("agents.execution.skill.remove_inputs")} disabled={!editable} onClick={() => commit(without_inputs(document, node.id))}
                 style={{ ...SMALL_BUTTON, paddingVertical: 2, borderRadius: 5 }} />
             </span>
           </div>
@@ -170,7 +173,7 @@ export default function SkillReadSection({ document, node, isDark, onChange }) {
       <Divider isDark={isDark} />
 
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <span style={LABEL}>Skill</span>
+        <span style={LABEL}>{t("agents.execution.skill.skill")}</span>
         <span data-testid="skill-read-picker">
           <Select
             options={options}
@@ -181,60 +184,46 @@ export default function SkillReadSection({ document, node, isDark, onChange }) {
               if (row && (!exact || !same_identity(row.identity, identity))) commit(with_skill(document, node.id, row.identity));
             }}
             filterable
-            placeholder={list.status === "loading" ? "reading the skill list…" : "pick a skill"}
+            placeholder={list.status === "loading" ? t("agents.execution.skill.reading_list") : t("agents.execution.skill.pick_skill")}
             disabled={!editable}
             dropdown_style={{ maxHeight: "min(280px, 40vh)" }}
             style={FIELD}
           />
         </span>
         {list.status === "error" && (
-          <span data-testid="skill-read-list-error" style={problem_style(isDark)}>
-            The skill list could not be read. <Button label="Try again" onClick={reloadList} style={SMALL_BUTTON} />
+          <span data-testid="skill-read-list-error" style={problem_style(isDark)}>{t("agents.execution.skill.list_failed")}<Button label={t("agents.explorer.try_again")} onClick={reloadList} style={SMALL_BUTTON} />
           </span>
         )}
         {identity && !exact && (
           <span data-testid="skill-read-stored" style={NOTE}>
-            Stored as{" "}
-            {IDENTITY_KEYS.map((key, index) => (
-              <span key={key}>
-                {index > 0 ? ", " : ""}
-                {key} <span style={MONO}>{safe_text(identity[key])}</span>
-              </span>
-            ))}
-            {Object.keys(identity).filter((key) => !IDENTITY_KEYS.includes(key)).map((key) => (
-              <span key={`extra-${key}`}>
-                , and <span style={MONO}>{safe_text(key)}</span>, which the runtime does not read
-              </span>
-            ))}
-            . It is kept until you pick a skill.
+            {t("agents.execution.skill.stored_identity", { identity: "{identity}", extra: "{extra}" }).split(/(\{identity\}|\{extra\})/g).map((part, index) => ({ __proto__: null, "{identity}": (<React.Fragment key={index}>{IDENTITY_KEYS.map((key, index) => <span key={key}>{index > 0 ? t("agents.schema.fields.list_separator") : ""}{key} <span style={MONO}>{safe_text(identity[key])}</span></span>)}</React.Fragment>), "{extra}": (<React.Fragment key={index}>{Object.keys(identity).filter((key) => !IDENTITY_KEYS.includes(key)).map((key) => <span key={`extra-${key}`}>{t("agents.schema.fields.list_separator")}{t("agents.execution.skill.extra_setting", { setting: "{setting}" }).split("{setting}").map((part, at) => <React.Fragment key={at}>{at > 0 && <span style={MONO}>{safe_text(key)}</span>}{part}</React.Fragment>)}</span>)}</React.Fragment>) }[part] || part))}
           </span>
         )}
         {listed && listed.description && <span style={NOTE}>{listed.description}</span>}
         {identity && complete && (
           <span data-testid="skill-read-source" style={NOTE}>
-            From {source_label(identity.source)}: <span style={MONO}>{safe_text(identity.source_id)}</span>
+            {t("agents.execution.skill.source_location", { location: "{location}", source: "{source}" }).split(/(\{location\}|\{source\})/g).map((part, index) => ({ __proto__: null, "{location}": (<span key={index} style={MONO}>{safe_text(identity.source_id)}</span>), "{source}": source_label(identity.source, t) }[part] || part))}
           </span>
         )}
         <span style={NOTE}>
           {includeUserDirs
-            ? "Lists your skills and installed skill packs."
-            : "Lists installed skill packs; your own skills are switched off in settings."}
-          {" "}Skills from a chat's project folder are not listed here. A run reads the exact skill selected above, even when the project has one with the same name.
-        </span>
+            ? t("agents.execution.skill.all_sources_note")
+            : t("agents.execution.skill.packs_only_note")}
+          {" "}{t("agents.execution.skill.project_sources_note")}</span>
       </div>
 
       {complete && (
         <div data-testid="skill-read-preview" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <div style={{ ...ROW, justifyContent: "space-between" }}>
-            <span style={LABEL}>Preview</span>
+            <span style={LABEL}>{t("agents.execution.skill.preview")}</span>
             {preview.status === "ready" && (
-              <span data-testid="skill-read-preview-size" style={NOTE}>{size_text(preview.preview.bytes)}</span>
+              <span data-testid="skill-read-preview-size" style={NOTE}>{size_text(preview.preview.bytes, t)}</span>
             )}
           </div>
-          {preview.status === "loading" && <span style={NOTE}>Reading {safe_text(identity.name)}…</span>}
+          {preview.status === "loading" && <span style={NOTE}>{t("agents.execution.skill.reading_preview", { name: safe_text(identity.name) })}</span>}
           {preview.status === "error" && (
             <span data-testid="skill-read-preview-error" style={problem_style(isDark)}>
-              {refusal_text(preview.error)} <Button label="Try again" onClick={reloadPreview} style={SMALL_BUTTON} />
+              {refusal_text(preview.error, t)} <Button label={t("agents.explorer.try_again")} onClick={reloadPreview} style={SMALL_BUTTON} />
             </span>
           )}
           {preview.status === "ready" && (
@@ -257,18 +246,16 @@ export default function SkillReadSection({ document, node, isDark, onChange }) {
               {preview.preview.body}
             </pre>
           )}
-          <span style={NOTE}>
-            Read-only, and not what runs: the run reads this skill again when it gets here, and a resumed run keeps what it read the first time.
-          </span>
+          <span style={NOTE}>{t("agents.execution.skill.preview_note")}</span>
         </div>
       )}
 
       {extras.map((key) => (
         <div key={key} data-testid={`skill-read-setting-${key}`} style={{ ...ROW, justifyContent: "space-between" }}>
-          <span style={problem_style(isDark)}>Unsupported setting: {safe_text(key)}</span>
+          <span style={problem_style(isDark)}>{t("agents.execution.skill.unsupported_setting", { key: safe_text(key) })}</span>
           <Button
-            label="Remove setting"
-            ariaLabel={`Remove setting ${key}`}
+            label={t("agents.execution.skill.remove_setting")}
+            ariaLabel={t("agents.execution.skill.remove_setting_key", { key: key })}
             disabled={!editable}
             onClick={() => {
               const config = { ...node.config };

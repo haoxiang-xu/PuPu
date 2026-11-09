@@ -11,6 +11,7 @@ import Button from "../../../../BUILTIN_COMPONENTs/input/button";
 import ContextMenu from "../../../../BUILTIN_COMPONENTs/context_menu/context_menu";
 import { buildRecipeContextMenuItems } from "./recipe_canvas_context_menu_items";
 import RecipeNodePalette from "./recipe_node_palette";
+import { useTranslation } from "../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import {
   edge_is_attach,
   insert_node_after,
@@ -52,6 +53,9 @@ export default function RecipeCanvas({
   viewportOutRef,
   restoreViewport,
 }) {
+  const { t } = useTranslation();
+  const localeTextRef = useRef(t);
+  localeTextRef.current = t;
   const [resetToken, setResetToken] = useState(0);
   const [palette, setPalette] = useState({
     visible: false,
@@ -166,7 +170,7 @@ export default function RecipeCanvas({
 
   const validate = useCallback(
     ({ source, target }) =>
-      validate_recipe_connection(source, target, { edges }),
+      validate_recipe_connection(source, target, { edges }, localeTextRef.current),
     [edges],
   );
 
@@ -321,7 +325,7 @@ export default function RecipeCanvas({
       onInsertNodeHere: () =>
         open_palette(contextMenu.x, contextMenu.y, "insert_edge", target.id),
       onDeleteConnection: () => remove_edge(target.id),
-    });
+    }, t);
   }, [
     contextMenu,
     recipe,
@@ -334,6 +338,7 @@ export default function RecipeCanvas({
     disconnect_node,
     remove_node,
     remove_edge,
+    t,
   ]);
 
   /* Escape goes up one drill level before it reaches the Agents modal.
@@ -377,8 +382,8 @@ export default function RecipeCanvas({
     return null;
   };
 
-  const undoHint = isMac ? "Undo (⌘Z)" : "Undo (Ctrl+Z)";
-  const redoHint = isMac ? "Redo (⌘⇧Z)" : "Redo (Ctrl+Y)";
+  const undoHint = t("agents.canvas.undo", { shortcut: isMac ? "⌘Z" : "Ctrl+Z" });
+  const redoHint = t("agents.canvas.redo", { shortcut: isMac ? "⌘⇧Z" : "Ctrl+Y" });
 
   const overlayBg = isDark
     ? "rgba(20, 20, 20, 0.72)"
@@ -488,7 +493,7 @@ export default function RecipeCanvas({
               }}
             />
           </span>
-          <span title="Center" style={{ display: "inline-flex" }}>
+          <span title={t("agents.canvas.center")} style={{ display: "inline-flex" }}>
             <Button
               prefix_icon="home"
               onClick={() => setResetToken((t) => t + 1)}
@@ -503,7 +508,7 @@ export default function RecipeCanvas({
             />
           </span>
           <Button
-            label="Save"
+            label={t("agents.save.save")}
             onClick={onSave}
             disabled={!dirty}
             style={{

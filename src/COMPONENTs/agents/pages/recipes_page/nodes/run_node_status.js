@@ -1,5 +1,7 @@
 import React from "react";
 import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
+import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
+import { agentEnglishText } from "../agents_i18n";
 
 const STYLES = {
   pending: ["circle", "#86868b"],
@@ -13,25 +15,26 @@ const STYLES = {
   outcome_unknown: ["question_mark", "#a87626"],
 };
 
-export function run_status_caption(node) {
-  if (node.phase === "result_received") return "Result recorded · not committed";
-  if (node.phase === "receipt_recorded") return "Receipt recorded · awaiting resume";
-  if (node.phase === "receipt_recorded_upstream") return "Receipt recorded · awaiting parent";
-  if (node.phase === "waiting_for_child") return "Waiting for child";
-  if (node.phase === "awaiting_input") return "Waiting for input";
-  const labels = { pending: "Pending", running: "Recorded running", waiting: "Waiting", waiting_approval: "Waiting for approval",
-    suspended: "Suspended", succeeded: "Succeeded", failed: "Failed", cancelled: "Cancelled", outcome_unknown: "Outcome unknown" };
-  return Object.prototype.hasOwnProperty.call(labels, node.state) ? labels[node.state] : "State unavailable";
+export function run_status_caption(node, t = agentEnglishText) {
+  if (node.phase === "result_received") return t("agents.run.result_received");
+  if (node.phase === "receipt_recorded") return t("agents.run.receipt_recorded");
+  if (node.phase === "receipt_recorded_upstream") return t("agents.run.receipt_recorded_upstream");
+  if (node.phase === "waiting_for_child") return t("agents.run.waiting_for_child");
+  if (node.phase === "awaiting_input") return t("agents.run.awaiting_input");
+  const labels = { pending: t("agents.run.pending"), running: t("agents.run.running"), waiting: t("agents.run.waiting"), waiting_approval: t("agents.run.waiting_approval"),
+    suspended: t("agents.run.suspended"), succeeded: t("agents.run.succeeded"), failed: t("agents.run.failed"), cancelled: t("agents.run.cancelled"), outcome_unknown: t("agents.run.outcome_unknown") };
+  return Object.prototype.hasOwnProperty.call(labels, node.state) ? labels[node.state] : t("agents.run.unavailable");
 }
 
 /* An outline and an existing glyph, never colour alone. The badge is outside
  * normal flow: no coordinate, configuration or port changes. No animation
  * claims a live owner. A cancellation does not claim the tool never ran. */
 export default function RunNodeStatus({ projection, isDark, children }) {
+  const { t } = useTranslation();
   if (!projection) return children;
   const style = Object.prototype.hasOwnProperty.call(STYLES, projection.state) ? STYLES[projection.state] : ["question_mark", "#86868b"];
   const [icon, color] = style;
-  const label = run_status_caption(projection);
+  const label = run_status_caption(projection, t);
   return (
     <div style={{ position: "relative", display: "inline-block", verticalAlign: "top", borderRadius: 12,
       outline: `2px solid ${color}`, outlineOffset: 3, opacity: projection.state === "cancelled" ? 0.65 : 1 }}>

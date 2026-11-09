@@ -1,3 +1,4 @@
+import { agentEnglishText, agentProblemFromMessage } from "./agents_i18n";
 import { add_node, connect_nodes, delete_edge, delete_node } from "./skeleton_graph_edits";
 import { is_valid_node_label } from "./node_display_labels";
 
@@ -8,7 +9,7 @@ const record = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const text = (v) => typeof v === "string" && v.length > 0;
 const own = (v, key) => Object.prototype.hasOwnProperty.call(v, key);
 const accept = (document) => ({ ok: true, document, problem: null });
-const refuse = (document, message, code = "invalid_command") => ({ ok: false, document, problem: { code, message } });
+const refuse = (document, message, code = "invalid_command") => ({ ok: false, document, problem: agentProblemFromMessage(message, { code }) });
 const shape = (v, keys) => record(v) && Object.keys(v).length === keys.length && keys.every((key) => own(v, key));
 const ENDPOINTS = ["source_node_id", "source_port_id", "target_node_id", "target_port_id"];
 const ATTACH = new Set(["attach_top", "attach_bot"]);
@@ -28,42 +29,42 @@ function normalized(connection) {
   return null;
 }
 
-function remove(graph, nodeIds, edgeIds) {
+function remove(graph, nodeIds, edgeIds, t = agentEnglishText) {
   let next = graph;
   for (const id of new Set(edgeIds)) {
-    const result = delete_edge(next, id);
+    const result = delete_edge(next, id, t);
     if (!result.ok) return { ...result, document: graph };
     next = result.document;
   }
   for (const id of new Set(nodeIds)) {
-    const result = delete_node(next, id);
+    const result = delete_node(next, id, t);
     if (!result.ok) return { ...result, document: graph };
     next = result.document;
   }
   return accept(next);
 }
 
-export function apply_graph_command(graph, command) {
+export function apply_graph_command(graph, command, t = agentEnglishText) {
   if (!record(command) || !record(graph) || graph.schema_version !== 1 || (graph.kind !== "agent" && graph.kind !== "workflow") ||
       !Array.isArray(graph.nodes) || !Array.isArray(graph.edges)) {
-    return refuse(graph, "This graph cannot be edited here.");
+    return refuse(graph, t("agents.graph.graph_uneditable"));
   }
   if (command.type === "add_node" && shape(command, ["type", "node_type"])) {
-    return add_node(graph, { type: command.node_type });
+    return add_node(graph, { type: command.node_type }, t);
   }
   if (command.type === "rename_node") {
     if (!shape(command, ["type", "node_id", "label"]) || !text(command.node_id)) {
-      return refuse(graph, "Rename requires exactly a node id and label.");
+      return refuse(graph, t("agents.graph.rename_shape"));
     }
     if (typeof command.label !== "string") {
-      return refuse(graph, "Node label must be a string.", "invalid_type");
+      return refuse(graph, t("agents.graph.rename_label_text"), "invalid_type");
     }
     if (!is_valid_node_label(command.label)) {
-      return refuse(graph, "Node label must be non-blank.", "invalid_value");
+      return refuse(graph, t("agents.graph.rename_label_blank"), "invalid_value");
     }
     const matches = graph.nodes.filter((node) => record(node) && node.id === command.node_id);
-    if (matches.length === 0) return refuse(graph, "The selected node is missing.", "missing_node");
-    if (matches.length !== 1) return refuse(graph, "The selected node id is shared by another node.", "ambiguous_node");
+    if (matches.length === 0) return refuse(graph, t("agents.graph.selected_missing"), "missing_node");
+    if (matches.length !== 1) return refuse(graph, t("agents.graph.selected_ambiguous"), "ambiguous_node");
     const target = matches[0];
     if (own(target, "label") && target.label === command.label) return accept(graph);
     return accept({ ...graph, nodes: graph.nodes.map((node) => node === target ? { ...node, label: command.label } : node) });
@@ -71,30 +72,30 @@ export function apply_graph_command(graph, command) {
   if (command.type === "delete" && shape(command, ["type", "node_ids", "edge_ids"]) &&
       Array.isArray(command.node_ids) && Array.isArray(command.edge_ids) &&
       command.node_ids.every(text) && command.edge_ids.every(text)) {
-    return remove(graph, command.node_ids, command.edge_ids);
+    return remove(graph, command.node_ids, command.edge_ids, t);
   }
   if (command.type === "disconnect" && shape(command, ["type", "node_id"]) && text(command.node_id)) {
     if (graph.nodes.filter((node) => record(node) && node.id === command.node_id).length !== 1) {
-      return refuse(graph, "The selected node is missing or its id is shared by another node.");
+      return refuse(graph, t("agents.graph.selected_unavailable"));
     }
     const edges = graph.edges.filter((edge) => record(edge) &&
       (edge.source_node_id === command.node_id || edge.target_node_id === command.node_id));
-    if (!edges.every((edge) => text(edge.id))) return refuse(graph, "A connection has no usable id.");
-    return remove(graph, [], edges.map((edge) => edge.id));
+    if (!edges.every((edge) => text(edge.id))) return refuse(graph, t("agents.graph.connection_id"));
+    return remove(graph, [], edges.map((edge) => edge.id), t);
   }
   if (command.type === "connect" && shape(command, ["type", "connection"])) {
     const next = normalized(command.connection);
-    return next ? connect_nodes(graph, next) : refuse(graph, "Connect an outlet to an inlet, or two attachment ports.");
+    return next ? connect_nodes(graph, next, t) : refuse(graph, t("agents.graph.connection_pair"));
   }
   if (command.type === "reconnect" && shape(command, ["type", "edge_id", "connection"]) && text(command.edge_id)) {
     const next = normalized(command.connection);
-    if (!next) return refuse(graph, "Connection unchanged. Drop its end on a compatible port.");
-    const removed = delete_edge(graph, command.edge_id);
+    if (!next) return refuse(graph, t("agents.graph.reconnect_unchanged"));
+    const removed = delete_edge(graph, command.edge_id, t);
     if (!removed.ok) return removed;
-    const connected = connect_nodes(removed.document, { ...next, id: command.edge_id });
+    const connected = connect_nodes(removed.document, { ...next, id: command.edge_id }, t);
     if (!connected.ok) return { ...connected, document: graph };
     const replacement = connected.document.edges.find((edge) => edge.id === command.edge_id);
     return accept({ ...graph, edges: graph.edges.map((edge) => edge.id === command.edge_id ? { ...edge, ...replacement } : edge) });
   }
-  return refuse(graph, "This edit is not supported.");
+  return refuse(graph, t("agents.graph.command_unsupported"));
 }

@@ -1,9 +1,10 @@
 /* global globalThis */
+import { agentEnglishText } from "./agents_i18n";
 import { new_agent_document } from "./skeleton_graph_edits";
 import { free_entry_id, free_entry_name, new_subagent_entry } from "./subagent_pool_config";
 
 const record = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
-const refused = () => ({ ok: false, entry: null, problem: "Could not create this Agent. No entry was added; please try again." });
+const refused = (t = agentEnglishText) => ({ ok: false, entry: null, problem: t("agents.graph.embedded_create_failed") });
 
 /* A graph id belongs to the whole visible resource closure, whereas an entry
    id belongs only to its pool. Walk iteratively so an unfinished deep graph
@@ -30,8 +31,8 @@ function graph_ids(root) {
 /* Only identity is generated. No parent model, prompt, schema or credential is
    inherited. This unfinished graph is edited with the ordinary Open action
    and saved as part of the resource that owns it. */
-export function new_embedded_entry({ rootDocument, entries, randomBytes = (bytes) => globalThis.crypto.getRandomValues(bytes) }) {
-  if (!record(rootDocument) || rootDocument.kind !== "agent" || rootDocument.schema_version !== 1 || !Array.isArray(entries)) return refused();
+export function new_embedded_entry({ rootDocument, entries, randomBytes = (bytes) => globalThis.crypto.getRandomValues(bytes) }, t = agentEnglishText) {
+  if (!record(rootDocument) || rootDocument.kind !== "agent" || rootDocument.schema_version !== 1 || !Array.isArray(entries)) return refused(t);
   const occupied = graph_ids(rootDocument);
   let graphId;
   try {
@@ -41,12 +42,12 @@ export function new_embedded_entry({ rootDocument, entries, randomBytes = (bytes
       const candidate = `embedded-${Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
       if (!occupied.has(candidate)) { graphId = candidate; break; }
     }
-  } catch (_error) { return refused(); }
-  if (!graphId) return refused();
+  } catch (_error) { return refused(t); }
+  if (!graphId) return refused(t);
   const id = free_entry_id(entries.filter(record).map((entry) => entry.id).filter((value) => typeof value === "string"));
   const name = free_entry_name(entries.filter(record).map((entry) => entry.name).filter((value) => typeof value === "string"), "New Agent");
   const seed = new_agent_document({ id: graphId, name });
-  if (!seed.ok) return refused();
+  if (!seed.ok) return refused(t);
   const entry = { ...new_subagent_entry({ id, name }), source: { kind: "embedded", document: seed.document } };
   return { ok: true, entry, problem: null };
 }

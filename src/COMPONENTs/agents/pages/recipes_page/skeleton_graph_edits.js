@@ -1,3 +1,4 @@
+import { agentEnglishText, agentProblemFromMessage } from "./agents_i18n";
 /* Native Skeleton graph authoring — the pure command core.
  *
  * Six commands turn one native Agent or Workflow document into the next one:
@@ -174,7 +175,7 @@ const accept = (document) => ({ ok: true, document, problem: null });
 const refuse = (document, code, message) => ({
   ok: false,
   document,
-  problem: { code, message },
+  problem: agentProblemFromMessage(message, { code }),
 });
 
 /* ----------------------------------------------------------------------- */
@@ -188,26 +189,26 @@ const is_nonempty_string = (value) => typeof value === "string" && value.length 
 
 const has_own = (record, key) => Object.prototype.hasOwnProperty.call(record, key);
 
-function document_issue(document) {
-  if (!is_record(document)) return "document must be an object";
-  if (document.schema_version !== 1) return "only schema_version 1 can be edited here";
+function document_issue(document, t = agentEnglishText) {
+  if (!is_record(document)) return t("agents.graph.document_object");
+  if (document.schema_version !== 1) return t("agents.graph.schema_supported");
   if (document.kind !== AGENT_KIND && document.kind !== WORKFLOW_KIND) {
-    return "only Agent and Workflow documents can be edited here";
+    return t("agents.graph.kind_editable");
   }
-  if (!Array.isArray(document.nodes)) return "document.nodes must be an array";
-  if (!Array.isArray(document.edges)) return "document.edges must be an array";
+  if (!Array.isArray(document.nodes)) return t("agents.graph.document_nodes_array");
+  if (!Array.isArray(document.edges)) return t("agents.graph.document_edges_array");
   return null;
 }
 
-function command_issue(command, required, optional) {
-  if (!is_record(command)) return "command must be an object";
+function command_issue(command, required, optional, t = agentEnglishText) {
+  if (!is_record(command)) return t("agents.graph.command_object");
   for (const key of Object.keys(command)) {
     if (!required.has(key) && !optional.has(key)) {
-      return `unexpected command key "${key}"`;
+      return t("agents.graph.command_unknown_key", { value1: key });
     }
   }
   for (const key of required) {
-    if (!has_own(command, key)) return `command key "${key}" is required`;
+    if (!has_own(command, key)) return t("agents.graph.command_required_key", { value1: key });
   }
   return null;
 }
@@ -242,16 +243,16 @@ function free_id(taken, base) {
 }
 
 /* One node for one id, or the reason there is not one. */
-function resolve_node(nodes, node_id, role) {
+function resolve_node(nodes, node_id, messages, t = agentEnglishText) {
   const found = matching(nodes, node_id);
   if (found.length === 0) {
-    return { node: null, code: "node_not_found", message: `${role} node "${node_id}" does not exist` };
+    return { node: null, code: "node_not_found", message: t(messages.missing, { value2: node_id }) };
   }
   if (found.length > 1) {
     return {
       node: null,
       code: "ambiguous_node_id",
-      message: `${role} node id "${node_id}" matches ${found.length} nodes`,
+      message: t(messages.ambiguous, { value2: node_id, value3: found.length }),
     };
   }
   return { node: found[0], code: null, message: null };
@@ -303,28 +304,28 @@ function flow_reaches(edges, from, to) {
  * that is anything else does not get guessed outlets; the author repairs the
  * cases first and the refusal says so. Answers `{ok, outlets, problem}` with
  * `outlets` an array (possibly empty: End and pools never leave) or `null`. */
-export function flow_outlets(node) {
+export function flow_outlets(node, t = agentEnglishText) {
   if (!is_record(node)) {
-    return { ok: false, outlets: null, problem: "the node is not readable" };
+    return { ok: false, outlets: null, problem: t("agents.graph.node_unreadable") };
   }
   if (node.type === BRANCH_IF) return { ok: true, outlets: [...IF_OUTLETS], problem: null };
   if (node.type === BRANCH_SWITCH) {
     const execution = is_record(node.config) ? node.config.execution : null;
     const cases = is_record(execution) ? execution.cases : undefined;
     if (!Array.isArray(cases)) {
-      return { ok: false, outlets: null, problem: "this switch has no readable list of cases" };
+      return { ok: false, outlets: null, problem: t("agents.graph.cases_unreadable") };
     }
     const ids = [];
     const seen = new Set();
     for (const entry of cases) {
       if (!is_record(entry) || !is_nonempty_string(entry.id)) {
-        return { ok: false, outlets: null, problem: "a case has no usable id" };
+        return { ok: false, outlets: null, problem: t("agents.graph.case_id_missing") };
       }
       if (entry.id === SWITCH_DEFAULT_OUTLET) {
-        return { ok: false, outlets: null, problem: `a case uses the reserved id "${SWITCH_DEFAULT_OUTLET}"` };
+        return { ok: false, outlets: null, problem: t("agents.graph.case_id_reserved", { value1: SWITCH_DEFAULT_OUTLET }) };
       }
       if (seen.has(entry.id)) {
-        return { ok: false, outlets: null, problem: `case id "${entry.id}" is used twice` };
+        return { ok: false, outlets: null, problem: t("agents.graph.case_id_duplicate", { value1: entry.id }) };
       }
       seen.add(entry.id);
       ids.push(entry.id);
@@ -341,83 +342,83 @@ const attach_joins = (edge, a, b) =>
   ((edge.source_node_id === a && edge.target_node_id === b) ||
     (edge.source_node_id === b && edge.target_node_id === a));
 
-function flow_issue(document, command, source, target) {
+function flow_issue(document, command, source, target, t = agentEnglishText) {
   const { source_node_id, source_port_id, target_node_id, target_port_id } = command;
   if (!FLOW_SOURCE_TYPES.has(source.type)) {
     return {
       code: "invalid_flow_source",
-      message: `node "${source_node_id}" cannot start a flow edge (start, agent or a branch only; End and pools never leave)`,
+      message: t("agents.graph.flow_source", { value1: source_node_id }),
     };
   }
   if (!FLOW_TARGET_TYPES.has(target.type)) {
     return {
       code: "invalid_flow_target",
-      message: `node "${target_node_id}" cannot receive a flow edge (agent, a branch or end only; Start and pools never arrive)`,
+      message: t("agents.graph.flow_target", { value1: target_node_id }),
     };
   }
-  const outlets = flow_outlets(source);
+  const outlets = flow_outlets(source, t);
   if (!outlets.ok) {
     return {
       code: "unreadable_outlets",
-      message: `node "${source_node_id}" cannot be wired yet: ${outlets.problem}; repair it first`,
+      message: t("agents.graph.outlets_unreadable", { value1: source_node_id, value2: outlets.problem }),
     };
   }
   if (!outlets.outlets.includes(source_port_id)) {
     return {
       code: "unknown_port",
-      message: `node "${source_node_id}" leaves through ${outlets.outlets.map((port) => `"${port}"`).join(", ")}, not "${source_port_id}"`,
+      message: t("agents.graph.source_port", { value1: source_node_id, value2: outlets.outlets.map((port) => `"${port}"`).join(", "), value3: source_port_id }),
     };
   }
   if (target_port_id !== FLOW_IN_PORT) {
     return {
       code: "unknown_port",
-      message: `flow edges arrive through port "${FLOW_IN_PORT}", not "${target_port_id}"`,
+      message: t("agents.graph.target_port", { value1: FLOW_IN_PORT, value2: target_port_id }),
     };
   }
   for (const edge of document.edges) {
     if (occupies_outlet(edge, source_node_id, source_port_id)) {
       return {
         code: "outlet_occupied",
-        message: `outlet "${source_port_id}" of node "${source_node_id}" already has an edge; delete it first`,
+        message: t("agents.graph.outlet_occupied", { value1: source_port_id, value2: source_node_id }),
       };
     }
   }
   if (flow_reaches(document.edges, target_node_id, source_node_id)) {
     return {
       code: "flow_cycle",
-      message: `a flow edge from "${source_node_id}" to "${target_node_id}" would close a cycle`,
+      message: t("agents.graph.flow_cycle", { value1: source_node_id, value2: target_node_id }),
     };
   }
   return null;
 }
 
-function attach_issue(document, command, source, target) {
+function attach_issue(document, command, source, target, t = agentEnglishText) {
   const { source_node_id, source_port_id, target_node_id, target_port_id } = command;
   const agent_to_pool = source.type === ATTACH_AGENT_TYPE && ATTACH_POOL_TYPES.has(target.type);
   const pool_to_agent = ATTACH_POOL_TYPES.has(source.type) && target.type === ATTACH_AGENT_TYPE;
   if (!agent_to_pool && !pool_to_agent) {
     return {
       code: "invalid_attachment",
-      message: `attach edges join one ${ATTACH_AGENT_TYPE} and one subagent_pool, toolkit_pool or hooks_pool; "${source_node_id}" and "${target_node_id}" are not such a pair`,
+      message: t("agents.graph.attachment_pair", { value1: ATTACH_AGENT_TYPE, value2: source_node_id, value3: target_node_id }),
     };
   }
   if (!ATTACH_PORTS.has(source_port_id)) {
     return {
       code: "unknown_port",
-      message: `"${source_port_id}" is not an attach port (attach_top, attach_bot)`,
+      message: t("agents.graph.attachment_port", { value1: source_port_id }),
     };
   }
   if (!ATTACH_PORTS.has(target_port_id)) {
     return {
       code: "unknown_port",
-      message: `"${target_port_id}" is not an attach port (attach_top, attach_bot)`,
+      message: t("agents.graph.attachment_port", { value1: target_port_id }),
     };
   }
   for (const edge of document.edges) {
     if (attach_joins(edge, source_node_id, target_node_id)) {
       return {
         code: "duplicate_attachment",
-        message: `nodes "${source_node_id}" and "${target_node_id}" are already attached; delete that edge first`,
+        message: t("agents.graph.attachment_duplicate", { value1: source_node_id, value2: target_node_id }),
       };
     }
   }
@@ -445,18 +446,18 @@ const flow_edge = (id, source_node_id, target_node_id) => ({
  * the display name and must be a non-empty string. Anything else in the
  * argument object is refused rather than carried along.
  */
-export function new_agent_document(args) {
-  const shape = command_issue(args, NEW_DOCUMENT_KEYS, NO_KEYS);
+export function new_agent_document(args, t = agentEnglishText) {
+  const shape = command_issue(args, NEW_DOCUMENT_KEYS, NO_KEYS, t);
   if (shape) return refuse(null, "invalid_command", shape);
   if (typeof args.id !== "string" || !RESOURCE_ID_PATTERN.test(args.id)) {
     return refuse(
       null,
       "invalid_resource_id",
-      "resource id must be a string matching ^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$",
+      t("agents.graph.resource_id"),
     );
   }
   if (!is_nonempty_string(args.name)) {
-    return refuse(null, "invalid_resource_name", "resource name must be a non-empty string");
+    return refuse(null, "invalid_resource_name", t("agents.graph.resource_name"));
   }
   return accept({
     schema_version: 1,
@@ -479,18 +480,18 @@ export function new_agent_document(args) {
  * A fresh Workflow: Start → End, nothing else. Same arguments and refusals
  * as `new_agent_document`.
  */
-export function new_workflow_document(args) {
-  const shape = command_issue(args, NEW_DOCUMENT_KEYS, NO_KEYS);
+export function new_workflow_document(args, t = agentEnglishText) {
+  const shape = command_issue(args, NEW_DOCUMENT_KEYS, NO_KEYS, t);
   if (shape) return refuse(null, "invalid_command", shape);
   if (typeof args.id !== "string" || !RESOURCE_ID_PATTERN.test(args.id)) {
     return refuse(
       null,
       "invalid_resource_id",
-      "resource id must be a string matching ^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$",
+      t("agents.graph.resource_id"),
     );
   }
   if (!is_nonempty_string(args.name)) {
-    return refuse(null, "invalid_resource_name", "resource name must be a non-empty string");
+    return refuse(null, "invalid_resource_name", t("agents.graph.resource_name"));
   }
   return accept({
     schema_version: 1,
@@ -509,27 +510,27 @@ export function new_workflow_document(args) {
  * Append one node of an addable type. With no `id` the node is named
  * `agent`/`pool`, then `-2`, `-3`, … past whatever the document holds.
  */
-export function add_node(document, command) {
-  const doc = document_issue(document);
+export function add_node(document, command, t = agentEnglishText) {
+  const doc = document_issue(document, t);
   if (doc) return refuse(document, "invalid_document", doc);
-  const shape = command_issue(command, ADD_NODE_REQUIRED, ADD_NODE_OPTIONAL);
+  const shape = command_issue(command, ADD_NODE_REQUIRED, ADD_NODE_OPTIONAL, t);
   if (shape) return refuse(document, "invalid_command", shape);
   const { type } = command;
   if (typeof type !== "string") {
-    return refuse(document, "invalid_command", "node type must be a string");
+    return refuse(document, "invalid_command", t("agents.graph.node_type_text"));
   }
   if (PROTECTED_NODE_TYPES.has(type)) {
     return refuse(
       document,
       "protected_node_type",
-      `"${type}" is created by the factory exactly once and cannot be added`,
+      t("agents.graph.protected_type", { value1: type }),
     );
   }
   if (document.kind === WORKFLOW_KIND && WORKFLOW_FORBIDDEN_TYPES.has(type)) {
     return refuse(
       document,
       "not_allowed_in_workflow",
-      `a Workflow cannot hold a "${type}" node; it runs no model and has no pools`,
+      t("agents.graph.workflow_node_forbidden", { value1: type }),
     );
   }
   const addable = ADDABLE.get(type);
@@ -537,17 +538,17 @@ export function add_node(document, command) {
     return refuse(
       document,
       "unsupported_node_type",
-      `node type "${type}" cannot be added here (${ADDABLE_NODE_TYPES.join(", ")})`,
+      t("agents.graph.node_type_unsupported", { value1: type, value2: ADDABLE_NODE_TYPES.join(", ") }),
     );
   }
   const taken = taken_ids(document.nodes);
   let id;
   if (has_own(command, "id")) {
     if (!is_nonempty_string(command.id)) {
-      return refuse(document, "invalid_node_id", "node id must be a non-empty string");
+      return refuse(document, "invalid_node_id", t("agents.graph.node_id"));
     }
     if (taken.has(command.id)) {
-      return refuse(document, "duplicate_node_id", `node id "${command.id}" already exists`);
+      return refuse(document, "duplicate_node_id", t("agents.graph.node_duplicate", { value1: command.id }));
     }
     id = command.id;
   } else {
@@ -563,19 +564,19 @@ export function add_node(document, command) {
  * missing policies are left exactly as they are: the real diagnose is the
  * one that gets to explain what is now unresolved.
  */
-export function delete_node(document, node_id) {
-  const doc = document_issue(document);
+export function delete_node(document, node_id, t = agentEnglishText) {
+  const doc = document_issue(document, t);
   if (doc) return refuse(document, "invalid_document", doc);
   if (!is_nonempty_string(node_id)) {
-    return refuse(document, "invalid_node_id", "node id must be a non-empty string");
+    return refuse(document, "invalid_node_id", t("agents.graph.node_id"));
   }
-  const found = resolve_node(document.nodes, node_id, "the");
+  const found = resolve_node(document.nodes, node_id, { missing: "agents.graph.node_missing_generic", ambiguous: "agents.graph.node_ambiguous_generic" }, t);
   if (!found.node) return refuse(document, found.code, found.message);
   if (PROTECTED_NODE_TYPES.has(found.node.type)) {
     return refuse(
       document,
       "protected_node",
-      `node "${node_id}" is the ${found.node.type} node and cannot be deleted`,
+      t("agents.graph.protected_node", { value1: node_id, value2: found.node.type }),
     );
   }
   const nodes = document.nodes.filter((entry) => entry !== found.node);
@@ -592,33 +593,33 @@ export function delete_node(document, node_id) {
  * Without `id` the edge is named `<kind>-<source>-<target>` with the same
  * `-2`, `-3`, … rule as nodes.
  */
-export function connect_nodes(document, command) {
-  const doc = document_issue(document);
+export function connect_nodes(document, command, t = agentEnglishText) {
+  const doc = document_issue(document, t);
   if (doc) return refuse(document, "invalid_document", doc);
-  const shape = command_issue(command, CONNECT_REQUIRED, CONNECT_OPTIONAL);
+  const shape = command_issue(command, CONNECT_REQUIRED, CONNECT_OPTIONAL, t);
   if (shape) return refuse(document, "invalid_command", shape);
   const { kind } = command;
   if (typeof kind !== "string") {
-    return refuse(document, "invalid_command", "edge kind must be a string");
+    return refuse(document, "invalid_command", t("agents.graph.edge_kind_text"));
   }
   if (!EDGE_KINDS.has(kind)) {
-    return refuse(document, "unknown_edge_kind", `edge kind "${kind}" is not flow or attach`);
+    return refuse(document, "unknown_edge_kind", t("agents.graph.edge_kind_unknown", { value1: kind }));
   }
   if (kind === "attach" && document.kind === WORKFLOW_KIND) {
-    return refuse(document, "not_allowed_in_workflow", "a Workflow has no pools, so nothing can be attached");
+    return refuse(document, "not_allowed_in_workflow", t("agents.graph.workflow_attachment_forbidden"));
   }
   for (const key of ["source_node_id", "source_port_id", "target_node_id", "target_port_id"]) {
     if (!is_nonempty_string(command[key])) {
-      return refuse(document, "invalid_command", `${key} must be a non-empty string`);
+      return refuse(document, "invalid_command", t("agents.graph.endpoint_text", { value1: key }));
     }
   }
   const taken = taken_ids(document.edges);
   if (has_own(command, "id")) {
     if (!is_nonempty_string(command.id)) {
-      return refuse(document, "invalid_edge_id", "edge id must be a non-empty string");
+      return refuse(document, "invalid_edge_id", t("agents.graph.edge_id"));
     }
     if (taken.has(command.id)) {
-      return refuse(document, "duplicate_edge_id", `edge id "${command.id}" already exists`);
+      return refuse(document, "duplicate_edge_id", t("agents.graph.edge_duplicate", { value1: command.id }));
     }
   }
   const { source_node_id, source_port_id, target_node_id, target_port_id } = command;
@@ -626,17 +627,17 @@ export function connect_nodes(document, command) {
     return refuse(
       document,
       "self_connection",
-      `node "${source_node_id}" cannot be connected to itself`,
+      t("agents.graph.self_loop", { value1: source_node_id }),
     );
   }
-  const source = resolve_node(document.nodes, source_node_id, "source");
+  const source = resolve_node(document.nodes, source_node_id, { missing: "agents.graph.node_missing_source", ambiguous: "agents.graph.node_ambiguous_source" }, t);
   if (!source.node) return refuse(document, source.code, source.message);
-  const target = resolve_node(document.nodes, target_node_id, "target");
+  const target = resolve_node(document.nodes, target_node_id, { missing: "agents.graph.node_missing_target", ambiguous: "agents.graph.node_ambiguous_target" }, t);
   if (!target.node) return refuse(document, target.code, target.message);
   const issue =
     kind === "flow"
-      ? flow_issue(document, command, source.node, target.node)
-      : attach_issue(document, command, source.node, target.node);
+      ? flow_issue(document, command, source.node, target.node, t)
+      : attach_issue(document, command, source.node, target.node, t);
   if (issue) return refuse(document, issue.code, issue.message);
   const id = has_own(command, "id")
     ? command.id
@@ -649,21 +650,21 @@ export function connect_nodes(document, command) {
  * Remove exactly one edge. Nothing is reconnected or rebound in its place;
  * the draft may become unfinished and the real diagnose will say so.
  */
-export function delete_edge(document, edge_id) {
-  const doc = document_issue(document);
+export function delete_edge(document, edge_id, t = agentEnglishText) {
+  const doc = document_issue(document, t);
   if (doc) return refuse(document, "invalid_document", doc);
   if (!is_nonempty_string(edge_id)) {
-    return refuse(document, "invalid_edge_id", "edge id must be a non-empty string");
+    return refuse(document, "invalid_edge_id", t("agents.graph.edge_id"));
   }
   const found = matching(document.edges, edge_id);
   if (found.length === 0) {
-    return refuse(document, "edge_not_found", `edge "${edge_id}" does not exist`);
+    return refuse(document, "edge_not_found", t("agents.graph.edge_missing", { value1: edge_id }));
   }
   if (found.length > 1) {
     return refuse(
       document,
       "ambiguous_edge_id",
-      `edge id "${edge_id}" matches ${found.length} edges`,
+      t("agents.graph.edge_ambiguous", { value1: edge_id, value2: found.length }),
     );
   }
   const edges = document.edges.filter((entry) => entry !== found[0]);

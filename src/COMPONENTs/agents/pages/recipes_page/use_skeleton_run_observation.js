@@ -1,3 +1,4 @@
+import { agentError, agentMessage, agentProblemMessage } from "./agents_i18n";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../../../SERVICEs/api";
 import { accept_run_observation, observation_finished } from "./run_observation_state";
@@ -32,16 +33,16 @@ export default function useSkeletonRunObservation(scope) {
       setState((previous) => ({ ...previous, refreshing: true }));
       try {
         const method = api.unchain.getSkeletonRunObservation;
-        if (typeof method !== "function") throw new Error("Run observation is unavailable in this build.");
+        if (typeof method !== "function") throw agentError("agents.runtime.observation_unavailable");
         const result = await method({ ...request, ...(run ? { root_run_id: run.root_run_id } : {}) });
         if (!wanted()) return;
-        if (!result || result.ok !== true) throw new Error(typeof result?.error?.message === "string" ? result.error.message : "The recorded run could not be read.");
+        if (!result || result.ok !== true) throw (typeof result?.error?.message === "string" ? new Error(result.error.message) : agentError("agents.runtime.observation_failed"));
         const accepted = accept_run_observation(run, result.data.run, request);
-        if (!accepted.ok) throw new Error(`Observation was not updated: ${accepted.error}.`);
+        if (!accepted.ok) throw agentError("agents.runtime.observation_rejected", { code: accepted.error });
         run = accepted.run;
         setState({ key, run, phase: run ? "ready" : "empty", error: null, refreshing: false });
       } catch (error) {
-        if (wanted()) setState({ key, run, phase: "error", error: typeof error?.message === "string" ? error.message : "The recorded run could not be read.", refreshing: false });
+        if (wanted()) setState({ key, run, phase: "error", error: typeof error?.message === "string" ? error.message : "The recorded run could not be read.", errorCaption: typeof error?.message === "string" ? agentProblemMessage(error, agentMessage) : agentMessage("agents.runtime.observation_failed"), refreshing: false });
       } finally {
         busy = false;
         if (wanted() && !observation_finished(run)) timer = setTimeout(read, 2500);

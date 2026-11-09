@@ -1,3 +1,5 @@
+import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
+import { agentEnglishText, agentMessage, renderAgentMessage } from "../agents_i18n";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
@@ -73,12 +75,14 @@ function Divider({ isDark }) {
   return <div style={{ height: 1, margin: "2px 0", background: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)" }} />;
 }
 
-function refusal_text(result, fallback) {
+function refusal_text(result, fallback, t = agentEnglishText) {
   const error = result && result.error;
+  const owned = renderAgentMessage(error, t);
+  if (owned !== error) return owned;
   const message = error && typeof error.message === "string" ? error.message : "";
   const code = error && typeof error.code === "string" ? error.code : "";
-  if (is_unavailable(result)) return "The store could not be reached.";
-  return safe_text(message || code || fallback);
+  if (is_unavailable(result)) return t("agents.execution.code.store_unreachable");
+  return message || code ? safe_text(message || code) : renderAgentMessage(fallback, t);
 }
 
 function usePythonProfiles() {
@@ -103,6 +107,7 @@ function usePythonProfiles() {
 
 /* A whole number in a box, written only once it is one the runtime takes. */
 function LimitInput({ stored, limit, scale = 1, placeholder, editable, testid, isDark, onWrite }) {
+  const { t } = useTranslation();
   const shown = Number.isSafeInteger(stored) ? String(stored / scale) : "";
   const pending = usePendingText(shown, testid);
   const text = pending.text !== null ? pending.text : shown;
@@ -125,7 +130,7 @@ function LimitInput({ stored, limit, scale = 1, placeholder, editable, testid, i
       />
       {pending.text !== null && (
         <span data-testid={`${testid}-problem`} style={problem_style(isDark)}>
-          {limit_from_text(pending.text, limit).problem} Nothing is stored until it is one.
+          {t("agents.execution.code.pending_value", { problem: limit_from_text(pending.text, limit, t).problem })}
         </span>
       )}
     </span>
@@ -133,6 +138,7 @@ function LimitInput({ stored, limit, scale = 1, placeholder, editable, testid, i
 }
 
 export default function CodeSection({ document, node, revision, sources, isDark, onChange }) {
+  const { t } = useTranslation();
   const code = code_settings(node);
   const [library, reloadProfiles] = usePythonProfiles();
   const profiles = library.profiles;
@@ -149,8 +155,8 @@ export default function CodeSection({ document, node, revision, sources, isDark,
   const profile_id = code && typeof code.environment_profile_id === "string" ? code.environment_profile_id : "";
   const listed = Array.isArray(profiles) ? profiles.find((profile) => record(profile) && profile.id === profile_id) || null : null;
   const options = [
-    ...(profile_id && Array.isArray(profiles) && !listed ? [{ value: profile_id, label: `${safe_text(profile_id)} (not on this machine)` }] : []),
-    ...(Array.isArray(profiles) ? profiles.filter((profile) => record(profile) && typeof profile.id === "string").map((profile) => ({ value: profile.id, label: profile_label(profile) })) : []),
+    ...(profile_id && Array.isArray(profiles) && !listed ? [{ value: profile_id, label: t("agents.execution.code.unlisted_profile_option", { profile_id: safe_text(profile_id) }) }] : []),
+    ...(Array.isArray(profiles) ? profiles.filter((profile) => record(profile) && typeof profile.id === "string").map((profile) => ({ value: profile.id, label: profile_label(profile, t) })) : []),
   ];
   const [probe, setProbe] = useState({ id: null, status: "idle", result: null });
   const [adding, setAdding] = useState(null);
@@ -205,7 +211,7 @@ export default function CodeSection({ document, node, revision, sources, isDark,
   };
 
   /* ── Source ── */
-  const source = code_source_text(node, sources);
+  const source = code_source_text(node, sources, t);
   /* Which of the two the author is editing. It starts as what is stored —
      host-kept text, or nothing yet, opens the text; a workspace path opens
      the path — and changes only by the author's choice; choosing writes
@@ -215,8 +221,8 @@ export default function CodeSection({ document, node, revision, sources, isDark,
   const pendingPath = usePendingText(stored_path, `code-source-${node.id}`);
   const path_text = pendingPath.text !== null ? pendingPath.text : stored_path;
   const path_problem = pendingPath.text !== null
-    ? source_path_problem(pendingPath.text)
-    : code && code.source !== undefined && !source.managed ? source_path_problem(stored_path) : null;
+    ? source_path_problem(pendingPath.text, t)
+    : code && code.source !== undefined && !source.managed ? source_path_problem(stored_path, t) : null;
   /* The text box shows the stored text byte for byte. A text with a carriage
      return is shown and not edited: a browser text box hands back its lines
      with LF endings, so the first keystroke would rewrite every line ending
@@ -295,18 +301,18 @@ export default function CodeSection({ document, node, revision, sources, isDark,
     delete next.artifacts;
     setCode(next);
   };
-  const problems = code_problems(node, library.status === "ready" ? profiles : null, sources);
+  const problems = code_problems(node, library.status === "ready" ? profiles : null, sources, t);
 
   return (
     <section data-testid="code-section" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {!editable && (
         <div style={problem_style(isDark)}>
-          {!unique ? "Duplicate node ids prevent editing this step." : "These stored settings are read-only here."}
+          {!unique ? t("agents.execution.read_only.duplicate_ids") : t("agents.execution.read_only.stored")}
         </div>
       )}
 
       <div data-testid="code-runtime" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <span style={LABEL}>Runtime</span>
+        <span style={LABEL}>{t("agents.execution.code.runtime")}</span>
         <span data-testid="code-runtime-picker">
           <Select
             options={options}
@@ -315,28 +321,28 @@ export default function CodeSection({ document, node, revision, sources, isDark,
               if (typeof value === "string" && value && value !== profile_id) write("environment_profile_id", value);
             }}
             filterable={false}
-            placeholder={library.status === "loading" ? "reading this machine's Pythons…" : "choose a Python"}
+            placeholder={library.status === "loading" ? t("agents.execution.code.reading_pythons") : t("agents.execution.code.choose_python")}
             disabled={!editable || library.status !== "ready"}
             style={FIELD}
           />
         </span>
         {library.status === "error" && (
           <span data-testid="code-runtime-error" style={problem_style(isDark)}>
-            The Python profiles could not be read: {refusal_text(library.error, "the store refused")}.{" "}
-            <Button label="Try again" onClick={reloadProfiles} style={{ fontSize: 10.5, paddingVertical: 1, paddingHorizontal: 6 }} />
+            {t("agents.execution.code.profiles_refused", { message: refusal_text(library.error, agentMessage("agents.execution.code.store_refused"), t) })}{" "}
+            <Button label={t("agents.explorer.try_again")} onClick={reloadProfiles} style={{ fontSize: 10.5, paddingVertical: 1, paddingHorizontal: 6 }} />
           </span>
         )}
         {listed && (
           <span data-testid="code-runtime-executable" style={{ ...NOTE, ...MONO, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {listed.kind === "bundled" ? "the built-in interpreter" : safe_text(listed.executable)}
-            {listed.available === false ? " · unavailable" : listed.changed === true ? " · changed since it was saved" : ""}
+            {listed.kind === "bundled" ? t("agents.execution.code.bundled_interpreter") : safe_text(listed.executable)}
+            {listed.available === false ? t("agents.execution.code.unavailable_suffix") : listed.changed === true ? t("agents.execution.code.changed_suffix") : ""}
           </span>
         )}
         {listed && (
           <div style={ROW}>
             <Button
-              label={probe.status === "loading" && probe.id === profile_id ? "Checking…" : "Check"}
-              ariaLabel={`Check ${profile_id}`}
+              label={probe.status === "loading" && probe.id === profile_id ? t("agents.execution.code.checking") : t("agents.execution.code.check")}
+              ariaLabel={t("agents.execution.code.check_profile_id", { profile_id: profile_id })}
               disabled={probe.status === "loading"}
               onClick={check}
               style={{ fontSize: 10.5, paddingVertical: 2, paddingHorizontal: 8, borderRadius: 5 }}
@@ -344,8 +350,8 @@ export default function CodeSection({ document, node, revision, sources, isDark,
             {probe.status === "done" && probe.id === profile_id && (
               <span data-testid="code-runtime-probe" style={probe.result.ok ? NOTE : problem_style(isDark)}>
                 {probe.result.ok
-                  ? `Python ${safe_text(probe.result.data && probe.result.data.version)} (${safe_text(probe.result.data && probe.result.data.implementation)})`
-                  : refusal_text(probe.result, "the probe failed")}
+                  ? t("agents.execution.code.python_version", { version: safe_text(probe.result.data && probe.result.data.version), implementation: safe_text(probe.result.data && probe.result.data.implementation) })
+                  : refusal_text(probe.result, agentMessage("agents.execution.code.probe_failed"), t)}
               </span>
             )}
           </div>
@@ -353,7 +359,7 @@ export default function CodeSection({ document, node, revision, sources, isDark,
         {editable && !adding && (
           <span>
             <Button
-              label="Name a Python…"
+              label={t("agents.execution.code.name_a_python")}
               onClick={() => {
                 setAddState({ status: "idle", result: null });
                 setAdding({ id: "", executable: "" });
@@ -364,25 +370,25 @@ export default function CodeSection({ document, node, revision, sources, isDark,
         )}
         {adding && (
           <div data-testid="code-runtime-add" style={{ display: "flex", flexDirection: "column", gap: 6, padding: "8px 10px", borderRadius: 7, background: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)" }}>
-            <Input value={adding.id} placeholder="profile name, e.g. pupu-tools" set_value={(next) => setAdding({ ...adding, id: next })} style={FIELD} />
-            <Input value={adding.executable} placeholder="absolute path to its python, e.g. ~/.venvs/x/bin/python" set_value={(next) => setAdding({ ...adding, executable: next })} style={{ ...FIELD, ...MONO }} />
-            <span style={NOTE}>The executable itself, never an activate script or a shell command. It is probed before it is kept; CPython 3.10 or newer.</span>
+            <Input value={adding.id} placeholder={t("agents.execution.code.profile_name_placeholder")} set_value={(next) => setAdding({ ...adding, id: next })} style={FIELD} />
+            <Input value={adding.executable} placeholder={t("agents.execution.code.executable_placeholder")} set_value={(next) => setAdding({ ...adding, executable: next })} style={{ ...FIELD, ...MONO }} />
+            <span style={NOTE}>{t("agents.execution.code.executable_note")}</span>
             <div style={ROW}>
               <Button
-                label={addState.status === "saving" ? "Probing…" : "Add"}
+                label={addState.status === "saving" ? t("agents.execution.code.probing") : t("agents.execution.code.add")}
                 disabled={addState.status === "saving" || !adding.id.trim() || !adding.executable.trim()}
                 onClick={addProfile}
                 style={{ fontSize: 10.5, paddingVertical: 2, paddingHorizontal: 8, borderRadius: 5 }}
               />
-              <Button label="Cancel" onClick={cancelAdd} style={{ fontSize: 10.5, paddingVertical: 2, paddingHorizontal: 8, borderRadius: 5, opacity: 0.75 }} />
+              <Button label={t("agents.explorer.cancel")} onClick={cancelAdd} style={{ fontSize: 10.5, paddingVertical: 2, paddingHorizontal: 8, borderRadius: 5, opacity: 0.75 }} />
             </div>
             {addState.status === "done" && !addState.result.ok && (
-              <span data-testid="code-runtime-add-problem" style={problem_style(isDark)}>{refusal_text(addState.result, "the store refused this Python")}</span>
+              <span data-testid="code-runtime-add-problem" style={problem_style(isDark)}>{refusal_text(addState.result, agentMessage("agents.execution.code.python_refused"), t)}</span>
             )}
           </div>
         )}
         <span style={NOTE}>
-          Either the built-in interpreter or a Python you name. This is a profile on <b>this machine</b>, not a path stored in the Agent — opening this Agent elsewhere asks for a runtime again. A separate process is not a sandbox: the code runs as you, and nothing is installed for it.
+          {t("agents.execution.code.runtime_scope", { machine: "{machine}" }).split(/(\{machine\})/g).map((part, index) => ({ __proto__: null, "{machine}": (<b key={index}>{t("agents.execution.code.this_machine")}</b>) }[part] || part))}
         </span>
       </div>
 
@@ -390,10 +396,10 @@ export default function CodeSection({ document, node, revision, sources, isDark,
 
       <div data-testid="code-source" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         <div style={{ ...ROW, justifyContent: "space-between" }}>
-          <span style={LABEL}>{mode === "here" ? "Code" : "Source file"}</span>
+          <span style={LABEL}>{mode === "here" ? t("agents.execution.code.code") : t("agents.execution.code.source_file")}</span>
           {editable && (
             <Button
-              label={mode === "here" ? "Use a workspace file" : "Write the code here"}
+              label={mode === "here" ? t("agents.execution.code.use_workspace_file") : t("agents.execution.code.write_here")}
               onClick={() => {
                 pendingPath.release();
                 setMode(mode === "here" ? "file" : "here");
@@ -411,7 +417,7 @@ export default function CodeSection({ document, node, revision, sources, isDark,
                 <TextField
                   value={shown_text}
                   disabled={!text_editable}
-                  aria_label={`Code of ${safe_text(node.id)}`}
+                  aria_label={t("agents.execution.code.editor_label", { node_id: safe_text(node.id) })}
                   placeholder={"def main(input, context):\n    return {}"}
                   set_value={(next) => {
                     if (text_editable && next !== shown_text) write_text(next);
@@ -423,13 +429,11 @@ export default function CodeSection({ document, node, revision, sources, isDark,
               </span>
             )}
             {keeps_cr && (
-              <span data-testid="code-text-crlf" style={NOTE}>
-                This code uses carriage-return line endings. A text box here would rewrite them on the first keystroke, so it is shown as stored and not edited.
-              </span>
+              <span data-testid="code-text-crlf" style={NOTE}>{t("agents.execution.code.crlf_read_only")}</span>
             )}
             {!source.managed && code && code.source !== undefined && (
               <span data-testid="code-text-replaces" style={NOTE}>
-                {stored_path ? <>Typing here replaces the workspace file <span style={MONO}>{safe_text(stored_path)}</span> as this node's source.</> : "Typing here replaces the stored source."}
+                {stored_path ? <>{t("agents.execution.code.replaces_file", { path: "{path}" }).split(/(\{path\})/g).map((part, index) => ({ __proto__: null, "{path}": (<span key={index} style={MONO}>{safe_text(stored_path)}</span>) }[part] || part))}</> : t("agents.execution.code.replaces_source")}
               </span>
             )}
           </>
@@ -452,62 +456,58 @@ export default function CodeSection({ document, node, revision, sources, isDark,
             />
             {path_problem && (
               <span data-testid="code-source-problem" style={problem_style(isDark)}>
-                {path_problem}{pendingPath.text !== null ? " Nothing is stored until it is one." : ""}
+                {pendingPath.text !== null ? t("agents.execution.code.pending_value", { problem: path_problem }) : path_problem}
               </span>
             )}
             {source.managed && (
-              <span data-testid="code-file-replaces" style={NOTE}>
-                Naming a file replaces the code written here as this node's source.
-              </span>
+              <span data-testid="code-file-replaces" style={NOTE}>{t("agents.execution.code.file_replaces_text")}</span>
             )}
           </>
         )}
         <span data-testid="code-source-note" style={NOTE}>
           {mode === "here"
-            ? "Kept with this Agent and saved with it, exactly as written; a run uses the text that was saved when it started."
-            : source.managed ? "The run reads the file you name from its workspace when it gets here." : source.reason}{" "}
-          It must define <span style={MONO}>main(input, context)</span>: <span style={MONO}>input</span> is one JSON object keyed by the Input Variables above, <span style={MONO}>context</span> carries the run and node identity plus a working directory — never a live agent — and <span style={MONO}>print()</span> goes to the log, not the result. Saving it does not run it.
+            ? t("agents.execution.code.stored_text")
+            : source.managed ? t("agents.execution.code.read_named_file") : source.reason}{" "}
+          {t("agents.execution.code.source_contract", { main: "{main}", input: "{input}", context: "{context}", print: "{print}" }).split(/(\{main\}|\{input\}|\{context\}|\{print\})/g).map((part, index) => ({ __proto__: null, "{main}": (<span key={index} style={MONO}>main(input, context)</span>), "{input}": (<span key={index} style={MONO}>input</span>), "{context}": (<span key={index} style={MONO}>context</span>), "{print}": (<span key={index} style={MONO}>print()</span>) }[part] || part))}
         </span>
       </div>
 
       <Divider isDark={isDark} />
 
       <div data-testid="code-limits" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <span style={LABEL}>Limits</span>
+        <span style={LABEL}>{t("agents.execution.code.limits")}</span>
         <div style={ROW}>
-          <span style={{ ...NOTE, width: 96, flexShrink: 0 }}>Timeout</span>
-          <LimitInput stored={code ? code.timeout_ms : undefined} limit={SECONDS} scale={1000} placeholder="seconds" editable={editable} testid={`code-timeout-${node.id}`} isDark={isDark} onWrite={(value) => write("timeout_ms", value)} />
-          <span style={NOTE}>seconds</span>
+          <span style={{ ...NOTE, width: 96, flexShrink: 0 }}>{t("agents.execution.code.timeout")}</span>
+          <LimitInput stored={code ? code.timeout_ms : undefined} limit={SECONDS} scale={1000} placeholder={t("agents.execution.code.seconds")} editable={editable} testid={`code-timeout-${node.id}`} isDark={isDark} onWrite={(value) => write("timeout_ms", value)} />
+          <span style={NOTE}>{t("agents.execution.code.seconds")}</span>
         </div>
         <div style={ROW}>
-          <span style={{ ...NOTE, width: 96, flexShrink: 0 }}>Result at most</span>
-          <LimitInput stored={code ? code.max_result_bytes : undefined} limit={CODE_LIMITS.max_result_bytes} placeholder="bytes" editable={editable} testid={`code-result-bytes-${node.id}`} isDark={isDark} onWrite={(value) => write("max_result_bytes", value)} />
-          <span style={NOTE}>bytes</span>
+          <span style={{ ...NOTE, width: 96, flexShrink: 0 }}>{t("agents.execution.code.result_at_most")}</span>
+          <LimitInput stored={code ? code.max_result_bytes : undefined} limit={CODE_LIMITS.max_result_bytes} placeholder={t("agents.execution.code.bytes")} editable={editable} testid={`code-result-bytes-${node.id}`} isDark={isDark} onWrite={(value) => write("max_result_bytes", value)} />
+          <span style={NOTE}>{t("agents.execution.code.bytes")}</span>
         </div>
         <div style={ROW}>
-          <span style={{ ...NOTE, width: 96, flexShrink: 0 }}>Log at most</span>
-          <LimitInput stored={code ? code.max_log_bytes : undefined} limit={CODE_LIMITS.max_log_bytes} placeholder="bytes" editable={editable} testid={`code-log-bytes-${node.id}`} isDark={isDark} onWrite={(value) => write("max_log_bytes", value)} />
-          <span style={NOTE}>bytes</span>
+          <span style={{ ...NOTE, width: 96, flexShrink: 0 }}>{t("agents.execution.code.log_at_most")}</span>
+          <LimitInput stored={code ? code.max_log_bytes : undefined} limit={CODE_LIMITS.max_log_bytes} placeholder={t("agents.execution.code.bytes")} editable={editable} testid={`code-log-bytes-${node.id}`} isDark={isDark} onWrite={(value) => write("max_log_bytes", value)} />
+          <span style={NOTE}>{t("agents.execution.code.bytes")}</span>
         </div>
-        <span style={NOTE}>
-          The runtime requires all three: whole seconds up to 24 hours, and up to 8 MiB each for the result and for the log. A process still running at the timeout is stopped with its descendants, and the outcome is then unknown.
-        </span>
+        <span style={NOTE}>{t("agents.execution.code.limits_note")}</span>
       </div>
 
       <Divider isDark={isDark} />
 
       <div data-testid="code-result" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <span style={LABEL}>Result</span>
+        <span style={LABEL}>{t("agents.execution.code.result")}</span>
         {!declared && !as_json && (
           <span data-testid="code-result-undeclared" style={NOTE}>
             {code && code.result_schema !== undefined
-              ? "The stored Result is not a schema this editor can read. Add a field to replace it, or edit the Agent's JSON directly."
-              : "No fields yet. main() must return a JSON object; declare each field it returns."}
+              ? t("agents.execution.code.unreadable_result_schema")
+              : t("agents.execution.code.no_result_fields")}
           </span>
         )}
         {declared && !held && (
           <span data-testid="code-result-not-field-shaped" style={NOTE}>
-            {`This schema is written in a way the fields cannot hold exactly — ${why_fields_cannot_hold(schema)}. It is shown as JSON so it stays as it is.`}
+            {t("agents.execution.code.schema_json_reason", { schema: why_fields_cannot_hold(schema, t) })}
           </span>
         )}
         {declared && !as_json && fields.map((field, index) => (
@@ -527,7 +527,7 @@ export default function CodeSection({ document, node, revision, sources, isDark,
         ))}
         {!as_json && (
           <Button
-            label="+ Add field"
+            label={t("agents.schema.add_field")}
             disabled={!editable}
             onClick={() => {
               rows.added();
@@ -541,8 +541,8 @@ export default function CodeSection({ document, node, revision, sources, isDark,
             <Switch on={closed} set_on={(next) => set_fields(fields, Boolean(next), root)} style={{ ...BUILDER_SWITCH_SIZE, flexShrink: 0 }} />
             <span data-testid="code-result-closed-caption" style={NOTE}>
               {closed
-                ? "Only these fields: a return with any other key fails the node, and the Output Variables below can name exactly these."
-                : "Other keys are allowed through, so the result may carry a field nobody declared; the Output Variables cannot promise more than the fields above."}
+                ? t("agents.execution.code.closed_result_note")
+                : t("agents.execution.code.open_result_note")}
             </span>
           </div>
         )}
@@ -568,25 +568,25 @@ export default function CodeSection({ document, node, revision, sources, isDark,
         )}
         {as_json && !json_parsed.ok && (
           <span data-testid="code-result-json-unreadable" style={problem_style(isDark)}>
-            {`This is not JSON yet, so nothing was stored: ${json_parsed.message}`}
+            {t("agents.execution.code.pending_json", { json_parsed_message: json_parsed.message })}
           </span>
         )}
         {((declared && held) || (as_json && !declared)) && (
           <Button
-            label={editor.as_json ? "Edit as fields" : "Edit as JSON"}
+            label={editor.as_json ? t("agents.schema.edit_as_fields") : t("agents.schema.edit_as_json")}
             onClick={() => setEditor({ as_json: !editor.as_json, of: schema, text: null })}
             style={{ alignSelf: "flex-start", fontSize: 11, paddingVertical: 3, paddingHorizontal: 8, borderRadius: 5, color: "var(--pupu-accent)" }}
           />
         )}
         <span style={NOTE}>
-          This is the one node where you <b>declare</b> types — everywhere else an output row inherits the type of what it points at. The return is checked against these fields; one that does not match fails the run and nothing is published.
+          {t("agents.execution.code.result_contract", { declare: "{declare}" }).split(/(\{declare\})/g).map((part, index) => ({ __proto__: null, "{declare}": (<b key={index}>{t("agents.execution.code.declare")}</b>) }[part] || part))}
         </span>
       </div>
 
       <Divider isDark={isDark} />
 
       <div data-testid="code-on-error" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <span style={LABEL}>On error</span>
+        <span style={LABEL}>{t("agents.execution.code.on_error")}</span>
         {/* Measured on the pinned wheel (code-01-independent-review-20261024,
             runtime-result.json): a return that is not an object or does not
             match Result -> run `failed` (invalid_type / output_invalid); an
@@ -595,19 +595,19 @@ export default function CodeSection({ document, node, revision, sources, isDark,
             publication, so nothing of this node reaches End or a downstream
             node. There is no policy to choose. */}
         <span style={NOTE}>
-          If <span style={MONO}>main()</span> returns something that is not an object matching Result, the run <b>fails the run</b> at this node (<span style={MONO}>output_invalid</span>, <span style={MONO}>invalid_type</span>). If it raises, exits non-zero or is stopped at the timeout, the run ends <span style={MONO}>outcome_unknown</span> (<span style={MONO}>handler_error</span>), because what the process did cannot be known. Either way nothing is published: no result, no error field, no End, and no downstream node runs. The message, exit code and logs stay in the run record. There is no error policy for Code.
+          {t("agents.execution.code.failure_contract", { output_invalid: "{output_invalid}", invalid_type: "{invalid_type}", outcome_unknown: "{outcome_unknown}", handler_error: "{handler_error}", main: "{main}", fails: "{fails}" }).split(/(\{output_invalid\}|\{invalid_type\}|\{outcome_unknown\}|\{handler_error\}|\{main\}|\{fails\})/g).map((part, index) => ({ __proto__: null, "{output_invalid}": (<span key={index} style={MONO}>output_invalid</span>), "{invalid_type}": (<span key={index} style={MONO}>invalid_type</span>), "{outcome_unknown}": (<span key={index} style={MONO}>outcome_unknown</span>), "{handler_error}": (<span key={index} style={MONO}>handler_error</span>), "{main}": (<span key={index} style={MONO}>main()</span>), "{fails}": (<b key={index}>{t("agents.execution.code.fails_the_run")}</b>) }[part] || part))}
         </span>
       </div>
 
       {artifacts_present && (artifacts === null || artifacts.length > 0) && (
         <div data-testid="code-artifacts" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <span style={LABEL}>Stored artifacts</span>
+          <span style={LABEL}>{t("agents.execution.code.stored_artifacts")}</span>
           {artifacts === null && (
             <div style={{ ...ROW, justifyContent: "space-between" }}>
               <span style={{ ...problem_style(isDark), ...MONO, overflow: "hidden", textOverflow: "ellipsis" }}>{safe_text(raw_text(artifacts_raw))}</span>
               <Button
-                label="Remove artifacts"
-                ariaLabel="Remove artifacts"
+                label={t("agents.execution.code.remove_artifacts")}
+                ariaLabel={t("agents.execution.code.remove_artifacts")}
                 disabled={!editable}
                 onClick={remove_artifacts_key}
                 style={{ fontSize: 10.5, paddingVertical: 2, paddingHorizontal: 6, borderRadius: 5 }}
@@ -620,8 +620,8 @@ export default function CodeSection({ document, node, revision, sources, isDark,
                 {record(item) && typeof item.name === "string" && typeof item.attachment === "string" ? `${safe_text(item.name)} ← ${safe_text(item.attachment)}` : safe_text(raw_text(item))}
               </span>
               <Button
-                label="Remove"
-                ariaLabel={`Remove artifact ${index}`}
+                label={t("agents.execution.code.remove")}
+                ariaLabel={t("agents.execution.code.remove_artifact", { index: index })}
                 disabled={!editable}
                 onClick={() => write("artifacts", artifacts.filter((_, i) => i !== index))}
                 style={{ fontSize: 10.5, paddingVertical: 2, paddingHorizontal: 6, borderRadius: 5 }}
@@ -630,18 +630,18 @@ export default function CodeSection({ document, node, revision, sources, isDark,
           ))}
           <span style={NOTE}>
             {artifacts === null
-              ? "This is not a list the runtime reads; preflight refuses it. Remove it, or the run cannot start."
-              : "Attachments the run grants to this code, mapped to file names. They are read as stored; this build does not compose them."}
+              ? t("agents.execution.code.unreadable_artifacts")
+              : t("agents.execution.code.artifacts_note")}
           </span>
         </div>
       )}
 
       {Object.keys(code || {}).filter((key) => !["source", "environment_profile_id", "timeout_ms", "max_result_bytes", "max_log_bytes", "result_schema", "artifacts"].includes(key)).map((key) => (
         <div key={key} data-testid={`code-setting-${key}`} style={{ ...ROW, justifyContent: "space-between" }}>
-          <span style={problem_style(isDark)}>Unsupported setting: {safe_text(key)}</span>
+          <span style={problem_style(isDark)}>{t("agents.execution.code.unsupported_setting", { key: safe_text(key) })}</span>
           <Button
-            label="Remove setting"
-            ariaLabel={`Remove setting ${key}`}
+            label={t("agents.execution.code.remove_setting")}
+            ariaLabel={t("agents.execution.code.remove_setting_key", { key: key })}
             disabled={!editable}
             onClick={() => {
               const next = { ...code };

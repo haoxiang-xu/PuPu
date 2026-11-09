@@ -1,3 +1,5 @@
+import { agentEnglishText } from "../agents_i18n";
+import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import React from "react";
 import Select from "../../../../../BUILTIN_COMPONENTs/select/select";
 import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
@@ -34,10 +36,12 @@ const SOURCE_KINDS = [
 
 /* A source that only exists when its branch ran carries the hollow marker
    (Remix `circle`) and says so in words, so the mark is not the only signal. */
-function ref_options(sources) {
+function ref_options(sources, t = agentEnglishText) {
   return sources.map((source) => ({
     value: `${source.node_id}\u0000${source.name}`,
-    label: `${source.node_label} · ${source.name}${source.conditional ? " — only if its branch ran" : ""}`,
+    label: source.conditional
+      ? t("agents.io.source_option_conditional", { node: source.node_label, name: source.name })
+      : t("agents.io.source_option", { node: source.node_label, name: source.name }),
     ...(source.conditional ? { icon: "circle" } : {}),
   }));
 }
@@ -56,16 +60,17 @@ function ref_from_key(key) {
 /* Exported so the Tool Call panel's argument rows pick a source exactly the
    way an input row does (#352). */
 export function RefPicker({ value, sources, onChange, testid }) {
+  const { t } = useTranslation();
   if (sources.length === 0) {
     return (
       <span data-testid={`${testid}-no-sources`} style={{ ...CAPTION, flex: 1 }}>
-        Nothing upstream exports a value yet.
+        {t("agents.io.nothing_upstream_exports_a_value_yet")}
       </span>
     );
   }
   return (
     <Select
-      options={ref_options(sources)}
+      options={ref_options(sources, t)}
       value={ref_key(value)}
       set_value={(key) => onChange(ref_from_key(key))}
       filterable={sources.length > 8}
@@ -91,6 +96,7 @@ export default function BindingRow({
   onChange,
   onRemove,
 }) {
+  const { t } = useTranslation();
   const value = binding && binding.value;
   const kind = value && value.kind;
   /* A shape the controls cannot take apart is shown rather than edited: every
@@ -145,7 +151,7 @@ export default function BindingRow({
         <Input
           value={(binding && binding.name) || ""}
           set_value={(next) => onChange({ ...binding, name: next })}
-          placeholder="name"
+          placeholder={t("agents.io.name_placeholder")}
           style={{
             width: 120,
             flexShrink: 0,
@@ -164,7 +170,9 @@ export default function BindingRow({
             ←
           </span>
           <Select
-            options={SOURCE_KINDS}
+            options={SOURCE_KINDS.map((source) => ({ ...source, label: source.value === "ref"
+              ? t("agents.io.source.ref")
+              : source.value === "literal" ? t("agents.io.source.literal") : t("agents.io.source.first_present") }))}
             value={kind}
             set_value={set_kind}
             filterable={false}
@@ -180,7 +188,7 @@ export default function BindingRow({
           />
           <Button
             prefix_icon="close"
-            ariaLabel={`Remove ${(binding && binding.name) || "input"}`}
+            ariaLabel={binding && binding.name ? t("agents.io.remove_input", { name: binding.name }) : t("agents.io.remove_input_unnamed")}
             onClick={onRemove}
             style={{
               paddingVertical: 4,
@@ -207,7 +215,7 @@ export default function BindingRow({
         <Input
           value={value && typeof value.value === "string" ? value.value : String(value?.value ?? "")}
           set_value={(next) => set_value(literal_expression(next))}
-          placeholder="a value written here, not read from the graph"
+          placeholder={t("agents.io.a_value_written_here_not_read_from_the_graph")}
           style={{
             width: "100%",
             fontSize: 11.5,
@@ -221,8 +229,7 @@ export default function BindingRow({
       {editable && kind === "first_present" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <span style={CAPTION}>
-            The first of these that has a value is used; the policy below applies
-            only when none of them does.
+            {t("agents.io.first_present_caption")}
           </span>
           {(value.values || []).map((entry, i) => (
             <div
@@ -244,7 +251,7 @@ export default function BindingRow({
               />
               <Button
                 prefix_icon="close"
-                ariaLabel={`Remove source ${i + 1}`}
+                ariaLabel={t("agents.io.remove_source", { position: i + 1 })}
                 disabled={(value.values || []).length <= 2}
                 onClick={() =>
                   set_value(
@@ -261,7 +268,7 @@ export default function BindingRow({
             </div>
           ))}
           <Button
-            label="+ Add a source"
+            label={t("agents.io.add_a_source")}
             onClick={() =>
               set_value(
                 first_present_expression([
@@ -290,8 +297,7 @@ export default function BindingRow({
           style={{ display: "flex", flexDirection: "column", gap: 4 }}
         >
           <span style={CAPTION}>
-            This source is not a shape the editor can take apart, so it is left
-            exactly as it is. Choose a source kind above to replace it.
+            {t("agents.io.unreadable_binding")}
           </span>
           <span
             style={{
@@ -302,7 +308,7 @@ export default function BindingRow({
               color: isDark ? "#c9c9d1" : "#55555d",
             }}
           >
-            {expression_summary(value)}
+            {expression_summary(value, t)}
           </span>
         </div>
       )}

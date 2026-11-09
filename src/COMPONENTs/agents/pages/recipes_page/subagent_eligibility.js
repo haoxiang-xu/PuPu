@@ -1,3 +1,4 @@
+import { agentEnglishText } from "./agents_i18n";
 /* Who may join a Subagent Pool.
  *
  * A pool holds Agents, never Workflows. Eligibility is decided by a resource's
@@ -89,8 +90,11 @@ const REFUSAL = Object.freeze({
   [ADMISSION.UNUSABLE]: "This resource has no name to reference.",
 });
 
-export function ineligible_reason(resource) {
-  return REFUSAL[admission(resource)] || null;
+const REFUSAL_KEYS = Object.freeze({ [ADMISSION.WORKFLOW]: "agents.legacy_picker.workflow_refused", [ADMISSION.UNKNOWN_KIND]: "agents.legacy_picker.unknown_kind", [ADMISSION.UNKNOWN_SCHEMA]: "agents.legacy_picker.unknown_schema", [ADMISSION.UNUSABLE]: "agents.legacy_picker.unusable" });
+
+export function ineligible_reason(resource, t = agentEnglishText) {
+  const verdict = admission(resource);
+  return t === agentEnglishText ? REFUSAL[verdict] || null : REFUSAL_KEYS[verdict] ? t(REFUSAL_KEYS[verdict]) : null;
 }
 
 /* What a picker may offer: eligible, named, and not the definition being edited,
@@ -113,12 +117,12 @@ const ENTRY_REFERENCE = {
   inline: { source: "Legacy inline", name: (entry) => entry.name },
 };
 
-export function entry_reference(entry) {
+export function entry_reference(entry, t = agentEnglishText) {
   const spec = ENTRY_REFERENCE[entry && entry.kind];
   if (!spec) {
-    return { name: (entry && entry.name) || "(unnamed)", source: "Unknown" };
+    return { name: (entry && entry.name) || t("agents.legacy_picker.unnamed"), source: t("agents.legacy_picker.unknown") };
   }
-  return { name: spec.name(entry) || "(unnamed)", source: spec.source };
+  return { name: spec.name(entry) || t("agents.legacy_picker.unnamed"), source: t === agentEnglishText ? spec.source : t(spec === ENTRY_REFERENCE.recipe_ref ? "agents.legacy_picker.referenced" : spec === ENTRY_REFERENCE.ref ? "agents.legacy_picker.template" : "agents.legacy_picker.legacy_inline") };
 }
 
 /* A referenced entry points at a shared definition, so editing it reaches the

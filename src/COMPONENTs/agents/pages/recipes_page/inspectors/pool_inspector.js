@@ -1,8 +1,10 @@
+import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { useState } from "react";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import SubagentPicker from "../subagent_picker";
 
 export default function PoolInspector({ recipe, onRecipeChange, isDark }) {
+  const { t } = useTranslation();
   const [pickerOpen, setPickerOpen] = useState(false);
 
   const removeAt = (idx) => {
@@ -31,10 +33,10 @@ export default function PoolInspector({ recipe, onRecipeChange, isDark }) {
           color: isDark ? "#fff" : "#222",
         }}
       >
-        Subagent Pool
+        {t("agents.nodes.subagent_pool")}
       </div>
       <div style={{ fontSize: 11, color: "#888", marginTop: 2 }}>
-        {recipe.subagent_pool.length} subagents
+        {t("agents.inspector.subagents_count", { count: recipe.subagent_pool.length })}
       </div>
 
       <div style={{ marginTop: 14 }}>
@@ -84,7 +86,7 @@ export default function PoolInspector({ recipe, onRecipeChange, isDark }) {
 
       <Button
         prefix_icon="add"
-        label="Add subagent"
+        label={t("agents.inspector.add_subagent")}
         onClick={() => setPickerOpen(true)}
         style={{
           marginTop: 12,

@@ -1,3 +1,4 @@
+import { agentMessage, renderAgentMessage } from "./agents_i18n";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../../../../SERVICEs/api";
 import Button from "../../../../BUILTIN_COMPONENTs/input/button";
@@ -79,6 +80,7 @@ const ICON_BUTTON = {
 };
 
 function ConfirmModal({ open, title, body, action, onClose, onConfirm, isDark }) {
+  const { t } = useTranslation();
   return (
     <Modal
       open={open}
@@ -92,7 +94,7 @@ function ConfirmModal({ open, title, body, action, onClose, onConfirm, isDark })
         {body}
       </div>
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-        <Button label="Cancel" onClick={onClose} style={{ fontSize: 12, paddingVertical: 6, paddingHorizontal: 14, borderRadius: 6, opacity: 0.65 }} />
+        <Button label={t("agents.explorer.cancel")} onClick={onClose} style={{ fontSize: 12, paddingVertical: 6, paddingHorizontal: 14, borderRadius: 6, opacity: 0.65 }} />
         <Button
           label={action}
           onClick={onConfirm}
@@ -310,8 +312,11 @@ export default function AgentExplorer({
       } catch (error) {
         setNotice(
           error && error.code === "edit_conflict"
-            ? `“${safe_text(item.name)}” changed elsewhere, so it was not renamed. The list is up to date now; try again.`
-            : `Could not rename “${safe_text(item.name)}”: ${safe_text(error?.message || "the store refused it")}`,
+            ? agentMessage("agents.explorer.rename_conflict", { name: safe_text(item.name) })
+            : agentMessage("agents.explorer.rename_failed", {
+                name: safe_text(item.name),
+                message: error?.message ? safe_text(error.message) : agentMessage("agents.explorer.store_refused"),
+              }),
         );
       }
       load();
@@ -354,7 +359,7 @@ export default function AgentExplorer({
       try {
         id = freshAgentId();
       } catch (_error) {
-        setNotice("This Agent could not be created: no random source is available. Nothing was added.");
+        setNotice(agentMessage("agents.explorer.create_no_random"));
         return;
       }
       const workflow = context.kind === "workflow";
@@ -384,7 +389,10 @@ export default function AgentExplorer({
         await load();
         onSelect(id);
       } catch (error) {
-        setNotice(`Could not duplicate “${safe_text(item.name)}”: ${safe_text(error?.message || "the store refused it")}`);
+        setNotice(agentMessage("agents.explorer.duplicate_failed", {
+          name: safe_text(item.name),
+          message: error?.message ? safe_text(error.message) : agentMessage("agents.explorer.store_refused"),
+        }));
       }
     },
     [closeContextMenu, library.items, loadedNames, placement, refreshFolders, load, onSelect],
@@ -410,7 +418,10 @@ export default function AgentExplorer({
         setNotice("");
         if (item.id === activeId) onActiveChanged?.({ type: "reload", id: item.id });
       } catch (error) {
-        setNotice(`Could not restore “${safe_text(item.name)}”: ${safe_text(error?.message || "the store refused it")}`);
+        setNotice(agentMessage("agents.explorer.restore_failed", {
+          name: safe_text(item.name),
+          message: error?.message ? safe_text(error.message) : agentMessage("agents.explorer.store_refused"),
+        }));
       }
       load();
     },
@@ -433,7 +444,10 @@ export default function AgentExplorer({
       setNotice("");
       if (item.id === activeId) onActiveChanged?.({ type: "reload", id: item.id });
     } catch (error) {
-      setNotice(`Could not archive “${safe_text(item.name)}”: ${safe_text(error?.message || "the store refused it")}`);
+      setNotice(agentMessage("agents.explorer.archive_failed", {
+        name: safe_text(item.name),
+        message: error?.message ? safe_text(error.message) : agentMessage("agents.explorer.store_refused"),
+      }));
     }
     load();
   }, [confirm, library.items, activeId, onActiveChanged, refreshFolders, load]);
@@ -500,7 +514,7 @@ export default function AgentExplorer({
         name: draftRow.name,
         label: safe_text(draftRow.name),
         prefix_icon: draftRow.kind === "workflow" ? "flow_chart" : "bot",
-        postfix: "unsaved",
+        postfix: t("agents.explorer.unsaved"),
       });
     }
     const pendingNode = () => ({ id: PENDING_ID, kind: "pending", label: "", prefix_icon: pending?.kind === "workflow" ? "flow_chart" : "bot" });
@@ -537,7 +551,7 @@ export default function AgentExplorer({
       return ids;
     };
     return { data: map, root: children(null) };
-  }, [placement, active, draftRow, pending, activeId, onSelect, handleNodeContextMenu]);
+  }, [placement, active, draftRow, pending, activeId, onSelect, handleNodeContextMenu, t]);
 
   const decorated = useMemo(() => {
     const next = { ...data };
@@ -575,11 +589,11 @@ export default function AgentExplorer({
     const rootIds = [];
     if (notMigrated.length > 0) {
       map[LEGACY_GROUP] = {
-        id: LEGACY_GROUP, type: "folder", label: "Not migrated", prefix_icon: "folder_2",
+        id: LEGACY_GROUP, type: "folder", label: t("agents.explorer.not_migrated"), prefix_icon: "folder_2",
         children: notMigrated.map((name) => {
           const id = `${LEGACY}${name}`;
           map[id] = {
-            id, kind: "legacy", name, label: safe_text(name), prefix_icon: "bot", postfix: "old editor",
+            id, kind: "legacy", name, label: safe_text(name), prefix_icon: "bot", postfix: t("agents.explorer.old_editor"),
             on_click: () => onSelectLegacy(name),
             on_context_menu: (storeNode, event) => handleNodeContextMenu({ ...storeNode, kind: "legacy", name }, event),
           };
@@ -590,7 +604,7 @@ export default function AgentExplorer({
     }
     if (archived.length > 0) {
       map[ARCHIVED_GROUP] = {
-        id: ARCHIVED_GROUP, type: "folder", label: "Archived", prefix_icon: "folder_2",
+        id: ARCHIVED_GROUP, type: "folder", label: t("agents.explorer.archived"), prefix_icon: "folder_2",
         children: archived.map((item) => {
           const id = `${ARCHIVED}${item.id}`;
           map[id] = {
@@ -606,7 +620,7 @@ export default function AgentExplorer({
       rootIds.push(ARCHIVED_GROUP);
     }
     return { data: map, root: rootIds };
-  }, [notMigrated, archived, onSelect, onSelectLegacy, handleNodeContextMenu]);
+  }, [notMigrated, archived, onSelect, onSelectLegacy, handleNodeContextMenu, t]);
 
   /* Preserve the delivered list search when the native library replaces the
      legacy list. Search is a flat view only; it never rewrites placement. */
@@ -641,9 +655,9 @@ export default function AgentExplorer({
           closeContextMenu();
           onSelectLegacy(node.name);
         },
-      }),
+      }, t),
     [contextMenu.node, activeDirty, handleNewAgent, handleNewWorkflow, handleNewFolder, handleStartRename, handleDuplicate,
-      handleArchive, handleRestore, handleDeleteFolder, closeContextMenu, onSelectLegacy],
+      handleArchive, handleRestore, handleDeleteFolder, closeContextMenu, onSelectLegacy, t],
   );
 
   const activeNodeId = draftRow && activeId === draftRow.id ? `${DRAFT}${activeId}` : activeId ? `${RESOURCE}${activeId}` : undefined;
@@ -654,15 +668,15 @@ export default function AgentExplorer({
     <div data-testid="agent-explorer" style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, padding: `${RECIPE_PANEL_HEADER.INSET - RECIPE_PANEL_HEADER.BORDER}px ${RECIPE_PANEL_HEADER.INSET - RECIPE_PANEL_HEADER.BORDER}px`, gap: 2 }}>
       <div style={{ display: "flex", alignItems: "center", gap: RECIPE_PANEL_HEADER.GAP, paddingLeft: headerLeadingPad, marginBottom: 8 }}>
         {onCollapse && (
-          <Button prefix_icon="side_menu_close" ariaLabel="Hide agents" onClick={onCollapse} style={{ ...ICON_BUTTON, opacity: 0.5 }} />
+          <Button prefix_icon="side_menu_close" ariaLabel={t("agents.explorer.hide_agents")} onClick={onCollapse} style={{ ...ICON_BUTTON, opacity: 0.5 }} />
         )}
         <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: MUTED, userSelect: "none", WebkitUserSelect: "none", flex: 1 }}>
-          Agents
+          {t("agents.explorer.agents")}
         </div>
-        <Button prefix_icon="upload" ariaLabel="Import an Agent or Workflow" onClick={() => setImportOpen(true)} style={ICON_BUTTON} />
-        <Button prefix_icon="folder_new" ariaLabel="New folder" onClick={() => handleNewFolder(null)} style={ICON_BUTTON} />
-        <Button prefix_icon="flow_chart" ariaLabel="New Workflow" disabled={!canCreate} onClick={() => handleNewWorkflow(null)} style={ICON_BUTTON} />
-        <Button prefix_icon="add" ariaLabel="New Agent" disabled={!canCreate} onClick={() => handleNewAgent(null)} style={ICON_BUTTON} />
+        <Button prefix_icon="upload" ariaLabel={t("agents.explorer.import")} onClick={() => setImportOpen(true)} style={ICON_BUTTON} />
+        <Button prefix_icon="folder_new" ariaLabel={t("agents.explorer.new_folder")} onClick={() => handleNewFolder(null)} style={ICON_BUTTON} />
+        <Button prefix_icon="flow_chart" ariaLabel={t("agents.explorer.new_workflow")} disabled={!canCreate} onClick={() => handleNewWorkflow(null)} style={ICON_BUTTON} />
+        <Button prefix_icon="add" ariaLabel={t("agents.explorer.new_agent")} disabled={!canCreate} onClick={() => handleNewAgent(null)} style={ICON_BUTTON} />
       </div>
 
       <div style={{ padding: "12px 4px 6px", flexShrink: 0 }}>
@@ -679,22 +693,24 @@ export default function AgentExplorer({
         </label>
       </div>
 
-      {library.status === "loading" && <span style={caption}>Loading…</span>}
+      {library.status === "loading" && <span style={caption}>{t("agents.explorer.loading")}</span>}
       {library.status === "failed" && (
         <div data-testid="agent-explorer-failed" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <span style={caption}>
-            Could not read the Agent library{library.error?.message ? `: ${safe_text(library.error.message)}` : "."} Nothing here is empty — it could not be read.
+            {library.error?.message
+              ? t("agents.explorer.library_read_failed_detail", { message: safe_text(library.error.message) })
+              : t("agents.explorer.library_read_failed")}
           </span>
-          <Button label="Try again" onClick={load} style={{ alignSelf: "flex-start", fontSize: 11, paddingVertical: 3, paddingHorizontal: 8 }} />
+          <Button label={t("agents.explorer.try_again")} onClick={load} style={{ alignSelf: "flex-start", fontSize: 11, paddingVertical: 3, paddingHorizontal: 8 }} />
         </div>
       )}
       {library.status === "ready" && active.length === 0 && !draftRow && !pending && (
-        <span data-testid="agent-explorer-empty" style={caption}>No Agents yet.</span>
+        <span data-testid="agent-explorer-empty" style={caption}>{t("agents.explorer.empty")}</span>
       )}
-      {notice && <span role="alert" style={{ ...caption, color: isDark ? "rgba(255,140,140,0.95)" : "rgba(176,32,32,0.95)" }}>{notice}</span>}
+      {notice && <span role="alert" style={{ ...caption, color: isDark ? "rgba(255,140,140,0.95)" : "rgba(176,32,32,0.95)" }}>{renderAgentMessage(notice, t)}</span>}
 
       <div className="scrollable" style={{ flex: 1, minHeight: 0, overflowY: "auto" }} onContextMenu={handleBackgroundContextMenu}>
-        {filtered && filtered.root.length === 0 && <span style={caption}>No agents found</span>}
+        {filtered && filtered.root.length === 0 && <span style={caption}>{t("agents.explorer.no_results")}</span>}
         <Explorer
           data={filtered ? filtered.data : decorated}
           root={filtered ? filtered.root : root}
@@ -717,7 +733,7 @@ export default function AgentExplorer({
             />
             {notMigrated.length > 0 && (
               <span style={{ ...caption, display: "block" }}>
-                Not migrated: recipes the store has no Agent for yet. They open in the old editor; the sidecar log says why they were not migrated.
+                {t("agents.explorer.not_migrated_description")}
               </span>
             )}
           </div>
@@ -735,11 +751,13 @@ export default function AgentExplorer({
       <ConfirmModal
         open={confirm.open}
         isDark={isDark}
-        title={confirm.kind === "folder" ? `Delete folder “${safe_text(confirm.node?.name || "")}”?` : `Archive “${safe_text(confirm.node?.name || "")}”?`}
+        title={confirm.kind === "folder"
+          ? t("agents.explorer.delete_folder_title", { name: safe_text(confirm.node?.name || "") })
+          : t("agents.explorer.archive_title", { name: safe_text(confirm.node?.name || "") })}
         body={confirm.kind === "folder"
-          ? "The folder and the folders inside it are removed. The Agents in them stay and move to the top level."
-          : "It leaves this list and new chats can no longer pick it. Anything that already uses it keeps working. Restore it from Archived."}
-        action={confirm.kind === "folder" ? "Delete folder" : "Archive"}
+          ? t("agents.explorer.delete_folder_description")
+          : t("agents.explorer.archive_description")}
+        action={confirm.kind === "folder" ? t("agents.explorer.delete_folder") : t("agents.explorer.archive")}
         onClose={() => setConfirm({ open: false, kind: null, node: null })}
         onConfirm={handleConfirm}
       />

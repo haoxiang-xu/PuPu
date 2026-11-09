@@ -50,6 +50,7 @@ import { schema_root_scope } from "./output_schema";
 import { own } from "./document_values";
 import { code_result_roots } from "./code_config";
 import { workflow_call_result_roots } from "./workflow_call_config";
+import { agentEnglishText } from "./agents_i18n";
 
 /* The tables below are read with a node's type, out of a draft, so they are
    read through `own`. */
@@ -82,7 +83,7 @@ const closed_on = (roots) => ({
 /* The two built-ins plus whatever the loaded schema declares at the result's
    own root. With no schema the result is exactly the built-ins and the runtime
    refuses any other shape, so that case is genuinely closed. */
-function agent_result_roots(node) {
+function agent_result_roots(node, t = agentEnglishText) {
   const kernel = node && node.config && node.config.kernel;
   const schema = kernel ? kernel.json_schema : null;
   if (schema === null || schema === undefined) return closed_on(KERNEL_BUILT_INS);
@@ -96,26 +97,26 @@ function agent_result_roots(node) {
     reason: scope.closed
       ? null
       : scope.readable
-        ? OPEN_SCHEMA_REASON
-        : UNREADABLE_SCHEMA_REASON,
+        ? t === agentEnglishText ? OPEN_SCHEMA_REASON : t("agents.result_roots.open_schema")
+        : t === agentEnglishText ? UNREADABLE_SCHEMA_REASON : t("agents.result_roots.unreadable_schema"),
   };
 }
 
-export function result_roots_for(node) {
+export function result_roots_for(node, t = agentEnglishText) {
   const type = node && node.type;
-  if (type === "agent") return agent_result_roots(node);
+  if (type === "agent") return agent_result_roots(node, t);
   /* Code (#357) is the one node where the author declares the result: its
      fields are the Result schema's root fields, closed when the schema closes
      them. The runtime validates `main()`'s return against that schema and
      publishes it as the node's result; an error is published beside it. */
-  if (type === "code") return code_result_roots(node);
-  if (type === "workflow_call") return workflow_call_result_roots(node);
+  if (type === "code") return code_result_roots(node, t);
+  if (type === "workflow_call") return workflow_call_result_roots(node, t);
   const closed = own(CLOSED_ROOTS, type);
   if (closed) return closed_on(closed);
   return {
     known: false,
     roots: [],
     closed: false,
-    reason: own(UNKNOWN_REASON, type) || null,
+    reason: own(UNKNOWN_REASON, type) ? t("agents.result_roots.start") : null,
   };
 }

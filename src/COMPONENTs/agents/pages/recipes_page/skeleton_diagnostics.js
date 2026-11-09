@@ -1,3 +1,4 @@
+import { agentEnglishText } from "./agents_i18n";
 /* Pointing a problem at the place that caused it.
  *
  * `POST /skeleton_resources/diagnose` is the draft check, and since the
@@ -157,17 +158,17 @@ export function route_diagnostics(diagnostics, document, options) {
 
 /* Where a diagnostic belongs, in words, so the fallback can say it rather than
  * printing a path at the author. */
-export function diagnostic_location_label(diagnostic, document) {
+export function diagnostic_location_label(diagnostic, document, t = agentEnglishText) {
   const path = (diagnostic && diagnostic.path) || [];
   const nodes = (document && document.nodes) || [];
   const edges = (document && document.edges) || [];
   if (path[0] === "document" && path[1] === "nodes" && typeof path[2] === "number") {
     const node = nodes[path[2]];
-    return node && node.id ? `Node ${node.id}` : `Node ${path[2]}`;
+    return t("agents.diagnostics.location_node", { id: node && node.id ? node.id : path[2] });
   }
   if (path[0] === "document" && path[1] === "edges" && typeof path[2] === "number") {
     const edge = edges[path[2]];
-    return edge && edge.id ? `Edge ${edge.id}` : `Edge ${path[2]}`;
+    return t("agents.diagnostics.location_edge", { id: edge && edge.id ? edge.id : path[2] });
   }
-  return "This graph";
+  return t("agents.diagnostics.location_graph");
 }

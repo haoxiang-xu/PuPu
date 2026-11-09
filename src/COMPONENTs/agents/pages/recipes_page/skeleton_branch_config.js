@@ -1,4 +1,5 @@
 import { own } from "./document_values";
+import { agentEnglishText } from "./agents_i18n";
 import { flow_outlets } from "./skeleton_graph_edits";
 import { find_node, node_bindings, node_output_mappings } from "./skeleton_document";
 
@@ -274,17 +275,11 @@ function operand_type(document, node, operand) {
   return null;
 }
 
-const PROBLEM_TEXT = {
-  unknown_input: (name) => `This node has no input named “${name}”. Add it above or pick another.`,
-  type_mismatch: (a, b) => `Compares ${a} with ${b}. It saves, but the runtime refuses it when this branch runs.`,
-  ordering_requires_numbers: () => "Greater/less comparisons need numbers on both sides; the runtime refuses anything else when this branch runs.",
-  contains_requires_text_or_list: (a) => `“contains” works on text or a list, not on ${a}; the runtime refuses it when this branch runs.`,
-  null_needs_null_operator: () => "null can only be compared with “is null” or “is not null”.",
-};
+
 
 const TYPE_WORD = { string: "text", number: "a number", boolean: "true/false", array: "a list", object: "an object", null: "null" };
 
-export function compare_problems(document, node, condition) {
+export function compare_problems(document, node, condition, t = agentEnglishText) {
   if (!condition_is_readable(condition) || condition.kind !== "compare") return [];
   const problems = [];
   const names = input_names(node);
@@ -292,29 +287,29 @@ export function compare_problems(document, node, condition) {
     const operand = condition[side];
     if (operand && operand.kind === "input" && operand.path.length > 0 && typeof operand.path[0] === "string" &&
         Array.isArray(node_bindings(node)) && !names.includes(operand.path[0])) {
-      problems.push({ code: "unknown_input", side, message: PROBLEM_TEXT.unknown_input(operand.path[0]) });
+      problems.push({ code: "unknown_input", side, message: t("agents.execution.branch.unknown_input", { name: operand.path[0] }) });
     }
   }
   const op = operator_info(condition.operator);
   if (op.arity === 1) return problems;
   if ([condition.left, condition.right].some((operand) => operand.kind === "literal" && operand.value === null)) {
-    problems.push({ code: "null_needs_null_operator", side: "right", message: PROBLEM_TEXT.null_needs_null_operator() });
+    problems.push({ code: "null_needs_null_operator", side: "right", message: t("agents.execution.branch.null_operator") });
     return problems;
   }
   const left = operand_type(document, node, condition.left);
   const right = operand_type(document, node, condition.right);
   if (op.value === "eq" || op.value === "ne") {
     if (left && right && left !== right) {
-      problems.push({ code: "type_mismatch", side: "right", message: PROBLEM_TEXT.type_mismatch(TYPE_WORD[left], TYPE_WORD[right]) });
+      problems.push({ code: "type_mismatch", side: "right", message: t("agents.execution.branch.type_mismatch", { a: (has_own(TYPE_WORD, left) ? t(`agents.execution.branch.type_${left}`) : left), b: (has_own(TYPE_WORD, right) ? t(`agents.execution.branch.type_${right}`) : right) }) });
     }
   } else if (op.value === "contains") {
     if (left && left !== "string" && left !== "array") {
-      problems.push({ code: "contains_requires_text_or_list", side: "left", message: PROBLEM_TEXT.contains_requires_text_or_list(TYPE_WORD[left]) });
+      problems.push({ code: "contains_requires_text_or_list", side: "left", message: t("agents.execution.branch.contains_type", { a: (has_own(TYPE_WORD, left) ? t(`agents.execution.branch.type_${left}`) : left) }) });
     } else if (left === "string" && right && right !== "string") {
-      problems.push({ code: "type_mismatch", side: "right", message: PROBLEM_TEXT.type_mismatch("text", TYPE_WORD[right]) });
+      problems.push({ code: "type_mismatch", side: "right", message: t("agents.execution.branch.type_mismatch", { a: (has_own(TYPE_WORD, "string") ? t(`agents.execution.branch.type_${"string"}`) : "string"), b: (has_own(TYPE_WORD, right) ? t(`agents.execution.branch.type_${right}`) : right) }) });
     }
   } else if ((left && left !== "number") || (right && right !== "number")) {
-    problems.push({ code: "ordering_requires_numbers", side: left && left !== "number" ? "left" : "right", message: PROBLEM_TEXT.ordering_requires_numbers() });
+    problems.push({ code: "ordering_requires_numbers", side: left && left !== "number" ? "left" : "right", message: t("agents.execution.branch.ordering_numbers") });
   }
   return problems;
 }
@@ -339,31 +334,31 @@ export function free_case_id(cases) {
    `1.0` are the same one. */
 const case_key = (value) => `${json_type(value)}:${typeof value === "string" ? value : JSON.stringify(value)}`;
 
-export function case_problems(cases) {
+export function case_problems(cases, t = agentEnglishText) {
   const rows = [];
   const ids = new Set();
   const values = new Set();
   (Array.isArray(cases) ? cases : []).forEach((entry) => {
     const row = [];
     if (!is_record(entry)) {
-      rows.push([{ code: "unreadable_case", message: "This case cannot be read. Remove it or replace it." }]);
+      rows.push([{ code: "unreadable_case", message: t("agents.execution.branch.unreadable_case") }]);
       return;
     }
     if (typeof entry.id !== "string" || !entry.id) {
-      row.push({ code: "missing_id", message: "This case has no id, so its outlet cannot be wired. Remove it and add a new case." });
+      row.push({ code: "missing_id", message: t("agents.execution.branch.case_id_missing") });
     } else if (entry.id === "default") {
-      row.push({ code: "reserved_id", message: "“default” is reserved for the Default outlet; the runtime refuses this case." });
+      row.push({ code: "reserved_id", message: t("agents.execution.branch.reserved_case_id") });
     } else if (ids.has(entry.id)) {
-      row.push({ code: "duplicate_id", message: "Another case already uses this id; the runtime refuses it." });
+      row.push({ code: "duplicate_id", message: t("agents.execution.branch.duplicate_case_id") });
     } else {
       ids.add(entry.id);
     }
     if (!has_own(entry, "value")) {
-      row.push({ code: "missing_value", message: "This case has no value yet." });
+      row.push({ code: "missing_value", message: t("agents.execution.branch.case_value_missing") });
     } else if (!is_scalar(entry.value)) {
-      row.push({ code: "not_a_scalar", message: "A case value is one piece of text, a number, true/false or null." });
+      row.push({ code: "not_a_scalar", message: t("agents.execution.branch.case_scalar_required") });
     } else if (values.has(case_key(entry.value))) {
-      row.push({ code: "duplicate_value", message: "Another case already matches this value; the runtime refuses the Switch before it runs." });
+      row.push({ code: "duplicate_value", message: t("agents.execution.branch.duplicate_case_value") });
     } else {
       values.add(case_key(entry.value));
     }
@@ -372,10 +367,10 @@ export function case_problems(cases) {
   return rows;
 }
 
-export function case_display(entry) {
-  if (!is_record(entry) || !has_own(entry, "value") || !is_scalar(entry.value)) return "(not a single value)";
+export function case_display(entry, t = agentEnglishText) {
+  if (!is_record(entry) || !has_own(entry, "value") || !is_scalar(entry.value)) return t("agents.branch.case_not_scalar");
   const { value } = entry;
-  if (typeof value === "string") return value === "" ? "(empty text)" : `“${value}”`;
+  if (typeof value === "string") return value === "" ? t("agents.branch.case_empty_text") : `“${value}”`;
   return value === null ? "null" : String(value);
 }
 
@@ -440,7 +435,7 @@ const IF_LABEL = { true: "True", false: "False" };
    outlet in order, and any outlet an existing edge still leaves through that
    is not declared any more — drawn and named, never hidden, because a hidden
    edge reads as one that does not exist. */
-export function branch_ports(document, node) {
+export function branch_ports(document, node, t = agentEnglishText) {
   const declared = flow_outlets(node);
   const rows = [];
   const seen = new Set(["in"]);
@@ -452,9 +447,9 @@ export function branch_ports(document, node) {
   if (declared.ok) {
     const cases = node && node.type === "switch_case" ? node.config.execution.cases : [];
     declared.outlets.forEach((port_id) => {
-      if (node.type === "if_else") push(port_id, IF_LABEL[port_id], true);
-      else if (port_id === "default") push(port_id, "Default", true);
-      else push(port_id, case_display(cases.find((entry) => entry.id === port_id)), true);
+      if (node.type === "if_else") push(port_id, port_id === "true" ? t("agents.branch.true") : port_id === "false" ? t("agents.branch.false") : IF_LABEL[port_id], true);
+      else if (port_id === "default") push(port_id, t("agents.branch.default"), true);
+      else push(port_id, case_display(cases.find((entry) => entry.id === port_id), t), true);
     });
   }
   const edges = is_record(document) && Array.isArray(document.edges) ? document.edges : [];
@@ -478,21 +473,21 @@ export function branch_node(document, node_id) {
 
 /* One line for the canvas and the panel header, read from the stored config
    and never claiming more than it shows. */
-export function branch_summary(node) {
+export function branch_summary(node, t = agentEnglishText) {
   const execution = is_record(node) && is_record(node.config) && is_record(node.config.execution)
     ? node.config.execution : null;
-  if (!execution) return "Settings not readable";
+  if (!execution) return t("agents.branch.settings_unreadable");
   if (node.type === "if_else") {
-    if (!has_own(execution, "condition")) return "No condition yet";
-    if (!condition_is_readable(execution.condition)) return "Condition kept as stored";
+    if (!has_own(execution, "condition")) return t("agents.branch.condition_missing");
+    if (!condition_is_readable(execution.condition)) return t("agents.branch.condition_stored");
     const n = count_comparisons(execution.condition);
-    return `${n} comparison${n === 1 ? "" : "s"}`;
+    return n === 1 ? t("agents.branch.comparison_one", { count: n }) : t("agents.branch.comparison_other", { count: n });
   }
-  if (!has_own(execution, "value")) return "No value yet";
+  if (!has_own(execution, "value")) return t("agents.branch.value_missing");
   const value = execution.value;
-  if (!operand_is_readable(value)) return "Value kept as stored";
-  if (value.kind === "literal") return "On a fixed value";
-  return value.path.length ? `On ${value.path.map(String).join(".")}` : "On all inputs";
+  if (!operand_is_readable(value)) return t("agents.branch.value_stored");
+  if (value.kind === "literal") return t("agents.branch.on_fixed");
+  return value.path.length ? t("agents.branch.on_path", { path: value.path.map(String).join(".") }) : t("agents.branch.on_all_inputs");
 }
 
 /* Which of `source_ids` a node can be reached without: a path from the single

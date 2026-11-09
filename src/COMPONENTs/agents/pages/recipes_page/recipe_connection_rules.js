@@ -1,3 +1,4 @@
+import { agentEnglishText } from "./agents_i18n";
 /* Returns true if the connection is valid, otherwise a string rejection reason. */
 
 import { is_toolkit_pool_type } from "./recipe_graph";
@@ -16,29 +17,29 @@ function is_port_occupied(edges, node_id, port_id, exclude_edge_id) {
   );
 }
 
-export function validate_recipe_connection(source, target, ctx) {
+export function validate_recipe_connection(source, target, ctx, t = agentEnglishText) {
   const { edges = [], exclude_edge_id = null } = ctx || {};
 
-  if (source.node.id === target.node.id) return "Self-loop not allowed";
+  if (source.node.id === target.node.id) return t("agents.legacy_tools.self_loop");
 
   const sk = port_kind(source.node, source.port);
   const tk = port_kind(target.node, target.port);
-  if (!sk || !tk) return "Unknown port";
+  if (!sk || !tk) return t("agents.legacy_tools.unknown_port");
 
   /* Flow pairing: out → in */
   if (sk === "out" && tk === "in") {
     if (is_port_occupied(edges, source.node.id, source.port, exclude_edge_id))
-      return "Source already connected";
+      return t("agents.legacy_tools.source_connected");
     if (is_port_occupied(edges, target.node.id, target.port, exclude_edge_id))
-      return "Target already connected";
+      return t("agents.legacy_tools.target_connected");
     return true;
   }
   if (sk === "in" && tk === "out") {
     /* allow reversed drag — caller normalizes */
     if (is_port_occupied(edges, source.node.id, source.port, exclude_edge_id))
-      return "Source already connected";
+      return t("agents.legacy_tools.source_connected");
     if (is_port_occupied(edges, target.node.id, target.port, exclude_edge_id))
-      return "Target already connected";
+      return t("agents.legacy_tools.target_connected");
     return true;
   }
 
@@ -60,9 +61,9 @@ export function validate_recipe_connection(source, target, ctx) {
       source.node.type === "subagent_pool" ||
       target.node.type === "subagent_pool";
     if (!one_is_workflow_agent || !one_is_plugin)
-      return "Attach must connect an agent to a plugin";
+      return t("agents.legacy_tools.attachment");
     return true;
   }
 
-  return "Incompatible port kinds";
+  return t("agents.legacy_tools.ports_incompatible");
 }
