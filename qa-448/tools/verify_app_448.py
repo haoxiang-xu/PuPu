@@ -68,6 +68,10 @@ def main():
     require(all(not c['hits'] for c in read('blocked-service-canaries.json')),'forbidden_service_zero_connections')
     require('ISOLATION_CONTROLS_ACCEPTED' in (ROOT/'isolation-probe.log').read_text(),'isolation_process_passed')
     require(json.loads((ROOT/'sdk-qualification.json').read_text())['verdict']=='REAL_SDK_TLS_FIXTURE_ACCEPTED','real_installed_sdk_tls')
+    http=read('http-pairs.json')
+    health=[json.loads(row['response']['body']) for row in http if row['path']=='/health' and (row.get('response') or {}).get('status')==200]
+    require(len(health)>=3,'actual_health_seen_each_process_setup')
+    require(all(item['context_memory_v2']['runtime_protocol_manifest']['manifest_digest']==os.environ['QA_MANIFEST'] for item in health),'actual_sidecar_manifest_matches_fixed_pair')
     tests=read('installed-448-receipt.json')
     require(tests['exit']==0,'installed_five_regressions')
     require(tests['manifest']['manifest_digest']==os.environ['QA_MANIFEST'],'installed_manifest')
@@ -130,6 +134,9 @@ def main():
         e=calls[f'qa448_grep_{i}'];args=e['payload']['arguments'];parsed=json.loads(args) if isinstance(args,str) else args;require(parsed['pattern']==pattern(i),'canonical_original_arguments_exact')
         r=results[f'qa448_grep_{i}'];require(e['store_seq']<r['store_seq'],'tool_receipt_sequence')
         require(r['payload']['tool_name']=='grep','result_tool_identity')
+        semantic=journal_event_to_semantic_event(JournalEvent.from_dict(r));ref=semantic['full_output_ref']
+        artifact=db.execute('select * from artifacts where execution_id=? and artifact_id=? and revision=?',(hot['session'],ref['id'],ref['revision'])).fetchone();require(artifact is not None,'each_grep_result_exact_artifact')
+        value=json.loads(objects[artifact['object_sha256']]);require(value['pattern']==pattern(i) and value['path']==parsed['path'] and value['match_count']==1 and 'error' not in value,'each_grep_original_result_exact')
     wire_events=[e for e in own if e['event_type']=='provider.wire_snapshot']
     require(len(wire_events)==len(normal),'all_sdk_calls_have_physical_wire_event')
     for event,captured in zip(wire_events,normal):
@@ -190,9 +197,19 @@ def main():
     for page in [cold_pages[-1],result_pages[-1]]:
         cursor={key:page[key] for key in ['ref','offset','page_bytes','next_offset','eof','next_read']}
         require(any(all(d.get(k)==v for k,v in cursor.items()) for d in dictionaries(third_body['input'])),'latest_reader_cursor_preserved_next_input')
-    replies=[e for e in own if e['event_type']=='final_message'];require(len(replies)==3,'three_normal_turn_finals')
-    completed=[e for e in own if e['event_type']=='run_completed'];require(len(completed)==3,'three_normal_turn_completions')
+    root_ids={m['meta']['attemptId'] for m in read('followup-3-chat.json')['messages'] if m['role']=='assistant'}
+    require(len(root_ids)==3,'three_distinct_root_attempts')
+    replies=[e for e in own if e['event_type']=='final_message' and e['attempt']['attempt_id'] in root_ids];require(len(replies)==3,'three_normal_turn_finals')
+    completed=[e for e in own if e['event_type']=='run_completed' and e['attempt']['attempt_id'] in root_ids];require(len(completed)==3,'three_normal_turn_completions')
     for final in replies:require(any(e['attempt']==final['attempt'] and e['store_seq']>final['store_seq'] for e in completed),'final_before_own_terminal')
+    for filename,expected in [('hot-chat.json',['QA448_DONE_T1']),('cold-chat.json',['QA448_DONE_T1']),('followup-2-chat.json',['QA448_DONE_T1','QA448_DONE_T2']),('followup-3-chat.json',['QA448_DONE_T1','QA448_DONE_T2','QA448_DONE_T3'])]:
+        view=read(filename);messages=[m for m in view['messages'] if m['role']=='assistant']
+        require([m['content'] for m in messages]==expected,'stored_assistant_reply_order_and_bytes')
+        for message in messages:
+            require(message.get('status')=='done','stored_reply_is_completed')
+            require(message['meta']['executionSessionId']==hot['session'],'stored_message_execution_identity')
+            matches=[e for e in replies if e['attempt']['attempt_id']==message['meta']['attemptId']]
+            require(len(matches)==1 and matches[0]['payload']['content']==message['content'],'stored_reply_equals_physical_own_final')
     require(len([e for e in own if e['event_type']=='tool.started' and e['payload'].get('tool_name')=='grep'])==8,'eight_grep_executions_no_reexecution')
     proof=read('workspace-proof.json');require(proof['unchanged'] and proof['files']==['evidence.txt'],'readonly_workspace_exact')
     workspace=ROOT/'workspace';require(sorted(p.name for p in workspace.iterdir())==['evidence.txt'],'physical_workspace_exact_entries')
@@ -203,7 +220,7 @@ def main():
     # Entry recorder provides isTrusted; composer is not an IPC send substitute.
     for p in ROOT.glob('send-*.json'):
         value=json.loads(p.read_text());require(value['after']['value']=='','composer_send_consumed')
-    report={'verdict':'APP_448_RAW_EVIDENCE_ACCEPTED','checks':COUNTS,'check_count':sum(COUNTS.values()),'events':len(events),'sdk_calls':len(normal),'physical_objects':len(objects),'original_historical_argument_bytes':original_argument_bytes,'projected_history_bytes':len(marker.encode()),'history_token_estimate_before':estimated_before,'history_token_estimate_after':estimated_after,'actual_cold_process_restart':True,'real_provider':'NOT_RUN (owner assigned to #458/#208)','renderer_sandbox':False}
+    report={'verdict':'APP_448_RAW_EVIDENCE_ACCEPTED','checks':COUNTS,'check_count':sum(COUNTS.values()),'events':len(events),'sdk_calls':len(normal),'physical_objects':len(objects),'original_historical_argument_bytes':original_argument_bytes,'projected_history_bytes':len(marker.encode()),'history_token_estimate_before':estimated_before,'history_token_estimate_after':estimated_after,'measurement_basis':'Captured history with canonical original arguments restored provides a conservative unprojected-history lower bound; not an observed pre-fix wire request. Current-pair compiler diagnostics are separately covered by the five installed tests.','actual_cold_process_restart':True,'real_provider':'NOT_RUN (owner assigned to #458/#208)','renderer_sandbox':False}
     (ROOT/'raw-verification.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))
 if __name__=='__main__':
     try:main()

@@ -191,7 +191,8 @@ async function main() {
     }
     const input=page.getByRole('textbox',{name:'Message PuPu...',exact:true});
     await until(async()=>await input.inputValue()==='',10000);
-    const scope=await chatScope(page);assert.equal(scope.pending.status,'none');write(label,scope);chats.push(scope);return scope;
+    const scope=await until(async()=>{const s=await chatScope(page);const last=[...s.messages].reverse().find(m=>m.role==='assistant');return last?.content===text&&last.status==='done'&&last.meta?.bundle?.lifecycle?.status==='completed'&&last.meta.bundle.identity?.attempt_id===last.meta.attemptId&&s.pending.status==='none'?s:null;},30000);
+    write(label,scope);chats.push(scope);return scope;
   }
   try {
     write('fixture-negative-controls.json',controls());
