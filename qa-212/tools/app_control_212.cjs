@@ -183,7 +183,7 @@ async function main(){
     assert(geometry.clientWidth>0);assert(geometry.controls.some(c=>c.visible));
     // Overflow is evidence, never hidden by a QA CSS override. Code textareas may scroll by design.
     const clipping=await page.getByTestId('recipe-detail-panel').evaluate(root=>{const panel=root.getBoundingClientRect();const bad=[];for(const e of root.querySelectorAll('button,[role=combobox],label,h1,h2,h3,h4')){const r=e.getBoundingClientRect();if(!r.width||!r.height)continue;const style=getComputedStyle(e);if(r.left<panel.left-2||r.right>panel.right+2||((e.scrollWidth>e.clientWidth+2)&&style.textOverflow!=='ellipsis'))bad.push({text:e.textContent,aria:e.getAttribute('aria-label'),scrollWidth:e.scrollWidth,clientWidth:e.clientWidth,left:r.left,right:r.right});}return bad;});
-    write(label+'-clipping.json',clipping);assert.deepEqual(clipping,[],'translated visible controls clip horizontally');cells.push({panel,node,locale,theme,bound,shell,geometry,label_probe:{key:labelKey,expected:expectedLabel,actual:actualLabel},screenshot:label+'.png',aria:label+'.aria.txt'});write('cells.json',cells);
+    write(label+'-clipping.json',clipping);cells.push({panel,node,locale,theme,bound,shell,geometry,clipping,label_probe:{key:labelKey,expected:expectedLabel,actual:actualLabel},screenshot:label+'.png',aria:label+'.aria.txt'});write('cells.json',cells);
   }
   try{
     const execProbe=require('node:util').promisify(require('node:child_process').execFile);await execProbe(process.env.QA_PYTHON,['-I','-B',path.join(__dirname,'isolation_probe.py'),out,'QA473_OWNED_NONCE']);
@@ -214,7 +214,7 @@ async function main(){
     // Sidebar and Agents are translated; use real localized names on cold launch.
     await openSidebarIfNeeded(page);await page.getByRole('button',{name:text(locale,'side_menu.agents'),exact:true}).click();await page.getByTestId('agent-explorer').getByText(seed.document.name,{exact:true}).click();
     await selectNode(page,'score');assert.equal(await page.getByTestId('code-text-editor').getByRole('textbox').inputValue(),author);await expect(page.getByTestId('code-runtime').getByText(text(locale,'agents.execution.code.runtime'),{exact:true})).toBeVisible();await shot(page,'cold-author');
-    assert.deepEqual(errors,[]);assert.deepEqual(wires,[],'unexpected provider request');write('direct-result.json',{verdict:'RECORDED_NOT_VALIDATED',tree:process.env.QA_CANDIDATE_TREE,product_renderer_sandbox:false,model_requests:0,cells:cells.length,locale});
+    write('layout-findings.json',cells.filter(cell=>cell.clipping.length).map(({panel,locale,theme,bound,clipping})=>({panel,locale,theme,bound,clipping})));assert.deepEqual(cells.filter(cell=>cell.clipping.length),[],'translated visible controls clip horizontally; full matrix retained');assert.deepEqual(errors,[]);assert.deepEqual(wires,[],'unexpected provider request');write('direct-result.json',{verdict:'RECORDED_NOT_VALIDATED',tree:process.env.QA_CANDIDATE_TREE,product_renderer_sandbox:false,model_requests:0,cells:cells.length,locale});
   }finally{
     if(current?.page)await shot(current.page,'last-window').catch(()=>{});await stop();
     write('ledger.json',ledger);write('provider-wires.json',wires);write('errors.json',errors);write('process-generations.json',generations);write('renderer-console.json',consoleLines);
