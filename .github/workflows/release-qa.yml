@@ -9,9 +9,11 @@ name: "#212 packaged-App offline acceptance (QA only, non-delivery)"
 on:
   workflow_dispatch:
     inputs:
-      mode: { required: true, type: choice, default: "acceptance", options: ["acceptance", "package_only"], description: "Build and seal exactly the fixed candidate; runtime acceptance uses this retained App in a later serial job" }
+      mode: { required: true, type: choice, default: "acceptance", options: ["acceptance", "package_only", "reuse"], description: "Build and seal exactly the fixed candidate; runtime acceptance uses this retained App in a later serial job" }
       candidate_sha: { required: true, type: string }
       candidate_tree: { required: true, type: string }
+      retained_app_run: { required: false, type: string, default: "", description: "Exact earlier #212 run containing 212-sealed-app; reuse only" }
+      retained_app_sha256: { required: false, type: string, default: "", description: "Exact SHA-256 of that sealed App archive; reuse only" }
       wheel_run_id: { required: true, type: string, default: "42395251373", description: "run holding the one Core wheel artifact (canonical)" }
       wheel_sha256: { required: true, type: string, default: "c1213803c1b3bb58f4fc78a03b1a00f80e001d63be00c4afae53ab4d972b12ec" }
       manifest_digest: { required: true, type: string, default: "sha256:c172bc02718aee771ddd4d247904f13cdaf003d3794148fd3ecd4d4e9a419e6b", description: "expected runtime protocol manifest" }
@@ -24,7 +26,7 @@ permissions:
 
 jobs:
   app:
-    if: ${{ inputs.mode == 'acceptance' || inputs.mode == 'package_only' }}
+    if: ${{ inputs.mode == 'acceptance' || inputs.mode == 'package_only' || inputs.mode == 'reuse' }}
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
@@ -38,6 +40,10 @@ jobs:
           set -euo pipefail
           [[ "$QA_CANDIDATE" =~ ^[0-9a-f]{40}$ ]]
           [[ "$QA_CANDIDATE_TREE" =~ ^[0-9a-f]{40}$ ]]
+          if [ "${{ inputs.mode }}" = reuse ]; then
+            [[ "${{ inputs.retained_app_run }}" =~ ^[0-9]+$ ]]
+            [[ "${{ inputs.retained_app_sha256 }}" =~ ^[0-9a-f]{64}$ ]]
+          fi
           test "$QA_WHEEL_SHA" = c1213803c1b3bb58f4fc78a03b1a00f80e001d63be00c4afae53ab4d972b12ec
           test "$QA_MANIFEST" = sha256:c172bc02718aee771ddd4d247904f13cdaf003d3794148fd3ecd4d4e9a419e6b
           test "${{ inputs.wheel_run_id }}" = 42395251373
@@ -102,6 +108,7 @@ jobs:
           echo "QA_BINARY_SHA=$QA_BINARY_SHA" >> "$GITHUB_ENV"
           { echo "sidecar_sha256=$QA_BINARY_SHA"; echo "reused_from_run=42533943243"; echo "wheel=$QA_WHEEL_SHA"; } > ../test-results/sidecar-identity.txt
       - name: Package the candidate around that sidecar, without publishing (cp10 recipe)
+        if: inputs.mode != 'reuse'
         working-directory: candidate
         run: |
           set -euo pipefail
@@ -132,10 +139,34 @@ jobs:
           rows={str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(root.rglob('*')) if p.is_file() and not p.is_symlink()}
           Path('../test-results/app-files.json').write_text(json.dumps(rows,indent=2)+'\n')
           PY
-      - name: Bind packaged App source to candidate
+      - name: Read the exact retained #212 App without rebuilding
+        if: inputs.mode == 'reuse'
+        uses: actions/download-artifact@v4
+        with:
+          name: 212-sealed-app
+          path: retained-app
+          run-id: ${{ inputs.retained_app_run }}
+          github-token: ${{ github.token }}
+      - name: Verify and restore immutable App and its actual compiled files
+        if: inputs.mode == 'reuse'
         working-directory: candidate
-        run: python ../control/qa-212/tools/source_identity.py "$PWD" ../test-results
+        env:
+          RETAINED_SHA: ${{ inputs.retained_app_sha256 }}
+        run: |
+          set -euo pipefail
+          echo "$RETAINED_SHA  ../retained-app/linux-unpacked.tgz" | sha256sum -c -
+          mkdir -p dist
+          tar -xzf ../retained-app/linux-unpacked.tgz -C dist
+          cp ../retained-app/app-files.json ../test-results/app-files.json
+          cp ../retained-app/app-links.json ../test-results/app-links.json
+          echo "$QA_BINARY_SHA  dist/linux-unpacked/resources/unchain_runtime/dist/linux/unchain-server" | sha256sum -c -
+          node node_modules/@electron/asar/bin/asar.js extract dist/linux-unpacked/resources/app.asar "$RUNNER_TEMP/212-retained-source"
+          cp -a "$RUNNER_TEMP/212-retained-source/build" ./build
+          cp build/build_feature_flags.json ../test-results/build-feature-flags.packaged.json
+          printf '%s\n' "$RETAINED_SHA" > ../test-results/retained-app-archive.sha256
+          printf '%s\n' '${{ inputs.retained_app_run }}' > ../test-results/retained-app-source-run.txt
       - name: Seal the one packaged App
+        if: inputs.mode != 'reuse'
         run: |
           set -euo pipefail
           mkdir -p sealed
@@ -144,8 +175,12 @@ jobs:
           tar -C candidate/dist -czf sealed/linux-unpacked.tgz linux-unpacked
           sha256sum sealed/linux-unpacked.tgz sealed/app-files.json > test-results/sealed-app.sha256
       - name: Preserve the sealed App before running it
+        if: inputs.mode != 'reuse'
         uses: actions/upload-artifact@v4
         with: { name: 212-sealed-app, if-no-files-found: error, compression-level: 0, path: sealed/* }
+      - name: Bind packaged App source to candidate
+        working-directory: candidate
+        run: python ../control/qa-212/tools/source_identity.py "$PWD" ../test-results
       - name: Keep the packaged App's original Chromium sandbox and bind the App path
         working-directory: candidate
         run: |
@@ -158,7 +193,7 @@ jobs:
           echo "QA_APP=$EXE" >> "$GITHUB_ENV"
           echo "QA_CANDIDATE_ROOT=$PWD" >> "$GITHUB_ENV"
       - name: Strict isolated final App validation including real theme controls
-        if: inputs.mode == 'acceptance'
+        if: inputs.mode != 'package_only'
         run: bash control/qa-212/tools/run_isolated.sh
       - name: Verify packaged App bytes after execution
         if: always()
@@ -179,7 +214,7 @@ jobs:
           Path('../test-results/app-after.json').write_text(json.dumps({'matched':len(actual)}))
           VERIFY
       - name: Validate raw acceptance evidence
-        if: inputs.mode == 'acceptance'
+        if: inputs.mode != 'package_only'
         run: python control/qa-212/tools/verify_app_212.py test-results
       - name: Upload evidence
         if: always()

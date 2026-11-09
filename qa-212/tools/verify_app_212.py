@@ -26,6 +26,10 @@ expected=json.loads(json.dumps(seed['resource']['document']));expected['nodes'][
 need(expected==saved['resource']['document'],'raw author prompt/code/id changed')
 g=load('process-generations.json');need(len(g)==2 and all(x['all_owned_dead'] and x['sidecar_owned'] for x in g),'cold process ownership not established')
 need(g[0]['main']['pid']!=g[1]['main']['pid'] or g[0]['main']['start_ticks']!=g[1]['main']['start_ticks'],'cold restart reused main')
+need(int(g[0]['stopped_ns'])<int(g[1]['started_ns']),'cold start preceded old process death')
+need(g[0]['home']==g[1]['home'] and g[0]['profile']==g[1]['profile'],'cold read changed HOME or profile')
+need(all(x['sidecar']['sha256']==os.environ['QA_BINARY_SHA'] for x in g),'running binary differs from fixed pair')
+need(g[0]['sidecar']['pid']!=g[1]['sidecar']['pid'] or g[0]['sidecar']['start_ticks']!=g[1]['sidecar']['start_ticks'],'cold restart reused sidecar')
 ledger=load('ledger.json');pairs=load('http-pairs.json')
 posts=[p for p in pairs if p['method'] in ('POST','PUT','DELETE') and p['path'].startswith('/skeleton_resources')]
 need(len(posts)==2,'unexpected resource writes: only seed plus explicit Save permitted')
