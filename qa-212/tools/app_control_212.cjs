@@ -95,9 +95,11 @@ async function main(){
     record.sidecar_owned = [...owned.values()].some(row => path.basename(row.exe) === 'unchain-server');
     assert.ok(owned.size > 1, 'ownership walk found no descendants of the Electron main process');
     assert.equal(record.sidecar_owned, true, 'sidecar is not a tracked descendant of the Electron main process');
-    const sidecars=[...owned.values()].filter(row=>path.basename(row.exe)==='unchain-server');assert.equal(sidecars.length,1,'one packaged sidecar required');
-    record.sidecar={...sidecars[0],sha256:sha(fs.readFileSync('/proc/'+sidecars[0].pid+'/exe'))};assert.equal(record.sidecar.sha256,process.env.QA_BINARY_SHA,'running sidecar differs from fixed pair');
-    assert(record.sidecar.exe.startsWith(path.dirname(app)+path.sep),'sidecar is outside packaged App');record.home=home;record.profile=userData;
+    const sidecars=[...owned.values()].filter(row=>path.basename(row.exe)==='unchain-server'&&processIdentity(row.pid)?.start_ticks===row.start_ticks);assert(sidecars.length>0,'packaged sidecar required');
+    record.sidecars=sidecars.map(row=>({...row,sha256:sha(fs.readFileSync('/proc/'+row.pid+'/exe'))}));
+    for(const row of record.sidecars){assert.equal(row.sha256,process.env.QA_BINARY_SHA,'running sidecar differs from fixed pair');assert(row.exe.startsWith(path.dirname(app)+path.sep),'sidecar is outside packaged App');}
+    // PyInstaller onefile has a bootloader parent and its server child.
+    const leaves=record.sidecars.filter(row=>!record.sidecars.some(other=>other.parent===row.pid));assert.equal(leaves.length,1,'one serving sidecar leaf required');record.sidecar=leaves[0];record.home=home;record.profile=userData;
     record.proc_table_at_ready = fs.readdirSync('/proc').filter(n => /^\d+$/.test(n)).map(processIdentity).filter(Boolean)
       .map(row => ({ ...row, cmdline: (() => { try { return fs.readFileSync(`/proc/${row.pid}/cmdline`, 'utf8').split('\0').join(' ').slice(0, 200); } catch { return ''; } })() }));
     write('process-generations.json', generations);
