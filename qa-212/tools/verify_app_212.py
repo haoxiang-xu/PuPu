@@ -106,19 +106,24 @@ for item in load('database-copies.json'):
    matched.append({'db':item['copy'],'resource_id':resource_id,'edit_token':token,'draft_digest':digest,'edit_revision':revision})
   finally:connection.close()
 need(len(matched)==1,'exactly one authoritative resource DB expected')
-source=json.loads((root/'source-identity.json').read_text());need(source['matched'] and source['source_count']==len(source['sources']) and source['source_count']>0,'App source hash mismatch')
+exempt=set(json.loads((Path(__file__).parent/'unbundled-owned-components.json').read_text())['paths'])
+changed=subprocess.check_output(['git','-C',str(candidate),'diff','--name-only','d5d75094a5788a17b432d284dbffbb5b10ccab24','HEAD'],text=True).splitlines()
+required={p for p in changed if p.startswith('src/COMPONENTs/agents/') and p.endswith('.js') and '.test.' not in p and p not in exempt}
+required.update(['src/COMPONENTs/agents/pages/skeleton_resource_page.js','src/COMPONENTs/agents/pages/recipes_page/detail_panel/code_section.js','src/COMPONENTs/agents/pages/recipes_page/detail_panel/hooks_pool_section.js','src/COMPONENTs/agents/pages/recipes_page/detail_panel/workflow_call_section.js','src/COMPONENTs/agents/pages/recipes_page/agents_i18n.js'])
+source=json.loads((root/'source-identity.json').read_text());need(set(source['required'])==required,'required source set differs from actual candidate diff')
+need(source['matched'] and source['source_count']==len(source['sources']) and source['source_count']>0,'App source hash mismatch')
 candidate=Path(os.environ['QA_CANDIDATE_ROOT'])
 for item in source['sources']:
  path=candidate/item['source']
  need(path.is_file() and hashlib.sha256(path.read_bytes()).hexdigest()==item['sha256'],'App source hash mismatch')
 need(set(source['required'])<=set(item['source'] for item in source['sources']),'required App source absent')
 catalog=json.loads((root/'catalog-bundle-identity.json').read_text())
-need(catalog['complete_catalogs']==11 and set(catalog['expected'])==set(catalog['matches']),'complete catalog binding absent')
+need(catalog['complete_catalogs']==11 and len(catalog['expected'])==11 and set(catalog['expected'])==set(catalog['matches']) and all(catalog['matches'].values()),'complete catalog binding absent')
 for name,digest in catalog['expected'].items():
  value=json.loads((candidate/'src/locales'/name).read_text())
  canonical=json.dumps(value,ensure_ascii=False,sort_keys=True,separators=(',',':'))
  need(hashlib.sha256(canonical.encode()).hexdigest()==digest,'compiled locale differs from candidate')
  need(all(item['catalog_canonical_sha256']==digest for item in catalog['matches'][name]),'compiled catalog hash mismatch')
-need(json.loads((root/'app-after.json').read_text())['matched']>0,'sealed App changed')
+need(json.loads((root/'app-after.json').read_text())['matched']==len(json.loads((root/'app-files.json').read_text()))>0,'sealed App file count mismatch')
 (root/'validator-result.json').write_text(json.dumps({'verdict':'PASS','candidate':identity,'db_matches':matched,'cells':len(cells)},indent=2)+'\n')
 print('APP212_EVIDENCE_VALIDATED')

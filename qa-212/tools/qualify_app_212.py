@@ -5,6 +5,7 @@ baseline,candidate,out=map(Path,sys.argv[1:]);out.mkdir(parents=True,exist_ok=Fa
 verifier=Path(sys.argv[4]) if len(sys.argv)>4 else Path(__file__).parent/'verify_app_212.py'
 if not verifier.is_file():verifier=Path(__file__).parent/'qa-control/qa-212/tools/verify_app_212.py'
 shutil.copyfile(verifier,out/'verify_app_212.py')
+shutil.copyfile(verifier.parent/'unbundled-owned-components.json',out/'unbundled-owned-components.json')
 env=os.environ.copy();env.update(QA_CANDIDATE_ROOT=str(candidate),QA_BINARY_SHA='c91baa27f483ee861da1161b51cdd857282112589d31b6286342a2f86233f683')
 def read(root,name):return json.loads((root/'runtime'/name).read_text())
 def write(root,name,value):(root/'runtime'/name).write_text(json.dumps(value,ensure_ascii=False,indent=2)+'\n')
@@ -43,6 +44,8 @@ def declared_tree(root):
  p=root/'candidate-identity.txt';s=p.read_text();pairs=dict(line.split('=',1) for line in s.splitlines());pairs['tree']='0'*40;p.write_text(''.join(k+'='+v+'\n' for k,v in pairs.items()));change(root,'direct-result.json',lambda v:v.update(tree='0'*40))
 def wrong_label_identity(root):
  rows=read(root,'cells.json');c=rows[0];value=json.loads((candidate/'src/locales'/(c['locale']+'.json')).read_text())['boot']['click_to_start'];c['label_probe']={'key':'boot.click_to_start','actual':value,'expected':value};write(root,'cells.json',rows)
+def root_json(root,name,action):
+ p=root/name;v=json.loads(p.read_text());action(v);p.write_text(json.dumps(v,indent=2)+'\n')
 controls=[
  ('baseline',None,None),
  ('benign-json-key-order',order_positive,None),
@@ -62,6 +65,10 @@ controls=[
  ('cold-http-stale',stale_cold_body,'cold HTTP body differs from saved authoritative resource'),
  ('missing-canary',lambda r:write(r,'blocked-service-canaries.json',[]),'forbidden loopback request or missing canary'),
  ('coordinated-tree-claim',declared_tree,'candidate identity does not bind actual source checkout'),
+ ('empty-catalog-matches',lambda r:root_json(r,'catalog-bundle-identity.json',lambda v:v.update(matches={k:[] for k in v['matches']})),'complete catalog binding absent'),
+ ('waived-source-set',lambda r:root_json(r,'source-identity.json',lambda v:v.update(required=[])),'required source set differs from actual candidate diff'),
+ ('wrong-source-hash',lambda r:root_json(r,'source-identity.json',lambda v:v['sources'][0].update(sha256='0'*64)),'App source hash mismatch'),
+ ('wrong-sealed-file-count',lambda r:root_json(r,'app-after.json',lambda v:v.update(matched=1)),'sealed App file count mismatch'),
 ]
 results=[]
 for name,mutate,expected in controls:
