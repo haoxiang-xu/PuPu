@@ -1,5 +1,5 @@
 """Offline evidence validator. Absence or partial evidence fails closed; no count-only PASS."""
-import hashlib,itertools,json,sqlite3,sys,os,subprocess
+import hashlib,itertools,json,sqlite3,sys,os,subprocess,math
 from pathlib import Path
 root=Path(sys.argv[1]);r=root/'runtime'
 def load(name):return json.loads((r/name).read_text())
@@ -12,7 +12,8 @@ candidate=Path(os.environ['QA_CANDIDATE_ROOT'])
 need(subprocess.check_output(['git','-C',str(candidate),'rev-parse','HEAD'],text=True).strip()==identity['candidate'] and subprocess.check_output(['git','-C',str(candidate),'rev-parse','HEAD^{tree}'],text=True).strip()==identity['tree'],'candidate identity does not bind actual source checkout')
 need(load('provider-wires.json')==[],'offline unexpected provider request')
 need(load('errors.json')==[],'renderer error')
-need(all(not c['hits'] for c in load('blocked-service-canaries.json')),'forbidden loopback request')
+canaries=load('blocked-service-canaries.json')
+need(len(canaries)==2 and {c['port'] for c in canaries}=={11434,18992} and all(not c['hits'] for c in canaries),'forbidden loopback request or missing canary')
 iso=load('isolation-probe.json');need(iso['positive_nonce'] and len(iso['controls'])==4 and all(c['refused'] for c in iso['controls']),'isolation negative control failed')
 need(not list(r.rglob('*.pcap')) and not list(r.rglob('key.pem')),'raw pcap or TLS key not removed')
 need((r/'sidecar-pcap.sha256').is_file(),'capture digest absent')
@@ -56,14 +57,14 @@ save_starts=[x for x in ledger if x['kind']=='save-start'];save_ends=[x for x in
 need(len(save_starts)==len(save_ends)==1,'explicit Save interval missing or repeated')
 a,b=save_starts[0],save_ends[0]
 need(int(a['at_ns'])<int(b['at_ns']) and a['wall_ms']<=b['wall_ms'],'explicit Save interval order invalid')
-need(a['wall_ms']/1000<=float(posts[1]['at'])<=float(posts[1]['response']['at'])<=b['wall_ms']/1000,'resource write is not the explicit GUI Save')
+need(a['wall_ms']/1000<=float(posts[1]['at'])<=float(posts[1]['response']['at'])<(b['wall_ms']+1)/1000,'resource write is not the explicit GUI Save')
 save_request=json.loads(posts[1]['request_body'])
 need(set(save_request)==set(seed_edit) and save_request['schema']==seed_edit['schema'],'GUI Save request shape changed')
 need(save_request['expected_edit_token']==seed['resource']['edit_token'],'GUI Save did not use loaded token')
 need(save_request['managed_sources']==[{**seed_edit['managed_sources'][0],'text':hot['dirty_text']}],'GUI Save body did not carry exact authored source')
 cold_starts=[x for x in ledger if x['kind']=='cold-start'];cold_reads=[x for x in ledger if x['kind']=='cold-read']
 need(len(cold_starts)==len(cold_reads)==1 and int(cold_starts[0]['at_ns'])<int(cold_reads[0]['at_ns']),'cold read interval missing or invalid')
-cold_gets=[p for p in pairs if p['method']=='GET' and p['path']=='/skeleton_resources/v2/'+saved['resource']['id'] and cold_starts[0]['wall_ms']/1000<=float(p['at'])<=cold_reads[0]['wall_ms']/1000]
+cold_gets=[p for p in pairs if p['method']=='GET' and p['path']=='/skeleton_resources/v2/'+saved['resource']['id'] and cold_starts[0]['wall_ms']/1000<=float(p['at'])<(cold_reads[0]['wall_ms']+1)/1000]
 need(bool(cold_gets),'cold authoritative HTTP read missing')
 for p in cold_gets:
  need(p['response'] and p['response']['status']==200 and json.loads(p['response']['body'])==cold,'cold HTTP body differs from saved authoritative resource')
@@ -74,10 +75,11 @@ need(len(cells)==len(wanted) and {(x['panel'],x['locale'],x['theme'],x['bound'])
 for c in cells:
  clipping=json.loads((r/(Path(c['screenshot']).stem+'-clipping.json')).read_text())
  need(c['clipping']==clipping==[],'translated controls clip horizontally')
- shell=c['shell'];expected=300 if c['bound']=='min' else max(300,round(shell['frame']['width']*0.5))
+ shell=c['shell'];expected=300 if c['bound']=='min' else max(300,math.floor(shell['frame']['width']*0.5+0.5))
  need(shell['expected_css_width']==expected and abs(shell['width']-(expected+2))<2,'panel width does not match actual dragged bound')
  need((r/c['screenshot']).stat().st_size>1000 and (r/c['aria']).stat().st_size>10,'cell screenshot/aria missing')
  need(c['geometry']['clientWidth']>0 and any(v['visible'] for v in c['geometry']['controls']),'cell controls not visible')
+ need(c['label_probe']['key']=={'code-section':'agents.execution.code.runtime','workflow-call-section':'agents.workflow.no_workflows','hooks-pool-section':'agents.hooks.add_hook'}[c['panel']],'cell label identity differs from required panel')
  value=json.loads((Path(os.environ['QA_CANDIDATE_ROOT'])/'src/locales'/(c['locale']+'.json')).read_text())
  for segment in c['label_probe']['key'].split('.'):value=value[segment]
  need(c['label_probe']['actual']==c['label_probe']['expected']==value,'cell localized text does not match the selected catalog')
@@ -91,6 +93,7 @@ for item in load('database-copies.json'):
  rows=connection.execute('SELECT resource_id,draft_json,draft_digest,edit_revision,edit_token FROM resources WHERE resource_id=?',(saved['resource']['id'],)).fetchall()
  need(len(rows)==1,'resource DB identity is missing or nonunique')
  resource_id,draft,digest,revision,token=rows[0]
+ need(hashlib.sha256(draft.encode()).hexdigest()==digest,'DB canonical draft digest mismatch')
  need(json.loads(draft)==saved['resource']['document'],'DB draft differs from saved document')
  need(token==saved['resource']['edit_token'] and digest==saved['resource']['draft_digest'] and isinstance(revision,int) and revision>0,'DB token/digest/revision differs from saved resource')
  matched.append({'db':item['copy'],'resource_id':resource_id,'edit_token':token,'draft_digest':digest,'edit_revision':revision});connection.close()
