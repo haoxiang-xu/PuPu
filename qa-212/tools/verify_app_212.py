@@ -22,6 +22,7 @@ need(saved==cold,'cold read is not saved resource')
 need(saved['resource']['edit_token']!=seed['resource']['edit_token'],'explicit save did not advance token')
 hot=load('hot-identity.json');need(hot['same_node_connected'] is True,'dirty control was remounted')
 need(any(c['text']==hot['dirty_text'] and hashlib.sha256(c['text'].encode()).hexdigest()==c['sha256'] for c in saved['contents']),'raw source changed')
+need(saved['resource']['document']['nodes'][1]['config']['code']['source']=={'kind':'file','path':'__pupu_code__/sha256/'+hashlib.sha256(hot['dirty_text'].encode()).hexdigest()+'.py'},'managed source path digest mismatch')
 expected=json.loads(json.dumps(seed['resource']['document']));expected['nodes'][1]['config']['code']['source']=saved['resource']['document']['nodes'][1]['config']['code']['source']
 need(expected==saved['resource']['document'],'raw author prompt/code/id changed')
 g=load('process-generations.json');need(len(g)==2 and all(x['all_owned_dead'] and x['sidecar_owned'] for x in g),'cold process ownership not established')
@@ -47,6 +48,9 @@ need({(x['panel'],x['locale'],x['theme'],x['bound']) for x in cells}==wanted,'ma
 for c in cells:
  need((r/c['screenshot']).stat().st_size>1000 and (r/c['aria']).stat().st_size>10,'cell screenshot/aria missing')
  need(c['geometry']['clientWidth']>0 and any(v['visible'] for v in c['geometry']['controls']),'cell controls not visible')
+ value=json.loads((Path(os.environ['QA_CANDIDATE_ROOT'])/'src/locales'/(c['locale']+'.json')).read_text())
+ for segment in c['label_probe']['key'].split('.'):value=value[segment]
+ need(c['label_probe']['actual']==c['label_probe']['expected']==value,'cell localized text does not match the selected catalog')
 # Bind the actual authoritative resource store table and identity, never arbitrary JSON.
 matched=[]
 for item in load('database-copies.json'):

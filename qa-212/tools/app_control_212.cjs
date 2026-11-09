@@ -150,8 +150,13 @@ async function main(){
     mark('locale-end','locale-only interval',{locale,theme,before,after});
   }
   async function selectNode(page,node){
-    // The testid wrapper is display:contents; descend to the real rendered node box.
-    const box=page.getByTestId('skeleton-node-'+node).locator(':scope > *').first();await expect(box).toBeVisible();await box.click();
+    // Use the product's real Find node gesture: distant/covered canvas nodes
+    // cannot be made clickable by DOM scrolling or a forced click.
+    await page.keyboard.press('Control+f');
+    const finder=page.getByTestId('recipe-node-palette');await expect(finder).toBeVisible();
+    await finder.getByRole('textbox',{name:text(locale,'agents.palette.find'),exact:true}).fill(node);
+    await finder.getByTestId('palette-node-'+node).click();await expect(finder).not.toBeVisible();
+    mark('ui','Find node',{node,locale});
   }
   async function width(page,which){
     const handle=page.getByTestId('skeleton-detail-resize-handle');const b=await handle.boundingBox();assert(b);
@@ -169,12 +174,14 @@ async function main(){
     await selectNode(page,node);await expect(page.getByTestId(panel)).toBeVisible();
     if(panel==='hooks-pool-section'){const edit=page.getByTestId('hook-row-0').getByRole('button',{name:text(locale,'agents.hooks.edit_hook').replace('{index}','1'),exact:true});if(await edit.isVisible().catch(()=>false))await edit.click();await expect(page.getByTestId('hook-0-editor')).toBeVisible();}
     const shell=await width(page,bound);
+    const labelKey=panel==='code-section'?'agents.execution.code.runtime':panel==='workflow-call-section'?'agents.workflow.no_workflows':'agents.hooks.add_hook';
+    const expectedLabel=text(locale,labelKey);const ownedLabel=panel==='hooks-pool-section'?page.getByTestId(panel).getByRole('button',{name:expectedLabel,exact:true}):page.getByTestId(panel).getByText(expectedLabel,{exact:true});await expect(ownedLabel).toBeVisible();const actualLabel=await ownedLabel.textContent();assert.equal(actualLabel,expectedLabel,'owned panel label did not change locale');
     const label=[panel,locale,theme,bound].join('-');await shot(page,label);
     const geometry=await page.getByTestId('recipe-detail-panel').evaluate(el=>({scrollWidth:el.scrollWidth,clientWidth:el.clientWidth,text:el.innerText,controls:[...el.querySelectorAll('button,input,textarea,[role=combobox]')].map(e=>{const r=e.getBoundingClientRect();return {tag:e.tagName,text:e.textContent,aria:e.getAttribute('aria-label'),width:r.width,height:r.height,visible:r.width>0&&r.height>0};})}));
     assert(geometry.clientWidth>0);assert(geometry.controls.some(c=>c.visible));
     // Overflow is evidence, never hidden by a QA CSS override. Code textareas may scroll by design.
     const clipping=await page.getByTestId('recipe-detail-panel').evaluate(root=>{const panel=root.getBoundingClientRect();const bad=[];for(const e of root.querySelectorAll('button,[role=combobox],label,h1,h2,h3,h4')){const r=e.getBoundingClientRect();if(!r.width||!r.height)continue;const style=getComputedStyle(e);if(r.left<panel.left-2||r.right>panel.right+2||((e.scrollWidth>e.clientWidth+2)&&style.textOverflow!=='ellipsis'))bad.push({text:e.textContent,aria:e.getAttribute('aria-label'),scrollWidth:e.scrollWidth,clientWidth:e.clientWidth,left:r.left,right:r.right});}return bad;});
-    write(label+'-clipping.json',clipping);assert.deepEqual(clipping,[],'translated visible controls clip horizontally');cells.push({panel,node,locale,theme,bound,shell,geometry,screenshot:label+'.png',aria:label+'.aria.txt'});write('cells.json',cells);
+    write(label+'-clipping.json',clipping);assert.deepEqual(clipping,[],'translated visible controls clip horizontally');cells.push({panel,node,locale,theme,bound,shell,geometry,label_probe:{key:labelKey,expected:expectedLabel,actual:actualLabel},screenshot:label+'.png',aria:label+'.aria.txt'});write('cells.json',cells);
   }
   try{
     const {execFileSync}=require('node:child_process');execFileSync(process.env.QA_PYTHON,['-I','-B',path.join(__dirname,'isolation_probe.py'),out,'QA473_OWNED_NONCE']);
@@ -198,7 +205,7 @@ async function main(){
     await selectNode(page,'score');assert.equal(await page.getByTestId('code-text-editor').getByRole('textbox').inputValue(),author);
     mark('save-start','one explicit GUI Save');await page.getByTestId('skeleton-control-center').getByRole('button',{name:text(locale,'agents.save.save'),exact:true}).click();
     const saved=await until(async()=>{const r=await read(page);return r.resource.edit_token!==seeded.resource.edit_token&&r.contents.some(c=>c.text===author)?r:null;});write('saved-resource.json',saved);mark('save-end','one explicit GUI Save');
-    assert.equal(saved.resource.document.id,seed.document.id);assert(saved.contents.some(c=>c.sha256===sha(author)),'saved source hash mismatch');
+    assert.equal(saved.resource.document.id,seed.document.id);assert(saved.contents.some(c=>c.sha256===sha(author)),'saved source hash mismatch');assert.deepEqual(saved.resource.document.nodes[1].config.code.source,{kind:'file',path:'__pupu_code__/sha256/'+sha(author)+'.py'},'source path is not its content hash');
     // Graph must remain literal; only the managed source path changes with the GUI source edit.
     const expected=JSON.parse(JSON.stringify(seeded.resource.document));expected.nodes[1].config.code.source=saved.resource.document.nodes[1].config.code.source;assert.deepEqual(saved.resource.document,expected,'author prompt/node/id changed');
     await stop();page=await launch();const cold=await read(page);write('cold-resource.json',cold);assert.deepEqual(cold,saved,'cold read is not saved resource');
