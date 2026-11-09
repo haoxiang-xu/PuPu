@@ -530,8 +530,14 @@ describe("the Skeleton production entry across preload and main", () => {
     ).not.toHaveBeenCalled();
   });
 
-  test("a Legacy Recipe chat keeps the composer's own model and asks for no fence", async () => {
-    const chain = await createChain();
+  test("an unupgraded Legacy Recipe queries without a Skeleton fence and keeps the composer's model", async () => {
+    const chain = await createChain({
+      answer: () =>
+        jsonResponse({
+          schema: "pupu.skeleton_credential_requirements.v1",
+          kind: "not_skeleton",
+        }),
+    });
     await chain.send({
       message: "run the Recipe",
       threadId: CHAT_ID,
@@ -546,9 +552,24 @@ describe("the Skeleton production entry across preload and main", () => {
       },
     });
 
-    expect(chain.outbound.map((row) => row.path)).toEqual(["/chat/stream/v4"]);
+    expect(chain.outbound.map((row) => row.path)).toEqual([
+      "/skeleton_credentials/requirements",
+      "/chat/stream/v4",
+    ]);
+    expect(discovery(chain)[0].body).toEqual({
+      schema: "pupu.skeleton_credential_query.v1",
+      mode: "start",
+      session_id: CHAT_ID,
+      owner_chat_id: CHAT_ID,
+      interaction_id: "",
+      source_attempt_id: "",
+      selection: null,
+      recipe_name: "Research Agent",
+      memory_agent_config: null,
+    });
     const options = streams(chain)[0].body.options;
     expect(options.recipe_name).toBe("Research Agent");
+    expect(options.modelId).toBe("openai:gpt-5.2");
     expect(options).not.toHaveProperty("skeleton_credentials");
     expect(options).not.toHaveProperty("skeleton_credential_scope");
     /* The composer's key still arrives by the descriptor path it always used. */
