@@ -163,12 +163,14 @@ async function main(){
     const shell=await shellLocator.boundingBox();assert(shell);assert(Math.abs(shell.width-(expected+2))<2,'actual bordered bound mismatch');return {...shell,frame,expected_css_width:expected};
   }
   async function panelCell(page,node,panel,theme,bound){
-    await selectNode(page,node);await expect(page.getByTestId(panel)).toBeVisible();const shell=await width(page,bound);
+    await selectNode(page,node);await expect(page.getByTestId(panel)).toBeVisible();
+    if(panel==='hooks-pool-section'){const edit=page.getByTestId('hook-row-0').getByRole('button',{name:text(locale,'agents.hooks.edit_hook').replace('{index}','1'),exact:true});if(await edit.isVisible().catch(()=>false))await edit.click();await expect(page.getByTestId('hook-0-editor')).toBeVisible();}
+    const shell=await width(page,bound);
     const label=[panel,locale,theme,bound].join('-');await shot(page,label);
     const geometry=await page.getByTestId('recipe-detail-panel').evaluate(el=>({scrollWidth:el.scrollWidth,clientWidth:el.clientWidth,text:el.innerText,controls:[...el.querySelectorAll('button,input,textarea,[role=combobox]')].map(e=>{const r=e.getBoundingClientRect();return {tag:e.tagName,text:e.textContent,aria:e.getAttribute('aria-label'),width:r.width,height:r.height,visible:r.width>0&&r.height>0};})}));
     assert(geometry.clientWidth>0);assert(geometry.controls.some(c=>c.visible));
     // Overflow is evidence, never hidden by a QA CSS override. Code textareas may scroll by design.
-    const clipping=await page.getByTestId('recipe-detail-panel').evaluate(root=>{const panel=root.getBoundingClientRect();const bad=[];for(const e of root.querySelectorAll('button,[role=combobox],label,h1,h2,h3,h4')){const r=e.getBoundingClientRect();if(!r.width||!r.height||r.bottom<panel.top||r.top>panel.bottom)continue;const style=getComputedStyle(e);if(r.left<panel.left-2||r.right>panel.right+2||((e.scrollWidth>e.clientWidth+2)&&style.textOverflow!=='ellipsis'))bad.push({text:e.textContent,aria:e.getAttribute('aria-label'),scrollWidth:e.scrollWidth,clientWidth:e.clientWidth,left:r.left,right:r.right});}return bad;});
+    const clipping=await page.getByTestId('recipe-detail-panel').evaluate(root=>{const panel=root.getBoundingClientRect();const bad=[];for(const e of root.querySelectorAll('button,[role=combobox],label,h1,h2,h3,h4')){const r=e.getBoundingClientRect();if(!r.width||!r.height)continue;const style=getComputedStyle(e);if(r.left<panel.left-2||r.right>panel.right+2||((e.scrollWidth>e.clientWidth+2)&&style.textOverflow!=='ellipsis'))bad.push({text:e.textContent,aria:e.getAttribute('aria-label'),scrollWidth:e.scrollWidth,clientWidth:e.clientWidth,left:r.left,right:r.right});}return bad;});
     write(label+'-clipping.json',clipping);assert.deepEqual(clipping,[],'translated visible controls clip horizontally');cells.push({panel,node,locale,theme,bound,shell,geometry,screenshot:label+'.png',aria:label+'.aria.txt'});write('cells.json',cells);
   }
   try{

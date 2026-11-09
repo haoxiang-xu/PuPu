@@ -126,25 +126,54 @@
         "config": {
           "hooks": [
             {
-              "event": "after_tool_call",
-              "force_approval": false,
-              "id": "audit",
-              "order": 20,
-              "tool_name": "read",
-              "workflow": {
-                "revision_id": "rev-1-36974132bbdd12ee",
-                "workflow_id": "wf-hook-replace"
-              }
-            },
-            {
+              "id": "AUTHOR-hook-id",
+              "order": 1,
               "event": "before_tool_call",
+              "tool_name": [
+                "read",
+                "write"
+              ],
+              "enabled": true,
               "force_approval": true,
-              "id": "guard",
-              "order": 10,
-              "tool_name": null,
               "workflow": {
-                "revision_id": "rev-1-79014cc892fd6640",
-                "workflow_id": "wf-hook-continue"
+                "kind": "embedded",
+                "document": {
+                  "schema_version": 1,
+                  "kind": "workflow",
+                  "id": "qa212-hook-workflow",
+                  "name": "AUTHOR Hook Workflow 中文 résumé",
+                  "nodes": [
+                    {
+                      "id": "start",
+                      "type": "start",
+                      "config": {
+                        "execution": {
+                          "outputs": []
+                        }
+                      }
+                    },
+                    {
+                      "id": "end",
+                      "type": "end",
+                      "config": {
+                        "execution": {
+                          "inputs": [],
+                          "outputs": []
+                        }
+                      }
+                    }
+                  ],
+                  "edges": [
+                    {
+                      "id": "flow-start-end",
+                      "kind": "flow",
+                      "source_node_id": "start",
+                      "source_port_id": "out",
+                      "target_node_id": "end",
+                      "target_port_id": "in"
+                    }
+                  ]
+                }
               }
             }
           ]
@@ -269,6 +298,14 @@
         "source_port_id": "out",
         "target_node_id": "end",
         "target_port_id": "in"
+      },
+      {
+        "id": "attach-agent-hooks",
+        "kind": "attach",
+        "source_node_id": "qa212-agent",
+        "source_port_id": "attach_bot",
+        "target_node_id": "qa212-hooks_pool",
+        "target_port_id": "attach_top"
       }
     ]
   },
