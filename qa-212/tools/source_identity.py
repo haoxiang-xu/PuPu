@@ -1,7 +1,7 @@
 """Bind source-map sourcesContent and direct Electron code to candidate source."""
 import hashlib,json,sys,subprocess
 from pathlib import Path
-repo,out=map(Path,sys.argv[1:]);matched=[]
+repo,out=map(Path,sys.argv[1:]);matched=[];transformed=[]
 for mapping in (repo/'build').rglob('*.map'):
  m=json.loads(mapping.read_text())
  for name,content in zip(m.get('sources',[]),m.get('sourcesContent',[])):
@@ -13,7 +13,15 @@ for mapping in (repo/'build').rglob('*.map'):
   options=[repo/clean,repo/'src'/clean]
   target=next((p for p in options if p.is_file() and 'node_modules' not in p.parts),None)
   if target is None:continue
+  if target.suffix not in ['.js','.jsx']:
+   relative=str(target.relative_to(repo))
+   unchanged=subprocess.check_output(['git','-C',str(repo),'diff','--name-only','d5d75094a5788a17b432d284dbffbb5b10ccab24','HEAD','--',relative],text=True)
+   assert not unchanged, 'changed transformed non-JS source needs explicit binding '+relative
+   transformed.append({'source':relative,'source_sha256':hashlib.sha256(target.read_bytes()).hexdigest(),'mapped_sha256':hashlib.sha256(content.encode()).hexdigest(),'reason':'unchanged non-JS source handled by Webpack loaders; not claimed byte-identical sourcesContent'})
+   continue
   assert target.read_text()==content,str(target)
+  committed=subprocess.check_output(['git','-C',str(repo),'show','HEAD:'+str(target.relative_to(repo))])
+  assert committed==target.read_bytes(), 'build changed committed renderer source '+str(target)
   matched.append({'source':str(target.relative_to(repo)),'sha256':hashlib.sha256(content.encode()).hexdigest(),'map':str(mapping.relative_to(repo))})
 required=set()
 exempt=json.loads((Path(__file__).parent/'unbundled-owned-components.json').read_text())['paths']
@@ -37,14 +45,18 @@ for area in ['electron']:
   if not source.is_file() or 'tests' in source.parts:continue
   target=unpacked/source.relative_to(repo)
   assert target.is_file() and source.read_bytes()==target.read_bytes(), 'packaged direct-source mismatch '+str(source)
+  assert subprocess.check_output(['git','-C',str(repo),'show','HEAD:'+str(source.relative_to(repo))])==source.read_bytes(), 'build changed direct source '+str(source)
   matched.append({'source':str(source.relative_to(repo)),'sha256':hashlib.sha256(source.read_bytes()).hexdigest(),'direct':True})
 for name in ['public/electron.js','public/preload.js','src/SERVICEs/custom_provider_presets.json']:
  source=repo/name;target=unpacked/name
  assert target.is_file() and source.read_bytes()==target.read_bytes(), 'packaged entry source mismatch '+name
+ assert subprocess.check_output(['git','-C',str(repo),'show','HEAD:'+name])==source.read_bytes(), 'build changed entry source '+name
  matched.append({'source':name,'sha256':hashlib.sha256(source.read_bytes()).hexdigest(),'direct':True})
 assert any(x.get('direct') for x in matched)
+for locale in (repo/'src/locales').glob('*.json'):
+ assert subprocess.check_output(['git','-C',str(repo),'show','HEAD:'+str(locale.relative_to(repo))])==locale.read_bytes(), 'build changed locale input '+str(locale)
 subprocess.run(['node',str(Path(__file__).parent/'bind_catalogs.cjs'),str(repo),str(out/'catalog-bundle-identity.json')],check=True)
-(out/'source-identity.json').write_text(json.dumps({'matched':True,'source_count':len(matched),'sources':matched,'required':sorted(required),'not_required_unbundled_components':exempt,'catalog_identity':'catalog-bundle-identity.json'},indent=2)+'\n')
+(out/'source-identity.json').write_text(json.dumps({'matched':True,'source_count':len(matched),'sources':matched,'required':sorted(required),'not_required_unbundled_components':exempt,'catalog_identity':'catalog-bundle-identity.json','unchanged_loader_transforms':transformed},indent=2)+'\n')
 # Extracted source is not needed in evidence; avoid uploading full node_modules.
 import shutil
 shutil.rmtree(unpacked)
