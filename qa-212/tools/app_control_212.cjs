@@ -14,7 +14,8 @@ const write=(name,value)=>fs.writeFileSync(path.join(out,name),JSON.stringify(va
 const mark=(kind,action,data={})=>ledger.push({at_ns:process.hrtime.bigint().toString(),wall_ms:Date.now(),kind,action,...data});
 const sha=s=>crypto.createHash('sha256').update(s).digest('hex');
 const seed=JSON.parse(fs.readFileSync(path.join(__dirname,'seed.json')));
-const catalogs=Object.fromEntries(['en','zh-CN','de'].map(l=>[l,JSON.parse(fs.readFileSync(path.join(candidate,'src/locales',l+'.json')))]));
+const languageNames={'en':'English','zh-CN':'简体中文','zh-TW':'繁體中文','ja':'日本語','ko':'한국어','es':'Español','fr':'Français','de':'Deutsch','it':'Italiano','pt-BR':'Português (BR)','ru':'Русский'};
+const catalogs=Object.fromEntries(Object.keys(languageNames).map(l=>[l,JSON.parse(fs.readFileSync(path.join(candidate,'src/locales',l+'.json')))]));
 const text=(locale,key)=>key.split('.').reduce((o,k)=>o?.[k],catalogs[locale]);
 function processIdentity(pid) {
   try {
@@ -141,9 +142,9 @@ async function main(){
     // Settings opens on Appearance by default. The two Select controls are the native theme/language primitives.
     const settings=page.getByRole('dialog').filter({has:page.getByRole('button',{name:'Close settings',exact:true})});await expect(settings).toHaveCount(1);
     const combos=settings.getByRole('combobox');
-    const language=combos.filter({hasText:/English|简体中文|Deutsch/});await expect(language).toHaveCount(1);
+    const languageChoices=[];for(const combo of await combos.all())if(Object.values(languageNames).includes((await combo.textContent()).trim()))languageChoices.push(combo);assert.equal(languageChoices.length,1,'unique Settings language choice');const language=languageChoices[0];
     async function choose(combo,label){const listId=await combo.getAttribute('aria-controls');assert(listId);await combo.click();const list=page.locator('[id='+JSON.stringify(listId)+']');await expect(list).toHaveAttribute('role','listbox');await list.getByText(label,{exact:true}).click();}
-    await choose(language,{'en':'English','zh-CN':'简体中文','de':'Deutsch'}[nextLocale]);locale=nextLocale;
+    await choose(language,languageNames[nextLocale]);locale=nextLocale;
     const labels=['light','dark','system'].map(value=>text(locale,'appearance.theme_'+value));
     const themeChoices=[];for(const combo of await combos.all())if(labels.includes((await combo.textContent()).trim()))themeChoices.push(combo);assert.equal(themeChoices.length,1,'unique Settings theme choice');
     await choose(themeChoices[0],text(locale,'appearance.theme_'+theme));
@@ -204,6 +205,7 @@ async function main(){
       await selectNode(page,'score');const input=page.getByTestId('code-text-editor').getByRole('textbox');await appearance(page,input,next,theme);
       for(const [node,panel] of [['score','code-section'],['qa212-workflow_call','workflow-call-section'],['qa212-hooks_pool','hooks-pool-section']])for(const bound of ['min','max'])await panelCell(page,node,panel,theme,bound);
     }
+    for(const next of Object.keys(languageNames).filter(value=>!['en','zh-CN','de'].includes(value))){await selectNode(page,'score');await appearance(page,page.getByTestId('code-text-editor').getByRole('textbox'),next,'light');await panelCell(page,'qa212-hooks_pool','hooks-pool-section','light','min');}
     await selectNode(page,'score');assert.equal(await page.getByTestId('code-text-editor').getByRole('textbox').inputValue(),author);
     await width(page,'min');mark('save-start','one explicit GUI Save');await page.getByTestId('skeleton-control-center').getByRole('button',{name:text(locale,'agents.save.save'),exact:true}).click();
     const saved=await until(async()=>{const r=await read(page);return r.resource.edit_token!==seeded.resource.edit_token&&r.contents.some(c=>c.text===author)?r:null;});write('saved-resource.json',saved);mark('save-end','one explicit GUI Save');

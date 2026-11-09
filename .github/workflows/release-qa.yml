@@ -51,7 +51,7 @@ jobs:
       - uses: actions/checkout@v4
         with: { path: control, persist-credentials: false }
       - uses: actions/checkout@v4
-        with: { ref: "${{ inputs.candidate_sha }}", path: candidate, fetch-depth: 3, persist-credentials: false }
+        with: { ref: "${{ inputs.candidate_sha }}", path: candidate, fetch-depth: 4, persist-credentials: false }
       - name: Bind the candidate
         working-directory: candidate
         run: |

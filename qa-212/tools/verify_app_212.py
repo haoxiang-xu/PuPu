@@ -47,7 +47,7 @@ for p,wanted in zip(posts,[seed,saved]):
  need(p['response'] and p['response']['status']==200,'resource save HTTP failed')
  body=json.loads(p['response']['body']);need(body==wanted or body.get('data')==wanted,'HTTP save response does not bind authoritative resource')
 starts=[x for x in ledger if x['kind']=='locale-start'];ends=[x for x in ledger if x['kind']=='locale-end']
-need(len(starts)==len(ends)==9,'locale intervals missing or unpaired')
+need(len(starts)==len(ends)==17,'locale intervals missing or unpaired')
 for start,end in zip(starts,ends):
  need(start['wall_ms']<=end['wall_ms'] and int(start['at_ns'])<int(end['at_ns']),'locale interval order invalid')
  need(end['before']==end['after'],'locale operation silently saved resource')
@@ -69,6 +69,7 @@ for p in cold_gets:
  need(p['response'] and p['response']['status']==200 and json.loads(p['response']['body'])==cold,'cold HTTP body differs from saved authoritative resource')
 need(not any(p['method']=='POST' and any(s in p['path'] for s in ['/chat','/responses','/completions','/run']) for p in pairs),'offline unexpected model execution')
 cells=load('cells.json');wanted=set(itertools.product(['code-section','workflow-call-section','hooks-pool-section'],['en','zh-CN','de'],['light','dark'],['min','max']))
+wanted.update(('hooks-pool-section',locale,'light','min') for locale in ['zh-TW','ja','ko','es','fr','it','pt-BR','ru'])
 need(len(cells)==len(wanted) and {(x['panel'],x['locale'],x['theme'],x['bound']) for x in cells}==wanted,'matrix cells missing or repeated')
 for c in cells:
  clipping=json.loads((r/(Path(c['screenshot']).stem+'-clipping.json')).read_text())
