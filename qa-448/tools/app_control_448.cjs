@@ -95,7 +95,7 @@ async function main() {
     const logFd = fs.openSync(path.join(out, `app-${generation}.log`), 'a');
     const child = spawn(app, [`--remote-debugging-port=${debug}`, `--user-data-dir=${userData}`, '--password-store=gnome-libsecret'], {
       detached: true, env: { ...process.env, HOME: home, XDG_CONFIG_HOME: path.join(home, '.config'), XDG_DATA_HOME: path.join(home, '.local/share'),
-        XDG_CACHE_HOME: path.join(home, '.cache'), PUPU_E2E: '1', PUPU_COMPUTER_USE: '0', UNCHAIN_MODEL: 'environment-decoy-448', OLLAMA_HOST: 'http://127.0.0.1:18992' },
+        XDG_CACHE_HOME: path.join(home, '.cache'), PUPU_E2E: '1', PUPU_COMPUTER_USE: '0', UNCHAIN_MODEL: 'environment-decoy-448', OLLAMA_HOST: 'qa448-disabled://no-service' },
       stdio: ['ignore', logFd, logFd] });
     fs.closeSync(logFd);
     const owned = new Map();
