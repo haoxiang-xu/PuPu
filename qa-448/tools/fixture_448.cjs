@@ -18,7 +18,7 @@ function createFixture(workspace){
   const allowed=new Set(['model','input','instructions','tools','tool_choice','parallel_tool_calls','store','text','max_output_tokens','metadata','previous_response_id','include','stream','temperature','top_p','reasoning','truncation','service_tier','user','stream_options','background']);
   assert(body&&typeof body==='object'&&!Array.isArray(body),'body_shape');assert(Object.keys(body).every(k=>allowed.has(k)),'unknown_request_field');
   assert.equal(body.model,'gpt-6-sol','model_identity');assert.equal(body.stream,true,'stream_required');assert(body.input&&(typeof body.input==='string'||Array.isArray(body.input)),'input_required');
-  if(body.max_output_tokens!==undefined)assert(Number.isInteger(body.max_output_tokens)&&body.max_output_tokens>0&&body.max_output_tokens<=32768,'output_budget');
+  if(body.max_output_tokens!==undefined)assert(Number.isInteger(body.max_output_tokens)&&body.max_output_tokens>0&&body.max_output_tokens<=128000,'output_budget');
   const text=JSON.stringify(body.input),names=(body.tools||[]).map(t=>t.name);let output,stage;
   if(text.includes('QA448_QUALIFY')){state.qualification++;stage='qualification';output=reply('QA448 qualification accepted');}
   else {

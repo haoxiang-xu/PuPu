@@ -183,7 +183,12 @@ async function main() {
     await sendOnce({page,input,label,out,mark,sleep,write});
   }
   async function waitReply(page,text,label) {
-    await expect(page.getByText(text,{exact:true}).last()).toBeVisible({timeout:300000});
+    const deadline=Date.now()+300000;
+    while(!await page.getByText(text,{exact:true}).last().isVisible()){
+      const refused=wires.find(w=>w.error);if(refused)throw new Error(`FIXTURE_REFUSED: ${refused.error}`);
+      if(errors.length)throw new Error(`RENDERER_ERROR: ${errors[0]}`);
+      if(Date.now()>deadline)throw new Error(`REPLY_TIMEOUT: ${text}`);await sleep(100);
+    }
     const input=page.getByRole('textbox',{name:'Message PuPu...',exact:true});
     await until(async()=>await input.inputValue()==='',10000);
     const scope=await chatScope(page);assert.equal(scope.pending.status,'none');write(label,scope);chats.push(scope);return scope;
