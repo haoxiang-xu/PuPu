@@ -215,7 +215,19 @@ async function main(){
     await stop();mark('cold-start','new Main/sidecar same HOME');page=await launch();const cold=await read(page);write('cold-resource.json',cold);mark('cold-read','authoritative resource read after cold start');assert.deepEqual(cold,saved,'cold read is not saved resource');
     // Sidebar and Agents are translated; use real localized names on cold launch.
     await openSidebarIfNeeded(page);await page.getByRole('button',{name:text(locale,'side_menu.agents'),exact:true}).click();await page.getByTestId('agent-explorer').getByText(seed.document.name,{exact:true}).click();
-    await expect(page.getByTestId('skeleton-resource-page')).toBeVisible();const coldCard=page.getByTestId('skeleton-node-score').getByText('score',{exact:true});await expect(coldCard).toBeVisible();await coldCard.click();mark('ui','cold visible Code card pointer',{node:'score',locale});const coldCode=page.getByTestId('code-text-editor').getByRole('textbox');await expect(coldCode).toHaveValue(author);await expect(page.getByTestId('code-runtime').getByText(text(locale,'agents.execution.code.runtime'),{exact:true})).toBeVisible();await shot(page,'cold-author');
+    await expect(page.getByTestId('skeleton-resource-page')).toBeVisible();
+    // The persisted canvas viewport can put the title outside the modal's clipped
+    // content. The finder is the real UI route to it; leave the explorer input
+    // with trusted Tab first because the product deliberately keeps text-field
+    // Ctrl+F separate from canvas shortcuts. No focus(), force or DOM mutation.
+    const coldFocus=[];let coldShortcutReady=false;
+    for(let n=0;n<30;n++){
+      const active=await page.evaluate(()=>{const e=document.activeElement;return {tag:e?.tagName,editable:!!(e?.isContentEditable||e?.closest?.('[contenteditable]:not([contenteditable="false"])')),inside:!!e?.closest?.('[role=dialog]'),text:e?.textContent?.slice(0,120),aria:e?.getAttribute('aria-label')};});coldFocus.push(active);
+      if(active.inside&&!active.editable&&!['INPUT','TEXTAREA','SELECT'].includes(active.tag)){coldShortcutReady=true;break;}
+      await page.keyboard.press('Tab');
+    }
+    write('cold-finder-focus.json',coldFocus);assert(coldShortcutReady,'cold finder needs actual non-editable focus');
+    await selectNode(page,'score');mark('ui','cold real finder selection',{node:'score',locale});const coldCode=page.getByTestId('code-text-editor').getByRole('textbox');await expect(coldCode).toHaveValue(author);await expect(page.getByTestId('code-runtime').getByText(text(locale,'agents.execution.code.runtime'),{exact:true})).toBeVisible();await shot(page,'cold-author');
     write('layout-findings.json',cells.filter(cell=>cell.clipping.length).map(({panel,locale,theme,bound,clipping})=>({panel,locale,theme,bound,clipping})));assert.deepEqual(cells.filter(cell=>cell.clipping.length),[],'translated visible controls clip horizontally; full matrix retained');assert.deepEqual(errors,[]);assert.deepEqual(wires,[],'unexpected provider request');write('direct-result.json',{verdict:'RECORDED_NOT_VALIDATED',tree:process.env.QA_CANDIDATE_TREE,product_renderer_sandbox:false,model_requests:0,cells:cells.length,locale});
   }finally{
     if(current?.page)await shot(current.page,'last-window').catch(()=>{});await stop();
