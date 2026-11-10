@@ -9,7 +9,7 @@ name: "#212 packaged-App offline acceptance (QA only, non-delivery)"
 on:
   workflow_dispatch:
     inputs:
-      mode: { required: true, type: choice, default: "acceptance", options: ["acceptance", "package_only", "reuse"], description: "Build and seal exactly the fixed candidate; runtime acceptance uses this retained App in a later serial job" }
+      mode: { required: true, type: choice, default: "acceptance", options: ["acceptance", "package_only", "reuse", "timeout_diagnostic"], description: "Build and seal exactly the fixed candidate; runtime acceptance uses this retained App in a later serial job" }
       candidate_sha: { required: true, type: string }
       candidate_tree: { required: true, type: string }
       retained_app_run: { required: false, type: string, default: "", description: "Exact earlier #212 run containing 212-sealed-app; reuse only" }
@@ -228,3 +228,43 @@ jobs:
             !test-results/**/tmp/**
             !test-results/**/*.pcap
             !test-results/**/key.pem
+
+  timeout-diagnostic:
+    name: Unchanged shell-timeout A-B diagnostic only
+    if: ${{ inputs.mode == 'timeout_diagnostic' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with: { path: control, persist-credentials: false }
+      - uses: actions/checkout@v4
+        with: { ref: "d5d75094a5788a17b432d284dbffbb5b10ccab24", path: baseline, persist-credentials: false }
+      - uses: actions/checkout@v4
+        with: { ref: "6eb327c4641dfe176235c6c6d950f607ec426179", path: candidate, persist-credentials: false }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12.16" }
+      - uses: actions/download-artifact@v4
+        with: { name: unchain-release-artifact, run-id: "42723849005", path: wheel, github-token: "${{ github.token }}" }
+      - name: Install the unchanged CI environment and exact retained wheel
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p diagnostic-results
+          sha256sum wheel/*.whl > diagnostic-results/wheel.sha256
+          test "$(sha256sum wheel/*.whl | cut -d' ' -f1)" = d96cf9ac7774f05e4b7615348116ec61913a23c832dc10b1fe5433740fa54c22
+          python -m pip install --disable-pip-version-check -r candidate/unchain_runtime/server/requirements.txt pytest==9.2.0
+          python -m pip install --disable-pip-version-check --no-deps wheel/*.whl
+          python -m pip freeze > diagnostic-results/pip-freeze.txt
+          cp wheel/unchain-artifact.json diagnostic-results/
+      - name: Six strict unchanged test runs, serial and loopback-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          DIAG_PYTHON="$(command -v python)"
+          DIAG_UID="$(id -u)"
+          DIAG_GID="$(id -g)"
+          sudo unshare --net bash -c 'ip link set lo up; exec setpriv --reuid="$1" --regid="$2" --init-groups "$3" -I -B "$4" "$5" "$6" "$7"' _ "$DIAG_UID" "$DIAG_GID" "$DIAG_PYTHON" "$PWD/control/qa-212/tools/diagnose_timeout_212.py" "$PWD/baseline" "$PWD/candidate" "$PWD/diagnostic-results"
+      - name: Retain every diagnostic result, including failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with: { name: 212-shell-timeout-diagnostic, path: diagnostic-results/, if-no-files-found: error, retention-days: 30 }
