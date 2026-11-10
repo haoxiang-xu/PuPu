@@ -1,0 +1,176 @@
+{
+  "verdict": "PASS_BOUNDED_CHECK5",
+  "blockers": [],
+  "checks": {
+    "raw_seal_files": 232,
+    "matrix": {
+      "unique_cells": 44,
+      "representative_grid": 36,
+      "additional_all_locale_hooks": 8,
+      "clipping_empty": true,
+      "widths": [
+        302,
+        461
+      ]
+    },
+    "save_cold": {
+      "locale_intervals": 17,
+      "http_posts": 2,
+      "save_window_seconds": [
+        1794268262.43,
+        1794268262.884
+      ],
+      "save_http_at": 1794268262.58597,
+      "save_http_response_at": 1794268262.595305,
+      "author_sha256": "e3e055d0ea247d8c6a19d3578640972d3195ef1282813b59d07724337aef3b4e",
+      "saved_token": "edit-2-36430d5ce3199f07b7cb9427",
+      "cold_authoritative_gets": 1,
+      "cold_focus_trace": [
+        {
+          "tag": "BODY",
+          "editable": false,
+          "inside": false,
+          "text": "You need to enable JavaScript to run this app.PuPuWhat wo\n/COMMANDS · ↑↓ · ⏎УпорядочитьВыбрать модель...Agent: Default1C",
+          "aria": null
+        },
+        {
+          "tag": "BUTTON",
+          "editable": false,
+          "inside": true,
+          "text": "Агенты",
+          "aria": null
+        }
+      ],
+      "saved_equals_cold": true,
+      "request_document_equals_saved_materialized_document": true
+    },
+    "physical_store": {
+      "db_copy": "/Users/red/.codex/artifacts/ticket-212-start-20261108/final-app-review-01/db-copy/db-0-resources.sqlite3",
+      "resource_id": "qa212-native",
+      "draft_digest": "751f5052236bf56168b9b4581135361feeeccb07cd94f1e2cfb3c5026860ccd4",
+      "edit_revision": 2,
+      "edit_token": "edit-2-36430d5ce3199f07b7cb9427",
+      "code_content_digest": "36430d5ce3199f07b7cb942740092699d6698d56aca3ceeb335a664cd1632641",
+      "opened_original": false,
+      "immutable_copy": true
+    },
+    "processes": [
+      {
+        "generation": 1,
+        "main": {
+          "pid": 92,
+          "parent": 83,
+          "start_ticks": 13830,
+          "exe": "/home/runner/work/PuPu/PuPu/candidate/dist/linux-unpacked/pupu"
+        },
+        "sidecars": [
+          {
+            "pid": 151,
+            "parent": 92,
+            "start_ticks": 13964,
+            "exe": "/home/runner/work/PuPu/PuPu/candidate/dist/linux-unpacked/resources/unchain_runtime/dist/linux/unchain-server",
+            "sha256": "c91baa27f483ee861da1161b51cdd857282112589d31b6286342a2f86233f683"
+          },
+          {
+            "pid": 174,
+            "parent": 151,
+            "start_ticks": 14029,
+            "exe": "/home/runner/work/PuPu/PuPu/candidate/dist/linux-unpacked/resources/unchain_runtime/dist/linux/unchain-server",
+            "sha256": "c91baa27f483ee861da1161b51cdd857282112589d31b6286342a2f86233f683"
+          }
+        ],
+        "all_owned_dead": true,
+        "home": "/home/runner/work/PuPu/PuPu/test-results/runtime/home",
+        "profile": "/home/runner/work/PuPu/PuPu/test-results/runtime/home/profile",
+        "started_ns": "138303328464",
+        "stopped_ns": "406457762202"
+      },
+      {
+        "generation": 2,
+        "main": {
+          "pid": 381,
+          "parent": 83,
+          "start_ticks": 40645,
+          "exe": "/home/runner/work/PuPu/PuPu/candidate/dist/linux-unpacked/pupu"
+        },
+        "sidecars": [
+          {
+            "pid": 456,
+            "parent": 381,
+            "start_ticks": 40676,
+            "exe": "/home/runner/work/PuPu/PuPu/candidate/dist/linux-unpacked/resources/unchain_runtime/dist/linux/unchain-server",
+            "sha256": "c91baa27f483ee861da1161b51cdd857282112589d31b6286342a2f86233f683"
+          },
+          {
+            "pid": 469,
+            "parent": 456,
+            "start_ticks": 40743,
+            "exe": "/home/runner/work/PuPu/PuPu/candidate/dist/linux-unpacked/resources/unchain_runtime/dist/linux/unchain-server",
+            "sha256": "c91baa27f483ee861da1161b51cdd857282112589d31b6286342a2f86233f683"
+          }
+        ],
+        "all_owned_dead": true,
+        "home": "/home/runner/work/PuPu/PuPu/test-results/runtime/home",
+        "profile": "/home/runner/work/PuPu/PuPu/test-results/runtime/home/profile",
+        "started_ns": "406461275555",
+        "stopped_ns": "415319072377"
+      }
+    ],
+    "offline": {
+      "provider_requests": 0,
+      "renderer_errors": 0,
+      "external_routes": 0,
+      "packet_drops": 0
+    },
+    "binding": {
+      "candidate": {
+        "candidate": "6eb327c4641dfe176235c6c6d950f607ec426179",
+        "tree": "7793971f381a80031fe7a84b4d9b9afd522e416d"
+      },
+      "source_entries": 624,
+      "catalogs": 11,
+      "archive_sha256": "8eb7ce71cef74715e2a0facc130031c466ab03befff41fd87de9c58583db69a3",
+      "archive_files": 8470,
+      "archive_links": 1052,
+      "archive_rehash": "retained independent streaming rehash receipt; no duplicate heavy stream/extraction",
+      "wheel_sha256": "c1213803c1b3bb58f4fc78a03b1a00f80e001d63be00c4afae53ab4d972b12ec",
+      "manifest_digest": "sha256:c172bc02718aee771ddd4d247904f13cdaf003d3794148fd3ecd4d4e9a419e6b",
+      "sidecar_sha256": "c91baa27f483ee861da1161b51cdd857282112589d31b6286342a2f86233f683"
+    },
+    "qualification": {
+      "cases": 22,
+      "all_met": true,
+      "successful_controls": 2,
+      "rejected_corruptions": 20,
+      "not_reexecuted": true
+    },
+    "raw_seal_unchanged_after_review": true,
+    "qa16_driver_binding": {
+      "commit": "084c2992d4a31f33b3d34c8256faa2700244cf6d",
+      "tree": "74a8fe4e9c6c8a91053726dedaab74e02ecb9390",
+      "driver_sha256": "9e503ca722cfb064e03be42d3720f3213657935f12ae67168d29ee024bc87f8f",
+      "git_blob_equals_read_driver": true
+    }
+  },
+  "screenshots_viewed": [
+    "workflow-call-section-en-light-min.png",
+    "code-section-zh-CN-dark-max.png",
+    "hooks-pool-section-de-light-min.png",
+    "hooks-pool-section-ru-light-min.png",
+    "workflow-call-section-de-dark-max.png",
+    "hooks-pool-section-zh-CN-light-min.png",
+    "code-section-en-dark-max.png",
+    "cold-author.png"
+  ],
+  "visual_limits": "Russian approval/source controls and cold textarea are below the captured viewport; their geometry/ARIA and successful exact-value assertion corroborate them. Screenshots do not establish byte identity.",
+  "disclosures": [
+    "Agents=true is a disclosed packaged QA feature flag.",
+    "Baseline renderer sandbox:false retained; Chromium sandbox artifact remains separately recorded.",
+    "Graph seeded through actual bridge; GUI actions/Save and store pipeline are real.",
+    "offline-python is unregistered; no code/model execution; raw backend diagnostics intentionally remain raw.",
+    "This supplies localization/Store end-to-end check5, not all-runtime/provider requalification.",
+    "Fresh CI42723849005 pending; no CI PASS or merge authorization."
+  ],
+  "operations": "Independent raw data reads, screenshots and immutable private DB copy only. No App/test/index/build/network/CI execution. Original artifact seal checked before; will recheck after.",
+  "review_correction": "An initial reviewer expectation that the GUI request retains the old managed-code path was incorrect. Actual request already has the new author-text SHA path and equals the saved document exactly; only that expected source-path substitution differs from seeded document. No product finding."
+}

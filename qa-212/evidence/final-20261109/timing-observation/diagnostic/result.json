@@ -1,0 +1,213 @@
+{
+  "classification": "BOUNDED_DIAGNOSTIC_NOT_ACCEPTANCE",
+  "rows": [
+    {
+      "label": "A-base",
+      "repeat": 1,
+      "returncode": 0,
+      "wrapper_returncode": 0,
+      "diagnostic_timeout": false,
+      "runner_cleanup_returned": true,
+      "wall_seconds": 3.002703330999992,
+      "child_cpu_seconds": 1.786288,
+      "parent_cpu_seconds": 0.0006622569999999994,
+      "log": "A-base-1.log",
+      "command": [
+        "/opt/hostedtoolcache/Python/3.12.16/x64/bin/python",
+        "-B",
+        "/home/runner/work/PuPu/PuPu/baseline/scripts/release-qa/run-python-tests.py",
+        "tests/test_vault_sink_worker.py::test_shell_timeout_starts_while_large_stdin_writer_is_blocked",
+        "-vv",
+        "--tb=short",
+        "--durations=1",
+        "-o",
+        "faulthandler_timeout=60",
+        "--junitxml",
+        "/home/runner/work/PuPu/PuPu/diagnostic-results/A-base-1.xml"
+      ],
+      "junit_cases": [
+        {
+          "name": "test_shell_timeout_starts_while_large_stdin_writer_is_blocked",
+          "time": "1.952",
+          "skipped": false,
+          "failed": false
+        }
+      ],
+      "exact_case_executed": true
+    },
+    {
+      "label": "B-candidate",
+      "repeat": 1,
+      "returncode": 0,
+      "wrapper_returncode": 0,
+      "diagnostic_timeout": false,
+      "runner_cleanup_returned": true,
+      "wall_seconds": 2.616747223999994,
+      "child_cpu_seconds": 1.5299909999999999,
+      "parent_cpu_seconds": 0.0007654810000000054,
+      "log": "B-candidate-1.log",
+      "command": [
+        "/opt/hostedtoolcache/Python/3.12.16/x64/bin/python",
+        "-B",
+        "/home/runner/work/PuPu/PuPu/candidate/scripts/release-qa/run-python-tests.py",
+        "tests/test_vault_sink_worker.py::test_shell_timeout_starts_while_large_stdin_writer_is_blocked",
+        "-vv",
+        "--tb=short",
+        "--durations=1",
+        "-o",
+        "faulthandler_timeout=60",
+        "--junitxml",
+        "/home/runner/work/PuPu/PuPu/diagnostic-results/B-candidate-1.xml"
+      ],
+      "junit_cases": [
+        {
+          "name": "test_shell_timeout_starts_while_large_stdin_writer_is_blocked",
+          "time": "1.977",
+          "skipped": false,
+          "failed": false
+        }
+      ],
+      "exact_case_executed": true
+    },
+    {
+      "label": "A-base",
+      "repeat": 2,
+      "returncode": 0,
+      "wrapper_returncode": 0,
+      "diagnostic_timeout": false,
+      "runner_cleanup_returned": true,
+      "wall_seconds": 2.5082244349999883,
+      "child_cpu_seconds": 1.4222169999999998,
+      "parent_cpu_seconds": 0.0007271169999999993,
+      "log": "A-base-2.log",
+      "command": [
+        "/opt/hostedtoolcache/Python/3.12.16/x64/bin/python",
+        "-B",
+        "/home/runner/work/PuPu/PuPu/baseline/scripts/release-qa/run-python-tests.py",
+        "tests/test_vault_sink_worker.py::test_shell_timeout_starts_while_large_stdin_writer_is_blocked",
+        "-vv",
+        "--tb=short",
+        "--durations=1",
+        "-o",
+        "faulthandler_timeout=60",
+        "--junitxml",
+        "/home/runner/work/PuPu/PuPu/diagnostic-results/A-base-2.xml"
+      ],
+      "junit_cases": [
+        {
+          "name": "test_shell_timeout_starts_while_large_stdin_writer_is_blocked",
+          "time": "1.964",
+          "skipped": false,
+          "failed": false
+        }
+      ],
+      "exact_case_executed": true
+    },
+    {
+      "label": "B-candidate",
+      "repeat": 2,
+      "returncode": 0,
+      "wrapper_returncode": 0,
+      "diagnostic_timeout": false,
+      "runner_cleanup_returned": true,
+      "wall_seconds": 2.527766406000012,
+      "child_cpu_seconds": 1.4413019999999999,
+      "parent_cpu_seconds": 0.0006945270000000003,
+      "log": "B-candidate-2.log",
+      "command": [
+        "/opt/hostedtoolcache/Python/3.12.16/x64/bin/python",
+        "-B",
+        "/home/runner/work/PuPu/PuPu/candidate/scripts/release-qa/run-python-tests.py",
+        "tests/test_vault_sink_worker.py::test_shell_timeout_starts_while_large_stdin_writer_is_blocked",
+        "-vv",
+        "--tb=short",
+        "--durations=1",
+        "-o",
+        "faulthandler_timeout=60",
+        "--junitxml",
+        "/home/runner/work/PuPu/PuPu/diagnostic-results/B-candidate-2.xml"
+      ],
+      "junit_cases": [
+        {
+          "name": "test_shell_timeout_starts_while_large_stdin_writer_is_blocked",
+          "time": "1.991",
+          "skipped": false,
+          "failed": false
+        }
+      ],
+      "exact_case_executed": true
+    },
+    {
+      "label": "A-base",
+      "repeat": 3,
+      "returncode": 0,
+      "wrapper_returncode": 0,
+      "diagnostic_timeout": false,
+      "runner_cleanup_returned": true,
+      "wall_seconds": 2.5426759710000084,
+      "child_cpu_seconds": 1.4568460000000008,
+      "parent_cpu_seconds": 0.0007263829999999971,
+      "log": "A-base-3.log",
+      "command": [
+        "/opt/hostedtoolcache/Python/3.12.16/x64/bin/python",
+        "-B",
+        "/home/runner/work/PuPu/PuPu/baseline/scripts/release-qa/run-python-tests.py",
+        "tests/test_vault_sink_worker.py::test_shell_timeout_starts_while_large_stdin_writer_is_blocked",
+        "-vv",
+        "--tb=short",
+        "--durations=1",
+        "-o",
+        "faulthandler_timeout=60",
+        "--junitxml",
+        "/home/runner/work/PuPu/PuPu/diagnostic-results/A-base-3.xml"
+      ],
+      "junit_cases": [
+        {
+          "name": "test_shell_timeout_starts_while_large_stdin_writer_is_blocked",
+          "time": "1.984",
+          "skipped": false,
+          "failed": false
+        }
+      ],
+      "exact_case_executed": true
+    },
+    {
+      "label": "B-candidate",
+      "repeat": 3,
+      "returncode": 0,
+      "wrapper_returncode": 0,
+      "diagnostic_timeout": false,
+      "runner_cleanup_returned": true,
+      "wall_seconds": 2.545917067000005,
+      "child_cpu_seconds": 1.4587279999999985,
+      "parent_cpu_seconds": 0.0007660099999999975,
+      "log": "B-candidate-3.log",
+      "command": [
+        "/opt/hostedtoolcache/Python/3.12.16/x64/bin/python",
+        "-B",
+        "/home/runner/work/PuPu/PuPu/candidate/scripts/release-qa/run-python-tests.py",
+        "tests/test_vault_sink_worker.py::test_shell_timeout_starts_while_large_stdin_writer_is_blocked",
+        "-vv",
+        "--tb=short",
+        "--durations=1",
+        "-o",
+        "faulthandler_timeout=60",
+        "--junitxml",
+        "/home/runner/work/PuPu/PuPu/diagnostic-results/B-candidate-3.xml"
+      ],
+      "junit_cases": [
+        {
+          "name": "test_shell_timeout_starts_while_large_stdin_writer_is_blocked",
+          "time": "1.984",
+          "skipped": false,
+          "failed": false
+        }
+      ],
+      "exact_case_executed": true
+    }
+  ],
+  "complete": true,
+  "all_passed": true,
+  "no_threshold_change": true,
+  "full_suite_state_reproduced": false
+}

@@ -1,0 +1,10 @@
+{
+  "candidate": "6eb327c4641dfe176235c6c6d950f607ec426179",
+  "candidate_tree": "7793971f381a80031fe7a84b4d9b9afd522e416d",
+  "ci_virtual_merge": "794014c16527405f5d2fdc578e6462970bff72fc",
+  "ci_virtual_merge_tree": "7793971f381a80031fe7a84b4d9b9afd522e416d",
+  "parents": [
+    "d5d75094a5788a17b432d284dbffbb5b10ccab24",
+    "6eb327c4641dfe176235c6c6d950f607ec426179"
+  ]
+}

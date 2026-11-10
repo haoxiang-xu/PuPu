@@ -1,0 +1,16 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.16, pytest-9.2.0, pluggy-1.7.0 -- /opt/hostedtoolcache/Python/3.12.16/x64/bin/python
+cachedir: .pytest_cache
+rootdir: /home/runner/work/PuPu/PuPu/baseline/unchain_runtime/server
+plugins: anyio-4.16.0
+collecting ... collected 1 item
+
+tests/test_vault_sink_worker.py::test_shell_timeout_starts_while_large_stdin_writer_is_blocked PASSED [100%]
+
+- generated xml file: /home/runner/work/PuPu/PuPu/diagnostic-results/A-base-2.xml -
+============================= slowest 1 durations ==============================
+1.96s call     tests/test_vault_sink_worker.py::test_shell_timeout_starts_while_large_stdin_writer_is_blocked
+============================== 1 passed in 2.08s ===============================
+
+STDERR:
+[pupu-pytest-runner] {"event": "runner-start", "backend": "gil_safe", "diagnostic_seconds": 60.0, "execution_hard_limit_seconds": 3000.0}

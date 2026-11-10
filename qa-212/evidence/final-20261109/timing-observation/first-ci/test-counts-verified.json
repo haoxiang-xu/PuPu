@@ -1,0 +1,22 @@
+{
+  "frontend": {
+    "sha256": "840a4d7202c34a6d9b787e74a38a3b15f8fd431a1b710c4902ee5eb55e4333fe",
+    "summary": [
+      "Test Suites: 652 passed, 652 total",
+      "Tests:       5 skipped, 10236 passed, 10241 total"
+    ]
+  },
+  "electron": {
+    "sha256": "9445186bf62d0b1680dc63206961b8a8835e8c34c5f45210c6f644233a29f30d",
+    "summary": [
+      "Test Suites: 82 passed, 82 total",
+      "Tests:       5 skipped, 1352 passed, 1357 total"
+    ]
+  },
+  "python": {
+    "sha256": "262ddb49863f01ed761ca3f4a82ddc0e8dee681ea8b7fd287d8181529c3da77e",
+    "summary": [
+      "= 1 failed, 4146 passed, 18 skipped, 1 warning, 3811 subtests passed in 2965.57s (0:49:25) ="
+    ]
+  }
+}

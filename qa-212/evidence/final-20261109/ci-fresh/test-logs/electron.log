@@ -1,0 +1,95 @@
+
+> PuPu@0.1.13 test:electron
+> node node_modules/.bin/jest --env=node --runInBand --silent --moduleFileExtensions js --moduleFileExtensions cjs --moduleFileExtensions json --testMatch="**/electron/tests/**/*.test.cjs" --detectOpenHandles
+
+PASS electron/tests/main/unchain_service.test.cjs
+PASS electron/tests/main/context_v2_service.test.cjs
+PASS electron/tests/main/settings_storage_service.test.cjs
+PASS electron/tests/main/memory_vault_service.test.cjs
+PASS electron/tests/main/settings_storage_provider_credentials.test.cjs
+PASS electron/tests/preload/api_contract.test.cjs
+PASS electron/tests/main/memory_vault_use_state.test.cjs
+PASS electron/tests/main/settings_storage_handlers.test.cjs
+PASS electron/tests/main/memory_vault_sink_executor.test.cjs
+PASS electron/tests/main/memory_v2_startup_readiness.test.cjs
+PASS electron/tests/main/chat_deletion_outbox.test.cjs
+PASS electron/tests/main/ipc_channels.test.cjs
+PASS electron/tests/main/chat_storage_service.test.cjs
+PASS electron/tests/main/settings_storage_toolkit_prefs.test.cjs
+PASS electron/tests/main/settings_storage_token_usage.test.cjs
+PASS electron/tests/main/unchain_provider_secret_byte_equivalence.test.cjs
+PASS electron/tests/main/skeleton_credential_stream.test.cjs
+PASS electron/tests/main/settings_storage_provider_credentials_migration.test.cjs
+PASS electron/tests/main/skill_repo_download.test.cjs
+PASS electron/tests/main/settings_storage_mcp_icons.test.cjs
+PASS electron/tests/main/skeleton_production_entry_integration.test.cjs
+PASS electron/tests/main/memory_v2_rollout.test.cjs
+PASS electron/tests/preload/settings_storage_bridge.test.cjs
+PASS electron/tests/main/memory_vault_startup_assembly.test.cjs
+PASS electron/tests/main/skeleton_credentials.test.cjs
+PASS electron/tests/main/provider_secret_redline_ledger.test.cjs
+PASS electron/tests/main/settings_storage_computer_use.test.cjs
+PASS electron/tests/main/skeleton_run_observation.test.cjs
+PASS electron/tests/shared/run_bundle_v1.test.cjs
+PASS electron/tests/main/skeleton_credential_identity.test.cjs
+PASS electron/tests/preload/unchain_stream_client.test.cjs
+PASS electron/tests/main/main_window.test.cjs
+PASS electron/tests/main/boot_readiness_service.test.cjs
+PASS electron/tests/main/session_guard_migration.test.cjs
+PASS electron/tests/main/memory_vault_unchain_bridge.test.cjs
+PASS electron/tests/main/legacy_upgrade.test.cjs
+PASS electron/tests/main/skeleton_chat_selection_transport.test.cjs
+PASS electron/tests/main/run_bundle_storage_service.test.cjs
+PASS electron/tests/main/skeleton_credential_v4_required_identity.test.cjs
+PASS electron/tests/main/memory_vault_worker_entrypoint.test.cjs
+PASS electron/tests/preload/context_v2_bridge.test.cjs
+PASS electron/tests/main/settings_quit_coordinator.test.cjs
+PASS electron/tests/main/managed_code_service.test.cjs
+PASS electron/tests/main/memory_vault_handlers.test.cjs
+PASS electron/tests/main/runtime_service.test.cjs
+PASS electron/tests/main/managed_transfer.test.cjs
+PASS electron/tests/main/chat_storage_handlers.test.cjs
+PASS electron/tests/main/memory_vault_sink_broker.test.cjs
+PASS electron/tests/main/skeleton_resource_service.test.cjs
+PASS electron/tests/main/skeleton_credential_registry.test.cjs
+PASS electron/tests/main/windows_vault_capability.test.cjs
+PASS electron/tests/test-api/integration.test.cjs
+PASS electron/tests/preload/skeleton_resource_bridge.test.cjs
+PASS electron/tests/preload/chat_storage_bridge.test.cjs
+[test-api] listening on http://127.0.0.1:40549
+[test-api] listening on http://127.0.0.1:33451
+ticket-370-main-probe
+[test-api] listening on http://127.0.0.1:39335
+PASS electron/tests/preload/memory_vault_bridge.test.cjs
+PASS electron/tests/test-api/builtin_commands.test.cjs
+PASS electron/tests/test-api/server.test.cjs
+PASS electron/tests/main/windows_vault_provenance.test.cjs
+PASS electron/tests/main/settings_storage_model_provider_registry.test.cjs
+PASS electron/tests/main/dev_installed_runtime.test.cjs
+PASS electron/tests/main/windows_vault_development.test.cjs
+PASS electron/tests/main/ollama_service.test.cjs
+PASS electron/tests/main/skeleton_resource_errors.test.cjs
+PASS electron/tests/main/update_service.test.cjs
+PASS electron/tests/main/skeleton_kernel_auth.test.cjs
+PASS electron/tests/main/windows_vault_supervisor_probe.test.cjs
+PASS electron/tests/preload/legacy_upgrade_bridge.test.cjs
+PASS electron/tests/test-api/commands.test.cjs
+PASS electron/tests/main/managed_code_transport.test.cjs
+PASS electron/tests/test-api/bridge.test.cjs
+PASS electron/tests/shared/run_bundle_v2.test.cjs
+PASS electron/tests/test-api/logs.test.cjs
+PASS electron/tests/main/legacy_chat.test.cjs
+PASS electron/tests/preload/run_bundle_storage_bridge.test.cjs
+PASS electron/tests/main/run_bundle_storage_handlers.test.cjs
+PASS electron/tests/main/managed_hook_sources.test.cjs
+PASS electron/tests/main/skeleton_workflow_tool_capabilities.test.cjs
+PASS electron/tests/main/chat_storage_lifecycle.test.cjs
+PASS electron/tests/main/skeleton_hook_tool_set_capabilities.test.cjs
+PASS electron/tests/main/skeleton_hook_capabilities.test.cjs
+PASS electron/tests/main/skeleton_hook_workflow_capabilities.test.cjs
+PASS electron/tests/main/managed_code_credentials.test.cjs
+
+Test Suites: 82 passed, 82 total
+Tests:       5 skipped, 1352 passed, 1357 total
+Snapshots:   0 total
+Time:        18.088 s

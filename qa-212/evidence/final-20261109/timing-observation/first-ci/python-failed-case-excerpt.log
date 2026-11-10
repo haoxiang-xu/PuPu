@@ -1,0 +1,5 @@
+=================================== FAILURES ===================================
+________ test_shell_timeout_starts_while_large_stdin_writer_is_blocked _________
+tests/test_vault_sink_worker.py:487: in test_shell_timeout_starts_while_large_stdin_writer_is_blocked
+    assert elapsed < 4.0
+E   assert 4.00015675800023 < 4.0

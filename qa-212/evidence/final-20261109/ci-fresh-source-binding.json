@@ -1,0 +1,14 @@
+{
+  "candidate": "6eb327c4641dfe176235c6c6d950f607ec426179",
+  "tree": "7793971f381a80031fe7a84b4d9b9afd522e416d",
+  "fresh_ci_source_sha": "6eb327c4641dfe176235c6c6d950f607ec426179",
+  "fresh_ci_event": "workflow_dispatch",
+  "source_ref": "refs/heads/codex/ticket-212-agents-i18n",
+  "base": "d5d75094a5788a17b432d284dbffbb5b10ccab24",
+  "unchain_ref": "2e455628b454ce225dd8e813e0ae33a85e56450a",
+  "qa_mode": "lite",
+  "qa_scope": "standard",
+  "analysis": false,
+  "prior_virtual_merge": "794014c16527405f5d2fdc578e6462970bff72fc",
+  "prior_virtual_tree": "7793971f381a80031fe7a84b4d9b9afd522e416d"
+}

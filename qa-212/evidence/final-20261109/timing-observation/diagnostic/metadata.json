@@ -1,0 +1,40 @@
+{
+  "python": "3.12.16 (main, Oct 26 2026, 02:48:44) [GCC 15.2.0]",
+  "platform": "Linux-7.0.0-1019-azure-x86_64-with-glibc2.43",
+  "cpu_model": "AMD EPYC 7763 64-Core Processor",
+  "cpu_count": 4,
+  "interfaces": [
+    "lo"
+  ],
+  "uid": 1001,
+  "identities": {
+    "A-base": {
+      "head": "d5d75094a5788a17b432d284dbffbb5b10ccab24",
+      "tree": "bbb26cc25b9f438df2a1b6ac3a9877736b26334c",
+      "sources": {
+        "unchain_runtime/server/tests/test_vault_sink_worker.py": "46aa4aa8dac27d8eea105707c23e51109f8968ee317e33ffa5c7a66fe0d360a2",
+        "unchain_runtime/server/vault_sink_worker.py": "aabf1b9b7f12c8f51bfa3497fda4479ba542443ff06b0a18267310392879de49",
+        "unchain_runtime/server/secret_redaction.py": "74229e4bc95b3e43f304c10565c76576404f684d5cba7fe3ab3288f104307cca",
+        "unchain_runtime/server/tests/conftest.py": "6db8c6cd3357ac7652311eec106f390d326bb5e43e059172672698a50c221757",
+        "unchain_runtime/server/requirements.txt": "0e86d4445bf23f9133b5e9943dafd4655d4357c38a78315572d327778be78582",
+        "scripts/release-qa/run-python-tests.py": "fcfd4a550caae925c3ef3bf143a0268afe9ac13a3f88bba61b766caf248ddf34"
+      }
+    },
+    "B-candidate": {
+      "head": "6eb327c4641dfe176235c6c6d950f607ec426179",
+      "tree": "7793971f381a80031fe7a84b4d9b9afd522e416d",
+      "sources": {
+        "unchain_runtime/server/tests/test_vault_sink_worker.py": "46aa4aa8dac27d8eea105707c23e51109f8968ee317e33ffa5c7a66fe0d360a2",
+        "unchain_runtime/server/vault_sink_worker.py": "aabf1b9b7f12c8f51bfa3497fda4479ba542443ff06b0a18267310392879de49",
+        "unchain_runtime/server/secret_redaction.py": "74229e4bc95b3e43f304c10565c76576404f684d5cba7fe3ab3288f104307cca",
+        "unchain_runtime/server/tests/conftest.py": "6db8c6cd3357ac7652311eec106f390d326bb5e43e059172672698a50c221757",
+        "unchain_runtime/server/requirements.txt": "0e86d4445bf23f9133b5e9943dafd4655d4357c38a78315572d327778be78582",
+        "scripts/release-qa/run-python-tests.py": "fcfd4a550caae925c3ef3bf143a0268afe9ac13a3f88bba61b766caf248ddf34"
+      }
+    }
+  },
+  "assertions_changed": false,
+  "test_target": "tests/test_vault_sink_worker.py::test_shell_timeout_starts_while_large_stdin_writer_is_blocked",
+  "order": "A B A B A B",
+  "full_suite_state_reproduced": false
+}

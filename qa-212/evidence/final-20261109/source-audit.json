@@ -1,0 +1,81 @@
+{
+  "verdict": "SOURCE_CHECKS_1_TO_4_BOUNDED",
+  "candidate": {
+    "head": "6eb327c4641dfe176235c6c6d950f607ec426179",
+    "tree": "7793971f381a80031fe7a84b4d9b9afd522e416d",
+    "base": "d5d75094a5788a17b432d284dbffbb5b10ccab24",
+    "patch_sha256": "6999de08cfe07c53b6710b8e6da7dd5c0e80fbf640f32a312307a74c24553724"
+  },
+  "blockers": [],
+  "checks": [
+    {
+      "check": 1,
+      "name": "i18n",
+      "verdict": "PASS_BOUNDED",
+      "evidence": "Retained full-repository final-i18n-audit-04: zero missing/orphan/placeholderMismatch/missingInEn; final immutable catalogs independently match English key sets and placeholder multiplicities. Original source ownership review plus exact incremental review chain.",
+      "limits": {
+        "dynamicCount": 95,
+        "apparentDeadKeys": 155,
+        "not_exhaustive_native_editorial": true
+      }
+    },
+    {
+      "check": 2,
+      "name": "UI primitives/theme/layers",
+      "verdict": "PASS_BOUNDED_STATIC",
+      "evidence": "Original review retained existing UI primitives/theme/style/layer values; the three subsequent component changes are the exact reviewed local wrapping/nonshrinking JSX styles. No new shared widget, provider, overlay, zIndex, palette or layout engine.",
+      "limits": "Final actual App layout and cold editor evidence not reviewed in this task; no runtime PASS."
+    },
+    {
+      "check": 3,
+      "name": "model × Builder",
+      "verdict": "N/A",
+      "reason": "Display-only localization and local wrapping; no model/provider/effort/selection capability, authored model value or admission rule change."
+    },
+    {
+      "check": 4,
+      "name": "ironclad static rules and boundaries",
+      "verdict": "PASS_BOUNDED",
+      "evidence": "All 140 baseline paths confined to Agents components/tests, locales and ticket plan. No electron/backend/IPC/SERVICEs/default-provider/shared widget/frozen predecessor file changes. Prior direct API, writer/identity/focus and dependency invariant reviews carry through 95 identical production blobs plus three style-only components; no product JS after layout commit. No new renderer IPC, direct localStorage writes, router/provider, schema or persistence contract found in the reviewed implementation.",
+      "limits": "No tests or graph rerun; graph HIGH/CRITICAL/UNKNOWN bounds retained, not waived."
+    }
+  ],
+  "review_chain": [
+    {
+      "path": "implementation-independent-review/result.json",
+      "sha256": "14ed2e57aa6557b5337f8ac088157da5d93dd890029deea14c6d854caf2d0585"
+    },
+    {
+      "path": "implementation-correction-review/result.json",
+      "sha256": "0adca94ef5fe9cedb128d19ef2ef7aec4fcd91433ac6ecdfa75fd9bf63c8b902"
+    },
+    {
+      "path": "layout-delta-independent-review.json",
+      "sha256": "a176012b089668eb06e239fcbeb1d8ad40e09e2fd4d4bed27ba34fecc647bcf2"
+    },
+    {
+      "path": "remaining-labels-independent-review.json",
+      "sha256": "ff66f9821f9af272716098dea4668d2540e8197f80ced77bca1b43b5e61cd588"
+    },
+    {
+      "path": "final-i18n-audit-04.json",
+      "sha256": "378abbc30a2c45e8f0b1d0e6bd2b134fefb3a418a9a08affd5397ce5f3516551"
+    },
+    {
+      "path": "layout-semantic-invariant-02.json",
+      "sha256": "782d8ccc76e0531f2e20b919b0934ef79267ae2cceb46d7793ca56fffce25af8"
+    }
+  ],
+  "original_findings": {
+    "IR-01": "resolved in correction snapshot; retained in final",
+    "IR-02": "resolved in correction snapshot; retained in final",
+    "IR-03": "resolved in correction snapshot; retained in final",
+    "IR-04": "resolved in correction snapshot; retained in final"
+  },
+  "residual_review": "86876f9→6142ec1 six-locale every_tool/tool_set abbreviations read directly: all/one/set distinctions preserved, no placeholder/raw mode changes. 6142ec1→final matches prior eight-locale ten-caption review plus plan-only notes. Correction→e7d2d16 one test awaits a resolved Promise; no production delta.",
+  "overall_audit": "INCOMPLETE",
+  "check5": "PENDING exact-candidate final App evidence review",
+  "fresh_required_ci": "PENDING",
+  "merge_authorization": false,
+  "operations": "Read-only Git blobs/diffs and evidence; lightweight JSON binding; no tests/index/build/App/network/CI/product writes."
+}

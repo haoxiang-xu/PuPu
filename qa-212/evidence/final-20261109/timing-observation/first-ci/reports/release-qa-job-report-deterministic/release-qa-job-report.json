@@ -1,0 +1,250 @@
+{
+  "schema_version": 2,
+  "kind": "job_report",
+  "mode": "lite",
+  "version": "0.1.13",
+  "git": {
+    "sha": "794014c16527405f5d2fdc578e6462970bff72fc",
+    "ref": "refs/pull/476/merge",
+    "ref_name": "476/merge",
+    "head_ref": "codex/ticket-212-agents-i18n",
+    "base_ref": "dev",
+    "run_id": "42723849005",
+    "worktree_fingerprint": ""
+  },
+  "unchain": {
+    "artifact_name": "unchain-0.2.0-py3-none-any.whl",
+    "artifact_sha256": "sha256:d96cf9ac7774f05e4b7615348116ec61913a23c832dc10b1fe5433740fa54c22",
+    "artifact_size_bytes": 1362792,
+    "runtime_manifest_digest": "sha256:c172bc02718aee771ddd4d247904f13cdaf003d3794148fd3ecd4d4e9a419e6b",
+    "runtime_manifest": {
+      "manifest_digest": "sha256:c172bc02718aee771ddd4d247904f13cdaf003d3794148fd3ecd4d4e9a419e6b",
+      "protocols": [
+        {
+          "features": [
+            "artifact_handoff",
+            "canonical_journal",
+            "chat_deletion_sqlite_scope_closure",
+            "context_compiler",
+            "context_content_paging_v1",
+            "context_content_paging_v2",
+            "context_content_read_recovery_v1",
+            "context_contribution_manifest_v1",
+            "durable_interaction_settlement_fence_v1",
+            "generation_rebase_live_interaction_cycles",
+            "graph_failure_terminals_v1",
+            "historical_evidence_guidance_v1",
+            "interaction_resolution_compat",
+            "long_term_promotion",
+            "memory_curator",
+            "memory_toolkit",
+            "memory_workspace",
+            "provider_context_limit_recovery_v1",
+            "small_tool_output_inline_v1",
+            "tool_output_management_v1"
+          ],
+          "id": "context_memory",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "features": [
+            "cancel_pending",
+            "expected_interaction_id_cas",
+            "fresh_run_lineage",
+            "graph_interaction_lineage_preflight_v1",
+            "host_controlled_resume",
+            "interaction_resolution_atomic_acceptance_v1"
+          ],
+          "id": "durable_interaction",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "features": [
+            "atomic_receipt_cas",
+            "auxiliary_calls",
+            "enforce_mode",
+            "graph_runs",
+            "memory_off",
+            "ollama_reasoning_preview_v1",
+            "provider_response_outcomes_v1",
+            "provider_uncertainty_diagnostics_v1",
+            "subagent_runs"
+          ],
+          "id": "provider_turn_ownership",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "features": [
+            "canonical_metrics",
+            "completion_diagnostics_ref",
+            "context_composition_ref_v1",
+            "continuation_claim",
+            "immutable_pricing_snapshot",
+            "provider_call_set_union",
+            "provider_call_usage_v1",
+            "run_bundle_v1",
+            "run_bundle_v2"
+          ],
+          "id": "run_bundle",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "features": [
+            "code_python_v1",
+            "draft_diagnostics_v1",
+            "durable_exclusive_dag_v2",
+            "end_only_root_completion_v1",
+            "explicit_bindings_v1",
+            "hook_embedded_workflow_v1",
+            "hook_enable_v1",
+            "hook_phase_receipts_v1",
+            "hook_tool_set_v1",
+            "kernel_profile_auth_v1",
+            "kernel_profiles_v1",
+            "legacy_conversion_v1",
+            "node_display_label_v1",
+            "non_llm_workflow_v1",
+            "pinned_workflow_calls_v1",
+            "production_host_bindings_v1",
+            "skill_read_v1",
+            "structured_output_v1",
+            "subagent_graphs_v1",
+            "subagent_native_observation_v1",
+            "subagent_tool_settlement_projection_v1",
+            "tool_call_v1"
+          ],
+          "id": "skeleton_execution",
+          "major": 1,
+          "minor": 8
+        },
+        {
+          "features": [
+            "active_skills_snapshot_v1",
+            "catalog_v1",
+            "skill_md_registry_v1",
+            "skill_tool_v1",
+            "toolkit_embedded_skills_v1",
+            "user_invocation_v1"
+          ],
+          "id": "skills",
+          "major": 1,
+          "minor": 0
+        }
+      ],
+      "runtime": "unchain",
+      "schema": "unchain.runtime_protocol_manifest.v1"
+    },
+    "source_repository": "haoxiang-xu/unchain",
+    "source_ref": "2e455628b454ce225dd8e813e0ae33a85e56450a",
+    "source_revision": "2e455628b454ce225dd8e813e0ae33a85e56450a",
+    "source_dirty": false
+  },
+  "platform": {
+    "name": "deterministic",
+    "os": "Linux",
+    "arch": "X64",
+    "command": ""
+  },
+  "checks": [
+    {
+      "name": "frontend tests",
+      "command": "npm run test:frontend -- --passWithNoTests",
+      "status": "passed",
+      "outcome": "success",
+      "details": ""
+    },
+    {
+      "name": "electron tests",
+      "command": "npm run test:electron -- --detectOpenHandles",
+      "status": "passed",
+      "outcome": "success",
+      "details": ""
+    },
+    {
+      "name": "python backend tests",
+      "command": "python ../../scripts/release-qa/run-python-tests.py tests/ -vv --tb=short --durations=25 -o faulthandler_timeout=60",
+      "status": "failed",
+      "outcome": "failure",
+      "details": ""
+    },
+    {
+      "name": "Unchain artifact continuity",
+      "command": "node scripts/release-qa/verify-unchain-artifact.mjs --installed true",
+      "status": "passed",
+      "outcome": "success",
+      "details": "",
+      "executed_tests": 2
+    },
+    {
+      "name": "Unchain runtime protocol manifest",
+      "command": "node scripts/release-qa/verify-unchain-artifact.mjs --installed true",
+      "status": "passed",
+      "outcome": "success",
+      "details": "",
+      "executed_tests": 2
+    },
+    {
+      "name": "Context V2 boundary contracts",
+      "command": "npm run test:context-v2-contract",
+      "status": "passed",
+      "outcome": "success",
+      "details": "",
+      "executed_tests": 59
+    },
+    {
+      "name": "RunBundle v1 boundary contracts",
+      "command": "npm run test:run-bundle-contract",
+      "status": "passed",
+      "outcome": "success",
+      "details": "",
+      "executed_tests": 152
+    },
+    {
+      "name": "web build and version check",
+      "command": "npm run build",
+      "status": "passed",
+      "outcome": "success",
+      "details": ""
+    },
+    {
+      "name": "MCP registry validation",
+      "command": "npm run validate:mcp",
+      "status": "passed",
+      "outcome": "success",
+      "details": ""
+    },
+    {
+      "name": "MCP bundled runtime build tests",
+      "command": "npm run test:mcp-runtime",
+      "status": "passed",
+      "outcome": "success",
+      "details": ""
+    },
+    {
+      "name": "release QA script tests",
+      "command": "npm run test:release-qa",
+      "status": "passed",
+      "outcome": "success",
+      "details": ""
+    },
+    {
+      "name": "third-party notice script tests",
+      "command": "npm run test:notices",
+      "status": "passed",
+      "outcome": "success",
+      "details": ""
+    }
+  ],
+  "artifacts": [],
+  "deterministic_result": {
+    "status": "failed",
+    "failed_count": 1,
+    "failed_checks": [
+      "python backend tests"
+    ]
+  }
+}

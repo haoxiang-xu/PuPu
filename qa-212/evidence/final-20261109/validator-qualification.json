@@ -1,0 +1,162 @@
+{
+  "verifier_sha256": "3edaf241bcb75e5315162376404e818071a74e4b01811027ea8c9d0c8a024344",
+  "baseline": "/Users/red/.codex/artifacts/ticket-212-start-20261108/app-42722882989",
+  "candidate": "/Users/red/Desktop/GITRepo/pupu-212",
+  "cases": [
+    {
+      "case": "baseline",
+      "expected_refusal": null,
+      "returncode": 0,
+      "last_stderr": "",
+      "met": true
+    },
+    {
+      "case": "benign-json-key-order",
+      "expected_refusal": null,
+      "returncode": 0,
+      "last_stderr": "",
+      "met": true
+    },
+    {
+      "case": "matrix-missing",
+      "expected_refusal": "matrix cells missing or repeated",
+      "returncode": 1,
+      "last_stderr": "AssertionError: matrix cells missing or repeated",
+      "met": true
+    },
+    {
+      "case": "matrix-duplicate",
+      "expected_refusal": "matrix cells missing or repeated",
+      "returncode": 1,
+      "last_stderr": "AssertionError: matrix cells missing or repeated",
+      "met": true
+    },
+    {
+      "case": "consistent-clipping",
+      "expected_refusal": "translated controls clip horizontally",
+      "returncode": 1,
+      "last_stderr": "AssertionError: translated controls clip horizontally",
+      "met": true
+    },
+    {
+      "case": "wrong-width",
+      "expected_refusal": "panel width does not match actual dragged bound",
+      "returncode": 1,
+      "last_stderr": "AssertionError: panel width does not match actual dragged bound",
+      "met": true
+    },
+    {
+      "case": "wrong-locale",
+      "expected_refusal": "cell localized text does not match the selected catalog",
+      "returncode": 1,
+      "last_stderr": "AssertionError: cell localized text does not match the selected catalog",
+      "met": true
+    },
+    {
+      "case": "coordinated-label-identity",
+      "expected_refusal": "cell label identity differs from required panel",
+      "returncode": 1,
+      "last_stderr": "AssertionError: cell label identity differs from required panel",
+      "met": true
+    },
+    {
+      "case": "provider-attempt",
+      "expected_refusal": "offline unexpected provider request",
+      "returncode": 1,
+      "last_stderr": "AssertionError: offline unexpected provider request",
+      "met": true
+    },
+    {
+      "case": "unexpected-resource-post",
+      "expected_refusal": "unexpected resource mutation route",
+      "returncode": 1,
+      "last_stderr": "AssertionError: unexpected resource mutation route",
+      "met": true
+    },
+    {
+      "case": "save-before-click",
+      "expected_refusal": "resource write is not the explicit GUI Save",
+      "returncode": 1,
+      "last_stderr": "AssertionError: resource write is not the explicit GUI Save",
+      "met": true
+    },
+    {
+      "case": "wrong-save-token",
+      "expected_refusal": "GUI Save did not use loaded token",
+      "returncode": 1,
+      "last_stderr": "AssertionError: GUI Save did not use loaded token",
+      "met": true
+    },
+    {
+      "case": "seed-text-drift",
+      "expected_refusal": "seed request differs from actual producer input",
+      "returncode": 1,
+      "last_stderr": "AssertionError: seed request differs from actual producer input",
+      "met": true
+    },
+    {
+      "case": "cold-home-drift",
+      "expected_refusal": "cold read changed HOME or profile",
+      "returncode": 1,
+      "last_stderr": "AssertionError: cold read changed HOME or profile",
+      "met": true
+    },
+    {
+      "case": "locale-interval-missing",
+      "expected_refusal": "locale intervals missing or unpaired",
+      "returncode": 1,
+      "last_stderr": "AssertionError: locale intervals missing or unpaired",
+      "met": true
+    },
+    {
+      "case": "cold-http-stale",
+      "expected_refusal": "cold HTTP body differs from saved authoritative resource",
+      "returncode": 1,
+      "last_stderr": "AssertionError: cold HTTP body differs from saved authoritative resource",
+      "met": true
+    },
+    {
+      "case": "missing-canary",
+      "expected_refusal": "forbidden loopback request or missing canary",
+      "returncode": 1,
+      "last_stderr": "AssertionError: forbidden loopback request or missing canary",
+      "met": true
+    },
+    {
+      "case": "coordinated-tree-claim",
+      "expected_refusal": "candidate identity does not bind actual source checkout",
+      "returncode": 1,
+      "last_stderr": "AssertionError: candidate identity does not bind actual source checkout",
+      "met": true
+    },
+    {
+      "case": "empty-catalog-matches",
+      "expected_refusal": "complete catalog binding absent",
+      "returncode": 1,
+      "last_stderr": "AssertionError: complete catalog binding absent",
+      "met": true
+    },
+    {
+      "case": "waived-source-set",
+      "expected_refusal": "required source set differs from actual candidate diff",
+      "returncode": 1,
+      "last_stderr": "AssertionError: required source set differs from actual candidate diff",
+      "met": true
+    },
+    {
+      "case": "wrong-source-hash",
+      "expected_refusal": "App source hash mismatch",
+      "returncode": 1,
+      "last_stderr": "AssertionError: App source hash mismatch",
+      "met": true
+    },
+    {
+      "case": "wrong-sealed-file-count",
+      "expected_refusal": "sealed App file count mismatch",
+      "returncode": 1,
+      "last_stderr": "AssertionError: sealed App file count mismatch",
+      "met": true
+    }
+  ],
+  "all_met": true
+}
