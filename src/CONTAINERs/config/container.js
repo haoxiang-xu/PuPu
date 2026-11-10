@@ -14,6 +14,7 @@ import ArcSpinner from "../../BUILTIN_COMPONENTs/spinner/arc_spinner";
 import TitleBar from "../../BUILTIN_COMPONENTs/electron/title_bar";
 import SideMenu from "../../COMPONENTs/side-menu/side_menu";
 import InitSetupModal from "../../COMPONENTs/init-setup/init_setup_modal";
+import AgentsWorkspaceHost from "../../COMPONENTs/agents/agents_workspace_host";
 /* { Components } ------------------------------------------------------------------------------------------------------------ */
 
 /* { Contexts } -------------------------------------------------------------------------------------------------------------- */
@@ -434,6 +435,13 @@ const ConfigContainer = ({ children }) => {
   );
   const settingsPersistenceReadyRef = useRef(false);
 
+  /* Which surface fills the window: the chat, or the Agents workspace the
+     side menu drills into. Session-only on purpose — the app always opens on
+     the chat. `agentsSidebarSlot` is the element the side menu's Agents pane
+     hands over, so the workspace can render its agent list there. */
+  const [appMode, setAppMode] = useState("chat");
+  const [agentsSidebarSlot, setAgentsSidebarSlot] = useState(null);
+
   useEffect(() => {
     if (!settingsPersistenceReadyRef.current) {
       settingsPersistenceReadyRef.current = true;
@@ -475,8 +483,15 @@ const ConfigContainer = ({ children }) => {
   );
 
   const navigationValue = useMemo(
-    () => ({ onFragment, setOnFragment }),
-    [onFragment],
+    () => ({
+      onFragment,
+      setOnFragment,
+      appMode,
+      setAppMode,
+      agentsSidebarSlot,
+      setAgentsSidebarSlot,
+    }),
+    [onFragment, appMode, agentsSidebarSlot],
   );
 
   /* Legacy combined value — kept for backward compatibility.
@@ -548,7 +563,20 @@ const ConfigContainer = ({ children }) => {
                 bottom: 0,
               }}
             >
-              {children}
+              {/* The chat stays mounted under the Agents workspace, so a
+                  stream in flight and the draft in the input survive a trip
+                  to the builder and back. */}
+              <div
+                aria-hidden={appMode === "agents" ? true : undefined}
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  visibility: appMode === "agents" ? "hidden" : "visible",
+                }}
+              >
+                {children}
+              </div>
+              <AgentsWorkspaceHost />
             </div>
             <SideMenu />
             <InitSetupModal

@@ -79,6 +79,8 @@ export const AgentsModalContent = ({
   onSelectNode,
   fullscreen,
   topStripCenter = TOP_STRIP_CENTER,
+  explorerSlot = null,
+  explorerDocked = false,
   onClose,
 }) => {
   const { t } = useTranslation();
@@ -113,6 +115,8 @@ export const AgentsModalContent = ({
           onSelectNode={onSelectNode}
           fullscreen={fullscreen}
           topStripCenter={topStripCenter}
+          explorerSlot={explorerSlot}
+          explorerDocked={explorerDocked}
         />
       ) : (
         <div

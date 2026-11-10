@@ -47,19 +47,6 @@ jest.mock("../workspace/workspace_modal_content", () => ({
   },
 }));
 
-/* Not `{virtual: true}`: that option is for a module that does not exist, and
-   this one does. Declared virtual, the mock outlived this file — a later suite
-   in the same worker asking for the same real path got the real module instead
-   of its own mock, and `agents_modal.test.js` rendered the whole Builder.
-   Whether the two suites share a worker is luck, so the full run failed about
-   one time in seven. Reproduce with
-   `--runInBand --testPathPattern "(side_menu|agents_modal)"`. */
-jest.mock("../agents/agents_modal_content", () => ({
-  AgentsModalContent: () => {
-    throw new Promise(() => {});
-  },
-}));
-
 jest.mock("../../BUILTIN_COMPONENTs/icon/icon", () => () => (
   <span data-testid="icon" />
 ));
@@ -68,7 +55,7 @@ jest.mock("../../BUILTIN_COMPONENTs/explorer/explorer", () => () => (
   <div data-testid="explorer" />
 ));
 
-const renderSideMenu = () =>
+const renderSideMenu = (nav = {}) =>
   render(
     <ConfigContext.Provider
       value={{
@@ -76,6 +63,7 @@ const renderSideMenu = () =>
         onFragment: "side_menu",
         setOnFragment: jest.fn(),
         onThemeMode: "light_mode",
+        ...nav,
       }}
     >
       <LocaleContext.Provider value={{ locale: "en", setLocale: jest.fn() }}>
@@ -158,7 +146,12 @@ describe("SideMenu", () => {
   test("right-clicking the chats title opens the root context menu", () => {
     renderSideMenu();
 
-    fireEvent.contextMenu(screen.getByText("Chats"), {
+    /* "Chats" is also the Agents pane's way back; the section title is the
+       one that is not a button. */
+    const title = screen
+      .getAllByText("Chats")
+      .find((el) => !el.closest("button"));
+    fireEvent.contextMenu(title, {
       clientX: 48,
       clientY: 64,
     });
@@ -171,7 +164,6 @@ describe("SideMenu", () => {
     ["Settings", null],
     ["Plugins", null],
     ["Workspaces", null],
-    ["Agents", { enable_user_access_to_agents: true }],
   ])(
     "renders %s lazy loading spinner inside a single modal shell",
     async (label, featureFlags) => {
@@ -192,4 +184,51 @@ describe("SideMenu", () => {
       ]);
     },
   );
+
+  test("Agents drills the side menu into the Agents pane instead of opening a modal", () => {
+    writeFeatureFlags({ enable_user_access_to_agents: true });
+    const setAppMode = jest.fn();
+
+    renderSideMenu({ appMode: "chat", setAppMode });
+    fireEvent.click(screen.getByText("Agents"));
+
+    expect(setAppMode).toHaveBeenCalledWith("agents");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  test("the Agents pane hands its slot over and goes back to the chats", () => {
+    writeFeatureFlags({ enable_user_access_to_agents: true });
+    const setAppMode = jest.fn();
+    const setAgentsSidebarSlot = jest.fn();
+
+    renderSideMenu({ appMode: "agents", setAppMode, setAgentsSidebarSlot });
+
+    const slot = screen.getByTestId("side-menu-agents-slot");
+    expect(setAgentsSidebarSlot).toHaveBeenCalledWith(slot);
+    expect(screen.getByTestId("side-menu-panes").style.transform).toBe(
+      "translateX(-50%)",
+    );
+    /* The search field belongs to the chat pane, which is slid away. */
+    expect(slot.closest("[aria-hidden]")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Chats" }));
+    expect(setAppMode).toHaveBeenCalledWith("chat");
+  });
+
+  test("New chat from the Agents pane returns to the chat", () => {
+    const setAppMode = jest.fn();
+
+    renderSideMenu({ appMode: "agents", setAppMode });
+    fireEvent.click(screen.getByLabelText("New chat"));
+
+    expect(setAppMode).toHaveBeenCalledWith("chat");
+  });
+
+  test("losing both flags while in the Agents pane goes back to the chat", () => {
+    const setAppMode = jest.fn();
+
+    renderSideMenu({ appMode: "agents", setAppMode });
+
+    expect(setAppMode).toHaveBeenCalledWith("chat");
+  });
 });
