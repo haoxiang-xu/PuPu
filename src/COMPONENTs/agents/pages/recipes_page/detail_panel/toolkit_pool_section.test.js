@@ -20,29 +20,35 @@ const show = async (initial) => {
   return view;
 };
 const row = (i = 0) => screen.getByTestId(`native-toolkit-row-${i}`);
+const expand = (i = 0, name = "Core") => fireEvent.click(within(row(i)).getByRole("button", { name, exact: true }));
 beforeEach(() => { api.unchain.listToolModalCatalog = jest.fn().mockResolvedValue(capture.catalog); });
 
 test("adds exact native reference, selects all by null, and toggles merge explicitly", async () => {
   await show();
   fireEvent.click(screen.getByRole("button", { name: "Add Core" }));
   expect(latest.nodes[0].config).toEqual({ toolkits: [{ id: "core", enabled_tools: null }], merge_with_user_selected: false });
-  fireEvent.click(screen.getByRole("checkbox", { name: "Include chat-selected toolkits" }));
+  fireEvent.click(screen.getByRole("switch", { name: "Merge with user-selected" }));
   expect(latest.nodes[0].config.merge_with_user_selected).toBe(true);
   expect(api.unchain.listToolModalCatalog).toHaveBeenCalledWith({ strict: true });
 });
-test("all -> subset -> none -> all preserves the exact distinction", async () => {
+test("all -> subset -> all -> none preserves the exact distinction", async () => {
   await show({ toolkits: [{ id: "core", enabled_tools: null }], merge_with_user_selected: false });
+  const total = capture.catalog.toolkits[0].tools.length;
+  expect(within(row()).queryByRole("checkbox", { name: "read" })).not.toBeInTheDocument();
+  expand();
   fireEvent.click(within(row()).getByRole("checkbox", { name: "read" }));
   expect(latest.nodes[0].config.toolkits[0].enabled_tools).toEqual(capture.catalog.toolkits[0].tools.map((t) => t.name).filter((n) => n !== "read"));
-  fireEvent.click(within(row()).getByRole("button", { name: "Clear selection" }));
-  expect(latest.nodes[0].config.toolkits[0].enabled_tools).toEqual([]);
-  expect(within(row()).getByText("No tools selected.")).toBeInTheDocument();
-  fireEvent.click(within(row()).getByRole("button", { name: "All tools" }));
+  expect(screen.getByTestId("native-toolkit-count-0")).toHaveTextContent(`${total - 1}/${total}`);
+  fireEvent.click(within(row()).getByRole("button", { name: "All", exact: true }));
   expect(latest.nodes[0].config.toolkits[0].enabled_tools).toBeNull();
+  fireEvent.click(within(row()).getByRole("button", { name: "None", exact: true }));
+  expect(latest.nodes[0].config.toolkits[0].enabled_tools).toEqual([]);
+  expect(screen.getByTestId("native-toolkit-count-0")).toHaveTextContent(`0/${total}`);
 });
 test("unknown names and malformed selected values survive other edits and can be removed individually", async () => {
   const bad = { toString: null };
   await show({ toolkits: [{ id: "core", enabled_tools: ["gone", bad] }], merge_with_user_selected: false });
+  expand();
   fireEvent.click(within(row()).getByRole("checkbox", { name: "read" }));
   expect(latest.nodes[0].config.toolkits[0].enabled_tools).toEqual(["gone", bad, "read"]);
   fireEvent.click(within(row()).getByRole("button", { name: "Remove stored selection 2" }));
@@ -60,7 +66,7 @@ test("prototype IDs and unknown configuration fields are not coerced, normalized
   const initial = { toolkits: [{ id: "__proto__", enabled_tools: null }], merge_with_user_selected: false, future: { toString: null } };
   await show(initial);
   expect(within(row()).getByText("__proto__")).toBeInTheDocument();
-  fireEvent.click(screen.getByRole("checkbox", { name: "Include chat-selected toolkits" }));
+  fireEvent.click(screen.getByRole("switch", { name: "Merge with user-selected" }));
   expect(latest.nodes[0].config.future).toBe(initial.future);
   expect(latest.nodes[0].config.toolkits).toBe(initial.toolkits);
 });

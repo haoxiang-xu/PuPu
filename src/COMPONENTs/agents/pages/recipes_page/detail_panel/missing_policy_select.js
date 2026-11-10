@@ -1,6 +1,7 @@
 import React from "react";
 import Select from "../../../../../BUILTIN_COMPONENTs/select/select";
 import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
+import PanelHelp from "./panel_help";
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { safe_text } from "../document_values";
 import {
@@ -28,7 +29,7 @@ const CAPTION = {
   color: "#86868b",
 };
 
-export default function MissingPolicySelect({ binding, onChange, isDark }) {
+export default function MissingPolicySelect({ binding, onChange, isDark, labelWidth }) {
   const { t } = useTranslation();
   const labels = {
     error: t("agents.missing.error_label"),
@@ -65,7 +66,7 @@ export default function MissingPolicySelect({ binding, onChange, isDark }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <span style={{ ...CAPTION, flexShrink: 0 }}>{t("agents.missing.if_missing")}</span>
+        <span style={{ ...CAPTION, flexShrink: 0, ...(labelWidth === undefined ? {} : { width: labelWidth }) }}>{t("agents.missing.if_missing")}</span>
         <Select
           options={MISSING_POLICIES.map((policy) => ({
             value: policy.value,
@@ -74,7 +75,9 @@ export default function MissingPolicySelect({ binding, onChange, isDark }) {
           value={value}
           set_value={set_policy}
           filterable={false}
+          trigger_wrapper_style={labelWidth === undefined ? undefined : { flex: 1, minWidth: 0 }}
           style={{
+            ...(labelWidth === undefined ? {} : { justifyContent: "flex-start" }),
             flex: 1,
             minWidth: 0,
             fontSize: 11.5,
@@ -84,11 +87,14 @@ export default function MissingPolicySelect({ binding, onChange, isDark }) {
             gap: 4,
           }}
         />
+        {chosen && <PanelHelp label={t("agents.missing.if_missing")}>
+          <span data-testid="missing-policy-description">{descriptions[chosen.value]}</span>
+        </PanelHelp>}
       </div>
 
       {value === "default" && (
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ ...CAPTION, flexShrink: 0 }}>{t("agents.missing.default")}</span>
+          <span style={{ ...CAPTION, flexShrink: 0, ...(labelWidth === undefined ? {} : { width: labelWidth }) }}>{t("agents.missing.default")}</span>
           <Input
             value={typeof storedDefault === "string" ? storedDefault : ""}
             set_value={set_default}
@@ -116,11 +122,6 @@ export default function MissingPolicySelect({ binding, onChange, isDark }) {
         </span>
       )}
 
-      {chosen && (
-        <span data-testid="missing-policy-description" style={CAPTION}>
-          {descriptions[chosen.value]}
-        </span>
-      )}
     </div>
   );
 }

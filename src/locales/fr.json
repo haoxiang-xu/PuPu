@@ -546,6 +546,7 @@
     "workspaces": "Espaces",
     "settings": "Paramètres",
     "chats": "Chats",
+    "home": "Accueil",
     "no_chats_found": "Aucun chat trouvé",
     "models": "Modèles"
   },
@@ -2031,6 +2032,7 @@
         "write_here": "Écrire le code ici"
       },
       "kernel": {
+        "advanced": "Avancé",
         "and_when_the_window_fills": "et quand la fenêtre se remplit",
         "at_most": "Au plus",
         "auth_unsupported": "Le mode d’authentification n’est pas pris en charge pour ce fournisseur et ce protocole",
@@ -2061,6 +2063,7 @@
         "pending_count": "Un nombre entier supérieur ou égal à 1. Cette valeur n’a pas été stockée ; elle reste {stored}.",
         "pick_a_model": "Choisir un modèle",
         "positive_count_required": "{key} doit être un nombre entier supérieur ou égal à un",
+        "previous_model": "Auparavant : {model}",
         "profile_facts": "{protocol} · {endpoint} · fenêtre {window}",
         "prompt_must_be_text": "prompt doit être du texte",
         "prompt_placeholder": "Le rôle de cet Agent",
@@ -2239,6 +2242,12 @@
       "unreadable_source": "Source illisible"
     },
     "subagents": {
+      "field_mode": "Mode",
+      "field_reads": "Lit",
+      "field_memory": "Mémoire",
+      "field_parallel": "Parallèle",
+      "field_tools": "Outils",
+      "new_embedded_short": "+ Intégré",
       "label_agent_resource_id": "id de ressource d’Agent",
       "label_subagent_id": "id de sous-agent",
       "label_subagent_name": "nom de sous-agent",

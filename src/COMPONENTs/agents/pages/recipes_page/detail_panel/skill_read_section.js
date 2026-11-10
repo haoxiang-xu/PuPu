@@ -1,3 +1,4 @@
+import PanelHelp from "./panel_help";
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { agentEnglishText } from "../agents_i18n";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -173,7 +174,16 @@ export default function SkillReadSection({ document, node, isDark, onChange }) {
       <Divider isDark={isDark} />
 
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <span style={LABEL}>{t("agents.execution.skill.skill")}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <span style={LABEL}>{t("agents.execution.skill.skill")}</span>
+          <PanelHelp label={t("agents.execution.skill.skill")}>
+            <span style={NOTE}>
+              {includeUserDirs
+              ? t("agents.execution.skill.all_sources_note")
+              : t("agents.execution.skill.packs_only_note")}
+            {" "}{t("agents.execution.skill.project_sources_note")}</span>
+          </PanelHelp>
+        </div>
         <span data-testid="skill-read-picker">
           <Select
             options={options}
@@ -205,17 +215,18 @@ export default function SkillReadSection({ document, node, isDark, onChange }) {
             {t("agents.execution.skill.source_location", { location: "{location}", source: "{source}" }).split(/(\{location\}|\{source\})/g).map((part, index) => ({ __proto__: null, "{location}": (<span key={index} style={MONO}>{safe_text(identity.source_id)}</span>), "{source}": source_label(identity.source, t) }[part] || part))}
           </span>
         )}
-        <span style={NOTE}>
-          {includeUserDirs
-            ? t("agents.execution.skill.all_sources_note")
-            : t("agents.execution.skill.packs_only_note")}
-          {" "}{t("agents.execution.skill.project_sources_note")}</span>
+
       </div>
 
       {complete && (
         <div data-testid="skill-read-preview" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <div style={{ ...ROW, justifyContent: "space-between" }}>
-            <span style={LABEL}>{t("agents.execution.skill.preview")}</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <span style={LABEL}>{t("agents.execution.skill.preview")}</span>
+              <PanelHelp label={t("agents.execution.skill.preview")}>
+                <span style={NOTE}>{t("agents.execution.skill.preview_note")}</span>
+              </PanelHelp>
+            </div>
             {preview.status === "ready" && (
               <span data-testid="skill-read-preview-size" style={NOTE}>{size_text(preview.preview.bytes, t)}</span>
             )}
@@ -246,7 +257,7 @@ export default function SkillReadSection({ document, node, isDark, onChange }) {
               {preview.preview.body}
             </pre>
           )}
-          <span style={NOTE}>{t("agents.execution.skill.preview_note")}</span>
+
         </div>
       )}
 

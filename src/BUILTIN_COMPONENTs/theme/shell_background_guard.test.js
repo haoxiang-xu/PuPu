@@ -30,8 +30,9 @@ const SHELL_FILES = [
   "src/COMPONENTs/settings/settings_modal_content.js",
   "src/COMPONENTs/ui-testing/ui_testing_modal.js",
   "src/COMPONENTs/memory-inspect/memory_inspect_modal.js",
-  // F1 — agents modal card, missed in the P4 Task 1 sweep (2026-07-14)
-  "src/COMPONENTs/agents/agents_modal.js",
+  // F1 — agents modal card, missed in the P4 Task 1 sweep (2026-07-14);
+  // the modal became the Agents workspace beside the chat (2026-11-10)
+  "src/COMPONENTs/agents/agents_workspace.js",
   // P5 — plugins/toolkit UI (was an exclusion zone during the theme waves;
   // concurrent owner shipped, now enrolled) (2026-07-17)
   "src/COMPONENTs/toolkit/toolkit_modal.js",

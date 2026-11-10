@@ -546,6 +546,7 @@
     "workspaces": "워크스페이스",
     "settings": "설정",
     "chats": "채팅",
+    "home": "홈",
     "no_chats_found": "채팅을 찾을 수 없습니다",
     "models": "모델"
   },
@@ -2031,6 +2032,7 @@
         "write_here": "여기에 코드 작성"
       },
       "kernel": {
+        "advanced": "고급",
         "and_when_the_window_fills": "윈도가 가득 차면",
         "at_most": "최대",
         "auth_unsupported": "이 공급자 및 프로토콜에서는 해당 인증 모드를 지원하지 않습니다",
@@ -2061,6 +2063,7 @@
         "pending_count": "1 이상의 정수가 필요합니다. 이 입력은 저장하지 않았으며 값은 {stored}로 유지됩니다.",
         "pick_a_model": "모델 선택",
         "positive_count_required": "{key}은(는) 1 이상의 정수여야 합니다",
+        "previous_model": "이전 모델: {model}",
         "profile_facts": "{protocol} · {endpoint} · 윈도 {window}",
         "prompt_must_be_text": "prompt는 텍스트여야 합니다",
         "prompt_placeholder": "이 에이전트의 용도",
@@ -2239,6 +2242,12 @@
       "unreadable_source": "읽을 수 없는 소스"
     },
     "subagents": {
+      "field_mode": "호출 방식",
+      "field_reads": "읽는 내용",
+      "field_memory": "메모리",
+      "field_parallel": "병렬",
+      "field_tools": "도구",
+      "new_embedded_short": "+ 내장",
       "label_agent_resource_id": "에이전트 리소스 id",
       "label_subagent_id": "하위 에이전트 id",
       "label_subagent_name": "하위 에이전트 이름",

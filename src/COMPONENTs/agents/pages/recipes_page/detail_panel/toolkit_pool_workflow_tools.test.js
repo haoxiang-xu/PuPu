@@ -61,7 +61,7 @@ test("each write preserves current ordinary toolkit settings, other row fields a
   const one = { id: "first", workflow: ref(), future: { keep: true } };
   const two = { id: "second", workflow: ref() };
   await start({ initial: { ...base(), workflow_tools: [one, two] } });
-  fireEvent.click(screen.getByRole("checkbox", { name: "Include chat-selected toolkits" }));
+  fireEvent.click(screen.getByRole("switch", { name: "Merge with user-selected" }));
   fireEvent.change(within(row()).getByRole("textbox", { name: "Workflow tool id" }), { target: { value: "renamed" } });
   expect(latest.nodes[1].config.merge_with_user_selected).toBe(true);
   expect(latest.nodes[1].config.workflow_tools).toEqual([{ ...one, id: "renamed" }, two]);

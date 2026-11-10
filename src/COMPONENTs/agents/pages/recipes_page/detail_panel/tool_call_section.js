@@ -1,3 +1,4 @@
+import PanelHelp from "./panel_help";
 import { agentEnglishText } from "../agents_i18n";
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -145,6 +146,9 @@ export function ArgumentRow({ row, sources, toolName, editable, onSet, isDark })
           {row.name}
           {row.required && <span aria-label={t("agents.schema.required")} style={{ color: problem_style(isDark).color, marginLeft: 3 }}>*</span>}
         </span>
+        <PanelHelp label={row.name}>
+          {type_hint(row, t)}{row.description ? ` — ${row.description}` : ""}
+        </PanelHelp>
         <span data-testid={`${testid}-mode`} style={{ opacity: editable ? 1 : 0.5, pointerEvents: editable ? "auto" : "none" }}>
           <SegmentedButton
             options={[{ value: "value", label: t("agents.execution.tool.value_mode") }, { value: "variable", label: t("agents.execution.tool.variable_mode") }]}
@@ -200,10 +204,6 @@ export function ArgumentRow({ row, sources, toolName, editable, onSet, isDark })
           onChange={(next) => onSet(next)}
         />
       )}
-      <span style={NOTE}>
-        {type_hint(row, t)}
-        {row.description ? ` — ${row.description}` : ""}
-      </span>
       {binding && !row.required && editable && (
         <span>
           <Button
@@ -417,7 +417,14 @@ export default function ToolCallSection({ document, node, isDark, onChange }) {
       <Divider isDark={isDark} />
 
       <div data-testid="tool-call-on-error" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <span style={LABEL}>{t("agents.execution.tool.on_error")}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <span style={LABEL}>{t("agents.execution.tool.on_error")}</span>
+          <PanelHelp label={t("agents.execution.tool.on_error")}>
+            <span data-testid="tool-call-on-error-note" style={NOTE}>
+              {t("agents.execution.tool.error_contract", { ok: "{ok}", error: "{error}", denied: "{denied}", tool_error: "{tool_error}", result: "{result}", tool_failed: "{tool_failed}" }).split(/(\{ok\}|\{error\}|\{denied\}|\{tool_error\}|\{result\}|\{tool_failed\})/g).map((part, index) => ({ __proto__: null, "{ok}": (<span key={index} style={MONO}>ok</span>), "{error}": (<span key={index} style={MONO}>error</span>), "{denied}": (<span key={index} style={MONO}>denied</span>), "{tool_error}": (<span key={index} style={MONO}>tool_error</span>), "{result}": (<span key={index} style={MONO}>result</span>), "{tool_failed}": (<span key={index} style={MONO}>tool_failed</span>) }[part] || part))}
+            </span>
+          </PanelHelp>
+        </div>
         <span style={{ opacity: editable && name ? 1 : 0.5, pointerEvents: editable && name ? "auto" : "none" }}>
           <SegmentedButton
             options={ON_ERROR_CHOICES.map((choice) => ({ ...choice, label: choice.value === "stop" ? t("agents.execution.tool.fail_run") : t("agents.execution.tool.continue") }))}
@@ -431,13 +438,16 @@ export default function ToolCallSection({ document, node, isDark, onChange }) {
         {/* The runtime's own rule, measured (steps-352/qualify-a1/measure-results):
             a result object with `ok: false` or a non-null `error` is a failure,
             as is a denied approval; returned text never is, whatever it says. */}
-        <span data-testid="tool-call-on-error-note" style={NOTE}>
-          {t("agents.execution.tool.error_contract", { ok: "{ok}", error: "{error}", denied: "{denied}", tool_error: "{tool_error}", result: "{result}", tool_failed: "{tool_failed}" }).split(/(\{ok\}|\{error\}|\{denied\}|\{tool_error\}|\{result\}|\{tool_failed\})/g).map((part, index) => ({ __proto__: null, "{ok}": (<span key={index} style={MONO}>ok</span>), "{error}": (<span key={index} style={MONO}>error</span>), "{denied}": (<span key={index} style={MONO}>denied</span>), "{tool_error}": (<span key={index} style={MONO}>tool_error</span>), "{result}": (<span key={index} style={MONO}>result</span>), "{tool_failed}": (<span key={index} style={MONO}>tool_failed</span>) }[part] || part))}
-        </span>
+
       </div>
 
       <div data-testid="tool-call-approval" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <span style={LABEL}>{t("agents.execution.tool.approval_wait")}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <span style={LABEL}>{t("agents.execution.tool.approval_wait")}</span>
+          <PanelHelp label={t("agents.execution.tool.approval_wait")}>
+            <span style={NOTE}>{t("agents.execution.tool.approval_limit_note")}</span>
+          </PanelHelp>
+        </div>
         <div style={ROW}>
           <Input
             value={pendingSeconds.text !== null ? pendingSeconds.text : seconds === null ? "" : String(seconds)}
@@ -460,7 +470,7 @@ export default function ToolCallSection({ document, node, isDark, onChange }) {
         {pendingSeconds.text !== null && (
           <span data-testid="tool-call-approval-problem" style={problem_style(isDark)}>{t("agents.execution.tool.pending_approval_wait")}</span>
         )}
-        <span style={NOTE}>{t("agents.execution.tool.approval_limit_note")}</span>
+
       </div>
 
       {extras_keys.map((key) => (

@@ -1,4 +1,8 @@
 import { legacy_chat_agent_id, legacy_chat_options } from '../../SERVICEs/legacy_chat_options';
+import {
+  SIDE_MENU_WIDTH,
+  sideMenuWidthCss,
+} from "../../SERVICEs/side_menu_width";
 import ShadowSurface from "../../BUILTIN_COMPONENTs/material/shadow_surface";
 import {
   useCallback,
@@ -247,7 +251,11 @@ const HeroHeadline = ({ isDark }) => {
 const ChatInterface = () => {
   const { t } = useTranslation();
   const { theme, onThemeMode } = useContext(ThemeContext) || {};
-  const { onFragment } = useContext(NavigationContext) || {};
+  const {
+    onFragment,
+    sideMenuWidth = SIDE_MENU_WIDTH.DEFAULT,
+    sideMenuResizing = false,
+  } = useContext(NavigationContext) || {};
 
   const [bootstrapped] = useState(() => {
     const result = bootstrapChatsStore();
@@ -1102,6 +1110,7 @@ const ChatInterface = () => {
     refreshFrame: refreshSmoothResizeFrame,
   } = useSmoothResizeFrame({
     instantResizeKey: onFragment,
+    live: sideMenuResizing,
   });
 
   useEffect(() => {
@@ -1220,14 +1229,14 @@ const ChatInterface = () => {
       style={{
         position: "absolute",
         top: 0,
-        left: onFragment === "side_menu" ? 320 : 0,
+        left: onFragment === "side_menu" ? sideMenuWidthCss(sideMenuWidth) : 0,
         right: 0,
         bottom: 0,
         overflow: "hidden",
         display: "flex",
         flexDirection: "column",
         fontFamily: theme?.font?.fontFamily || "inherit",
-        transition: "left 0.3s ease",
+        transition: sideMenuResizing ? "none" : "left 0.3s ease",
       }}
     >
       <input

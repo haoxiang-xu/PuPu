@@ -1,4 +1,8 @@
 import React from "react";
+
+/* This suite checks the guidance's contract and document writes. The real
+   disclosure interaction and compact surface are tested in panel_help.test.js. */
+jest.mock("./panel_help", () => function GuidanceText({ children }) { return <>{children}</>; });
 import { render, screen, fireEvent, act, within } from "@testing-library/react";
 import KernelSection, { unbound_references } from "./kernel_section";
 import { node_kernel } from "../skeleton_document";
@@ -178,7 +182,7 @@ describe("an Agent with no model yet", () => {
        If this section merely disabled something, the author would meet that
        refusal for the first time at the first run. */
     await show(bare());
-    const said = screen.getByTestId("kernel-absent").textContent;
+    const said = screen.getByTestId("kernel-model-help").textContent;
     expect(said).toMatch(/no model yet/i);
     expect(said).toMatch(/saves without one/i);
     expect(said).toMatch(/refused the moment it runs/i);
@@ -599,4 +603,94 @@ describe("a document that arrives from the store", () => {
     expect(box().value).toBe("999999");
     expect(screen.getByTestId("kernel-reservation-refused")).toBeInTheDocument();
   });
+});
+
+
+describe("the panel follows the design's reading order", () => {
+  test("model and prompt are on top; the run limits wait in a closed Advanced fold", async () => {
+    await show(configured());
+    const advanced = screen.getByTestId("kernel-advanced");
+    expect(advanced).not.toBeVisible();
+    expect(advanced).toContainElement(screen.getByTestId("kernel-profile-facts"));
+    expect(prompt_box()).toBeVisible();
+    fireEvent.click(screen.getByTestId("kernel-advanced-toggle"));
+    expect(advanced).toBeVisible();
+    expect(screen.getByTestId("kernel-advanced-toggle")).toHaveAttribute("aria-expanded", "true");
+  });
+});
+
+describe("automatically migrated unconfigured Agents", () => {
+  const pending = () => node({ execution: { inputs: [], outputs: [] },
+    kernel_draft: { prompt: "Preserved old instructions", model: "openai:old-model", max_iterations: 17 } });
+
+  test("shows preserved prompt without asking to confirm an upgrade or selecting a model", async () => {
+    const { onChange } = await show(pending());
+    expect(prompt_box()).toHaveValue("Preserved old instructions");
+    expect(screen.getByTestId("kernel-absent")).toBeInTheDocument();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  test("choosing a real profile retains the migrated settings and removes draft-only data", async () => {
+    const original = pending();
+    const { onChange } = await show(original);
+    fireEvent.change(model_picker(), { target: { value: PROFILE.id } });
+    const next = node_with(onChange);
+    expect(next.config.kernel.prompt).toBe("Preserved old instructions");
+    expect(next.config.kernel.max_iterations).toBe(17);
+    expect(next.config.kernel.profile).toEqual(PROFILE);
+    expect(Object.keys(next.config).sort()).toEqual(["execution", "kernel"]);
+    expect(next.config.execution).toEqual(original.config.execution);
+    expect(original.config.kernel_draft.model).toBe("openai:old-model");
+  });
+
+  test("the prompt can be edited before the model is configured", async () => {
+    const original = pending();
+    const { onChange, again } = await show(original);
+    fireEvent.change(prompt_box(), { target: { value: "Edited in native Builder" } });
+    const next = node_with(onChange);
+    expect(next.config.kernel_draft).toEqual({ ...original.config.kernel_draft, prompt: "Edited in native Builder" });
+    expect(next.config.kernel).toBeUndefined();
+    await again(next);
+    expect(prompt_box()).toHaveValue("Edited in native Builder");
+  });
+
+  test("names the previous model and keeps the migrated turn count editable", async () => {
+    const original = pending();
+    const { onChange } = await show(original);
+    expect(screen.getByTestId("kernel-pending-model").textContent).toMatch(/openai:old-model/);
+    const turns = screen.getByTestId("kernel-advanced").querySelector("input");
+    expect(turns).toHaveValue("17");
+    fireEvent.change(turns, { target: { value: "9" } });
+    const next = node_with(onChange);
+    expect(next.config.kernel_draft).toEqual({ ...original.config.kernel_draft, max_iterations: 9 });
+    expect(next.config.kernel).toBeUndefined();
+  });
+});
+
+
+test("real startup producer documents keep their prompts through the native model control", async () => {
+  const capture = require("../fixtures/legacy_auto_upgrade.producer.json");
+  const records = [];
+  for (const resource of capture.resources) {
+    const original = resource.document;
+    const item = original.nodes.find((entry) => entry.type === "agent");
+    const onChange = jest.fn();
+    const view = render(<KernelSection document={original} node={item} revision={1} isDark={false} onChange={onChange} />);
+    await screen.findByRole("option", { name: "openai · gpt-6-sol" });
+    expect(prompt_box()).toHaveValue(item.config.kernel_draft.prompt);
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.change(model_picker(), { target: { value: PROFILE.id } });
+    const document = onChange.mock.calls[0][0];
+    const updated = document.nodes.find((entry) => entry.id === item.id);
+    expect(Object.keys(updated.config).sort()).toEqual(["execution", "kernel"]);
+    expect(updated.config.kernel.prompt).toBe(item.config.kernel_draft.prompt);
+    expect(updated.config.execution).toEqual(item.config.execution);
+    expect(document.edges).toEqual(original.edges);
+    expect(document.nodes.filter((entry) => entry.id !== item.id)).toEqual(original.nodes.filter((entry) => entry.id !== item.id));
+    records.push(document);
+    view.unmount();
+  }
+  if (process.env.AUTO_MIGRATION_EDITOR_CAPTURE) {
+    require("fs").writeFileSync(process.env.AUTO_MIGRATION_EDITOR_CAPTURE, JSON.stringify(records, null, 2));
+  }
 });

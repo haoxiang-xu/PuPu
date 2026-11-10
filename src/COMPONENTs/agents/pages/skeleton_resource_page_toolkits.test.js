@@ -43,7 +43,8 @@ test("real page and ports author a restricted Toolkit Pool; Save sends only nati
   const view = await show();
   await addPool();
   fireEvent.click(screen.getByRole("button", { name: "Add Core" }));
-  fireEvent.click(screen.getByRole("button", { name: "Choose tools" }));
+  fireEvent.click(screen.getByRole("button", { name: "Core", exact: true }));
+  fireEvent.click(screen.getByRole("button", { name: "None", exact: true }));
   fireEvent.click(screen.getByRole("checkbox", { name: "read", exact: true }));
   fireEvent.click(screen.getByRole("checkbox", { name: "write", exact: true }));
   const from = view.container.querySelector('[data-node-id="agent"][data-port-id="attach_top"]');
@@ -65,10 +66,11 @@ test("real page and ports author a restricted Toolkit Pool; Save sends only nati
 test("an explicit empty restriction remains an array through first save and later editing", async () => {
   await show(); await addPool();
   fireEvent.click(screen.getByRole("button", { name: "Add Core" }));
-  fireEvent.click(screen.getByRole("button", { name: "Choose tools" }));
+  fireEvent.click(screen.getByRole("button", { name: "Core", exact: true }));
+  fireEvent.click(screen.getByRole("button", { name: "None", exact: true }));
   const first = await save();
   expect(first.document.nodes.at(-1).config.toolkits[0].enabled_tools).toEqual([]);
-  fireEvent.click(screen.getByRole("checkbox", { name: "Include chat-selected toolkits" }));
+  fireEvent.click(screen.getByRole("switch", { name: "Merge with user-selected" }));
   const next = await save();
   expect(next.expected_edit_token).toBe("saved-token");
   expect(next.document.nodes.at(-1).config).toEqual({ toolkits: [{ id: "core", enabled_tools: [] }], merge_with_user_selected: true });

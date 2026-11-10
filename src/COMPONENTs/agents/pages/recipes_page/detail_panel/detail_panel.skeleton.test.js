@@ -1,4 +1,7 @@
 import React from "react";
+
+/* Contract text is asserted here; real help disclosure is covered separately. */
+jest.mock("./panel_help", () => function GuidanceText({ children }) { return <>{children}</>; });
 import { render, screen, fireEvent, within, act } from "@testing-library/react";
 import { ConfigContext } from "../../../../../CONTAINERs/config/context";
 import DetailPanel from "./detail_panel";
@@ -754,9 +757,11 @@ describe("the Model section in the panel", () => {
     expect(text.indexOf("Input Variables")).toBeGreaterThanOrEqual(0);
     expect(text.indexOf("Model")).toBeGreaterThan(text.indexOf("Input Variables"));
     expect(text.indexOf("JSON Output")).toBeGreaterThan(text.indexOf("Model"));
-    expect(text.indexOf("Output Variables")).toBeGreaterThan(
-      text.indexOf("JSON Output"),
-    );
+    // JSON Output now belongs to the Output disclosure. Its header precedes
+    // the schema, while the actual mapping editor still follows the schema.
+    expect(text.indexOf("Output Variables")).toBeGreaterThan(text.indexOf("Model"));
+    expect(screen.getByTestId("process-section-output")).toContainElement(screen.getByTestId("skeleton-output-schema"));
+    expect(screen.getByTestId("skeleton-output-schema").compareDocumentPosition(screen.getByTestId("skeleton-output-variables")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   test("an Agent with no model says the run will refuse it", () => {
@@ -827,7 +832,9 @@ describe("the JSON Output section, and the two halves it joins", () => {
     const text = screen.getByTestId("recipe-detail-panel").textContent;
     expect(text.indexOf("Input Variables")).toBeGreaterThanOrEqual(0);
     expect(text.indexOf("JSON Output")).toBeGreaterThan(text.indexOf("Input Variables"));
-    expect(text.indexOf("Output Variables")).toBeGreaterThan(text.indexOf("JSON Output"));
+    expect(text.indexOf("Output Variables")).toBeGreaterThan(text.indexOf("Input Variables"));
+    expect(screen.getByTestId("process-section-output")).toContainElement(screen.getByTestId("skeleton-output-schema"));
+    expect(screen.getByTestId("skeleton-output-schema").compareDocumentPosition(screen.getByTestId("skeleton-output-variables")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   test("only an Agent has one, because only an Agent has a kernel", () => {

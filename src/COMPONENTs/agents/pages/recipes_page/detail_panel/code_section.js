@@ -1,3 +1,4 @@
+import PanelHelp from "./panel_help";
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { agentEnglishText, agentMessage, renderAgentMessage } from "../agents_i18n";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -312,7 +313,14 @@ export default function CodeSection({ document, node, revision, sources, isDark,
       )}
 
       <div data-testid="code-runtime" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <span style={LABEL}>{t("agents.execution.code.runtime")}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <span style={LABEL}>{t("agents.execution.code.runtime")}</span>
+          <PanelHelp label={t("agents.execution.code.runtime")}>
+            <span style={NOTE}>
+              {t("agents.execution.code.runtime_scope", { machine: "{machine}" }).split(/(\{machine\})/g).map((part, index) => ({ __proto__: null, "{machine}": (<b key={index}>{t("agents.execution.code.this_machine")}</b>) }[part] || part))}
+            </span>
+          </PanelHelp>
+        </div>
         <span data-testid="code-runtime-picker">
           <Select
             options={options}
@@ -387,16 +395,24 @@ export default function CodeSection({ document, node, revision, sources, isDark,
             )}
           </div>
         )}
-        <span style={NOTE}>
-          {t("agents.execution.code.runtime_scope", { machine: "{machine}" }).split(/(\{machine\})/g).map((part, index) => ({ __proto__: null, "{machine}": (<b key={index}>{t("agents.execution.code.this_machine")}</b>) }[part] || part))}
-        </span>
+
       </div>
 
       <Divider isDark={isDark} />
 
       <div data-testid="code-source" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         <div style={{ ...ROW, justifyContent: "space-between" }}>
-          <span style={LABEL}>{mode === "here" ? t("agents.execution.code.code") : t("agents.execution.code.source_file")}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <span style={LABEL}>{mode === "here" ? t("agents.execution.code.code") : t("agents.execution.code.source_file")}</span>
+            <PanelHelp label={t("agents.execution.code.code")}>
+              <span data-testid="code-source-note" style={NOTE}>
+                {mode === "here"
+                ? t("agents.execution.code.stored_text")
+                : source.managed ? t("agents.execution.code.read_named_file") : source.reason}{" "}
+                {t("agents.execution.code.source_contract", { main: "{main}", input: "{input}", context: "{context}", print: "{print}" }).split(/(\{main\}|\{input\}|\{context\}|\{print\})/g).map((part, index) => ({ __proto__: null, "{main}": (<span key={index} style={MONO}>main(input, context)</span>), "{input}": (<span key={index} style={MONO}>input</span>), "{context}": (<span key={index} style={MONO}>context</span>), "{print}": (<span key={index} style={MONO}>print()</span>) }[part] || part))}
+              </span>
+            </PanelHelp>
+          </div>
           {editable && (
             <Button
               label={mode === "here" ? t("agents.execution.code.use_workspace_file") : t("agents.execution.code.write_here")}
@@ -464,18 +480,18 @@ export default function CodeSection({ document, node, revision, sources, isDark,
             )}
           </>
         )}
-        <span data-testid="code-source-note" style={NOTE}>
-          {mode === "here"
-            ? t("agents.execution.code.stored_text")
-            : source.managed ? t("agents.execution.code.read_named_file") : source.reason}{" "}
-          {t("agents.execution.code.source_contract", { main: "{main}", input: "{input}", context: "{context}", print: "{print}" }).split(/(\{main\}|\{input\}|\{context\}|\{print\})/g).map((part, index) => ({ __proto__: null, "{main}": (<span key={index} style={MONO}>main(input, context)</span>), "{input}": (<span key={index} style={MONO}>input</span>), "{context}": (<span key={index} style={MONO}>context</span>), "{print}": (<span key={index} style={MONO}>print()</span>) }[part] || part))}
-        </span>
+
       </div>
 
       <Divider isDark={isDark} />
 
       <div data-testid="code-limits" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <span style={LABEL}>{t("agents.execution.code.limits")}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <span style={LABEL}>{t("agents.execution.code.limits")}</span>
+          <PanelHelp label={t("agents.execution.code.limits")}>
+            <span style={NOTE}>{t("agents.execution.code.limits_note")}</span>
+          </PanelHelp>
+        </div>
         <div style={ROW}>
           <span style={{ ...NOTE, width: 96, flexShrink: 0 }}>{t("agents.execution.code.timeout")}</span>
           <LimitInput stored={code ? code.timeout_ms : undefined} limit={SECONDS} scale={1000} placeholder={t("agents.execution.code.seconds")} editable={editable} testid={`code-timeout-${node.id}`} isDark={isDark} onWrite={(value) => write("timeout_ms", value)} />
@@ -491,13 +507,20 @@ export default function CodeSection({ document, node, revision, sources, isDark,
           <LimitInput stored={code ? code.max_log_bytes : undefined} limit={CODE_LIMITS.max_log_bytes} placeholder={t("agents.execution.code.bytes")} editable={editable} testid={`code-log-bytes-${node.id}`} isDark={isDark} onWrite={(value) => write("max_log_bytes", value)} />
           <span style={NOTE}>{t("agents.execution.code.bytes")}</span>
         </div>
-        <span style={NOTE}>{t("agents.execution.code.limits_note")}</span>
+
       </div>
 
       <Divider isDark={isDark} />
 
       <div data-testid="code-result" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <span style={LABEL}>{t("agents.execution.code.result")}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <span style={LABEL}>{t("agents.execution.code.result")}</span>
+          <PanelHelp label={t("agents.execution.code.result")}>
+            <span style={NOTE}>
+              {t("agents.execution.code.result_contract", { declare: "{declare}" }).split(/(\{declare\})/g).map((part, index) => ({ __proto__: null, "{declare}": (<b key={index}>{t("agents.execution.code.declare")}</b>) }[part] || part))}
+            </span>
+          </PanelHelp>
+        </div>
         {!declared && !as_json && (
           <span data-testid="code-result-undeclared" style={NOTE}>
             {code && code.result_schema !== undefined
@@ -578,15 +601,20 @@ export default function CodeSection({ document, node, revision, sources, isDark,
             style={{ alignSelf: "flex-start", fontSize: 11, paddingVertical: 3, paddingHorizontal: 8, borderRadius: 5, color: "var(--pupu-accent)" }}
           />
         )}
-        <span style={NOTE}>
-          {t("agents.execution.code.result_contract", { declare: "{declare}" }).split(/(\{declare\})/g).map((part, index) => ({ __proto__: null, "{declare}": (<b key={index}>{t("agents.execution.code.declare")}</b>) }[part] || part))}
-        </span>
+
       </div>
 
       <Divider isDark={isDark} />
 
       <div data-testid="code-on-error" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <span style={LABEL}>{t("agents.execution.code.on_error")}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <span style={LABEL}>{t("agents.execution.code.on_error")}</span>
+          <PanelHelp label={t("agents.execution.code.on_error")}>
+            <span style={NOTE}>
+              {t("agents.execution.code.failure_contract", { output_invalid: "{output_invalid}", invalid_type: "{invalid_type}", outcome_unknown: "{outcome_unknown}", handler_error: "{handler_error}", main: "{main}", fails: "{fails}" }).split(/(\{output_invalid\}|\{invalid_type\}|\{outcome_unknown\}|\{handler_error\}|\{main\}|\{fails\})/g).map((part, index) => ({ __proto__: null, "{output_invalid}": (<span key={index} style={MONO}>output_invalid</span>), "{invalid_type}": (<span key={index} style={MONO}>invalid_type</span>), "{outcome_unknown}": (<span key={index} style={MONO}>outcome_unknown</span>), "{handler_error}": (<span key={index} style={MONO}>handler_error</span>), "{main}": (<span key={index} style={MONO}>main()</span>), "{fails}": (<b key={index}>{t("agents.execution.code.fails_the_run")}</b>) }[part] || part))}
+            </span>
+          </PanelHelp>
+        </div>
         {/* Measured on the pinned wheel (code-01-independent-review-20261024,
             runtime-result.json): a return that is not an object or does not
             match Result -> run `failed` (invalid_type / output_invalid); an
@@ -594,9 +622,7 @@ export default function CodeSection({ document, node, revision, sources, isDark,
             `durable_execution.py:253` refuses an error receipt before any
             publication, so nothing of this node reaches End or a downstream
             node. There is no policy to choose. */}
-        <span style={NOTE}>
-          {t("agents.execution.code.failure_contract", { output_invalid: "{output_invalid}", invalid_type: "{invalid_type}", outcome_unknown: "{outcome_unknown}", handler_error: "{handler_error}", main: "{main}", fails: "{fails}" }).split(/(\{output_invalid\}|\{invalid_type\}|\{outcome_unknown\}|\{handler_error\}|\{main\}|\{fails\})/g).map((part, index) => ({ __proto__: null, "{output_invalid}": (<span key={index} style={MONO}>output_invalid</span>), "{invalid_type}": (<span key={index} style={MONO}>invalid_type</span>), "{outcome_unknown}": (<span key={index} style={MONO}>outcome_unknown</span>), "{handler_error}": (<span key={index} style={MONO}>handler_error</span>), "{main}": (<span key={index} style={MONO}>main()</span>), "{fails}": (<b key={index}>{t("agents.execution.code.fails_the_run")}</b>) }[part] || part))}
-        </span>
+
       </div>
 
       {artifacts_present && (artifacts === null || artifacts.length > 0) && (

@@ -1197,6 +1197,10 @@ const Tooltip = ({
                     top: bubbleOffsetY,
                     left: bubbleOffsetX,
                     padding: contentPadding,
+                    // Measure intrinsic content independently of the bubble.
+                    // Otherwise an auto-width box inherits the previous
+                    // measurement plus the side arrow, growing on each RO tick.
+                    width: "max-content",
                     maxWidth: contentMaxWidth,
                     color: textColor,
                     fontSize: contentFontSize,

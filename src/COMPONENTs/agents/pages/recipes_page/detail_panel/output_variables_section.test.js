@@ -1,4 +1,8 @@
 import React from "react";
+
+/* This suite checks the guidance's contract and document writes. The real
+   disclosure interaction and compact surface are tested in panel_help.test.js. */
+jest.mock("./panel_help", () => function GuidanceText({ children }) { return <>{children}</>; });
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import OutputVariablesSection, {
   output_surface_problems,
@@ -98,7 +102,7 @@ describe("which side a row may read from", () => {
     expect(output_source_kinds_for("start")).toEqual(["result"]);
     show(node("start", { outputs: [mapping("text", "result", ["text"])] }));
     expect(screen.queryByTestId("select")).not.toBeInTheDocument();
-    expect(screen.getByTestId("output-row-0-fixed-kind").textContent).toMatch(
+    expect(screen.getByTestId("output-row-0-fixed-kind").getAttribute("title")).toMatch(
       /what the run was called with/i,
     );
   });
@@ -111,7 +115,7 @@ describe("which side a row may read from", () => {
         outputs: [mapping("answer", "input", ["answer"])],
       }),
     );
-    expect(screen.getByTestId("output-row-0-fixed-kind").textContent).toMatch(
+    expect(screen.getByTestId("output-row-0-fixed-kind").getAttribute("title")).toMatch(
       /can only export what it was given/i,
     );
   });
@@ -134,7 +138,7 @@ describe("adding a row", () => {
     const onChange = show(
       node("agent", { inputs: [{ name: "question", value: {}, missing: "error" }] }),
     );
-    fireEvent.click(screen.getByText("+ Add output"));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add output", exact: true }));
     expect(node_output_mappings(onChange.mock.calls[0][0].nodes[0])).toEqual([
       { name: "", source: { kind: "input", path: ["question"] } },
     ]);
@@ -147,14 +151,14 @@ describe("adding a row", () => {
     const onChange = show(
       node("agent", { inputs: [{ name: "question", value: {}, missing: "error" }] }),
     );
-    fireEvent.click(screen.getByText("+ Add output"));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add output", exact: true }));
     const next = onChange.mock.calls[0][0].nodes[0];
     expect(output_surface_problems(next, node_output_mappings(next))).toEqual([]);
   });
 
   test("a new row on a Start is on the result side", () => {
     const onChange = show(node("start"));
-    fireEvent.click(screen.getByText("+ Add output"));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add output", exact: true }));
     expect(node_output_mappings(onChange.mock.calls[0][0].nodes[0])).toEqual([
       { name: "", source: { kind: "result", path: [] } },
     ]);
@@ -162,7 +166,7 @@ describe("adding a row", () => {
 
   test("a new row on a node with no inputs yet does not invent one", () => {
     const onChange = show(node("agent"));
-    fireEvent.click(screen.getByText("+ Add output"));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add output", exact: true }));
     expect(node_output_mappings(onChange.mock.calls[0][0].nodes[0])).toEqual([
       { name: "", source: { kind: "input", path: [] } },
     ]);

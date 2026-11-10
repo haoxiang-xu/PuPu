@@ -58,7 +58,7 @@ beforeEach(() => {
 test("rapid canvas commands keep one another and panel edits; only explicit Save sends them", async () => {
   await show();
   pressCanvasNode(screen.getByTestId("skeleton-node-agent"));
-  fireEvent.click(screen.getByText("+ Add input"));
+  fireEvent.click(screen.getByRole("button", { name: "+ Add input", exact: true }));
   add();
   const connect = editor.on_connect;
   act(() => {

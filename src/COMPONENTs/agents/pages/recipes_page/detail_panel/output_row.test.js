@@ -1,4 +1,8 @@
 import React from "react";
+
+/* This suite checks the guidance's contract and document writes. The real
+   disclosure interaction and compact surface are tested in panel_help.test.js. */
+jest.mock("./panel_help", () => function GuidanceText({ children }) { return <>{children}</>; });
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import OutputRow from "./output_row";
 
@@ -70,7 +74,7 @@ describe("switching which side the value comes from", () => {
        configured and reads nothing. */
     const { onChange } = show(mapping("input", ["question"]));
     /* Two pickers are on an input-side row: the side, then its first step. */
-    fireEvent.change(screen.getAllByTestId("select")[0], { target: { value: "result" } });
+    fireEvent.change(within(screen.getByTestId("output-row-0-settings")).getByTestId("select"), { target: { value: "result" } });
     expect(onChange).toHaveBeenCalledWith({
       name: "a",
       source: { kind: "result", path: [] },
@@ -79,7 +83,7 @@ describe("switching which side the value comes from", () => {
 
   test("choosing the side it is already on changes nothing", () => {
     const { onChange } = show(mapping("result", ["message"]));
-    fireEvent.change(screen.getAllByTestId("select")[0], { target: { value: "result" } });
+    fireEvent.change(within(screen.getByTestId("output-row-0-settings")).getByTestId("select"), { target: { value: "result" } });
     expect(onChange).not.toHaveBeenCalled();
   });
 
@@ -96,13 +100,13 @@ describe("the input side picks its first step", () => {
     /* The whole object leads the list: choosing between the value and a field
        of it is one choice. Written before that option existed. */
     show(mapping("input", ["question"]));
-    const options = [...screen.getAllByTestId("select")[1].options].map((o) => o.value);
+    const options = [...within(screen.getByTestId("output-row-0-source")).getByTestId("select").options].map((o) => o.value);
     expect(options).toEqual(["\u0000whole", "question", "context"]);
   });
 
   test("picking a different input keeps the deeper steps", () => {
     const { onChange } = show(mapping("input", ["question", "body", 0]));
-    fireEvent.change(screen.getAllByTestId("select")[1], {
+    fireEvent.change(within(screen.getByTestId("output-row-0-source")).getByTestId("select"), {
       target: { value: "context" },
     });
     expect(onChange).toHaveBeenCalledWith({
@@ -123,7 +127,7 @@ describe("the input side picks its first step", () => {
     show(mapping("input", [0]));
     /* The empty string stopped being the "nothing selected" value: it is a
        legal field name, so nothing selected now has a sentinel of its own. */
-    expect(screen.getAllByTestId("select")[1].getAttribute("data-value")).toBe(
+    expect(within(screen.getByTestId("output-row-0-source")).getByTestId("select").getAttribute("data-value")).toBe(
       "\u0000none",
     );
   });
@@ -203,21 +207,21 @@ describe("the whole value is a choice, on both sides", () => {
    * "Select..." and named inputs were the only options. */
   test("an empty input-side path is named, not shown as nothing chosen", () => {
     show(mapping("input", []));
-    expect(screen.getAllByTestId("select")[1].getAttribute("data-value")).toBe(
+    expect(within(screen.getByTestId("output-row-0-source")).getByTestId("select").getAttribute("data-value")).toBe(
       "\u0000whole",
     );
   });
 
   test("the whole object is offered alongside the named inputs", () => {
     show(mapping("input", ["question"]));
-    const options = [...screen.getAllByTestId("select")[1].options].map((o) => o.value);
+    const options = [...within(screen.getByTestId("output-row-0-source")).getByTestId("select").options].map((o) => o.value);
     expect(options).toContain("\u0000whole");
     expect(options).toContain("question");
   });
 
   test("going back to the whole object from a named input is possible", () => {
     const { onChange } = show(mapping("input", ["question", "body"]));
-    fireEvent.change(screen.getAllByTestId("select")[1], {
+    fireEvent.change(within(screen.getByTestId("output-row-0-source")).getByTestId("select"), {
       target: { value: "\u0000whole" },
     });
     expect(onChange).toHaveBeenCalledWith({
@@ -231,7 +235,7 @@ describe("the whole value is a choice, on both sides", () => {
        true — it can export the whole object, which is empty. The caption stays
        but now says that instead of refusing. */
     show(mapping("input", []), { inputNames: [] });
-    expect(screen.getAllByTestId("select")[1].getAttribute("data-value")).toBe(
+    expect(within(screen.getByTestId("output-row-0-source")).getByTestId("select").getAttribute("data-value")).toBe(
       "\u0000whole",
     );
     expect(screen.getByTestId("output-row-0-no-inputs").textContent).toMatch(
@@ -259,7 +263,7 @@ describe("a declared result is picked, not typed", () => {
       nodeType: "agent",
       resultRoots: { known: true, roots: ["message", "context"], closed: true },
     });
-    const options = [...screen.getAllByTestId("select")[1].options].map((o) => o.value);
+    const options = [...within(screen.getByTestId("output-row-0-source")).getByTestId("select").options].map((o) => o.value);
     expect(options).toEqual(["\u0000whole", "message", "context"]);
   });
 
@@ -268,7 +272,7 @@ describe("a declared result is picked, not typed", () => {
       nodeType: "tool_call",
       resultRoots: { known: true, roots: ["result", "ok", "error"], closed: true },
     });
-    const options = [...screen.getAllByTestId("select")[1].options].map((o) => o.value);
+    const options = [...within(screen.getByTestId("output-row-0-source")).getByTestId("select").options].map((o) => o.value);
     expect(options).toEqual(["\u0000whole", "result", "ok", "error"]);
   });
 
@@ -277,7 +281,7 @@ describe("a declared result is picked, not typed", () => {
       nodeType: "agent",
       resultRoots: { known: true, roots: ["message", "context"], closed: true },
     });
-    fireEvent.change(screen.getAllByTestId("select")[1], { target: { value: "message" } });
+    fireEvent.change(within(screen.getByTestId("output-row-0-source")).getByTestId("select"), { target: { value: "message" } });
     expect(onChange).toHaveBeenCalledWith({
       name: "a",
       source: { kind: "result", path: ["message", "usage"] },
@@ -302,7 +306,7 @@ describe("a declared result is picked, not typed", () => {
       resultRoots: { known: true, roots: ["message", "context"], closed: true },
       problems: [{ message: "An Agent produces no result named \"typo\"." }],
     });
-    expect(screen.getAllByTestId("select")[1].getAttribute("data-value")).toBe(
+    expect(within(screen.getByTestId("output-row-0-source")).getByTestId("select").getAttribute("data-value")).toBe(
       "\u0000none",
     );
     expect(screen.getByTestId("output-row-0-problem-0").textContent).toMatch(/no result named/);
@@ -313,7 +317,7 @@ describe("a declared result is picked, not typed", () => {
       nodeType: "agent",
       resultRoots: { known: true, roots: ["message", "context"], closed: true },
     });
-    fireEvent.change(screen.getAllByTestId("select")[1], {
+    fireEvent.change(within(screen.getByTestId("output-row-0-source")).getByTestId("select"), {
       target: { value: "\u0000whole" },
     });
     expect(onChange).toHaveBeenCalledWith({
@@ -338,7 +342,7 @@ describe("a result list that is not closed is not spoken of as if it were", () =
 
   test("the list is still offered", () => {
     show(mapping("result", ["score"]), { resultRoots: open_agent });
-    const options = [...screen.getAllByTestId("select")[1].options].map((o) => o.value);
+    const options = [...within(screen.getByTestId("output-row-0-source")).getByTestId("select").options].map((o) => o.value);
     expect(options).toEqual([
       "\u0000whole",
       "message",
@@ -350,7 +354,7 @@ describe("a result list that is not closed is not spoken of as if it were", () =
 
   test("a declared field is still selected by name", () => {
     show(mapping("result", ["score"]), { resultRoots: open_agent });
-    expect(screen.getAllByTestId("select")[1].getAttribute("data-value")).toBe("score");
+    expect(within(screen.getByTestId("output-row-0-source")).getByTestId("select").getAttribute("data-value")).toBe("score");
     expect(screen.queryByTestId("output-row-0-step-0")).not.toBeInTheDocument();
   });
 
@@ -363,7 +367,7 @@ describe("a result list that is not closed is not spoken of as if it were", () =
 
   test("a field the list does not hold is shown as what it is, and stays editable", () => {
     show(mapping("result", ["extra"]), { resultRoots: open_agent });
-    expect(screen.getAllByTestId("select")[1].getAttribute("data-value")).toBe(
+    expect(within(screen.getByTestId("output-row-0-source")).getByTestId("select").getAttribute("data-value")).toBe(
       "\u0000other",
     );
     expect(screen.getByPlaceholderText("field").value).toBe("extra");
@@ -371,7 +375,7 @@ describe("a result list that is not closed is not spoken of as if it were", () =
 
   test("an unlisted field can be reached from the whole value", () => {
     const { onChange } = show(mapping("result", []), { resultRoots: open_agent });
-    fireEvent.change(screen.getAllByTestId("select")[1], {
+    fireEvent.change(within(screen.getByTestId("output-row-0-source")).getByTestId("select"), {
       target: { value: "\u0000other" },
     });
     expect(onChange).toHaveBeenCalledWith({
@@ -384,7 +388,7 @@ describe("a result list that is not closed is not spoken of as if it were", () =
     const { onChange } = show(mapping("result", ["score", "inner"]), {
       resultRoots: open_agent,
     });
-    fireEvent.change(screen.getAllByTestId("select")[1], {
+    fireEvent.change(within(screen.getByTestId("output-row-0-source")).getByTestId("select"), {
       target: { value: "\u0000other" },
     });
     expect(onChange).toHaveBeenCalledWith({
@@ -408,7 +412,7 @@ describe("a result list that is not closed is not spoken of as if it were", () =
     show(mapping("result", ["message"]), {
       resultRoots: { known: true, roots: ["message", "context"], closed: true },
     });
-    const options = [...screen.getAllByTestId("select")[1].options].map((o) => o.value);
+    const options = [...within(screen.getByTestId("output-row-0-source")).getByTestId("select").options].map((o) => o.value);
     expect(options).not.toContain("\u0000other");
   });
 
@@ -416,7 +420,7 @@ describe("a result list that is not closed is not spoken of as if it were", () =
     /* `output_problem` refuses a path that opens on anything but a declared
        input of this node, so there is nothing unlisted to reach. */
     show(mapping("input", ["question"]));
-    const options = [...screen.getAllByTestId("select")[1].options].map((o) => o.value);
+    const options = [...within(screen.getByTestId("output-row-0-source")).getByTestId("select").options].map((o) => o.value);
     expect(options).not.toContain("\u0000other");
   });
 });
@@ -434,13 +438,13 @@ describe("the field whose legal name is the empty string", () => {
 
   test("it is offered with a label that can be read", () => {
     show(mapping("result", [""]), { resultRoots: unnamed });
-    const labels = [...screen.getAllByTestId("select")[1].options].map((o) => o.textContent);
+    const labels = [...within(screen.getByTestId("output-row-0-source")).getByTestId("select").options].map((o) => o.textContent);
     expect(labels).toContain("(the field with no name)");
   });
 
   test("selecting it is not mistaken for selecting nothing", () => {
     const { onChange } = show(mapping("result", ["message"]), { resultRoots: unnamed });
-    fireEvent.change(screen.getAllByTestId("select")[1], { target: { value: "" } });
+    fireEvent.change(within(screen.getByTestId("output-row-0-source")).getByTestId("select"), { target: { value: "" } });
     expect(onChange).toHaveBeenCalledWith({
       name: "a",
       source: { kind: "result", path: [""] },
@@ -454,21 +458,16 @@ describe("the field whose legal name is the empty string", () => {
 });
 
 describe("a row at the panel's minimum width (#341 acceptance finding)", () => {
-  /* At 300px the agent body scrolled sideways: `[name] ← [kind] ×` kept its
-   * text width past the body's edge. jsdom lays nothing out, so this pins the
-   * structure that lets the line wrap instead — a wrapping header and one
-   * growing `← kind ×` group that carries the remove button — while the hosted
-   * Playwright control measures the twenty shell units for real. */
-  test("the header may wrap and `← kind ×` moves as one group", () => {
-    const { onRemove } = show(mapping("result", ["message"]));
+  test("the compact header keeps name, source and More on a shrinking grid", () => {
+    const { onRemove } = show(mapping("result", ["message"]), { resultRoots: { known: true, closed: true, roots: ["message", "context"] } });
     const header = screen.getByTestId("output-row-0-header");
-    expect(header.style.flexWrap).toBe("wrap");
+    expect(header.style.display).toBe("grid");
+    expect(header.style.gridTemplateColumns).toContain("minmax(0, 1.4fr)");
     const group = within(header).getByTestId("output-row-0-source");
-    expect(group.style.flex).toBe("1 1 auto");
     expect(group.style.minWidth).toBe("0");
-    const remove = within(group).getByRole("button", { name: "Remove a" });
     expect(within(group).getByTestId("select")).toBeInTheDocument();
-    fireEvent.click(remove);
+    fireEvent.click(screen.getByRole("button", { name: "a · More" }));
+    fireEvent.click(screen.getByRole("button", { name: "Remove a" }));
     expect(onRemove).toHaveBeenCalledTimes(1);
   });
 });

@@ -1116,6 +1116,7 @@ export default function SkeletonResourcePage({
           minWidth={detail.minWidth}
           resizing={Boolean(detail.resizing)}
           testId="skeleton-detail-panel-shell"
+          onClose={() => setSelectedNodeId(null)}
           handle={
             typeof detail.onDragStart === "function"
               ? {

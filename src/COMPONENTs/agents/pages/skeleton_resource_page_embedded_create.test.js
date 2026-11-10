@@ -28,9 +28,11 @@ async function save() {
 }
 async function chooseModel() {
   pressCanvasNode("agent");
+  fireEvent.click(screen.getByRole("button", { name: "Model", exact: true }));
   const models = await screen.findByTestId("kernel-model");
   fireEvent.click(within(models).getByRole("combobox"));
   fireEvent.click(screen.getByText("openai · gpt-6-luna", { exact: true }));
+  fireEvent.click(screen.getByRole("button", { name: "Prompt", exact: true }));
   await screen.findByPlaceholderText("what this Agent is for");
 }
 beforeEach(() => {

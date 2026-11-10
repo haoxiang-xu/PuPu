@@ -91,22 +91,6 @@ const TitleBar = () => {
           }
         }}
       />
-      <div
-        style={{
-          position: "absolute",
-          top: "50%",
-          left: isDarwin ? 125 : 54,
-          transform: "translateY(-50%)",
-          opacity: 0.84,
-          fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
-          fontSize: 12,
-          letterSpacing: "0.08em",
-          textTransform: "uppercase",
-          pointerEvents: "none",
-        }}
-      >
-        PuPu
-      </div>
 
       {!isDarwin ? (
         <WindowControls

@@ -1,12 +1,36 @@
 import ShadowSurface from "../../../../BUILTIN_COMPONENTs/material/shadow_surface";
 import { useSurfaceComposite } from "../../../../BUILTIN_COMPONENTs/material/surface_composite";
-import React from "react";
+import React, { useContext } from "react";
+import { createPortal } from "react-dom";
+import { NavigationContext } from "../../../../CONTAINERs/config/context";
+import { SURFACE_DITHER_STYLE } from "../../../../BUILTIN_COMPONENTs/material/surface_dither";
+import { SIDEBAR_GLASS_FILTER } from "../../../../CONTAINERs/config/theme_semantic";
 import Button from "../../../../BUILTIN_COMPONENTs/input/button";
 import usePresentationPlatform from "../../../../BUILTIN_COMPONENTs/mini_react/use_presentation_platform";
 import { AGENTS_MODAL_Z } from "../../top_strip";
 import PanelResizeHandle from "./panel_resize_handle";
 import { useTranslation } from "../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { renderAgentMessage } from "./agents_i18n";
+import { TOP_BAR_HEIGHT } from "../../../../BUILTIN_COMPONENTs/electron/title_bar";
+import WindowControls, { windowControlsInset } from "../../../../BUILTIN_COMPONENTs/electron/window_controls";
+import { windowStateBridge } from "../../../../SERVICEs/bridges/window_state_bridge";
+
+const hasWindowControls = () =>
+  typeof window !== "undefined" &&
+  window.runtime?.isElectron === true &&
+  windowStateBridge.isActionAvailable();
+
+/* The docked detail panel's width while its edge is dragged, set on the
+   window's right-edge anchor (see RecipesPage). */
+export const DETAIL_WIDTH_VAR = "--pupu-agents-detail-width";
+
+/* Where the docked panel's close button sits in the title bar band: clear
+   of the Windows / Linux window buttons, at the edge on macOS. */
+const detailCloseRight = (platform) => {
+  if (platform === "win32") return windowControlsInset(false) + 3 * 40 + 8;
+  if (platform === "linux") return windowControlsInset(true) + 3 * 24 + 2 * 8 + 8;
+  return TOP_BAR_HEIGHT / 2;
+};
 
 /* The builder's chrome, shared by both canvases.
  *
@@ -388,6 +412,194 @@ export function CanvasCaptionChip({ isDark, children, testId }) {
    with the pill that drags its inner edge. The width is the page's, so both
    canvases share one remembered width. */
 export function FloatingDetailShell({
+  isDark,
+  open,
+  width,
+  minWidth,
+  resizing,
+  testId,
+  handle,
+  onClose,
+  children,
+}) {
+  /* In the Agents workspace the panel is the window's right side menu: full
+     height, one flat colour like the left one, rendered into the anchor the
+     app shell keeps at the window's right edge. Anywhere else (no anchor) it
+     stays the floating glass card. */
+  const dockSlot = useContext(NavigationContext)?.agentsDetailSlot || null;
+  if (dockSlot) {
+    return createPortal(
+      <DockedDetailPanel
+        isDark={isDark}
+        open={open}
+        width={width}
+        minWidth={minWidth}
+        resizing={resizing}
+        testId={testId}
+        handle={handle}
+        onClose={onClose}
+      >
+        {children}
+      </DockedDetailPanel>,
+      dockSlot,
+    );
+  }
+  return (
+    <FloatingDetailCard
+      isDark={isDark}
+      open={open}
+      width={width}
+      minWidth={minWidth}
+      resizing={resizing}
+      testId={testId}
+      handle={handle}
+    >
+      {children}
+    </FloatingDetailCard>
+  );
+}
+
+const SLIDE = "0.25s cubic-bezier(0.32,1,0.32,1)";
+
+function DockedDetailPanel({
+  isDark,
+  open,
+  width,
+  minWidth,
+  resizing,
+  testId,
+  handle,
+  onClose,
+  children,
+}) {
+  const { t } = useTranslation();
+  const platform = usePresentationPlatform();
+  /* Live while dragged (the anchor carries the variable), else the state. */
+  const liveWidth = `var(${DETAIL_WIDTH_VAR}, ${width}px)`;
+  const backgroundColor = isDark
+    ? "var(--pupu-sidebar-glass, #151515)"
+    : "var(--pupu-sidebar-glass, rgb(245, 245, 245))";
+  /* The left side menu's frost, through the same compositing pass. */
+  const surface = useSurfaceComposite({ backgroundColor, backdropFilter: SIDEBAR_GLASS_FILTER });
+  return (
+    <>
+      {surface.definition}
+      <div
+        data-testid={testId}
+        data-docked="true"
+        /* Portalled out of the canvas, so the canvas's own inert boundary
+           (run view) no longer covers it: a closed panel shuts itself. */
+        inert={open ? undefined : true}
+        aria-hidden={open ? undefined : true}
+        style={{
+          position: "absolute",
+          /* The colour runs the full height, like the left side menu; the
+             content starts below the title bar band, which keeps this
+             panel's close button (and on Windows / Linux the window
+             buttons) on every platform alike. */
+          top: 0,
+          right: 0,
+          bottom: 0,
+          width: liveWidth,
+          minWidth,
+          /* The same see-through sidebar colour as the left side menu,
+             calibrated to land on the theme's sidebar colour. */
+          /* Portalled out of the workspace, it no longer inherits the
+             workspace's text colour: anything without its own colour fell
+             back to the page default, black even in dark mode. */
+          color: "var(--pupu-text)",
+          backgroundColor,
+          ...SURFACE_DITHER_STYLE,
+          backdropFilter: SIDEBAR_GLASS_FILTER,
+          WebkitBackdropFilter: SIDEBAR_GLASS_FILTER,
+          ...surface.style,
+          overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
+          transform: open ? "translateX(0)" : "translateX(100%)",
+          transition: resizing ? "none" : `transform ${SLIDE}`,
+          pointerEvents: open ? "auto" : "none",
+          WebkitAppRegion: "no-drag",
+        }}
+      >
+        <div
+          data-testid={`${testId}-band`}
+          style={{
+            position: "relative",
+            height: TOP_BAR_HEIGHT,
+            flexShrink: 0,
+            /* Still the window's title bar: it drags the window. */
+            WebkitAppRegion: "drag",
+          }}
+        >
+          {/* The panel's colour covers the title bar's window buttons, so
+              it carries its own while open. */}
+          {platform !== "darwin" && hasWindowControls() && (
+            <WindowControls
+              style={{
+                position: "absolute",
+                top: "50%",
+                right: windowControlsInset(platform === "linux"),
+                transform: "translateY(-50%)",
+              }}
+            />
+          )}
+        </div>
+        {children}
+      </div>
+      {handle && (
+        <PanelResizeHandle
+          testId={handle.testId}
+          isDark={isDark}
+          pillTestId={handle.pillTestId}
+          visible={Boolean(open)}
+          style={{
+            top: TOP_BAR_HEIGHT,
+            bottom: 0,
+            /* Centred on the panel's inner edge. */
+            right: `calc(${liveWidth} - 6px)`,
+          }}
+          onDragStart={handle.onDragStart}
+          onDrag={handle.onDrag}
+          onDragEnd={handle.onDragEnd}
+        />
+      )}
+      {typeof onClose === "function" && (
+        <div
+          style={{
+            position: "absolute",
+            top: TOP_BAR_HEIGHT / 2,
+            right: detailCloseRight(platform),
+            /* On macOS the button's centre sits as far from the right edge
+               as from the top: tucked into the corner. */
+            transform:
+              platform === "win32" || platform === "linux"
+                ? "translateY(-50%)"
+                : "translate(50%, -50%)",
+            opacity: open ? 1 : 0,
+            pointerEvents: open ? "auto" : "none",
+            transition: `opacity ${SLIDE}`,
+            WebkitAppRegion: "no-drag",
+          }}
+        >
+          {/* The left side menu's open-state glyph, mirrored for the right. */}
+          <div style={{ transform: "scaleX(-1)", display: "flex" }}>
+            <Button
+              prefix_icon="side_menu_close"
+              ariaLabel={t("common.close")}
+              disabled={!open}
+              onClick={onClose}
+              dom_props={{ "data-testid": `${testId}-close` }}
+              style={{ fontSize: 14, color: "var(--pupu-text)", WebkitAppRegion: "no-drag" }}
+            />
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function FloatingDetailCard({
   isDark,
   open,
   width,

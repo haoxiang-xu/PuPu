@@ -37,7 +37,7 @@ describe("StartPanel inputs are fixed by the entry", () => {
     expect([...buttons].filter((b) => /add/i.test(b.textContent))).toHaveLength(
       1,
     );
-    expect(screen.getByText("+ Add output")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "+ Add output", exact: true })).toBeInTheDocument();
     expect(
       screen.getByText(/cannot be added to or renamed/i),
     ).toBeInTheDocument();
@@ -72,7 +72,7 @@ describe("StartPanel outputs are picked, never typed", () => {
   test("Add exports the next unused source, with that source's type", () => {
     const onChange = jest.fn();
     show([{ name: "text", type: "string" }], onChange);
-    fireEvent.click(screen.getByText("+ Add output"));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add output", exact: true }));
     expect(outputsFrom(onChange)).toEqual([
       { name: "text", type: "string" },
       { name: "images", type: "image[]" },
@@ -85,7 +85,7 @@ describe("StartPanel outputs are picked, never typed", () => {
       { name: "images", type: "image[]" },
       { name: "files", type: "file[]" },
     ]);
-    expect(screen.getByText("+ Add output").closest("button")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "+ Add output", exact: true }).closest("button")).toBeDisabled();
   });
 
   test("removing a row frees its source again", () => {
@@ -98,7 +98,7 @@ describe("StartPanel outputs are picked, never typed", () => {
       ],
       onChange,
     );
-    expect(screen.getByText("+ Add output").closest("button")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "+ Add output", exact: true }).closest("button")).toBeDisabled();
   });
 
   test("empty state says so rather than showing a blank row", () => {

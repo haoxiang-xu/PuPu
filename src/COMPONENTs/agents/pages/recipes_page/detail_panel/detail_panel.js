@@ -9,9 +9,8 @@ import ToolPoolPanel from "./toolpool_panel";
 import SubagentPoolPanel from "./subagent_pool_panel";
 import { node_identity } from "./node_identity";
 import InputVariablesSection from "./input_variables_section";
-import KernelSection from "./kernel_section";
+import ProcessTimeline from "./process_timeline";
 import SkeletonDiagnostics from "./skeleton_diagnostics_notice";
-import OutputSchemaSection from "./output_schema_section";
 import SubagentPoolSection from "./subagent_pool_section";
 import ToolkitPoolSection from "./toolkit_pool_section";
 import BranchSection from "./branch_section";
@@ -287,9 +286,11 @@ export default function DetailPanel({
 
       <div
         className="scrollable"
+        /* The header sits above this body now, so the window controls no
+           longer overlap it: the track starts at the top, not 36px down. */
         data-sb-wall="4"
         data-sb-edge="2"
-        data-sb-edge-top="36"
+        data-sb-edge-top="4"
         data-sb-edge-bottom="12"
         data-testid="recipe-detail-panel-body"
         style={body_style}
@@ -307,6 +308,11 @@ export default function DetailPanel({
               unchecked={diagnosticsUnchecked}
               isDark={isDark}
             />
+            {skeleton_node.type === "agent" ? (
+              <ProcessTimeline key={JSON.stringify([document.id, skeleton_node.id])}
+                document={document} node={skeleton_node} revision={documentRevision}
+                rowDiagnostics={routed.rows} isDark={isDark} onChange={onDocumentChange} />
+            ) : <>
             {/* A pool attaches to a Kernel rather than running in the flow,
                 so it carries no execution IO at all — the sections around
                 this one render nothing for it — and what it does carry is
@@ -380,31 +386,6 @@ export default function DetailPanel({
               <CodeSection key={JSON.stringify([document.id, skeleton_node.id, documentRevision])}
                 document={document} revision={documentRevision} node={skeleton_node} sources={managedSources} isDark={isDark} onChange={onDocumentChange} />
             )}
-            {/* Between them, and only for an Agent: the model it thinks with,
-                then a schema declaring what its result holds — which is what
-                the output rows below offer as sources. Read downwards it is
-                what the node is given, what it thinks with, what it produces,
-                what it passes on. The model comes first because the schema
-                depends on it: a model that cannot be asked for structured
-                output makes the section below unavailable. */}
-            {skeleton_node.type === "agent" && (
-              <KernelSection
-                document={document}
-                revision={documentRevision}
-                node={skeleton_node}
-                isDark={isDark}
-                onChange={onDocumentChange}
-              />
-            )}
-            {skeleton_node.type === "agent" && (
-              <OutputSchemaSection
-                document={document}
-                revision={documentRevision}
-                node={skeleton_node}
-                isDark={isDark}
-                onChange={onDocumentChange}
-              />
-            )}
             {/* Inputs at the top, outputs at the bottom: a node is read
                 downwards, and the order is the same in every panel so the two
                 halves of a wire are always found in the same place. */}
@@ -416,6 +397,7 @@ export default function DetailPanel({
               isDark={isDark}
               onChange={onDocumentChange}
             />
+            </>}
           </>
         )}
         {legacy_node && node.type === "start" && <StartPanel {...props} />}

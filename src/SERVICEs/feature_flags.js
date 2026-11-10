@@ -22,12 +22,12 @@ const readBuildFeatureFlagDefaults = () => {
 export const FEATURE_FLAG_DEFINITIONS = {
   enable_user_access_to_agents: {
     description:
-      "Show the Agents tab inside the Agents modal. The side-menu entry is visible whenever this or enable_user_access_to_characters is enabled.",
+      "Show the Agents tab in the Agents workspace. The side-menu entry is visible whenever this or enable_user_access_to_characters is enabled.",
     defaultValue: false,
   },
   enable_user_access_to_characters: {
     description:
-      "Show the Characters tab inside the Agents modal. The side-menu entry is visible whenever this or enable_user_access_to_agents is enabled.",
+      "Show the Characters tab in the Agents workspace. The side-menu entry is visible whenever this or enable_user_access_to_agents is enabled.",
     defaultValue: false,
   },
   enable_custom_model_providers: {

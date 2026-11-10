@@ -281,10 +281,25 @@ export function with_node_kernel(document, node_id, kernel) {
     nodes: document.nodes.map((node) => {
       if (!node || node.id !== node_id) return node;
       const config = is_object(node.config) ? node.config : {};
+      const native_config = { ...config };
+      delete native_config.kernel_draft;
       return {
         ...node,
-        config: { ...config, [KERNEL_CONFIG_KEY]: kernel },
+        config: { ...native_config, [KERNEL_CONFIG_KEY]: kernel },
       };
+    }),
+  };
+}
+
+/* Before a model has been selected, an automatically migrated prompt is still
+   editable draft data. It becomes a strict Kernel only through the model picker. */
+export function with_node_kernel_draft(document, node_id, draft) {
+  if (!is_object(document) || !Array.isArray(document.nodes) || !is_object(draft)) return document;
+  return {
+    ...document,
+    nodes: document.nodes.map((node) => {
+      if (!node || node.id !== node_id || node.type !== "agent" || node_kernel(node)) return node;
+      return { ...node, config: { ...node.config, kernel_draft: { ...draft } } };
     }),
   };
 }
