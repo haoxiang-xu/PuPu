@@ -1,3 +1,4 @@
+import { agentError } from "./agents_i18n";
 import { normalize_recipe_toolkit_entries } from "./recipe_toolkit_ids";
 
 const VAR_REF_RE = /\{\{#([^.}]+)\.([^#}]+)#\}\}/g;
@@ -100,8 +101,8 @@ function find_nodes(nodes, type) {
   return nodes.filter((node) => node.type === type);
 }
 
-function compile_error(message) {
-  const error = new Error(message);
+function compile_error(key, vars) {
+  const error = agentError(key, vars);
   error.code = "recipe_graph_invalid";
   return error;
 }
@@ -109,12 +110,12 @@ function compile_error(message) {
 function validate_attach_edge(edge, by_id) {
   const source = by_id.get(edge.source_node_id);
   const target = by_id.get(edge.target_node_id);
-  if (!source || !target) throw compile_error(`Edge ${edge.id} references a missing node`);
+  if (!source || !target) throw compile_error("agents.graph.legacy_edge_missing", { value1: edge.id });
   if (
     port_kind(edge.source_port_id) !== "attach" ||
     port_kind(edge.target_port_id) !== "attach"
   ) {
-    throw compile_error(`Attach edge ${edge.id} must connect attach ports`);
+    throw compile_error("agents.graph.legacy_attachment_ports", { value1: edge.id });
   }
   const source_is_agent = source.type === "agent";
   const target_is_agent = target.type === "agent";
@@ -123,7 +124,7 @@ function validate_attach_edge(edge, by_id) {
   const target_is_plugin =
     is_toolkit_pool_type(target.type) || target.type === "subagent_pool";
   if (!((source_is_agent && target_is_plugin) || (target_is_agent && source_is_plugin))) {
-    throw compile_error(`Attach edge ${edge.id} must connect an agent to a pool`);
+    throw compile_error("agents.graph.legacy_attachment_pair", { value1: edge.id });
   }
 }
 
@@ -150,12 +151,12 @@ function validate_variables(agents, start, by_id) {
       const fields = upstream.get(ref.node_id);
       if (!fields) {
         throw compile_error(
-          `Variable {{#${ref.node_id}.${ref.field}#}} is not upstream of ${agent.id}`,
+          "agents.graph.legacy_variable_upstream", { value1: ref.node_id, value2: ref.field, value3: agent.id },
         );
       }
       if (!fields.has(ref.field)) {
         throw compile_error(
-          `Variable {{#${ref.node_id}.${ref.field}#}} does not exist`,
+          "agents.graph.legacy_variable_missing", { value1: ref.node_id, value2: ref.field },
         );
       }
     }
@@ -169,22 +170,22 @@ function validate_variables(agents, start, by_id) {
 
 export function compile_recipe_graph(recipe) {
   if (!recipe || !Array.isArray(recipe.nodes)) {
-    throw compile_error("Recipe graph is missing nodes");
+    throw compile_error("agents.graph.legacy_nodes_missing");
   }
   const nodes = recipe.nodes.map(normalize_node);
   const edges = (Array.isArray(recipe.edges) ? recipe.edges : []).map(normalize_edge);
   const by_id = new Map(nodes.map((node) => [node.id, node]));
 
   if (by_id.size !== nodes.length) {
-    throw compile_error("Recipe graph contains duplicate node ids");
+    throw compile_error("agents.graph.legacy_duplicate_ids");
   }
 
   const starts = find_nodes(nodes, "start");
   const ends = find_nodes(nodes, "end");
   const all_agents = find_nodes(nodes, "agent");
-  if (starts.length !== 1) throw compile_error("Recipe graph must have exactly one Start node");
-  if (ends.length !== 1) throw compile_error("Recipe graph must have exactly one End node");
-  if (all_agents.length < 1) throw compile_error("Recipe graph must have at least one Agent node");
+  if (starts.length !== 1) throw compile_error("agents.graph.legacy_start_count");
+  if (ends.length !== 1) throw compile_error("agents.graph.legacy_end_count");
+  if (all_agents.length < 1) throw compile_error("agents.graph.legacy_agent_count");
 
   const flow_edges = edges.filter((edge) => edge.kind === "flow");
   const attach_edges = edges.filter((edge) => edge.kind === "attach");
@@ -195,21 +196,21 @@ export function compile_recipe_graph(recipe) {
   for (const edge of flow_edges) {
     const source = by_id.get(edge.source_node_id);
     const target = by_id.get(edge.target_node_id);
-    if (!source || !target) throw compile_error(`Edge ${edge.id} references a missing node`);
+    if (!source || !target) throw compile_error("agents.graph.legacy_edge_missing", { value1: edge.id });
     if (
       port_kind(edge.source_port_id) !== "out" ||
       port_kind(edge.target_port_id) !== "in"
     ) {
-      throw compile_error(`Flow edge ${edge.id} must connect out -> in`);
+      throw compile_error("agents.graph.legacy_flow_ports", { value1: edge.id });
     }
     if (source.type !== "start" && source.type !== "agent") {
-      throw compile_error(`Flow edge ${edge.id} cannot start at ${source.type}`);
+      throw compile_error("agents.graph.legacy_flow_source", { value1: edge.id, value2: source.type });
     }
     if (target.type !== "agent" && target.type !== "end") {
-      throw compile_error(`Flow edge ${edge.id} cannot target ${target.type}`);
+      throw compile_error("agents.graph.legacy_flow_target", { value1: edge.id, value2: target.type });
     }
-    if (outgoing.has(source.id)) throw compile_error(`${source.id} has multiple flow outputs`);
-    if (incoming.has(target.id)) throw compile_error(`${target.id} has multiple flow inputs`);
+    if (outgoing.has(source.id)) throw compile_error("agents.graph.legacy_multiple_outputs", { value1: source.id });
+    if (incoming.has(target.id)) throw compile_error("agents.graph.legacy_multiple_inputs", { value1: target.id });
     outgoing.set(source.id, edge);
     incoming.set(target.id, edge);
   }
@@ -228,8 +229,8 @@ export function compile_recipe_graph(recipe) {
 
   const start = starts[0];
   const end = ends[0];
-  if (incoming.has(start.id)) throw compile_error("Start cannot have a flow input");
-  if (outgoing.has(end.id)) throw compile_error("End cannot have a flow output");
+  if (incoming.has(start.id)) throw compile_error("agents.graph.legacy_start_input");
+  if (outgoing.has(end.id)) throw compile_error("agents.graph.legacy_end_output");
 
   const ordered = [start];
   const agents = [];
@@ -237,10 +238,10 @@ export function compile_recipe_graph(recipe) {
   let current = start;
   while (current.id !== end.id) {
     const edge = outgoing.get(current.id);
-    if (!edge) throw compile_error(`${current.id} is not connected to End`);
+    if (!edge) throw compile_error("agents.graph.legacy_to_end", { value1: current.id });
     const next = by_id.get(edge.target_node_id);
-    if (!next) throw compile_error(`Edge ${edge.id} references a missing target`);
-    if (visited.has(next.id)) throw compile_error("Recipe graph contains a flow cycle");
+    if (!next) throw compile_error("agents.graph.legacy_target_missing", { value1: edge.id });
+    if (visited.has(next.id)) throw compile_error("agents.graph.legacy_cycle");
     visited.add(next.id);
     ordered.push(next);
     if (next.type === "agent") agents.push(next);
@@ -248,16 +249,16 @@ export function compile_recipe_graph(recipe) {
   }
 
   for (const agent of all_agents) {
-    if (!visited.has(agent.id)) throw compile_error(`Agent ${agent.id} is disconnected from the main chain`);
-    if (!incoming.has(agent.id)) throw compile_error(`Agent ${agent.id} is missing a flow input`);
-    if (!outgoing.has(agent.id)) throw compile_error(`Agent ${agent.id} is missing a flow output`);
+    if (!visited.has(agent.id)) throw compile_error("agents.graph.legacy_disconnected", { value1: agent.id });
+    if (!incoming.has(agent.id)) throw compile_error("agents.graph.legacy_agent_input", { value1: agent.id });
+    if (!outgoing.has(agent.id)) throw compile_error("agents.graph.legacy_agent_output", { value1: agent.id });
   }
 
   for (const plugin of nodes.filter(
     (node) => is_toolkit_pool_type(node.type) || node.type === "subagent_pool",
   )) {
     if (!attached_plugins.has(plugin.id)) {
-      throw compile_error(`${plugin.id} is not attached to any Agent`);
+      throw compile_error("agents.graph.legacy_unattached", { value1: plugin.id });
     }
   }
 

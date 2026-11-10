@@ -1,3 +1,4 @@
+import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import React, { useState } from "react";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import SubagentPicker from "../subagent_picker";
@@ -24,6 +25,7 @@ export default function SubagentPoolPanel({
   recipes,
   onDrillIn,
 }) {
+  const { t } = useTranslation();
   const [pickerOpen, setPickerOpen] = useState(false);
 
   function set_subagents(nextSubagents) {
@@ -48,17 +50,16 @@ export default function SubagentPoolPanel({
   return (
     <>
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <span style={SECTION_LABEL}>Subagents</span>
+        <span style={SECTION_LABEL}>{t("agents.subagents.title")}</span>
         <span style={{ fontSize: 10.5, color: "#86868b", lineHeight: 1.45 }}>
-          Each entry is an Agent with its own graph. This panel manages the
-          entries; double-click one to open its graph and edit it there.
+          {t("agents.legacy_picker.panel_intro")}
         </span>
         {(node.subagents || []).map((s, i) => {
           /* The row says where this Agent comes from. It used to print the
            * entry's `kind` verbatim, so a `recipe_ref` row read "workflow" —
            * a reference field name mistaken for a resource kind. Every entry
            * here is an Agent. */
-          const { name, source } = entry_reference(s);
+          const { name, source } = entry_reference(s, t);
           const present = reference_exists(s, recipes);
           const openable = can_drill(s) && present && typeof onDrillIn === "function";
           const missingColor = isDark
@@ -70,8 +71,8 @@ export default function SubagentPoolPanel({
               data-testid={`subagent-row-${i}`}
               title={
                 present
-                  ? drill_unavailable_reason(s) || `Double-click to open ${name}`
-                  : `${name} is no longer in the Agent library`
+                  ? drill_unavailable_reason(s, t) || t("agents.legacy_picker.double_click", { name })
+                  : t("agents.legacy_picker.missing", { name })
               }
               onDoubleClick={
                 typeof onDrillIn === "function" ? () => onDrillIn(s) : undefined
@@ -104,7 +105,7 @@ export default function SubagentPoolPanel({
                   marginLeft: "auto",
                 }}
               >
-                {present ? source : "missing"}
+                {present ? source : t("agents.nodes.missing")}
               </span>
               <Button
                 prefix_icon="delete"
@@ -122,12 +123,12 @@ export default function SubagentPoolPanel({
         })}
         {(node.subagents || []).length === 0 && (
           <span style={{ fontSize: 11, color: "#86868b" }}>
-            No subagents configured.
+            {t("agents.legacy_picker.none")}
           </span>
         )}
         <Button
           prefix_icon="add"
-          label="Add subagent"
+          label={t("agents.legacy_picker.title")}
           onClick={() => setPickerOpen(true)}
           style={{
             alignSelf: "flex-start",

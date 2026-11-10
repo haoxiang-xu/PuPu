@@ -1,3 +1,4 @@
+import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { node_display_title } from "../node_display_labels";
 import ShadowSurface from "../../../../../BUILTIN_COMPONENTs/material/shadow_surface";
 import React, { useEffect, useRef, useState } from "react";
@@ -60,6 +61,7 @@ export function code_preview(text) {
 }
 
 function Viewer({ node, text, total, isDark, onEdit }) {
+  const { t } = useTranslation();
   return (
     <ShadowSurface
       data-testid={`code-node-${node.id}-viewer`}
@@ -78,10 +80,12 @@ function Viewer({ node, text, total, isDark, onEdit }) {
     >
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderBottom: isDark ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(0,0,0,0.08)" }}>
         <span style={{ fontSize: 11, fontWeight: 600, color: isDark ? "#e6e6e6" : "#222", fontFamily: "ui-monospace, Menlo, monospace" }}>{node_display_title(node, safe_text(node.id))}</span>
-        <span style={{ fontSize: 10.5, color: "var(--pupu-text-muted)" }}>Read-only · {total} line{total === 1 ? "" : "s"} · Esc to close</span>
+        <span style={{ fontSize: 10.5, color: "var(--pupu-text-muted)" }}>{total === 1
+          ? t("agents.nodes.code.viewer_one", { count: total })
+          : t("agents.nodes.code.viewer_other", { count: total })}</span>
         <span style={{ marginLeft: "auto" }}>
           <Button
-            label="Edit in panel"
+            label={t("agents.nodes.code.edit_in_panel")}
             onClick={onEdit}
             style={{ fontSize: 10.5, paddingVertical: 2, paddingHorizontal: 8, borderRadius: 5, color: "var(--pupu-accent)" }}
           />
@@ -95,9 +99,10 @@ function Viewer({ node, text, total, isDark, onEdit }) {
 }
 
 export default function CodeNode({ node, isDark, lowZoom = false, onOpenNode, sources, recordedSourceOnly = false }) {
+  const { t } = useTranslation();
   const code = code_settings(node);
   const profile = code && typeof code.environment_profile_id === "string" && code.environment_profile_id ? code.environment_profile_id : null;
-  const source = code_source_text(node, recordedSourceOnly ? null : sources);
+  const source = code_source_text(node, recordedSourceOnly ? null : sources, t);
   const preview = source.available ? code_preview(source.text) : null;
   const muted = isDark ? "#a8a8b0" : "#6b6b73";
   const text = isDark ? "#f0f0f3" : "#1d1d22";
@@ -131,6 +136,7 @@ export default function CodeNode({ node, isDark, lowZoom = false, onOpenNode, so
     return () => window.removeEventListener("mouseup", release);
   }, [suppressed]);
 
+  const sourcePathParts = t("agents.nodes.code.read_when_reached").split("{path}");
   const showBlock = Boolean(preview) && !lowZoom;
   const viewerOpen = (hoverOpen || pinned) && !suppressed && showBlock;
 
@@ -199,7 +205,7 @@ export default function CodeNode({ node, isDark, lowZoom = false, onOpenNode, so
                 {node_display_title(node, safe_text(node.id))}
               </div>
               <div style={{ fontSize: 10.5, color: muted, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {profile ? `Code · ${safe_text(profile)}` : "Code · choose a runtime"}
+                {profile ? t("agents.nodes.code.profile", { profile: safe_text(profile) }) : t("agents.nodes.code.choose_runtime")}
               </div>
             </div>
           </div>
@@ -226,7 +232,13 @@ export default function CodeNode({ node, isDark, lowZoom = false, onOpenNode, so
               {preview.lines.map((line, index) => (
                 <div key={index} style={{ overflow: "hidden", whiteSpace: "pre", textOverflow: "clip" }}>{line === "" ? " " : line}</div>
               ))}
-              <div style={{ color: muted }}>{preview.more > 0 ? `+${preview.more} line${preview.more === 1 ? "" : "s"}` : `${preview.total} line${preview.total === 1 ? "" : "s"}`}</div>
+              <div style={{ color: muted }}>{preview.more > 0
+                ? preview.more === 1
+                  ? t("agents.nodes.code.more_line_one", { count: preview.more })
+                  : t("agents.nodes.code.more_line_other", { count: preview.more })
+                : preview.total === 1
+                  ? t("agents.nodes.code.line_one", { count: preview.total })
+                  : t("agents.nodes.code.line_other", { count: preview.total })}</div>
               <span
                 ref={expandRef}
                 data-code-expand="true"
@@ -272,7 +284,7 @@ export default function CodeNode({ node, isDark, lowZoom = false, onOpenNode, so
                 >
                   <Button
                     prefix_icon="fullscreen"
-                    ariaLabel={`View the code of ${node.id}`}
+                    ariaLabel={t("agents.nodes.code.view_code", { id: node.id })}
                     onClick={() => {
                       if (suppressed) return;
                       setPinned((was) => !was);
@@ -290,16 +302,15 @@ export default function CodeNode({ node, isDark, lowZoom = false, onOpenNode, so
               style={{ marginTop: 8, paddingTop: 6, borderTop: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}`, fontSize: 10.5, color: muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
             >
               {recordedSourceOnly ? (
-                <span title={source.path || ""}>Frozen source: {source.path || "not recorded"} · text not included in this observation</span>
+                <span title={source.path || ""}>{t("agents.nodes.code.frozen_source", { path: source.path || t("agents.nodes.code.not_recorded") })}</span>
               ) : source.managed ? (
-                <span data-testid={`code-node-${node.id}-text-missing`}>Code text not loaded · reopen this Agent</span>
+                <span data-testid={`code-node-${node.id}-text-missing`}>{t("agents.nodes.code.text_missing")}</span>
               ) : source.path ? (
                 <>
-                  <span style={{ fontFamily: "ui-monospace, Menlo, monospace", color: text }}>{safe_text(source.path)}</span>
-                  {" · read when the run gets here"}
+                  {sourcePathParts[0]}<span style={{ fontFamily: "ui-monospace, Menlo, monospace", color: text }}>{safe_text(source.path)}</span>{sourcePathParts[1]}
                 </>
               ) : (
-                "No source file yet"
+                t("agents.nodes.code.no_source")
               )}
             </div>
           )}

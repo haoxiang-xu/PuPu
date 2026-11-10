@@ -1,3 +1,5 @@
+import { agentMessage, renderAgentMessage, agentProblemMessage } from "../agents_i18n";
+import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import React, { useEffect, useRef, useState } from "react";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
@@ -41,12 +43,12 @@ export function useHookWorkflowCapability() {
     let live = true;
     const read = api?.unchain?.getSkeletonHookWorkflowCapabilities;
     if (typeof read !== "function") {
-      setState({ status: "unavailable", reason: "this app has no Hook Workflow contract read" });
+      setState({ status: "unavailable", reason: agentMessage("agents.hook_source.no_contract") });
       return undefined;
     }
     read().then(
       (value) => { if (live) setState({ status: "ready", contract: value.workflow_source }); },
-      (error) => { if (live) setState({ status: "unavailable", reason: safe_text(error?.code || error?.message || "the host did not answer") }); },
+      (error) => { if (live) setState({ status: "unavailable", reason: error?.code || error?.message ? safe_text(error?.code || error?.message) : agentMessage("agents.hook_source.host_no_answer") }); },
     );
     return () => { live = false; };
   }, []);
@@ -63,6 +65,7 @@ export function seed_hook_workflow(entry, parent_id) {
 }
 
 export default function HookWorkflowSource({ entry, index, nodeId, parentId, pin, editable, isDark, testid, capability, managedSources, onWrite, onOpen }) {
+  const { t } = useTranslation();
   const body = hook_embedded(entry);
   const stored_own = record(entry.workflow) && Object.prototype.hasOwnProperty.call(entry.workflow, "kind");
   const offered = embedded_supported(capability);
@@ -91,7 +94,7 @@ export default function HookWorkflowSource({ entry, index, nodeId, parentId, pin
     const name = saveAs ? saveAs.name.trim() : "";
     if (!record(body) || !RESOURCE_ID.test(id) || !name) return;
     if (id === parentId) {
-      setSaveState({ status: "refused", message: `“${safe_text(id)}” is this Agent's own id.` });
+      setSaveState({ status: "refused", message: agentMessage("agents.hook_source.same_parent_id", { value1: safe_text(id) }) });
       return;
     }
     const mine = ++intent.current.ticket;
@@ -104,23 +107,26 @@ export default function HookWorkflowSource({ entry, index, nodeId, parentId, pin
     intent.current.pending = null;
     if (result.ok) {
       setSaveAs(null);
-      setSaveState({ status: "done", message: `Saved a copy as the Workflow “${safe_text(id)}” (a draft). This hook still runs its own; to run that Workflow instead, publish it and pin it here.` });
+      setSaveState({ status: "done", message: agentMessage("agents.hook_source.copy_saved", { value1: safe_text(id) }) });
     } else {
       const error = result.error || {};
-      setSaveState({ status: "refused", message: `Nothing was saved: ${safe_text(error.message || error.code || "the store refused")}${error.code ? ` (${safe_text(error.code)})` : ""}.` });
+      const message = error.message
+        ? typeof error.message === "string" ? agentProblemMessage(error, agentMessage) : safe_text(error.message)
+        : error.code ? safe_text(error.code) : agentMessage("agents.execution.code.store_refused");
+      setSaveState({ status: "refused", message: error.code ? agentMessage("agents.hook_source.copy_refused_code", { message, code: safe_text(error.code) }) : agentMessage("agents.hook_source.copy_refused", { message }) });
     }
   };
 
   return (
     <div data-testid={`${testid}-source`} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <span style={LABEL}>Workflow</span>
+      <span style={LABEL}>{t("agents.hook_source.title")}</span>
       {offered && (
         <span style={{ opacity: editable ? 1 : 0.5, pointerEvents: editable ? "auto" : "none" }}>
           <SegmentedControl
             size="compact"
             isDark={isDark}
             buttonFontWeight={500}
-            sections={[{ key: "pinned", label: "A pinned Workflow" }, { key: "own", label: "Its own Workflow" }]}
+            sections={[{ key: "pinned", label: t("agents.hook_source.pinned") }, { key: "own", label: t("agents.hook_source.own") }]}
             selected={!stored_own && !Object.prototype.hasOwnProperty.call(entry, "workflow") ? null : mode}
             onChange={(next) => {
               if (!editable) return;
@@ -139,15 +145,15 @@ export default function HookWorkflowSource({ entry, index, nodeId, parentId, pin
       {!offered && (
         <span data-testid={`${testid}-source-note`} style={NOTE}>
           {capability.status === "loading"
-            ? "Checking whether this runtime takes a Workflow of the hook's own…"
-            : `A Workflow of the hook's own is not offered: this runtime has not confirmed it reads one${capability.reason ? ` (${safe_text(capability.reason)})` : ""}.`}
+            ? t("agents.hook_source.checking_contract")
+            : capability.reason ? t("agents.hook_source.unconfirmed_reason", { reason: renderAgentMessage(capability.reason, t) }) : t("agents.hook_source.unconfirmed")}
         </span>
       )}
 
       {mode === "pinned" && (
         <>
           {stored_own && (
-            <span data-testid={`${testid}-replaces-own`} style={NOTE}>Pinning a revision replaces this hook's own Workflow; Undo brings it back.</span>
+            <span data-testid={`${testid}-replaces-own`} style={NOTE}>{t("agents.hook_source.pin_replaces_embedded")}</span>
           )}
           <WorkflowPinControl
             pin={pin}
@@ -164,46 +170,46 @@ export default function HookWorkflowSource({ entry, index, nodeId, parentId, pin
         <div data-testid={`${testid}-own`} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {record(body) ? (
             <span style={NOTE}>
-              <b>{safe_text(body.name || body.id)}</b> · <span style={MONO}>{safe_text(body.id)}</span> · {Array.isArray(body.nodes) ? body.nodes.length : 0} steps. Saved with this Agent.
+              {t("agents.hook_source.own_summary", { name: "{name}", id: "{id}", count: "{count}" }).split(/(\{name\}|\{id\}|\{count\})/g).map((part, index) => ({ __proto__: null, "{name}": (<b key={index}>{safe_text(body.name || body.id)}</b>), "{id}": (<span key={index} style={MONO}>{safe_text(body.id)}</span>), "{count}": Array.isArray(body.nodes) ? body.nodes.length : 0 }[part] ?? part))}
             </span>
           ) : (
-            <span style={problem_style(isDark)}>The stored Workflow is not one this editor can open.</span>
+            <span style={problem_style(isDark)}>{t("agents.hook_source.unreadable")}</span>
           )}
-          <div style={ROW}>
+          <div style={{ ...ROW, flexWrap: "wrap" }}>
             <Button
-              label="Open its Workflow"
-              ariaLabel={`Open the Workflow of hook ${safe_text(entry.id)}`}
+              label={t("agents.hook_source.open")}
+              ariaLabel={t("agents.hook_source.open_hook", { value1: safe_text(entry.id) })}
               disabled={!offered || !record(body) || typeof onOpen !== "function"}
               onClick={() => onOpen({ pool_node_id: nodeId, entry_id: entry.id, entry_index: index })}
-              style={{ ...SMALL, color: "#4a5bd8" }}
+              style={{ ...SMALL, color: "#4a5bd8", flexShrink: 0 }}
             />
             {!saveAs && (
               <Button
-                label="Save as a Workflow…"
+                label={t("agents.hook_source.save_as")}
                 disabled={!record(body)}
                 onClick={() => startSaveAs({ id: "", name: record(body) && typeof body.name === "string" ? body.name : "" })}
-                style={SMALL}
+                style={{ ...SMALL, flexShrink: 0 }}
               />
             )}
           </div>
           {saveAs && (
             <div data-testid={`${testid}-save-as`} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <Input value={saveAs.id} placeholder="new Workflow id, e.g. redact-paths" set_value={(next) => startSaveAs({ ...saveAs, id: next })} style={{ ...FIELD, ...MONO }} />
-              <Input value={saveAs.name} placeholder="its name" set_value={(next) => startSaveAs({ ...saveAs, name: next })} style={FIELD} />
-              <span style={NOTE}>A separate draft in the library, under this id. It is not published, and this hook keeps its own copy.</span>
+              <Input value={saveAs.id} placeholder={t("agents.hook_source.id_placeholder")} set_value={(next) => startSaveAs({ ...saveAs, id: next })} style={{ ...FIELD, ...MONO }} />
+              <Input value={saveAs.name} placeholder={t("agents.hook_source.name_placeholder")} set_value={(next) => startSaveAs({ ...saveAs, name: next })} style={FIELD} />
+              <span style={NOTE}>{t("agents.hook_source.copy_note")}</span>
               <div style={ROW}>
                 <Button
-                  label={saveState.status === "saving" ? "Saving…" : "Save the copy"}
+                  label={saveState.status === "saving" ? t("agents.hook_source.saving") : t("agents.hook_source.save_copy")}
                   disabled={saveState.status === "saving" || !RESOURCE_ID.test(saveAs.id.trim()) || !saveAs.name.trim()}
                   onClick={saveAsWorkflow}
                   style={SMALL}
                 />
-                <Button label="Cancel" onClick={() => startSaveAs(null)} style={{ ...SMALL, opacity: 0.75 }} />
+                <Button label={t("agents.explorer.cancel")} onClick={() => startSaveAs(null)} style={{ ...SMALL, opacity: 0.75 }} />
               </div>
             </div>
           )}
           {saveState.message && (
-            <span data-testid={`${testid}-save-as-state`} style={saveState.status === "refused" ? problem_style(isDark) : NOTE}>{saveState.message}</span>
+            <span data-testid={`${testid}-save-as-state`} style={saveState.status === "refused" ? problem_style(isDark) : NOTE}>{renderAgentMessage(saveState.message, t)}</span>
           )}
         </div>
       )}

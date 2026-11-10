@@ -1,3 +1,4 @@
+import { agentEnglishText } from "./agents_i18n";
 import { document_problems } from "./skeleton_document";
 
 /* What a Subagent Pool node holds, and what the runtime refuses.
@@ -82,34 +83,34 @@ export function pool_where(path) {
 /* `_closed` (`:21-30`): the object, then its missing keys, then its extra
    ones. The runtime names only the alphabetically first of each; this names
    all of them. */
-function closed(value, path, required, problems) {
+function closed(value, path, required, problems, t = agentEnglishText) {
   if (!is_object(value)) {
-    problems.push(problem("invalid_type", pool_where(path), "value must be an object"));
+    problems.push(problem("invalid_type", pool_where(path), t("agents.subagents.object_required")));
     return false;
   }
   required.forEach((key) => {
     if (!(key in value)) {
       problems.push(
-        problem("missing_field", pool_where([...path, key]), "required field is missing"),
+        problem("missing_field", pool_where([...path, key]), t("agents.subagents.field_missing")),
       );
     }
   });
   Object.keys(value).forEach((key) => {
     if (!required.includes(key)) {
-      problems.push(problem("unknown_field", pool_where([...path, key]), "unknown field"));
+      problems.push(problem("unknown_field", pool_where([...path, key]), t("agents.subagents.unknown_field")));
     }
   });
   return true;
 }
 
 /* `_text` (`:32-37`): a string, and not a blank one. */
-function text(value, path, label, problems) {
+function text(value, path, label, problems, t = agentEnglishText) {
   if (typeof value !== "string") {
-    problems.push(problem("invalid_type", pool_where(path), `${label} must be a string`));
+    problems.push(problem("invalid_type", pool_where(path), t("agents.subagents.text_required", { value1: label })));
     return false;
   }
   if (!value.trim()) {
-    problems.push(problem("invalid_value", pool_where(path), `${label} must be non-empty`));
+    problems.push(problem("invalid_value", pool_where(path), t("agents.subagents.text_nonempty", { value1: label })));
     return false;
   }
   return true;
@@ -117,20 +118,20 @@ function text(value, path, label, problems) {
 
 /* `:88-97`. `allowed_tools` may be `null`, which is "every tool"; nothing
    else may be, and an empty list is a real answer meaning "no tool". */
-function tool_list(value, path, field, problems) {
+function tool_list(value, path, field, problems, t = agentEnglishText) {
   if (field === "allowed_tools" && value === null) return;
   const usable =
     Array.isArray(value) &&
     value.every((tool) => typeof tool === "string" && tool.trim());
   if (!usable) {
     problems.push(
-      problem("invalid_type", pool_where(path), `${field} must contain non-empty strings`),
+      problem("invalid_type", pool_where(path), t("agents.subagents.tool_names_required", { value1: field })),
     );
     return;
   }
   if (new Set(value).size !== value.length) {
     problems.push(
-      problem("duplicate_name", pool_where(path), `${field} contains duplicates`),
+      problem("duplicate_name", pool_where(path), t("agents.subagents.tool_names_duplicate", { value1: field })),
     );
   }
 }
@@ -153,13 +154,13 @@ function tool_list(value, path, field, problems) {
  * own Start, End and at least one Kernel Loop (`validation.py:43-49`). The
  * rest of a graph's structure — reachability, outlets, cycles — is the
  * child's own subject and is not re-derived here. */
-function agent_graph_problems(child, path, problems) {
+function agent_graph_problems(child, path, problems, t = agentEnglishText) {
   if (child.kind === "workflow") {
     problems.push(
       problem(
         "wrong_kind",
         pool_where([...path, "kind"]),
-        "Agent preparation requires agent kind",
+        t("agents.subagents.agent_kind_required"),
       ),
     );
   }
@@ -168,59 +169,59 @@ function agent_graph_problems(child, path, problems) {
     nodes.filter((node) => is_object(node) && node.type === type).length;
   const at = pool_where([...path, "nodes"]);
   if (count("start") !== 1) {
-    problems.push(problem("start_count", at, "graph requires exactly one start node"));
+    problems.push(problem("start_count", at, t("agents.subagents.start_count")));
   }
   if (count("end") !== 1) {
-    problems.push(problem("end_count", at, "graph requires exactly one end node"));
+    problems.push(problem("end_count", at, t("agents.subagents.end_count")));
   }
   if (child.kind === "agent" && count("agent") === 0) {
-    problems.push(problem("agent_required", at, "agent graph requires an agent node"));
+    problems.push(problem("agent_required", at, t("agents.subagents.agent_node_required")));
   }
 }
 
 /* `:99-111`. A source says where the Agent comes from, and the two kinds are
    each closed. `kind` missing or not a string is reported against the source
    itself rather than against `kind`, which is what the runtime does. */
-function source_problems(source, path, problems) {
+function source_problems(source, path, problems, t = agentEnglishText) {
   if (!is_object(source) || typeof source.kind !== "string") {
     problems.push(
-      problem("invalid_type", pool_where(path), "subagent source must be an object with kind"),
+      problem("invalid_type", pool_where(path), t("agents.subagents.source_kind_required")),
     );
     return;
   }
   if (source.kind === "agent_ref") {
-    if (!closed(source, path, ["kind", "agent_id"], problems)) return;
+    if (!closed(source, path, ["kind", "agent_id"], problems, t)) return;
     if ("agent_id" in source) {
-      text(source.agent_id, [...path, "agent_id"], "Agent resource id", problems);
+      text(source.agent_id, [...path, "agent_id"], t("agents.subagents.label_agent_resource_id"), problems, t);
     }
     return;
   }
   if (source.kind === "embedded") {
-    if (!closed(source, path, ["kind", "document"], problems)) return;
+    if (!closed(source, path, ["kind", "document"], problems, t)) return;
     if (!("document" in source)) return;
     const child_path = [...path, "document"];
     if (!is_object(source.document)) {
       problems.push(
-        problem("invalid_type", pool_where(child_path), "embedded Agent must be an object"),
+        problem("invalid_type", pool_where(child_path), t("agents.subagents.embedded_object_required")),
       );
       return;
     }
     /* The same format layer every document is read through, under the path
        the runtime would report it at. */
     const prefix = pool_where(child_path);
-    document_problems(source.document).forEach((found) => {
+    document_problems(source.document, t).forEach((found) => {
       problems.push(
         problem(found.code, `${prefix}${found.where.replace(/^document/, "")}`, found.message),
       );
     });
-    agent_graph_problems(source.document, child_path, problems);
+    agent_graph_problems(source.document, child_path, problems, t);
     return;
   }
   problems.push(
     problem(
       "unknown_variant",
       pool_where([...path, "kind"]),
-      "subagent source must be agent_ref or embedded",
+      t("agents.subagents.source_kind_invalid"),
     ),
   );
 }
@@ -359,14 +360,14 @@ export function introduces_collision(before, next) {
   });
 }
 
-export function subagent_pool_problems(config, base = ["config"]) {
+export function subagent_pool_problems(config, base = ["config"], t = agentEnglishText) {
   const problems = [];
-  if (!closed(config, base, [SUBAGENTS_CONFIG_KEY], problems)) return problems;
+  if (!closed(config, base, [SUBAGENTS_CONFIG_KEY], problems, t)) return problems;
   const path = [...base, SUBAGENTS_CONFIG_KEY];
   const entries = config[SUBAGENTS_CONFIG_KEY];
   if (!Array.isArray(entries)) {
     if (SUBAGENTS_CONFIG_KEY in config) {
-      problems.push(problem("invalid_type", pool_where(path), "subagents must be an array"));
+      problems.push(problem("invalid_type", pool_where(path), t("agents.subagents.list_required")));
     }
     return problems;
   }
@@ -375,7 +376,7 @@ export function subagent_pool_problems(config, base = ["config"]) {
      attaches to. */
   if (entries.length === 0) {
     problems.push(
-      problem("missing_value", pool_where(path), "subagent pool must contain an Agent"),
+      problem("missing_value", pool_where(path), t("agents.subagents.agent_required")),
     );
     return problems;
   }
@@ -383,27 +384,27 @@ export function subagent_pool_problems(config, base = ["config"]) {
   const names = new Set();
   entries.forEach((entry, index) => {
     const entry_path = [...path, index];
-    if (!closed(entry, entry_path, SUBAGENT_ENTRY_KEYS, problems)) return;
+    if (!closed(entry, entry_path, SUBAGENT_ENTRY_KEYS, problems, t)) return;
     const has = (key) => key in entry;
-    if (has("id") && text(entry.id, [...entry_path, "id"], "subagent id", problems)) {
+    if (has("id") && text(entry.id, [...entry_path, "id"], t("agents.subagents.label_subagent_id"), problems, t)) {
       if (ids.has(entry.id)) {
         problems.push(
-          problem("duplicate_name", pool_where([...entry_path, "id"]), "subagent id is duplicated"),
+          problem("duplicate_name", pool_where([...entry_path, "id"]), t("agents.subagents.id_duplicate")),
         );
       }
       ids.add(entry.id);
     }
-    if (has("name") && text(entry.name, [...entry_path, "name"], "subagent name", problems)) {
+    if (has("name") && text(entry.name, [...entry_path, "name"], t("agents.subagents.label_subagent_name"), problems, t)) {
       if (names.has(entry.name)) {
         problems.push(
-          problem("duplicate_name", pool_where([...entry_path, "name"]), "subagent name is duplicated"),
+          problem("duplicate_name", pool_where([...entry_path, "name"]), t("agents.subagents.name_duplicate")),
         );
       }
       names.add(entry.name);
     }
     if (has("description") && typeof entry.description !== "string") {
       problems.push(
-        problem("invalid_type", pool_where([...entry_path, "description"]), "description must be a string"),
+        problem("invalid_type", pool_where([...entry_path, "description"]), t("agents.subagents.description_string")),
       );
     }
     if (has("allowed_modes")) {
@@ -412,32 +413,32 @@ export function subagent_pool_problems(config, base = ["config"]) {
       /* `:75-77`. An empty list is `invalid_type` here rather than a missing
          value — the runtime asks both questions in one expression. */
       if (!Array.isArray(modes) || modes.length === 0) {
-        problems.push(problem("invalid_type", where, "allowed_modes must be a non-empty array"));
+        problems.push(problem("invalid_type", where, t("agents.subagents.modes_required")));
       } else if (
         modes.some((mode) => typeof mode !== "string" || !SUBAGENT_MODES.includes(mode))
       ) {
-        problems.push(problem("unknown_variant", where, "allowed_modes contains an unknown mode"));
+        problems.push(problem("unknown_variant", where, t("agents.subagents.mode_unknown")));
       } else if (new Set(modes).size !== modes.length) {
-        problems.push(problem("duplicate_name", where, "allowed_modes contains duplicates"));
+        problems.push(problem("duplicate_name", where, t("agents.subagents.mode_duplicate")));
       }
     }
     if (has("output_mode") && !SUBAGENT_OUTPUT_MODES.includes(entry.output_mode)) {
       problems.push(
-        problem("unknown_variant", pool_where([...entry_path, "output_mode"]), "output_mode is unknown"),
+        problem("unknown_variant", pool_where([...entry_path, "output_mode"]), t("agents.subagents.output_unknown")),
       );
     }
     if (has("memory_policy") && !SUBAGENT_MEMORY_POLICIES.includes(entry.memory_policy)) {
       problems.push(
-        problem("unknown_variant", pool_where([...entry_path, "memory_policy"]), "memory_policy is unknown"),
+        problem("unknown_variant", pool_where([...entry_path, "memory_policy"]), t("agents.subagents.memory_unknown")),
       );
     }
     if (has("parallel_safe") && typeof entry.parallel_safe !== "boolean") {
       problems.push(
-        problem("invalid_type", pool_where([...entry_path, "parallel_safe"]), "parallel_safe must be a boolean"),
+        problem("invalid_type", pool_where([...entry_path, "parallel_safe"]), t("agents.subagents.parallel_boolean")),
       );
     }
     TOOL_LIST_KEYS.forEach((field) => {
-      if (has(field)) tool_list(entry[field], [...entry_path, field], field, problems);
+      if (has(field)) tool_list(entry[field], [...entry_path, field], field, problems, t);
     });
     /* `:96-97`. Named on both lists at once is a contradiction the author has
        to resolve, and it is reported against the disabled list because that
@@ -451,11 +452,11 @@ export function subagent_pool_problems(config, base = ["config"]) {
         problem(
           "invalid_value",
           pool_where([...entry_path, "disabled_tools"]),
-          "a tool cannot be both allowed and disabled",
+          t("agents.subagents.tool_contradiction"),
         ),
       );
     }
-    if (has("source")) source_problems(entry.source, [...entry_path, "source"], problems);
+    if (has("source")) source_problems(entry.source, [...entry_path, "source"], problems, t);
   });
   return problems;
 }

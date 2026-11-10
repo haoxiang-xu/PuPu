@@ -1,3 +1,4 @@
+import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import React, { useContext } from "react";
 import { ConfigContext } from "../../../../../CONTAINERs/config/context";
 import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
@@ -92,6 +93,7 @@ export default function DetailPanel({
   /* Description of this graph's identified caller; editor memory only. */
   startContext,
 }) {
+  const { t } = useTranslation();
   const cfg = useContext(ConfigContext);
   const isDark = cfg?.onThemeMode === "dark_mode";
   /* The same node as seen in the Skeleton document, when one is being edited.
@@ -121,22 +123,25 @@ export default function DetailPanel({
      us. Everything below keeps the stored node, because everything below
      edits it. A legacy recipe node is drawn as it always was; its `label` and
      `override.model` are its own. */
-  const identity = node_identity(legacy_node || drawn_node(skeleton_node));
+  const identity = node_identity(legacy_node || drawn_node(skeleton_node), t);
   // Native Agents run their stored Kernel; the legacy inheritance caption
   // would promise a fallback that this unfinished new draft does not have.
   const subtitle = !legacy_node && skeleton_node?.type === "agent"
-    ? safe_text(skeleton_node.config?.kernel?.profile?.model || "No model configured")
+    ? (skeleton_node.config?.kernel?.profile?.model
+      ? safe_text(skeleton_node.config.kernel.profile.model) : t("agents.detail.no_model"))
     : !legacy_node && skeleton_node?.type === "toolkit_pool"
-      ? Array.isArray(node_toolkit_refs(skeleton_node)) ? `${node_toolkit_refs(skeleton_node).length} toolkit${node_toolkit_refs(skeleton_node).length === 1 ? "" : "s"}` : "Tool settings incomplete"
+      ? Array.isArray(node_toolkit_refs(skeleton_node)) ? node_toolkit_refs(skeleton_node).length === 1
+        ? t("agents.nodes.toolkit_count_one", { count: node_toolkit_refs(skeleton_node).length })
+        : t("agents.nodes.toolkit_count_other", { count: node_toolkit_refs(skeleton_node).length }) : t("agents.nodes.tool_settings_incomplete")
       : !legacy_node && is_branch_type(skeleton_node?.type)
-        ? branch_summary(skeleton_node)
+        ? branch_summary(skeleton_node, t)
         : !legacy_node && skeleton_node?.type === "code"
           /* The runtime it runs with, the way an Agent's header names its
              model (#357). */
           ? (() => {
               const code = code_settings(skeleton_node);
               const profile = code && typeof code.environment_profile_id === "string" && code.environment_profile_id;
-              return profile ? `Python · ${safe_text(profile)}` : "Python in its own process · choose a runtime";
+              return profile ? t("agents.detail.python_profile", { profile: safe_text(profile) }) : t("agents.detail.python_choose_runtime");
             })()
           : identity?.subtitle;
 
@@ -174,7 +179,7 @@ export default function DetailPanel({
           }}
         >
           <div style={{ fontSize: 12, color: "#86868b" }}>
-            Select a node to edit.
+            {t("agents.detail.select_node")}
           </div>
         </div>
       </div>

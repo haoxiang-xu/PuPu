@@ -1,3 +1,4 @@
+import { agentProblem, copyAgentProblem } from "../agents_i18n";
 /* The upgrade conversation with the host, as one sitting (#473 CP2, BC-473-006/007).
  *
  * Every request is numbered and owned: the resource it was about, the token
@@ -66,13 +67,13 @@ export function empty_state() {
 }
 
 function refusal_of(error) {
-  if (!is_object(error)) return { code: "unknown", path: [], message: String(error || "The host did not answer") };
-  return {
+  if (!is_object(error)) return error ? { code: "unknown", path: [], message: String(error) } : agentProblem("agents.upgrade.host_no_answer", undefined, { code: "unknown", path: [] });
+  return copyAgentProblem(error, {
     code: typeof error.code === "string" ? error.code : "unknown",
     path: Array.isArray(error.path) ? [...error.path] : [],
     message: typeof error.message === "string" ? error.message : "",
     status: Number.isInteger(error.status) ? error.status : null,
-  };
+  });
 }
 
 /* `services` is the one seam: `capabilities()`, `inspect(request)`,
@@ -117,7 +118,7 @@ export function createLegacyUpgradeController(services) {
     }
     if (ticket !== mine) return state;
     const digest = capabilities && capabilities.runtime_manifest && capabilities.runtime_manifest.manifest_digest;
-    if (typeof digest !== "string") return set({ phase: PHASES.UNAVAILABLE, error: { code: "capabilities_unreadable", path: [], message: "The host did not name its runtime." } });
+    if (typeof digest !== "string") return set({ phase: PHASES.UNAVAILABLE, error: agentProblem("agents.upgrade.host_no_runtime", undefined, { code: "capabilities_unreadable", path: [] }) });
     set({ manifest_digest: digest });
     let result;
     try { result = await services.inspect(request_for(state.resource)); } catch (error) {
@@ -247,7 +248,7 @@ export function createLegacyUpgradeController(services) {
        document the host says it saved must be the one the author reviewed,
        by value. A mismatch is not a success to present. */
     if (!json_equal(saved.document, reviewed.payload.document)) {
-      return set({ phase: PHASES.UNCONFIRMED, apply: { request: clone(request), outcome: "unconfirmed", refusal: { code: "applied_document_mismatch", path: ["document"], message: "The host saved a document that is not the reviewed preview." }, metadata: null }, observation: null, error: null });
+      return set({ phase: PHASES.UNCONFIRMED, apply: { request: clone(request), outcome: "unconfirmed", refusal: agentProblem("agents.upgrade.saved_mismatch", undefined, { code: "applied_document_mismatch", path: ["document"] }), metadata: null }, observation: null, error: null });
     }
     return set({ phase: PHASES.ACKNOWLEDGED, apply: { request: clone(request), outcome: "acknowledged", saved, response: result.response }, error: null });
   }
@@ -285,7 +286,7 @@ export function createLegacyUpgradeController(services) {
     const mine = ++ticket;
     const result = await services.read(resource.id);
     if (ticket !== mine) return state;
-    if (!result || !result.ok) return set({ phase: PHASES.UNAVAILABLE, error: result && result.error ? refusal_of(result.error) : { code: "read_failed", path: [], message: "The resource could not be read." } });
+    if (!result || !result.ok) return set({ phase: PHASES.UNAVAILABLE, error: result && result.error ? refusal_of(result.error) : agentProblem("agents.upgrade.resource_read_failed", undefined, { code: "read_failed", path: [] }) });
     return open({ id: result.data.id, edit_token: result.data.edit_token, document: result.data.document, name: result.data.name }, { keep_answers: true });
   }
 

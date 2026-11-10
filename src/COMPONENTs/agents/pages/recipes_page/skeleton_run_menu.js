@@ -1,3 +1,4 @@
+import { useTranslation } from "../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import React, { useEffect, useRef } from "react";
 import Button from "../../../../BUILTIN_COMPONENTs/input/button";
 import { ControlPopover } from "./canvas_chrome";
@@ -19,11 +20,12 @@ import { can_preflight, preflight_message } from "./skeleton_resource_session";
 export const RUN_UNAVAILABLE = "Running from here is not available yet. Start a chat with this Agent to run it.";
 
 export function RunTrigger({ open, onToggle }) {
+  const { t } = useTranslation();
   return (
     <Button
-      label="Run"
+      label={t("agents.run_menu.run")}
       prefix_icon="play"
-      ariaLabel="Open the run menu"
+      ariaLabel={t("agents.run_menu.open")}
       onClick={onToggle}
       style={{
         fontSize: 12,
@@ -41,11 +43,12 @@ export function RunTrigger({ open, onToggle }) {
 }
 
 export default function SkeletonRunMenu({ session, isDark, onCheck, onViewRun }) {
+  const { t } = useTranslation();
   /* Asked once per saved version this menu has been open for: a save while
      it is open is a new version, and the answer on screen is about the old. */
   const asked = useRef(null);
   const checkable = can_preflight(session);
-  const answer = preflight_message(session);
+  const answer = preflight_message(session, t);
   const saved_version = `${session.open_id}:${session.edit_token}`;
   useEffect(() => {
     if (asked.current === saved_version || !checkable || session.preflight) return;
@@ -54,13 +57,13 @@ export default function SkeletonRunMenu({ session, isDark, onCheck, onViewRun })
   }, [checkable, saved_version, session.preflight, onCheck]);
 
   const muted = "#86868b";
-  const title = session.document && session.document.kind === "workflow" ? "Run this workflow" : "Run this Agent";
+  const title = session.document && session.document.kind === "workflow" ? t("agents.run_menu.workflow_title") : t("agents.run_menu.agent_title");
   return (
     <ControlPopover isDark={isDark} testId="skeleton-run-menu">
       <span style={{ fontSize: 12, fontWeight: 600 }}>{title}</span>
       {session.dirty && !session.conflict ? (
         <span data-testid="skeleton-run-save-first" style={{ fontSize: 11, lineHeight: 1.45, color: muted }}>
-          Checking it can run asks the saved version, so save first.
+          {t("agents.save.save_before_check")}
         </span>
       ) : answer ? (
         <span data-testid="skeleton-preflight-state" style={{ fontSize: 11, lineHeight: 1.45 }}>
@@ -68,26 +71,26 @@ export default function SkeletonRunMenu({ session, isDark, onCheck, onViewRun })
         </span>
       ) : (
         <span style={{ fontSize: 11, lineHeight: 1.45, color: muted }}>
-          {checkable ? "Checking…" : "Not checked yet."}
+          {checkable ? t("agents.run_menu.checking") : t("agents.run_menu.not_checked")}
         </span>
       )}
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <Button
-          label="Check it can run"
+          label={t("agents.save.check_can_run")}
           onClick={onCheck}
           disabled={!checkable}
           style={{ fontSize: 11.5, paddingVertical: 4, paddingHorizontal: 10, borderRadius: 6 }}
         />
       </div>
       <div style={{ height: 1, backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)" }} />
-      {typeof onViewRun === "function" && <Button label="View current chat run" prefix_icon="eye_open" onClick={onViewRun}
+      {typeof onViewRun === "function" && <Button label={t("agents.run_menu.view_chat_run")} prefix_icon="eye_open" onClick={onViewRun}
         style={{ fontSize: 11.5, paddingVertical: 4, paddingHorizontal: 10, borderRadius: 6 }} />}
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <span data-testid="skeleton-run-unavailable" style={{ flex: 1, fontSize: 11, lineHeight: 1.45, color: muted }}>
-          {RUN_UNAVAILABLE}
+          {t("agents.run_menu.unavailable")}
         </span>
         <Button
-          label="Run"
+          label={t("agents.run_menu.run")}
           prefix_icon="play"
           disabled
           style={{

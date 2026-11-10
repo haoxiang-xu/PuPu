@@ -5,6 +5,8 @@ import Button from "../../../../BUILTIN_COMPONENTs/input/button";
 import usePresentationPlatform from "../../../../BUILTIN_COMPONENTs/mini_react/use_presentation_platform";
 import { AGENTS_MODAL_Z } from "../../top_strip";
 import PanelResizeHandle from "./panel_resize_handle";
+import { useTranslation } from "../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
+import { renderAgentMessage } from "./agents_i18n";
 
 /* The builder's chrome, shared by both canvases.
  *
@@ -74,16 +76,17 @@ export function CanvasControlCenter({
   canRedo,
   onHome,
   onSave,
-  saveLabel = "Save",
+  saveLabel,
   saveDisabled,
   saveActive,
   run,
   testId,
 }) {
+  const { t } = useTranslation();
   const isMac = usePresentationPlatform() === "darwin";
   const tokens = overlay_tokens(isDark);
-  const undoHint = isMac ? "Undo (⌘Z)" : "Undo (Ctrl+Z)";
-  const redoHint = isMac ? "Redo (⌘⇧Z)" : "Redo (Ctrl+Y)";
+  const undoHint = t("agents.canvas.undo", { shortcut: isMac ? "⌘Z" : "Ctrl+Z" });
+  const redoHint = t("agents.canvas.redo", { shortcut: isMac ? "⌘⇧Z" : "Ctrl+Y" });
   return (
     <ShadowSurface
       data-testid={testId}
@@ -108,7 +111,7 @@ export function CanvasControlCenter({
       <span title={redoHint} style={{ display: "inline-flex" }}>
         <Button prefix_icon="arrow_right" onClick={onRedo} disabled={!canRedo} style={ICON_CONTROL(canRedo)} />
       </span>
-      <span title="Center" style={{ display: "inline-flex" }}>
+      <span title={t("agents.canvas.center")} style={{ display: "inline-flex" }}>
         <Button
           prefix_icon="home"
           onClick={onHome}
@@ -130,7 +133,7 @@ export function CanvasControlCenter({
         </>
       )}
       <Button
-        label={saveLabel}
+        label={saveLabel === undefined ? t("agents.save.save") : saveLabel}
         onClick={onSave}
         disabled={saveDisabled}
         style={{
@@ -201,6 +204,7 @@ export function ControlPopover({ isDark, testId, children, width = 320 }) {
    away, an edit the graph refused. Each item is a sentence, or
    `{ text, testId }` when a caller names it. */
 export function CanvasMessageStrip({ isDark, items, testId, role, standalone = false }) {
+  const { t } = useTranslation();
   const list = (Array.isArray(items) ? items : []).filter(Boolean);
   if (list.length === 0) return null;
   const tokens = overlay_tokens(isDark);
@@ -232,15 +236,16 @@ export function CanvasMessageStrip({ isDark, items, testId, role, standalone = f
         gap: 4,
       }}
     >
-      {list.map((item, index) =>
-        typeof item === "string" ? (
-          <div key={index}>{item}</div>
+      {list.map((item, index) => {
+        const rendered = renderAgentMessage(item, t);
+        return typeof rendered === "string" ? (
+          <div key={index}>{rendered}</div>
         ) : (
           <div key={index} data-testid={item.testId}>
-            {item.text}
+            {renderAgentMessage(item.text, t)}
           </div>
-        ),
-      )}
+        );
+      })}
     </ShadowSurface>
   );
 }
@@ -260,8 +265,10 @@ export function FloatingBreadcrumb({
   testId,
   crumbsTestId,
   crumbAriaLabel,
-  hint = "Esc to go up",
+  hint,
 }) {
+  const { t } = useTranslation();
+  const hintCaption = hint === undefined ? t("agents.canvas.escape_up") : hint;
   const list = Array.isArray(crumbs) ? crumbs : [];
   if (list.length === 0) return null;
   const tokens = overlay_tokens(isDark);
@@ -330,7 +337,7 @@ export function FloatingBreadcrumb({
           items
         )}
       </div>
-      {hint && (
+      {hintCaption && (
         <span
           style={{
             marginLeft: 6,
@@ -341,7 +348,7 @@ export function FloatingBreadcrumb({
             whiteSpace: "nowrap",
           }}
         >
-          {hint}
+          {hintCaption}
         </span>
       )}
     </ShadowSurface>

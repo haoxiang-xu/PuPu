@@ -1,3 +1,4 @@
+import { useTranslation } from "../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import ShadowSurface from "../../../../BUILTIN_COMPONENTs/material/shadow_surface";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -8,8 +9,9 @@ import {
   NODE_GROUP_ICONS,
   NODE_GROUP_LABELS,
   excluded_nodes,
-  search_nodes,
+  addable_nodes,
 } from "./recipe_node_catalog";
+import { palette_entry_caption } from "./node_catalog_captions";
 import { is_flow_step_type } from "./recipe_graph_edits";
 
 /* The surface `Add node…` opens.
@@ -58,6 +60,7 @@ export default function RecipeNodePalette({
   onClose,
   isDark,
 }) {
+  const { t } = useTranslation();
   const finding = mode === "find";
   const pick_value = (entry) => (finding ? entry.key : entry.type);
   const [query, setQuery] = useState("");
@@ -67,13 +70,13 @@ export default function RecipeNodePalette({
 
   const results = useMemo(() => {
     if (!visible) return [];
-    const found = (Array.isArray(entries) ? search_entries(entries, query) : search_nodes(query, graphKind))
+    const found = search_entries(Array.isArray(entries) ? entries : addable_nodes(graphKind).map((entry) => palette_entry_caption(entry, t)), query)
       .filter((entry) => !Array.isArray(allowedTypes) || allowedTypes.includes(entry.type));
     return flowOnly ? found.filter((e) => is_flow_step_type(e.type)) : found;
-  }, [visible, query, graphKind, flowOnly, allowedTypes, entries]);
+  }, [visible, query, graphKind, flowOnly, allowedTypes, entries, t]);
   const excluded = useMemo(
-    () => (visible && !finding ? excluded_nodes(graphKind) : []),
-    [visible, graphKind, finding],
+    () => (visible && !finding ? excluded_nodes(graphKind).map((entry) => palette_entry_caption(entry, t)) : []),
+    [visible, graphKind, finding, t],
   );
 
   useEffect(() => {
@@ -186,8 +189,8 @@ export default function RecipeNodePalette({
           ref={inputRef}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder={finding ? "Find a node" : "Search nodes"}
-          aria-label={finding ? "Find a node" : "Search nodes"}
+          placeholder={finding ? t("agents.palette.find") : t("agents.palette.search")}
+          aria-label={finding ? t("agents.palette.find") : t("agents.palette.search")}
           style={{
             flex: 1,
             minWidth: 0,
@@ -205,23 +208,21 @@ export default function RecipeNodePalette({
         {grouped.length === 0 ? (
           <div style={{ padding: "14px 12px", fontSize: 11.5, lineHeight: 1.5, color: muted }}>
             {finding ? (
-              <>{query.trim() ? `No node matches “${query}”.` : "This graph has no nodes."}</>
+              <>{query.trim() ? t("agents.palette.no_match", { query }) : t("agents.palette.empty_graph")}</>
             ) : flowOnly ? (
               <>
                 {query.trim()
-                  ? `No node matches “${query}”. `
-                  : ""}
-                Only steps with an input and an output can be wired into the
-                flow — attachments hang off a node instead.
+                  ? t("agents.palette.no_match_flow_only", { query })
+                  : t("agents.palette.flow_only")}
               </>
             ) : excluded.length > 0 ? (
               <>
-                No node matches “{query}”. This is a {graphKind} graph, so{" "}
-                {excluded.map((e) => e.label).join(", ")}{" "}
-                {excluded.length === 1 ? "is" : "are"} not offered here.
+                {excluded.length === 1
+                  ? t("agents.palette.excluded_one", { query, graphKind: graphKind === "agent" ? t("agents.palette.graph_agent") : graphKind === "workflow" ? t("agents.palette.graph_workflow") : graphKind, excluded: excluded.map((e) => e.label).join(", ") })
+                  : t("agents.palette.excluded_other", { query, graphKind: graphKind === "agent" ? t("agents.palette.graph_agent") : graphKind === "workflow" ? t("agents.palette.graph_workflow") : graphKind, excluded: excluded.map((e) => e.label).join(", ") })}
               </>
             ) : (
-              <>No node matches “{query}”.</>
+              <>{t("agents.palette.no_match", { query })}</>
             )}
           </div>
         ) : (
@@ -247,7 +248,7 @@ export default function RecipeNodePalette({
                     style={{ width: 11, height: 11, flexShrink: 0 }}
                   />
                 )}
-                {NODE_GROUP_LABELS[group] || group}
+                {group === "steps" ? t("agents.palette.groups.steps") : group === "attachments" ? t("agents.palette.groups.attachments") : NODE_GROUP_LABELS[group] || group}
               </div>}
               {entries.map((entry) => {
                 index += 1;
@@ -322,8 +323,8 @@ export default function RecipeNodePalette({
       >
         <span>
           {finding
-            ? "Opens it and centers it on the canvas"
-            : flowOnly ? "Wired in where you right-clicked" : "Added where you right-clicked"}
+            ? t("agents.palette.find_footer")
+            : flowOnly ? t("agents.palette.insert_footer") : t("agents.palette.add_footer")}
         </span>
         <Icon
           src="corner_down_left"

@@ -1,6 +1,7 @@
 import { node_bindings, with_node_bindings } from "./skeleton_document";
 import { safe_text } from "./document_values";
 import { cached_workflow_version, workflow_version_state } from "./workflow_versions";
+import { agentEnglishText } from "./agents_i18n";
 
 /* The Workflow Call node's configuration (#357).
  *
@@ -171,40 +172,40 @@ export function remove_call_input(document, node_id, index) {
 /* Known and closed once the pinned revision has been read: the result is
    exactly what its End exports. Until then, or with no valid pin, nothing is
    offered and the reason says why. */
-export function workflow_call_result_roots(node) {
+export function workflow_call_result_roots(node, t = agentEnglishText) {
   const pin = pinned_reference(node);
   if (!pin) {
-    return { known: false, roots: [], closed: false, reason: "Pin a published Workflow revision; its End's exports are what this node produces." };
+    return { known: false, roots: [], closed: false, reason: t("agents.workflow.pin_for_outputs") };
   }
   const version = cached_workflow_version(pin.workflow_id, pin.revision_id);
   if (!version) {
-    return { known: false, roots: [], closed: false, reason: "The pinned revision has not been read yet, so its exports are not listed." };
+    return { known: false, roots: [], closed: false, reason: t("agents.workflow.outputs_loading") };
   }
   const shape = callee_interface(version.document);
   if (!shape.readable) {
-    return { known: false, roots: [], closed: false, reason: "The pinned revision's Start and End are not a shape this editor can read." };
+    return { known: false, roots: [], closed: false, reason: t("agents.workflow.unreadable_end") };
   }
   return { known: true, roots: shape.outputs, closed: true, reason: null };
 }
 
 /* ── What the panel says is wrong ─────────────────────────────────────── */
 
-export function workflow_call_problems(node) {
+export function workflow_call_problems(node, t = agentEnglishText) {
   const problems = [];
   const config = node && node.config;
   if (record(config)) {
     Object.keys(config).filter((key) => !SETTING_KEYS.includes(key)).forEach((key) => {
-      problems.push({ code: "unknown_setting", setting: key, message: `This runtime does not read the setting “${safe_text(key)}”; a stored copy is refused when the run starts.` });
+      problems.push({ code: "unknown_setting", setting: key, message: t("agents.workflow.unknown_setting", { key: safe_text(key) }) });
     });
   }
   const workflow = workflow_reference(node);
   if (workflow === undefined) {
-    problems.push({ code: "workflow_missing", message: "Choose a Workflow and pin one of its published revisions." });
+    problems.push({ code: "workflow_missing", message: t("agents.workflow.missing") });
     return problems;
   }
   const pin = pinned_reference(node);
   if (!pin) {
-    problems.push({ code: "workflow_invalid", message: "The stored reference is not exactly {workflow_id, revision_id}, both named; the run refuses it." });
+    problems.push({ code: "workflow_invalid", message: t("agents.workflow.invalid") });
     return problems;
   }
   const state = workflow_version_state(pin.workflow_id, pin.revision_id);
@@ -213,8 +214,8 @@ export function workflow_call_problems(node) {
     problems.push({
       code: missing ? "revision_missing" : "revision_unreadable",
       message: missing
-        ? `No published revision “${safe_text(pin.revision_id)}” of “${safe_text(pin.workflow_id)}” exists; the run refuses it.`
-        : `The pinned revision could not be read: ${safe_text((state.error && (state.error.message || state.error.code)) || "the store refused")}.`,
+        ? t("agents.workflow.missing_revision", { revision: safe_text(pin.revision_id), workflow: safe_text(pin.workflow_id) })
+        : t("agents.workflow.revision_failed", { message: safe_text((state.error && (state.error.message || state.error.code)) || t("agents.workflow.store_refused")) }),
     });
     return problems;
   }
@@ -225,7 +226,7 @@ export function workflow_call_problems(node) {
   const bindings = node_bindings(node);
   shape.inputs.forEach(({ key }) => {
     if (!bindings.some((binding) => record(binding) && binding.name === key)) {
-      problems.push({ code: "input_missing", setting: key, message: `The called Workflow's Start reads “${safe_text(key)}”. Without it the call fails when the run gets here.` });
+      problems.push({ code: "input_missing", setting: key, message: t("agents.workflow.missing_input", { key: safe_text(key) }) });
     }
   });
   const outputs = record(config) && record(config.execution) && Array.isArray(config.execution.outputs) ? config.execution.outputs : [];
@@ -233,7 +234,7 @@ export function workflow_call_problems(node) {
     const path = record(output) && record(output.source) && output.source.kind === "result" ? output.source.path : null;
     const root = Array.isArray(path) ? path[0] : undefined;
     if (typeof root === "string" && !shape.outputs.includes(root)) {
-      problems.push({ code: "output_undeclared", setting: index, message: `“${safe_text(root)}” is not something the pinned revision's End exports; that output would be missing when the run gets here.` });
+      problems.push({ code: "output_undeclared", setting: index, message: t("agents.workflow.unknown_output", { name: safe_text(root) }) });
     }
   });
   return problems;

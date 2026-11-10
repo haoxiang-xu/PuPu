@@ -1,5 +1,6 @@
 import React from "react";
 import Button from "../../../../BUILTIN_COMPONENTs/input/button";
+import { useTranslation } from "../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 
 /* `Reviewer › Subagent Pool › Summarizer`.
  *
@@ -17,6 +18,7 @@ export default function SkeletonDrillBreadcrumb({
   caption,
   note,
 }) {
+  const { t } = useTranslation();
   const list = Array.isArray(crumbs) ? crumbs : [];
   if (list.length === 0) return null;
   return (
@@ -38,7 +40,7 @@ export default function SkeletonDrillBreadcrumb({
             {crumb.navigable ? (
               <Button
                 label={crumb.label}
-                ariaLabel={`Back to ${crumb.label}`}
+                ariaLabel={t("agents.editor.back_to", { label: crumb.label })}
                 onClick={() => onNavigate(crumb.depth)}
                 style={{
                   fontSize: 11.5,

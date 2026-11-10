@@ -1,3 +1,4 @@
+import { agentEnglishText, agentProblem, copyAgentProblem } from "./agents_i18n";
 /* Talking to the Skeleton resource store.
  *
  * The method names and payload shapes are the ones the store actually exposes
@@ -38,27 +39,16 @@ import {
 const UNAVAILABLE_CODES = new Set(["bridge_unavailable", "bridge_missing"]);
 
 function unavailable(error) {
-  return {
-    ok: false,
-    reason: "unavailable",
-    error: {
-      code: (error && error.code) || "bridge_unavailable",
-      message:
-        "The Skeleton resource store is not reachable in this build, so nothing was saved.",
-    },
-  };
+  return { ok: false, reason: "unavailable", error: agentProblem("agents.managed.store_unreachable", undefined, {
+    code: (error && error.code) || "bridge_unavailable",
+  }) };
 }
 
 function refused(error) {
-  return {
-    ok: false,
-    reason: "refused",
-    error: {
-      code: (error && error.code) || "skeleton_store_failed",
-      path: (error && error.path) || [],
-      message: (error && error.message) || "The Skeleton resource store refused the request.",
-    },
-  };
+  const details = { code: (error && error.code) || "skeleton_store_failed", path: (error && error.path) || [] };
+  return { ok: false, reason: "refused", error: error && error.message
+    ? copyAgentProblem(error, { ...details, message: error.message })
+    : agentProblem("agents.managed.store_refused", undefined, details) };
 }
 
 /* The store reports a refusal as a body rather than a throw on some paths and
@@ -208,10 +198,7 @@ export async function kernel_profiles() {
     Array.isArray(data.unavailable) &&
     [...data.profiles, ...data.unavailable].every(is_entry);
   if (!shaped) {
-    return refused({
-      code: CATALOG_MALFORMED,
-      message: "The runtime's answer was not a list of Kernel profiles.",
-    });
+    return refused(agentProblem("agents.managed.kernel_profiles", undefined, { code: CATALOG_MALFORMED }));
   }
   const offered = [];
   const unavailable = [];
@@ -267,10 +254,7 @@ export async function python_profiles() {
     Array.isArray(data.profiles) &&
     data.profiles.every((profile) => is_entry(profile) && typeof profile.id === "string" && profile.id);
   if (!shaped) {
-    return refused({
-      code: PROFILES_MALFORMED,
-      message: "The runtime's answer was not a list of Python profiles.",
-    });
+    return refused(agentProblem("agents.managed.python_profiles", undefined, { code: PROFILES_MALFORMED }));
   }
   return { ok: true, data: { profiles: data.profiles } };
 }
@@ -296,7 +280,7 @@ export async function preflight(resource_id) {
   if (!result.ok) return result;
   const answer = result.data;
   if (!is_entry(answer) || Object.keys(answer).length !== 2 || answer.schema !== PREFLIGHT_SCHEMA || !is_entry(answer.preflight)) {
-    return refused({ code: PROTOCOL_ERROR, message: "The preflight reply is not a v2 answer." });
+    return refused(agentProblem("agents.managed.preflight_schema", undefined, { code: PROTOCOL_ERROR }));
   }
   return { ok: true, data: answer.preflight };
 }
@@ -326,7 +310,7 @@ function admitted_version(result, workflow_id, revision_id) {
   if (!aggregate.ok) return refused(aggregate.error);
   const version = aggregate.version;
   if (version.workflow_id !== workflow_id || (revision_id !== undefined && version.revision_id !== revision_id)) {
-    return refused({ code: "identity_mismatch", message: "The host answered about another Workflow revision than the one asked for." });
+    return refused(agentProblem("agents.managed.revision_mismatch", undefined, { code: "identity_mismatch" }));
   }
   return { ok: true, data: version };
 }
@@ -351,7 +335,7 @@ export async function read_workflow_revision_view(workflow_id, revision_id) {
   if (!aggregate.ok) return refused(aggregate.error);
   const version = aggregate.version;
   if (version.workflow_id !== workflow_id || version.revision_id !== revision_id) {
-    return refused({ code: "identity_mismatch", message: "The host answered about another Workflow revision than the one asked for." });
+    return refused(agentProblem("agents.managed.revision_mismatch", undefined, { code: "identity_mismatch" }));
   }
   return { ok: true, data: { version, sources: aggregate.sources } };
 }
@@ -387,8 +371,8 @@ export async function import_resource(payload) {
   return result;
 }
 
-export function edit_conflict_message(error) {
+export function edit_conflict_message(error, t = agentEnglishText) {
   return error && error.code === "edit_conflict"
-    ? "This Agent was changed elsewhere since it was opened. Reload it before saving, or the other edit would be replaced."
+    ? t("agents.managed.edit_conflict")
     : null;
 }

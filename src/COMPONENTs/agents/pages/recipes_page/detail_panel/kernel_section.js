@@ -1,3 +1,5 @@
+import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
+import { agentEnglishText } from "../agents_i18n";
 import React, { useEffect, useState } from "react";
 import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
 import Select from "../../../../../BUILTIN_COMPONENTs/select/select";
@@ -59,11 +61,9 @@ const refused_style = (isDark) => ({
 });
 const ROW = { display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" };
 
-const NO_KERNEL_CAPTION =
-  "This Agent has no model yet. A draft saves without one and nothing reports it, but the Agent is refused the moment it runs — so pick a model here.";
 
-const UNREACHABLE_CAPTION =
-  "The list of models comes from the runtime, which this build cannot reach, so a model cannot be picked yet. Anything already configured is shown as it is stored.";
+
+
 
 /* Not the same thing as an empty catalog, and it took a negative test to show
    that this panel was saying the one about the other: a malformed answer was
@@ -71,21 +71,13 @@ const UNREACHABLE_CAPTION =
    a statement about the build, made about an answer nobody could read. Both
    the facade and the consumer now refuse that answer instead of emptying it,
    and this is what the refusal looks like. */
-const UNREADABLE_CAPTION =
-  "The runtime answered, but not with a list of models, so nothing can be picked here. That is a fault in this build rather than in this Agent. Anything already configured is shown as it is stored.";
 
-const EMPTY_CATALOG_CAPTION =
-  "This build offers no model that can be configured as a Kernel. The reasons are listed below.";
 
-const HISTORY_LABEL = {
-  root: "the session it runs in",
-  none: "nothing but its inputs",
-};
 
-const OVERFLOW_LABEL = {
-  error: "stop and report",
-  compress: "compress what it has",
-};
+
+
+
+
 
 const UNAVAILABLE_REASON = {
   output_limit_unknown:
@@ -124,8 +116,8 @@ export function unbound_references(prompt, bindings) {
   return prompt_references(prompt).filter((name) => !bound.includes(name));
 }
 
-function model_label(profile) {
-  if (!is_object(profile)) return "an unreadable model";
+function model_label(profile, t = agentEnglishText) {
+  if (!is_object(profile)) return t("agents.execution.kernel.unreadable_model");
   const provider = safe_text(own(profile, "provider"));
   const model = safe_text(own(profile, "model"));
   return `${provider} · ${model}`;
@@ -145,6 +137,7 @@ function model_label(profile) {
  * document still holds is said out loud so the author is not guessing which
  * of their keystrokes landed. */
 function CountRow({ label, stored, ceiling, caption, onStore, about, isDark, testId }) {
+  const { t } = useTranslation();
   /* The ceiling is part of what the text was typed against, not just part of
      the verdict on it. Measured: 20000 refused against a 4096 limit, then a
      model allowing 32000 picked — the number became storable, so the refusal
@@ -198,11 +191,7 @@ function CountRow({ label, stored, ceiling, caption, onStore, about, isDark, tes
       </div>
       {refused && (
         <span data-testid={`${testId}-refused`} style={refused_style(isDark)}>
-          {`${
-            ceiling === undefined
-              ? "A whole number of one or more."
-              : `A whole number from 1 to ${ceiling}.`
-          } This was not stored — it still holds ${safe_text(stored)}.`}
+          {ceiling === undefined ? t("agents.execution.kernel.pending_count", { stored: safe_text(stored) }) : t("agents.execution.kernel.pending_bounded_count", { ceiling, stored: safe_text(stored) })}
         </span>
       )}
     </div>
@@ -218,6 +207,7 @@ export default function KernelSection({
   isDark,
   onChange,
 }) {
+  const { t } = useTranslation();
   const kernel = node_kernel(node);
   const stored_profile = kernel ? own(kernel, "profile") : undefined;
 
@@ -286,7 +276,7 @@ export default function KernelSection({
     };
   }, []);
 
-  const problems = kernel ? kernel_problems(kernel, ["config", "kernel"]) : [];
+  const problems = kernel ? kernel_problems(kernel, ["config", "kernel"], t) : [];
   const bindings = node_bindings(node);
   const unbound = kernel ? unbound_references(own(kernel, "prompt"), bindings) : [];
 
@@ -308,13 +298,13 @@ export default function KernelSection({
       ? [
           {
             value: typeof stored_id === "string" ? stored_id : "__stored__",
-            label: `${model_label(stored_profile)} (not offered by this build)`,
+            label: t("agents.execution.kernel.unlisted_model_option", { stored_profile: model_label(stored_profile, t) }),
           },
         ]
       : []),
     ...offered.map((profile) => ({
       value: own(profile, "id"),
-      label: model_label(profile),
+      label: model_label(profile, t),
     })),
   ];
 
@@ -329,29 +319,29 @@ export default function KernelSection({
       data-testid="skeleton-kernel"
       style={{ display: "flex", flexDirection: "column", gap: 8 }}
     >
-      <span style={SECTION_LABEL}>Model</span>
+      <span style={SECTION_LABEL}>{t("agents.inspector.model")}</span>
 
       {!kernel && (
         <span data-testid="kernel-absent" style={CAPTION}>
-          {NO_KERNEL_CAPTION}
+          {t("agents.execution.kernel.no_model")}
         </span>
       )}
 
       {catalog.failure === "unreachable" && (
         <span data-testid="kernel-catalog-unavailable" style={CAPTION}>
-          {UNREACHABLE_CAPTION}
+          {t("agents.execution.kernel.catalog_unreachable")}
         </span>
       )}
 
       {catalog.failure === "unreadable" && (
         <span data-testid="kernel-catalog-unreadable" style={CAPTION}>
-          {UNREADABLE_CAPTION}
+          {t("agents.execution.kernel.catalog_unreadable")}
         </span>
       )}
 
       {!catalog.reading && catalog.failure === null && options.length === 0 && (
         <span data-testid="kernel-catalog-empty" style={CAPTION}>
-          {EMPTY_CATALOG_CAPTION}
+          {t("agents.execution.kernel.catalog_empty")}
         </span>
       )}
 
@@ -362,7 +352,7 @@ export default function KernelSection({
             value={typeof stored_id === "string" ? stored_id : null}
             set_value={pick}
             filterable
-            placeholder="pick a model"
+            placeholder={t("agents.execution.kernel.pick_a_model")}
             dropdown_style={{ maxHeight: "min(280px, 40vh)" }}
             style={{
               width: 232,
@@ -376,9 +366,7 @@ export default function KernelSection({
           />
           {is_object(stored_profile) && (
             <span data-testid="kernel-profile-facts" style={{ ...CAPTION, ...MONO }}>
-              {`${safe_text(own(stored_profile, "protocol"))} · ${safe_text(
-                own(stored_profile, "endpoint"),
-              )} · window ${safe_text(own(stored_profile, "context_window"))}`}
+              {t("agents.execution.kernel.profile_facts", { protocol: safe_text(own(stored_profile, "protocol")), endpoint: safe_text(own(stored_profile, "endpoint")), window: safe_text(own(stored_profile, "context_window")) })}
             </span>
           )}
         </div>
@@ -386,23 +374,7 @@ export default function KernelSection({
 
       {catalog.unavailable_models.length > 0 && (
         <span data-testid="kernel-catalog-reasons" style={CAPTION}>
-          {`Not offered: ${catalog.unavailable_models
-            .slice(0, 6)
-            .map(
-              (entry) =>
-                /* Read, never indexed: a reason this build has no wording
-                   for is said as it is, and `constructor` is not a function.
-                   The rule is `own`'s. */
-                `${safe_text(own(entry, "id"))} — ${
-                  own(UNAVAILABLE_REASON, own(entry, "reason")) ||
-                  safe_text(own(entry, "reason"))
-                }`,
-            )
-            .join("; ")}${
-            catalog.unavailable_models.length > 6
-              ? `; and ${catalog.unavailable_models.length - 6} more`
-              : ""
-          }. A model missing from the list above is missing for one of these reasons, not because it was forgotten.`}
+          {catalog.unavailable_models.length > 6 ? t("agents.execution.kernel.not_offered_more", { models: catalog.unavailable_models.slice(0, 6).map((entry) => t("agents.execution.kernel.model_reason", { model: safe_text(own(entry, "id")), reason: own(UNAVAILABLE_REASON, own(entry, "reason")) ? t(`agents.execution.kernel.reason_${own(entry, "reason")}`) : safe_text(own(entry, "reason")) })).join(t("agents.execution.kernel.list_separator")), count: catalog.unavailable_models.length - 6 }) : t("agents.execution.kernel.not_offered", { models: catalog.unavailable_models.slice(0, 6).map((entry) => t("agents.execution.kernel.model_reason", { model: safe_text(own(entry, "id")), reason: own(UNAVAILABLE_REASON, own(entry, "reason")) ? t(`agents.execution.kernel.reason_${own(entry, "reason")}`) : safe_text(own(entry, "reason")) })).join(t("agents.execution.kernel.list_separator")) })}
         </span>
       )}
 
@@ -412,32 +384,25 @@ export default function KernelSection({
             <TextField
               value={typeof own(kernel, "prompt") === "string" ? kernel.prompt : ""}
               set_value={(next) => store({ ...kernel, prompt: next })}
-              placeholder="what this Agent is for"
+              placeholder={t("agents.execution.kernel.prompt_placeholder")}
               min_rows={3}
               max_display_rows={12}
               style={{ fontSize: 11.5, borderRadius: 6 }}
             />
             <span data-testid="kernel-prompt-references" style={CAPTION}>
-              {bindings.length === 0
-                ? "This node binds no input yet. A prompt can only refer to the inputs above, written as {{#input.name#}}."
-                : `Refer to this node's inputs as ${bindings
-                    .map((binding) => `{{#input.${safe_text(own(binding, "name"))}#}}`)
-                    .slice(0, 4)
-                    .join(" ")}${bindings.length > 4 ? " …" : ""}`}
+              {bindings.length === 0 ? t("agents.execution.kernel.no_inputs", { token: "{{#input.name#}}" }) : t("agents.execution.kernel.input_references", { tokens: bindings.map((binding) => `{{#input.${safe_text(own(binding, "name"))}#}}`).slice(0, 4).join(" "), more: bindings.length > 4 ? " …" : "" })}
             </span>
             {unbound.length > 0 && (
               <span data-testid="kernel-prompt-unbound" style={refused_style(isDark)}>
-                {`This prompt refers to ${unbound
-                  .map((name) => `{{#input.${name}#}}`)
-                  .join(", ")}, which this node does not bind. At run time that is replaced with nothing at all — the Agent would be asked a question with a hole in it.`}
+                {t("agents.execution.kernel.unbound_prompt", { tokens: unbound.map((name) => `{{#input.${name}#}}`).join(t("agents.schema.fields.list_separator")) })}
               </span>
             )}
           </div>
 
           <CountRow
-            label="At most"
+            label={t("agents.execution.kernel.at_most")}
             stored={own(kernel, "max_iterations")}
-            caption="turns before PuPu stops it"
+            caption={t("agents.execution.kernel.turns_before_pupu_stops_it")}
             onStore={(value) => store({ ...kernel, max_iterations: value })}
             about={identity_of([revision, node.id, "max_iterations"])}
             isDark={isDark}
@@ -445,12 +410,12 @@ export default function KernelSection({
           />
 
           <CountRow
-            label="Keep"
+            label={t("agents.execution.kernel.keep")}
             stored={own(kernel, "output_tokens")}
             ceiling={reservation_ceiling(stored_profile)}
-            caption={`tokens of the window for the reply (at most ${reservation_ceiling(
+            caption={t("agents.execution.kernel.reply_tokens_caption", { stored_profile: reservation_ceiling(
               stored_profile,
-            )})`}
+            ) })}
             onStore={(value) => store({ ...kernel, output_tokens: value })}
             about={identity_of([revision, node.id, "output_tokens"])}
             isDark={isDark}
@@ -458,12 +423,12 @@ export default function KernelSection({
           />
 
           <div style={ROW}>
-            <span style={{ ...CAPTION, flexShrink: 0 }}>It sees</span>
+            <span style={{ ...CAPTION, flexShrink: 0 }}>{t("agents.execution.kernel.it_sees")}</span>
             <span data-testid="kernel-history" style={{ display: "contents" }}>
             <Select
               options={HISTORY_SCOPES.map((value) => ({
                 value,
-                label: HISTORY_LABEL[value],
+                label: t(`agents.execution.kernel.history_${value}`),
               }))}
               value={own(kernel, "history")}
               set_value={(next) => store({ ...kernel, history: next })}
@@ -479,12 +444,12 @@ export default function KernelSection({
               }}
             />
             </span>
-            <span style={{ ...CAPTION, flexShrink: 0 }}>and when the window fills</span>
+            <span style={{ ...CAPTION, flexShrink: 0 }}>{t("agents.execution.kernel.and_when_the_window_fills")}</span>
             <span data-testid="kernel-overflow" style={{ display: "contents" }}>
             <Select
               options={OVERFLOW_POLICIES.map((value) => ({
                 value,
-                label: OVERFLOW_LABEL[value],
+                label: t(`agents.execution.kernel.overflow_${value}`),
               }))}
               value={own(kernel, "overflow")}
               set_value={(next) => store({ ...kernel, overflow: next })}

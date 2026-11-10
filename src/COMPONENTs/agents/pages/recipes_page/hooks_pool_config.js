@@ -1,3 +1,4 @@
+import { agentEnglishText, renderAgentMessage } from "./agents_i18n";
 import { safe_text } from "./document_values";
 import { cached_workflow_version } from "./workflow_versions";
 
@@ -97,16 +98,16 @@ export function tool_matcher_kind(entry) {
 
 /* A stored set's problems, in the runtime's terms (empty, a member that is not
    a name, a repeated name). */
-export function tool_set_problems(list) {
+export function tool_set_problems(list, t = agentEnglishText) {
   if (!Array.isArray(list)) return [];
-  if (list.length === 0) return [{ code: "tool_set_empty", message: "This set of tools is empty; preflight refuses it. Pick at least one tool, or choose every tool." }];
+  if (list.length === 0) return [{ code: "tool_set_empty", message: t("agents.hooks.tool_set_empty") }];
   const problems = [];
   const seen = new Set();
   list.forEach((name, at) => {
     if (!tool_name_ok(name)) {
-      problems.push({ code: "tool_set_member_invalid", message: `Tool ${at + 1} in the set is ${safe_text(JSON.stringify(name) ?? String(name))}, not a tool name; preflight refuses it.` });
+      problems.push({ code: "tool_set_member_invalid", message: t("agents.hooks.tool_set_member_invalid", { value1: at + 1, value2: safe_text(JSON.stringify(name) ?? String(name)) }) });
     } else if (seen.has(name)) {
-      problems.push({ code: "tool_set_duplicate", message: `“${safe_text(name)}” is in the set twice; preflight refuses it.` });
+      problems.push({ code: "tool_set_duplicate", message: t("agents.hooks.tool_set_duplicate", { value1: safe_text(name) }) });
     } else {
       seen.add(name);
     }
@@ -242,16 +243,16 @@ export function kernel_hook_order(document, agent_id) {
    neighbours; otherwise this pool's hooks are given the orders the new
    sequence needs, keeping a stored order wherever it still fits. A hook of
    another pool is never written; when it is in the way the move is refused. */
-export function move_hook(document, pool_id, agent_id, index, position) {
+export function move_hook(document, pool_id, agent_id, index, position, t = agentEnglishText) {
   const refuse = (code, message) => ({ ok: false, document, problem: { code, message } });
   const scope = hook_scope_entries(document, agent_id);
   const moving = scope.find((item) => item.pool_id === pool_id && item.index === index);
-  if (!moving) return refuse("not_movable", "Give this hook an id and a whole-number order first; only then does it have a place in the run.");
+  if (!moving) return refuse("not_movable", t("agents.hooks.move_not_movable"));
   const rest = scope.filter((item) => item !== moving);
   /* A place is 0 … rest.length; anything else is not a move (a drop on the
      hook itself, for one), and nothing is written. */
   if (!Number.isSafeInteger(position) || position < 0 || position > rest.length) {
-    return refuse("not_a_place", "That is not a place in the run. Nothing was changed.");
+    return refuse("not_a_place", t("agents.hooks.move_not_place"));
   }
   const at = position;
   const wanted = [...rest.slice(0, at), moving, ...rest.slice(at)];
@@ -284,7 +285,7 @@ export function move_hook(document, pool_id, agent_id, index, position) {
   if (low <= high) orders = new Map([[moving.index, Math.min(Math.max(moving.order, low), high)]]);
   if (!orders) orders = assign(true) || assign(false);
   if (!orders) {
-    return refuse("order_does_not_fit", "A hook from another pool on this Agent sits where this one would go, and only this pool's hooks are written here. Change that pool's order, or move this one elsewhere.");
+    return refuse("order_does_not_fit", t("agents.hooks.move_other_pool"));
   }
   const node = node_by_id(document, pool_id);
   const list = hooks_list(node);
@@ -292,7 +293,7 @@ export function move_hook(document, pool_id, agent_id, index, position) {
   const next_document = with_hooks(document, pool_id, next_list);
   const check = hook_scope_entries(next_document, agent_id);
   if (check.length !== wanted.length || check.some((item, i) => item.pool_id !== wanted[i].pool_id || item.index !== wanted[i].index)) {
-    return refuse("order_does_not_fit", "These orders cannot put the hook there. Nothing was changed.");
+    return refuse("order_does_not_fit", t("agents.hooks.move_no_fit"));
   }
   return { ok: true, document: next_document, problem: null };
 }
@@ -350,11 +351,11 @@ export function hook_workflow_shape(document) {
 /* Whether the End's export names can be a decision for this event. Only the
    NAMES are known here; the values are what the Workflow computes when the
    run gets there, and a wrong value is the run's to refuse. */
-export function decision_fit(event, shape) {
+export function decision_fit(event, shape, t = agentEnglishText) {
   const shapes = DECISION_SHAPES[event];
   if (!shapes || !shape || !shape.readable) return { known: false, matches: [] };
   const names = [...shape.exports].sort().join(",");
-  return { known: true, matches: shapes.filter((item) => [...item.keys].sort().join(",") === names).map((item) => item.label) };
+  return { known: true, matches: shapes.filter((item) => [...item.keys].sort().join(",") === names).map((item) => t(({ __proto__: null, before_tool_call: ["agents.hooks.decision_continue", "agents.hooks.decision_arguments", "agents.hooks.decision_block"], after_tool_call: ["agents.hooks.decision_continue", "agents.hooks.decision_replace"] })[event][shapes.indexOf(item)])) };
 }
 
 /* ── What the panel says is wrong ─────────────────────────────────────── */
@@ -365,64 +366,64 @@ export function decision_fit(event, shape) {
    this event does not hand it, and End exports that cannot be this event's
    decision (the run then blocks the tool, or fails with
    hook_invalid_decision after it). */
-export function hook_entry_problems(entry, { siblings = [], scope_duplicates = new Set(), capability, toolSetCapability, workflowCapability } = {}) {
+export function hook_entry_problems(entry, { siblings = [], scope_duplicates = new Set(), capability, toolSetCapability, workflowCapability } = {}, t = agentEnglishText) {
   const problems = [];
   if (!record(entry)) {
-    problems.push({ code: "entry_invalid", message: "This entry is not an object; the run refuses the whole pool. Remove it." });
+    problems.push({ code: "entry_invalid", message: t("agents.hooks.entry_not_object") });
     return problems;
   }
   const supported = enable_supported(capability);
   Object.keys(entry).filter((key) => !HOOK_KEYS.includes(key) && !HOOK_OPTIONAL_KEYS.includes(key)).forEach((key) => {
-    problems.push({ code: "unknown_field", setting: key, message: `The runtime does not read “${safe_text(key)}” (a hook has no name or failure policy); the run refuses it. Remove it.` });
+    problems.push({ code: "unknown_field", setting: key, message: t("agents.hooks.entry_unknown_field", { value1: safe_text(key) }) });
   });
   if (has(entry, "enabled")) {
     if (!supported) {
-      problems.push({ code: "enabled_unconfirmed", setting: "enabled", message: `On/off is stored as ${safe_text(JSON.stringify(entry.enabled) ?? String(entry.enabled))}, but this runtime has not confirmed it can turn hooks on or off${capability && capability.reason ? ` (${safe_text(capability.reason)})` : ""}. Whether the run accepts it cannot be checked here.` });
+      problems.push({ code: "enabled_unconfirmed", setting: "enabled", message: capability && capability.reason ? t("agents.hooks.entry_enabled_unconfirmed_reason", { value: safe_text(JSON.stringify(entry.enabled) ?? String(entry.enabled)), reason: renderAgentMessage(capability.reason, t) }) : t("agents.hooks.entry_enabled_unconfirmed", { value: safe_text(JSON.stringify(entry.enabled) ?? String(entry.enabled)) }) });
     } else if (typeof entry.enabled !== "boolean") {
-      problems.push({ code: "enabled_invalid", setting: "enabled", message: `On/off is stored as ${safe_text(JSON.stringify(entry.enabled) ?? String(entry.enabled))}; it must be on or off. Preflight refuses it. Choose one to replace it.` });
+      problems.push({ code: "enabled_invalid", setting: "enabled", message: t("agents.hooks.enabled_invalid", { value1: safe_text(JSON.stringify(entry.enabled) ?? String(entry.enabled)) }) });
     }
   }
   if (!has(entry, "id") || !text_ok(entry.id)) {
-    problems.push({ code: "id_invalid", message: "Name this hook: a non-empty id." });
+    problems.push({ code: "id_invalid", message: t("agents.hooks.id_missing") });
   } else {
     if (siblings.filter((item) => record(item) && item.id === entry.id).length > 1) {
-      problems.push({ code: "id_duplicate", message: `Another hook in this pool is also called “${safe_text(entry.id)}”; the run refuses both.` });
+      problems.push({ code: "id_duplicate", message: t("agents.hooks.id_duplicate", { value1: safe_text(entry.id) }) });
     } else if (scope_duplicates.has(entry.id)) {
-      problems.push({ code: "id_scope_duplicate", message: `Another pool attached to the same Agent has a hook called “${safe_text(entry.id)}”. Preflight lets this through, but the run refuses it before the model is called.` });
+      problems.push({ code: "id_scope_duplicate", message: t("agents.hooks.id_scope_duplicate", { value1: safe_text(entry.id) }) });
     }
   }
-  if (!has(entry, "order")) problems.push({ code: "order_missing", message: "Set the order: a whole number from 0 to 1,000,000; lower runs first." });
+  if (!has(entry, "order")) problems.push({ code: "order_missing", message: t("agents.hooks.order_missing") });
   else if (typeof entry.order !== "number" || !Number.isSafeInteger(entry.order) || entry.order < 0 || entry.order > MAX_ORDER) {
-    problems.push({ code: "order_invalid", message: "The order must be a whole number from 0 to 1,000,000." });
+    problems.push({ code: "order_invalid", message: t("agents.hooks.order_invalid") });
   }
-  if (!has(entry, "event")) problems.push({ code: "event_missing", message: "Choose when it runs: before or after the tool call." });
-  else if (!HOOK_EVENTS.includes(entry.event)) problems.push({ code: "event_invalid", message: `“${safe_text(JSON.stringify(entry.event))}” is not an event the runtime knows.` });
-  if (!has(entry, "tool_name")) problems.push({ code: "tool_missing", message: "Choose which tool calls it sees: every tool, or one by name." });
+  if (!has(entry, "event")) problems.push({ code: "event_missing", message: t("agents.hooks.event_missing") });
+  else if (!HOOK_EVENTS.includes(entry.event)) problems.push({ code: "event_invalid", message: t("agents.hooks.event_invalid", { value1: safe_text(JSON.stringify(entry.event)) }) });
+  if (!has(entry, "tool_name")) problems.push({ code: "tool_missing", message: t("agents.hooks.tool_missing") });
   else if (Array.isArray(entry.tool_name)) {
     if (!tool_set_supported(toolSetCapability)) {
-      problems.push({ code: "tool_set_unconfirmed", message: `A set of tools is stored, but this runtime has not confirmed it reads one${toolSetCapability && toolSetCapability.reason ? ` (${safe_text(toolSetCapability.reason)})` : ""}. Whether the run accepts it cannot be checked here.` });
+      problems.push({ code: "tool_set_unconfirmed", message: toolSetCapability && toolSetCapability.reason ? t("agents.hooks.entry_set_unconfirmed_reason", { reason: renderAgentMessage(toolSetCapability.reason, t) }) : t("agents.hooks.entry_set_unconfirmed") });
     } else {
-      problems.push(...tool_set_problems(entry.tool_name));
+      problems.push(...tool_set_problems(entry.tool_name, t));
     }
-  } else if (entry.tool_name !== null && !tool_name_ok(entry.tool_name)) problems.push({ code: "tool_invalid", message: "The tool must be named, or every tool." });
-  if (!has(entry, "force_approval")) problems.push({ code: "force_missing", message: "Say whether this hook always asks for approval." });
-  else if (typeof entry.force_approval !== "boolean") problems.push({ code: "force_invalid", message: "Always ask for approval must be on or off." });
+  } else if (entry.tool_name !== null && !tool_name_ok(entry.tool_name)) problems.push({ code: "tool_invalid", message: t("agents.hooks.tool_invalid") });
+  if (!has(entry, "force_approval")) problems.push({ code: "force_missing", message: t("agents.hooks.approval_missing") });
+  else if (typeof entry.force_approval !== "boolean") problems.push({ code: "force_invalid", message: t("agents.hooks.approval_invalid") });
   const pin = hook_pin(entry);
   const own = record(entry.workflow) && has(entry.workflow, "kind");
   let shape = null;
-  if (!has(entry, "workflow")) problems.push({ code: "workflow_missing", message: "Pin the published Workflow this hook runs." });
+  if (!has(entry, "workflow")) problems.push({ code: "workflow_missing", message: t("agents.hooks.workflow_missing") });
   else if (own) {
     const body = hook_embedded(entry);
     if (!embedded_supported(workflowCapability)) {
-      problems.push({ code: "embedded_unconfirmed", message: `This hook stores a Workflow of its own, but this runtime has not confirmed it reads one${workflowCapability && workflowCapability.reason ? ` (${safe_text(workflowCapability.reason)})` : ""}. Whether the run accepts it cannot be checked here.` });
+      problems.push({ code: "embedded_unconfirmed", message: workflowCapability && workflowCapability.reason ? t("agents.hooks.entry_embedded_unconfirmed_reason", { reason: renderAgentMessage(workflowCapability.reason, t) }) : t("agents.hooks.entry_embedded_unconfirmed") });
     } else if (body === null) {
-      problems.push({ code: "workflow_invalid", message: "The stored Workflow is not exactly {kind: embedded, document}; the run refuses it." });
+      problems.push({ code: "workflow_invalid", message: t("agents.hooks.workflow_embedded_shape") });
     } else if (!record(body) || body.kind !== "workflow") {
-      problems.push({ code: "embedded_not_workflow", message: "This hook's own graph is not a Workflow; the run refuses it." });
+      problems.push({ code: "embedded_not_workflow", message: t("agents.hooks.embedded_not_workflow") });
     } else {
       shape = hook_workflow_shape(body);
     }
-  } else if (!pin) problems.push({ code: "workflow_invalid", message: "The stored Workflow reference is not exactly {workflow_id, revision_id}, both named; the run refuses it." });
+  } else if (!pin) problems.push({ code: "workflow_invalid", message: t("agents.hooks.workflow_reference_shape") });
   else {
     const version = cached_workflow_version(pin.workflow_id, pin.revision_id);
     shape = version ? hook_workflow_shape(version.document) : null;
@@ -431,11 +432,11 @@ export function hook_entry_problems(entry, { siblings = [], scope_duplicates = n
     const given = EVENT_INPUT_KEYS[entry.event];
     const unread = shape.reads.filter((key) => !given.includes(key));
     if (unread.length) {
-      problems.push({ code: "workflow_reads_missing", message: `${own ? "Its own Workflow's" : "The pinned Workflow's"} Start reads ${unread.map((key) => `“${safe_text(key)}”`).join(", ")}, which a ${entry.event.replace(/_/g, " ")} hook is not given; the hook fails when the run gets there.` });
+      problems.push({ code: "workflow_reads_missing", message: t(`agents.hooks.reads_missing_${own ? "own" : "pinned"}_${entry.event === "before_tool_call" ? "before" : "after"}`, { keys: unread.map((key) => `“${safe_text(key)}”`).join(t("agents.schema.fields.list_separator")) }) });
     }
-    const fit = decision_fit(entry.event, shape);
+    const fit = decision_fit(entry.event, shape, t);
     if (fit.known && fit.matches.length === 0) {
-      problems.push({ code: "decision_shape", message: `Its End exports ${shape.exports.length ? shape.exports.map((name) => `“${safe_text(name)}”`).join(", ") : "nothing"}, which is not a ${entry.event === "before_tool_call" ? "before" : "after"} decision. Preflight lets it through; when the run gets there it ${entry.event === "before_tool_call" ? "blocks the tool call" : "fails with hook_invalid_decision"}.` });
+      problems.push({ code: "decision_shape", message: t(`agents.hooks.decision_shape_${entry.event === "before_tool_call" ? "before" : "after"}`, { exports: shape.exports.length ? shape.exports.map((name) => `“${safe_text(name)}”`).join(t("agents.schema.fields.list_separator")) : t("agents.hooks.nothing") }) });
     }
   }
   return problems;
@@ -449,19 +450,19 @@ export function hook_pin(entry) {
 }
 
 /* The pool's own problems: its config and its list. */
-export function pool_problems(node, document) {
+export function pool_problems(node, document, t = agentEnglishText) {
   const problems = [];
   const config = node && node.config;
   if (record(config)) {
     Object.keys(config).filter((key) => key !== "hooks").forEach((key) => {
-      problems.push({ code: "unknown_setting", setting: key, message: `This runtime does not read the pool setting “${safe_text(key)}”; the run refuses it. Remove it.` });
+      problems.push({ code: "unknown_setting", setting: key, message: t("agents.hooks.pool_unknown_setting", { value1: safe_text(key) }) });
     });
   }
   const list = hooks_list(node);
-  if (!Array.isArray(list)) problems.push({ code: "hooks_invalid", message: "The stored hooks are not a list; the run refuses the pool. Start a new list to replace it." });
-  else if (list.length === 0) problems.push({ code: "hooks_empty", message: "Add a hook. A pool with none is refused when the run starts." });
+  if (!Array.isArray(list)) problems.push({ code: "hooks_invalid", message: t("agents.hooks.list_invalid") });
+  else if (list.length === 0) problems.push({ code: "hooks_empty", message: t("agents.hooks.list_empty") });
   if (document && node && attached_agents(document, node.id).length === 0) {
-    problems.push({ code: "not_attached", message: "Attach this pool to an Agent; a pool runs only for the Agent it is attached to." });
+    problems.push({ code: "not_attached", message: t("agents.hooks.attach_required") });
   }
   return problems;
 }

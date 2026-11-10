@@ -1,3 +1,4 @@
+import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { is_skeleton_node } from "../skeleton_document";
 import { node_display_title } from "../node_display_labels";
 import React from "react";
@@ -8,9 +9,10 @@ import { safe_text } from "../document_values";
 /* Workflow agent node — left in, right out, top + bottom attach. */
 
 export default function AgentNode({ node, isDark }) {
+  const { t } = useTranslation();
   /* Native display metadata uses the common validator. Legacy labels and
      model hints keep their existing guarded text readers. */
-  const label = is_skeleton_node(node) ? node_display_title(node, typeof node.id === "string" ? node.id : "Agent") : safe_text(node.label || node.id);
+  const label = is_skeleton_node(node) ? node_display_title(node, typeof node.id === "string" ? node.id : t("agents.nodes.agent")) : safe_text(node.label || node.id);
   const model = safe_text(node.model || node.override?.model || "—");
 
   return (

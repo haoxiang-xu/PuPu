@@ -1,3 +1,4 @@
+import { agentEnglishText } from "./agents_i18n";
 /* The Agent node's JSON output.
  *
  * An Agent always produces two locked built-ins: `message`, the final reply,
@@ -256,7 +257,7 @@ const is_plain_integer = (value) =>
    encoding check at the entry point has already refused a cycle or a value
    JSON cannot hold, so this is only about what survives that and is still not
    JSON. */
-function json_problems(value, where, problems) {
+function json_problems(value, where, problems, t = agentEnglishText) {
   const stack = [value];
   while (stack.length) {
     const current = stack.pop();
@@ -264,7 +265,7 @@ function json_problems(value, where, problems) {
     if (typeof current === "string" || typeof current === "boolean") continue;
     if (typeof current === "number") {
       if (!Number.isFinite(current)) {
-        problems.push(problem("invalid_json", where, "JSON number must be finite"));
+        problems.push(problem("invalid_json", where, t("agents.schema.validation.json_number_must_be_finite")));
       }
       continue;
     }
@@ -276,7 +277,7 @@ function json_problems(value, where, problems) {
       Object.values(current).forEach((entry) => stack.push(entry));
       continue;
     }
-    problems.push(problem("invalid_json", where, "value is not JSON"));
+    problems.push(problem("invalid_json", where, t("agents.schema.validation.value_is_not_json")));
   }
 }
 
@@ -292,7 +293,7 @@ function json_problems(value, where, problems) {
  * `properties` costs two. The boundary is probed in the capture rather than
  * derived — thirty levels of the nesting shape there is the deepest the
  * runtime takes, and thirty-one is `limit_depth`. */
-function json_tree_problems(schema, problems) {
+function json_tree_problems(schema, problems, t = agentEnglishText) {
   const LEAVE = Symbol("leave");
   const stack = [[schema, 0]];
   const active = new Set();
@@ -306,22 +307,22 @@ function json_tree_problems(schema, problems) {
     const [current, depth] = frame;
     nodes += 1;
     if (nodes > MAX_SCHEMA_NODES) {
-      problems.push(problem("limit_nodes", "schema", "schema exceeds the node limit"));
+      problems.push(problem("limit_nodes", "schema", t("agents.schema.validation.schema_exceeds_the_node_limit")));
       return;
     }
     if (depth > MAX_SCHEMA_DEPTH) {
-      problems.push(problem("limit_depth", "schema", "schema exceeds the depth limit"));
+      problems.push(problem("limit_depth", "schema", t("agents.schema.validation.schema_exceeds_the_depth_limit")));
       return;
     }
     if (current === null || typeof current !== "object") {
       if (typeof current === "number" && !Number.isFinite(current)) {
-        problems.push(problem("invalid_json", "schema", "JSON number must be finite"));
+        problems.push(problem("invalid_json", "schema", t("agents.schema.validation.json_number_must_be_finite")));
         return;
       }
       continue;
     }
     if (active.has(current)) {
-      problems.push(problem("invalid_json", "schema", "JSON value cannot contain a cycle"));
+      problems.push(problem("invalid_json", "schema", t("agents.schema.validation.json_value_cannot_contain_a_cycle")));
       return;
     }
     active.add(current);
@@ -341,10 +342,10 @@ function json_tree_problems(schema, problems) {
  * The runtime raises on the first fault; this collects them all, because an
  * editor that reports one fault per attempt makes a schema something the
  * author discovers by repeated rejection. */
-function walk(node, where, problems, state, options) {
+function walk(node, where, problems, state, options, t = agentEnglishText) {
   const root = Boolean(options && options.root);
   if (!is_object(node)) {
-    problems.push(problem("invalid_schema", where, "schema nodes must be objects"));
+    problems.push(problem("invalid_schema", where, t("agents.schema.validation.schema_nodes_must_be_objects")));
     return;
   }
   if (state.seen.has(node)) return;
@@ -354,24 +355,24 @@ function walk(node, where, problems, state, options) {
     const at = `${where}.${keyword}`;
     const child = node[keyword];
     if (!KEYWORDS.has(keyword)) {
-      problems.push(problem("unknown_keyword", at, "keyword is not in the allowed subset"));
+      problems.push(problem("unknown_keyword", at, t("agents.schema.validation.keyword_is_not_in_the_allowed_subset")));
       return;
     }
     switch (keyword) {
       /* :181-183 */
       case "$schema":
         if (child !== DRAFT_2020_12) {
-          problems.push(problem("invalid_schema", at, "schema dialect is unsupported"));
+          problems.push(problem("invalid_schema", at, t("agents.schema.validation.schema_dialect_is_unsupported")));
         }
         return;
       /* :184-188 */
       case "$defs":
         if (!is_object(child)) {
-          problems.push(problem("invalid_schema", at, "schema nodes must be objects"));
+          problems.push(problem("invalid_schema", at, t("agents.schema.validation.schema_nodes_must_be_objects")));
           return;
         }
         Object.entries(child).forEach(([name, definition]) =>
-          walk(definition, `${at}.${name}`, problems, state),
+          walk(definition, `${at}.${name}`, problems, state, undefined, t),
         );
         return;
       /* :189-192, resolved at :246-252 */
@@ -383,7 +384,7 @@ function walk(node, where, problems, state, options) {
             problem(
               "invalid_reference",
               at,
-              "reference target must be a schema object",
+              t("agents.schema.validation.reference_target_must_be_a_schema_object"),
             ),
           );
           return;
@@ -393,10 +394,10 @@ function walk(node, where, problems, state, options) {
             found.code,
             at,
             found.code === "unsupported_reference"
-              ? `only local definition references are supported, written as "${REFERENCE_PREFIX}name"`
+              ? t("agents.schema.validation.local_reference_only", { reference: `${REFERENCE_PREFIX}name` })
               : found.code === "invalid_reference"
-                ? "reference target is unavailable"
-                : "reference must be a string",
+                ? t("agents.schema.validation.reference_target_is_unavailable")
+                : t("agents.schema.validation.reference_must_be_a_string"),
           ),
         );
         return;
@@ -405,7 +406,7 @@ function walk(node, where, problems, state, options) {
       case "title":
       case "description":
         if (typeof child !== "string") {
-          problems.push(problem("invalid_schema", at, "schema annotation must be a string"));
+          problems.push(problem("invalid_schema", at, t("agents.schema.validation.schema_annotation_must_be_a_string")));
         }
         return;
       /* :234-244 */
@@ -416,28 +417,28 @@ function walk(node, where, problems, state, options) {
           list.some((entry) => typeof entry !== "string" || !TYPES.has(entry)) ||
           new Set(list).size !== list.length;
         if (unusable) {
-          problems.push(problem("invalid_schema", at, "unknown JSON type"));
+          problems.push(problem("invalid_schema", at, t("agents.schema.validation.unknown_json_type")));
         } else if (root && child !== "object") {
-          problems.push(problem("invalid_schema", at, "root schema type must be object"));
+          problems.push(problem("invalid_schema", at, t("agents.schema.validation.root_schema_type_must_be_object")));
         }
         return;
       }
       /* :198-204 */
       case "properties":
         if (!is_object(child)) {
-          problems.push(problem("invalid_schema", at, "properties must be an object"));
+          problems.push(problem("invalid_schema", at, t("agents.schema.validation.properties_must_be_an_object")));
           return;
         }
         Object.entries(child).forEach(([name, property]) =>
-          walk(property, `${at}.${name}`, problems, state),
+          walk(property, `${at}.${name}`, problems, state, undefined, t),
         );
         return;
       /* :205-209 */
       case "required":
         if (!Array.isArray(child) || child.some((name) => typeof name !== "string")) {
-          problems.push(problem("invalid_schema", at, "required must be an array of strings"));
+          problems.push(problem("invalid_schema", at, t("agents.schema.validation.required_must_be_an_array_of_strings")));
         } else if (new Set(child).size !== child.length) {
-          problems.push(problem("invalid_schema", at, "required names must be unique"));
+          problems.push(problem("invalid_schema", at, t("agents.schema.validation.required_names_must_be_unique")));
         }
         return;
       /* :210-212 — a boolean, never a schema. This mirror used to walk an
@@ -445,33 +446,33 @@ function walk(node, where, problems, state, options) {
          keyword means everywhere except in this subset. */
       case "additionalProperties":
         if (typeof child !== "boolean") {
-          problems.push(problem("invalid_schema", at, "additionalProperties must be boolean"));
+          problems.push(problem("invalid_schema", at, t("agents.schema.validation.additionalproperties_must_be_boolean")));
         }
         return;
       /* :213-215 */
       case "items":
-        walk(child, at, problems, state);
+        walk(child, at, problems, state, undefined, t);
         return;
       /* :216-219 */
       case "enum":
         if (!Array.isArray(child) || child.length === 0) {
-          problems.push(problem("invalid_schema", at, "enum must be a non-empty array"));
+          problems.push(problem("invalid_schema", at, t("agents.schema.validation.enum_must_be_a_non_empty_array")));
         } else {
-          json_problems(child, at, problems);
+          json_problems(child, at, problems, t);
         }
         return;
       /* :220-221 */
       case "const":
-        json_problems(child, at, problems);
+        json_problems(child, at, problems, t);
         return;
       /* :222-227 */
       case "anyOf":
         if (!Array.isArray(child) || child.length === 0) {
-          problems.push(problem("invalid_schema", at, "anyOf must be a non-empty array"));
+          problems.push(problem("invalid_schema", at, t("agents.schema.validation.anyof_must_be_a_non_empty_array")));
           return;
         }
         child.forEach((alternative, index) =>
-          walk(alternative, `${at}[${index}]`, problems, state),
+          walk(alternative, `${at}[${index}]`, problems, state, undefined, t),
         );
         return;
       /* :228-229 */
@@ -481,7 +482,7 @@ function walk(node, where, problems, state, options) {
       case "maxLength":
         if (!is_plain_integer(child) || child < 0) {
           problems.push(
-            problem("invalid_schema", at, "schema limit must be a non-negative integer"),
+            problem("invalid_schema", at, t("agents.schema.validation.schema_limit_must_be_a_non_negative_integer")),
           );
         }
         return;
@@ -490,7 +491,7 @@ function walk(node, where, problems, state, options) {
       case "maximum":
         if (typeof child !== "number" || !Number.isFinite(child)) {
           problems.push(
-            problem("invalid_schema", at, "schema bound must be a finite JSON number"),
+            problem("invalid_schema", at, t("agents.schema.validation.schema_bound_must_be_a_finite_json_number")),
           );
         }
         return;
@@ -506,29 +507,29 @@ function walk(node, where, problems, state, options) {
  * (`:327-332`). That is a whole JSON Schema implementation, and pretending to
  * it here would be the same mistake in a new place. It is the reason the
  * editor still has to survive a refusal it did not predict. */
-export function output_schema_problems(schema) {
+export function output_schema_problems(schema, t = agentEnglishText) {
   const problems = [];
   if (!is_object(schema)) {
-    return [problem("invalid_schema", "schema", "schema must be an object")];
+    return [problem("invalid_schema", "schema", t("agents.schema.validation.schema_must_be_an_object"))];
   }
 
   /* In the runtime's order, and alone when it fails: everything after this
      recurses — the keyword walk, the reference graph, `JSON.stringify` — so a
      draft that broke those is reported rather than survived. */
-  json_tree_problems(schema, problems);
+  json_tree_problems(schema, problems, t);
   if (problems.length > 0) return problems;
 
   let encoded = null;
   try {
     encoded = JSON.stringify(schema);
   } catch (error) {
-    return [problem("invalid_json", "schema", "schema cannot be encoded as bounded JSON")];
+    return [problem("invalid_json", "schema", t("agents.schema.validation.schema_cannot_be_encoded_as_bounded_json"))];
   }
   if (encoded === undefined) {
-    return [problem("invalid_json", "schema", "schema cannot be encoded as bounded JSON")];
+    return [problem("invalid_json", "schema", t("agents.schema.validation.schema_cannot_be_encoded_as_bounded_json"))];
   }
   if (utf8_length(encoded) > MAX_SCHEMA_BYTES) {
-    problems.push(problem("limit_bytes", "schema", "schema exceeds eight MiB"));
+    problems.push(problem("limit_bytes", "schema", t("agents.schema.validation.schema_exceeds_eight_mib")));
   }
 
   walk(
@@ -537,18 +538,19 @@ export function output_schema_problems(schema) {
     problems,
     { root: schema, seen: new Set(), nodes: schema_nodes(schema) },
     { root: true },
+    t,
   );
 
   /* `validate_output_schema:323-324` asks this of the root a second time after
      the walk, which is why a root carrying no `type` at all is refused even
      though no keyword it does carry is wrong. */
   if (schema.type !== "object") {
-    problems.push(problem("invalid_schema", "schema.type", "root schema type must be object"));
+    problems.push(problem("invalid_schema", "schema.type", t("agents.schema.validation.root_schema_type_must_be_object")));
   }
 
   if (reference_cycle(schema)) {
     problems.push(
-      problem("reference_cycle", "schema", "schema references cannot form a cycle"),
+      problem("reference_cycle", "schema", t("agents.schema.validation.schema_references_cannot_form_a_cycle")),
     );
   }
 
@@ -558,7 +560,7 @@ export function output_schema_problems(schema) {
     Object.keys(properties).forEach((name) => {
       if (RESERVED.has(name)) {
         problems.push(
-          problem("reserved_name", "schema.properties", "root output property is reserved"),
+          problem("reserved_name", "schema.properties", t("agents.schema.validation.root_output_property_is_reserved")),
         );
       }
     });

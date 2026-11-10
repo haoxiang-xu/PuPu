@@ -1,3 +1,5 @@
+import { agentEnglishText } from "./agents_i18n";
+import { useTranslation } from "../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import React, {
   useContext,
   useMemo,
@@ -26,18 +28,24 @@ const KNOWN_SYSTEM_PROMPTS = {
   },
 };
 
-function get_chip_meta(node, scope) {
+function get_chip_meta(node, scope, t = agentEnglishText) {
   if (node.kind === "system_prompt") {
     const known = KNOWN_SYSTEM_PROMPTS[node.name];
     if (known) {
       return {
-        label: known.label,
-        title: `${known.description}: {{${node.name}}}`,
+        label: node.name === "USE_BUILTIN_DEVELOPER_PROMPT"
+          ? t("agents.prompt_chips.built_in_developer_prompt")
+          : node.name === "SUBAGENT_LIST" ? t("agents.prompt_chips.subagent_list") : known.label,
+        title: node.name === "USE_BUILTIN_DEVELOPER_PROMPT"
+          ? t("agents.prompt_chips.builtin_title", { token: `{{${node.name}}}` })
+          : node.name === "SUBAGENT_LIST"
+            ? t("agents.prompt_chips.subagents_title", { token: `{{${node.name}}}` })
+            : `${known.description}: {{${node.name}}}`,
       };
     }
     return {
       unknown: true,
-      title: `Unknown system prompt: {{${node.name}}}`,
+      title: t("agents.prompt_chips.unknown_system_title", { token: `{{${node.name}}}` }),
     };
   }
 
@@ -49,7 +57,7 @@ function get_chip_meta(node, scope) {
     if (!exists) {
       return {
         unknown: true,
-        title: `Unknown variable: {{#${key}#}}`,
+        title: t("agents.prompt_chips.unknown_variable_title", { token: `{{#${key}#}}` }),
       };
     }
   }
@@ -57,23 +65,23 @@ function get_chip_meta(node, scope) {
   return {};
 }
 
-function get_chip_diagnostics(nodes, scope) {
+function get_chip_diagnostics(nodes, scope, t = agentEnglishText) {
   return nodes
     .map((node) => {
-      const meta = get_chip_meta(node, scope);
+      const meta = get_chip_meta(node, scope, t);
       if (!meta.unknown) return null;
       if (node.kind === "system_prompt") {
-        return `Unknown system prompt {{${node.name}}}. Check spelling or remove it.`;
+        return t("agents.prompt_chips.unknown_system_diagnostic", { token: `{{${node.name}}}` });
       }
       if (node.kind === "var") {
-        return `Unknown variable {{#${node.node_id}.${node.field}#}}. Connect the source node or check spelling.`;
+        return t("agents.prompt_chips.unknown_variable_diagnostic", { token: `{{#${node.node_id}.${node.field}#}}` });
       }
       return null;
     })
     .filter(Boolean);
 }
 
-function render_chip(node, meta = {}, onActivate) {
+function render_chip(node, meta = {}, onActivate, t = agentEnglishText) {
   const isSystemPrompt = node.kind === "system_prompt";
   const isUnknown = !!meta.unknown;
   const label = isSystemPrompt
@@ -108,7 +116,7 @@ function render_chip(node, meta = {}, onActivate) {
         e.stopPropagation();
         onActivate();
       }}
-      title={meta.title || "Edit raw token"}
+      title={meta.title || t("agents.prompt_chips.edit_raw_token")}
       style={{
         display: "inline-flex",
         alignItems: "center",
@@ -165,6 +173,7 @@ function node_raw_text(node) {
 }
 
 export default function ChipEditor({ value, onChange, scope, placeholder }) {
+  const { t } = useTranslation();
   const cfg = useContext(ConfigContext);
   const isDark = cfg?.onThemeMode === "dark_mode";
   const [editing, setEditing] = useState(false);
@@ -173,7 +182,7 @@ export default function ChipEditor({ value, onChange, scope, placeholder }) {
   const lastSelectionRef = useRef({ start: 0, end: 0 });
   const rawValue = typeof value === "string" ? value : "";
   const nodes = useMemo(() => parse_chip_string(rawValue), [rawValue]);
-  const diagnostics = get_chip_diagnostics(nodes, scope);
+  const diagnostics = get_chip_diagnostics(nodes, scope, t);
   const variableOptions = useMemo(() => build_variable_options(scope), [scope]);
 
   function focus_editor(position) {
@@ -258,7 +267,7 @@ export default function ChipEditor({ value, onChange, scope, placeholder }) {
           textarea_ref={textareaRef}
           min_rows={4}
           max_display_rows={12}
-          placeholder={placeholder || "Type raw prompt..."}
+          placeholder={placeholder || t("agents.prompt_chips.type_raw_prompt")}
           on_focus={remember_selection_soon}
           on_blur={handle_editor_blur}
           on_key_down={remember_selection_soon}
@@ -274,7 +283,7 @@ export default function ChipEditor({ value, onChange, scope, placeholder }) {
       ) : (
         <div
           onClick={() => focus_editor()}
-          aria-label="Prompt preview"
+          aria-label={t("agents.prompt_chips.prompt_preview")}
           style={{
             border: fieldBorder,
             borderRadius: 8,
@@ -292,7 +301,7 @@ export default function ChipEditor({ value, onChange, scope, placeholder }) {
         >
           {nodes.length === 0 && (
             <span style={{ color: "#86868b" }}>
-              {placeholder || "Type raw prompt..."}
+              {placeholder || t("agents.prompt_chips.type_raw_prompt")}
             </span>
           )}
           {nodes.map((node, i) => {
@@ -306,8 +315,9 @@ export default function ChipEditor({ value, onChange, scope, placeholder }) {
             }
             return (
               <React.Fragment key={`${node.kind}-${i}`}>
-                {render_chip(node, get_chip_meta(node, scope), () =>
+                {render_chip(node, get_chip_meta(node, scope, t), () =>
                   focus_editor(tokenEnd),
+                  t,
                 )}
               </React.Fragment>
             );
@@ -345,14 +355,14 @@ export default function ChipEditor({ value, onChange, scope, placeholder }) {
         }}
       >
         <span style={{ fontSize: 10.5, color: "#86868b" }}>
-          Click a tag to edit the raw token.
+          {t("agents.prompt_chips.click_a_tag_to_edit_the_raw_token")}
         </span>
         <Select
           options={variableOptions}
           value=""
           set_value={insert_token}
-          placeholder="+ Variable"
-          search_placeholder="Search variables..."
+          placeholder={t("agents.prompt_chips.variable")}
+          search_placeholder={t("agents.prompt_chips.search_variables")}
           filterable={true}
           style={{
             fontSize: 11,

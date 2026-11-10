@@ -1,3 +1,4 @@
+import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import React from "react";
 import ChipEditor from "../chip_editor";
 import { compute_variable_scope } from "../variable_scope";
@@ -103,6 +104,7 @@ function custom_optimizer_from(raw) {
 }
 
 export default function AgentPanel({ node, recipe, onChange, onChangeSilent, isDark }) {
+  const { t } = useTranslation();
   const scope = compute_variable_scope(node.id, recipe.nodes, recipe.edges);
 
   function set_node(patch) {
@@ -229,11 +231,9 @@ export default function AgentPanel({ node, recipe, onChange, onChangeSilent, isD
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <span style={SECTION_LABEL}>Input Variables</span>
+        <span style={SECTION_LABEL}>{t("agents.io.input_variables")}</span>
         {scope.length === 0 && (
-          <span style={{ fontSize: 11, color: "#86868b" }}>
-            No upstream yet.
-          </span>
+          <span style={{ fontSize: 11, color: "#86868b" }}>{t("agents.io.no_upstream_yet")}</span>
         )}
         {scope.map((v) => (
           <div
@@ -255,7 +255,7 @@ export default function AgentPanel({ node, recipe, onChange, onChangeSilent, isD
                 prompt: `${prompt}{{#${v.node_id}.${v.field}#}}`,
               });
             }}
-            title="Click to append to prompt"
+            title={t("agents.execution.agent.click_to_append_to_prompt")}
           >
             <span>{`${v.node_id}.${v.field}`}</span>
             <span style={{ fontSize: 10, color: "#86868b" }}>{v.type}</span>
@@ -264,9 +264,9 @@ export default function AgentPanel({ node, recipe, onChange, onChangeSilent, isD
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <span style={SECTION_LABEL}>Model</span>
+        <span style={SECTION_LABEL}>{t("agents.inspector.model")}</span>
         <Select
-          options={MODEL_OPTIONS}
+          options={MODEL_OPTIONS.map((option) => ({ ...option, label: option.value === "" ? t("agents.execution.agent.recipe_default") : option.label }))}
           value={model}
           set_value={(v) => set_override({ model: v })}
           filterable={false}
@@ -280,7 +280,7 @@ export default function AgentPanel({ node, recipe, onChange, onChangeSilent, isD
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <span style={SECTION_LABEL}>Context Optimizer</span>
+        <span style={SECTION_LABEL}>{t("agents.execution.agent.context_optimizer")}</span>
         <div
           style={{
             display: "flex",
@@ -292,7 +292,7 @@ export default function AgentPanel({ node, recipe, onChange, onChangeSilent, isD
             background: row_bg,
           }}
         >
-          <span style={{ fontSize: 12, fontWeight: 500 }}>Enabled</span>
+          <span style={{ fontSize: 12, fontWeight: 500 }}>{t("agents.execution.agent.enabled")}</span>
           <div data-testid="optimizer-enabled-switch">
             <Switch
               on={optimizer_enabled}
@@ -302,7 +302,7 @@ export default function AgentPanel({ node, recipe, onChange, onChangeSilent, isD
           </div>
         </div>
         <Select
-          options={OPTIMIZER_PRESET_OPTIONS}
+          options={OPTIMIZER_PRESET_OPTIONS.map((option) => ({ ...option, label: t(`agents.execution.agent.optimizer_${option.value}`) }))}
           value={optimizer_preset}
           set_value={set_optimizer_preset}
           filterable={false}
@@ -326,7 +326,7 @@ export default function AgentPanel({ node, recipe, onChange, onChangeSilent, isD
             }}
           >
             <Input
-              prefix_label="Window %"
+              prefix_label={t("agents.execution.agent.window")}
               value={String(custom_optimizer.sliding_window.max_window_pct)}
               set_value={(v) =>
                 update_custom_optimizer("sliding_window", {
@@ -346,7 +346,7 @@ export default function AgentPanel({ node, recipe, onChange, onChangeSilent, isD
               }}
             />
             <Input
-              prefix_label="Max tokens"
+              prefix_label={t("agents.execution.agent.max_tokens")}
               value={
                 custom_optimizer.sliding_window.max_window_tokens == null
                   ? ""
@@ -366,7 +366,7 @@ export default function AgentPanel({ node, recipe, onChange, onChangeSilent, isD
                         ),
                 })
               }
-              placeholder="none"
+              placeholder={t("agents.execution.agent.none")}
               style={{
                 fontSize: 11.5,
                 paddingVertical: 3,
@@ -375,7 +375,7 @@ export default function AgentPanel({ node, recipe, onChange, onChangeSilent, isD
               }}
             />
             <Input
-              prefix_label="Keep turns"
+              prefix_label={t("agents.execution.agent.keep_turns")}
               value={String(
                 custom_optimizer.tool_history_compaction.keep_completed_turns,
               )}
@@ -397,7 +397,7 @@ export default function AgentPanel({ node, recipe, onChange, onChangeSilent, isD
               }}
             />
             <Input
-              prefix_label="Result chars"
+              prefix_label={t("agents.execution.agent.result_chars")}
               value={String(custom_optimizer.tool_history_compaction.max_chars)}
               set_value={update_tool_max_chars}
               style={{
@@ -408,7 +408,7 @@ export default function AgentPanel({ node, recipe, onChange, onChangeSilent, isD
               }}
             />
             <Input
-              prefix_label="Preview chars"
+              prefix_label={t("agents.execution.agent.preview_chars")}
               value={String(
                 custom_optimizer.tool_history_compaction.preview_chars,
               )}
@@ -439,7 +439,7 @@ export default function AgentPanel({ node, recipe, onChange, onChangeSilent, isD
                 color: muted,
               }}
             >
-              <span>Hash payloads</span>
+              <span>{t("agents.execution.agent.hash_payloads")}</span>
               <Switch
                 on={custom_optimizer.tool_history_compaction.hash_payloads}
                 set_on={(on) =>
@@ -449,7 +449,7 @@ export default function AgentPanel({ node, recipe, onChange, onChangeSilent, isD
                 }
                 style={BUILDER_SWITCH_SIZE}
               />
-              <span>Context usage</span>
+              <span>{t("agents.execution.agent.context_usage")}</span>
               <Switch
                 on={custom_optimizer.context_usage.enabled}
                 set_on={(on) =>
@@ -457,7 +457,7 @@ export default function AgentPanel({ node, recipe, onChange, onChangeSilent, isD
                 }
                 style={BUILDER_SWITCH_SIZE}
               />
-              <span>Pair safety</span>
+              <span>{t("agents.execution.agent.pair_safety")}</span>
               <Switch
                 on={custom_optimizer.tool_pair_safety.enabled}
                 set_on={(on) =>
@@ -471,7 +471,7 @@ export default function AgentPanel({ node, recipe, onChange, onChangeSilent, isD
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <span style={SECTION_LABEL}>Prompt</span>
+        <span style={SECTION_LABEL}>{t("agents.execution.agent.prompt")}</span>
         <ChipEditor
           value={prompt}
           onChange={(v) => set_override_silent({ prompt: v })}
@@ -487,9 +487,9 @@ export default function AgentPanel({ node, recipe, onChange, onChangeSilent, isD
             alignItems: "center",
           }}
         >
-          <span style={SECTION_LABEL}>Output</span>
+          <span style={SECTION_LABEL}>{t("agents.execution.agent.output")}</span>
           <Button
-            label="+ Add field"
+            label={t("agents.schema.add_field")}
             onClick={add_out_row}
             style={{
               fontSize: 11,

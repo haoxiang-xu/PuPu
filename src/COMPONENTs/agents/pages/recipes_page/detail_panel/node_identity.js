@@ -1,3 +1,5 @@
+import { agentEnglishText } from "../agents_i18n";
+import { palette_entry_caption } from "../node_catalog_captions";
 import { own, safe_text } from "../document_values";
 import { TOOLKIT_POOL_TYPE, normalize_node_type } from "../recipe_graph";
 import { is_skeleton_node } from "../skeleton_document";
@@ -116,17 +118,50 @@ function identity_for(node_type) {
   return own(IDENTITY, normalize_node_type(node_type)) || null;
 }
 
-export function node_identity(node) {
+export function node_identity(node, t = agentEnglishText) {
   if (!node) return null;
   const entry = identity_for(node.type);
   if (!entry) return null;
+  const type = normalize_node_type(node.type);
+  const native = is_skeleton_node(node);
+  const title = type === "agent"
+    ? native
+      ? typeof node.id === "string" ? node.id : t("agents.nodes.agent")
+      : node.label || node.id ? entry.title(node) : t("agents.nodes.agent")
+    : palette_entry_caption({ type, label: entry.title(node) }, t).label;
+  let subtitle = entry.subtitle(node);
+  switch (type) {
+    case "start": subtitle = t("agents.identity.workflow_entry"); break;
+    case "end": subtitle = t("agents.identity.workflow_exit"); break;
+    case "agent":
+      subtitle = node?.override?.model ? safe_text(node.override.model) : t("agents.identity.inherits_chat_model");
+      break;
+    case TOOLKIT_POOL_TYPE: {
+      const count = Array.isArray(node.toolkits) ? node.toolkits.length : 0;
+      subtitle = count === 0 ? t("agents.identity.no_toolkits")
+        : count === 1 ? t("agents.nodes.toolkit_count_one", { count }) : t("agents.nodes.toolkit_count_other", { count });
+      break;
+    }
+    case "subagent_pool": {
+      const count = Array.isArray(node.subagents) ? node.subagents.length : 0;
+      subtitle = count === 0 ? t("agents.identity.no_subagents")
+        : count === 1 ? t("agents.nodes.subagent_count_one", { count }) : t("agents.nodes.subagent_count_other", { count });
+      break;
+    }
+    case "if_else":
+    case "switch_case": subtitle = t("agents.identity.branch"); break;
+    case "tool_call": subtitle = t("agents.identity.tool_step"); break;
+    case "skill_read": subtitle = t("agents.identity.skill_step"); break;
+    case "code": subtitle = t("agents.identity.python_process"); break;
+    case "hooks_pool": subtitle = t("agents.identity.hooks_around"); break;
+    case "workflow_call": subtitle = t("agents.identity.workflow_step"); break;
+    default: break;
+  }
   return {
     icon: entry.icon,
     gradient: entry.gradient,
-    title: is_skeleton_node(node)
-      ? node_display_title(node, node.type === "agent" ? (typeof node.id === "string" ? node.id : "Agent") : entry.title(node))
-      : entry.title(node),
-    subtitle: entry.subtitle(node),
+    title: native ? node_display_title(node, title) : title,
+    subtitle,
   };
 }
 

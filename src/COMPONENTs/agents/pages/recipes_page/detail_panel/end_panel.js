@@ -1,3 +1,4 @@
+import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import React from "react";
 import { compute_variable_scope } from "../variable_scope";
 import Select from "../../../../../BUILTIN_COMPONENTs/select/select";
@@ -20,6 +21,7 @@ const SECTION_LABEL = {
 };
 
 export default function EndPanel({ node, recipe, onChange, isDark }) {
+  const { t } = useTranslation();
   const scope = compute_variable_scope(node.id, recipe.nodes, recipe.edges);
 
   function update_schema(next) {
@@ -50,10 +52,10 @@ export default function EndPanel({ node, recipe, onChange, isDark }) {
   return (
     <>
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <span style={SECTION_LABEL}>Input Variables (upstream)</span>
+        <span style={SECTION_LABEL}>{t("agents.io.input_variables_upstream")}</span>
         {scope.length === 0 && (
           <span style={{ fontSize: 11, color: "#86868b" }}>
-            No upstream yet.
+            {t("agents.io.no_upstream_yet")}
           </span>
         )}
         {scope.map((v) => (
@@ -74,7 +76,7 @@ export default function EndPanel({ node, recipe, onChange, isDark }) {
             onClick={() => {
               navigator.clipboard?.writeText(`{{#${v.node_id}.${v.field}#}}`);
             }}
-            title="Click to copy"
+            title={t("agents.io.click_to_copy")}
           >
             <span>{`${v.node_id}.${v.field}`}</span>
             <span style={{ fontSize: 10, color: "#86868b" }}>{v.type}</span>
@@ -90,9 +92,9 @@ export default function EndPanel({ node, recipe, onChange, isDark }) {
             alignItems: "center",
           }}
         >
-          <span style={SECTION_LABEL}>Output Schema</span>
+          <span style={SECTION_LABEL}>{t("agents.io.output_schema")}</span>
           <Button
-            label="+ Add field"
+            label={t("agents.schema.add_field")}
             onClick={add_row}
             style={{
               fontSize: 11,

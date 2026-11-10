@@ -1,3 +1,5 @@
+import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
+import { agentMessage, renderAgentMessage, agentProblem, agentProblemMessage, agentPayloadReason } from "./recipes_page/agents_i18n";
 import React, {
   useCallback,
   useContext,
@@ -43,7 +45,6 @@ import {
 } from "../../../SERVICEs/skeleton_layout";
 import {
   DRILL,
-  EMBEDDED_CHECKED_CAPTION,
   FRAME,
   closed_embedded_frames,
   diagnostics_for_embedded,
@@ -80,7 +81,6 @@ import LegacyUpgradeWizard from "./recipes_page/legacy_upgrade/legacy_upgrade_wi
 import { is_legacy_upgrade_candidate } from "./recipes_page/legacy_upgrade/legacy_upgrade_plan";
 import { emitSkeletonLibraryRefresh } from "../../../SERVICEs/skeleton_library_refresh";
 import {
-  PIN_CHANGED_MESSAGE,
   pin_still_held,
   pinned_open_failed_message,
   pinned_view_caption,
@@ -183,6 +183,7 @@ export default function SkeletonResourcePage({
      width there (one width for both canvases). */
   chrome = DEFAULT_CHROME,
 }) {
+  const { t } = useTranslation();
   const cfg = useContext(ConfigContext);
   const isDark = cfg?.onThemeMode === "dark_mode";
   const {
@@ -296,7 +297,7 @@ export default function SkeletonResourcePage({
    * same decision into state, which is what makes the next render ordinary. */
   const lost =
     drillSteps.length > 0 && session.status === SESSION_STATUS.READY
-      ? drill_lost_reason(session.document, drillSteps, revision)
+      ? drill_lost_reason(session.document, drillSteps, revision, agentMessage)
       : null;
   /* Memoized because they are what the callbacks below are rebuilt from: a
      fresh array on every render would rebuild every one of them. */
@@ -326,7 +327,7 @@ export default function SkeletonResourcePage({
   /* Derived from this navigation, not saved in the graph or a cached frame:
      editing Start outputs, going back, and replacing a resource immediately
      describe the caller of the graph actually on screen. */
-  const startContext = start_context_for_view(steps, stack, document);
+  const startContext = start_context_for_view(steps, stack, document, t);
   const prefix = steps.length === 0
     ? ["document"]
     : embedded_path(resource_document, steps, revision);
@@ -364,12 +365,12 @@ export default function SkeletonResourcePage({
   const commandOpen = session.open_id;
   const commandResource = session.resource_id;
   const graphCommand = useCallback((command) => {
-    let result = { ok: false, document: null, problem: { code: "view_changed", message: "This view changed. Try the edit in the graph now on screen." } };
+    let result = { ok: false, document: null, problem: agentProblem("agents.graph.view_changed", undefined, { code: "view_changed" }) };
     editCurrent({ open_id: commandOpen, resource_id: commandResource }, (current) => {
       if (navigationRef.current !== commandNavigation || current.document_revision !== revision) return current.document;
       const shown = steps.length === 0 ? current.document : embedded_document(current.document, steps, revision);
       if (!shown) return current.document;
-      result = apply_graph_command(shown, command);
+      result = apply_graph_command(shown, command, agentMessage);
       if (!result.ok || result.document === shown) return current.document;
       return steps.length === 0 ? result.document : with_embedded_document(current.document, steps, result.document, revision);
     });
@@ -416,14 +417,15 @@ export default function SkeletonResourcePage({
   /* Opening a subagent. The row says whether it can be opened and why not, so
      a row that cannot be is not inert — it answers. */
   const open_subagent = useCallback(
-    async ({ pool_node_id, entry_id, entry_index, reason }) => {
+    async (payload) => {
+      const { pool_node_id, entry_id, entry_index, reason } = payload;
       const request = navigate();
       setNotices([]);
       if (reason) {
-        setNotices([reason]);
+        setNotices([agentPayloadReason(payload, agentMessage)]);
         return;
       }
-      const blocked = drill_blocked_reason(session);
+      const blocked = drill_blocked_reason(session, agentMessage);
       if (blocked) {
         setNotices([blocked]);
         return;
@@ -443,7 +445,7 @@ export default function SkeletonResourcePage({
       if (!found) {
         /* The row was drawn from this same document, so this is the row
            having gone between the drawing and the click. */
-        setNotices([gone_message("That subagent")]);
+        setNotices([gone_message(agentMessage("agents.drill.that_subagent"), agentMessage)]);
         return;
       }
       const step = drill_step({
@@ -454,7 +456,7 @@ export default function SkeletonResourcePage({
       });
       /* Which graph this click happened in, for the read below. */
       const opened_from = steps;
-      const target = drill_target(found.entry);
+      const target = drill_target(found.entry, agentMessage);
       if (target.kind === DRILL.UNREADABLE) {
         setNotices([target.reason]);
         return;
@@ -467,6 +469,7 @@ export default function SkeletonResourcePage({
               label: shown_label,
               steps,
               selected_node_id: selectedNodeId,
+              via_label: agentMessage("agents.drill.subagent_pool"),
             }),
           ),
         );
@@ -483,6 +486,7 @@ export default function SkeletonResourcePage({
           why_not_a_subagent(
             { id: data && data.id, kind: data && data.kind, archived: data && data.archived },
             { owner_id: session.resource_id },
+            agentMessage,
           ),
         /* Asked at the moment of the swap, not before the read: the hook
            knows which sitting asked, and this is the other half — whether
@@ -512,7 +516,7 @@ export default function SkeletonResourcePage({
          no frame, no steps, and nothing said. */
       if (navigationRef.current !== request) return;
       if (!answer.ok) {
-        const blocked_now = drill_obsolete_reason(answer.blocked);
+        const blocked_now = drill_obsolete_reason(answer.blocked, agentMessage);
         if (answer.obsolete && !blocked_now) return;
         setNotices([
           blocked_now ||
@@ -520,6 +524,7 @@ export default function SkeletonResourcePage({
             open_failed_message(
               target.agent_id,
               answer.result && answer.result.error,
+              agentMessage,
             ),
         ]);
         return;
@@ -527,13 +532,13 @@ export default function SkeletonResourcePage({
       setDrillStack((frames) =>
         push_drill_frame(
           frames,
-          frame_for_resource_step({
+          { ...frame_for_resource_step({
             label: resource_label,
             steps,
             selected_node_id: selectedNodeId,
             session: answer.left,
             saved_version: saved_version_of(answer.left.resource_id),
-          }),
+          }), via_label: agentMessage("agents.drill.subagent_pool") },
         ),
       );
       setSteps([]);
@@ -561,7 +566,7 @@ export default function SkeletonResourcePage({
     ({ pool_node_id, entry_id, entry_index }) => {
       navigate();
       setNotices([]);
-      const blocked = drill_blocked_reason(session);
+      const blocked = drill_blocked_reason(session, agentMessage);
       if (blocked) {
         setNotices([blocked]);
         return;
@@ -569,10 +574,10 @@ export default function SkeletonResourcePage({
       const clicked = { node_id: pool_node_id, entry_id, entry_index, taken_in: revision, member: HOOK_MEMBER };
       const found = hook_entry_for(document, clicked, revision);
       if (!found) {
-        setNotices([gone_message("That hook")]);
+        setNotices([gone_message(agentMessage("agents.drill.that_hook"), agentMessage)]);
         return;
       }
-      const target = hook_drill_target(found.entry);
+      const target = hook_drill_target(found.entry, agentMessage);
       if (target.kind !== DRILL.EMBEDDED) {
         setNotices([target.reason]);
         return;
@@ -585,7 +590,7 @@ export default function SkeletonResourcePage({
             label: shown_label,
             steps,
             selected_node_id: selectedNodeId,
-            via_label: "Hooks Pool",
+            via_label: agentMessage("agents.drill.hooks_pool"),
           }),
         ),
       );
@@ -647,12 +652,12 @@ export default function SkeletonResourcePage({
       if (frame.kind === FRAME.RESOURCE) {
         if (session.dirty) {
           messages.push(
-            left_behind_message(graph_label(session.document, session.resource_id)),
+            left_behind_message(graph_label(session.document, session.resource_id), agentMessage),
           );
         }
         restore(frame.session);
         if (frame_is_stale(frame, savedVersionsRef.current)) {
-          messages.push(stale_frame_message(frame.label));
+          messages.push(stale_frame_message(frame.label, agentMessage));
         }
       }
       setSteps(frame.steps || []);
@@ -694,11 +699,11 @@ export default function SkeletonResourcePage({
         ? now.session.document
         : embedded_document(now.session.document, now.steps, now.revision);
       if (!pin_still_held(shown, node_id, pin)) {
-        setNotices([PIN_CHANGED_MESSAGE]);
+        setNotices([agentMessage("agents.pinned.changed")]);
         return { ok: false };
       }
       if (!result.ok) {
-        setNotices([pinned_open_failed_message(result)]);
+        setNotices([pinned_open_failed_message(result, agentMessage)]);
         return { ok: false };
       }
       setRunOpen(false);
@@ -729,7 +734,7 @@ export default function SkeletonResourcePage({
     const chats = getChatsStore();
     const scope = run_observation_scope(chats, chats?.activeChatId ? getChatMessages(chats.activeChatId) : [], session.resource_id);
     if (!scope) {
-      setCanvasProblem("Open a chat with this Agent first; no execution identity is available to inspect.");
+      setCanvasProblem(agentMessage("agents.editor.chat_required_for_observation"));
       return;
     }
     if (pageRef.current?.contains(window.document.activeElement)) window.document.activeElement?.blur();
@@ -855,10 +860,10 @@ export default function SkeletonResourcePage({
   }, [session.open_id, steps]);
 
   const editor_crumbs = drilled
-    ? drill_crumbs(stack, shown_label)
+    ? drill_crumbs(stack, shown_label, t)
     : [{ label: shown_label, depth: null, navigable: false }];
   const crumbs = pinned
-    ? pinned_view_crumbs(editor_crumbs, stack.length, pinned.node_id, pinned_view_label(pinned.version))
+    ? pinned_view_crumbs(editor_crumbs, stack.length, pinned.node_id, pinned_view_label(pinned.version, t), t)
     : drilled ? editor_crumbs : [];
   /* From over a pinned revision, the graph it was opened from is at
      `stack.length`; anything further up is a drill frame, left as usual. */
@@ -872,23 +877,23 @@ export default function SkeletonResourcePage({
   const shown_notices = notices_still_true(lost === null ? notices : [lost], session);
 
   const ready = session.status === SESSION_STATUS.READY;
-  const conflict = conflict_message(session);
+  const conflict = conflict_message(session, t);
   const detail = (chrome && chrome.detail) || DEFAULT_CHROME.detail;
   const messages = [
     session.error
-      ? { text: session.error.message || session.error.code, testId: "skeleton-save-error" }
+      ? { text: agentProblemMessage(session.error, t) || session.error.code, testId: "skeleton-save-error" }
       : null,
-    canvasProblem ? { text: canvasProblem, testId: "skeleton-graph-problem" } : null,
+    canvasProblem ? { text: renderAgentMessage(canvasProblem, t), testId: "skeleton-graph-problem" } : null,
     escapeHeld && session.dirty
       ? {
           testId: "skeleton-escape-unsaved",
-          text: "Unsaved changes. Escape does not close the Builder until they are saved.",
+          text: t("agents.editor.escape_unsaved"),
         }
       : null,
     shown_notices.length > 0
       ? {
           testId: "skeleton-drill-notice",
-          text: shown_notices.map((message, index) => <div key={index}>{message}</div>),
+          text: shown_notices.map((message, index) => <div key={index}>{renderAgentMessage(message, t)}</div>),
         }
       : null,
   ].filter(Boolean);
@@ -901,11 +906,11 @@ export default function SkeletonResourcePage({
   const migratedLegacy = ready && session.document.nodes.some((node) => node?.config
     && Object.prototype.hasOwnProperty.call(node.config, "legacy_source"));
   const upgradeBlocked = session.dirty
-    ? "Save or undo your edits first: the upgrade reads the stored Agent."
+    ? t("agents.editor.upgrade_save_first")
     : session.saving || session.converting
-      ? "Wait for the current write to finish."
+      ? t("agents.editor.upgrade_wait_write")
       : session.conflict
-        ? "Resolve the save conflict first."
+        ? t("agents.editor.upgrade_resolve_conflict")
         : null;
   const upgradeResource = upgradeCandidate && session.resource_id
     ? { id: session.resource_id, edit_token: session.edit_token, document: session.document, name: typeof session.document?.name === "string" ? session.document.name : "" }
@@ -961,22 +966,21 @@ export default function SkeletonResourcePage({
 
       {session.status === SESSION_STATUS.LOADING && (
         <div style={CENTERED}>
-          <span style={NOTE}>Opening…</span>
+          <span style={NOTE}>{t("agents.editor.opening")}</span>
         </div>
       )}
       {session.status === SESSION_STATUS.LOAD_FAILED && (
         <div style={CENTERED}>
           <span data-testid="skeleton-load-failed" style={NOTE}>
-            {(session.error && session.error.message) ||
-              "This Agent could not be opened."}
+            {(session.error && agentProblemMessage(session.error, t)) ||
+              t("agents.editor.open_failed")}
           </span>
         </div>
       )}
       {session.status === SESSION_STATUS.UNAVAILABLE && (
         <div style={CENTERED}>
           <span data-testid="skeleton-store-unavailable" style={NOTE}>
-            The Agent library is not reachable in this build, so nothing here can
-            be saved or run.
+            {t("agents.save.store_unavailable")}
           </span>
         </div>
       )}
@@ -990,7 +994,7 @@ export default function SkeletonResourcePage({
           left={chrome.crumbLeft}
           testId="skeleton-drill-breadcrumb"
           crumbsTestId="skeleton-drill-crumbs"
-          crumbAriaLabel={(crumb) => `Back to ${crumb.label}`}
+          crumbAriaLabel={(crumb) => t("agents.editor.back_to", { label: crumb.label })}
         />
       )}
       {/* What a sub-graph is saved with. An empty diagnostics area would
@@ -999,15 +1003,15 @@ export default function SkeletonResourcePage({
           `[]` for an embedded child with no End as for a healthy one. */}
       {!runViewScope && pinned && (
         <CanvasCaptionChip isDark={isDark} testId="workflow-pinned-caption">
-          <span>{pinned_view_caption(pinned.version)}</span>
+          <span>{pinned_view_caption(pinned.version, t)}</span>
         </CanvasCaptionChip>
       )}
       {!runViewScope && !pinned && drilled && steps.length > 0 && (
         <CanvasCaptionChip isDark={isDark} testId="skeleton-drill-caption">
           <span data-testid="skeleton-drill-save-target">
-            {save_target_caption(resource_label)}
+            {save_target_caption(resource_label, t)}
           </span>
-          <span data-testid="skeleton-drill-unchecked">{EMBEDDED_CHECKED_CAPTION}</span>
+          <span data-testid="skeleton-drill-unchecked">{t("agents.drill.embedded_checked")}</span>
         </CanvasCaptionChip>
       )}
 
@@ -1016,15 +1020,15 @@ export default function SkeletonResourcePage({
           {upgradeCandidate && !conflict && (
             <ControlPopover isDark={isDark} testId="skeleton-legacy-upgrade-offer">
               <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: 0.3 }}>
-                Legacy Agent
+                {t("agents.editor.legacy_agent")}
               </span>
               <span style={{ fontSize: 11, lineHeight: 1.45 }}>
-                This graph still carries its old definition. Upgrading converts it into a native graph you can edit, after you review what the host asks for. Nothing is written until you confirm.
+                {t("agents.editor.legacy_upgrade_description")}
               </span>
               {upgradeBlocked && <span style={{ fontSize: 11, lineHeight: 1.45, opacity: 0.8 }}>{upgradeBlocked}</span>}
               <div style={{ display: "flex", gap: 6 }}>
                 <Button
-                  label="Upgrade…"
+                  label={t("agents.editor.upgrade")}
                   disabled={Boolean(upgradeBlocked)}
                   onClick={() => setUpgradeOpen(true)}
                   dom_props={{ "data-testid": "skeleton-legacy-upgrade-open" }}
@@ -1040,17 +1044,17 @@ export default function SkeletonResourcePage({
           {conflict && (
             <ControlPopover isDark={isDark} testId="skeleton-save-conflict">
               <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: 0.3 }}>
-                Saved somewhere else
+                {t("agents.save.saved_elsewhere")}
               </span>
               <span style={{ fontSize: 11, lineHeight: 1.45 }}>{conflict}</span>
               <div style={{ display: "flex", gap: 6 }}>
                 <Button
-                  label="Look at theirs"
+                  label={t("agents.save.look_at_theirs")}
                   onClick={takeTheirs}
                   style={{ fontSize: 11.5, paddingVertical: 4, paddingHorizontal: 10, borderRadius: 6 }}
                 />
                 <Button
-                  label="Keep mine and replace it"
+                  label={t("agents.save.keep_mine")}
                   onClick={keepMine}
                   style={{
                     fontSize: 11.5,
@@ -1080,7 +1084,7 @@ export default function SkeletonResourcePage({
           canRedo={can_redo(session)}
           onHome={() => setHomeToken((token) => token + 1)}
           onSave={handleSave}
-          saveLabel={session.saving ? "Saving…" : "Save"}
+          saveLabel={session.saving ? t("agents.save.saving") : t("agents.save.save")}
           saveDisabled={!can_save(session)}
           saveActive={Boolean(session.dirty && !session.conflict)}
           run={<RunTrigger open={runOpen} onToggle={() => setRunOpen((open) => !open)} />}
@@ -1089,7 +1093,7 @@ export default function SkeletonResourcePage({
       {session.status !== SESSION_STATUS.EMPTY &&
         session.status !== SESSION_STATUS.UNAVAILABLE && (
           <span data-testid="skeleton-save-state" role="status" style={VISUALLY_HIDDEN}>
-            {session.dirty ? "Unsaved changes" : "Saved"}
+            {session.dirty ? t("agents.save.unsaved_changes") : t("agents.save.saved")}
           </span>
         )}
 

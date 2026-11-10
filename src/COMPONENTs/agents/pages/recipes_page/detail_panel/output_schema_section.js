@@ -1,3 +1,4 @@
+import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import React, { useState } from "react";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
@@ -68,11 +69,9 @@ const REFUSED = { ...PROBLEM, color: "rgba(176,32,32,0.95)" };
 
 const EMPTY_SCHEMA = Object.freeze({ type: "object", properties: {} });
 
-const OFF_CAPTION =
-  "This Agent replies in prose. Its result is message and context, and nothing else.";
 
-const NO_KERNEL_CAPTION =
-  "This Agent has no model configuration yet, and JSON output is part of it. Pick a model above first — a schema stored beside nothing would be refused.";
+
+
 
 /* Acceptance 5's negative, and it is the runtime's rule rather than a caution
    this panel invented: `validate_kernel_config` refuses a `json_schema`
@@ -80,14 +79,11 @@ const NO_KERNEL_CAPTION =
    (`unsupported_capability` at `kernel.json_schema`). So the node is
    explicitly unavailable here, and there is no path through this section that
    writes a schema instead and lets the model answer in prose. */
-const NO_STRUCTURED_OUTPUT_CAPTION =
-  "This model cannot be asked for structured output, so JSON output is unavailable for it. Nothing falls back to plain text behind your back — pick a model that can, or leave this Agent replying in prose.";
 
-const CLOSED_CAPTION =
-  "Only these fields. An output row can then say that a field the schema does not name cannot exist.";
 
-const OPEN_CAPTION =
-  "The reply may carry fields this list does not name. They can still be exported, by typing the name on an output row.";
+
+
+
 
 function parse_json(text) {
   try {
@@ -98,6 +94,16 @@ function parse_json(text) {
 }
 
 function Bound({ field, bound, revision, onChange }) {
+  const { t } = useTranslation();
+  const boundLabels = {
+    minLength: t("agents.schema.fields.min_length"),
+    maxLength: t("agents.schema.fields.max_length"),
+    minimum: t("agents.schema.fields.min"),
+    maximum: t("agents.schema.fields.max"),
+    minItems: t("agents.schema.fields.min_items"),
+    maxItems: t("agents.schema.fields.max_items"),
+  };
+  const boundLabel = Object.prototype.hasOwnProperty.call(boundLabels, bound) ? boundLabels[bound] : BOUND_LABEL[bound];
   const value = field.bounds ? field.bounds[bound] : undefined;
   const counted = bound !== "minimum" && bound !== "maximum";
   /* Blank is not zero. Zero is a real bound — an empty string, an empty list —
@@ -135,7 +141,7 @@ function Bound({ field, bound, revision, onChange }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
-        <span style={{ ...CAPTION, flexShrink: 0 }}>{BOUND_LABEL[bound]}</span>
+        <span style={{ ...CAPTION, flexShrink: 0 }}>{boundLabel}</span>
         <Input
           value={shown}
           set_value={type}
@@ -157,15 +163,13 @@ function Bound({ field, bound, revision, onChange }) {
               been stored — `0` is a count even though `0.` is not — so
               "this was not stored" on its own leaves the author guessing
               which of the two the schema now says. */}
-          {`${
-            counted
-              ? "A count is a whole number, 0 or more."
-              : "A bound is a number."
-          } This was not stored — ${
-            value === undefined
-              ? `there is still no ${BOUND_LABEL[bound]}`
-              : `${BOUND_LABEL[bound]} is still ${value}`
-          }.`}
+          {counted
+            ? value === undefined
+              ? t("agents.schema.bound_refused_count_absent", { bound: boundLabel })
+              : t("agents.schema.bound_refused_count_stored", { bound: boundLabel, value })
+            : value === undefined
+              ? t("agents.schema.bound_refused_bound_absent", { bound: boundLabel })
+              : t("agents.schema.bound_refused_bound_stored", { bound: boundLabel, value })}
         </span>
       )}
     </div>
@@ -180,6 +184,7 @@ function Bound({ field, bound, revision, onChange }) {
  * marker across, then saved that. So a colliding name is held here, shown,
  * said, and not composed, until the author frees it. */
 function FieldName({ field, taken, revision, onChange }) {
+  const { t } = useTranslation();
   /* The rules are `useTakenName`'s, shared with the Subagent Pool's entry
      names. Whatever is held is unstored and says so — not only while it still
      collides: freeing the name by renaming the *other* field stopped the
@@ -204,7 +209,7 @@ function FieldName({ field, taken, revision, onChange }) {
       <Input
         value={shown}
         set_value={type}
-        placeholder="field name"
+        placeholder={t("agents.schema.field_name")}
         style={{
           width: 120,
           fontSize: 11.5,
@@ -218,9 +223,9 @@ function FieldName({ field, taken, revision, onChange }) {
         <span data-testid="schema-name-taken" style={REFUSED}>
           {taken_now
             ? pending.text === ""
-              ? "Another field already has no name. This was not stored."
-              : `Another field is already called ${pending.text}. This was not stored.`
-            : "This was not stored. The name is free now — type it again to use it."}
+              ? t("agents.schema.unnamed_field_taken")
+              : t("agents.schema.field_name_taken", { name: pending.text })
+            : t("agents.schema.name_free_retry")}
         </span>
       )}
     </div>
@@ -230,6 +235,7 @@ function FieldName({ field, taken, revision, onChange }) {
 /* One declared field, as the Agent's JSON Output and the Code node's Result
    (#357) both draw it: the same row for the same declaration. */
 export function FieldRow({ field, index, taken, revision, isDark, onChange, onRemove }) {
+  const { t } = useTranslation();
   const bounds = bounds_for(field.type);
   return (
     <div
@@ -295,7 +301,7 @@ export function FieldRow({ field, index, taken, revision, isDark, onChange, onRe
         )}
         <div style={{ flex: 1, minWidth: 0 }} />
         <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-          <span style={CAPTION}>required</span>
+          <span style={CAPTION}>{t("agents.schema.required")}</span>
           <Switch
             on={Boolean(field.required)}
             set_on={(next) => onChange({ ...field, required: Boolean(next) })}
@@ -304,7 +310,7 @@ export function FieldRow({ field, index, taken, revision, isDark, onChange, onRe
         </div>
         <Button
           prefix_icon="close"
-          ariaLabel={`Remove ${field.name || "field"}`}
+          ariaLabel={field.name ? t("agents.io.remove_field", { name: field.name }) : t("agents.io.remove_field_unnamed")}
           onClick={onRemove}
           style={{
             flexShrink: 0,
@@ -320,7 +326,7 @@ export function FieldRow({ field, index, taken, revision, isDark, onChange, onRe
         <Input
           value={field.description}
           set_value={(next) => onChange({ ...field, description: next })}
-          placeholder="what it holds (optional)"
+          placeholder={t("agents.schema.what_it_holds_optional")}
           style={{
             flex: 1,
             minWidth: 120,
@@ -358,6 +364,7 @@ export default function OutputSchemaSection({
   isDark,
   onChange,
 }) {
+  const { t } = useTranslation();
   const schema = node_output_schema(node);
   const kernel = node_kernel(node);
   const has_kernel = Boolean(kernel);
@@ -412,7 +419,7 @@ export default function OutputSchemaSection({
   const on = schema !== null && schema !== undefined;
   const held = on && fields_hold_schema(schema);
   const as_json = on && (!held || editor.as_json);
-  const problems = on ? output_schema_problems(schema) : [];
+  const problems = on ? output_schema_problems(schema, t) : [];
   const { fields, closed, root } = schema_fields(on ? schema : EMPTY_SCHEMA);
   /* A field's identity, because the document gives it none: the rows are
      ordered and anonymous, a name is not an identity while it is being
@@ -430,14 +437,14 @@ export default function OutputSchemaSection({
         data-testid="skeleton-output-schema"
         style={{ display: "flex", flexDirection: "column", gap: 8 }}
       >
-        <span style={SECTION_LABEL}>JSON Output</span>
+        <span style={SECTION_LABEL}>{t("agents.schema.title")}</span>
         {!has_kernel ? (
           <span data-testid="schema-no-kernel" style={CAPTION}>
-            {NO_KERNEL_CAPTION}
+            {t("agents.schema.no_kernel_caption")}
           </span>
         ) : (
           <span data-testid="schema-no-structured-output" style={CAPTION}>
-            {NO_STRUCTURED_OUTPUT_CAPTION}
+            {t("agents.schema.no_structured_output_caption")}
           </span>
         )}
       </div>
@@ -496,7 +503,7 @@ export default function OutputSchemaSection({
           alignItems: "center",
         }}
       >
-        <span style={SECTION_LABEL}>JSON Output</span>
+        <span style={SECTION_LABEL}>{t("agents.schema.title")}</span>
         <Switch
           on={on}
           set_on={(next) => {
@@ -511,15 +518,13 @@ export default function OutputSchemaSection({
 
       {!on && (
         <span data-testid="schema-off" style={CAPTION}>
-          {OFF_CAPTION}
+          {t("agents.schema.off_caption")}
         </span>
       )}
 
       {on && !held && (
         <span data-testid="schema-not-field-shaped" style={CAPTION}>
-          {`This schema is written in a way the fields cannot hold exactly — ${why_fields_cannot_hold(
-            schema,
-          )}. It is shown as JSON so it stays as it is.`}
+          {t("agents.schema.not_representable", { reason: why_fields_cannot_hold(schema, t) })}
         </span>
       )}
 
@@ -530,7 +535,7 @@ export default function OutputSchemaSection({
             set_value={(next) =>
               set_fields(fields, closed, { ...root, description: next })
             }
-            placeholder="what this output is (optional)"
+            placeholder={t("agents.schema.what_this_output_is_optional")}
             style={{
               width: "100%",
               fontSize: 11,
@@ -542,8 +547,7 @@ export default function OutputSchemaSection({
 
           {fields.length === 0 && (
             <span data-testid="schema-no-fields" style={CAPTION}>
-              No fields yet. The reply still has to be a JSON object, so add one
-              or turn this off.
+              {t("agents.schema.empty_fields")}
             </span>
           )}
 
@@ -576,7 +580,7 @@ export default function OutputSchemaSection({
           ))}
 
           <Button
-            label="+ Add field"
+            label={t("agents.schema.add_field")}
             onClick={() => {
               rows.added();
               set_fields(
@@ -607,7 +611,7 @@ export default function OutputSchemaSection({
               style={{ ...BUILDER_SWITCH_SIZE, flexShrink: 0 }}
             />
             <span data-testid="schema-closed-caption" style={CAPTION}>
-              {closed ? CLOSED_CAPTION : OPEN_CAPTION}
+              {closed ? t("agents.schema.closed_caption") : t("agents.schema.open_caption")}
             </span>
           </div>
         </>
@@ -635,7 +639,7 @@ export default function OutputSchemaSection({
           data-testid="schema-json-unreadable"
           style={{ ...PROBLEM, color: isDark ? "rgba(255,140,140,0.95)" : "rgba(176,32,32,0.95)" }}
         >
-          {`This is not JSON yet, so nothing was stored: ${parsed_text.message}`}
+          {t("agents.schema.invalid_json_not_stored", { message: parsed_text.message })}
         </span>
       )}
 
@@ -654,7 +658,7 @@ export default function OutputSchemaSection({
 
       {on && held && (
         <Button
-          label={editor.as_json ? "Edit as fields" : "Edit as JSON"}
+          label={editor.as_json ? t("agents.schema.edit_as_fields") : t("agents.schema.edit_as_json")}
           onClick={() =>
             setEditor((previous) => ({
               ...previous,

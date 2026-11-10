@@ -1,3 +1,4 @@
+import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import React from "react";
 import {
   diagnostic_location_label,
@@ -32,12 +33,13 @@ const TITLE = { fontSize: 10.5, fontWeight: 600, letterSpacing: 0.3 };
 const LINE = { fontSize: 10.5, lineHeight: 1.45 };
 
 export function SkeletonNodeDiagnostics({ diagnostics, isDark }) {
+  const { t } = useTranslation();
   const list = diagnostics || [];
   if (list.length === 0) return null;
   return (
     <div data-testid="skeleton-diagnostics-notice" style={BOX(isDark)}>
       <span style={TITLE}>
-        Saved, with {list.length === 1 ? "a problem" : "problems"} to finish
+        {list.length === 1 ? t("agents.diagnostics.saved_one") : t("agents.diagnostics.saved_other")}
       </span>
       {list.map((item, i) => (
         <span key={i} data-testid={`skeleton-diagnostic-${i}`} style={LINE}>
@@ -49,18 +51,18 @@ export function SkeletonNodeDiagnostics({ diagnostics, isDark }) {
 }
 
 export function SkeletonElsewhereDiagnostics({ diagnostics, document, isDark }) {
+  const { t } = useTranslation();
   const list = diagnostics || [];
   if (list.length === 0) return null;
   return (
     <div data-testid="skeleton-elsewhere-notice" style={BOX(isDark)}>
       <span style={TITLE}>
-        Elsewhere in this graph
-        {list.length > 1 ? ` · ${list.length}` : ""}
+        {list.length > 1 ? t("agents.diagnostics.elsewhere_count", { count: list.length }) : t("agents.diagnostics.elsewhere")}
       </span>
       {list.map((item, i) => (
         <span key={i} data-testid={`skeleton-elsewhere-${i}`} style={LINE}>
           <span style={{ opacity: 0.7 }}>
-            {diagnostic_location_label(item, document)} —{" "}
+            {diagnostic_location_label(item, document, t)} —{" "}
           </span>
           {item.message}
         </span>
@@ -76,12 +78,12 @@ export function SkeletonElsewhereDiagnostics({ diagnostics, document, isDark }) 
  * show the last answer here anyway: every path in it addresses a position,
  * and the positions moved. */
 export function SkeletonUncheckedNotice({ isDark }) {
+  const { t } = useTranslation();
   return (
     <div data-testid="skeleton-diagnostics-stale" style={BOX(isDark)}>
-      <span style={TITLE}>Not checked yet</span>
+      <span style={TITLE}>{t("agents.diagnostics.not_checked")}</span>
       <span style={LINE}>
-        This draft changed after it was last checked, so what was wrong with
-        the saved version is not shown against it. Saving checks this draft.
+        {t("agents.diagnostics.changed_after_check")}
       </span>
     </div>
   );

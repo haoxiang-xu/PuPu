@@ -1,4 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
+import { agentEnglishText } from "./agents_i18n";
+import { palette_entry_caption } from "./node_catalog_captions";
 import { FlowEditor } from "../../../../BUILTIN_COMPONENTs/flow_editor";
 import usePresentationPlatform from "../../../../BUILTIN_COMPONENTs/mini_react/use_presentation_platform";
 import ContextMenu from "../../../../BUILTIN_COMPONENTs/context_menu/context_menu";
@@ -26,6 +29,7 @@ import { node_identity } from "./detail_panel/node_identity";
 import { useNodeLabelCapability } from "./node_label_capability";
 import RenameNodeModal from "./rename_node_modal";
 import RunNodeStatus from "./nodes/run_node_status";
+import { agentMessage, renderAgentMessage, agentProblemMessage, agentReasonPayload } from "./agents_i18n";
 import { pool_entry_rows } from "./skeleton_drill";
 import {
   readSkeletonLayout,
@@ -73,11 +77,11 @@ function renderNode(node, isDark, onOpenSubagent, view = {}) {
            `config.legacy_fields`; the legacy recipe canvas passes a node whose
            entries sit on `node.subagents`. The rows are resolved here rather
            than inside the node so the two shapes stay one drawing. */
-        rows={pool_entry_rows(node)}
+        rows={pool_entry_rows(node, agentMessage)}
         onOpenRow={
           typeof onOpenSubagent === "function"
             ? (row) =>
-                onOpenSubagent({
+                onOpenSubagent(agentReasonPayload({
                   pool_node_id: node.id,
                   entry_id: row.entry_id,
                   /* Which row it was, as well as which entry it names: a
@@ -86,7 +90,7 @@ function renderNode(node, isDark, onOpenSubagent, view = {}) {
                      opens. */
                   entry_index: row.index,
                   reason: row.reason,
-                })
+                }))
             : undefined
         }
       />
@@ -155,7 +159,7 @@ const FIXED_TYPES = Object.assign(Object.create(null), {
   start: { label: "Start", icon: "flag" },
   end: { label: "End", icon: "target" },
 });
-function finder_entries(graph) {
+function finder_entries(graph, t = agentEnglishText) {
   return ((graph && graph.nodes) || [])
     .filter((node) => node && typeof node.id === "string")
     .map((node) => {
@@ -164,7 +168,7 @@ function finder_entries(graph) {
         key: node.id,
         type: typeof node.type === "string" ? node.type : "",
         label: node_display_title(node, node.id),
-        description: `${node.id} · ${known ? known.label : typeof node.type === "string" ? node.type : "Unknown node"}`,
+        description: `${node.id} · ${known ? palette_entry_caption({ ...known, type: node.type }, t).label : typeof node.type === "string" ? node.type : t("agents.canvas.unknown_node")}`,
         icon: known ? known.icon : "circle",
       };
     });
@@ -188,6 +192,7 @@ function GraphDrawing({
   managedSources,
   isDark,
 }) {
+  const { t } = useTranslation();
   const canEdit = !readOnly && typeof onGraphCommand === "function" && (graph?.kind === "agent" || graph?.kind === "workflow") &&
     graph?.schema_version === 1;
   const renameScope = JSON.stringify([resourceId, commandScope, graph?.id]);
@@ -198,6 +203,7 @@ function GraphDrawing({
   useEffect(() => { setRename(null); }, [renameScope, canEdit]);
   /* A Workflow is offered only what it can hold (#357 G7). */
   const addableTypes = useMemo(() => addable_node_types(graph?.kind), [graph?.kind]);
+  const paletteEntries = useMemo(() => NATIVE_PALETTE_ENTRIES.map((entry) => palette_entry_caption(entry, t)), [t]);
   const containerRef = useRef(null);
   const closeRename = useCallback(() => {
     setRename(null);
@@ -245,7 +251,7 @@ function GraphDrawing({
            any edge still leaving through an outlet it no longer declares), so
            they cannot come from the per-type catalog. The rows travel with the
            drawing only; nothing here reaches the document. */
-        const branch = is_branch_type(node && node.type) ? branch_ports(graph, node) : null;
+        const branch = is_branch_type(node && node.type) ? branch_ports(graph, node, t) : null;
         return {
           /* Only the common envelope, including a validated optional label.
              Other metadata never leaks into a drawing through a spread.
@@ -267,12 +273,12 @@ function GraphDrawing({
              legacy catalog has no entry for it, so its ports come from the
              native catalog. */
           ports: branch ? branch.ports : native_step_ports(node.type) || native_pool_ports(node.type) || (NODE_TYPES.includes(node.type) ? ports_for_type(node.type) : []),
-          ...(branch ? { branch: { rows: branch.rows, readable: branch.readable, summary: branch_summary(node) } } : {}),
+          ...(branch ? { branch: { rows: branch.rows, readable: branch.readable, summary: branch_summary(node, t) } } : {}),
           deletable: canEdit && node.type !== "start" && node.type !== "end",
         };
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [graph, moveTick, canEdit],
+    [graph, moveTick, canEdit, t],
   );
 
   /* Run A must never paint the editor's draft B. Only the frozen document
@@ -321,7 +327,7 @@ function GraphDrawing({
   }, [onProblem]);
   const perform = useCallback((command) => {
     const result = onGraphCommand(command);
-    say(result.ok ? null : result.problem?.message || "This edit was refused.");
+    say(result.ok ? null : agentProblemMessage(result.problem, agentMessage) || agentMessage("agents.runtime.edit_refused"));
     if (result.ok && command.type === "delete" && command.node_ids.length) onSelectNode?.(null);
     return result;
   }, [onGraphCommand, onSelectNode, say]);
@@ -332,7 +338,7 @@ function GraphDrawing({
   const openRename = useCallback((id) => {
     if (!canEdit || !labelCapability.allowed) { say(labelCapability.reason); return; }
     const target = renameTarget(id);
-    if (!target) { say("The selected node is missing or its id is shared by another node."); return; }
+    if (!target) { say(agentMessage("agents.runtime.rename_missing")); return; }
     const initialValue = node_display_title(target, node_identity(drawn_node(target))?.title || target.id);
     setMenu(null); setPalette(null); setFinder(null);
     setRename({ node_id: id, scope: renameScope, initialValue,
@@ -340,9 +346,9 @@ function GraphDrawing({
   }, [canEdit, labelCapability, renameScope, renameTarget, say]);
   const confirmRename = useCallback((value) => {
     if (!canEdit || !labelCapability.allowed || rename?.scope !== renameScope) {
-      return { ok: false, problem: { message: labelCapability.reason || "This graph is no longer open for Rename." } };
+      return { ok: false, problem: { message: labelCapability.reason || agentMessage("agents.runtime.rename_view_closed") } };
     }
-    if (!renameTarget(rename.node_id)) return { ok: false, problem: { message: "The selected node is missing or its id is shared by another node." } };
+    if (!renameTarget(rename.node_id)) return { ok: false, problem: { message: agentMessage("agents.runtime.rename_missing") } };
     if (rename.unchangedIsNoop && value === rename.initialValue) { closeRename(); return { ok: true }; }
     const result = perform({ type: "rename_node", node_id: rename.node_id, label: value });
     if (result.ok) closeRename();
@@ -397,28 +403,28 @@ function GraphDrawing({
       const node = nodes.find((entry) => entry.id === target.id);
       const attached = edges.some((edge) => edge.source_node_id === target.id || edge.target_node_id === target.id);
       return [
-        { id: "open", label: "Open details", onClick: () => onSelectNode?.(target.id) },
-        { id: "rename", label: labelCapability.allowed ? "Rename" : `Rename unavailable · ${labelCapability.reason}`,
+        { id: "open", label: t("agents.canvas.menu.open_details"), onClick: () => onSelectNode?.(target.id) },
+        { id: "rename", label: labelCapability.allowed ? t("agents.explorer.menu.rename") : t("agents.canvas.menu.rename_unavailable", { reason: renderAgentMessage(labelCapability.reason, t) }),
           disabled: !labelCapability.allowed || !renameTarget(target.id) || selection.node_ids.length !== 1 || selection.edge_id !== null,
           trail: "F2", onClick: () => openRename(target.id) },
-        { id: "disconnect", label: "Disconnect node", disabled: !attached, onClick: () => perform({ type: "disconnect", node_id: target.id }) },
+        { id: "disconnect", label: t("agents.canvas.menu.disconnect_node"), disabled: !attached, onClick: () => perform({ type: "disconnect", node_id: target.id }) },
         { type: "separator" },
-        { id: "delete", label: node?.deletable ? "Delete node" : "Required node", disabled: !node?.deletable, danger: true,
+        { id: "delete", label: node?.deletable ? t("agents.canvas.menu.delete_node") : t("agents.canvas.menu.required_node"), disabled: !node?.deletable, danger: true,
           onClick: () => perform({ type: "delete", node_ids: [target.id], edge_ids: [] }) },
       ];
     }
-    if (target.kind === "edge") return [{ id: "delete", label: "Delete connection", danger: true,
+    if (target.kind === "edge") return [{ id: "delete", label: t("agents.canvas.menu.delete_connection"), danger: true,
       onClick: () => perform({ type: "delete", node_ids: [], edge_ids: [target.id] }) }];
     return [
-      { id: "add", label: "Add node…", onClick: () => openPalette(menu) },
-      { id: "find", label: "Find node…", onClick: () => openFinder(menu),
+      { id: "add", label: t("agents.canvas.menu.add_node"), onClick: () => openPalette(menu) },
+      { id: "find", label: t("agents.canvas.menu.find_node"), onClick: () => openFinder(menu),
         ...(isMac ? { trail_icon: "command", trail: "F" } : { trail: "Ctrl+F" }) },
       { type: "separator" },
-      { id: "select", label: "Select all", onClick: () => setSelectToken((t) => (t || 0) + 1) },
-      { id: "fit", label: "Fit graph", onClick: () => setFitToken((t) => (t || 0) + 1) },
-      { id: "zoom", label: "Reset zoom", onClick: () => setZoomToken((t) => (t || 0) + 1) },
+      { id: "select", label: t("agents.canvas.menu.select_all"), onClick: () => setSelectToken((t) => (t || 0) + 1) },
+      { id: "fit", label: t("agents.canvas.menu.fit_graph"), onClick: () => setFitToken((t) => (t || 0) + 1) },
+      { id: "zoom", label: t("agents.canvas.menu.reset_zoom"), onClick: () => setZoomToken((t) => (t || 0) + 1) },
     ];
-  }, [edges, menu, nodes, onSelectNode, openPalette, openFinder, perform, isMac, labelCapability, renameTarget, selection, openRename]);
+  }, [edges, menu, nodes, onSelectNode, openPalette, openFinder, perform, isMac, labelCapability, renameTarget, selection, openRename, t]);
 
   /* A zoom is a wheel gesture and produces no mouseup, so remembering on
      mouseup alone kept every pan and lost every zoom. Both gestures are
@@ -543,13 +549,13 @@ function GraphDrawing({
         zoom_reset_token={zoomToken}
         select_all_token={selectToken}
       />
-      {problem && <div data-testid="skeleton-graph-problem" role="alert" style={{ position: "absolute", bottom: 8, left: 8, right: 8, padding: "8px 12px", borderRadius: 8, background: "var(--pupu-surface)", fontSize: 12 }}>{problem}</div>}
+      {problem && <div data-testid="skeleton-graph-problem" role="alert" style={{ position: "absolute", bottom: 8, left: 8, right: 8, padding: "8px 12px", borderRadius: 8, background: "var(--pupu-surface)", fontSize: 12 }}>{renderAgentMessage(problem, t)}</div>}
       <RecipeNodePalette visible={canEdit && !!palette} x={palette?.x || 0} y={palette?.y || 0}
-        allowedTypes={addableTypes} entries={NATIVE_PALETTE_ENTRIES} onPick={pickNode} onClose={() => setPalette(null)} isDark={isDark} />
+        allowedTypes={addableTypes} entries={paletteEntries} onPick={pickNode} onClose={() => setPalette(null)} isDark={isDark} />
       <ContextMenu visible={canEdit && !!menu} x={menu?.client_x || 0} y={menu?.client_y || 0}
         items={contextItems} onClose={() => setMenu(null)} isDark={isDark} />
       <RecipeNodePalette visible={!!finder} x={finder?.x || 0} y={finder?.y || 0} mode="find"
-        entries={finder ? finder_entries(graph) : undefined} onPick={findNode} onClose={() => setFinder(null)} isDark={isDark} />
+        entries={finder ? finder_entries(graph, t) : undefined} onPick={findNode} onClose={() => setFinder(null)} isDark={isDark} />
       {rename && rename.scope === renameScope && canEdit && <RenameNodeModal initialValue={rename.initialValue}
         onConfirm={confirmRename} onClose={closeRename} disabledReason={labelCapability.allowed ? null : labelCapability.reason} isDark={isDark} />}
     </div>

@@ -1,3 +1,5 @@
+import { agentEnglishText, agentProblemMessage, renderAgentMessage } from "./agents_i18n";
+
 /* Drilling into a subagent.
  *
  * A referenced subagent is not a copy living inside its parent — it is the
@@ -45,9 +47,13 @@ const UNAVAILABLE = Object.freeze({
   [DRILL.NONE]: "This entry does not point at an Agent that can be opened.",
 });
 
-export function drill_unavailable_reason(entry) {
+export function drill_unavailable_reason(entry, t = agentEnglishText) {
   const { kind } = drill_target(entry);
-  return kind === DRILL.REFERENCE ? null : UNAVAILABLE[kind];
+  if (kind === DRILL.REFERENCE) return null;
+  if (t === agentEnglishText) return UNAVAILABLE[kind];
+  if (kind === DRILL.EMBEDDED) return t("agents.drill.legacy_embedded");
+  if (kind === DRILL.LEGACY) return t("agents.drill.legacy_entry");
+  return t("agents.drill.no_target");
 }
 
 /* A reference names a resource; whether that resource still exists is a
@@ -60,16 +66,16 @@ export function reference_exists(entry, resources) {
   return resources.some((r) => r && r.name === target.name);
 }
 
-export function missing_reference_message(name) {
-  return `"${name}" is no longer in the Agent library. The reference is kept so it can be repointed or removed.`;
+export function missing_reference_message(name, t = agentEnglishText) {
+  return t("agents.drill.legacy_missing", { name });
 }
 
-export function read_failure_message(name, error) {
+export function read_failure_message(name, error, t = agentEnglishText) {
   const detail =
     error && typeof error.message === "string" && error.message
-      ? ` — ${error.message}`
+      ? t("agents.drill.error_detail", { message: agentProblemMessage(error, t) })
       : "";
-  return `Could not open "${name}"${detail}`;
+  return t("agents.drill.legacy_open_failed", { name, detail });
 }
 
 /* ── The drill stack ──────────────────────────────────────────────────────
@@ -94,12 +100,12 @@ export function unwind_drill_stack(stack, depth) {
 
 /* `Reviewer › Subagent Pool › Summarizer` — the pool crumb names where the
  * step happened and is not itself a graph, so it is never navigable. */
-export function drill_crumbs(stack, current_label) {
+export function drill_crumbs(stack, current_label, t = agentEnglishText) {
   const list = stack || [];
   const crumbs = [];
   list.forEach((frame, depth) => {
     crumbs.push({ label: frame.label, depth, navigable: true });
-    crumbs.push({ label: frame.via_label, depth: null, navigable: false });
+    crumbs.push({ label: renderAgentMessage(frame.via_label, t), depth: null, navigable: false });
   });
   crumbs.push({ label: current_label, depth: null, navigable: false });
   return crumbs;
@@ -143,18 +149,18 @@ export function frame_is_stale(frame, saved_versions) {
   return saves_since(frame, saved_versions) > 0;
 }
 
-export function stale_frame_message(name) {
-  return `"${name}" was saved elsewhere while this copy was open. Its edit history was dropped, and saving here would replace that newer version.`;
+export function stale_frame_message(name, t = agentEnglishText) {
+  return t("agents.drill.legacy_stale", { name });
 }
 
-export function left_behind_message(name) {
-  return `Unsaved changes to "${name}" were left behind. Opening it again reads the saved version.`;
+export function left_behind_message(name, t = agentEnglishText) {
+  return t("agents.drill.legacy_left", { name });
 }
 
-export function library_unavailable_message(error) {
+export function library_unavailable_message(error, t = agentEnglishText) {
   const detail =
     error && typeof error.message === "string" && error.message
-      ? ` — ${error.message}`
+      ? t("agents.drill.error_detail", { message: agentProblemMessage(error, t) })
       : "";
-  return `The Agent library could not be read${detail}`;
+  return t("agents.drill.library_failed", { detail });
 }

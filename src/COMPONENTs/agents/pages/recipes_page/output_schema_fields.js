@@ -1,3 +1,4 @@
+import { agentEnglishText } from "./agents_i18n";
 /* The structured view's model: an output schema as a list of named fields.
  *
  * The rows cover a flat object of named scalars and arrays of scalars, with the
@@ -333,30 +334,56 @@ const UNHELD_PROPERTY_KEYS = Object.freeze({
   $defs: "reusable definitions",
 });
 
-export function why_fields_cannot_hold(schema) {
-  if (!is_object(schema)) return "this is not a schema object";
+export function why_fields_cannot_hold(schema, t = agentEnglishText) {
+  if (!is_object(schema)) return t("agents.schema.fields.this_is_not_a_schema_object");
   const found = [];
-  const note = (reason) => {
-    if (reason && !found.includes(reason)) found.push(reason);
+  const note = (reason, key, vars) => {
+    if (reason && !found.some((item) => item.reason === reason)) found.push({ reason, key, vars });
   };
 
-  Object.keys(schema).forEach((key) => note(own(UNHELD_ROOT_KEYS, key)));
+  const rootKeys = {
+    "$defs": "agents.schema.fields.reusable_definitions",
+    "$ref": "agents.schema.fields.a_reference_to_a_definition",
+    "anyOf": "agents.schema.fields.alternative_shapes",
+    "enum": "agents.schema.fields.a_fixed_set_of_values",
+    "const": "agents.schema.fields.a_fixed_value",
+    "title": "agents.schema.fields.a_title",
+    "items": "agents.schema.fields.array_items_at_the_root",
+    "minItems": "agents.schema.fields.root_bounds",
+    "maxItems": "agents.schema.fields.root_bounds",
+    "minLength": "agents.schema.fields.root_bounds",
+    "maxLength": "agents.schema.fields.root_bounds",
+    "minimum": "agents.schema.fields.root_bounds",
+    "maximum": "agents.schema.fields.root_bounds"
+};
+  const propertyKeys = {
+    "$ref": "agents.schema.fields.a_reference_to_a_definition",
+    "anyOf": "agents.schema.fields.alternative_shapes",
+    "enum": "agents.schema.fields.a_fixed_set_of_values",
+    "const": "agents.schema.fields.a_fixed_value",
+    "properties": "agents.schema.fields.a_nested_object",
+    "required": "agents.schema.fields.a_nested_object",
+    "additionalProperties": "agents.schema.fields.a_nested_object",
+    "$defs": "agents.schema.fields.reusable_definitions"
+};
+
+  Object.keys(schema).forEach((key) => note(own(UNHELD_ROOT_KEYS, key), own(rootKeys, key)));
 
   const properties = is_object(schema.properties) ? schema.properties : {};
   Object.values(properties).forEach((property) => {
     if (!is_object(property)) {
-      note("a property that is not a schema object");
+      note("a property that is not a schema object", "agents.schema.fields.a_property_that_is_not_a_schema_object");
       return;
     }
-    Object.keys(property).forEach((key) => note(own(UNHELD_PROPERTY_KEYS, key)));
-    if (Array.isArray(property.type)) note("a field that may be one of several types");
-    else if (property.type === "object") note("a nested object");
-    else if (typeof property.type !== "string") note("a field with no declared type");
+    Object.keys(property).forEach((key) => note(own(UNHELD_PROPERTY_KEYS, key), own(propertyKeys, key)));
+    if (Array.isArray(property.type)) note("a field that may be one of several types", "agents.schema.fields.a_field_that_may_be_one_of_several_types");
+    else if (property.type === "object") note("a nested object", "agents.schema.fields.a_nested_object");
+    else if (typeof property.type !== "string") note("a field with no declared type", "agents.schema.fields.a_field_with_no_declared_type");
     else if (!FIELD_TYPES.includes(property.type)) {
-      note(`a type the rows have no control for, "${property.type}"`);
+      note(`a type the rows have no control for, "${property.type}"`, "agents.schema.fields.unsupported_type", { type: property.type });
     }
     if (is_object(property.items) && property.items.type === "object") {
-      note("a list of objects");
+      note("a list of objects", "agents.schema.fields.a_list_of_objects");
     }
   });
 
@@ -370,16 +397,20 @@ export function why_fields_cannot_hold(schema) {
     const composed = schema_from_fields(fields, closed, root);
     const required = schema.required;
     if (Array.isArray(required)) {
-      if (required.length === 0) return "an empty list of required fields";
+      if (required.length === 0) return t("agents.schema.fields.an_empty_list_of_required_fields");
       if (
         !same_json(required, composed.required) &&
         same_json([...required].sort(), [...(composed.required || [])].sort())
       ) {
-        return "a required list in a different order than the fields";
+        return t("agents.schema.fields.a_required_list_in_a_different_order_than_the_fields");
       }
     }
-    return "it is written in a way the rows cannot hold exactly";
+    return t("agents.schema.fields.it_is_written_in_a_way_the_rows_cannot_hold_exactly");
   }
-  if (found.length === 1) return `it uses ${found[0]}`;
-  return `it uses ${found.slice(0, -1).join(", ")} and ${found[found.length - 1]}`;
+  const labels = found.map((item) => t(item.key, item.vars));
+  if (labels.length === 1) return t("agents.schema.fields.uses_one", { reason: labels[0] });
+  return t("agents.schema.fields.uses_many", {
+    reasons: labels.slice(0, -1).join(t("agents.schema.fields.list_separator")),
+    last: labels[labels.length - 1],
+  });
 }

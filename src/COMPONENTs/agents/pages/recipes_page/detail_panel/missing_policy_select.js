@@ -1,6 +1,7 @@
 import React from "react";
 import Select from "../../../../../BUILTIN_COMPONENTs/select/select";
 import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
+import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { safe_text } from "../document_values";
 import {
   MISSING_POLICIES,
@@ -28,6 +29,18 @@ const CAPTION = {
 };
 
 export default function MissingPolicySelect({ binding, onChange, isDark }) {
+  const { t } = useTranslation();
+  const labels = {
+    error: t("agents.missing.error_label"),
+    null: t("agents.missing.null_label"),
+    default: t("agents.missing.default_label"),
+  };
+  const descriptions = {
+    error: t("agents.missing.error_description"),
+    null: t("agents.missing.null_description"),
+    default: t("agents.missing.default_description"),
+  };
+  const storedJsonParts = t("agents.missing.stored_json").split("{value}");
   const value = binding && binding.missing;
   const chosen = missing_policy(value);
   const storedDefault = binding_default(binding);
@@ -52,11 +65,11 @@ export default function MissingPolicySelect({ binding, onChange, isDark }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <span style={{ ...CAPTION, flexShrink: 0 }}>If missing</span>
+        <span style={{ ...CAPTION, flexShrink: 0 }}>{t("agents.missing.if_missing")}</span>
         <Select
           options={MISSING_POLICIES.map((policy) => ({
             value: policy.value,
-            label: policy.label,
+            label: labels[policy.value],
           }))}
           value={value}
           set_value={set_policy}
@@ -75,13 +88,13 @@ export default function MissingPolicySelect({ binding, onChange, isDark }) {
 
       {value === "default" && (
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ ...CAPTION, flexShrink: 0 }}>Default</span>
+          <span style={{ ...CAPTION, flexShrink: 0 }}>{t("agents.missing.default")}</span>
           <Input
             value={typeof storedDefault === "string" ? storedDefault : ""}
             set_value={set_default}
             placeholder={hasStoredJsonDefault
-              ? "Enter text to replace the stored JSON value"
-              : "Substituted only when nothing arrives"}
+              ? t("agents.missing.replace_json_placeholder")
+              : t("agents.missing.value_placeholder")}
             style={{
               flex: 1,
               minWidth: 0,
@@ -99,14 +112,13 @@ export default function MissingPolicySelect({ binding, onChange, isDark }) {
 
       {hasStoredJsonDefault && (
         <span data-testid="stored-json-default" style={{ ...CAPTION, overflowWrap: "anywhere" }}>
-          Stored JSON default: <code>{storedJsonText}</code>. It stays unchanged
-          until you enter replacement text.
+          {storedJsonParts[0]}<code>{storedJsonText}</code>{storedJsonParts[1]}
         </span>
       )}
 
       {chosen && (
         <span data-testid="missing-policy-description" style={CAPTION}>
-          {chosen.description}
+          {descriptions[chosen.value]}
         </span>
       )}
     </div>

@@ -1,3 +1,4 @@
+import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../../../../../SERVICEs/api";
 import Switch from "../../../../../BUILTIN_COMPONENTs/input/switch";
@@ -6,6 +7,7 @@ import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
 import { subscribeToolkitCatalogRefresh } from "../../../../../SERVICEs/toolkit_catalog_refresh";
 
 export default function ToolkitInspector({ recipe, onRecipeChange, isDark }) {
+  const { t } = useTranslation();
   const [catalog, setCatalog] = useState([]);
   const [expanded, setExpanded] = useState({});
 
@@ -128,7 +130,7 @@ export default function ToolkitInspector({ recipe, onRecipeChange, isDark }) {
           marginBottom: 2,
         }}
       >
-        ToolkitPool
+        {t("agents.nodes.toolkit_pool")}
       </div>
       <div style={{ fontSize: 11, color: mutedColor, marginBottom: 14 }}>
         {(() => {
@@ -145,13 +147,13 @@ export default function ToolkitInspector({ recipe, onRecipeChange, isDark }) {
               enabledTools += catTk.tools.length;
             }
           });
-          return `${recipe.toolkits.length}/${catalog.length} toolkits · ${enabledTools} tools`;
+          return t("agents.inspector.toolkit_summary", { selected: recipe.toolkits.length, total: catalog.length, tools: enabledTools });
         })()}
       </div>
 
       {catalog.length === 0 && (
         <div style={{ color: mutedColor, fontSize: 11 }}>
-          No toolkits available.
+          {t("agents.inspector.no_toolkits")}
         </div>
       )}
 
@@ -215,7 +217,7 @@ export default function ToolkitInspector({ recipe, onRecipeChange, isDark }) {
               <div style={{ paddingLeft: 18, paddingBottom: 4 }}>
                 {allTools.length === 0 && (
                   <div style={{ fontSize: 11, color: mutedColor, padding: "4px 0" }}>
-                    No tools.
+                    {t("agents.inspector.no_tools")}
                   </div>
                 )}
                 {allTools.map((tool) => (

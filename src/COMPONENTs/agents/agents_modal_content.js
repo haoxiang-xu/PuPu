@@ -1,3 +1,4 @@
+import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { useContext } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
@@ -11,60 +12,63 @@ export const AGENT_MODAL_SECTIONS = [
   { key: "characters", icon: "user", label: "Characters" },
 ];
 
-const ComingSoonPlaceholder = ({ icon, isDark, theme }) => (
-  <div
-    style={{
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
-      padding: "48px 24px",
-      gap: 12,
-      textAlign: "center",
-      height: "100%",
-    }}
-  >
+const ComingSoonPlaceholder = ({ icon, isDark, theme }) => {
+  const { t } = useTranslation();
+  return (
     <div
       style={{
-        width: 44,
-        height: 44,
-        borderRadius: 12,
-        background: isDark ? "rgba(255,255,255,0.055)" : "rgba(0,0,0,0.045)",
         display: "flex",
+        flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        marginBottom: 4,
+        padding: "48px 24px",
+        gap: 12,
+        textAlign: "center",
+        height: "100%",
       }}
     >
-      <Icon
-        src={icon}
-        style={{ width: 22, height: 22 }}
-        color={isDark ? "rgba(255,255,255,0.28)" : "rgba(0,0,0,0.28)"}
-      />
+      <div
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: 12,
+          background: isDark ? "rgba(255,255,255,0.055)" : "rgba(0,0,0,0.045)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          marginBottom: 4,
+        }}
+      >
+        <Icon
+          src={icon}
+          style={{ width: 22, height: 22 }}
+          color={isDark ? "rgba(255,255,255,0.28)" : "rgba(0,0,0,0.28)"}
+        />
+      </div>
+      <div
+        style={{
+          fontSize: 14,
+          fontWeight: 600,
+          fontFamily: theme?.font?.titleFontFamily || "NunitoSans, sans-serif",
+          color: isDark ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.5)",
+        }}
+      >
+        {t("agents.shell.coming_soon")}
+      </div>
+      <div
+        style={{
+          fontSize: 12,
+          fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
+          color: isDark ? "rgba(255,255,255,0.28)" : "rgba(0,0,0,0.3)",
+          maxWidth: 280,
+          lineHeight: 1.55,
+        }}
+      >
+        {t("agents.shell.section_unavailable")}
+      </div>
     </div>
-    <div
-      style={{
-        fontSize: 14,
-        fontWeight: 600,
-        fontFamily: theme?.font?.titleFontFamily || "NunitoSans, sans-serif",
-        color: isDark ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.5)",
-      }}
-    >
-      Coming soon
-    </div>
-    <div
-      style={{
-        fontSize: 12,
-        fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
-        color: isDark ? "rgba(255,255,255,0.28)" : "rgba(0,0,0,0.3)",
-        maxWidth: 280,
-        lineHeight: 1.55,
-      }}
-    >
-      This section is not yet available.
-    </div>
-  </div>
-);
+  );
+};
 
 export const AgentsModalContent = ({
   isAgentsEnabled,
@@ -77,6 +81,11 @@ export const AgentsModalContent = ({
   topStripCenter = TOP_STRIP_CENTER,
   onClose,
 }) => {
+  const { t } = useTranslation();
+  const sections = AGENT_MODAL_SECTIONS.map((section) => ({
+    ...section,
+    label: section.key === "agents" ? t("agents.shell.agents") : t("agents.shell.characters"),
+  }));
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
   const activeSection = AGENT_MODAL_SECTIONS.find(
@@ -140,7 +149,7 @@ export const AgentsModalContent = ({
         }}
       >
         <SegmentedControl
-          sections={AGENT_MODAL_SECTIONS}
+          sections={sections}
           selected={selectedSection}
           onChange={onSectionChange}
           isDark={isDark}

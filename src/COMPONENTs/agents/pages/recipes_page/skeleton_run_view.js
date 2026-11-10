@@ -1,3 +1,5 @@
+import { renderAgentMessage } from "./agents_i18n";
+import { useTranslation } from "../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import React, { useState } from "react";
 import Button from "../../../../BUILTIN_COMPONENTs/input/button";
 import Select from "../../../../BUILTIN_COMPONENTs/select/select";
@@ -14,6 +16,7 @@ const NO_SOURCES = Object.freeze({});
  * Managed source text is deliberately absent: the editor may already hold B
  * while this immutable run uses A. The frozen source path/digest is still shown. */
 export default function SkeletonRunView({ scope, isDark, onClose }) {
+  const { t } = useTranslation();
   const observed = useSkeletonRunObservation(scope);
   const [graphId, setGraphId] = useState(null);
   const [selected, setSelected] = useState(null);
@@ -33,44 +36,48 @@ export default function SkeletonRunView({ scope, isDark, onClose }) {
         display: "flex", flexDirection: "column", gap: 7, padding: 12, borderRadius: 10,
         background: tokens.background, border: tokens.border, backdropFilter: tokens.backdrop, boxShadow: tokens.shadow }}>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <Button label="Back to editor" prefix_icon="arrow_left" onClick={onClose}
+          <Button label={t("agents.run_view.back_to_editor")} prefix_icon="arrow_left" onClick={onClose}
             style={{ fontSize: 11.5, paddingVertical: 4, paddingHorizontal: 9, borderRadius: 6 }} />
-          <strong style={{ fontSize: 12 }}>Read-only run snapshot</strong>
+          <strong style={{ fontSize: 12 }}>{t("agents.run_view.title")}</strong>
           <span style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
-            {graph && <Button label="Center graph" prefix_icon="target" onClick={() => setHomeToken((v) => v + 1)}
+            {graph && <Button label={t("agents.run_view.center_graph")} prefix_icon="target" onClick={() => setHomeToken((v) => v + 1)}
               style={{ fontSize: 11, paddingVertical: 4, paddingHorizontal: 8, borderRadius: 6 }} />}
-            <Button label={observed.refreshing ? "Reading…" : "Refresh recorded state"} prefix_icon="refresh"
+            <Button label={observed.refreshing ? t("agents.run_view.reading") : t("agents.run_view.refresh")} prefix_icon="refresh"
               disabled={observed.refreshing} onClick={observed.refresh}
               style={{ fontSize: 11, paddingVertical: 4, paddingHorizontal: 8, borderRadius: 6 }} />
           </span>
         </div>
-        <span style={{ fontSize: 11, lineHeight: 1.45 }}>Recorded state; live activity is unconfirmed. Approve, resume or cancel in chat.</span>
+        <span style={{ fontSize: 11, lineHeight: 1.45 }}>{t("agents.run_view.recorded_state_notice")}</span>
         <span style={{ fontSize: 10.5, color: "var(--pupu-text-muted)", overflowWrap: "anywhere" }}>
-          Chat {scope.owner_chat_id} · execution {scope.execution_id}{observed.run ? ` · root ${observed.run.root_run_id}` : ""}
+          {observed.run
+            ? t("agents.run_view.identity_with_root", { chat: scope.owner_chat_id, execution: scope.execution_id, root: observed.run.root_run_id })
+            : t("agents.run_view.identity", { chat: scope.owner_chat_id, execution: scope.execution_id })}
         </span>
         {observed.error && <div data-testid="run-observation-error" role="alert" style={{ fontSize: 11, lineHeight: 1.45 }}>
-          {observed.error}{graph ? " The last recorded snapshot remains on screen; it is not confirmed current." : ""}
+          {renderAgentMessage(observed.errorCaption || observed.error, t)}{graph ? t("agents.run_view.last_snapshot_notice") : ""}
         </div>}
-        {observed.phase === "loading" && <span role="status">Reading the recorded run…</span>}
-        {observed.phase === "empty" && <span role="status">No matching run for this resource in the current chat.</span>}
+        {observed.phase === "loading" && <span role="status">{t("agents.run_view.reading_run")}</span>}
+        {observed.phase === "empty" && <span role="status">{t("agents.run_view.no_matching_run")}</span>}
         {graph && <>
           <div data-testid="run-observation-graph-picker" style={{ maxWidth: 560, width: "100%" }}>
             <Select value={graph.graph_id} set_value={(id) => { if (graphs.some((item) => item.graph_id === id)) { setGraphId(id); setSelected(null); } }}
-              filterable={false} placeholder="Recorded graph invocation" options={graphs.map((item) => ({ value: item.graph_id,
-                label: `${item.document.name} · ${item.caller_node_id === null ? "root" : `from ${item.caller_node_id}`} · ${item.graph_id}` }))}
+              filterable={false} placeholder={t("agents.run_view.graph_invocation")} options={graphs.map((item) => ({ value: item.graph_id,
+                label: item.caller_node_id === null
+                  ? t("agents.run_view.graph_root_option", { name: item.document.name, graph: item.graph_id })
+                  : t("agents.run_view.graph_child_option", { name: item.document.name, caller: item.caller_node_id, graph: item.graph_id }) }))}
               style={{ height: 28, fontSize: 11 }} />
           </div>
           <span data-testid="run-observation-graph-state" style={{ fontSize: 11 }}>
-            {graph.status} · revision {graph.revision} · journal {observed.run.high_watermark}
-            {graph.parent_graph_id === null ? graph.root_committed ? " · root committed" : " · root not committed" : ""}
+            {t("agents.run_view.graph_state", { status: graph.status, revision: graph.revision, journal: observed.run.high_watermark })}
+            {graph.parent_graph_id === null ? graph.root_committed ? t("agents.run_view.root_committed") : t("agents.run_view.root_not_committed") : ""}
           </span>
-          <span style={{ fontSize: 10.5, color: "var(--pupu-text-muted)" }}>Code previews show the frozen path only; the editor’s source text is not used.</span>
+          <span style={{ fontSize: 10.5, color: "var(--pupu-text-muted)" }}>{t("agents.run_view.frozen_code_notice")}</span>
           {graph.error && <span role="alert" style={{ fontSize: 11 }}>{graph.error.code} · {graph.error.path.join(".")}</span>}
           {graph.skipped_edges.length > 0 && <span data-testid="run-observation-skipped" style={{ fontSize: 11, opacity: 0.65 }}>
-            Skipped paths (dashed): {graph.skipped_edges.join(", ")}. Unvisited nodes remain pending.
+            {t("agents.run_view.skipped_paths", { paths: graph.skipped_edges.join(", ") })}
           </span>}
           {node && <span data-testid="run-observation-selected-node" style={{ fontSize: 11 }}>
-            {node.node_id}: {run_status_caption(node)}{node.reason ? ` · ${node.reason}` : ""}
+            {node.node_id}: {run_status_caption(node, t)}{node.reason ? ` · ${node.reason}` : ""}
           </span>}
         </>}
       </div>

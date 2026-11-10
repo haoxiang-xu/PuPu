@@ -7,6 +7,8 @@ import { safe_text } from "./document_values";
 import { profile_label } from "./code_config";
 import { import_resource, python_profiles, save_python_profile, transfer_capabilities } from "./skeleton_resources";
 import { import_document, import_occurrences, import_payload, import_refusal, read_import_file } from "./resource_import";
+import { useTranslation } from "../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
+import { agentMessage, renderAgentMessage } from "./agents_i18n";
 
 /* Importing one exported Agent or Workflow (#357), with a local Python chosen
  * for each of its Code nodes.
@@ -26,11 +28,14 @@ const ROW = { display: "flex", alignItems: "center", gap: 8 };
 const FIELD = { width: "100%", fontSize: 11.5, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 5 };
 const SMALL = { fontSize: 11, paddingVertical: 4, paddingHorizontal: 10, borderRadius: 6 };
 const problem_style = (isDark) => ({ fontSize: 11, lineHeight: 1.5, color: isDark ? "rgba(255,140,140,0.95)" : "rgba(176,32,32,0.95)" });
-const reason = (result, fallback) => safe_text((result && result.error && (result.error.message || result.error.code)) || fallback);
+const reason = (result, fallback) => result && result.error && renderAgentMessage(result.error, agentMessage) !== result.error
+  ? renderAgentMessage(result.error, agentMessage) : result && result.error && (result.error.message || result.error.code)
+    ? safe_text(result.error.message || result.error.code) : fallback;
 
 const EMPTY_FILE = { status: "none", name: null, text: null, document: null, occurrences: [], problem: null };
 
 export default function ImportResourceModal({ open, onClose, onImported, isDark }) {
+  const { t } = useTranslation();
   const [capability, setCapability] = useState({ status: "loading", data: null, problem: null });
   const [profiles, setProfiles] = useState({ status: "loading", list: [], problem: null });
   const [file, setFile] = useState(EMPTY_FILE);
@@ -59,7 +64,7 @@ export default function ImportResourceModal({ open, onClose, onImported, isDark 
     if (!mounted.current || listTicket.current !== mine) return;
     setProfiles(result.ok
       ? { status: "ready", list: result.data.profiles, problem: null }
-      : { status: "failed", list: [], problem: reason(result, "the profile list could not be read") });
+      : { status: "failed", list: [], problem: reason(result, agentMessage("agents.import.profiles_failed")) });
   }, []);
 
   useEffect(() => {
@@ -70,7 +75,7 @@ export default function ImportResourceModal({ open, onClose, onImported, isDark 
       if (!alive || !mounted.current) return;
       setCapability(result.ok
         ? { status: "ready", data: result.data, problem: null }
-        : { status: "unavailable", data: null, problem: reason(result, "the host does not offer import") });
+        : { status: "unavailable", data: null, problem: reason(result, agentMessage("agents.import.host_unavailable")) });
     });
     loadProfiles();
     return () => {
@@ -98,18 +103,18 @@ export default function ImportResourceModal({ open, onClose, onImported, isDark 
     const mine = intent.current;
     setFile({ ...EMPTY_FILE, status: "reading", name: picked.name });
     const max = capability.data && Number.isSafeInteger(capability.data.file_bytes) ? capability.data.file_bytes : null;
-    const read = await read_import_file(picked, max);
+    const read = await read_import_file(picked, max, agentMessage);
     if (!mounted.current || intent.current !== mine) return;
     if (!read.ok) {
       setFile({ ...EMPTY_FILE, status: "refused", name: picked.name, problem: read.message });
       return;
     }
-    const parsed = import_document(read.text);
+    const parsed = import_document(read.text, agentMessage);
     if (!parsed.ok) {
       setFile({ ...EMPTY_FILE, status: "refused", name: picked.name, problem: parsed.message });
       return;
     }
-    setFile({ status: "ready", name: picked.name, text: read.text, document: parsed.document, occurrences: import_occurrences(parsed.document), problem: null });
+    setFile({ status: "ready", name: picked.name, text: read.text, document: parsed.document, occurrences: import_occurrences(parsed.document, agentMessage), problem: null });
   };
 
   const payload = file.status === "ready" ? import_payload(file.text, file.occurrences, choices) : null;
@@ -126,7 +131,7 @@ export default function ImportResourceModal({ open, onClose, onImported, isDark 
       setSubmit({ status: "done", refusal: null, resource: result.data.resource });
       if (typeof onImported === "function") onImported(result.data.resource);
     } else {
-      setSubmit({ status: "refused", refusal: import_refusal(result.error, file.document, file.occurrences), resource: null });
+      setSubmit({ status: "refused", refusal: import_refusal(result.error, file.document, file.occurrences, agentMessage), resource: null });
     }
   };
 
@@ -163,15 +168,15 @@ export default function ImportResourceModal({ open, onClose, onImported, isDark 
     registration.current.pending = null;
     if (result.ok) {
       setAdding(null);
-      setAddState({ status: "done", message: `${safe_text(id)} was added. Choose it for the steps that should use it.` });
+      setAddState({ status: "done", message: agentMessage("agents.import.profile_added", { id: safe_text(id) }) });
     } else {
-      setAddState({ status: "refused", message: reason(result, "the store refused this Python") });
+      setAddState({ status: "refused", message: reason(result, agentMessage("agents.import.python_refused")) });
     }
   };
 
   const options = profiles.list
     .filter((profile) => profile && typeof profile.id === "string")
-    .map((profile) => ({ value: profile.id, label: profile_label(profile) }));
+    .map((profile) => ({ value: profile.id, label: profile_label(profile, t) }));
   const document = file.document;
   const unchosen = file.occurrences.filter((occurrence) => !choices[occurrence.key]).length;
 
@@ -179,17 +184,17 @@ export default function ImportResourceModal({ open, onClose, onImported, isDark 
     <Modal open={open} onClose={close} style={{ width: 460, maxHeight: "80vh", overflowY: "auto", padding: "22px 24px 20px", backgroundColor: "var(--pupu-surface)" }}>
       <div data-testid="import-resource-modal" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <div style={{ fontSize: 14, fontWeight: 600, color: isDark ? "rgba(255,255,255,0.9)" : "rgba(0,0,0,0.85)" }}>
-          Import an Agent or Workflow
+          {t("agents.import.title")}
         </div>
-        {capability.status === "loading" && <span style={NOTE}>Asking the host what it can import…</span>}
+        {capability.status === "loading" && <span style={NOTE}>{t("agents.import.checking")}</span>}
         {capability.status === "unavailable" && (
           <span data-testid="import-unavailable" style={problem_style(isDark)}>
-            Import is not available here: {capability.problem}
+            {t("agents.import.unavailable", { message: renderAgentMessage(capability.problem, t) })}
           </span>
         )}
 
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <span style={LABEL}>File</span>
+          <span style={LABEL}>{t("agents.import.file")}</span>
           <input
             ref={inputRef}
             data-testid="import-file-input"
@@ -200,49 +205,49 @@ export default function ImportResourceModal({ open, onClose, onImported, isDark 
           />
           <div style={ROW}>
             <Button
-              label={file.name ? "Choose another file…" : "Choose a file…"}
+              label={file.name ? t("agents.import.another_file") : t("agents.import.choose_file")}
               disabled={capability.status !== "ready"}
               onClick={() => inputRef.current && inputRef.current.click()}
               style={SMALL}
             />
             {file.name && <span data-testid="import-file-name" style={{ ...NOTE, ...MONO }}>{safe_text(file.name)}</span>}
-            {file.name && <Button label="Clear" onClick={reset} style={{ ...SMALL, opacity: 0.7 }} />}
+            {file.name && <Button label={t("agents.import.clear")} onClick={reset} style={{ ...SMALL, opacity: 0.7 }} />}
           </div>
-          {file.status === "reading" && <span style={NOTE}>Reading…</span>}
-          {file.status === "refused" && <span data-testid="import-file-problem" style={problem_style(isDark)}>{file.problem}</span>}
+          {file.status === "reading" && <span style={NOTE}>{t("agents.import.reading")}</span>}
+          {file.status === "refused" && <span data-testid="import-file-problem" style={problem_style(isDark)}>{renderAgentMessage(file.problem, t)}</span>}
         </div>
 
         {file.status === "ready" && document && (
           <div data-testid="import-preview" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span style={LABEL}>What it holds</span>
+            <span style={LABEL}>{t("agents.import.contents")}</span>
             <span style={NOTE}>
-              {document.kind === "workflow" ? "Workflow" : document.kind === "agent" ? "Agent" : safe_text(document.kind)}{" "}
+              {document.kind === "workflow" ? t("agents.import.workflow") : document.kind === "agent" ? t("agents.nodes.agent") : safe_text(document.kind)}{" "}
               <b>{safe_text(document.name || document.id)}</b> · <span style={MONO}>{safe_text(document.id)}</span>
             </span>
             <span style={NOTE}>
               {file.occurrences.length === 0
-                ? "No Code steps, so no Python to choose."
-                : `${file.occurrences.length} Code step${file.occurrences.length === 1 ? "" : "s"}, each needing a Python on this machine.`}{" "}
-              Other Agents or Workflows it refers to are not in the file and are not created.
+                ? t("agents.import.no_code")
+                : file.occurrences.length === 1 ? t("agents.import.code_one") : t("agents.import.code_other", { count: file.occurrences.length })}{" "}
+              {t("agents.import.references_not_imported")}
             </span>
           </div>
         )}
 
         {file.status === "ready" && file.occurrences.length > 0 && (
           <div data-testid="import-runtimes" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <span style={LABEL}>Python for each Code step</span>
+            <span style={LABEL}>{t("agents.import.runtimes")}</span>
             {profiles.status === "failed" && (
               <span style={problem_style(isDark)}>
-                The Python list could not be read: {profiles.problem}{" "}
-                <Button label="Try again" onClick={loadProfiles} style={{ fontSize: 10.5, paddingVertical: 1, paddingHorizontal: 6 }} />
+                {t("agents.import.profiles_problem", { message: renderAgentMessage(profiles.problem, t) })}{" "}
+                <Button label={t("agents.explorer.try_again")} onClick={loadProfiles} style={{ fontSize: 10.5, paddingVertical: 1, paddingHorizontal: 6 }} />
               </span>
             )}
             {file.occurrences.map((occurrence, index) => (
               <div key={occurrence.key} data-testid={`import-runtime-${index}`} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 <span style={NOTE}>
                   <span style={MONO}>{occurrence.node_id}</span>
-                  {occurrence.inside.length > 0 ? <> · inside {occurrence.inside.join(" › ")}</> : null}
-                  {occurrence.stored_profile ? <> · it used “{safe_text(occurrence.stored_profile)}” where it was exported</> : null}
+                  {occurrence.inside.length > 0 ? t("agents.import.inside", { path: occurrence.inside.map((part) => renderAgentMessage(part, t)).join(" › ") }) : null}
+                  {occurrence.stored_profile ? t("agents.import.previous_python", { profile: safe_text(occurrence.stored_profile) }) : null}
                 </span>
                 <Select
                   options={options}
@@ -254,7 +259,7 @@ export default function ImportResourceModal({ open, onClose, onImported, isDark 
                     if (submit.status === "refused") setSubmit({ status: "idle", refusal: null, resource: null });
                   }}
                   filterable={false}
-                  placeholder={profiles.status === "loading" ? "reading the Python list…" : "choose a Python"}
+                  placeholder={profiles.status === "loading" ? t("agents.import.reading_profiles") : t("agents.import.choose_python")}
                   disabled={profiles.status !== "ready" || submit.status === "working" || submit.status === "done"}
                   style={FIELD}
                 />
@@ -263,7 +268,7 @@ export default function ImportResourceModal({ open, onClose, onImported, isDark 
             {!adding && (
               <span>
                 <Button
-                  label="Name a Python…"
+                  label={t("agents.import.name_python")}
                   onClick={() => {
                     startForm({ id: "", executable: "" });
                   }}
@@ -273,53 +278,54 @@ export default function ImportResourceModal({ open, onClose, onImported, isDark 
             )}
             {adding && (
               <div data-testid="import-runtime-add" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <Input value={adding.id} placeholder="profile name, e.g. pupu-tools" set_value={(next) => editForm({ ...adding, id: next })} style={FIELD} />
-                <Input value={adding.executable} placeholder="absolute path to its python" set_value={(next) => editForm({ ...adding, executable: next })} style={{ ...FIELD, ...MONO }} />
-                <span style={NOTE}>The executable itself, never an activate script or a shell command. It is probed before it is kept. Nothing in the file is used for this.</span>
+                <Input value={adding.id} placeholder={t("agents.import.profile_name")} set_value={(next) => editForm({ ...adding, id: next })} style={FIELD} />
+                <Input value={adding.executable} placeholder={t("agents.import.python_path")} set_value={(next) => editForm({ ...adding, executable: next })} style={{ ...FIELD, ...MONO }} />
+                <span style={NOTE}>{t("agents.import.python_explanation")}</span>
                 <div style={ROW}>
-                  <Button label={addState.status === "saving" ? "Probing…" : "Add"} disabled={addState.status === "saving" || !adding.id.trim() || !adding.executable.trim()} onClick={addProfile} style={SMALL} />
-                  <Button label="Cancel" onClick={() => startForm(null)} style={{ ...SMALL, opacity: 0.7 }} />
+                  <Button label={addState.status === "saving" ? t("agents.import.probing") : t("agents.import.add")} disabled={addState.status === "saving" || !adding.id.trim() || !adding.executable.trim()} onClick={addProfile} style={SMALL} />
+                  <Button label={t("agents.explorer.cancel")} onClick={() => startForm(null)} style={{ ...SMALL, opacity: 0.7 }} />
                 </div>
               </div>
             )}
             {addState.message && (
-              <span data-testid="import-runtime-add-state" style={addState.status === "refused" ? problem_style(isDark) : NOTE}>{addState.message}</span>
+              <span data-testid="import-runtime-add-state" style={addState.status === "refused" ? problem_style(isDark) : NOTE}>{renderAgentMessage(addState.message, t)}</span>
             )}
           </div>
         )}
 
         {submit.status === "refused" && submit.refusal && (
           <div data-testid="import-refusal" style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-            {submit.refusal.sentence && <span style={problem_style(isDark)}>{submit.refusal.sentence}</span>}
+            {submit.refusal.sentence && <span style={problem_style(isDark)}>{renderAgentMessage(submit.refusal.sentence, t)}</span>}
             <span style={{ ...problem_style(isDark), ...MONO }}>
-              {safe_text(submit.refusal.code)} · {safe_text(submit.refusal.path)} · {submit.refusal.message}
+              {safe_text(submit.refusal.code)} · {safe_text(submit.refusal.path)} · {renderAgentMessage(submit.refusal.message, t)}
             </span>
           </div>
         )}
         {submit.status === "done" && submit.resource && (
           <div data-testid="import-done" style={{ display: "flex", flexDirection: "column", gap: 3 }}>
             <span style={NOTE}>
-              Stored <b>{safe_text(submit.resource.name || submit.resource.id)}</b> · <span style={MONO}>{safe_text(submit.resource.id)}</span>.
-              An identical earlier import is kept as it was.
+              {t("agents.import.stored", { name: "\uE000", id: "\uE001" }).split(/(\uE000|\uE001)/).map((part, index) => part === "\uE000"
+                ? <b key={index}>{safe_text(submit.resource.name || submit.resource.id)}</b>
+                : part === "\uE001" ? <span key={index} style={MONO}>{safe_text(submit.resource.id)}</span> : part)}
             </span>
             <span data-testid="import-done-diagnostics" style={NOTE}>
               {Array.isArray(submit.resource.diagnostics) && submit.resource.diagnostics.length > 0
-                ? `The draft check reports ${submit.resource.diagnostics.length} problem${submit.resource.diagnostics.length === 1 ? "" : "s"}; open it to see them.`
-                : "The draft check reports nothing."}{" "}
-              Imported means stored, not checked to run: Run checks the rest.
+                ? submit.resource.diagnostics.length === 1 ? t("agents.import.diagnostic_one") : t("agents.import.diagnostic_other", { count: submit.resource.diagnostics.length })
+                : t("agents.import.no_diagnostics")}{" "}
+              {t("agents.import.stored_not_runnable")}
             </span>
           </div>
         )}
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
           <span data-testid="import-pending" style={NOTE}>
-            {file.status === "ready" && unchosen > 0 && submit.status !== "done" ? `Choose a Python for ${unchosen} more step${unchosen === 1 ? "" : "s"}.` : ""}
+            {file.status === "ready" && unchosen > 0 && submit.status !== "done" ? unchosen === 1 ? t("agents.import.remaining_one") : t("agents.import.remaining_other", { count: unchosen }) : ""}
           </span>
           <div style={ROW}>
-            <Button label={submit.status === "done" ? "Close" : "Cancel"} onClick={close} style={{ ...SMALL, opacity: 0.75 }} />
+            <Button label={submit.status === "done" ? t("agents.import.close") : t("agents.explorer.cancel")} onClick={close} style={{ ...SMALL, opacity: 0.75 }} />
             {submit.status !== "done" && (
               <Button
-                label={submit.status === "working" ? "Importing…" : "Import"}
+                label={submit.status === "working" ? t("agents.import.importing") : t("agents.import.import")}
                 disabled={!ready}
                 onClick={run}
                 style={{ ...SMALL, color: "var(--pupu-accent)" }}

@@ -1,3 +1,4 @@
+import { agentEnglishText } from "./agents_i18n";
 /* The Agents explorer's right-click menu, by target.
  *
  * Same shape as the legacy recipe list's menu (recipe_list_context_menu_items)
@@ -20,25 +21,25 @@ export function buildAgentExplorerMenuItems({
   onRestore,
   onDeleteFolder,
   onOpenLegacy,
-}) {
+}, t = agentEnglishText) {
   if (!node) {
     return [
-      { icon: "add", label: "New Agent", onClick: () => onNewAgent(null) },
-      ...(onNewWorkflow ? [{ icon: "flow_chart", label: "New Workflow", onClick: () => onNewWorkflow(null) }] : []),
-      { icon: "folder_new", label: "New Folder", onClick: () => onNewFolder(null) },
-      ...(onImport ? [{ type: "separator" }, { icon: "upload", label: "Import…", onClick: () => onImport() }] : []),
+      { icon: "add", label: t("agents.explorer.menu.new_agent"), onClick: () => onNewAgent(null) },
+      ...(onNewWorkflow ? [{ icon: "flow_chart", label: t("agents.explorer.menu.new_workflow"), onClick: () => onNewWorkflow(null) }] : []),
+      { icon: "folder_new", label: t("agents.explorer.menu.new_folder"), onClick: () => onNewFolder(null) },
+      ...(onImport ? [{ type: "separator" }, { icon: "upload", label: t("agents.explorer.menu.import"), onClick: () => onImport() }] : []),
     ];
   }
 
   if (node.kind === "folder") {
     return [
-      { icon: "add", label: "New Agent", onClick: () => onNewAgent(node.folder_id) },
-      ...(onNewWorkflow ? [{ icon: "flow_chart", label: "New Workflow", onClick: () => onNewWorkflow(node.folder_id) }] : []),
-      { icon: "folder_new", label: "New Folder", onClick: () => onNewFolder(node.folder_id) },
+      { icon: "add", label: t("agents.explorer.menu.new_agent"), onClick: () => onNewAgent(node.folder_id) },
+      ...(onNewWorkflow ? [{ icon: "flow_chart", label: t("agents.explorer.menu.new_workflow"), onClick: () => onNewWorkflow(node.folder_id) }] : []),
+      { icon: "folder_new", label: t("agents.explorer.menu.new_folder"), onClick: () => onNewFolder(node.folder_id) },
       { type: "separator" },
-      { icon: "rename", label: "Rename", onClick: () => onStartRename(node) },
+      { icon: "rename", label: t("agents.explorer.menu.rename"), onClick: () => onStartRename(node) },
       { type: "separator" },
-      { icon: "delete", label: "Delete folder", danger: true, onClick: () => onDeleteFolder(node) },
+      { icon: "delete", label: t("agents.explorer.menu.delete_folder"), danger: true, onClick: () => onDeleteFolder(node) },
     ];
   }
 
@@ -46,25 +47,25 @@ export function buildAgentExplorerMenuItems({
     const unsaved = Boolean(node.active && activeDirty);
     const isDefault = node.is_default === true;
     return [
-      { icon: "rename", label: "Rename", disabled: unsaved, trail: unsaved ? "save first" : undefined, onClick: () => onStartRename(node) },
-      { icon: "copy", label: "Duplicate", onClick: () => onDuplicate(node) },
+      { icon: "rename", label: t("agents.explorer.menu.rename"), disabled: unsaved, trail: unsaved ? t("agents.explorer.menu.save_first") : undefined, onClick: () => onStartRename(node) },
+      { icon: "copy", label: t("agents.explorer.menu.duplicate"), onClick: () => onDuplicate(node) },
       { type: "separator" },
       {
-        label: "Archive",
+        label: t("agents.explorer.menu.archive"),
         danger: true,
         disabled: unsaved || isDefault,
-        trail: isDefault ? "chat default" : unsaved ? "save first" : undefined,
+        trail: isDefault ? t("agents.explorer.menu.chat_default") : unsaved ? t("agents.explorer.menu.save_first") : undefined,
         onClick: () => onArchive(node),
       },
     ];
   }
 
   if (node.kind === "archived") {
-    return [{ icon: "undo", label: "Restore", onClick: () => onRestore(node) }];
+    return [{ icon: "undo", label: t("agents.explorer.menu.restore"), onClick: () => onRestore(node) }];
   }
 
   if (node.kind === "legacy") {
-    return [{ icon: "eye_open", label: "Open in the old editor", onClick: () => onOpenLegacy(node) }];
+    return [{ icon: "eye_open", label: t("agents.explorer.menu.open_legacy"), onClick: () => onOpenLegacy(node) }];
   }
 
   return [];
