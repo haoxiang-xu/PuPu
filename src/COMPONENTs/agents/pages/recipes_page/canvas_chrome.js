@@ -614,6 +614,10 @@ function DockedDetailPanel({
             top: 0,
             bottom: 0,
             right: `calc(${liveWidth} - 12px)`,
+            /* Rides with the panel: the same slide, so it travels in and
+               out with it instead of appearing at its place. */
+            transform: open ? "translateX(0)" : `translateX(${liveWidth})`,
+            transition: resizing ? "none" : `transform ${SLIDE}, opacity ${SLIDE}`,
           }}
           onDragStart={handle.onDragStart}
           onDrag={handle.onDrag}

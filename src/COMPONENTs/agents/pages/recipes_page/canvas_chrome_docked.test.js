@@ -161,3 +161,15 @@ test("on macOS the toggle is one element at the right edge, outside the panel, o
   slot.remove();
   window.osInfo = original;
 });
+
+test("the resize handle slides with the panel instead of appearing at its place", () => {
+  const slot = document.createElement("div");
+  document.body.appendChild(slot);
+  const view = render(shell(true, slot, () => {}));
+  const handle = screen.getByTestId("detail-handle");
+  expect(handle.style.transform).toBe("translateX(0)");
+  expect(handle.style.transition).toContain("transform");
+  view.rerender(shell(false, slot, () => {}));
+  expect(screen.getByTestId("detail-handle").style.transform).toMatch(/^translateX\(var\(/);
+  slot.remove();
+});
