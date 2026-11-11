@@ -2,19 +2,17 @@ import React from "react";
 
 /* The detail panel's one vocabulary, for the parts drawn outside the Agent
    timeline. A background means a region: one soft surface per group of rows,
-   barely off the panel in the dark and brighter than it in the light. An
+   barely off the panel. An
    outline means a control you type into or pick from. Rows inside a region
    are split by a hairline, never by a block of their own; a label on the left
    with its value on the right; red only for what is wrong. The captions
    themselves are `Block` in process_timeline. */
 
-/* A region's surface. The light panel is washed (`panelWash`) so the surface
-   colour reads as the brighter of the two. */
-export const fill = (isDark) => (isDark ? "rgba(255,255,255,0.035)" : "var(--pupu-surface, #ffffff)");
+/* A region's surface: barely off the panel in either theme. The panel's own
+   background is the shell's and is never tinted from here. */
+export const fill = (isDark) => (isDark ? "rgba(255,255,255,0.035)" : "rgba(0,0,0,0.028)");
 /* What is chosen inside a region or a control. */
 export const fillStrong = (isDark) => (isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.07)");
-/* The wash under the whole light panel; the dark panel needs none. */
-export const panelWash = (isDark) => (isDark ? "transparent" : "rgba(0,0,0,0.05)");
 /* Between the rows of one region. */
 export const hairline = (isDark) => (isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)");
 /* Around a control. */

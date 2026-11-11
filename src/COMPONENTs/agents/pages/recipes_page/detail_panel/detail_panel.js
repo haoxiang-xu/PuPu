@@ -36,7 +36,6 @@ import {
 import { route_diagnostics } from "../skeleton_diagnostics";
 import { is_toolkit_pool_type } from "../recipe_graph";
 import { safe_text } from "../document_values";
-import { panelWash } from "./panel_style";
 
 /* The shell: a fixed identity header above a hairline, and a body that is the
  * only thing that scrolls. Every node type sits inside it, so the header no
@@ -152,14 +151,11 @@ export default function DetailPanel({
             })()
           : identity?.subtitle;
 
-  /* Washed in the light so a region, drawn in the surface colour, is the
-     brighter of the two. */
   const shell_style = {
     flex: 1,
     minHeight: 0,
     display: "flex",
     flexDirection: "column",
-    background: panelWash(isDark),
   };
 
   const body_style = {
