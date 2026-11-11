@@ -482,45 +482,55 @@ function DockedDetailPanel({
   const backdropFilter = resizing ? "none" : SIDEBAR_GLASS_FILTER;
   /* The left side menu's frost, through the same compositing pass. */
   const surface = useSurfaceComposite({ backgroundColor, backdropFilter, enabled: !resizing });
-  /* On macOS the toggle sits at the window's right edge, in the title bar
-     band, and stays there whether the panel is open or not: solid while it
-     is open, hollow while it is closed. Elsewhere the window buttons own
-     that corner, so the close button keeps to the band's inner end and the
-     panel reopens from the canvas. */
+  /* On macOS the toggle is one element pinned to the window's right edge, in
+     the title bar band, outside the sliding panel, like the left side menu's
+     toggle: it never moves or remounts, only its glyph changes, solid while
+     the panel is open and hollow while it is closed. Elsewhere the window
+     buttons own that corner, so the close button rides in the band's inner
+     end and the panel reopens from the canvas. */
   const pinnedRight = platform === "darwin";
   const canClose = typeof onClose === "function";
   const canOpen = typeof onOpen === "function";
-  const toggleButton = (shown, icon, label, onClick, testid) => (
+  const glyph = (icon, label, onClick, disabled, testid) => (
     <div style={{ transform: "scaleX(-1)", display: "flex" }}>
       <Button
         prefix_icon={icon}
         ariaLabel={label}
-        disabled={!shown}
+        disabled={disabled}
         onClick={onClick}
         dom_props={{ "data-testid": testid }}
         style={{ fontSize: 14, color: "var(--pupu-text)", WebkitAppRegion: "no-drag" }}
       />
     </div>
   );
-  const togglePlace = (shown, side) => ({
-    position: "absolute",
-    top: TOP_BAR_HEIGHT / 2,
-    [side]: TOP_BAR_HEIGHT / 2,
-    transform: side === "left" ? "translate(-50%, -50%)" : "translate(50%, -50%)",
-    opacity: shown ? 1 : 0,
-    pointerEvents: shown ? "auto" : "none",
-    transition: `opacity ${SLIDE}`,
-    WebkitAppRegion: "no-drag",
-  });
-  const closeButton = canClose && (
-    <div style={togglePlace(open, pinnedRight ? "right" : "left")}>
-      {toggleButton(open, "side_menu_close", t("common.close"), onClose, `${testId}-close`)}
+  const pinnedShown = open ? canClose : canOpen;
+  const pinnedToggle = pinnedRight && (canClose || canOpen) && (
+    <div data-testid={`${testId}-toggle`} style={{
+      position: "absolute",
+      top: TOP_BAR_HEIGHT / 2,
+      right: TOP_BAR_HEIGHT / 2,
+      transform: "translate(50%, -50%)",
+      opacity: pinnedShown ? 1 : 0,
+      pointerEvents: pinnedShown ? "auto" : "none",
+      WebkitAppRegion: "no-drag",
+    }}>
+      {open
+        ? glyph("side_menu_close", t("common.close"), onClose, !canClose, `${testId}-close`)
+        : glyph("side_menu_left", t("agents.editor.show_details"), onOpen, !canOpen, `${testId}-open`)}
     </div>
   );
-  /* Outside the panel, which slides away: the same spot, hollow. */
-  const openButton = pinnedRight && canOpen && (
-    <div style={togglePlace(!open, "right")}>
-      {toggleButton(!open, "side_menu_left", t("agents.editor.show_details"), onOpen, `${testId}-open`)}
+  const closeButton = !pinnedRight && canClose && (
+    <div style={{
+      position: "absolute",
+      top: TOP_BAR_HEIGHT / 2,
+      left: TOP_BAR_HEIGHT / 2,
+      transform: "translate(-50%, -50%)",
+      opacity: open ? 1 : 0,
+      pointerEvents: open ? "auto" : "none",
+      transition: `opacity ${SLIDE}`,
+      WebkitAppRegion: "no-drag",
+    }}>
+      {glyph("side_menu_close", t("common.close"), onClose, !open, `${testId}-close`)}
     </div>
   );
   return (
@@ -590,7 +600,7 @@ function DockedDetailPanel({
         </div>
         {children}
       </div>
-      {openButton}
+      {pinnedToggle}
       {handle && (
         <PanelResizeHandle
           testId={handle.testId}

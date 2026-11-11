@@ -138,21 +138,24 @@ test.each(["win32", "linux"])("the close button sits in the panel's upper-left c
   window.osInfo = original;
 });
 
-test("on macOS the toggle keeps one spot at the right edge, open or closed", () => {
+test("on macOS the toggle is one element at the right edge, outside the panel, open or closed", () => {
   const original = window.osInfo;
   window.osInfo = { platform: "darwin" };
   const slot = document.createElement("div");
   document.body.appendChild(slot);
   const onOpen = jest.fn();
-  const place = (testid) => {
-    const holder = screen.getByTestId(testid).closest("div[style*='position: absolute']");
-    return [holder.style.top, holder.style.right, holder.style.transform];
-  };
-  const view = render(shell(true, slot, () => {}, "agents", undefined, onOpen));
-  expect(place("detail-shell-close")).toEqual(["25px", "25px", "translate(50%, -50%)"]);
-  expect(screen.getByTestId("detail-shell-open")).toBeDisabled();
-  view.rerender(shell(false, slot, () => {}, "agents", undefined, onOpen));
-  expect(place("detail-shell-open")).toEqual(["25px", "25px", "translate(50%, -50%)"]);
+  const onClose = jest.fn();
+  const view = render(shell(true, slot, onClose, "agents", undefined, onOpen));
+  const toggle = screen.getByTestId("detail-shell-toggle");
+  expect([toggle.style.top, toggle.style.right, toggle.style.transform]).toEqual(["25px", "25px", "translate(50%, -50%)"]);
+  /* Not inside the sliding panel, so it does not travel with it. */
+  expect(screen.getByTestId("detail-shell").contains(toggle)).toBe(false);
+  fireEvent.click(screen.getByTestId("detail-shell-close"));
+  expect(onClose).toHaveBeenCalledTimes(1);
+  view.rerender(shell(false, slot, onClose, "agents", undefined, onOpen));
+  /* The same element, still in place; only its glyph changed. */
+  expect(screen.getByTestId("detail-shell-toggle")).toBe(toggle);
+  expect(screen.queryByTestId("detail-shell-close")).toBeNull();
   fireEvent.click(screen.getByTestId("detail-shell-open"));
   expect(onOpen).toHaveBeenCalledTimes(1);
   slot.remove();
