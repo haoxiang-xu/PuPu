@@ -17,7 +17,7 @@ import { binding_problems, expression_is_editable, make_binding, ref_expression 
 import { conditional_sources } from "../skeleton_branch_config";
 import { node_display_title } from "../node_display_labels";
 import { start_context_for_view } from "../start_context";
-import { CAPTION_TEXT } from "./panel_style";
+import { CAPTION_TEXT, Region } from "./panel_style";
 
 /* Input Variables: what this node reads, and from where.
  *
@@ -177,7 +177,8 @@ export default function InputVariablesSection({
         </span>
       )}
 
-      {bindings.map((binding, index) => {
+      {(() => {
+        const rows = bindings.map((binding, index) => {
         const Row = !breadcrumb ? BindingRow
           : binding?.value?.kind !== "first_present" ? InputValuePill
             : expression_is_editable(binding.value) ? FirstPresentPill : BindingRow;
@@ -203,7 +204,9 @@ export default function InputVariablesSection({
           }}
           onRemove={() => set_bindings(bindings.filter((_, i) => i !== index))}
         />;
-      })}
+      });
+        return breadcrumb ? <Region isDark={isDark}>{rows}</Region> : rows;
+      })()}
       {addAtEnd && add_button}
     </div>
   );

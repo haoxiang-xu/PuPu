@@ -14,7 +14,7 @@ import {
 import { identity_of } from "../document_values";
 import { make_output_mapping, output_mapping_problems } from "../skeleton_io";
 import { result_roots_for } from "../skeleton_result_roots";
-import { CAPTION_TEXT } from "./panel_style";
+import { CAPTION_TEXT, Region } from "./panel_style";
 
 /* Output Variables: what this node passes on, and from where.
  *
@@ -236,7 +236,8 @@ export default function OutputVariablesSection({
         </span>
       )}
 
-      {mappings.map((mapping, index) => (
+      {(() => {
+        const rows = mappings.map((mapping, index) => (
         <Row
           key={index}
           mapping={mapping}
@@ -278,7 +279,9 @@ export default function OutputVariablesSection({
           }
           onRemove={() => set_mappings(mappings.filter((_, i) => i !== index))}
         />
-      ))}
+      ));
+        return breadcrumb ? <Region isDark={isDark}>{rows}</Region> : rows;
+      })()}
       {addAtEnd && add_button}
     </div>
   );

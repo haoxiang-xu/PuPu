@@ -11,7 +11,7 @@ import useListIdentities from "./list_identity";
 import usePendingText from "./pending_text";
 import WorkflowPinControl from "./workflow_pin_control";
 import { Block } from "./process_timeline";
-import { addButtonStyle, fill, muted, note as noteOf, problem as problemOf, removeButtonStyle, text } from "./panel_style";
+import { addButtonStyle, fieldFill, muted, note as noteOf, problem as problemOf, Region, removeButtonStyle, text } from "./panel_style";
 
 const record = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 const has = (value, key) => record(value) && Object.prototype.hasOwnProperty.call(value, key);
@@ -41,7 +41,7 @@ function WorkflowToolRow({ entry, index, identity, canEdit, canRemove, onSet, on
   const pin = pin_of(valid ? entry.workflow : null);
   const set = (patch) => onSet((current) => ({ ...current, ...patch }));
   const NOTE_ = noteOf(isDark);
-  return <div data-testid={`native-workflow-tool-row-${index}`} style={{ display: "flex", flexDirection: "column", gap: 8, padding: "6px 5px 10px 10px", background: fill(isDark), borderRadius: 8, minWidth: 0 }}>
+  return <div data-testid={`native-workflow-tool-row-${index}`} style={{ display: "flex", flexDirection: "column", gap: 8, padding: "6px 5px 10px 10px", minWidth: 0 }}>
     <div style={{ ...ROW, flexWrap: "nowrap", justifyContent: "space-between", minHeight: 22 }}>
       <span style={{ fontSize: 12.5, color: text(isDark) }}>{t("agents.workflow_tools.row", { index: index + 1 })}</span>
       <Button prefix_icon="close" ariaLabel={t("agents.workflow_tools.remove_tool")} disabled={!canRemove} onClick={onRemove} style={removeButtonStyle(isDark)} />
@@ -54,7 +54,7 @@ function WorkflowToolRow({ entry, index, identity, canEdit, canRemove, onSet, on
             if (!id_ok(value)) { pending.hold(value); return; }
             pending.release();
             if (value !== id) set({ id: value });
-          }} style={{ width: "100%", fontSize: 12.5, height: 30, paddingVertical: 0, paddingHorizontal: 8, borderRadius: 8, fontFamily: "ui-monospace, Menlo, monospace", backgroundColor: isDark ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.9)", border: "1px solid transparent" }} />
+          }} style={{ width: "100%", fontSize: 12.5, height: 30, paddingVertical: 0, paddingHorizontal: 8, borderRadius: 8, fontFamily: "ui-monospace, Menlo, monospace", ...fieldFill(isDark) }} />
       </label>
       {id_ok(id) ? <span style={NOTE_}>{t("agents.workflow_tools.function_name", { name: "\uE000" }).split("\uE000").map((part, at) => <React.Fragment key={at}>{at > 0 && <code>{`workflow_${id}`}</code>}{part}</React.Fragment>)}</span> : <span style={problem}>{t("agents.workflow_tools.bad_id", { id: safe_text(id) })}</span>}
       {pending.text !== null && <span style={problem}>{t("agents.workflow_tools.pending_id")}</span>}
@@ -123,9 +123,9 @@ export default function WorkflowToolsSection({ document, node, editable, commit,
           <span style={problem}>{t("agents.workflow_tools.list_required", { value: safe_text(config.workflow_tools) })}</span>
           {supported && <Button label={t("agents.workflow_tools.replace_list")} disabled={!editable} onClick={() => writeRows([])} style={{ ...small, alignSelf: "flex-start" }} />}
         </>}
-        {rows.map((entry, index) => <WorkflowToolRow key={identities.ids[index]} entry={entry} index={index} identity={identities.ids[index]}
+        <Region isDark={isDark}>{rows.map((entry, index) => <WorkflowToolRow key={identities.ids[index]} entry={entry} index={index} identity={identities.ids[index]}
           canEdit={editable && supported} canRemove={editable} isDark={isDark} onSet={(change) => updateRow(identities.ids[index], change)}
-          onRemove={() => { identities.removed(index); writeRows(rows.filter((_, at) => at !== index)); }} />)}
+          onRemove={() => { identities.removed(index); writeRows(rows.filter((_, at) => at !== index)); }} />)}</Region>
         <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
           {supported && (!has(config, "workflow_tools") || Array.isArray(config.workflow_tools)) && <Button label={`+ ${t("agents.workflow_tools.add")}`} ariaLabel={t("agents.workflow_tools.add")} disabled={!editable} onClick={() => {
             const used = workflow_tool_ids(document, node.id);

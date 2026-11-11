@@ -79,7 +79,7 @@ export default function InputValuePill({ binding, index, sources, problems, isDa
   const menuVisible = menu !== null && items.length > 0;
 
   return (
-    <div data-testid={`binding-row-${index}`} style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
+    <div data-testid={`binding-row-${index}`} style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
       <VariablePill testid={`binding-row-${index}`} isDark={isDark} name={name}
         onNameChange={(next) => onChange({ ...binding, name: next })}
         onRemove={onRemove} removeLabel={removeLabel} sourceRef={sourceRef}>
@@ -122,7 +122,7 @@ export default function InputValuePill({ binding, index, sources, problems, isDa
       </div>
       {problems.map((problem, i) => (
         <span key={i} data-testid={`binding-row-${index}-problem-${i}`}
-          style={{ fontSize: 11.5, lineHeight: 1.45, overflowWrap: "anywhere", color: isDark ? "#ff8c8c" : "#b02020" }}>
+          style={{ fontSize: 11.5, lineHeight: 1.45, overflowWrap: "anywhere", padding: "0 10px 7px", color: isDark ? "#ff8c8c" : "#b02020" }}>
           {problem.message}
         </span>
       ))}

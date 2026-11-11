@@ -49,7 +49,7 @@ import { identity_of, safe_text } from "../document_values";
 import { new_embedded_entry } from "../new_embedded_entry";
 import { captionStyle, ProblemCount } from "./process_timeline";
 import { variablePillField } from "./variable_pill";
-import { addButtonStyle, errorColor, fieldFill, fill, fillStrong, muted as mutedOf, PANEL_SWITCH, problem as problemOf, text } from "./panel_style";
+import { addButtonStyle, errorColor, fieldFill, fillStrong, muted as mutedOf, PANEL_SWITCH, problem as problemOf, Region, text } from "./panel_style";
 
 /* The Subagent Pool: which Agents this one may call, and how.
  *
@@ -511,7 +511,7 @@ function EntryRow({
   return (
     <div
       data-testid={`subagent-entry-${index}`}
-      style={{ display: "flex", flexDirection: "column", minWidth: 0, borderRadius: 8, background: fill(isDark) }}
+      style={{ display: "flex", flexDirection: "column", minWidth: 0 }}
     >
       {/* Identity: what it is called, with the way in to its graph and the
           fold arrow always in the same place. */}
@@ -1159,8 +1159,8 @@ export default function SubagentPoolSection({
         </span>
       )}
 
-      {!legacy &&
-        entries.map((entry, index) =>
+      {!legacy && (
+        <Region isDark={isDark}>{entries.map((entry, index) =>
           is_object(entry) ? (
             <EntryRow
               key={rows.ids[index]}
@@ -1210,7 +1210,7 @@ export default function SubagentPoolSection({
                look where the entry should have been. */
             <div
               key={rows.ids[index]}
-              style={{ display: "flex", flexDirection: "column", gap: 4 }}
+              style={{ display: "flex", flexDirection: "column", gap: 4, padding: "6px 5px 6px 10px" }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <span
@@ -1248,7 +1248,8 @@ export default function SubagentPoolSection({
               )}
             </div>
           ),
-        )}
+        )}</Region>
+      )}
 
       {/* One way in. Agents from the library are listed under it, with a
           search; an Agent that lives only inside this one is the last choice
@@ -1299,11 +1300,10 @@ export default function SubagentPoolSection({
               value={search}
               set_value={setSearch}
               style={{ width: "100%", fontSize: 12.5, height: 32, paddingVertical: 0, paddingHorizontal: 10, borderRadius: 8,
-                /* Only an outline: the filled rows below are what can be added. */
-                backgroundColor: "transparent", border: `1px solid ${isDark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.12)"}` }}
+                ...fieldFill(isDark) }}
             />
           )}
-          {matching.map((resource) => (
+          <Region isDark={isDark}>{matching.map((resource) => (
             <Button
               key={resource.id}
               prefix_icon="bot"
@@ -1321,10 +1321,9 @@ export default function SubagentPoolSection({
                 gap: 8,
                 color: text(isDark),
                 content: { icon: { width: 13, height: 13 } },
-                ...fieldFill(isDark),
               }}
             />
-          ))}
+          ))}</Region>
           {offered.length > 0 && matching.length === 0 && (
             <span data-testid="subagent-picker-no-match" style={CAPTION}>{t("agents.subagents.no_match", { search: search.trim() })}</span>
           )}

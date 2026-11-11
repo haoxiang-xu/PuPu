@@ -1,5 +1,6 @@
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import PanelHelp from "./panel_help";
+import { fieldBorder, fieldFill, hairline as hairlineOf } from "./panel_style";
 import React, { useEffect, useState } from "react";
 import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
 import Select from "./panel_select";
@@ -69,10 +70,6 @@ const refused_style = (isDark) => ({
 });
 const ROW = { display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" };
 /* The panel's own layout: what it is on the left, its value on the right. */
-/* Every control in it is one quiet filled surface, the same as a variable row:
-   no outlines competing with each other down the column. */
-const fieldFill = (isDark) => ({ backgroundColor: isDark ? "rgba(255,255,255,0.075)" : "rgba(0,0,0,0.045)",
-  border: "1px solid transparent" });
 const LINE = { display: "flex", alignItems: "center", gap: 8, minHeight: 30, minWidth: 0 };
 const lineLabel = (isDark) => ({ flex: 1, minWidth: 0, fontSize: 12.5, lineHeight: "18px",
   color: isDark ? "#c9c9cf" : "#3a3a40", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" });
@@ -362,7 +359,7 @@ export default function KernelSection({
     ? `${safe_text(own(stored_profile, "provider"))} · ${safe_text(own(stored_profile, "model"))}`
     : typeof pendingKernel?.model === "string" ? pendingKernel.model : null;
 
-  const hairline = { height: 1, background: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)", margin: "2px 0" };
+  const hairline = { height: 1, background: hairlineOf(isDark), margin: "2px 0" };
   const select_style = {
     width: "100%",
     fontSize: 11.5,
@@ -461,7 +458,7 @@ export default function KernelSection({
           placeholder={t("agents.execution.kernel.prompt_placeholder")}
           min_rows={3}
           max_display_rows={12}
-          style={{ fontSize: 12.5, lineHeight: 1.55, borderRadius: 8, ...(renderSections ? { backgroundColor: fieldFill(isDark).backgroundColor, restBorder: "1px solid transparent" } : null) }}
+          style={{ fontSize: 12.5, lineHeight: 1.55, borderRadius: 8, ...(renderSections ? { backgroundColor: "transparent", restBorder: `1px solid ${fieldBorder(isDark)}` } : null) }}
         />
         {kernel && unbound.length > 0 && (
           <span data-testid="kernel-prompt-unbound" style={refused_style(isDark)}>

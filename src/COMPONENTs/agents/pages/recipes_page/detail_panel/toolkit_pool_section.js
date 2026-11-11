@@ -14,7 +14,7 @@ import { read_toolkit_catalog, toolkit_pool_problems, with_toolkit_config } from
 import WorkflowToolsSection from "./workflow_tools_section";
 import PanelHelp from "./panel_help";
 import { Block } from "./process_timeline";
-import { fill, muted, PANEL_SWITCH, note as noteStyle, problem as problemOf, removeButtonStyle, SettingRow, text } from "./panel_style";
+import { fieldFill, muted, PANEL_SWITCH, note as noteStyle, problem as problemOf, Region, removeButtonStyle, SettingRow, text } from "./panel_style";
 
 const record = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const own = (v, key) => Object.prototype.hasOwnProperty.call(v, key);
@@ -47,7 +47,7 @@ function ToolkitRow({ entry, info, currentInfo, index, editable, isDark, onSet, 
   };
   const title = info?.toolkitName || safe_text(valid ? entry.id : entry);
   const icon = info ? withMcpStoreIcon(info).toolkitIcon : {};
-  return <div data-testid={`native-toolkit-row-${index}`} style={{ background: fill(isDark), borderRadius: 8, display: "flex", flexDirection: "column", minWidth: 0 }}>
+  return <div data-testid={`native-toolkit-row-${index}`} style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
     <div style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 32, padding: "0 5px 0 8px", minWidth: 0 }}>
       <button type="button" aria-label={title} aria-expanded={expanded} onClick={() => setExpanded(!expanded)}
         style={{ font: "inherit", flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8, minHeight: 32, padding: 0, border: "none", background: "none", color: text(isDark), cursor: "pointer", textAlign: "left" }}>
@@ -167,11 +167,11 @@ export default function ToolkitPoolSection({ document, node, onChange, isDark })
         {poolProblems.map((message, index) => <div key={index} style={problemStyle}>{message}</div>)}
         {extra.map((key) => <div key={key} style={ROW}><span style={problemStyle}>{t("agents.toolkit.unsupported", { key })}</span><Button label={t("agents.toolkit.remove_setting")} ariaLabel={t("agents.toolkit.remove_setting_key", { key })} disabled={!editable} onClick={() => { const next = { ...config }; delete next[key]; commit(next); }} style={{ fontSize: 11, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 5 }} /></div>)}
         {!Array.isArray(config.toolkits) ? <Button label={t("agents.toolkit.replace_list")} disabled={!editable} onClick={() => setEntries([])} style={{ alignSelf: "flex-start", fontSize: 11, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 5 }} /> : entries.length === 0 && <span style={note}>{t("agents.legacy_tools.empty")}</span>}
-        {entries.map((entry, index) => {
+        <Region isDark={isDark}>{entries.map((entry, index) => {
           const info = record(entry) && typeof entry.id === "string" ? byId.get(entry.id) : null;
           return <ToolkitRow key={index} entry={entry} index={index} info={info} currentInfo={library.status === "ready" ? info : null} reading={library.status !== "ready"} editable={editable} isDark={isDark}
             onSet={(patch) => setEntry(index, patch)} onRemove={() => setEntries(entries.filter((_, at) => at !== index))} />;
-        })}
+        })}</Region>
       </div>
       {/* A setting of the pool, not another heading: the words on the left,
           the switch on the right, what it means behind the info. */}
@@ -206,10 +206,9 @@ export default function ToolkitPoolSection({ document, node, onChange, isDark })
         {library.rows.length === 0 ? <span style={note}>{t("agents.toolkit.empty_library")}</span> : <>
           <Input prefix_icon="search" placeholder={t("agents.legacy_tools.search")} value={search} set_value={setSearch}
             style={{ width: "100%", fontSize: 12.5, height: 32, paddingVertical: 0, paddingHorizontal: 10, borderRadius: 8,
-              /* Only an outline: the filled rows below are what can be added. */
-              backgroundColor: "transparent", border: `1px solid ${isDark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.12)"}` }} />
-          {choices.length > 0 && <div data-testid="native-toolkit-library-grid" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {choices.map((item) => <div key={item.toolkitId} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 5px 7px 10px", borderRadius: 8, background: fill(isDark), minWidth: 0 }}>
+              ...fieldFill(isDark) }} />
+          {choices.length > 0 && <Region testid="native-toolkit-library-grid" isDark={isDark}>
+          {choices.map((item) => <div key={item.toolkitId} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 5px 7px 10px", minWidth: 0 }}>
             <ToolkitIconFrame icon={withMcpStoreIcon(item).toolkitIcon || {}} isDark={isDark} size={20} iconSize={12} transparentIconSize={15} borderRadius={6} fallbackColor={ACCENT} />
             <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 1 }}>
               <span style={{ fontSize: 12.5, color: text(isDark), overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.toolkitName || item.toolkitId}</span>
@@ -219,7 +218,7 @@ export default function ToolkitPoolSection({ document, node, onChange, isDark })
               disabled={!editable || !Array.isArray(config.toolkits)} onClick={() => setEntries([...entries, { id: item.toolkitId, enabled_tools: null }])}
               style={{ flexShrink: 0, fontSize: 11.5, paddingVertical: 4, paddingHorizontal: 7, borderRadius: 6, gap: 3, color: text(isDark), content: { icon: { width: 11, height: 11 } } }} />
           </div>)}
-          </div>}
+          </Region>}
           {choices.length === 0 && <span style={note}>{query ? t("agents.legacy_tools.no_match", { search: search.trim() }) : t("agents.legacy_tools.all_added")}</span>}
         </>}
       </div>}

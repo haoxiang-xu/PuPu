@@ -4,22 +4,22 @@ import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use
 import InputVariablesSection from "./input_variables_section";
 import OutputVariablesSection from "./output_variables_section";
 import { Block } from "./process_timeline";
+import { Region } from "./panel_style";
 import { node_bindings, node_output_mappings } from "../skeleton_document";
 import { start_context_for_view } from "../start_context";
 
 /* The two ends of a graph, in the Agent panel's language: one column, the
-   same quiet caption over each part, the same filled rows. Each holds only
+   same quiet caption over each part, the same regions of rows. Each holds only
    two short lists, so neither folds; the count sits where a folded part
    would keep it. What the caption cannot say goes behind its info icon. */
 
 const MUTED = (isDark) => (isDark ? "#a6a6af" : "#686870");
-const FILL = (isDark) => (isDark ? "rgba(255,255,255,0.075)" : "rgba(0,0,0,0.045)");
 const ERROR = (isDark) => (isDark ? "#ff8c8c" : "#b02020");
 
 const countOf = (rows) => String(rows.filter(Boolean).length);
 
 /* What the caller hands a Start. It is described, not edited, so a row is the
-   same filled shape as an editable one but holds no control. */
+   same row shape as an editable one but holds no control. */
 function CallerInputs({ context, isDark }) {
   const { t } = useTranslation();
   if (context.kind === "invalid") {
@@ -34,11 +34,11 @@ function CallerInputs({ context, isDark }) {
       {t("agents.io.this_start_declares_no_caller_fields")}</span>;
   }
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }}>
+    <Region isDark={isDark}>
       {fields.map((field) => (
         <div key={field.name} data-testid={`start-caller-input-${field.name}`}
           style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, minHeight: 32,
-            padding: "6px 10px 6px 11px", boxSizing: "border-box", borderRadius: 8, background: FILL(isDark) }}>
+            padding: "6px 10px 6px 11px", boxSizing: "border-box" }}>
           <span style={{ flex: 1, minWidth: 0, fontSize: 12, overflowWrap: "anywhere",
             color: isDark ? "#eeeef1" : "#26262c",
             fontFamily: field.whole ? undefined : "ui-monospace, Menlo, monospace" }}>{field.name}</span>
@@ -49,7 +49,7 @@ function CallerInputs({ context, isDark }) {
           </span>
         </div>
       ))}
-    </div>
+    </Region>
   );
 }
 

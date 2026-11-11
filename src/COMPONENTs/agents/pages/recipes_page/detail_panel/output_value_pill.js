@@ -94,7 +94,7 @@ export default function OutputValuePill({
   ]);
 
   return (
-    <div data-testid={testid} style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
+    <div data-testid={testid} style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
       <VariablePill testid={testid} isDark={isDark} name={name}
         onNameChange={(next) => onChange({ ...mapping, name: next })}
         onRemove={onRemove} removeLabel={removeLabel} sourceRef={sourceRef}>
@@ -139,13 +139,13 @@ export default function OutputValuePill({
       </div>
       {!editable && mapping?.source !== undefined && (
         <span data-testid={`${testid}-unreadable`}
-          style={{ fontSize: 10.5, overflowWrap: "anywhere", fontFamily: "ui-monospace, Menlo, monospace" }}>
+          style={{ fontSize: 10.5, overflowWrap: "anywhere", padding: "0 10px 7px", fontFamily: "ui-monospace, Menlo, monospace" }}>
           {JSON.stringify(mapping.source)}
         </span>
       )}
       {problems.map((problem, i) => (
         <span key={i} data-testid={`${testid}-problem-${i}`}
-          style={{ fontSize: 11.5, lineHeight: 1.45, overflowWrap: "anywhere", color: isDark ? "#ff8c8c" : "#b02020" }}>
+          style={{ fontSize: 11.5, lineHeight: 1.45, overflowWrap: "anywhere", padding: "0 10px 7px", color: isDark ? "#ff8c8c" : "#b02020" }}>
           {problem.message}
         </span>
       ))}

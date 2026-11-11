@@ -18,7 +18,7 @@ import {
   with_skill,
   without_inputs,
 } from "../skill_read_config";
-import { CAPTION_TEXT } from "./panel_style";
+import { CAPTION_TEXT, fill } from "./panel_style";
 
 /* A Skill Read node: one skill, read by the runtime when the run reaches it
  * (#352). Every rule here is the fixed runtime's (see `skill_read_config`):
@@ -252,7 +252,7 @@ export default function SkillReadSection({ document, node, isDark, onChange }) {
                 wordBreak: "break-word",
                 padding: "8px 10px",
                 borderRadius: 8,
-                background: isDark ? "rgba(255,255,255,0.075)" : "rgba(0,0,0,0.045)",
+                background: fill(isDark),
               }}
             >
               {preview.preview.body}

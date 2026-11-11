@@ -15,7 +15,7 @@ import { identity_of } from "../document_values";
 import { output_schema_problems } from "../output_schema";
 import usePendingText from "./pending_text";
 import useTakenName from "./taken_name";
-import { PANEL_SWITCH } from "./panel_style";
+import { fill, PANEL_SWITCH } from "./panel_style";
 import useListIdentities from "./list_identity";
 import {
   BOUND_LABEL,
@@ -247,7 +247,7 @@ export function FieldRow({ field, index, taken, revision, isDark, onChange, onRe
         gap: 6,
         padding: "8px 10px",
         borderRadius: 8,
-        background: isDark ? "rgba(255,255,255,0.035)" : "rgba(0,0,0,0.022)",
+        background: fill(isDark),
       }}
     >
       {/* The panel is resizable and there is no global border-box here, so a

@@ -9,7 +9,6 @@ import VariablePill, { VariablePillValue, variablePillField } from "./variable_p
    row names it, and the sources follow in the order they are tried, each one
    filled row, numbered, with its own pick and its own way out. */
 
-const fill = (isDark) => (isDark ? "rgba(255,255,255,0.075)" : "rgba(0,0,0,0.045)");
 const muted = (isDark) => (isDark ? "#a6a6af" : "#686870");
 
 export default function FirstPresentPill({ binding, index, sources, problems, isDark, onChange, onRemove }) {
@@ -51,7 +50,7 @@ export default function FirstPresentPill({ binding, index, sources, problems, is
   }));
 
   return (
-    <div data-testid={testid} style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
+    <div data-testid={testid} style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
       <VariablePill testid={testid} isDark={isDark} name={name}
         onNameChange={(next) => onChange({ ...binding, name: next })}
         onRemove={onRemove} removeLabel={removeLabel}>
@@ -64,7 +63,7 @@ export default function FirstPresentPill({ binding, index, sources, problems, is
         return (
           <div key={i} data-testid={`${testid}-alt-${i}`}
             style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, height: 28,
-              padding: "0 5px 0 10px", borderRadius: 8, background: fill(isDark) }}>
+              padding: "0 5px 0 20px" }}>
             <span aria-hidden="true" style={{ width: 12, flexShrink: 0, fontSize: 11.5, color: muted(isDark),
               fontVariantNumeric: "tabular-nums" }}>{i + 1}</span>
             <Button ariaLabel={t("agents.io.source_option", { node: shown.node, name: shown.path })}
@@ -85,14 +84,14 @@ export default function FirstPresentPill({ binding, index, sources, problems, is
         dom_props={{ type: "button", "aria-haspopup": "menu", onBlur: () => setMenu(null) }}
         onClick={(event) => open(event, values.length)}
         style={{ alignSelf: "flex-start", fontSize: 11, paddingVertical: 5, paddingHorizontal: 6, borderRadius: 5,
-          color: muted(isDark) }} />
+          marginLeft: 14, marginBottom: 4, color: muted(isDark) }} />
       <div onMouseDown={(event) => event.preventDefault()}>
         <ContextMenu visible={menu !== null && items.length > 0} x={menu?.x} y={menu?.y} items={items}
           onClose={() => setMenu(null)} isDark={isDark} scrollable />
       </div>
       {problems.map((problem, i) => (
         <span key={i} data-testid={`${testid}-problem-${i}`}
-          style={{ fontSize: 11.5, lineHeight: 1.45, overflowWrap: "anywhere", color: isDark ? "#ff8c8c" : "#b02020" }}>
+          style={{ fontSize: 11.5, lineHeight: 1.45, overflowWrap: "anywhere", padding: "0 10px 7px", color: isDark ? "#ff8c8c" : "#b02020" }}>
           {problem.message}
         </span>
       ))}

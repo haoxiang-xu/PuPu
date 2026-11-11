@@ -28,7 +28,7 @@ import {
   remove_case,
   with_branch_execution,
 } from "../skeleton_branch_config";
-import { CAPTION_TEXT } from "./panel_style";
+import { CAPTION_TEXT, fill } from "./panel_style";
 
 /* If / Else and Switch / Case settings, between Input Variables and the
  * (absent) outputs of a branch (#351).
@@ -520,7 +520,7 @@ function SwitchEditor({ document, node, execution, names, write, onChange, disab
             style={{ ...SMALL_BUTTON, alignSelf: "flex-start" }} />
         )}
         <div data-testid="branch-case-default" style={{ display: "flex", flexDirection: "column", gap: 2, padding: "8px 10px", borderRadius: 8,
-          background: isDark ? "rgba(255,255,255,0.075)" : "rgba(0,0,0,0.045)" }}>
+          background: fill(isDark) }}>
           <span style={{ fontSize: 12.5 }}>{t("agents.execution.branch.default")}</span>
           <span style={CAPTION}>{t("agents.execution.branch.default_outlet_note")}</span>
           <span data-testid="branch-case-default-target" style={CAPTION}>{targets_text(document, node.id, "default", t)}</span>
