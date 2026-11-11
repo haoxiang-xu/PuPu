@@ -65,7 +65,7 @@ def test_publish_is_atomic_pinned_and_deduplicates_by_source_aggregate(tmp_path)
         cold.get_workflow_version('source-workflow', version_a['version']['revision_id'])
     assert caught.value.code == 'source_api_required'
     with store._connect() as connection:
-        assert connection.execute("SELECT value FROM store_meta WHERE key='schema'").fetchone()[0] == 'pupu.skeleton_resource_store.v3'
+        assert connection.execute("SELECT value FROM store_meta WHERE key='schema'").fetchone()[0] == 'pupu.skeleton_resource_store.v4'
 
 
 def test_pinned_workflow_sources_run_through_actual_production_call_without_workspace(production):

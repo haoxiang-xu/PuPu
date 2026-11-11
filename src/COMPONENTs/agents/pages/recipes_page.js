@@ -110,10 +110,12 @@ export default function RecipesPage({
      other rather than overwriting a single "current thing", which is what
      would let a name be used as an id. */
   const [skeletonResourceId, setSkeletonResourceId] = useState(null);
+  const skeletonResourceIdRef = useRef(skeletonResourceId);
+  skeletonResourceIdRef.current = skeletonResourceId;
   const [newSkeletonDraft, setNewSkeletonDraft] = useState(null);
   /* Whether the open Skeleton resource has unsaved work, and a counter that
-     re-opens it from the store after the explorer renamed, archived or
-     restored it (the stored version moved; a clean editor simply re-reads). */
+     re-opens it from the store after the explorer renamed it (the stored
+     version moved; a clean editor simply re-reads). */
   const [skeletonDirty, setSkeletonDirty] = useState(false);
   const [skeletonReload, setSkeletonReload] = useState(0);
   /* A Skeleton Agent drilled into one of its subagents: the resource list is
@@ -527,7 +529,18 @@ export default function RecipesPage({
         setNewSkeletonDraft(args);
         setSkeletonResourceId(args.id);
       }}
-      onActiveChanged={() => setSkeletonReload((n) => n + 1)}
+      onActiveChanged={(event) => {
+        if (event?.type === "deleted") {
+          if (event.id === skeletonResourceIdRef.current) {
+            setSkeletonResourceId(null);
+            setNewSkeletonDraft(null);
+            setSkeletonDirty(false);
+            onSelectNode(null);
+          }
+          return;
+        }
+        setSkeletonReload((n) => n + 1);
+      }}
       onCollapse={explorerDocked ? undefined : () => setListCollapsed(true)}
       isDark={isDark}
       headerLeadingPad={explorerDocked ? 0 : headerLeadingPad}

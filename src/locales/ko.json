@@ -979,6 +979,7 @@
         "delete_folder": "폴더 삭제",
         "duplicate": "복제",
         "archive": "보관",
+        "delete": "삭제",
         "restore": "복원",
         "open_legacy": "이전 편집기에서 열기",
         "save_first": "먼저 저장",
@@ -992,6 +993,7 @@
       "duplicate_failed": "“{name}”을(를) 복제할 수 없습니다: {message}",
       "restore_failed": "“{name}”을(를) 복원할 수 없습니다: {message}",
       "archive_failed": "“{name}”을(를) 보관할 수 없습니다: {message}",
+      "delete_failed": "“{name}”을 삭제할 수 없습니다: {message}",
       "not_migrated": "마이그레이션 안 됨",
       "archived": "보관됨",
       "hide_agents": "에이전트 숨기기",
@@ -1009,10 +1011,13 @@
       "not_migrated_description": "마이그레이션 안 됨: 저장소에 대응하는 에이전트가 아직 없는 레시피입니다. 이전 편집기에서 열립니다. 마이그레이션되지 않은 이유는 사이드카 로그에 나옵니다.",
       "delete_folder_title": "“{name}” 폴더를 삭제할까요?",
       "archive_title": "“{name}”을(를) 보관할까요?",
+      "delete_title": "“{name}”을 삭제할까요?",
       "delete_folder_description": "이 폴더와 내부 폴더가 제거됩니다. 그 안의 에이전트는 유지되며 최상위로 이동합니다.",
       "archive_description": "이 목록에서 사라지며 새 채팅에서는 더 이상 선택할 수 없습니다. 이미 사용 중인 항목은 계속 작동합니다. 보관됨에서 복원할 수 있습니다.",
+      "delete_description": "이 리소스와 게시된 버전을 영구적으로 삭제합니다. 되돌릴 수 없습니다.",
       "delete_folder": "폴더 삭제",
-      "archive": "보관"
+      "archive": "보관",
+      "delete": "삭제"
     },
     "shell": {
       "exit_fullscreen": "전체 화면 종료",

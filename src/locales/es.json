@@ -979,6 +979,7 @@
         "delete_folder": "Eliminar carpeta",
         "duplicate": "Duplicar",
         "archive": "Archivar",
+        "delete": "Eliminar",
         "restore": "Restaurar",
         "open_legacy": "Abrir en el editor antiguo",
         "save_first": "guarda primero",
@@ -992,6 +993,7 @@
       "duplicate_failed": "No se pudo duplicar “{name}”: {message}",
       "restore_failed": "No se pudo restaurar “{name}”: {message}",
       "archive_failed": "No se pudo archivar “{name}”: {message}",
+      "delete_failed": "No se pudo eliminar «{name}»: {message}",
       "not_migrated": "Sin migrar",
       "archived": "Archivados",
       "hide_agents": "Ocultar agentes",
@@ -1009,10 +1011,13 @@
       "not_migrated_description": "Sin migrar: recetas para las que el almacenamiento aún no tiene un agente. Se abren en el editor antiguo; el registro del sidecar indica por qué no se migraron.",
       "delete_folder_title": "¿Eliminar la carpeta “{name}”?",
       "archive_title": "¿Archivar “{name}”?",
+      "delete_title": "¿Eliminar «{name}»?",
       "delete_folder_description": "Se eliminan la carpeta y las carpetas que contiene. Los agentes se conservan y se trasladan al nivel superior.",
       "archive_description": "Sale de esta lista y los chats nuevos ya no pueden seleccionarlo. Todo lo que ya lo usa sigue funcionando. Puedes restaurarlo desde Archivados.",
+      "delete_description": "Elimina permanentemente este recurso y sus versiones publicadas. Esta acción no se puede deshacer.",
       "delete_folder": "Eliminar carpeta",
-      "archive": "Archivar"
+      "archive": "Archivar",
+      "delete": "Eliminar"
     },
     "shell": {
       "exit_fullscreen": "Salir de pantalla completa",

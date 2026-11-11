@@ -979,6 +979,7 @@
         "delete_folder": "Supprimer le dossier",
         "duplicate": "Dupliquer",
         "archive": "Archiver",
+        "delete": "Supprimer",
         "restore": "Restaurer",
         "open_legacy": "Ouvrir dans l’ancien éditeur",
         "save_first": "enregistrer d’abord",
@@ -992,6 +993,7 @@
       "duplicate_failed": "Impossible de dupliquer « {name} » : {message}",
       "restore_failed": "Impossible de restaurer « {name} » : {message}",
       "archive_failed": "Impossible d’archiver « {name} » : {message}",
+      "delete_failed": "Impossible de supprimer « {name} » : {message}",
       "not_migrated": "Non migrés",
       "archived": "Archivés",
       "hide_agents": "Masquer les agents",
@@ -1009,10 +1011,13 @@
       "not_migrated_description": "Non migrés : recettes pour lesquelles le stockage n’a pas encore d’agent. Elles s’ouvrent dans l’ancien éditeur ; le journal du sidecar indique pourquoi elles n’ont pas été migrées.",
       "delete_folder_title": "Supprimer le dossier « {name} » ?",
       "archive_title": "Archiver « {name} » ?",
+      "delete_title": "Supprimer « {name} » ?",
       "delete_folder_description": "Le dossier et les dossiers qu’il contient sont supprimés. Les agents qu’ils contiennent sont conservés et déplacés au niveau supérieur.",
       "archive_description": "L’agent quitte cette liste et ne peut plus être choisi dans de nouvelles conversations. Tout ce qui l’utilise déjà continue de fonctionner. Restaurez-le depuis « Archivés ».",
+      "delete_description": "Cette ressource et ses versions publiées seront supprimées définitivement. Cette action est irréversible.",
       "delete_folder": "Supprimer le dossier",
-      "archive": "Archiver"
+      "archive": "Archiver",
+      "delete": "Supprimer"
     },
     "shell": {
       "exit_fullscreen": "Quitter le plein écran",

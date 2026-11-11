@@ -20,7 +20,7 @@ const hasElectronWindowControls = () => {
   );
 };
 const TitleBar = () => {
-  const { theme, onFragment, setOnFragment } = useContext(ConfigContext);
+  const { theme, onFragment, setOnFragment, appMode } = useContext(ConfigContext);
   const isFullScreen = useWindowFullscreen();
 
   const isElectron = hasElectronWindowControls();
@@ -59,9 +59,9 @@ const TitleBar = () => {
         right: 0,
         height: TOP_BAR_HEIGHT,
         zIndex: Z.APP_CHROME,
-        background: gradientBackground,
+        background: appMode === "agents" ? "transparent" : gradientBackground,
 
-        WebkitBackdropFilter: "blur(20px)",
+        WebkitBackdropFilter: appMode === "agents" ? "none" : "blur(20px)",
         color: topBarForeground,
         WebkitAppRegion: "drag",
         userSelect: "none",

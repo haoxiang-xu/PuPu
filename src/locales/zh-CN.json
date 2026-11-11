@@ -1003,6 +1003,7 @@
         "delete_folder": "删除文件夹",
         "duplicate": "复制",
         "archive": "归档",
+        "delete": "删除",
         "restore": "恢复",
         "open_legacy": "在旧版编辑器中打开",
         "save_first": "请先保存",
@@ -1016,6 +1017,7 @@
       "duplicate_failed": "无法复制“{name}”：{message}",
       "restore_failed": "无法恢复“{name}”：{message}",
       "archive_failed": "无法归档“{name}”：{message}",
+      "delete_failed": "无法删除“{name}”：{message}",
       "not_migrated": "未迁移",
       "archived": "已归档",
       "hide_agents": "隐藏智能体",
@@ -1033,12 +1035,15 @@
       "not_migrated_description": "未迁移：存储服务尚未为这些配方建立智能体。它们会在旧版编辑器中打开；sidecar 日志会说明未迁移的原因。",
       "delete_folder_title": "删除文件夹“{name}”？",
       "archive_title": "归档“{name}”？",
+      "delete_title": "删除“{name}”？",
       "delete_folder_description": "此文件夹及其中的文件夹会被移除。其中的智能体会保留并移至顶层。",
       "archive_description": "它将从此列表中移除，新聊天将无法再选择它。已在使用它的内容会继续正常运行。可从“已归档”中恢复。",
+      "delete_description": "将永久删除此资源及其发布版本，此操作无法撤销。",
       "delete_folder": "删除文件夹",
       "archive": "归档",
       "old_editor": "旧版编辑器",
-      "unsaved": "未保存"
+      "unsaved": "未保存",
+      "delete": "删除"
     },
     "save": {
       "store_unavailable": "此构建版本无法连接智能体库，因此无法保存或运行此处的任何内容。",

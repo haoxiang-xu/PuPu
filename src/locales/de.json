@@ -979,6 +979,7 @@
         "delete_folder": "Ordner löschen",
         "duplicate": "Duplizieren",
         "archive": "Archivieren",
+        "delete": "Löschen",
         "restore": "Wiederherstellen",
         "open_legacy": "Im alten Editor öffnen",
         "save_first": "zuerst speichern",
@@ -992,6 +993,7 @@
       "duplicate_failed": "„{name}“ konnte nicht dupliziert werden: {message}",
       "restore_failed": "„{name}“ konnte nicht wiederhergestellt werden: {message}",
       "archive_failed": "„{name}“ konnte nicht archiviert werden: {message}",
+      "delete_failed": "„{name}“ konnte nicht gelöscht werden: {message}",
       "not_migrated": "Nicht migriert",
       "archived": "Archiviert",
       "hide_agents": "Agenten ausblenden",
@@ -1009,10 +1011,13 @@
       "not_migrated_description": "Nicht migriert: Rezepte, für die der Speicher noch keinen Agenten hat. Sie werden im alten Editor geöffnet; das Sidecar-Protokoll erklärt, warum sie nicht migriert wurden.",
       "delete_folder_title": "Ordner „{name}“ löschen?",
       "archive_title": "„{name}“ archivieren?",
+      "delete_title": "„{name}“ löschen?",
       "delete_folder_description": "Der Ordner und seine Unterordner werden entfernt. Die darin enthaltenen Agenten bleiben erhalten und werden auf die oberste Ebene verschoben.",
       "archive_description": "Der Agent verschwindet aus dieser Liste und kann in neuen Chats nicht mehr ausgewählt werden. Alles, was ihn bereits verwendet, funktioniert weiter. Unter „Archiviert“ können Sie ihn wiederherstellen.",
+      "delete_description": "Diese Ressource und ihre veröffentlichten Versionen werden dauerhaft gelöscht. Dies kann nicht rückgängig gemacht werden.",
       "delete_folder": "Ordner löschen",
-      "archive": "Archivieren"
+      "archive": "Archivieren",
+      "delete": "Löschen"
     },
     "shell": {
       "exit_fullscreen": "Vollbild verlassen",

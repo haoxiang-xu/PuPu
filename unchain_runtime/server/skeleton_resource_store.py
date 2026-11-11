@@ -34,6 +34,7 @@ from skeleton_runtime_capability import SkeletonRuntimeCompatibilityError, requi
 _SCHEMA = "pupu.skeleton_resource_store.v1"
 _MANAGED_SCHEMA = "pupu.skeleton_resource_store.v2"
 _MANAGED_SCHEMA_V3 = "pupu.skeleton_resource_store.v3"
+_MANAGED_SCHEMA_V4 = "pupu.skeleton_resource_store.v4"
 _MIGRATION_STAGES = ("discovered", "written", "validated", "active")
 _RESOURCE_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$")
 
@@ -203,9 +204,9 @@ class SkeletonResourceStore:
             schema = connection.execute(
                 "SELECT value FROM store_meta WHERE key='schema'"
             ).fetchone()["value"]
-            if schema not in (_SCHEMA, _MANAGED_SCHEMA, _MANAGED_SCHEMA_V3):
+            if schema not in (_SCHEMA, _MANAGED_SCHEMA, _MANAGED_SCHEMA_V3, _MANAGED_SCHEMA_V4):
                 _fail("unknown_version", ("store", "schema"), "resource store schema is unsupported")
-            if schema in (_MANAGED_SCHEMA, _MANAGED_SCHEMA_V3):
+            if schema in (_MANAGED_SCHEMA, _MANAGED_SCHEMA_V3, _MANAGED_SCHEMA_V4):
                 from skeleton_code_source_store import validate_managed_store_schema
                 validate_managed_store_schema(connection)
 
@@ -225,6 +226,10 @@ class SkeletonResourceStore:
     def get_managed_resource(self, resource_id: str) -> dict[str, Any]:
         from skeleton_code_source_store import get_managed_resource
         return get_managed_resource(self, resource_id)
+
+    def delete_managed_resource(self, resource_id: str, *, expected_edit_token: str) -> None:
+        from skeleton_code_source_store import delete_managed_resource
+        delete_managed_resource(self, resource_id, expected_edit_token=expected_edit_token)
 
     def export_managed_resource(self, resource_id: str) -> dict[str, Any]:
         from skeleton_source_transfer import export_managed_resource

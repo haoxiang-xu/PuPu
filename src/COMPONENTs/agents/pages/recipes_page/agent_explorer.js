@@ -7,13 +7,14 @@ import { useTranslation } from "../../../../BUILTIN_COMPONENTs/mini_react/use_tr
 import Explorer from "../../../../BUILTIN_COMPONENTs/explorer/explorer";
 import ContextMenu from "../../../../BUILTIN_COMPONENTs/context_menu/context_menu";
 import Modal from "../../../../BUILTIN_COMPONENTs/modal/modal";
-import { subscribeSkeletonLibraryRefresh } from "../../../../SERVICEs/skeleton_library_refresh";
+import { emitSkeletonLibraryRefresh, subscribeSkeletonLibraryRefresh } from "../../../../SERVICEs/skeleton_library_refresh";
 import { createFolder, getFolderState, renameFolder } from "../../../../SERVICEs/agent_folder_storage";
 import {
   RECIPE_SOURCE_SCOPE,
   applyResourceExplorerReorder,
   assignResourceToFolder,
   deleteFolderKeepingResources,
+  forgetResource,
   migrateRecipeFoldersToResources,
   resourcePlacement,
 } from "../../../../SERVICEs/agent_resource_folders";
@@ -36,9 +37,8 @@ import ImportResourceModal from "./import_resource_modal";
  * Legacy recipes are migrated into the store when the sidecar starts, so each
  * one already appears here as its own Agent. A recipe the store cannot resolve
  * to a migrated Agent is listed under "Not migrated" and still opens in the
- * old editor, so nothing is stranded. Archived Agents are listed under
- * "Archived" with Restore: the store keeps a migrated or referenced Agent and
- * refuses to delete it, so archiving is how one leaves the list. */
+ * old editor, so nothing is stranded. Resources, including historical
+ * archived entries, leave the library through Delete. */
 
 const PENDING_ID = "__pending_agent__";
 const ROOT = "__root__";
@@ -403,35 +403,15 @@ export default function AgentExplorer({
     [closeContextMenu, library.items, loadedNames, placement, refreshFolders, load, onSelect],
   );
 
-  const handleArchive = useCallback((node) => {
+  const handleDeleteResource = useCallback((node) => {
     closeContextMenu();
-    setConfirm({ open: true, kind: "archive", node });
+    setConfirm({ open: true, kind: "resource", node });
   }, [closeContextMenu]);
 
   const handleDeleteFolder = useCallback((node) => {
     closeContextMenu();
     setConfirm({ open: true, kind: "folder", node });
   }, [closeContextMenu]);
-
-  const handleRestore = useCallback(
-    async (node) => {
-      closeContextMenu();
-      const item = library.items.find((entry) => entry.id === node.resource_id);
-      if (!item) return;
-      try {
-        await api.unchain.restoreSkeletonResource(item.id, item.edit_token);
-        setNotice("");
-        if (item.id === activeId) onActiveChanged?.({ type: "reload", id: item.id });
-      } catch (error) {
-        setNotice(agentMessage("agents.explorer.restore_failed", {
-          name: safe_text(item.name),
-          message: error?.message ? safe_text(error.message) : agentMessage("agents.explorer.store_refused"),
-        }));
-      }
-      load();
-    },
-    [closeContextMenu, library.items, activeId, onActiveChanged, load],
-  );
 
   const handleConfirm = useCallback(async () => {
     const { kind, node } = confirm;
@@ -445,17 +425,20 @@ export default function AgentExplorer({
     const item = library.items.find((entry) => entry.id === node.resource_id);
     if (!item) return;
     try {
-      await api.unchain.archiveSkeletonResource(item.id, item.edit_token);
+      await api.unchain.deleteSkeletonResource(item.id, item.edit_token);
+      forgetResource(item.id);
+      refreshFolders();
       setNotice("");
-      if (item.id === activeId) onActiveChanged?.({ type: "reload", id: item.id });
+      onActiveChanged?.({ type: "deleted", id: item.id });
+      emitSkeletonLibraryRefresh({ reason: "resource_deleted", resource_id: item.id });
     } catch (error) {
-      setNotice(agentMessage("agents.explorer.archive_failed", {
+      setNotice(agentMessage("agents.explorer.delete_failed", {
         name: safe_text(item.name),
         message: error?.message ? safe_text(error.message) : agentMessage("agents.explorer.store_refused"),
       }));
     }
     load();
-  }, [confirm, library.items, activeId, onActiveChanged, refreshFolders, load]);
+  }, [confirm, library.items, onActiveChanged, refreshFolders, load]);
 
   const handleNodeContextMenu = useCallback((storeNode, event) => {
     event.preventDefault();
@@ -653,8 +636,7 @@ export default function AgentExplorer({
         },
         onStartRename: handleStartRename,
         onDuplicate: handleDuplicate,
-        onArchive: handleArchive,
-        onRestore: handleRestore,
+        onDeleteResource: handleDeleteResource,
         onDeleteFolder: handleDeleteFolder,
         onOpenLegacy: (node) => {
           closeContextMenu();
@@ -662,7 +644,7 @@ export default function AgentExplorer({
         },
       }, t),
     [contextMenu.node, activeDirty, handleNewAgent, handleNewWorkflow, handleNewFolder, handleStartRename, handleDuplicate,
-      handleArchive, handleRestore, handleDeleteFolder, closeContextMenu, onSelectLegacy, t],
+      handleDeleteResource, handleDeleteFolder, closeContextMenu, onSelectLegacy, t],
   );
 
   const activeNodeId = draftRow && activeId === draftRow.id ? `${DRAFT}${activeId}` : activeId ? `${RESOURCE}${activeId}` : undefined;
@@ -794,11 +776,11 @@ export default function AgentExplorer({
         isDark={isDark}
         title={confirm.kind === "folder"
           ? t("agents.explorer.delete_folder_title", { name: safe_text(confirm.node?.name || "") })
-          : t("agents.explorer.archive_title", { name: safe_text(confirm.node?.name || "") })}
+          : t("agents.explorer.delete_title", { name: safe_text(confirm.node?.name || "") })}
         body={confirm.kind === "folder"
           ? t("agents.explorer.delete_folder_description")
-          : t("agents.explorer.archive_description")}
-        action={confirm.kind === "folder" ? t("agents.explorer.delete_folder") : t("agents.explorer.archive")}
+          : t("agents.explorer.delete_description")}
+        action={confirm.kind === "folder" ? t("agents.explorer.delete_folder") : t("agents.explorer.delete")}
         onClose={() => setConfirm({ open: false, kind: null, node: null })}
         onConfirm={handleConfirm}
       />

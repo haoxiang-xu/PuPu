@@ -97,7 +97,7 @@ test("its close button sits in the title bar band and closes it", () => {
   render(shell(true, slot, onClose));
   const close = screen.getByTestId("detail-shell-close");
   expect(slot.contains(close)).toBe(true);
-  expect(screen.getByTestId("detail-shell").contains(close)).toBe(false);
+  expect(screen.getByTestId("detail-shell-band")).toContainElement(close);
   fireEvent.click(close);
   expect(onClose).toHaveBeenCalledTimes(1);
   slot.remove();
@@ -123,16 +123,16 @@ test("without an anchor it stays the floating card inside the canvas", () => {
   expect(panel.style.borderRadius).toBe("10px");
 });
 
-test("on macOS the close button sits in the corner: as far from the right edge as from the top", () => {
+test.each(["darwin", "win32", "linux"])("the close button sits in the panel's upper-left corner (%s)", (platform) => {
   const original = window.osInfo;
-  window.osInfo = { platform: "darwin" };
+  window.osInfo = { platform };
   const slot = document.createElement("div");
   document.body.appendChild(slot);
   render(shell(true, slot, () => {}));
   const holder = screen.getByTestId("detail-shell-close").closest("div[style*='position: absolute']");
   expect(holder.style.top).toBe("25px");
-  expect(holder.style.right).toBe("25px");
-  expect(holder.style.transform).toBe("translate(50%, -50%)");
+  expect(holder.style.left).toBe("25px");
+  expect(holder.style.transform).toBe("translate(-50%, -50%)");
   slot.remove();
   window.osInfo = original;
 });

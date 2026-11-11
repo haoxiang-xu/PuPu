@@ -23,14 +23,6 @@ const hasWindowControls = () =>
 /* Live width shared by the floating and docked detail panels. */
 export const DETAIL_WIDTH_VAR = "--pupu-agents-detail-drag-width";
 
-/* Where the docked panel's close button sits in the title bar band: clear
-   of the Windows / Linux window buttons, at the edge on macOS. */
-const detailCloseRight = (platform) => {
-  if (platform === "win32") return windowControlsInset(false) + 3 * 40 + 8;
-  if (platform === "linux") return windowControlsInset(true) + 3 * 24 + 2 * 8 + 8;
-  return TOP_BAR_HEIGHT / 2;
-};
-
 /* The builder's chrome, shared by both canvases.
  *
  * The unified design has exactly these pieces floating over a full-bleed
@@ -487,6 +479,29 @@ function DockedDetailPanel({
   const backdropFilter = resizing ? "none" : SIDEBAR_GLASS_FILTER;
   /* The left side menu's frost, through the same compositing pass. */
   const surface = useSurfaceComposite({ backgroundColor, backdropFilter, enabled: !resizing });
+  const closeButton = typeof onClose === "function" && (
+    <div style={{
+      position: "absolute",
+      top: TOP_BAR_HEIGHT / 2,
+      left: TOP_BAR_HEIGHT / 2,
+      transform: "translate(-50%, -50%)",
+      opacity: open ? 1 : 0,
+      pointerEvents: open ? "auto" : "none",
+      transition: `opacity ${SLIDE}`,
+      WebkitAppRegion: "no-drag",
+    }}>
+      <div style={{ transform: "scaleX(-1)", display: "flex" }}>
+        <Button
+          prefix_icon="side_menu_close"
+          ariaLabel={t("common.close")}
+          disabled={!open}
+          onClick={onClose}
+          dom_props={{ "data-testid": `${testId}-close` }}
+          style={{ fontSize: 14, color: "var(--pupu-text)", WebkitAppRegion: "no-drag" }}
+        />
+      </div>
+    </div>
+  );
   return (
     <>
       {surface.definition}
@@ -538,6 +553,7 @@ function DockedDetailPanel({
             WebkitAppRegion: "drag",
           }}
         >
+          {closeButton}
           {/* The panel's colour covers the title bar's window buttons, so
               it carries its own while open. */}
           {platform !== "darwin" && hasWindowControls() && (
@@ -571,37 +587,6 @@ function DockedDetailPanel({
           onDrag={handle.onDrag}
           onDragEnd={handle.onDragEnd}
         />
-      )}
-      {typeof onClose === "function" && (
-        <div
-          style={{
-            position: "absolute",
-            top: TOP_BAR_HEIGHT / 2,
-            right: detailCloseRight(platform),
-            /* On macOS the button's centre sits as far from the right edge
-               as from the top: tucked into the corner. */
-            transform:
-              platform === "win32" || platform === "linux"
-                ? "translateY(-50%)"
-                : "translate(50%, -50%)",
-            opacity: open ? 1 : 0,
-            pointerEvents: open ? "auto" : "none",
-            transition: `opacity ${SLIDE}`,
-            WebkitAppRegion: "no-drag",
-          }}
-        >
-          {/* The left side menu's open-state glyph, mirrored for the right. */}
-          <div style={{ transform: "scaleX(-1)", display: "flex" }}>
-            <Button
-              prefix_icon="side_menu_close"
-              ariaLabel={t("common.close")}
-              disabled={!open}
-              onClick={onClose}
-              dom_props={{ "data-testid": `${testId}-close` }}
-              style={{ fontSize: 14, color: "var(--pupu-text)", WebkitAppRegion: "no-drag" }}
-            />
-          </div>
-        </div>
       )}
     </>
   );

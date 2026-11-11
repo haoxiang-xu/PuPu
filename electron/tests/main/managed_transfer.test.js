@@ -37,6 +37,32 @@ test('fixed importer and exporter preserve the exact payload', () => {
   expect(buildSkeletonResourceRequest('code_export', { resource_id: fixture.snapshot.document.id })).toEqual({ method: 'GET', path: `/skeleton_resources/v2/${fixture.snapshot.document.id}/export` });
 });
 
+test('Delete crosses preload and Main once with a closed CAS body', async () => {
+  const service = await ready();
+  global.fetch = jest.fn(async (url) => new URL(url).pathname.endsWith('/capabilities')
+    ? response(fixture.code_capabilities) : response({ ok: true }));
+  try {
+    const bridge = createMisoBridge({ invoke: (_channel, command) => createSkeletonResourceReply(
+      () => service.runMisoSkeletonResourceCommand(command.action, command.payload)) }, {});
+    expect(await bridge.deleteSkeletonResource('delete-me', 'edit-current')).toEqual({ ok: true });
+    expect(global.fetch.mock.calls.map(([url, init]) => [new URL(url).pathname, init.method])).toEqual([
+      ['/skeleton_resources/v2/capabilities', 'GET'], ['/skeleton_resources/v2/delete-me', 'DELETE']]);
+    expect(JSON.parse(global.fetch.mock.calls[1][1].body)).toEqual({ expected_edit_token: 'edit-current' });
+    expect(global.fetch.mock.calls[1][1].headers['x-unchain-auth']).toBe('qa-auth-token');
+  } finally { service.stopMiso(); }
+});
+
+test.each([{ ok: false }, { ok: true, archived: true }, {}])('Delete refuses an ambiguous success reply %j', async reply => {
+  const service = await ready();
+  global.fetch = jest.fn(async (url) => new URL(url).pathname.endsWith('/capabilities')
+    ? response(fixture.code_capabilities) : response(reply));
+  try {
+    await expect(service.runMisoSkeletonResourceCommand('code_delete', {
+      resource_id: 'delete-me', expected_edit_token: 'edit-current',
+    })).rejects.toMatchObject({ code: 'managed_source_protocol_error' });
+  } finally { service.stopMiso(); }
+});
+
 test('preload -> real Main handshakes both contracts before the exact import body', async () => {
   const service = await ready(); const fetch = fetchRoutes(); global.fetch = fetch;
   try {

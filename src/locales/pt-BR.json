@@ -979,6 +979,7 @@
         "delete_folder": "Excluir pasta",
         "duplicate": "Duplicar",
         "archive": "Arquivar",
+        "delete": "Excluir",
         "restore": "Restaurar",
         "open_legacy": "Abrir no editor antigo",
         "save_first": "salve primeiro",
@@ -992,6 +993,7 @@
       "duplicate_failed": "Não foi possível duplicar “{name}”: {message}",
       "restore_failed": "Não foi possível restaurar “{name}”: {message}",
       "archive_failed": "Não foi possível arquivar “{name}”: {message}",
+      "delete_failed": "Não foi possível excluir “{name}”: {message}",
       "not_migrated": "Não migrados",
       "archived": "Arquivados",
       "hide_agents": "Ocultar agentes",
@@ -1009,10 +1011,13 @@
       "not_migrated_description": "Não migrados: receitas para as quais o armazenamento ainda não tem um agente. Elas abrem no editor antigo; o log do sidecar informa por que não foram migradas.",
       "delete_folder_title": "Excluir a pasta “{name}”?",
       "archive_title": "Arquivar “{name}”?",
+      "delete_title": "Excluir “{name}”?",
       "delete_folder_description": "A pasta e as pastas dentro dela são removidas. Os agentes nelas são mantidos e movidos para o nível superior.",
       "archive_description": "Ele sai desta lista e novos chats não podem mais selecioná-lo. Tudo que já o utiliza continua funcionando. Restaure-o em Arquivados.",
+      "delete_description": "Exclui permanentemente este recurso e suas versões publicadas. Esta ação não pode ser desfeita.",
       "delete_folder": "Excluir pasta",
-      "archive": "Arquivar"
+      "archive": "Arquivar",
+      "delete": "Excluir"
     },
     "shell": {
       "exit_fullscreen": "Sair da tela cheia",

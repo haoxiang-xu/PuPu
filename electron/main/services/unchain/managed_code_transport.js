@@ -83,6 +83,11 @@ const validateAggregate = value => {
 };
 
 const validateManagedCodeReply = (action, value) => {
+  if (action === 'code_delete') {
+    closed(value, ['ok']);
+    if (value.ok !== true) fail();
+    return value;
+  }
   if (action === 'code_capabilities') {
     closed(value, ['schema', 'edit_schema', 'resource_schema', 'publication_schema', 'version_schema', 'preflight_schema',
       'source_bytes', 'total_bytes', 'bindings', 'request_bytes', 'runtime_manifest']);
@@ -119,10 +124,16 @@ const validateManagedCodeReply = (action, value) => {
   return validateAggregate(value);
 };
 
-const ACTIONS = new Set(['code_capabilities', 'code_get', 'code_save', 'code_preflight', 'code_publish', 'code_get_version']);
+const ACTIONS = new Set(['code_capabilities', 'code_get', 'code_save', 'code_preflight', 'code_publish', 'code_get_version', 'code_delete']);
 const buildManagedCodeRequest = (action, payload) => {
   if (!ACTIONS.has(action)) return null;
   if (action === 'code_capabilities') { closed(payload, []); return { method: 'GET', path: '/skeleton_resources/v2/capabilities' }; }
+  if (action === 'code_delete') {
+    closed(payload, ['resource_id', 'expected_edit_token']);
+    if (!id(payload.resource_id) || typeof payload.expected_edit_token !== 'string' || !payload.expected_edit_token) fail();
+    return { method: 'DELETE', path: '/skeleton_resources/v2/' + encodeURIComponent(payload.resource_id),
+      body: { expected_edit_token: payload.expected_edit_token } };
+  }
   if (action === 'code_save') {
     closed(payload, ['schema', 'document', 'expected_edit_token', 'managed_sources']);
     // Host owns full graph/type validation; Main never rewrites a source edit.

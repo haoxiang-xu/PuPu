@@ -1003,6 +1003,7 @@
         "delete_folder": "刪除資料夾",
         "duplicate": "複製",
         "archive": "封存",
+        "delete": "刪除",
         "restore": "還原",
         "open_legacy": "在舊版編輯器中開啟",
         "save_first": "請先儲存",
@@ -1016,6 +1017,7 @@
       "duplicate_failed": "無法複製「{name}」：{message}",
       "restore_failed": "無法還原「{name}」：{message}",
       "archive_failed": "無法封存「{name}」：{message}",
+      "delete_failed": "無法刪除「{name}」：{message}",
       "not_migrated": "未移轉",
       "archived": "已封存",
       "hide_agents": "隱藏智慧體",
@@ -1033,12 +1035,15 @@
       "not_migrated_description": "未移轉：儲存服務尚未為這些配方建立智慧體。它們會在舊版編輯器中開啟；sidecar 日誌會說明未移轉的原因。",
       "delete_folder_title": "刪除資料夾「{name}」？",
       "archive_title": "封存「{name}」？",
+      "delete_title": "刪除「{name}」？",
       "delete_folder_description": "此資料夾及其中的資料夾會被移除。其中的智慧體會保留並移至最上層。",
       "archive_description": "它將從此清單中移除，新聊天將無法再選取它。已在使用它的內容會繼續正常運作。可從「已封存」中還原。",
+      "delete_description": "將永久刪除此資源及其發布版本，此操作無法復原。",
       "delete_folder": "刪除資料夾",
       "archive": "封存",
       "old_editor": "舊版編輯器",
-      "unsaved": "未儲存"
+      "unsaved": "未儲存",
+      "delete": "刪除"
     },
     "save": {
       "store_unavailable": "此組建版本無法連線至智慧體庫，因此無法儲存或執行此處的任何內容。",
