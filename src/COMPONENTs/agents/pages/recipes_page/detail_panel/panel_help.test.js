@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { ConfigContext } from "../../../../../CONTAINERs/config/context";
 import PanelHelp from "./panel_help";
 import MissingPolicySelect from "./missing_policy_select";
@@ -73,4 +73,18 @@ test("an invalid caller stays visible without opening help", () => {
   show(<InputVariablesSection document={{ nodes: [node], edges: [] }} node={node}
     startContext={{ kind: "invalid", fields: [], message: "Caller fields contain duplicate names." }} />);
   expect(screen.getByText("Caller fields contain duplicate names.")).toBeVisible();
+});
+
+test("result inventory guidance stays next to the field selector it describes", async () => {
+  const write = jest.fn();
+  show(<OutputRow mapping={{ name: "answer", source: { kind: "result", path: ["message"] } }} index={0}
+    nodeType="agent" kinds={["input", "result"]} inputNames={["question"]}
+    resultRoots={{ known: true, closed: false, roots: ["message", "context"], reason: "The result may contain extra fields." }}
+    problems={[]} onChange={write} onRemove={jest.fn()} />);
+  const source = screen.getByTestId("output-row-0-source");
+  const help = within(source).getByRole("button", { name: "Result · About", exact: true });
+  expect(within(source).getByRole("combobox")).not.toContainElement(help);
+  fireEvent.focus(help);
+  expect(await screen.findByText("The result may contain extra fields.")).toBeInTheDocument();
+  expect(write).not.toHaveBeenCalled();
 });

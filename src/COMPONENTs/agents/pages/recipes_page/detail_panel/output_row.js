@@ -1,7 +1,7 @@
 import VariableSettings, { VariableSettingRow } from "./variable_settings";
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import React, { useId, useState } from "react";
-import Select from "../../../../../BUILTIN_COMPONENTs/select/select";
+import Select from "./panel_select";
 import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import PathEditor from "./path_editor";
@@ -221,7 +221,7 @@ export default function OutputRow({
           placeholder={t("agents.io.name_placeholder")}
           style={{ width: "100%", minWidth: 0, fontSize: 11.5, ...MONO, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 5 }} />
         <span aria-hidden="true" style={CAPTION}>←</span>
-        <div data-testid={`output-row-${index}-source`} title={sourceLabel} style={{ display: "flex", minWidth: 0 }}>
+        <div data-testid={`output-row-${index}-source`} title={sourceLabel} style={{ display: "flex", alignItems: "center", gap: 4, minWidth: 0 }}>
           {editable && roots !== null ? (
             <RootPicker roots={roots} wholeLabel={kind === "input" ? t("agents.io.everything_it_was_given") : t("agents.io.the_whole_result")}
               open={open} choice={choice} path={path} prefix={prefix} summary={sourceLabel}
@@ -230,6 +230,9 @@ export default function OutputRow({
             <Button label={sourceLabel} onClick={() => setExpanded(true)}
               style={{ minWidth: 0, maxWidth: "100%", fontSize: 11.5, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 5 }} />
           )}
+          {editable && roots !== null && open && resultRoots.reason && <PanelHelp label={t("agents.execution.code.result")}>
+            <span data-testid={`output-row-${index}-result-open`}>{resultRoots.reason}</span>
+          </PanelHelp>}
         </div>
         <Button prefix_icon="more" ariaLabel={`${mapping?.name || t("agents.io.output_variables")} · ${t("chat.attach.more")}`}
           dom_props={{ "aria-expanded": expanded, "aria-controls": settingsId }}
@@ -253,11 +256,11 @@ export default function OutputRow({
         ) : (
           <span data-testid={`output-row-${index}-fixed-kind`} title={single_kind_caption} style={CAPTION}>{prefix}</span>
         )}
+        {editable && roots === null && resultRoots?.reason && <PanelHelp label={t("agents.execution.code.result")}>
+          <span data-testid={`output-row-${index}-result-unknown`}>{resultRoots.reason}</span>
+        </PanelHelp>}
         </VariableSettingRow>
         {editable && roots !== null && <>
-          {open && resultRoots.reason && <PanelHelp label={t("agents.execution.code.result")}>
-            <span data-testid={`output-row-${index}-result-open`}>{resultRoots.reason}</span>
-          </PanelHelp>}
           {/* The whole object has no inside to reach into, so there are no
               deeper steps to offer. A typed first step is rendered as a step
               rather than hidden behind the picker, which is the only way an
@@ -290,9 +293,6 @@ export default function OutputRow({
             identity={identity}
             onChange={(next) => set_source({ path: next })}
           />
-          {resultRoots && resultRoots.reason && <PanelHelp label={t("agents.execution.code.result")}>
-            <span data-testid={`output-row-${index}-result-unknown`}>{resultRoots.reason}</span>
-          </PanelHelp>}
         </div>
       )}
 

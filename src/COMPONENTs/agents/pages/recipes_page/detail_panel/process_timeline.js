@@ -7,38 +7,34 @@ import InputVariablesSection from "./input_variables_section";
 import OutputVariablesSection from "./output_variables_section";
 import OutputSchemaSection from "./output_schema_section";
 import KernelSection from "./kernel_section";
-import { node_bindings, node_output_mappings } from "../skeleton_document";
-
-function names_summary(rows) {
-  return rows.map((row) => typeof row?.name === "string" ? row.name : "").filter(Boolean).join(", ");
-}
-
-function ProcessDisclosure({ id, section, title, summary, problems, expanded, onToggle, isDark, reducedMotion, children }) {
-  const issue = problems.find((problem) => typeof problem?.message === "string")?.message;
+import PanelHelp from "./panel_help";
+function ProcessDisclosure({ id, section, title, help, problems, expanded, onToggle, isDark, reducedMotion, children }) {
   return (
     // Keep the larger title hit target on Timeline's point baseline. Section
     // grouping comes from the rail and spacing, with no hover surface.
     <div data-testid={`process-disclosure-${section}`}
       style={{ marginTop: -8, marginLeft: -6, marginRight: -6, minWidth: 0, backgroundColor: "transparent" }}>
-      <button type="button" aria-label={title} aria-expanded={expanded}
-        aria-controls={id} aria-describedby={`${id}-summary`} onClick={onToggle}
+      <div data-testid={`process-header-${section}`}
         style={{
-          display: "flex", alignItems: "center", gap: 7, width: "100%", minWidth: 0,
-          padding: "6px 9px", minHeight: 32, border: 0, borderRadius: 8,
-          font: "inherit", fontSize: 12, lineHeight: "18px", textAlign: "left", cursor: "pointer",
+          position: "relative", display: "flex", alignItems: "center", gap: 7, minWidth: 0,
+          padding: "6px 9px", minHeight: 32, boxSizing: "border-box",
+          fontSize: 12, lineHeight: "18px",
           color: isDark ? "#e6e6e6" : "#222",
-          backgroundColor: "transparent",
         }}>
-        <span style={{ flexShrink: 0, fontWeight: 500 }}>{title}</span>
-        <span id={`${id}-summary`} style={{ flex: 1, minWidth: 0, color: "#86868b", fontSize: 11,
-          textAlign: "right", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {summary || "—"}{issue ? ` · ${issue}` : ""}
-        </span>
-        {problems.length > 0 && <span aria-hidden="true" style={{ color: isDark ? "#ffaaaa" : "#a52a2a", fontSize: 11 }}>!</span>}
-        <Icon src="arrow_right" color="#86868b" style={{ width: 12, height: 12, flexShrink: 0,
-          transform: expanded ? "rotate(90deg)" : "none",
+        {/* A full-row native toggle, with help as its own sibling control. */}
+        <button type="button" aria-label={title} aria-expanded={expanded}
+          aria-controls={id} onClick={onToggle}
+          style={{ position: "absolute", inset: 0, width: "100%", minHeight: 32,
+            padding: "6px 9px", border: 0, borderRadius: 8, cursor: "pointer", backgroundColor: "transparent" }} />
+        <span style={{ flexShrink: 0, fontWeight: 500, pointerEvents: "none" }}>{title}</span>
+        <Icon src="arrow_down" color="#86868b" style={{ width: 12, height: 12, flexShrink: 0,
+          pointerEvents: "none", transform: expanded ? "rotate(180deg)" : "none",
           transition: reducedMotion ? "none" : "transform 200ms cubic-bezier(0.32,0.72,0,1)" }} />
-      </button>
+        {help && <span style={{ position: "relative", display: "inline-flex", flexShrink: 0, marginLeft: -4 }}>
+          <PanelHelp label={title}>{help}</PanelHelp>
+        </span>}
+        {problems.length > 0 && <span aria-hidden="true" style={{ color: isDark ? "#ffaaaa" : "#a52a2a", fontSize: 11, pointerEvents: "none" }}>!</span>}
+      </div>
       <div id={id} role="region" aria-label={title} aria-hidden={!expanded} inert={!expanded}
         data-testid={`process-section-${section}`}
         style={{ display: "grid", minWidth: 0, gridTemplateRows: expanded ? "1fr" : "0fr",
@@ -68,25 +64,23 @@ export default function ProcessTimeline({ document, node, revision, isDark, onCh
     if (next.has(key)) next.delete(key); else next.add(key);
     return next;
   });
-  const inputs = node_bindings(node);
-  const outputs = node_output_mappings(node);
   const inputProblems = Object.values(rowDiagnostics?.inputs || {}).flat();
   const outputProblems = Object.values(rowDiagnostics?.outputs || {}).flat();
   const input = <InputVariablesSection document={document} node={node} rowDiagnostics={rowDiagnostics?.inputs}
-    isDark={isDark} onChange={onChange} hideHeading addAtEnd />;
+    isDark={isDark} onChange={onChange} hideHeading addAtEnd breadcrumb />;
   const output = <>
     <OutputSchemaSection document={document} node={node} revision={revision} isDark={isDark} onChange={onChange} />
     <OutputVariablesSection document={document} node={node} revision={revision} rowDiagnostics={rowDiagnostics?.outputs}
-      isDark={isDark} onChange={onChange} hideHeading addAtEnd />
+      isDark={isDark} onChange={onChange} hideHeading addAtEnd breadcrumb />
   </>;
 
   return <KernelSection document={document} node={node} revision={revision} isDark={isDark} onChange={onChange}
-    renderSections={({ model, prompt, modelSummary, promptSummary, modelProblems, promptProblems }) => {
+    renderSections={({ model, prompt, promptHelp, modelProblems, promptProblems }) => {
       const sections = [
-        { key: "input", title: t("agents.io.input_variables"), summary: names_summary(inputs), content: input, problems: inputProblems },
-        { key: "model", title: t("agents.inspector.model"), summary: modelSummary || t("agents.execution.kernel.pick_a_model"), content: model, problems: modelProblems },
-        { key: "prompt", title: t("agents.execution.agent.prompt"), summary: promptSummary, content: prompt, problems: promptProblems },
-        { key: "output", title: t("agents.io.output_variables"), summary: names_summary(outputs), content: output, problems: outputProblems },
+        { key: "input", title: t("agents.io.input_variables"), content: input, problems: inputProblems },
+        { key: "model", title: t("agents.inspector.model"), content: model, problems: modelProblems },
+        { key: "prompt", title: t("agents.execution.agent.prompt"), content: prompt, help: promptHelp, problems: promptProblems },
+        { key: "output", title: t("agents.io.output_variables"), content: output, problems: outputProblems },
       ];
       return <div data-testid="process-detail-timeline" style={{ minWidth: 0 }}>
         <Timeline compact show_all_points items={sections.map((section, index) => ({
@@ -96,7 +90,7 @@ export default function ProcessTimeline({ document, node, revision, isDark, onCh
             background: index === 0 || index === 3 ? (isDark ? "#a0a0aa" : "#81818b") : "transparent",
             border: index === 0 || index === 3 ? "none" : `1px solid ${isDark ? "#a0a0aa" : "#81818b"}` }} />,
           body: <ProcessDisclosure id={`${id}-${section.key}`} section={section.key} title={section.title}
-            summary={section.summary} problems={section.problems} expanded={open.has(section.key)} onToggle={() => toggle(section.key)}
+            help={section.help} problems={section.problems} expanded={open.has(section.key)} onToggle={() => toggle(section.key)}
             isDark={isDark} reducedMotion={reducedMotion}>{section.content}</ProcessDisclosure>,
         }))} />
       </div>;

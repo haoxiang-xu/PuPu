@@ -27,6 +27,7 @@ import {
 } from "../../../SERVICEs/attach_panel_layout";
 import { resetSettingsRepositoryForTests } from "../../../SERVICEs/settings_repository";
 import { Z } from "../../../BUILTIN_COMPONENTs/layer/z_layers";
+import { modelPickerTriggerStyle } from "../../../BUILTIN_COMPONENTs/select/model_picker";
 
 const {
   buildRunBundleV1,
@@ -83,7 +84,8 @@ const mockKeepOpenBySelector = {};
 
 const mockSelectStyleBySelector = {};
 
-jest.mock("../../../BUILTIN_COMPONENTs/select/select", () => ({
+jest.mock("../../../BUILTIN_COMPONENTs/select/select", () => {
+  const selectExports = {
   __esModule: true,
   Select: ({
     options = [],
@@ -166,7 +168,9 @@ jest.mock("../../../BUILTIN_COMPONENTs/select/select", () => ({
       </div>
     );
   },
-}));
+};
+  return { ...selectExports, default: selectExports.Select };
+});
 
 jest.mock("./attachment_chip_list", () => ({
   __esModule: true,
@@ -1132,7 +1136,9 @@ describe("attach panel semantic surface binding", () => {
     expect(src).not.toMatch(/rgba\(252,252,252/);
     expect(src).toMatch(/panelBg = isDark[\s\S]{0,140}var\(--pupu-surface-rgb\)/);
     // pill overlay follows the neutral-overlay policy (text tier + alpha)
-    expect(src).toMatch(/selectBg = isDark[\s\S]{0,140}var\(--pupu-text-rgb\)/);
+    expect(src).toContain("modelPickerTriggerStyle({ isDark, color, floating })");
+    expect(modelPickerTriggerStyle({ isDark: true }).backgroundColor).toBe("rgba(var(--pupu-text-rgb),0.07)");
+    expect(modelPickerTriggerStyle({ isDark: false }).backgroundColor).toBe("rgba(var(--pupu-text-rgb),0.05)");
     // floating pill hairline border binds the mid border-strength tier (input-family)
     expect(src).toMatch(/border: floating[\s\S]{0,80}var\(--pupu-border-mid\)/);
   });

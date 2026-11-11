@@ -235,6 +235,40 @@ describe("SideMenu", () => {
     document.documentElement.style.removeProperty("--pupu-side-menu-width");
   });
 
+  test("Agents sidebar drag updates its visible width without mutating the shared root style", () => {
+    writeFeatureFlags({ enable_user_access_to_agents: true });
+    const root = document.documentElement;
+    root.style.setProperty("--pupu-side-menu-width", "320px");
+    const setSideMenuWidth = jest.fn();
+    renderSideMenu({ appMode: "agents", setSideMenuWidth });
+    const frames = jest.spyOn(window, "requestAnimationFrame").mockReturnValue(1);
+    const pointer = (target, type, clientX) =>
+      fireEvent(target, new MouseEvent(type, { bubbles: true, clientX, button: 0 }));
+
+    try {
+      pointer(screen.getByTestId("side-menu-resize-handle"), "pointerdown", 320);
+      frames.mockClear();
+      const initialStyle = root.getAttribute("style");
+      pointer(window, "pointermove", 350);
+      pointer(window, "pointermove", 380);
+      expect(frames).toHaveBeenCalledTimes(1);
+      act(() => frames.mock.calls[0][0](0));
+      expect(root.getAttribute("style")).toBe(initialStyle);
+      const liveWidth = Array.from(document.styleSheets)
+        .flatMap((sheet) => Array.from(sheet.cssRules))
+        .map((rule) => rule.style?.getPropertyValue("--pupu-agents-sidebar-drag-width"))
+        .find(Boolean);
+      expect(liveWidth).toBe("380px");
+      expect(setSideMenuWidth).not.toHaveBeenCalled();
+      pointer(window, "pointerup", 380);
+      expect(setSideMenuWidth).toHaveBeenCalledWith(380);
+      expect(root.style.getPropertyValue("--pupu-side-menu-width")).toBe("380px");
+    } finally {
+      frames.mockRestore();
+      root.style.removeProperty("--pupu-side-menu-width");
+    }
+  });
+
   test("the breadcrumb sits above the search: Home on the chat list", () => {
     renderSideMenu({ appMode: "chat", setAppMode: jest.fn() });
     const crumbs = screen.getByTestId("side-menu-breadcrumb");

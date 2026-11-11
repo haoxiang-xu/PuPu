@@ -23,6 +23,7 @@ import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
 import Slider from "../../../BUILTIN_COMPONENTs/input/slider";
 import Tooltip from "../../../BUILTIN_COMPONENTs/tooltip/tooltip";
 import { Select } from "../../../BUILTIN_COMPONENTs/select/select";
+import ModelPicker, { modelPickerTriggerStyle } from "../../../BUILTIN_COMPONENTs/select/model_picker";
 import AttachmentChipList from "./attachment_chip_list";
 import { QueueAttachSection } from "./queue_pile";
 import { WorkspaceModal } from "../../workspace/workspace_modal";
@@ -1732,10 +1733,6 @@ const AttachPanel = forwardRef(({
       ? "rgba(var(--pupu-surface-rgb),0.6)"
       : "rgba(var(--pupu-surface-rgb),0.72)";
 
-  const selectBg = isDark
-    ? "rgba(var(--pupu-text-rgb),0.07)"
-    : "rgba(var(--pupu-text-rgb),0.05)";
-
   /* ── Hover / press, aligned across the whole row ──────────────────────
      One gesture must not read as three different things. Before this, the
      model pill stacked the theme's hover wash on its own fill and landed at
@@ -1757,21 +1754,9 @@ const AttachPanel = forwardRef(({
   const hoverWash = textWash(HOVER_ALPHA);
   const pressWash = textWash(PRESS_ALPHA);
   const hoverWashOverFill = washOver(HOVER_ALPHA, SELECT_FILL_ALPHA);
-  const pressWashOverFill = washOver(PRESS_ALPHA, SELECT_FILL_ALPHA);
 
   /* shared pill style (model selector) */
-  const pillStyle = {
-    height: PILL_HEIGHT,
-    fontSize: 12,
-    color,
-    backgroundColor: selectBg,
-    borderRadius: floating ? 999 : 16,
-    outline: "none",
-    padding: "0 10px",
-    /* this control is filled, so its wash is solved against that fill */
-    hoverBackgroundColor: hoverWashOverFill,
-    activeBackgroundColor: pressWashOverFill,
-  };
+  const pillStyle = modelPickerTriggerStyle({ isDark, color, floating });
 
   /* icon-only buttons: every box is exactly PILL_HEIGHT square so the row's
      inner ring is a uniform 4px — hover circles (r16) + 4px inset = 20, the
@@ -2739,29 +2724,20 @@ const AttachPanel = forwardRef(({
           modelSelectOptions &&
           modelSelectOptions.length > 0 &&
           selectWrap(
-            <Select
+            <ModelPicker
               options={modelSelectOptions}
               value={modelSelectValue}
               set_value={handleSelectValueChange}
               placeholder={t("chat.attach.select_model")}
-              filterable={true}
-              filter_mode="panel"
-              search_placeholder={t("model_providers.search_models")}
               disabled={modelSelectDisabled}
-              show_trigger_icon={true}
               on_group_toggle={onGroupToggle}
               open={openSelector === "model"}
               on_open_change={handleModelSelectorOpenChange}
-              dropdown_position="top"
               style={{ ...pillStyle, maxWidth: 180 }}
-              variant="palette"
-              palette_chip="model"
-              palette_rail
               /* Picking a model never closes the palette: the effort row
                  below is the natural next choice, and switching between
                  models to compare them is a normal thing to do. The trigger
                  and an outside click remain the ways out. */
-              keep_open_on_select
               /* null, not an element that renders null: the footer slot draws
                  its own separator and padding, so an always-present child
                  would leave a rule and a band of empty height under every

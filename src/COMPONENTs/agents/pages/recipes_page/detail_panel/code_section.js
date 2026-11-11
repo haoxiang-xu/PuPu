@@ -4,7 +4,7 @@ import { agentEnglishText, agentMessage, renderAgentMessage } from "../agents_i1
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
-import Select from "../../../../../BUILTIN_COMPONENTs/select/select";
+import Select from "./panel_select";
 import Switch from "../../../../../BUILTIN_COMPONENTs/input/switch";
 import TextField from "../../../../../BUILTIN_COMPONENTs/input/textfield";
 import { BUILDER_SWITCH_SIZE } from "../builder_switch_size";

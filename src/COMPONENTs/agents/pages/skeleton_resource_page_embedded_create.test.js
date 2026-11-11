@@ -9,6 +9,9 @@ import { RESOURCE_RESULT_KEYS } from "./recipes_page/skeleton_resource_capture";
 import { openAddNode, pressCanvasNode } from "./recipes_page/skeleton_canvas_test_helpers";
 
 jest.mock("../../../SERVICEs/api", () => ({ api: { unchain: {} } }));
+jest.mock("../../../SERVICEs/provider_secret_status", () => ({
+  providerSecretConfigured: (provider) => provider === "openai",
+}));
 /* The editor speaks v2 only (#357 G1); these mocks are graph-only. */
 install_legacy_store_bridge(api.unchain);
 const draft = { id: "native-embedded-page", name: "Embedded authoring" };
@@ -31,7 +34,7 @@ async function chooseModel() {
   fireEvent.click(screen.getByRole("button", { name: "Model", exact: true }));
   const models = await screen.findByTestId("kernel-model");
   fireEvent.click(within(models).getByRole("combobox"));
-  fireEvent.click(screen.getByText("openai · gpt-6-luna", { exact: true }));
+  fireEvent.click(within(screen.getByRole("listbox", { hidden: true })).getByText(kernel.profile.model, { exact: true }));
   fireEvent.click(screen.getByRole("button", { name: "Prompt", exact: true }));
   await screen.findByPlaceholderText("what this Agent is for");
 }

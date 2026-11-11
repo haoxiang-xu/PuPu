@@ -3,6 +3,7 @@ import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use
 import React from "react";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import OutputRow from "./output_row";
+import OutputValuePill from "./output_value_pill";
 import {
   node_bindings,
   node_declares_outputs,
@@ -167,6 +168,7 @@ export default function OutputVariablesSection({
   onChange,
   hideHeading = false,
   addAtEnd = false,
+  breadcrumb = false,
 }) {
   const { t } = useTranslation();
   /* A branch selects an outlet rather than producing a value, and a pool
@@ -177,6 +179,7 @@ export default function OutputVariablesSection({
   const kinds = output_source_kinds_for(node.type);
   const names = input_names(node);
   const roots = result_roots_for(node, t);
+  const Row = breadcrumb ? OutputValuePill : OutputRow;
   const composed = [
     ...output_mapping_problems(mappings, t),
     ...output_surface_problems(node, mappings, t),
@@ -239,7 +242,7 @@ export default function OutputVariablesSection({
       )}
 
       {mappings.map((mapping, index) => (
-        <OutputRow
+        <Row
           key={index}
           mapping={mapping}
           index={index}

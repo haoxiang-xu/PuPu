@@ -3,7 +3,7 @@ import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use
 import { agentEnglishText } from "../agents_i18n";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
-import Select from "../../../../../BUILTIN_COMPONENTs/select/select";
+import Select from "./panel_select";
 import { api } from "../../../../../SERVICEs/api";
 import { readSkillsIncludeUserDirsSetting } from "../../../../../SERVICEs/plugin_skill_sync";
 import { safe_text } from "../document_values";

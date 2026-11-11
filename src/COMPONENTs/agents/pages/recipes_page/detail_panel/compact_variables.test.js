@@ -109,7 +109,7 @@ test.each([false, true])("expanded input settings form a bounded, aligned group 
   expect(surface.style.borderRadius).toBe("8px");
   expect(within(surface).getByText("Source")).toBeVisible();
   expect(within(surface).getByText("Source").style.width).toBe(within(surface).getByText("If missing").style.width);
-  expect(within(surface).getAllByRole("combobox").every(control => control.style.justifyContent === "flex-start")).toBe(true);
+  expect(within(surface).getAllByRole("combobox").every(control => control.style.justifyContent === "flex-end")).toBe(true);
   const footer = screen.getByTestId("binding-row-0-settings-footer");
   expect(within(footer).getByRole("button", { name: "Remove question" })).toBeVisible();
 });

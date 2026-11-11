@@ -4,6 +4,7 @@ import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
 import PanelHelp from "./panel_help";
 import BindingRow from "./binding_row";
+import InputValuePill from "./input_value_pill";
 import {
   node_bindings,
   node_output_mappings,
@@ -109,6 +110,7 @@ export default function InputVariablesSection({
   startContext,
   hideHeading = false,
   addAtEnd = false,
+  breadcrumb = false,
 }) {
   const { t } = useTranslation();
   /* Start has no execution.inputs key: these rows describe the caller and
@@ -138,7 +140,7 @@ export default function InputVariablesSection({
         value: first
           ? ref_expression(first.node_id, [first.name])
           : ref_expression("", []),
-        missing: "error",
+        missing: breadcrumb ? "null" : "error",
       }),
     ]);
   }
@@ -179,25 +181,31 @@ export default function InputVariablesSection({
         </span>
       )}
 
-      {bindings.map((binding, index) => (
-        <BindingRow
+      {bindings.map((binding, index) => {
+        const Row = breadcrumb && binding?.value?.kind !== "first_present" ? InputValuePill : BindingRow;
+        return <Row
           key={index}
           binding={binding}
           index={index}
           sources={sources}
           isDark={isDark}
+          hideMissingPolicy={breadcrumb}
           problems={[
             ...composed.filter((problem) =>
               problem.where.startsWith(`bindings[${index}]`),
             ),
             ...((rowDiagnostics && rowDiagnostics[index]) || []),
           ]}
-          onChange={(next) =>
-            set_bindings(bindings.map((old, i) => (i === index ? next : old)))
-          }
+          onChange={(next) => {
+            if (breadcrumb && next.value !== binding?.value) {
+              next = { ...next, missing: "null" };
+              delete next.default;
+            }
+            set_bindings(bindings.map((old, i) => (i === index ? next : old)));
+          }}
           onRemove={() => set_bindings(bindings.filter((_, i) => i !== index))}
-        />
-      ))}
+        />;
+      })}
       {addAtEnd && add_button}
     </div>
   );

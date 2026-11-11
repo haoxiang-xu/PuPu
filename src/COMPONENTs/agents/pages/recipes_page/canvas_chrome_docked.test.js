@@ -1,12 +1,13 @@
-import React from "react";
+import React, { useState } from "react";
+import { createPortal } from "react-dom";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { FloatingDetailShell } from "./canvas_chrome";
 import { NavigationContext } from "../../../../CONTAINERs/config/context";
 
 if (!global.ResizeObserver) global.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
 
-const shell = (open, slot, onClose) => (
-  <NavigationContext.Provider value={{ agentsDetailSlot: slot }}>
+const shell = (open, slot, onClose, appMode = "agents", children = <button type="button">field</button>) => (
+  <NavigationContext.Provider value={{ agentsDetailSlot: slot, appMode }}>
     <div data-testid="canvas">
       <FloatingDetailShell
         isDark={false}
@@ -18,11 +19,42 @@ const shell = (open, slot, onClose) => (
         onClose={onClose}
         handle={{ testId: "detail-handle", pillTestId: "detail-pill", onDragStart() {}, onDrag() {}, onDragEnd() {} }}
       >
-        <button type="button">field</button>
+        {children}
       </FloatingDetailShell>
     </div>
   </NavigationContext.Provider>
 );
+
+test("switching to Chat hides the docked inspector and its popover without losing the draft", () => {
+  const slot = document.createElement("div");
+  document.body.appendChild(slot);
+  try {
+    function Builder({ mode }) {
+      const [draft, setDraft] = useState("");
+      return shell(true, slot, undefined, mode, <>
+        <input aria-label="Draft field" value={draft} onChange={(event) => setDraft(event.target.value)} />
+        {createPortal(<div data-testid="inspector-popover">Picker</div>, document.body)}
+      </>);
+    }
+    const { rerender } = render(<Builder mode="agents" />);
+    const field = screen.getByRole("textbox", { name: "Draft field" });
+    fireEvent.change(field, { target: { value: "unsaved draft" } });
+    const panel = screen.getByTestId("detail-shell");
+    const popover = screen.getByTestId("inspector-popover");
+    expect(panel).toBeVisible();
+    expect(popover).toBeVisible();
+
+    rerender(<Builder mode="chat" />);
+    expect(panel).not.toBeInTheDocument();
+    expect(popover).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "Draft field" })).toBeNull();
+
+    rerender(<Builder mode="agents" />);
+    expect(screen.getByRole("textbox", { name: "Draft field" })).toHaveValue("unsaved draft");
+  } finally {
+    slot.remove();
+  }
+});
 
 test("with the shell's anchor present, the panel is a full-height side menu at the window edge", () => {
   const slot = document.createElement("div");
@@ -41,6 +73,20 @@ test("with the shell's anchor present, the panel is a full-height side menu at t
   expect(panel.style.right).toBe("0px");
   expect(panel.style.borderRadius).toBe("");
   expect(slot.contains(screen.getByTestId("detail-handle"))).toBe(true);
+  slot.remove();
+});
+
+test("its resize handle sits inside the panel like the left side menu's, over the full height", () => {
+  const slot = document.createElement("div");
+  document.body.appendChild(slot);
+  render(shell(true, slot));
+  const handle = screen.getByTestId("detail-handle");
+  /* the whole height, title bar band included, so the pill is centred */
+  expect(handle.style.top).toBe("0px");
+  expect(handle.style.bottom).toBe("0px");
+  /* its 12px hit area ends at the panel's inner edge, inside the panel
+     (jsdom drops var(), so read the source value through the cssText) */
+  expect(handle.getAttribute("style")).not.toContain("- 6px");
   slot.remove();
 });
 

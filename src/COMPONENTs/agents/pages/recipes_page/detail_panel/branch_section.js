@@ -1,7 +1,7 @@
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { agentEnglishText } from "../agents_i18n";
 import React, { useState } from "react";
-import Select from "../../../../../BUILTIN_COMPONENTs/select/select";
+import Select from "./panel_select";
 import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import PathEditor from "./path_editor";

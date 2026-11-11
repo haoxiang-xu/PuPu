@@ -12,6 +12,9 @@ import LegacyUpgradeWizard from "./legacy_upgrade_wizard";
    for the closed shape the host accepted. */
 
 jest.mock("../../../../../SERVICEs/api", () => ({ api: { unchain: {} } }));
+jest.mock("../../../../../SERVICEs/provider_secret_status", () => ({
+  providerSecretConfigured: (provider) => provider === "openai",
+}));
 install_legacy_store_bridge(api.unchain);
 
 jest.mock("../../../../../BUILTIN_COMPONENTs/modal/modal", () => ({ __esModule: true,
@@ -20,7 +23,7 @@ jest.mock("../../../../../BUILTIN_COMPONENTs/select/select", () => function Mock
   return (
     <select data-testid="select" data-placeholder={placeholder || ""} value={value == null ? "" : String(value)} disabled={disabled} onChange={(event) => set_value(event.target.value)}>
       <option value="">{placeholder || ""}</option>
-      {(options || []).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+      {(options || []).flatMap((option) => option.options || [option]).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
     </select>
   );
 });

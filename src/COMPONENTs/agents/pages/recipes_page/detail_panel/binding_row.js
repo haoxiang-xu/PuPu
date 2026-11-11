@@ -2,7 +2,7 @@ import VariableSettings, { VariableSettingRow } from "./variable_settings";
 import { agentEnglishText } from "../agents_i18n";
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import React, { useId, useState } from "react";
-import Select from "../../../../../BUILTIN_COMPONENTs/select/select";
+import Select from "./panel_select";
 import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import MissingPolicySelect from "./missing_policy_select";
@@ -98,6 +98,7 @@ export default function BindingRow({
   isDark,
   onChange,
   onRemove,
+  hideMissingPolicy = false,
 }) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
@@ -176,9 +177,9 @@ export default function BindingRow({
         </VariableSettingRow>
       {editable && kind === "first_present" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <span style={CAPTION}>
+          {!hideMissingPolicy && <span style={CAPTION}>
             {t("agents.io.first_present_caption")}
-          </span>
+          </span>}
           {(value.values || []).map((entry, i) => (
             <div
               key={i}
@@ -239,7 +240,7 @@ export default function BindingRow({
         </div>
       )}
 
-        <MissingPolicySelect binding={binding} onChange={onChange} isDark={isDark} labelWidth={56} />
+        {!hideMissingPolicy && <MissingPolicySelect binding={binding} onChange={onChange} isDark={isDark} labelWidth={56} />}
       </VariableSettings>
       {!editable && (
         <div

@@ -1,12 +1,18 @@
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import PanelHelp from "./panel_help";
-import { agentEnglishText } from "../agents_i18n";
 import React, { useEffect, useState } from "react";
 import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
-import Select from "../../../../../BUILTIN_COMPONENTs/select/select";
+import Select from "./panel_select";
+import ModelPicker from "../../../../../BUILTIN_COMPONENTs/select/model_picker";
+import { kernel_model_options } from "./kernel_model_options";
 import TextField from "../../../../../BUILTIN_COMPONENTs/input/textfield";
 import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
 import usePendingText from "./pending_text";
+import { customProviderKey, readRuntimeProviderDefinitions } from "../../../../../SERVICEs/custom_provider_store";
+import { isFeatureFlagEnabled, subscribeFeatureFlags } from "../../../../../SERVICEs/feature_flags";
+import { subscribeModelCatalogRefresh } from "../../../../../SERVICEs/model_catalog_refresh";
+import { providerSecretConfigured } from "../../../../../SERVICEs/provider_secret_status";
+import { isShippedSlug } from "../../../../../SERVICEs/shipped_provider_registry";
 import { node_bindings, node_kernel, with_node_kernel, with_node_kernel_draft } from "../skeleton_document";
 import { bound_from_text } from "../output_schema_fields";
 import {
@@ -38,8 +44,8 @@ import { identity_of, own, safe_text } from "../document_values";
  * The profile is NOT assembled here. Its endpoint, credential reference,
  * window, output cap and capabilities are facts about this deployment that no
  * renderer can see, and the runtime says whose they are — "Model/provider
- * resolution stays host-owned". They come from the producer
- * (`skeleton_kernel_profiles.py`), which derives them from the installed
+ * resolution stays host-owned". They come from the sidecar catalog and
+ * Main's trusted provider registry. The sidecar derives them from the installed
  * wheel's own catalog and validates each one with the runtime's validator
  * before offering it. This panel picks one and carries it unchanged. */
 
@@ -116,13 +122,6 @@ export function unbound_references(prompt, bindings) {
     .map((binding) => (is_object(binding) ? own(binding, "name") : undefined))
     .filter((name) => typeof name === "string");
   return prompt_references(prompt).filter((name) => !bound.includes(name));
-}
-
-function model_label(profile, t = agentEnglishText) {
-  if (!is_object(profile)) return t("agents.execution.kernel.unreadable_model");
-  const provider = safe_text(own(profile, "provider"));
-  const model = safe_text(own(profile, "model"));
-  return `${provider} · ${model}`;
 }
 
 /* A number box that does not rewrite what is being typed.
@@ -219,24 +218,11 @@ export default function KernelSection({
     : null;
   const stored_profile = kernel ? own(kernel, "profile") : undefined;
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [collapsedProviders, setCollapsedProviders] = useState({});
 
-  /* The catalog, read once per mounted section.
-   *
-   * No request ticket, unlike the pool's library read: that one re-asks while
-   * the panel stays mounted, so an answer there can be about an earlier
-   * question. This asks once — the catalog is a fact about the build, not
-   * about the selected node — so the only answer that can arrive late is one
-   * for a section that is gone, which is what the `live` flag is for. A
-   * ticket beside it would be machinery whose second case cannot happen.
-   *
-   * The `catch` is not optional: without it a rejected promise leaves the
-   * section saying it is still reading, forever.
-   *
-   * Three outcomes and not two. `unreachable` is "this build has no route to
-   * the runtime"; `unreadable` is "the route answered with something that is
-   * not a catalog". Collapsing them left the second wearing the caption for
-   * an empty catalog, which says this build offers no model — said about an
-   * answer that said nothing at all. */
+  const [customProvidersEnabled, setCustomProvidersEnabled] = useState(
+    () => isFeatureFlagEnabled("enable_custom_model_providers"),
+  );
   const [catalog, setCatalog] = useState({
     reading: true,
     failure: null,
@@ -244,10 +230,13 @@ export default function KernelSection({
     unavailable_models: [],
   });
   useEffect(() => {
-    let live = true;
-    kernel_profiles()
-      .then((result) => {
-        if (!live) return;
+    let generation = 0;
+    async function refresh() {
+      const request = ++generation;
+      setCatalog((previous) => ({ ...previous, reading: true }));
+      try {
+        const result = await kernel_profiles();
+        if (request !== generation) return;
         if (!result.ok) {
           setCatalog({
             reading: false,
@@ -266,22 +255,26 @@ export default function KernelSection({
           profiles: result.data.profiles,
           unavailable_models: result.data.unavailable,
         });
-      })
-      .catch(() => {
-        if (!live) return;
-        /* `kernel_profiles` answers rather than throwing, so this is a fault
-           in the code above and not a verdict about the runtime — which is
-           why it says the answer could not be read and does not claim the
-           runtime is out of reach. */
+      } catch {
+        if (request !== generation) return;
         setCatalog({
           reading: false,
           failure: "unreadable",
           profiles: [],
           unavailable_models: [],
         });
-      });
+      }
+    }
+    refresh();
+    const unsubscribeCatalog = subscribeModelCatalogRefresh(({ reason }) => {
+      if (reason !== "model_selector_opened") refresh();
+    });
+    const unsubscribeFlags = subscribeFeatureFlags((flags) =>
+      setCustomProvidersEnabled(flags.enable_custom_model_providers === true));
     return () => {
-      live = false;
+      generation += 1;
+      unsubscribeCatalog();
+      unsubscribeFlags();
     };
   }, []);
 
@@ -293,29 +286,26 @@ export default function KernelSection({
     onChange(with_node_kernel(document, node.id, next_kernel));
   }
 
-  /* The stored model stays in the list even when this build no longer offers
-     it — a wheel can stop declaring a model, and a picker that dropped the
-     current one would read as the author never having chosen it, then quietly
-     replace it on the next click. */
-  const offered = catalog.profiles;
+  const visibleProvider = ({ provider }) => customProvidersEnabled || typeof provider !== "string" ||
+    !provider.startsWith("custom.") || isShippedSlug(provider.slice(7));
+  const definitions = readRuntimeProviderDefinitions({ includeUserAuthored: customProvidersEnabled });
+  // Like Attach Panel, check the exact provider identity, including each
+  // shipped site's own key. The host catalog describes model capabilities.
+  const configuredProviders = new Set(["ollama", ...["openai", "anthropic", "gemini"].filter(providerSecretConfigured)]);
+  for (const definition of definitions) {
+    const provider = customProviderKey(definition.id);
+    if (provider && definition.enabled === true &&
+        ((definition.auth?.mode || "none") === "none" || providerSecretConfigured(provider))) {
+      configuredProviders.add(provider);
+    }
+  }
+  const offered = catalog.profiles.filter(({ provider }) => configuredProviders.has(provider));
+  const unavailable = catalog.unavailable_models.filter(visibleProvider);
+  // Keep an unavailable saved choice visible outside the list if its
+  // provider is no longer configured.
+  const storedUnavailable = is_object(stored_profile) && !configuredProviders.has(own(stored_profile, "provider"));
   const stored_id = is_object(stored_profile) ? own(stored_profile, "id") : undefined;
-  const in_catalog =
-    typeof stored_id === "string" &&
-    offered.some((profile) => own(profile, "id") === stored_id);
-  const options = [
-    ...(is_object(stored_profile) && !in_catalog
-      ? [
-          {
-            value: typeof stored_id === "string" ? stored_id : "__stored__",
-            label: t("agents.execution.kernel.unlisted_model_option", { stored_profile: model_label(stored_profile, t) }),
-          },
-        ]
-      : []),
-    ...offered.map((profile) => ({
-      value: own(profile, "id"),
-      label: model_label(profile, t),
-    })),
-  ];
+  const options = kernel_model_options(offered, storedUnavailable ? null : stored_profile, collapsedProviders, t, definitions);
 
   function pick(next_id) {
     const profile = offered.find((item) => own(item, "id") === next_id);
@@ -342,7 +332,9 @@ export default function KernelSection({
   const draft_iterations = Number.isInteger(pendingKernel?.max_iterations) && pendingKernel.max_iterations > 0
     ? pendingKernel.max_iterations
     : undefined;
-  const pending_model = typeof pendingKernel?.model === "string" ? pendingKernel.model : null;
+  const pending_model = storedUnavailable
+    ? `${safe_text(own(stored_profile, "provider"))} · ${safe_text(own(stored_profile, "model"))}`
+    : typeof pendingKernel?.model === "string" ? pendingKernel.model : null;
 
   const hairline = { height: 1, background: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)", margin: "2px 0" };
   const select_style = {
@@ -353,35 +345,52 @@ export default function KernelSection({
     borderRadius: 5,
     gap: 4,
   };
-  const reasons = catalog.unavailable_models.length > 0
-    ? (catalog.unavailable_models.length > 6 ? t("agents.execution.kernel.not_offered_more", { models: catalog.unavailable_models.slice(0, 6).map((entry) => t("agents.execution.kernel.model_reason", { model: safe_text(own(entry, "id")), reason: own(UNAVAILABLE_REASON, own(entry, "reason")) ? t(`agents.execution.kernel.reason_${own(entry, "reason")}`) : safe_text(own(entry, "reason")) })).join(t("agents.execution.kernel.list_separator")), count: catalog.unavailable_models.length - 6 }) : t("agents.execution.kernel.not_offered", { models: catalog.unavailable_models.slice(0, 6).map((entry) => t("agents.execution.kernel.model_reason", { model: safe_text(own(entry, "id")), reason: own(UNAVAILABLE_REASON, own(entry, "reason")) ? t(`agents.execution.kernel.reason_${own(entry, "reason")}`) : safe_text(own(entry, "reason")) })).join(t("agents.execution.kernel.list_separator")) }))
-    : null;
+  const modelReasons = unavailable.slice(0, 6).map((entry) => {
+    const reason = own(entry, "reason");
+    return t("agents.execution.kernel.model_reason", {
+      model: safe_text(own(entry, "id")),
+      reason: own(UNAVAILABLE_REASON, reason) ? t(`agents.execution.kernel.reason_${reason}`) : safe_text(reason),
+    });
+  }).join(t("agents.execution.kernel.list_separator"));
+  const reasons = unavailable.length === 0 ? null : unavailable.length > 6
+    ? t("agents.execution.kernel.not_offered_more", { models: modelReasons, count: unavailable.length - 6 })
+    : t("agents.execution.kernel.not_offered", { models: modelReasons });
   /* When nothing can be picked, the reasons are the answer to "why", so they
      stay beside the picker; otherwise they are detail and wait in Advanced. */
   const reasons_up_front = reasons !== null && options.length === 0;
 
+  const profile_facts = is_object(stored_profile) ? (
+    <span data-testid="kernel-profile-facts" style={{ ...CAPTION, ...MONO }}>
+      {t("agents.execution.kernel.profile_facts", { protocol: safe_text(own(stored_profile, "protocol")), endpoint: safe_text(own(stored_profile, "endpoint")), window: safe_text(own(stored_profile, "context_window")) })}
+    </span>
+  ) : null;
+  const model_help = !kernel ? (
+    <span data-testid="kernel-absent"><span data-testid="kernel-model-help">{t("agents.execution.kernel.no_model")}</span></span>
+  ) : renderSections ? profile_facts : null;
+  const prompt_help = kernel ? (
+    <span data-testid="kernel-prompt-references" style={CAPTION}>
+      {bindings.length === 0 ? t("agents.execution.kernel.no_inputs", { token: "{{#input.name#}}" }) : t("agents.execution.kernel.input_references", { tokens: bindings.map((binding) => `{{#input.${safe_text(own(binding, "name"))}#}}`).slice(0, 4).join(" "), more: bindings.length > 4 ? " …" : "" })}
+    </span>
+  ) : null;
+
   const model_section = (
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        {(!renderSections || !kernel) && <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-          {!renderSections && <span style={SECTION_LABEL}>{t("agents.inspector.model")}</span>}
-          {!kernel && <PanelHelp label={t("agents.inspector.model")}>
-            <span data-testid="kernel-absent"><span data-testid="kernel-model-help">{t("agents.execution.kernel.no_model")}</span></span>
-          </PanelHelp>}
-        </div>}
+        {!renderSections && <span style={SECTION_LABEL}>{t("agents.inspector.model")}</span>}
 
         {options.length > 0 && (
-          <div data-testid="kernel-model">
-            <Select
+          <div data-testid="kernel-model" style={{ display: "flex", alignItems: "center", gap: 4, minWidth: 0 }}>
+            <ModelPicker
               options={options}
               value={typeof stored_id === "string" ? stored_id : null}
               set_value={pick}
-              filterable
-              placeholder={t("agents.execution.kernel.pick_a_model")}
-              dropdown_style={{ maxHeight: "min(280px, 40vh)" }}
-              style={select_style}
+              on_group_toggle={(key) => setCollapsedProviders((old) => ({ ...old, [key]: !own(old, key) }))}
+              trigger_wrapper_style={{ display: "inline-flex", width: 220, minWidth: 0, maxWidth: "100%" }}
+              style={{ width: "100%", maxWidth: "100%", boxSizing: "border-box" }}
             />
+            {model_help && <PanelHelp label={t("agents.inspector.model")}>{model_help}</PanelHelp>}
           </div>
         )}
+        {options.length === 0 && !kernel && <span style={CAPTION}>{model_help}</span>}
 
         {pending_model !== null && (
           <span data-testid="kernel-pending-model" style={CAPTION}>
@@ -403,7 +412,7 @@ export default function KernelSection({
 
         {!catalog.reading && catalog.failure === null && options.length === 0 && (
           <span data-testid="kernel-catalog-empty" style={CAPTION}>
-            {t("agents.execution.kernel.catalog_empty")}
+            {t(catalog.profiles.length > 0 ? "model_providers.no_models_found" : "agents.execution.kernel.catalog_empty")}
           </span>
         )}
 
@@ -471,21 +480,13 @@ export default function KernelSection({
           data-testid="kernel-advanced"
           style={{ display: advancedOpen ? "flex" : "none", flexDirection: "column", gap: 8 }}
         >
-          {is_object(stored_profile) && (
-            <span data-testid="kernel-profile-facts" style={{ ...CAPTION, ...MONO }}>
-              {t("agents.execution.kernel.profile_facts", { protocol: safe_text(own(stored_profile, "protocol")), endpoint: safe_text(own(stored_profile, "endpoint")), window: safe_text(own(stored_profile, "context_window")) })}
-            </span>
-          )}
+          {!renderSections && profile_facts}
 
           {reasons !== null && !reasons_up_front && (
             <span data-testid="kernel-catalog-reasons" style={CAPTION}>{reasons}</span>
           )}
 
-          {kernel && (
-            <span data-testid="kernel-prompt-references" style={CAPTION}>
-              {bindings.length === 0 ? t("agents.execution.kernel.no_inputs", { token: "{{#input.name#}}" }) : t("agents.execution.kernel.input_references", { tokens: bindings.map((binding) => `{{#input.${safe_text(own(binding, "name"))}#}}`).slice(0, 4).join(" "), more: bindings.length > 4 ? " …" : "" })}
-            </span>
-          )}
+          {!renderSections && prompt_help}
 
           {!kernel && pendingKernel && (
             <CountRow
@@ -575,6 +576,7 @@ export default function KernelSection({
     return renderSections({
       model: <div data-testid="skeleton-kernel" style={{ display: "flex", flexDirection: "column", gap: 12 }}>{model_section}{advanced_section}</div>,
       prompt: prompt_section,
+      promptHelp: prompt_help,
       modelSummary: is_object(stored_profile) && typeof stored_profile.model === "string" ? stored_profile.model : "",
       promptSummary: prompt_text,
       modelProblems: problems,

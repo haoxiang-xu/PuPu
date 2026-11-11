@@ -53,11 +53,14 @@ import SideMenuDrillButton from "./side_menu_drill_button";
 import { useAgentsSidebarSearch } from "../../SERVICEs/agents_sidebar_search";
 import { HEADER_ICON_BUTTON } from "../agents/pages/recipes_page/recipe_list";
 import {
+  AGENTS_SIDEBAR_DRAG_WIDTH,
   SIDE_MENU_WIDTH,
+  agentsSidebarWidthCss,
   clampSideMenuWidth,
   sideMenuWidthCss,
   writeSideMenuWidthVar,
 } from "../../SERVICEs/side_menu_width";
+import { createLiveResizeWidth } from "../../SERVICEs/live_resize_width";
 
 /* eslint-disable import/first -- dynamic import() inside lazy() is not a static import */
 const MemoryInspectModal = lazy(() =>
@@ -239,6 +242,11 @@ const SideMenu = () => {
   const resizeStartWidthRef = useRef(sideMenuWidth);
   const resizeWidthRef = useRef(sideMenuWidth);
   const resizeFrameRef = useRef(0);
+  const agentsResize = useRef(null);
+  useEffect(() => () => {
+    agentsResize.current?.dispose();
+    if (resizeFrameRef.current) cancelAnimationFrame(resizeFrameRef.current);
+  }, []);
   const inAgents = appMode === "agents";
   const switchMode = useCallback(
     (mode) => {
@@ -301,12 +309,16 @@ const SideMenu = () => {
   /* Slightly see-through, yet over the shell background it lands on exactly
      the theme's sidebar colour: --pupu-sidebar-glass is solved for that
      (theme_semantic.calibratedGlass). */
-  const sideMenuBackgroundColor = isDark
-    ? "var(--pupu-sidebar-glass, #151515)"
-    : "var(--pupu-sidebar-glass, rgb(245, 245, 245))";
+  const resizingAgentsSidebar = inAgents && sideMenuResizing;
+  const sidebarFallback = isDark ? "#151515" : "rgb(245, 245, 245)";
+  const sideMenuBackgroundColor = resizingAgentsSidebar
+    ? `var(--pupu-sidebar, ${sidebarFallback})`
+    : `var(--pupu-sidebar-glass, ${sidebarFallback})`;
+  const sidebarFilter = resizingAgentsSidebar ? "none" : SIDEBAR_GLASS_FILTER;
   const surface = useSurfaceComposite({
     backgroundColor: sideMenuBackgroundColor,
-    backdropFilter: SIDEBAR_GLASS_FILTER,
+    backdropFilter: sidebarFilter,
+    enabled: !resizingAgentsSidebar,
   });
   const isAgentsEnabled = featureFlags.enable_user_access_to_agents === true;
   const isCharactersEnabled =
@@ -602,11 +614,13 @@ const SideMenu = () => {
         top: 0,
         left: 0,
         bottom: 0,
-        width: onFragment === "side_menu" ? sideMenuWidthCss(sideMenuWidth) : 0,
+        width: onFragment === "side_menu"
+          ? (inAgents ? agentsSidebarWidthCss(sideMenuWidth) : sideMenuWidthCss(sideMenuWidth))
+          : 0,
         backgroundColor: sideMenuBackgroundColor,
-        backdropFilter: SIDEBAR_GLASS_FILTER,
-        WebkitBackdropFilter: SIDEBAR_GLASS_FILTER,
-        ...SURFACE_DITHER_STYLE,
+        backdropFilter: sidebarFilter,
+        WebkitBackdropFilter: sidebarFilter,
+        ...(!resizingAgentsSidebar && SURFACE_DITHER_STYLE),
         ...surface.style,
         display: "flex",
         flexDirection: "column",
@@ -931,6 +945,10 @@ const SideMenu = () => {
           onDragStart={() => {
             resizeStartWidthRef.current = sideMenuWidth;
             resizeWidthRef.current = sideMenuWidth;
+            agentsResize.current?.dispose();
+            agentsResize.current = inAgents
+              ? createLiveResizeWidth(AGENTS_SIDEBAR_DRAG_WIDTH, sideMenuWidth)
+              : null;
             if (typeof setSideMenuResizing === "function") {
               setSideMenuResizing(true);
             }
@@ -941,6 +959,10 @@ const SideMenu = () => {
             resizeWidthRef.current = clampSideMenuWidth(
               resizeStartWidthRef.current + dx,
             );
+            if (agentsResize.current) {
+              agentsResize.current.update(resizeWidthRef.current);
+              return;
+            }
             if (resizeFrameRef.current) return;
             resizeFrameRef.current = requestAnimationFrame(() => {
               resizeFrameRef.current = 0;
@@ -953,6 +975,8 @@ const SideMenu = () => {
               resizeFrameRef.current = 0;
             }
             writeSideMenuWidthVar(resizeWidthRef.current);
+            agentsResize.current?.dispose();
+            agentsResize.current = null;
             if (typeof setSideMenuWidth === "function") {
               setSideMenuWidth(resizeWidthRef.current);
             }

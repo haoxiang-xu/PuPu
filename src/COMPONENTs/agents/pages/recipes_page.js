@@ -2,9 +2,10 @@ import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_trans
 import { agentMessage, agentProblemMessage, agentError } from "./recipes_page/agents_i18n";
 import ShadowSurface from "../../../BUILTIN_COMPONENTs/material/shadow_surface";
 import { useSurfaceComposite } from "../../../BUILTIN_COMPONENTs/material/surface_composite";
-import { useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { NavigationContext } from "../../../CONTAINERs/config/context";
-import { SIDE_MENU_WIDTH, sideMenuWidthCss } from "../../../SERVICEs/side_menu_width";
+import { SIDE_MENU_WIDTH, agentsSidebarWidthCss } from "../../../SERVICEs/side_menu_width";
+import { createLiveResizeWidth } from "../../../SERVICEs/live_resize_width";
 import { createPortal } from "react-dom";
 import { api } from "../../../SERVICEs/api";
 import {
@@ -50,6 +51,7 @@ import {
   unwind_drill_stack,
 } from "./recipes_page/subagent_drill";
 
+const LIST_WIDTH_VAR = "--pupu-agents-list-drag-width";
 
 export default function RecipesPage({
   isDark,
@@ -76,7 +78,7 @@ export default function RecipesPage({
   const nav = useContext(NavigationContext) || {};
   const crumbLeft =
     explorerDocked && nav.onFragment === "side_menu"
-      ? `calc(${sideMenuWidthCss(nav.sideMenuWidth || SIDE_MENU_WIDTH.DEFAULT)} + 14px)`
+      ? `calc(${agentsSidebarWidthCss(nav.sideMenuWidth || SIDE_MENU_WIDTH.DEFAULT)} + 14px)`
       : topStripLeft;
   /* Where the list's own toggle sits inside the open panel, so the floating
      one shown while it is collapsed lands on the same spot. Next to the
@@ -190,7 +192,7 @@ export default function RecipesPage({
     });
   }, [containerWidth]);
   const [resizingPanel, setResizingPanel] = useState(null);
-  const resizeStartWidthRef = useRef(0);
+  const panelDrag = useRef(null);
   const containerWidthRef = useRef(containerWidth);
   useEffect(() => {
     containerWidthRef.current = containerWidth;
@@ -205,67 +207,39 @@ export default function RecipesPage({
   }, [panelWidths]);
 
   const beginResize = (panel) => {
-    resizeStartWidthRef.current = panelWidthsRef.current[panel];
+    panelDrag.current?.live.dispose();
+    const startWidth = panelWidthsRef.current[panel];
+    panelDrag.current = {
+      panel,
+      startWidth,
+      live: createLiveResizeWidth(panel === "list" ? LIST_WIDTH_VAR : DETAIL_WIDTH_VAR, startWidth),
+    };
     setResizingPanel(panel);
   };
-  // The list is anchored left, so dragging right (+dx) widens it; the detail
-  // panel is anchored right, so dragging left (−dx) widens it.
-  const handleListResize = useCallback((dx) => {
-    setPanelWidths((prev) => ({
-      ...prev,
-      list: clampPanelWidth(
-        "list",
-        resizeStartWidthRef.current + dx,
-        containerWidthRef.current,
-      ),
-    }));
-  }, []);
-  /* Docked, the detail panel lives in the window's right-edge anchor and
-     takes its width from a CSS variable there, so a drag moves it without
-     re-rendering this page (and its graph) on every pointer move. */
-  const detailSlot = explorerDocked ? nav.agentsDetailSlot || null : null;
-  const detailSlotRef = useRef(detailSlot);
-  detailSlotRef.current = detailSlot;
-  const detailDragWidthRef = useRef(null);
-  const detailFrameRef = useRef(0);
-  useLayoutEffect(() => {
-    detailSlot?.style.setProperty(DETAIL_WIDTH_VAR, `${panelWidths.detail}px`);
-  }, [detailSlot, panelWidths.detail]);
-  const handleDetailResize = useCallback((dx) => {
-    const next = clampPanelWidth(
-      "detail",
-      resizeStartWidthRef.current - dx,
+  useEffect(() => () => panelDrag.current?.live.dispose(), []);
+  const moveResize = useCallback((dx) => {
+    const drag = panelDrag.current;
+    if (!drag) return;
+    const { panel, startWidth, live } = drag;
+    live.update(clampPanelWidth(
+      panel,
+      startWidth + (panel === "list" ? dx : -dx),
       containerWidthRef.current,
-    );
-    if (!detailSlotRef.current) {
-      setPanelWidths((prev) => ({ ...prev, detail: next }));
-      return;
-    }
-    detailDragWidthRef.current = next;
-    if (detailFrameRef.current) return;
-    detailFrameRef.current = requestAnimationFrame(() => {
-      detailFrameRef.current = 0;
-      detailSlotRef.current?.style.setProperty(
-        DETAIL_WIDTH_VAR,
-        `${detailDragWidthRef.current}px`,
-      );
-    });
+    ));
   }, []);
   const endResize = useCallback((panel) => {
-    let width = panelWidthsRef.current[panel];
-    if (panel === "detail" && detailDragWidthRef.current != null) {
-      if (detailFrameRef.current) {
-        cancelAnimationFrame(detailFrameRef.current);
-        detailFrameRef.current = 0;
-      }
-      width = detailDragWidthRef.current;
-      detailDragWidthRef.current = null;
-      detailSlotRef.current?.style.setProperty(DETAIL_WIDTH_VAR, `${width}px`);
-      setPanelWidths((prev) => ({ ...prev, detail: width }));
-    }
+    const drag = panelDrag.current;
+    if (drag?.panel !== panel) return;
+    panelDrag.current = null;
+    const width = clampPanelWidth(panel, drag.live.width, containerWidthRef.current);
+    drag.live.dispose();
+    setPanelWidths((prev) => prev[panel] === width ? prev : { ...prev, [panel]: width });
     setResizingPanel(null);
     writeRecipePanelWidth(panel, width);
   }, []);
+  const listWidth = resizingPanel === "list"
+    ? `var(${LIST_WIDTH_VAR}, ${panelWidths.list}px)`
+    : panelWidths.list;
 
   /* An unreachable bridge — the sidecar not up yet — used to throw inside this
      effect with nothing catching it, so the page stayed blank and the reason
@@ -510,9 +484,11 @@ export default function RecipesPage({
     ? "1px solid rgba(255,255,255,0.08)"
     : "1px solid rgba(0,0,0,0.08)";
   const overlayBackdrop = "blur(16px) saturate(1.4)";
+  const resizingList = resizingPanel === "list";
   const listSurface = useSurfaceComposite({
     backgroundColor: overlayBg,
     backdropFilter: overlayBackdrop,
+    enabled: !explorerDocked && !listHidden && !resizingList,
   });
   const overlayShadow = isDark
     ? "0 8px 32px rgba(0,0,0,0.5)"
@@ -522,11 +498,11 @@ export default function RecipesPage({
     position: "absolute",
     zIndex: AGENTS_MODAL_Z.PANEL,
     borderRadius: 10,
-    backgroundColor: overlayBg,
+    backgroundColor: resizingList ? (isDark ? "#141414" : "#fff") : overlayBg,
     border: overlayBorder,
-    backdropFilter: overlayBackdrop,
-    WebkitBackdropFilter: overlayBackdrop,
-    boxShadow: overlayShadow,
+    backdropFilter: resizingList ? "none" : overlayBackdrop,
+    WebkitBackdropFilter: resizingList ? "none" : overlayBackdrop,
+    boxShadow: resizingList ? "none" : overlayShadow,
     overflow: "hidden",
     display: "flex",
     flexDirection: "column",
@@ -618,7 +594,7 @@ export default function RecipesPage({
                 minWidth: RECIPE_PANEL_LIMITS.detail.min,
                 resizing: resizingPanel === "detail",
                 onDragStart: () => beginResize("detail"),
-                onDrag: handleDetailResize,
+                onDrag: moveResize,
                 onDragEnd: () => endResize("detail"),
               },
             }}
@@ -659,12 +635,12 @@ export default function RecipesPage({
             top: PANEL_INSET,
             left: PANEL_INSET,
             bottom: PANEL_INSET,
-            width: panelWidths.list,
+            width: listWidth,
             minWidth: RECIPE_PANEL_LIMITS.list.min,
             opacity: listHidden ? 0 : 1,
             transform: listHidden ? "translateX(-12px)" : "translateX(0)",
             transition:
-              resizingPanel === "list"
+              resizingList
                 ? "none"
                 : "opacity 0.25s cubic-bezier(0.32,1,0.32,1), transform 0.25s cubic-bezier(0.32,1,0.32,1)",
             pointerEvents: listHidden ? "none" : "auto",
@@ -685,10 +661,12 @@ export default function RecipesPage({
           style={{
             top: PANEL_INSET,
             bottom: PANEL_INSET,
-            left: PANEL_INSET + panelWidths.list + HANDLE_GAP,
+            left: resizingList
+              ? `calc(${listWidth} + ${PANEL_INSET + HANDLE_GAP}px)`
+              : PANEL_INSET + panelWidths.list + HANDLE_GAP,
           }}
           onDragStart={() => beginResize("list")}
-          onDrag={handleListResize}
+          onDrag={moveResize}
           onDragEnd={() => endResize("list")}
         />
       )}
@@ -746,7 +724,7 @@ export default function RecipesPage({
             testId: "recipe-detail-resize-handle",
             pillTestId: "recipe-detail-resize-pill",
             onDragStart: () => beginResize("detail"),
-            onDrag: handleDetailResize,
+            onDrag: moveResize,
             onDragEnd: () => endResize("detail"),
           }}
         >

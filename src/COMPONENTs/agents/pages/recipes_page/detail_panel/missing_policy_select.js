@@ -1,5 +1,5 @@
 import React from "react";
-import Select from "../../../../../BUILTIN_COMPONENTs/select/select";
+import Select from "./panel_select";
 import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
 import PanelHelp from "./panel_help";
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";

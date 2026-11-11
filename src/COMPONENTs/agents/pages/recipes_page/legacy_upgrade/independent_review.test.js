@@ -13,9 +13,12 @@ import LegacyUpgradeWizard from './legacy_upgrade_wizard';
 import SkeletonResourcePage from '../../skeleton_resource_page';
 
 jest.mock('../../../../../SERVICEs/api',()=>({api:{unchain:{}}}));
+jest.mock("../../../../../SERVICEs/provider_secret_status", () => ({
+  providerSecretConfigured: (provider) => provider === "openai",
+}));
 install_legacy_store_bridge(api.unchain);
 jest.mock('../../../../../BUILTIN_COMPONENTs/modal/modal',()=>({__esModule:true,default:({open,children})=>open?<div role="dialog">{children}</div>:null}));
-jest.mock('../../../../../BUILTIN_COMPONENTs/select/select',()=>({__esModule:true,default:({options=[],value,set_value,placeholder,disabled})=><select data-testid="select" data-placeholder={placeholder||''} value={value==null?'':String(value)} disabled={disabled} onChange={event=>set_value(event.target.value)}><option value="">{placeholder||''}</option>{options.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select>}));
+jest.mock('../../../../../BUILTIN_COMPONENTs/select/select',()=>({__esModule:true,default:({options=[],value,set_value,placeholder,disabled})=><select data-testid="select" data-placeholder={placeholder||''} value={value==null?'':String(value)} disabled={disabled} onChange={event=>set_value(event.target.value)}><option value="">{placeholder||''}</option>{options.flatMap(option=>option.options||[option]).map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select>}));
 jest.mock('../../../../../BUILTIN_COMPONENTs/input/input',()=>{const Input=({value,set_value,placeholder})=><input placeholder={placeholder} value={value} onChange={event=>set_value(event.target.value)}/>;return {__esModule:true,default:Input,Input};});
 jest.mock('../../../../../BUILTIN_COMPONENTs/input/textfield',()=>({__esModule:true,default:({value,set_value,placeholder})=><textarea placeholder={placeholder} value={value} onChange={event=>set_value(event.target.value)}/>}));
 

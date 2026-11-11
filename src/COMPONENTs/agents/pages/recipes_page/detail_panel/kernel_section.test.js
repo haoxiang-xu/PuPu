@@ -17,6 +17,10 @@ jest.mock("../skeleton_resources", () => ({
   kernel_profiles: jest.fn(),
 }));
 
+jest.mock("../../../../../SERVICEs/provider_secret_status", () => ({
+  providerSecretConfigured: (provider) => ["openai", "anthropic"].includes(provider),
+}));
+
 jest.mock("../../../../../BUILTIN_COMPONENTs/select/select", () => {
   return function MockSelect({ options, value, set_value, placeholder }) {
     return (
@@ -28,7 +32,7 @@ jest.mock("../../../../../BUILTIN_COMPONENTs/select/select", () => {
         onChange={(event) => set_value(event.target.value)}
       >
         <option value="">{placeholder || ""}</option>
-        {(options || []).map((option) => (
+        {(options || []).flatMap((option) => option.options || [option]).map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
           </option>
@@ -676,7 +680,7 @@ test("real startup producer documents keep their prompts through the native mode
     const item = original.nodes.find((entry) => entry.type === "agent");
     const onChange = jest.fn();
     const view = render(<KernelSection document={original} node={item} revision={1} isDark={false} onChange={onChange} />);
-    await screen.findByRole("option", { name: "openai · gpt-6-sol" });
+    await screen.findByRole("option", { name: "gpt-6-sol" });
     expect(prompt_box()).toHaveValue(item.config.kernel_draft.prompt);
     expect(onChange).not.toHaveBeenCalled();
     fireEvent.change(model_picker(), { target: { value: PROFILE.id } });

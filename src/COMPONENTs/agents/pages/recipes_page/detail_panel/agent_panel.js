@@ -2,7 +2,7 @@ import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use
 import React from "react";
 import ChipEditor from "../chip_editor";
 import { compute_variable_scope } from "../variable_scope";
-import Select from "../../../../../BUILTIN_COMPONENTs/select/select";
+import Select from "./panel_select";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import Switch from "../../../../../BUILTIN_COMPONENTs/input/switch";
 import { BUILDER_SWITCH_SIZE } from "../builder_switch_size";

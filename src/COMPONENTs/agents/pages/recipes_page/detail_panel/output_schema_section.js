@@ -3,7 +3,7 @@ import PanelHelp from "./panel_help";
 import React, { useState } from "react";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
-import Select from "../../../../../BUILTIN_COMPONENTs/select/select";
+import Select from "./panel_select";
 import Switch from "../../../../../BUILTIN_COMPONENTs/input/switch";
 import { BUILDER_SWITCH_SIZE } from "../builder_switch_size";
 import TextField from "../../../../../BUILTIN_COMPONENTs/input/textfield";

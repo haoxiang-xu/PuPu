@@ -39,3 +39,8 @@ export const writeSideMenuWidthVar = (width) => {
 /* The live width as a CSS length, falling back to the committed one. */
 export const sideMenuWidthCss = (width) =>
   `var(${SIDE_MENU_WIDTH_VAR}, ${clampSideMenuWidth(width)}px)`;
+
+export const AGENTS_SIDEBAR_DRAG_WIDTH = "--pupu-agents-sidebar-drag-width";
+
+export const agentsSidebarWidthCss = (width) =>
+  `var(${AGENTS_SIDEBAR_DRAG_WIDTH}, ${sideMenuWidthCss(width)})`;

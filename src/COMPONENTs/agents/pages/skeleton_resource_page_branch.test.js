@@ -17,6 +17,9 @@ import { RESOURCE_RESULT_KEYS } from "./recipes_page/skeleton_resource_capture";
  * for the strict store + runtime consumer (qualify_branch_page.py). */
 
 jest.mock("../../../SERVICEs/api", () => ({ api: { unchain: {} } }));
+jest.mock("../../../SERVICEs/provider_secret_status", () => ({
+  providerSecretConfigured: (provider) => provider === "openai",
+}));
 /* The editor speaks v2 only (#357 G1); these mocks are graph-only. */
 install_legacy_store_bridge(api.unchain);
 
@@ -121,14 +124,15 @@ test("If / Else: add, bind, write the condition, wire both outlets and a rejoin,
   await add("agent");
   fireEvent.click(screen.getByRole("button", { name: "Model", exact: true }));
   fireEvent.click(within(await screen.findByTestId("kernel-model")).getByRole("combobox"));
-  fireEvent.click(screen.getByText("openai · gpt-6-luna", { exact: true }));
+  fireEvent.click(within(screen.getByRole("listbox", { hidden: true })).getByText(profile.model, { exact: true }));
   fireEvent.click(screen.getByRole("button", { name: "Prompt", exact: true }));
   fireEvent.change(await screen.findByPlaceholderText("what this Agent is for"), { target: { value: "[yes-branch]" } });
   fireEvent.click(screen.getByRole("button", { name: "Output Variables", exact: true }));
   fireEvent.click(screen.getByRole("button", { name: "+ Add output", exact: true }));
-  choose(screen.getByTestId("output-row-0"), "Result", 0);
-  choose(screen.getByTestId("output-row-0"), "message", 1);
-  fireEvent.change(within(screen.getByTestId("output-row-0")).getByPlaceholderText("name"), { target: { value: "message" } });
+  const output = within(screen.getByTestId("output-row-0"));
+  fireEvent.click(output.getByRole("button", { name: "Inputs" }));
+  fireEvent.click(screen.getByText("message", { exact: true, selector: "span" }));
+  fireEvent.change(output.getByPlaceholderText("name"), { target: { value: "message" } });
 
   drag("if", "true", "agent", "in");
   drag("agent", "out", "end", "in");

@@ -20,9 +20,8 @@ const hasWindowControls = () =>
   window.runtime?.isElectron === true &&
   windowStateBridge.isActionAvailable();
 
-/* The docked detail panel's width while its edge is dragged, set on the
-   window's right-edge anchor (see RecipesPage). */
-export const DETAIL_WIDTH_VAR = "--pupu-agents-detail-width";
+/* Live width shared by the floating and docked detail panels. */
+export const DETAIL_WIDTH_VAR = "--pupu-agents-detail-drag-width";
 
 /* Where the docked panel's close button sits in the title bar band: clear
    of the Windows / Linux window buttons, at the edge on macOS. */
@@ -426,8 +425,11 @@ export function FloatingDetailShell({
      height, one flat colour like the left one, rendered into the anchor the
      app shell keeps at the window's right edge. Anywhere else (no anchor) it
      stays the floating glass card. */
-  const dockSlot = useContext(NavigationContext)?.agentsDetailSlot || null;
+  const { agentsDetailSlot: dockSlot, appMode } = useContext(NavigationContext) || {};
   if (dockSlot) {
+    // Popovers can portal outside the detail host, so remove the inspector
+    // while Chat is active. The Builder keeps the document and selection.
+    if (appMode === "chat") return null;
     return createPortal(
       <DockedDetailPanel
         isDark={isDark}
@@ -474,13 +476,14 @@ function DockedDetailPanel({
 }) {
   const { t } = useTranslation();
   const platform = usePresentationPlatform();
-  /* Live while dragged (the anchor carries the variable), else the state. */
   const liveWidth = `var(${DETAIL_WIDTH_VAR}, ${width}px)`;
-  const backgroundColor = isDark
-    ? "var(--pupu-sidebar-glass, #151515)"
-    : "var(--pupu-sidebar-glass, rgb(245, 245, 245))";
+  const sidebarFallback = isDark ? "#151515" : "rgb(245, 245, 245)";
+  const backgroundColor = resizing
+    ? `var(--pupu-sidebar, ${sidebarFallback})`
+    : `var(--pupu-sidebar-glass, ${sidebarFallback})`;
+  const backdropFilter = resizing ? "none" : SIDEBAR_GLASS_FILTER;
   /* The left side menu's frost, through the same compositing pass. */
-  const surface = useSurfaceComposite({ backgroundColor, backdropFilter: SIDEBAR_GLASS_FILTER });
+  const surface = useSurfaceComposite({ backgroundColor, backdropFilter, enabled: !resizing });
   return (
     <>
       {surface.definition}
@@ -509,9 +512,9 @@ function DockedDetailPanel({
              back to the page default, black even in dark mode. */
           color: "var(--pupu-text)",
           backgroundColor,
-          ...SURFACE_DITHER_STYLE,
-          backdropFilter: SIDEBAR_GLASS_FILTER,
-          WebkitBackdropFilter: SIDEBAR_GLASS_FILTER,
+          ...(!resizing && SURFACE_DITHER_STYLE),
+          backdropFilter,
+          WebkitBackdropFilter: backdropFilter,
           ...surface.style,
           overflow: "hidden",
           display: "flex",
@@ -554,10 +557,12 @@ function DockedDetailPanel({
           pillTestId={handle.pillTestId}
           visible={Boolean(open)}
           style={{
-            top: TOP_BAR_HEIGHT,
+            /* Like the left side menu's: inside the panel, against its
+               inner edge, and over the full height (title bar band
+               included), so the pill sits at the panel's true middle. */
+            top: 0,
             bottom: 0,
-            /* Centred on the panel's inner edge. */
-            right: `calc(${liveWidth} - 6px)`,
+            right: `calc(${liveWidth} - 12px)`,
           }}
           onDragStart={handle.onDragStart}
           onDrag={handle.onDrag}
@@ -610,9 +615,11 @@ function FloatingDetailCard({
   children,
 }) {
   const tokens = overlay_tokens(isDark);
+  const liveWidth = resizing ? `var(${DETAIL_WIDTH_VAR}, ${width}px)` : width;
   const surface = useSurfaceComposite({
     backgroundColor: tokens.background,
     backdropFilter: tokens.backdrop,
+    enabled: open && !resizing,
   });
   return (
     <>
@@ -623,15 +630,20 @@ function FloatingDetailCard({
           zIndex: AGENTS_MODAL_Z.PANEL,
           borderRadius: 10,
           ...glass(tokens),
+          ...(resizing && {
+            backgroundColor: isDark ? "#141414" : "#fff",
+            backdropFilter: "none",
+            WebkitBackdropFilter: "none",
+          }),
           ...surface.style,
-          boxShadow: tokens.shadow,
+          boxShadow: resizing ? "none" : tokens.shadow,
           overflow: "hidden",
           display: "flex",
           flexDirection: "column",
           top: PANEL_INSET,
           right: PANEL_INSET,
           bottom: PANEL_INSET,
-          width,
+          width: liveWidth,
           minWidth,
           opacity: open ? 1 : 0,
           transform: open ? "translateX(0)" : "translateX(12px)",
@@ -653,7 +665,9 @@ function FloatingDetailCard({
           style={{
             top: PANEL_INSET,
             bottom: PANEL_INSET,
-            right: PANEL_INSET + width + HANDLE_GAP,
+            right: resizing
+              ? `calc(${liveWidth} + ${PANEL_INSET + HANDLE_GAP}px)`
+              : PANEL_INSET + width + HANDLE_GAP,
           }}
           onDragStart={handle.onDragStart}
           onDrag={handle.onDrag}
