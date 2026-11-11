@@ -68,19 +68,24 @@ function Block({ section, title, help, problems = [], isDark, children }) {
 
 function Disclosure({ id, section, title, summary, problems, expanded, onToggle, isDark, reducedMotion, children }) {
   return (
-    // No hover surface and no card: the caption row is the whole target.
+    // No hover surface and no card.
     <div data-testid={`process-disclosure-${section}`} style={{ minWidth: 0, backgroundColor: "transparent" }}>
       <div data-testid={`process-header-${section}`}
-        style={{ position: "relative", display: "flex", alignItems: "center", gap: 6, minWidth: 0,
+        style={{ display: "flex", alignItems: "center", gap: 0, minWidth: 0,
           minHeight: 32, margin: "-5px 0", boxSizing: "border-box" }}>
+        {/* Only the words and the arrow toggle, with a little room around
+            them: the rest of the row is somewhere safe to click away from an
+            open menu. */}
         <button type="button" aria-label={title} aria-expanded={expanded}
-          aria-controls={id} onClick={onToggle}
-          style={{ position: "absolute", inset: 0, width: "100%", minHeight: 32,
-            padding: 0, border: 0, borderRadius: 6, cursor: "pointer", backgroundColor: "transparent" }} />
-        <span style={{ ...captionStyle(isDark), flexShrink: 0, pointerEvents: "none" }}>{title}</span>
-        <Icon src="arrow_down" color="#86868b" style={{ width: 11, height: 11, flexShrink: 0, opacity: 0.8,
-          pointerEvents: "none", transform: expanded ? "rotate(180deg)" : "none",
-          transition: reducedMotion ? "none" : "transform 200ms cubic-bezier(0.32,0.72,0,1)" }} />
+          aria-controls={id} onClick={onToggle} data-testid={`process-toggle-${section}`}
+          style={{ display: "inline-flex", alignItems: "center", gap: 6, flexShrink: 0, minHeight: 32,
+            margin: "0 0 0 -8px", padding: "0 8px", border: 0, borderRadius: 6, cursor: "pointer",
+            backgroundColor: "transparent", font: "inherit" }}>
+          <span style={{ ...captionStyle(isDark), flexShrink: 0, pointerEvents: "none" }}>{title}</span>
+          <Icon src="arrow_down" color="#86868b" style={{ width: 11, height: 11, flexShrink: 0, opacity: 0.8,
+            pointerEvents: "none", transform: expanded ? "rotate(180deg)" : "none",
+            transition: reducedMotion ? "none" : "transform 200ms cubic-bezier(0.32,0.72,0,1)" }} />
+        </button>
         <ProblemCount count={problems.length} section={section} isDark={isDark} />
         {/* Folded, the row still says what is inside. */}
         <span data-testid={`process-summary-${section}`} aria-hidden={expanded ? true : undefined}

@@ -332,3 +332,15 @@ test("new Process inputs use null for missing values and have no policy selector
   expect(rows[1].missing).toBe("null");
   expect(within(input).queryByText(/If missing/i)).not.toBeInTheDocument();
 });
+
+test("only the words and the arrow fold a part; the rest of its row is safe to click", async () => {
+  await show();
+  const header = screen.getByTestId("process-header-input");
+  const toggle = screen.getByTestId("process-toggle-input");
+  expect(toggle.style.position).not.toBe("absolute");
+  expect(toggle.style.width).toBe("");
+  fireEvent.click(header);
+  expect(toggle).toHaveAttribute("aria-expanded", "true");
+  fireEvent.click(toggle);
+  expect(toggle).toHaveAttribute("aria-expanded", "false");
+});
