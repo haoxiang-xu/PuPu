@@ -183,7 +183,7 @@ export default function ToolkitPoolSection({ document, node, onChange, isDark })
           onClick={() => { if (editable) set_merge(); }}
           onKeyDown={(event) => { if (editable && (event.key === " " || event.key === "Enter")) { event.preventDefault(); set_merge(); } }}
           style={{ display: "inline-flex", flexShrink: 0, cursor: editable ? "pointer" : "default", opacity: editable ? 1 : 0.5 }}>
-          <span style={{ display: "inline-flex", pointerEvents: "none" }}><Switch on={merge_on} set_on={() => {}} style={{ width: 30, height: 16 }} /></span>
+          <span style={{ display: "inline-flex", pointerEvents: "none" }}><Switch on={merge_on} set_on={() => {}} style={{ width: 44, height: 24 }} /></span>
         </span>
       </SettingRow>
       {typeof config.merge_with_user_selected !== "boolean" && <div style={problemStyle}>{t("agents.toolkit.stored_merge", { value: safe_text(config.merge_with_user_selected) })}</div>}
