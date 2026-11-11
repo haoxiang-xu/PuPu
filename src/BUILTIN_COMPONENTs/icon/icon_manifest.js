@@ -1122,7 +1122,7 @@ const SideMenuClose = (props) => (
     strokeLinejoin="round"
   >
     <path d="M4 6a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2l0 -12"></path>
-    <path d="M15 4l0 16"></path>
+    <path d="M9 4l0 16"></path>
   </svg>
 );
 const SideMenuLeft = (props) => (
@@ -1136,16 +1136,21 @@ const SideMenuLeft = (props) => (
     strokeLinejoin="round"
   >
     <path d="M4 6a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2l0 -12"></path>
-    <path d="M15 4l0 16"></path>
+    <path d="M9 4l0 16"></path>
   </svg>
 );
 const SideMenuRight = (props) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
     viewBox="0 0 24 24"
-    fill="currentColor"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.75"
+    strokeLinecap="round"
+    strokeLinejoin="round"
   >
-    <path fillRule="evenodd" d="M6.5 3H17.5A4.5 4.5 0 0 1 22 7.5V16.5A4.5 4.5 0 0 1 17.5 21H6.5A4.5 4.5 0 0 1 2 16.5V7.5A4.5 4.5 0 0 1 6.5 3ZM6.5 5H17.5A2.5 2.5 0 0 1 20 7.5V16.5A2.5 2.5 0 0 1 17.5 19H6.5A2.5 2.5 0 0 1 4 16.5V7.5A2.5 2.5 0 0 1 6.5 5ZM17 7H17A1 1 0 0 1 18 8V16A1 1 0 0 1 17 17H17A1 1 0 0 1 16 16V8A1 1 0 0 1 17 7Z"></path>
+    <path d="M4 6a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2l0 -12"></path>
+    <path d="M15 4l0 16"></path>
   </svg>
 );
 const SideMenuTop = (props) => (
