@@ -1508,8 +1508,6 @@
       "saved_other": "Salvo, com problemas a resolver",
       "elsewhere": "Em outra parte deste grafo",
       "elsewhere_count": "Em outra parte deste grafo · {count}",
-      "not_checked": "Ainda não verificado",
-      "changed_after_check": "Este rascunho mudou desde a última verificação, então os problemas da versão salva não são mostrados nele. Ao salvar, este rascunho é verificado.",
       "location_node": "Nó {id}",
       "location_edge": "Conexão {id}",
       "location_graph": "Este grafo"

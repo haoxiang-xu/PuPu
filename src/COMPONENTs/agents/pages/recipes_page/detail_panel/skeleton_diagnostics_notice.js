@@ -71,24 +71,6 @@ export function SkeletonElsewhereDiagnostics({ diagnostics, document, isDark }) 
   );
 }
 
-/* The third state: there is an answer, but not about this draft.
- *
- * An empty problem area reads as "nothing is wrong", so a draft the store has
- * not seen since it changed has to say that instead. What it must not do is
- * show the last answer here anyway: every path in it addresses a position,
- * and the positions moved. */
-export function SkeletonUncheckedNotice({ isDark }) {
-  const { t } = useTranslation();
-  return (
-    <div data-testid="skeleton-diagnostics-stale" style={BOX(isDark)}>
-      <span style={TITLE}>{t("agents.diagnostics.not_checked")}</span>
-      <span style={LINE}>
-        {t("agents.diagnostics.changed_after_check")}
-      </span>
-    </div>
-  );
-}
-
 /* Both notices, routed in one place.
  *
  * `rowCounts` says how many rows the caller actually renders; a path may claim
@@ -100,9 +82,9 @@ export default function SkeletonDiagnostics({
   diagnostics,
   nodeId,
   rowCounts,
-  /* The draft has changed since the store last answered about it. The caller
-     passes no diagnostics then — see the page — and this says so rather than
-     leaving an empty area that reads as an all-clear. */
+  /* The draft has changed since the store last answered about it. The last
+     answer addresses positions that may have moved, so nothing is shown; the
+     save state and the run menu already say the draft is unsaved. */
   unchecked,
   isDark,
 }) {
@@ -110,7 +92,7 @@ export default function SkeletonDiagnostics({
     node_id: nodeId,
     row_counts: rowCounts,
   });
-  if (unchecked) return <SkeletonUncheckedNotice isDark={isDark} />;
+  if (unchecked) return null;
   return (
     <>
       <SkeletonNodeDiagnostics diagnostics={routed.node} isDark={isDark} />

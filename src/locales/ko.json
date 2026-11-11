@@ -1508,8 +1508,6 @@
       "saved_other": "저장됨, 해결할 문제 남음",
       "elsewhere": "이 그래프의 다른 위치",
       "elsewhere_count": "이 그래프의 다른 위치 · {count}",
-      "not_checked": "아직 확인하지 않음",
-      "changed_after_check": "마지막 확인 후 초안이 변경되어 저장된 버전의 문제를 현재 초안에 표시하지 않습니다. 저장하면 이 초안을 확인합니다.",
       "location_node": "노드 {id}",
       "location_edge": "연결 {id}",
       "location_graph": "이 그래프"

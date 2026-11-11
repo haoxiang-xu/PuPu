@@ -1508,8 +1508,6 @@
       "saved_other": "已保存，仍有问题需要完善",
       "elsewhere": "此图中的其他位置",
       "elsewhere_count": "此图中的其他位置 · {count}",
-      "not_checked": "尚未检查",
-      "changed_after_check": "此草稿在上次检查后已有更改，因此不将已保存版本的问题显示为当前草稿的问题。保存时会检查此草稿。",
       "location_node": "节点 {id}",
       "location_edge": "连线 {id}",
       "location_graph": "此图"

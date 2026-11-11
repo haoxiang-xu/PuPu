@@ -1508,8 +1508,6 @@
       "saved_other": "Enregistré, avec des problèmes à résoudre",
       "elsewhere": "Ailleurs dans ce graphe",
       "elsewhere_count": "Ailleurs dans ce graphe · {count}",
-      "not_checked": "Pas encore vérifié",
-      "changed_after_check": "Ce brouillon a changé depuis sa dernière vérification ; les problèmes de la version enregistrée ne lui sont donc pas attribués. L’enregistrement vérifie ce brouillon.",
       "location_node": "Nœud {id}",
       "location_edge": "Arête {id}",
       "location_graph": "Ce graphe"

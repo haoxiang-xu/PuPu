@@ -1508,8 +1508,6 @@
       "saved_other": "保存済み。対処が必要な問題があります",
       "elsewhere": "グラフ内の別の場所",
       "elsewhere_count": "グラフ内の別の場所 · {count}",
-      "not_checked": "まだ確認していません",
-      "changed_after_check": "この下書きは前回の確認後に変更されたため、保存済みのバージョンの問題を現在の下書きに対しては表示していません。保存するとこの下書きを確認します。",
       "location_node": "ノード {id}",
       "location_edge": "接続 {id}",
       "location_graph": "このグラフ"

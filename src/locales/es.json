@@ -1508,8 +1508,6 @@
       "saved_other": "Guardado, con problemas por resolver",
       "elsewhere": "En otra parte de este grafo",
       "elsewhere_count": "En otra parte de este grafo · {count}",
-      "not_checked": "Aún no comprobado",
-      "changed_after_check": "Este borrador cambió tras la última comprobación, así que no se muestran en él los problemas de la versión guardada. Al guardar se comprueba este borrador.",
       "location_node": "Nodo {id}",
       "location_edge": "Conexión {id}",
       "location_graph": "Este grafo"

@@ -1508,8 +1508,6 @@
       "saved_other": "Salvato, con problemi da risolvere",
       "elsewhere": "Altrove in questo grafo",
       "elsewhere_count": "Altrove in questo grafo · {count}",
-      "not_checked": "Non ancora verificato",
-      "changed_after_check": "Questa bozza è cambiata dopo l’ultima verifica, quindi i problemi della versione salvata non vengono mostrati su di essa. Il salvataggio verifica questa bozza.",
       "location_node": "Nodo {id}",
       "location_edge": "Arco {id}",
       "location_graph": "Questo grafo"

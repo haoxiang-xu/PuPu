@@ -1508,8 +1508,6 @@
       "saved_other": "Saved, with problems to finish",
       "elsewhere": "Elsewhere in this graph",
       "elsewhere_count": "Elsewhere in this graph · {count}",
-      "not_checked": "Not checked yet",
-      "changed_after_check": "This draft changed after it was last checked, so what was wrong with the saved version is not shown against it. Saving checks this draft.",
       "location_node": "Node {id}",
       "location_edge": "Edge {id}",
       "location_graph": "This graph"

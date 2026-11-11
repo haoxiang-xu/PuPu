@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import { ConfigContext, LocaleContext } from "../../../../CONTAINERs/config/context";
 import { node_identity } from "./detail_panel/node_identity";
 import DetailPanel from "./detail_panel/detail_panel";
-import { SkeletonElsewhereDiagnostics, SkeletonNodeDiagnostics, SkeletonUncheckedNotice } from "./detail_panel/skeleton_diagnostics_notice";
+import { SkeletonElsewhereDiagnostics, SkeletonNodeDiagnostics } from "./detail_panel/skeleton_diagnostics_notice";
 
 const localized = (locale, children) => <ConfigContext.Provider value={{ theme: {}, onThemeMode: "light_mode" }}>
   <LocaleContext.Provider value={{ locale }}>{children}</LocaleContext.Provider>
@@ -40,7 +40,7 @@ test("saved and stale diagnostic captions translate independently of opaque back
   const document = { nodes: [{ id: "agents.nodes.start {id}" }], edges: [] };
   const before = JSON.stringify({ diagnostics, document });
   const tree = (locale) => localized(locale, <><SkeletonNodeDiagnostics diagnostics={diagnostics} />
-    <SkeletonElsewhereDiagnostics diagnostics={diagnostics} document={document} /><SkeletonUncheckedNotice /></>);
+    <SkeletonElsewhereDiagnostics diagnostics={diagnostics} document={document} /></>);
   const view = render(tree("en"));
   expect(screen.getByTestId("skeleton-diagnostics-notice")).toHaveTextContent("Saved, with a problem to finish");
   view.rerender(tree("zh-CN"));
@@ -48,6 +48,5 @@ test("saved and stale diagnostic captions translate independently of opaque back
   expect(screen.getByTestId("skeleton-diagnostic-0")).toHaveTextContent(raw);
   expect(screen.getByTestId("skeleton-elsewhere-0")).toHaveTextContent(`节点 ${document.nodes[0].id}`);
   expect(screen.getByTestId("skeleton-elsewhere-0")).toHaveTextContent(raw);
-  expect(screen.getByTestId("skeleton-diagnostics-stale")).not.toHaveTextContent("This draft changed after it was last checked");
   expect(JSON.stringify({ diagnostics, document })).toBe(before);
 });

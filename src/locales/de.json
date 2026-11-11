@@ -1508,8 +1508,6 @@
       "saved_other": "Gespeichert, Probleme noch offen",
       "elsewhere": "An anderer Stelle dieses Graphen",
       "elsewhere_count": "An anderer Stelle dieses Graphen · {count}",
-      "not_checked": "Noch nicht geprüft",
-      "changed_after_check": "Dieser Entwurf wurde seit der letzten Prüfung geändert, daher werden die Probleme der gespeicherten Version hier nicht angezeigt. Speichern prüft diesen Entwurf.",
       "location_node": "Knoten {id}",
       "location_edge": "Kante {id}",
       "location_graph": "Dieser Graph"
