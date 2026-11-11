@@ -1,6 +1,6 @@
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import React from "react";
-import Select from "../../../../../BUILTIN_COMPONENTs/select/select";
+import Select from "./panel_select";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import {
   is_valid_output_row,

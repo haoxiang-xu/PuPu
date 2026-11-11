@@ -2,7 +2,11 @@ import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_trans
 import { agentMessage, agentProblemMessage, agentError } from "./recipes_page/agents_i18n";
 import ShadowSurface from "../../../BUILTIN_COMPONENTs/material/shadow_surface";
 import { useSurfaceComposite } from "../../../BUILTIN_COMPONENTs/material/surface_composite";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import { NavigationContext } from "../../../CONTAINERs/config/context";
+import { SIDE_MENU_WIDTH, agentsSidebarWidthCss } from "../../../SERVICEs/side_menu_width";
+import { createLiveResizeWidth } from "../../../SERVICEs/live_resize_width";
+import { createPortal } from "react-dom";
 import { api } from "../../../SERVICEs/api";
 import {
   RECIPE_PANEL_LIMITS,
@@ -23,6 +27,7 @@ import DetailPanel from "./recipes_page/detail_panel/detail_panel";
 import PanelResizeHandle from "./recipes_page/panel_resize_handle";
 import {
   CanvasMessageStrip,
+  DETAIL_WIDTH_VAR,
   FloatingBreadcrumb,
   FloatingDetailShell,
   HANDLE_GAP,
@@ -46,12 +51,20 @@ import {
   unwind_drill_stack,
 } from "./recipes_page/subagent_drill";
 
+const LIST_WIDTH_VAR = "--pupu-agents-list-drag-width";
 
 export default function RecipesPage({
   isDark,
   selectedNodeId,
   onSelectNode,
   fullscreen,
+  /* Docked: the agent list renders into `explorerSlot` (the side menu's
+     Agents pane) instead of floating over the canvas, and the side menu's own
+     toggle stands in for the list's collapse button. */
+  explorerSlot = null,
+  explorerDocked = false,
+  /* Docked: the way back out of the Agents pane, shown under its search. */
+  onExplorerBack,
 }) {
   /* One centerline for every control on the modal's top strip (#339). */
   const { t } = useTranslation();
@@ -60,6 +73,13 @@ export default function RecipesPage({
     left: topStripLeft,
     clearsTrafficLights,
   } = useTopStripCenter(fullscreen);
+  /* Docked, the canvas runs under the open side menu, so the chrome pinned
+     to the top-left starts past it. */
+  const nav = useContext(NavigationContext) || {};
+  const crumbLeft =
+    explorerDocked && nav.onFragment === "side_menu"
+      ? `calc(${agentsSidebarWidthCss(nav.sideMenuWidth || SIDE_MENU_WIDTH.DEFAULT)} + 14px)`
+      : topStripLeft;
   /* Where the list's own toggle sits inside the open panel, so the floating
      one shown while it is collapsed lands on the same spot. Next to the
      traffic lights it steps right, staying on the top line. */
@@ -172,7 +192,7 @@ export default function RecipesPage({
     });
   }, [containerWidth]);
   const [resizingPanel, setResizingPanel] = useState(null);
-  const resizeStartWidthRef = useRef(0);
+  const panelDrag = useRef(null);
   const containerWidthRef = useRef(containerWidth);
   useEffect(() => {
     containerWidthRef.current = containerWidth;
@@ -187,35 +207,39 @@ export default function RecipesPage({
   }, [panelWidths]);
 
   const beginResize = (panel) => {
-    resizeStartWidthRef.current = panelWidthsRef.current[panel];
+    panelDrag.current?.live.dispose();
+    const startWidth = panelWidthsRef.current[panel];
+    panelDrag.current = {
+      panel,
+      startWidth,
+      live: createLiveResizeWidth(panel === "list" ? LIST_WIDTH_VAR : DETAIL_WIDTH_VAR, startWidth),
+    };
     setResizingPanel(panel);
   };
-  // The list is anchored left, so dragging right (+dx) widens it; the detail
-  // panel is anchored right, so dragging left (−dx) widens it.
-  const handleListResize = useCallback((dx) => {
-    setPanelWidths((prev) => ({
-      ...prev,
-      list: clampPanelWidth(
-        "list",
-        resizeStartWidthRef.current + dx,
-        containerWidthRef.current,
-      ),
-    }));
-  }, []);
-  const handleDetailResize = useCallback((dx) => {
-    setPanelWidths((prev) => ({
-      ...prev,
-      detail: clampPanelWidth(
-        "detail",
-        resizeStartWidthRef.current - dx,
-        containerWidthRef.current,
-      ),
-    }));
+  useEffect(() => () => panelDrag.current?.live.dispose(), []);
+  const moveResize = useCallback((dx) => {
+    const drag = panelDrag.current;
+    if (!drag) return;
+    const { panel, startWidth, live } = drag;
+    live.update(clampPanelWidth(
+      panel,
+      startWidth + (panel === "list" ? dx : -dx),
+      containerWidthRef.current,
+    ));
   }, []);
   const endResize = useCallback((panel) => {
+    const drag = panelDrag.current;
+    if (drag?.panel !== panel) return;
+    panelDrag.current = null;
+    const width = clampPanelWidth(panel, drag.live.width, containerWidthRef.current);
+    drag.live.dispose();
+    setPanelWidths((prev) => prev[panel] === width ? prev : { ...prev, [panel]: width });
     setResizingPanel(null);
-    writeRecipePanelWidth(panel, panelWidthsRef.current[panel]);
+    writeRecipePanelWidth(panel, width);
   }, []);
+  const listWidth = resizingPanel === "list"
+    ? `var(${LIST_WIDTH_VAR}, ${panelWidths.list}px)`
+    : panelWidths.list;
 
   /* An unreachable bridge — the sidecar not up yet — used to throw inside this
      effect with nothing catching it, so the page stayed blank and the reason
@@ -460,9 +484,11 @@ export default function RecipesPage({
     ? "1px solid rgba(255,255,255,0.08)"
     : "1px solid rgba(0,0,0,0.08)";
   const overlayBackdrop = "blur(16px) saturate(1.4)";
+  const resizingList = resizingPanel === "list";
   const listSurface = useSurfaceComposite({
     backgroundColor: overlayBg,
     backdropFilter: overlayBackdrop,
+    enabled: !explorerDocked && !listHidden && !resizingList,
   });
   const overlayShadow = isDark
     ? "0 8px 32px rgba(0,0,0,0.5)"
@@ -472,15 +498,69 @@ export default function RecipesPage({
     position: "absolute",
     zIndex: AGENTS_MODAL_Z.PANEL,
     borderRadius: 10,
-    backgroundColor: overlayBg,
+    backgroundColor: resizingList ? (isDark ? "#141414" : "#fff") : overlayBg,
     border: overlayBorder,
-    backdropFilter: overlayBackdrop,
-    WebkitBackdropFilter: overlayBackdrop,
-    boxShadow: overlayShadow,
+    backdropFilter: resizingList ? "none" : overlayBackdrop,
+    WebkitBackdropFilter: resizingList ? "none" : overlayBackdrop,
+    boxShadow: resizingList ? "none" : overlayShadow,
     overflow: "hidden",
     display: "flex",
     flexDirection: "column",
   };
+
+  const explorerElement = (
+    <AgentExplorer
+      recipes={recipes}
+      activeId={skeletonResourceId}
+      activeLegacyName={skeletonResourceId ? null : activeName}
+      newDraft={newSkeletonDraft}
+      activeDirty={skeletonDirty}
+      autoSelectDefault={!skeletonResourceId && !activeName}
+      onSelect={(id) => {
+        setNewSkeletonDraft(null);
+        setSkeletonResourceId(id);
+      }}
+      onSelectLegacy={(name) => {
+        setNewSkeletonDraft(null);
+        setSkeletonResourceId(null);
+        handleSelectRecipe(name);
+      }}
+      onCreate={(args) => {
+        setNewSkeletonDraft(args);
+        setSkeletonResourceId(args.id);
+      }}
+      onActiveChanged={() => setSkeletonReload((n) => n + 1)}
+      onCollapse={explorerDocked ? undefined : () => setListCollapsed(true)}
+      isDark={isDark}
+      headerLeadingPad={explorerDocked ? 0 : headerLeadingPad}
+      docked={explorerDocked}
+      onBack={explorerDocked ? onExplorerBack : undefined}
+      locked={explorerDocked && (drilled || skeletonDrilled)}
+    />
+  );
+
+  /* Docked, the list renders in the side menu's Agents pane. Drilled in, it
+     stays mounted (its folders keep their open state) and locks itself. */
+  const dockedExplorer =
+    explorerDocked && explorerSlot
+      ? createPortal(
+          <div
+            data-testid="recipe-list-docked"
+            style={{
+              /* Portalled into the side menu: carry the workspace's text
+                 colour instead of the page default. */
+              color: "var(--pupu-text)",
+              height: "100%",
+              display: "flex",
+              flexDirection: "column",
+              minHeight: 0,
+            }}
+          >
+            {explorerElement}
+          </div>,
+          explorerSlot,
+        )
+      : null;
 
   return (
     <div
@@ -508,13 +588,13 @@ export default function RecipesPage({
             onDirtyChange={setSkeletonDirty}
             chrome={{
               crumbTop: topStripCenter,
-              crumbLeft: topStripLeft,
+              crumbLeft,
               detail: {
                 width: panelWidths.detail,
                 minWidth: RECIPE_PANEL_LIMITS.detail.min,
                 resizing: resizingPanel === "detail",
                 onDragStart: () => beginResize("detail"),
-                onDrag: handleDetailResize,
+                onDrag: moveResize,
                 onDragEnd: () => endResize("detail"),
               },
             }}
@@ -543,72 +623,56 @@ export default function RecipesPage({
         )}
       </div>
 
+      {dockedExplorer}
+
       {/* ── Floating recipe list (left side menu) ── */}
-      <ShadowSurface
-        data-testid="recipe-list-panel-shell"
-        style={{
-          ...overlayPanel,
-          ...listSurface.style,
-          top: PANEL_INSET,
-          left: PANEL_INSET,
-          bottom: PANEL_INSET,
-          width: panelWidths.list,
-          minWidth: RECIPE_PANEL_LIMITS.list.min,
-          opacity: listHidden ? 0 : 1,
-          transform: listHidden ? "translateX(-12px)" : "translateX(0)",
-          transition:
-            resizingPanel === "list"
-              ? "none"
-              : "opacity 0.25s cubic-bezier(0.32,1,0.32,1), transform 0.25s cubic-bezier(0.32,1,0.32,1)",
-          pointerEvents: listHidden ? "none" : "auto",
-        }}
-      >
-        {listSurface.definition}
-        <AgentExplorer
-          recipes={recipes}
-          activeId={skeletonResourceId}
-          activeLegacyName={skeletonResourceId ? null : activeName}
-          newDraft={newSkeletonDraft}
-          activeDirty={skeletonDirty}
-          autoSelectDefault={!skeletonResourceId && !activeName}
-          onSelect={(id) => {
-            setNewSkeletonDraft(null);
-            setSkeletonResourceId(id);
+      {!explorerDocked && (
+        <ShadowSurface
+          data-testid="recipe-list-panel-shell"
+          style={{
+            ...overlayPanel,
+            ...listSurface.style,
+            top: PANEL_INSET,
+            left: PANEL_INSET,
+            bottom: PANEL_INSET,
+            width: listWidth,
+            minWidth: RECIPE_PANEL_LIMITS.list.min,
+            opacity: listHidden ? 0 : 1,
+            transform: listHidden ? "translateX(-12px)" : "translateX(0)",
+            transition:
+              resizingList
+                ? "none"
+                : "opacity 0.25s cubic-bezier(0.32,1,0.32,1), transform 0.25s cubic-bezier(0.32,1,0.32,1)",
+            pointerEvents: listHidden ? "none" : "auto",
           }}
-          onSelectLegacy={(name) => {
-            setNewSkeletonDraft(null);
-            setSkeletonResourceId(null);
-            handleSelectRecipe(name);
-          }}
-          onCreate={(args) => {
-            setNewSkeletonDraft(args);
-            setSkeletonResourceId(args.id);
-          }}
-          onActiveChanged={() => setSkeletonReload((n) => n + 1)}
-          onCollapse={() => setListCollapsed(true)}
-          isDark={isDark}
-          headerLeadingPad={headerLeadingPad}
-        />
-      </ShadowSurface>
+        >
+          {listSurface.definition}
+          {explorerElement}
+        </ShadowSurface>
+      )}
 
       {/* ── List resize pill (floats just outside the list's right edge) ── */}
-      <PanelResizeHandle
-        testId="recipe-list-resize-handle"
-        isDark={isDark}
-        pillTestId="recipe-list-resize-pill"
-        visible={!listHidden}
-        style={{
-          top: PANEL_INSET,
-          bottom: PANEL_INSET,
-          left: PANEL_INSET + panelWidths.list + HANDLE_GAP,
-        }}
-        onDragStart={() => beginResize("list")}
-        onDrag={handleListResize}
-        onDragEnd={() => endResize("list")}
-      />
+      {!explorerDocked && (
+        <PanelResizeHandle
+          testId="recipe-list-resize-handle"
+          isDark={isDark}
+          pillTestId="recipe-list-resize-pill"
+          visible={!listHidden}
+          style={{
+            top: PANEL_INSET,
+            bottom: PANEL_INSET,
+            left: resizingList
+              ? `calc(${listWidth} + ${PANEL_INSET + HANDLE_GAP}px)`
+              : PANEL_INSET + panelWidths.list + HANDLE_GAP,
+          }}
+          onDragStart={() => beginResize("list")}
+          onDrag={moveResize}
+          onDragEnd={() => endResize("list")}
+        />
+      )}
 
       {/* ── Expand button (only when list is collapsed) ── */}
-      {listCollapsed && !drilled && !skeletonDrilled && (
+      {!explorerDocked && listCollapsed && !drilled && !skeletonDrilled && (
         <Button
           prefix_icon="side_menu_left"
           onClick={() => setListCollapsed(false)}
@@ -631,7 +695,7 @@ export default function RecipesPage({
           crumbs={crumbs}
           onNavigate={handleDrillTo}
           top={topStripCenter}
-          left={topStripLeft}
+          left={crumbLeft}
           testId="recipe-drill-breadcrumb"
         />
       )}
@@ -655,11 +719,12 @@ export default function RecipesPage({
           minWidth={RECIPE_PANEL_LIMITS.detail.min}
           resizing={resizingPanel === "detail"}
           testId="recipe-detail-panel-shell"
+          onClose={() => onSelectNode(null)}
           handle={{
             testId: "recipe-detail-resize-handle",
             pillTestId: "recipe-detail-resize-pill",
             onDragStart: () => beginResize("detail"),
-            onDrag: handleDetailResize,
+            onDrag: moveResize,
             onDragEnd: () => endResize("detail"),
           }}
         >

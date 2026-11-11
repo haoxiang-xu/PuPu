@@ -55,12 +55,17 @@ const useSmoothResizeFrame = ({
   sampleIntervalMs = DEFAULT_SAMPLE_INTERVAL_MS,
   settleDelayMs = DEFAULT_SETTLE_DELAY_MS,
   transitionMs = DEFAULT_TRANSITION_MS,
+  /* Something is resizing the container under the pointer (the side menu's
+     edge being dragged): follow it directly. Sampling every 48ms and easing
+     each step over 180ms made the content trail the pointer in jerks. */
+  live = false,
 } = {}) => {
   const containerRef = useRef(null);
   const sampleTimerRef = useRef(null);
   const settleTimerRef = useRef(null);
   const restoreTransitionTimerRef = useRef(null);
   const instantResizeKeyRef = useRef(instantResizeKey);
+  const liveRef = useRef(live);
   const keyedTransitionActiveRef = useRef(false);
   const latestFrameRef = useRef(null);
   const [frame, setFrame] = useState(null);
@@ -158,7 +163,7 @@ const useSmoothResizeFrame = ({
   ]);
 
   const scheduleObservedResizeFrame = useCallback(() => {
-    if (keyedTransitionActiveRef.current) {
+    if (keyedTransitionActiveRef.current || liveRef.current) {
       return;
     }
 
@@ -177,6 +182,19 @@ const useSmoothResizeFrame = ({
     instantResizeKeyRef.current = instantResizeKey;
     refreshFrame({ transitionMs: safeKeyedTransitionMs });
   }, [instantResizeKey, refreshFrame, safeKeyedTransitionMs]);
+
+  useLayoutEffect(() => {
+    if (liveRef.current === live) {
+      return;
+    }
+    liveRef.current = live;
+    clearSampleTimer();
+    clearSettleTimer();
+    /* Settle on the final size without easing towards it. */
+    if (!live) {
+      commitFrameValue(measureFrame());
+    }
+  }, [live, clearSampleTimer, clearSettleTimer, commitFrameValue, measureFrame]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -218,13 +236,13 @@ const useSmoothResizeFrame = ({
       `transform ${safeTransitionMs}ms ${EASING}`,
     ].join(", ");
 
-    if (!frame || isKeyedTransitionActive) {
+    if (!frame || isKeyedTransitionActive || live) {
       return {
         position: "absolute",
         inset: 0,
         overflow: "hidden",
         transform: "translate3d(0, 0, 0)",
-        transition: isKeyedTransitionActive ? "none" : transition,
+        transition: isKeyedTransitionActive || live ? "none" : transition,
       };
     }
 
@@ -239,7 +257,7 @@ const useSmoothResizeFrame = ({
       transition,
       willChange: "width, height, transform",
     };
-  }, [frame, isKeyedTransitionActive, safeTransitionMs]);
+  }, [frame, isKeyedTransitionActive, live, safeTransitionMs]);
 
   return {
     containerRef,

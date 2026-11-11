@@ -105,6 +105,17 @@ const deleteEdge = (id) => {
   fireEvent.click(view.container.querySelector(`[data-edge-delete-btn="${id}"]`));
 };
 const choose = (container, label, which = 0) => {
+  const row = container.getAttribute("data-testid") || "";
+  if (/^(binding|output)-row-\d+$/.test(row)) {
+    if (which === 0) {
+      const more = within(container).getByRole("button", { name: / · More$/ });
+      if (more.getAttribute("aria-expanded") !== "true") fireEvent.click(more);
+      container = within(container).getByTestId(`${row}-settings`);
+    } else {
+      container = within(container).getByTestId(`${row}-source`);
+    }
+    which = 0;
+  }
   fireEvent.click(within(container).getAllByRole("combobox")[which]);
   const lists = screen.getAllByRole("listbox", { hidden: true });
   fireEvent.click(within(lists[lists.length - 1]).getByText(label, { exact: true }));

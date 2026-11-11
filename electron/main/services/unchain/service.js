@@ -13,6 +13,7 @@ const {
   resolveSkeletonCredentials,
   trustedCustomProviders,
 } = require("./skeleton_credentials");
+const { withConfiguredKernelProfiles } = require("./skeleton_kernel_catalog");
 const { createPortFinder } = require("../../../shared/port_utils");
 const {
   MEMORY_V2_ENV_KEYS,
@@ -4677,6 +4678,9 @@ const createUnchainService = ({
       : await readSkeletonResourceResponse(response);
     if (action === "run_observation") return checkSkeletonRunObservation(result, observationScope);
     if (action === "legacy_chat_catalog") return validateLegacyChatCatalog(result);
+    if (action === "kernel_profiles") {
+      return withConfiguredKernelProfiles(result, () => settingsStorageService?.readModelProviderRegistry?.());
+    }
     return isManagedCodeAction(action) ? validateManagedCodeReply(action, result) : result;
   };
 

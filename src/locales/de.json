@@ -546,6 +546,7 @@
     "workspaces": "Bereiche",
     "settings": "Einstellungen",
     "chats": "Chats",
+    "home": "Startseite",
     "no_chats_found": "Keine Chats gefunden",
     "models": "Modelle"
   },
@@ -2031,6 +2032,7 @@
         "write_here": "Code hier schreiben"
       },
       "kernel": {
+        "advanced": "Erweitert",
         "and_when_the_window_fills": "und wenn das Fenster voll ist",
         "at_most": "Höchstens",
         "auth_unsupported": "Authentifizierungsmodus wird für diesen Anbieter und dieses Protokoll nicht unterstützt",
@@ -2061,6 +2063,7 @@
         "pending_count": "Eine ganze Zahl ab 1. Dies wurde nicht gespeichert; der Wert bleibt {stored}.",
         "pick_a_model": "Modell auswählen",
         "positive_count_required": "{key} muss eine ganze Zahl ab eins sein",
+        "previous_model": "Bisher: {model}",
         "profile_facts": "{protocol} · {endpoint} · Fenster {window}",
         "prompt_must_be_text": "prompt muss Text sein",
         "prompt_placeholder": "Wofür dieser Agent gedacht ist",
@@ -2239,6 +2242,12 @@
       "unreadable_source": "Unlesbare Quelle"
     },
     "subagents": {
+      "field_mode": "Modus",
+      "field_reads": "Liest",
+      "field_memory": "Speicher",
+      "field_parallel": "Parallel",
+      "field_tools": "Werkzeuge",
+      "new_embedded_short": "+ Eingebettet",
       "label_agent_resource_id": "Agent-Ressourcen-id",
       "label_subagent_id": "Subagent-id",
       "label_subagent_name": "Subagent-Name",

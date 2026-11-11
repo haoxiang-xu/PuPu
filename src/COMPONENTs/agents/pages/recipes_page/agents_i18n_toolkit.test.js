@@ -20,10 +20,10 @@ test("toolkit captions translate but stored names, selections, focus and library
   const element = <ToolkitPoolSection document={document} node={node} onChange={onChange} isDark={false} />;
   const view = render(localized("en", element));
   await screen.findByTestId("native-toolkit-library-ready");
-  const input = screen.getByPlaceholderText("Search toolkits");
+  const input = screen.getByPlaceholderText("Search tools...");
   fireEvent.change(input, { target: { value: "Core" } }); input.focus(); input.setSelectionRange(1, 3);
   view.rerender(localized("zh-CN", element));
-  expect(screen.getByTestId("native-toolkit-section")).not.toHaveTextContent("Include chat-selected toolkits");
+  expect(screen.getByTestId("native-toolkit-section")).not.toHaveTextContent("Merge with user-selected");
   expect(screen.getByTestId("native-toolkit-row-0")).toHaveTextContent(raw);
   expect(within(screen.getByTestId("native-toolkit-library-ready")).getByRole("textbox")).toBe(input);
   expect(input).toHaveFocus(); expect(input.value).toBe("Core"); expect([input.selectionStart, input.selectionEnd]).toEqual([1, 3]);

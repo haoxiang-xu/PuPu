@@ -114,4 +114,24 @@ describe("useSmoothResizeFrame", () => {
 
     unmount();
   });
+
+  test("live: follows the container with no easing, then settles on the final size", () => {
+    const { result, rerender } = renderHook(
+      ({ live }) => useSmoothResizeFrame({ live }),
+      { initialProps: { live: false } },
+    );
+    act(() => {
+      result.current.containerRef.current = frameNode;
+      result.current.refreshFrame();
+    });
+    expect(result.current.frameStyle.width).toBe("900px");
+
+    rerender({ live: true });
+    expect(result.current.frameStyle.inset).toBe(0);
+    expect(result.current.frameStyle.transition).toBe("none");
+
+    frameSize = { width: 700, height: 640 };
+    rerender({ live: false });
+    expect(result.current.frame).toEqual({ width: 700, height: 640 });
+  });
 });

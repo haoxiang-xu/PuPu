@@ -5,6 +5,7 @@ import { ConfigContext } from "../../../../../CONTAINERs/config/context";
 import CodeNode from "./code_node";
 import { managed_path, sha256_text } from "../managed_code_sources";
 import { Z } from "../../../../../BUILTIN_COMPONENTs/layer/z_layers";
+import { CODE_PORT_ANCHOR, native_step_ports } from "../skeleton_node_catalog";
 
 /* #357 AC-04, the Code node's read-only viewer, on the real Button and the
  * real Tooltip engine — nothing between them is replaced. The packaged App
@@ -227,4 +228,13 @@ test("Escape with the pinned viewer and the pointer elsewhere leaves the next ho
   /* The pointer comes straight onto the button, with no leave in between. */
   hoverButton();
   expect(isOpen()).toBe(true);
+});
+
+test("the in notch and out bump sit level with the anchored ports, not the node's middle", () => {
+  show();
+  const ports = native_step_ports("code");
+  expect(ports.map((port) => port.anchor)).toEqual([CODE_PORT_ANCHOR, CODE_PORT_ANCHOR]);
+  const shape = node();
+  expect(shape.querySelector("[data-puzzle-body]").getAttribute("data-side-y")).toBe(`${CODE_PORT_ANCHOR}px`);
+  expect(shape.querySelector("[data-tab-side=right]").style.top).toBe(`${CODE_PORT_ANCHOR}px`);
 });

@@ -546,6 +546,7 @@
     "workspaces": "ワークスペース",
     "settings": "設定",
     "chats": "チャット",
+    "home": "ホーム",
     "no_chats_found": "チャットが見つかりません",
     "models": "モデル"
   },
@@ -2031,6 +2032,7 @@
         "write_here": "ここにコードを書く"
       },
       "kernel": {
+        "advanced": "詳細設定",
         "and_when_the_window_fills": "ウィンドウが埋まったら",
         "at_most": "最大",
         "auth_unsupported": "このプロバイダーとプロトコルはその認証モードに対応していません",
@@ -2061,6 +2063,7 @@
         "pending_count": "1 以上の整数が必要です。この入力は保存されず、値は {stored} のままです。",
         "pick_a_model": "モデルを選択",
         "positive_count_required": "{key} は 1 以上の整数である必要があります",
+        "previous_model": "以前のモデル：{model}",
         "profile_facts": "{protocol} · {endpoint} · ウィンドウ {window}",
         "prompt_must_be_text": "prompt はテキストである必要があります",
         "prompt_placeholder": "このエージェントの役割",
@@ -2239,6 +2242,12 @@
       "unreadable_source": "読み取れないソース"
     },
     "subagents": {
+      "field_mode": "呼び出し",
+      "field_reads": "受け取る内容",
+      "field_memory": "メモリ",
+      "field_parallel": "並列",
+      "field_tools": "ツール",
+      "new_embedded_short": "+ 埋め込み",
       "label_agent_resource_id": "エージェントリソース id",
       "label_subagent_id": "サブエージェント id",
       "label_subagent_name": "サブエージェント名",

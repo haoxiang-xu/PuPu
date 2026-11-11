@@ -134,7 +134,7 @@ describe("adding and editing an input", () => {
   test("a new row is a binding the runtime accepts", () => {
     const onChange = jest.fn();
     show(document_with([]), onChange);
-    fireEvent.click(screen.getByText("+ Add input"));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add input", exact: true }));
 
     const next = onChange.mock.calls[0][0];
     const bindings = node_bindings(next.nodes.find((n) => n.id === "end"));
@@ -149,7 +149,7 @@ describe("adding and editing an input", () => {
   test("the row is written into config.execution.inputs, not beside it", () => {
     const onChange = jest.fn();
     show(document_with([]), onChange);
-    fireEvent.click(screen.getByText("+ Add input"));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add input", exact: true }));
     const node = onChange.mock.calls[0][0].nodes.find((n) => n.id === "end");
     expect(Object.keys(node.config.execution).sort()).toEqual(["inputs", "outputs"]);
     expect(node.config.inputs).toBeUndefined();
@@ -338,19 +338,16 @@ describe("a row at the panel's minimum width (#341 acceptance finding)", () => {
    * wrap, and `← source ×` travels as one unshrinkable group with the remove
    * button inside it, so no control is hidden, shrunk or clipped. The real
    * measurement is the hosted Playwright control over the twenty shell units. */
-  test("the header may wrap and `← source ×` moves as one group", () => {
-    show(
-      document_with([
-        { name: "a", value: { kind: "literal", value: "x" }, missing: "error" },
-      ]),
-    );
+  test("the compact header fits a shrinking source beside the name and More", () => {
+    show(document_with([{ name: "a", value: { kind: "literal", value: "x" }, missing: "error" }]));
     const header = screen.getByTestId("binding-row-0-header");
-    expect(header.style.flexWrap).toBe("wrap");
+    expect(header.style.display).toBe("grid");
+    expect(header.style.gridTemplateColumns).toContain("minmax(0, 1.4fr)");
     const group = within(header).getByTestId("binding-row-0-source");
-    expect(group.style.flexShrink).toBe("0");
-    expect(within(group).getByRole("button", { name: "Remove a" })).toBeInTheDocument();
-    expect(within(group).getByDisplayValue("A fixed value")).toBeInTheDocument();
+    expect(group.style.minWidth).toBe("0");
+    expect(within(group).getByDisplayValue("x")).toBeInTheDocument();
     expect(within(header).getByPlaceholderText("name")).toBeInTheDocument();
+    expect(within(header).getByRole("button", { name: "a · More" })).toBeInTheDocument();
   });
 
   test("removing from the wrapped group still removes the row", () => {
@@ -361,6 +358,7 @@ describe("a row at the panel's minimum width (#341 acceptance finding)", () => {
       ]),
       onChange,
     );
+    fireEvent.click(screen.getByRole("button", { name: "a · More" }));
     fireEvent.click(screen.getByRole("button", { name: "Remove a" }));
     expect(node_bindings(onChange.mock.calls[0][0].nodes.find((n) => n.id === "end"))).toEqual([]);
   });

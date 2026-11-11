@@ -546,6 +546,7 @@
     "workspaces": "Воркспейс",
     "settings": "Настройки",
     "chats": "Чаты",
+    "home": "Главная",
     "no_chats_found": "Чаты не найдены",
     "models": "Модели"
   },
@@ -2031,6 +2032,7 @@
         "write_here": "Написать код здесь"
       },
       "kernel": {
+        "advanced": "Дополнительно",
         "and_when_the_window_fills": "а когда окно заполнится",
         "at_most": "Не более",
         "auth_unsupported": "Режим аутентификации не поддерживается для этого провайдера и протокола",
@@ -2061,6 +2063,7 @@
         "pending_count": "Требуется целое число не меньше 1. Это значение не сохранено; по-прежнему хранится {stored}.",
         "pick_a_model": "Выбрать модель",
         "positive_count_required": "{key} должен быть целым числом не меньше одного",
+        "previous_model": "Ранее: {model}",
         "profile_facts": "{protocol} · {endpoint} · окно {window}",
         "prompt_must_be_text": "prompt должен быть текстом",
         "prompt_placeholder": "Назначение этого Agent",
@@ -2239,6 +2242,12 @@
       "unreadable_source": "Нечитаемый источник"
     },
     "subagents": {
+      "field_mode": "Режим",
+      "field_reads": "Читает",
+      "field_memory": "Память",
+      "field_parallel": "Параллельно",
+      "field_tools": "Инструменты",
+      "new_embedded_short": "+ Встроенный",
       "label_agent_resource_id": "id ресурса Agent",
       "label_subagent_id": "id субагента",
       "label_subagent_name": "имя субагента",

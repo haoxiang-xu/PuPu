@@ -90,7 +90,8 @@ test("the unknown caller description is localized as presentation and has no edi
   expect(section).toHaveTextContent("输入变量");
   expect(section).not.toHaveTextContent("The caller is not specified");
   expect(within(section).queryByRole("textbox")).toBeNull();
-  expect(within(section).queryByRole("button")).toBeNull();
+  expect(within(section).getAllByRole("button")).toHaveLength(1);
+  expect(within(section).getByRole("button")).toHaveAttribute("aria-label", expect.stringContaining("输入变量"));
   expect(onChange).not.toHaveBeenCalled();
   expect(node.config).toEqual({});
 });

@@ -17,10 +17,11 @@ import {
   migrateRecipeFoldersToResources,
   resourcePlacement,
 } from "../../../../SERVICEs/agent_resource_folders";
-import { RenameRow, RECIPE_PANEL_HEADER } from "./recipe_list";
+import { RenameRow, RECIPE_PANEL_HEADER, HEADER_ICON_BUTTON } from "./recipe_list";
 import { buildAgentExplorerMenuItems } from "./agent_explorer_menu_items";
 import { new_agent_document, new_workflow_document } from "./skeleton_graph_edits";
 import { safe_text } from "./document_values";
+import { useAgentsSidebarSearch } from "../../../../SERVICEs/agents_sidebar_search";
 import ImportResourceModal from "./import_resource_modal";
 
 /* The Agents side menu: the original explorer, listing native Agents.
@@ -67,17 +68,7 @@ function readItems(answer) {
   );
 }
 
-const ICON_BUTTON = {
-  paddingVertical: (RECIPE_PANEL_HEADER.HEIGHT - RECIPE_PANEL_HEADER.ICON) / 2,
-  paddingHorizontal: (RECIPE_PANEL_HEADER.HEIGHT - RECIPE_PANEL_HEADER.ICON) / 2,
-  borderRadius: RECIPE_PANEL_HEADER.RADIUS,
-  opacity: 0.55,
-  WebkitAppRegion: "no-drag",
-  content: {
-    prefixIconWrap: { display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 0 },
-    icon: { width: RECIPE_PANEL_HEADER.ICON, height: RECIPE_PANEL_HEADER.ICON },
-  },
-};
+const ICON_BUTTON = HEADER_ICON_BUTTON;
 
 function ConfirmModal({ open, title, body, action, onClose, onConfirm, isDark }) {
   const { t } = useTranslation();
@@ -148,9 +139,23 @@ export default function AgentExplorer({
   onCollapse,
   isDark,
   headerLeadingPad = 0,
+  /* Docked in the app side menu: the section title with its actions, under
+     the side menu's own search field — the chat pane's "Chats" title
+     spacing. */
+  docked = false,
+  onBack,
+  /* Drilled into a subagent: picking another Agent here would drop the
+     parent's unsaved frame, so the list and its actions sit out (the search
+     and the way back stay usable). */
+  locked = false,
 }) {
   const { t } = useTranslation();
-  const [searchQuery, setSearchQuery] = useState("");
+  /* Docked, the side menu's own search field (which stays put while its
+     panes slide) searches this list; floating, the list has its own. */
+  const [localQuery, setLocalQuery] = useState("");
+  const [sharedQuery, setSharedQuery] = useAgentsSidebarSearch();
+  const searchQuery = docked ? sharedQuery : localQuery;
+  const setSearchQuery = docked ? setSharedQuery : setLocalQuery;
   const [library, setLibrary] = useState({ status: "loading", items: [], error: null });
   const [loads, setLoads] = useState(0); // successful library reads so far
   const [legacyChecks, setLegacyChecks] = useState({ version: 0 });
@@ -664,34 +669,70 @@ export default function AgentExplorer({
   const sideActive = activeLegacyName ? `${LEGACY}${activeLegacyName}` : activeId ? `${ARCHIVED}${activeId}` : undefined;
   const caption = { fontSize: 11, color: MUTED, padding: "4px 10px", lineHeight: 1.45 };
 
-  return (
-    <div data-testid="agent-explorer" style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, padding: `${RECIPE_PANEL_HEADER.INSET - RECIPE_PANEL_HEADER.BORDER}px ${RECIPE_PANEL_HEADER.INSET - RECIPE_PANEL_HEADER.BORDER}px`, gap: 2 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: RECIPE_PANEL_HEADER.GAP, paddingLeft: headerLeadingPad, marginBottom: 8 }}>
-        {onCollapse && (
-          <Button prefix_icon="side_menu_close" ariaLabel={t("agents.explorer.hide_agents")} onClick={onCollapse} style={{ ...ICON_BUTTON, opacity: 0.5 }} />
-        )}
-        <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: MUTED, userSelect: "none", WebkitUserSelect: "none", flex: 1 }}>
-          {t("agents.explorer.agents")}
-        </div>
-        <Button prefix_icon="upload" ariaLabel={t("agents.explorer.import")} onClick={() => setImportOpen(true)} style={ICON_BUTTON} />
-        <Button prefix_icon="folder_new" ariaLabel={t("agents.explorer.new_folder")} onClick={() => handleNewFolder(null)} style={ICON_BUTTON} />
-        <Button prefix_icon="flow_chart" ariaLabel={t("agents.explorer.new_workflow")} disabled={!canCreate} onClick={() => handleNewWorkflow(null)} style={ICON_BUTTON} />
-        <Button prefix_icon="add" ariaLabel={t("agents.explorer.new_agent")} disabled={!canCreate} onClick={() => handleNewAgent(null)} style={ICON_BUTTON} />
-      </div>
+  const actionButtons = (
+    <>
+      <Button prefix_icon="upload" ariaLabel={t("agents.explorer.import")} onClick={() => setImportOpen(true)} style={ICON_BUTTON} />
+      <Button prefix_icon="folder_new" ariaLabel={t("agents.explorer.new_folder")} onClick={() => handleNewFolder(null)} style={ICON_BUTTON} />
+      <Button prefix_icon="flow_chart" ariaLabel={t("agents.explorer.new_workflow")} disabled={!canCreate} onClick={() => handleNewWorkflow(null)} style={ICON_BUTTON} />
+      <Button prefix_icon="add" ariaLabel={t("agents.explorer.new_agent")} disabled={!canCreate} onClick={() => handleNewAgent(null)} style={ICON_BUTTON} />
+    </>
+  );
+  const searchField = (
+    <Input
+      prefix_icon="search"
+      no_separator
+      value={searchQuery}
+      set_value={setSearchQuery}
+      placeholder={t("side_menu.search")}
+      style={{ width: "100%", height: 32, fontSize: 12, borderRadius: 6, color: isDark ? "#CCC" : "#222", boxShadow: "none" }}
+    />
+  );
+  const searchLabel = (
+    <span style={{ position: "absolute", width: 1, height: 1, clipPath: "inset(50%)", overflow: "hidden", whiteSpace: "nowrap" }}>{t("side_menu.search")}</span>
+  );
 
-      <div style={{ padding: "12px 4px 6px", flexShrink: 0 }}>
-        <label style={{ display: "block" }}>
-        <span style={{ position: "absolute", width: 1, height: 1, clipPath: "inset(50%)", overflow: "hidden", whiteSpace: "nowrap" }}>{t("side_menu.search")}</span>
-        <Input
-          prefix_icon="search"
-          no_separator
-          value={searchQuery}
-          set_value={setSearchQuery}
-          placeholder={t("side_menu.search")}
-          style={{ width: "100%", height: 32, fontSize: 12, borderRadius: 6, color: isDark ? "#CCC" : "#222", boxShadow: "none" }}
-        />
-        </label>
-      </div>
+  return (
+    <div data-testid="agent-explorer" style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, padding: docked ? 0 : `${RECIPE_PANEL_HEADER.INSET - RECIPE_PANEL_HEADER.BORDER}px ${RECIPE_PANEL_HEADER.INSET - RECIPE_PANEL_HEADER.BORDER}px`, gap: docked ? 0 : 2 }}>
+      {docked ? (
+        <>
+          {onBack && (
+            <Button
+              prefix_icon="arrow_left"
+              label={t("side_menu.chats")}
+              onClick={onBack}
+              /* A small way back, sized to its label, not a full nav row. */
+              style={{ alignSelf: "flex-start", fontSize: 12, padding: "3px 8px 3px 4px", borderRadius: 6, marginBottom: 4, WebkitAppRegion: "no-drag", iconSize: 14, flexShrink: 0, opacity: 0.75 }}
+            />
+          )}
+          {/* No search field of its own: the side menu's, above both
+              panes, searches this list while the Agents pane is open. */}
+          <div data-testid="agent-explorer-section-title" aria-hidden={locked ? true : undefined} style={{ display: "flex", alignItems: "center", gap: RECIPE_PANEL_HEADER.GAP, padding: "4px 0 6px 4px", flexShrink: 0, opacity: locked ? 0.35 : 1, pointerEvents: locked ? "none" : undefined, transition: "opacity 0.25s ease" }}>
+            <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "1.5px", color: isDark ? "rgba(255,255,255,0.9)" : "rgba(0,0,0,0.9)", opacity: 0.35, userSelect: "none", WebkitUserSelect: "none", flex: 1 }}>
+              {t("agents.explorer.agents")}
+            </div>
+            {actionButtons}
+          </div>
+        </>
+      ) : (
+        <>
+          <div style={{ display: "flex", alignItems: "center", gap: RECIPE_PANEL_HEADER.GAP, paddingLeft: headerLeadingPad, marginBottom: 8 }}>
+            {onCollapse && (
+              <Button prefix_icon="side_menu_close" ariaLabel={t("agents.explorer.hide_agents")} onClick={onCollapse} style={{ ...ICON_BUTTON, opacity: 0.5 }} />
+            )}
+            <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: MUTED, userSelect: "none", WebkitUserSelect: "none", flex: 1 }}>
+              {t("agents.explorer.agents")}
+            </div>
+            {actionButtons}
+          </div>
+
+          <div style={{ padding: "12px 4px 6px", flexShrink: 0 }}>
+            <label style={{ display: "block" }}>
+              {searchLabel}
+              {searchField}
+            </label>
+          </div>
+        </>
+      )}
 
       {library.status === "loading" && <span style={caption}>{t("agents.explorer.loading")}</span>}
       {library.status === "failed" && (
@@ -709,7 +750,7 @@ export default function AgentExplorer({
       )}
       {notice && <span role="alert" style={{ ...caption, color: isDark ? "rgba(255,140,140,0.95)" : "rgba(176,32,32,0.95)" }}>{renderAgentMessage(notice, t)}</span>}
 
-      <div className="scrollable" style={{ flex: 1, minHeight: 0, overflowY: "auto" }} onContextMenu={handleBackgroundContextMenu}>
+      <div className="scrollable" data-testid="agent-explorer-list" aria-hidden={locked ? true : undefined} style={{ flex: 1, minHeight: 0, overflowY: "auto", opacity: locked ? 0.35 : 1, pointerEvents: locked ? "none" : undefined, transition: "opacity 0.25s ease" }} onContextMenu={handleBackgroundContextMenu}>
         {filtered && filtered.root.length === 0 && <span style={caption}>{t("agents.explorer.no_results")}</span>}
         <Explorer
           data={filtered ? filtered.data : decorated}

@@ -2,7 +2,9 @@ import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use
 import React from "react";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
+import PanelHelp from "./panel_help";
 import BindingRow from "./binding_row";
+import InputValuePill from "./input_value_pill";
 import {
   node_bindings,
   node_output_mappings,
@@ -52,11 +54,16 @@ function StartCallerInputs({ context, isDark }) {
     : context.fields;
   return (
     <div data-testid="skeleton-input-variables" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <span style={SECTION_LABEL}>{t("agents.io.input_variables")}</span>
-      <span data-testid={context.kind === "invalid" ? "skeleton-start-context-problem" : "skeleton-start-context-caption"}
+      <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+        <span style={SECTION_LABEL}>{t("agents.io.input_variables")}</span>
+        {context.kind !== "invalid" && <PanelHelp label={t("agents.io.input_variables")}>
+          <span data-testid="skeleton-start-context-caption">{context.message}</span>
+        </PanelHelp>}
+      </div>
+      {context.kind === "invalid" && <span data-testid="skeleton-start-context-problem"
         style={{ fontSize: 11, lineHeight: 1.5, color: isDark ? "#a1a1aa" : "#68686f" }}>
         {context.message}
-      </span>
+      </span>}
       {fields.map((field) => (
         <div key={field.name} style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0,
           padding: "7px 8px", borderRadius: 5, background: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)" }}>
@@ -101,6 +108,9 @@ export default function InputVariablesSection({
   isDark,
   onChange,
   startContext,
+  hideHeading = false,
+  addAtEnd = false,
+  breadcrumb = false,
 }) {
   const { t } = useTranslation();
   /* Start has no execution.inputs key: these rows describe the caller and
@@ -130,10 +140,21 @@ export default function InputVariablesSection({
         value: first
           ? ref_expression(first.node_id, [first.name])
           : ref_expression("", []),
-        missing: "error",
+        missing: breadcrumb ? "null" : "error",
       }),
     ]);
   }
+
+  const add_button = <Button
+    prefix_icon={addAtEnd ? undefined : "add"}
+    label={addAtEnd ? t("agents.io.add_input") : undefined}
+    ariaLabel={t("agents.io.add_input")}
+    title={t("agents.io.add_input")}
+    onClick={add_binding}
+    style={{ fontSize: 11, paddingVertical: addAtEnd ? 5 : 3, paddingHorizontal: addAtEnd ? 6 : 4,
+      iconOnlyPaddingVertical: 3, iconOnlyPaddingHorizontal: 4, borderRadius: 5,
+      alignSelf: addAtEnd ? "flex-start" : undefined,
+      content: { icon: { width: 14, height: 14 } }, color: addAtEnd ? (isDark ? "#a1a1aa" : "#68686f") : "#4a5bd8" }} />;
 
   return (
     /* Addressable on its own, like the outputs section: the legacy Start and
@@ -143,52 +164,49 @@ export default function InputVariablesSection({
       data-testid="skeleton-input-variables"
       style={{ display: "flex", flexDirection: "column", gap: 8 }}
     >
-      <div
+      {(!hideHeading || !addAtEnd) && <div
         style={{
           display: "flex",
-          justifyContent: "space-between",
+          justifyContent: hideHeading ? "flex-end" : "space-between",
           alignItems: "center",
         }}
       >
-        <span style={SECTION_LABEL}>{t("agents.io.input_variables")}</span>
-        <Button
-          label={t("agents.io.add_input")}
-          onClick={add_binding}
-          style={{
-            fontSize: 11,
-            paddingVertical: 3,
-            paddingHorizontal: 8,
-            borderRadius: 5,
-            color: "#4a5bd8",
-          }}
-        />
-      </div>
+        {!hideHeading && <span style={SECTION_LABEL}>{t("agents.io.input_variables")}</span>}
+        {!addAtEnd && add_button}
+      </div>}
 
-      {bindings.length === 0 && (
+      {bindings.length === 0 && !addAtEnd && (
         <span style={{ fontSize: 11, color: "#86868b" }}>
           {t("agents.io.this_node_reads_nothing_from_the_graph")}
         </span>
       )}
 
-      {bindings.map((binding, index) => (
-        <BindingRow
+      {bindings.map((binding, index) => {
+        const Row = breadcrumb && binding?.value?.kind !== "first_present" ? InputValuePill : BindingRow;
+        return <Row
           key={index}
           binding={binding}
           index={index}
           sources={sources}
           isDark={isDark}
+          hideMissingPolicy={breadcrumb}
           problems={[
             ...composed.filter((problem) =>
               problem.where.startsWith(`bindings[${index}]`),
             ),
             ...((rowDiagnostics && rowDiagnostics[index]) || []),
           ]}
-          onChange={(next) =>
-            set_bindings(bindings.map((old, i) => (i === index ? next : old)))
-          }
+          onChange={(next) => {
+            if (breadcrumb && next.value !== binding?.value) {
+              next = { ...next, missing: "null" };
+              delete next.default;
+            }
+            set_bindings(bindings.map((old, i) => (i === index ? next : old)));
+          }}
           onRemove={() => set_bindings(bindings.filter((_, i) => i !== index))}
-        />
-      ))}
+        />;
+      })}
+      {addAtEnd && add_button}
     </div>
   );
 }

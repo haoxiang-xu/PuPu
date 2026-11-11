@@ -1,8 +1,9 @@
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
+import PanelHelp from "./panel_help";
 import React, { useState } from "react";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
-import Select from "../../../../../BUILTIN_COMPONENTs/select/select";
+import Select from "./panel_select";
 import Switch from "../../../../../BUILTIN_COMPONENTs/input/switch";
 import { BUILDER_SWITCH_SIZE } from "../builder_switch_size";
 import TextField from "../../../../../BUILTIN_COMPONENTs/input/textfield";
@@ -437,16 +438,14 @@ export default function OutputSchemaSection({
         data-testid="skeleton-output-schema"
         style={{ display: "flex", flexDirection: "column", gap: 8 }}
       >
-        <span style={SECTION_LABEL}>{t("agents.schema.title")}</span>
-        {!has_kernel ? (
-          <span data-testid="schema-no-kernel" style={CAPTION}>
-            {t("agents.schema.no_kernel_caption")}
-          </span>
-        ) : (
-          <span data-testid="schema-no-structured-output" style={CAPTION}>
-            {t("agents.schema.no_structured_output_caption")}
-          </span>
-        )}
+        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <span style={SECTION_LABEL}>{t("agents.schema.title")}</span>
+          <PanelHelp label={t("agents.schema.title")}>
+            <span data-testid={!has_kernel ? "schema-no-kernel" : "schema-no-structured-output"}>
+              {t(!has_kernel ? "agents.schema.no_kernel_caption" : "agents.schema.no_structured_output_caption")}
+            </span>
+          </PanelHelp>
+        </div>
       </div>
     );
   }
@@ -503,7 +502,12 @@ export default function OutputSchemaSection({
           alignItems: "center",
         }}
       >
-        <span style={SECTION_LABEL}>{t("agents.schema.title")}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <span style={SECTION_LABEL}>{t("agents.schema.title")}</span>
+          {!on && <PanelHelp label={t("agents.schema.title")}>
+            <span data-testid="schema-off">{t("agents.schema.off_caption")}</span>
+          </PanelHelp>}
+        </div>
         <Switch
           on={on}
           set_on={(next) => {
@@ -515,12 +519,6 @@ export default function OutputSchemaSection({
           style={BUILDER_SWITCH_SIZE}
         />
       </div>
-
-      {!on && (
-        <span data-testid="schema-off" style={CAPTION}>
-          {t("agents.schema.off_caption")}
-        </span>
-      )}
 
       {on && !held && (
         <span data-testid="schema-not-field-shaped" style={CAPTION}>

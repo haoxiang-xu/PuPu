@@ -1,9 +1,10 @@
+import PanelHelp from "./panel_help";
 import { agentMessage, renderAgentMessage } from "../agents_i18n";
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
-import Select from "../../../../../BUILTIN_COMPONENTs/select/select";
+import Select from "./panel_select";
 import SegmentedControl from "../../../../toolkit/components/segmented_control";
 import { api } from "../../../../../SERVICEs/api";
 import { subscribeToolkitCatalogRefresh } from "../../../../../SERVICEs/toolkit_catalog_refresh";
@@ -272,7 +273,6 @@ function HookEditor({ entry, index, rowId, nodeId, parentId, siblings, scopeDupl
       <div style={ROW}>
         <span style={{ ...NOTE, width: 64, flexShrink: 0 }}>{t("agents.hooks.order")}</span>
         <OrderInput entry={entry} editable={editable} isDark={isDark} testid={`${testid}-order`} about={`${rowId}:order`} onWrite={(value) => set("order", value)} />
-        <span style={NOTE}>{t("agents.hooks.order_note")}</span>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         <span style={LABEL}>{t("agents.hooks.when")}</span>
@@ -400,7 +400,12 @@ function HookEditor({ entry, index, rowId, nodeId, parentId, siblings, scopeDupl
         </span>
       </div>
       <div data-testid={`${testid}-approval`} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <span style={LABEL}>{t("agents.hooks.approval")}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <span style={LABEL}>{t("agents.hooks.approval")}</span>
+          <PanelHelp label={t("agents.hooks.approval")}>
+            <span style={NOTE}>{t("agents.hooks.approval_note")}</span>
+          </PanelHelp>
+        </div>
         <span style={{ opacity: editable ? 1 : 0.5, pointerEvents: editable ? "auto" : "none" }}>
           <SegmentedControl
             size="compact"
@@ -414,7 +419,7 @@ function HookEditor({ entry, index, rowId, nodeId, parentId, siblings, scopeDupl
         {has(entry, "force_approval") && typeof entry.force_approval !== "boolean" && (
           <span style={problem_style(isDark)}>{t("agents.hooks.stored_approval", { value: "{value}" }).split(/(\{value\})/g).map((part, index) => ({ __proto__: null, "{value}": (<span key={index} style={MONO}>{safe_text(raw(entry.force_approval))}</span>) }[part] ?? part))}</span>
         )}
-        <span style={NOTE}>{t("agents.hooks.approval_note")}</span>
+
       </div>
       <HookWorkflowSource
         entry={entry}
@@ -430,8 +435,9 @@ function HookEditor({ entry, index, rowId, nodeId, parentId, siblings, scopeDupl
         onWrite={(workflow) => set("workflow", workflow)}
         onOpen={onOpenEmbedded}
       />
-      <div data-testid={`${testid}-contract`} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <div data-testid={`${testid}-contract`} style={{ display: "flex", alignItems: "center", gap: 5 }}>
         <span style={LABEL}>{t("agents.hooks.contract")}</span>
+        <PanelHelp label={t("agents.hooks.contract")}>
         {event_ok ? (
           <>
             <span style={NOTE}>{t("agents.hooks.start_given", { keys: "{keys}" }).split(/(\{keys\})/g).map((part, index) => ({ __proto__: null, "{keys}": (<span key={index} style={MONO}>{EVENT_INPUT_KEYS[entry.event].join(t("agents.schema.fields.list_separator"))}</span>) }[part] ?? part))}</span>
@@ -448,6 +454,7 @@ function HookEditor({ entry, index, rowId, nodeId, parentId, siblings, scopeDupl
         ) : (
           <span style={NOTE}>{t("agents.hooks.choose_event_contract")}</span>
         )}
+        </PanelHelp>
       </div>
       {extras.map((key) => (
         <div key={key} data-testid={`${testid}-extra-${key}`} style={{ ...ROW, justifyContent: "space-between" }}>
@@ -641,7 +648,12 @@ export default function HooksPoolSection({ document, node, isDark, onChange, man
       <Divider isDark={isDark} />
 
       <div data-testid="hooks-pool-order" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <span style={LABEL}>{t("agents.hooks.run_order")}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <span style={LABEL}>{t("agents.hooks.run_order")}</span>
+          <PanelHelp label={t("agents.hooks.run_order")}>
+            <span style={NOTE}>{t("agents.hooks.order_explanation")}</span>
+          </PanelHelp>
+        </div>
         {agents.length === 0 && <span style={NOTE}>{t("agents.hooks.not_attached")}</span>}
         {agents.map((agent_id) => {
           const order = kernel_hook_order(document, agent_id);
@@ -718,7 +730,7 @@ export default function HooksPoolSection({ document, node, isDark, onChange, man
             </div>
           );
         })}
-        <span style={NOTE}>{t("agents.hooks.order_explanation")}</span>
+
       </div>
 
       {pool_extras.map((key) => (

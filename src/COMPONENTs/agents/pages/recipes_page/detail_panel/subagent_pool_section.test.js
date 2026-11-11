@@ -282,7 +282,7 @@ describe("referencing an Agent from the library", () => {
 describe("a row manages the entry, never the subagent's contents", () => {
   test("the section says where contents are edited", async () => {
     await show(pool({ subagents: [entry()] }));
-    expect(screen.getByTestId("skeleton-subagent-pool").textContent).toMatch(
+    expect(screen.getByTestId("subagent-pool-title").title).toMatch(
       /contents are edited by opening its graph/i,
     );
   });
@@ -301,8 +301,10 @@ describe("a row manages the entry, never the subagent's contents", () => {
 
   test("the row says where its Agent comes from, by the source and nothing else", async () => {
     await show(pool({ subagents: [entry()] }));
+    /* The entry is already called Summarizer, so the source does not
+       repeat the referenced Agent's name. */
     expect(screen.getByTestId("subagent-entry-0-source").textContent).toBe(
-      "Referenced · Summarizer",
+      "Referenced",
     );
   });
 
@@ -368,7 +370,7 @@ describe("a row manages the entry, never the subagent's contents", () => {
 
   test("parallel safety is a boolean, and the sentence changes with it", async () => {
     const { onChange } = await show(pool({ subagents: [entry()] }));
-    expect(screen.getByTestId("subagent-entry-0").textContent).toMatch(
+    expect(screen.getByTestId("subagent-entry-0-parallel").title).toMatch(
       /May run beside other subagents/i,
     );
     fireEvent.click(screen.getByRole("switch"));
@@ -380,14 +382,14 @@ describe("a row manages the entry, never the subagent's contents", () => {
       pool({ subagents: [entry({ allowed_tools: ["write", "web_fetch"], disabled_tools: ["shell"] })] }),
     );
     expect(screen.getByTestId("subagent-entry-0-tools").textContent).toBe(
-      "Tools: write, web_fetch, except shell",
+      "write, web_fetch, except shell",
     );
   });
 
   test("every tool and no tool are different sentences", async () => {
     await show(pool({ subagents: [entry({ allowed_tools: null })] }));
     expect(screen.getByTestId("subagent-entry-0-tools").textContent).toBe(
-      "Tools: every tool",
+      "every tool",
     );
   });
 
@@ -544,7 +546,7 @@ describe("what an entry does not say is not filled in for it", () => {
     const { allowed_tools, ...without } = entry();
     await show(pool({ subagents: [without] }));
     expect(screen.getByTestId("subagent-entry-0-tools").textContent).toBe(
-      "Tools: not stated",
+      "not stated",
     );
     expect(screen.getByTestId("subagent-entry-0-problem-0").textContent).toMatch(
       /required field is missing/i,
@@ -557,15 +559,11 @@ describe("a control that is not offered says why", () => {
     /* The runtime accepts any tool name without checking it, so a name typed
        here could restrict nothing and look as though it had. */
     await show(pool({ subagents: [entry()] }));
-    expect(screen.getByTestId("subagent-pool-tools-note").textContent).toMatch(
+    expect(screen.getByTestId("subagent-entry-0-tools").title).toMatch(
       /not edited here/i,
     );
   });
 
-  test("and is not said about rows that are not there", async () => {
-    await show(pool({ subagents: [] }));
-    expect(screen.queryByTestId("subagent-pool-tools-note")).not.toBeInTheDocument();
-  });
 });
 
 describe("a draft the store accepted but no control can show", () => {

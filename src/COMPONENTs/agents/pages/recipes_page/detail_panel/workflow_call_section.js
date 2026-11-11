@@ -1,7 +1,8 @@
+import PanelHelp from "./panel_help";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
-import Select from "../../../../../BUILTIN_COMPONENTs/select/select";
+import Select from "./panel_select";
 import { subscribeSkeletonLibraryRefresh } from "../../../../../SERVICEs/skeleton_library_refresh";
 import { ArgumentRow } from "./tool_call_section";
 import { binding_sources } from "./input_variables_section";
@@ -266,7 +267,14 @@ export default function WorkflowCallSection({ document, node, rowDiagnostics, is
       )}
 
       <div data-testid="workflow-call-target" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <span style={LABEL}>{t("agents.workflow.workflow")}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <span style={LABEL}>{t("agents.workflow.workflow")}</span>
+          <PanelHelp label={t("agents.workflow.workflow")}>
+            <span data-testid="workflow-call-failure" style={NOTE}>
+              {t("agents.workflow.failure")} {t("agents.workflow.pinned_contract")}
+            </span>
+          </PanelHelp>
+        </div>
         <span data-testid="workflow-call-picker">
           <Select
             options={options}
@@ -465,9 +473,7 @@ export default function WorkflowCallSection({ document, node, rowDiagnostics, is
         </span>
       )}
 
-      <span data-testid="workflow-call-failure" style={NOTE}>
-        {t("agents.workflow.failure")} {t("agents.workflow.pinned_contract")}
-      </span>
+
 
       {problems.length > 0 && (
         <div data-testid="workflow-call-problems" style={{ display: "flex", flexDirection: "column", gap: 4 }}>

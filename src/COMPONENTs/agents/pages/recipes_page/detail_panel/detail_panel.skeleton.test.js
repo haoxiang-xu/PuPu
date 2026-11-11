@@ -1,5 +1,8 @@
 import React from "react";
-import { render, screen, fireEvent, within, act } from "@testing-library/react";
+
+/* Contract text is asserted here; real help disclosure is covered separately. */
+jest.mock("./panel_help", () => function GuidanceText({ children }) { return <>{children}</>; });
+import { render, screen, fireEvent, within, act, waitFor } from "@testing-library/react";
 import { ConfigContext } from "../../../../../CONTAINERs/config/context";
 import DetailPanel from "./detail_panel";
 import { has_node_identity, node_identity } from "./node_identity";
@@ -694,16 +697,20 @@ describe("R-SCHEMA — a schema's own fields, through the real controls", () => 
       ["extra"],
     );
     expect(row_text()).not.toMatch(/produces no result named/i);
-    expect(row_text()).toMatch(/does not close its own field list/i);
+    fireEvent.click(screen.getByRole("button", { name: "Output Variables", exact: true }));
+    expect(within(screen.getByTestId("output-row-0")).getByRole("button", { name: "Result · extra" })).toBeVisible();
   });
 
-  test("an open schema's unlisted field stays editable rather than frozen", () => {
+  test("a stored unlisted field stays visible and the source menu offers declared replacements", async () => {
     open_agent(
       { type: "object", properties: { answer: { type: "string" } } },
       ["extra"],
     );
+    fireEvent.click(screen.getByRole("button", { name: "Output Variables", exact: true }));
     const row = within(screen.getByTestId("output-row-0"));
-    expect(row.getByPlaceholderText("field").value).toBe("extra");
+    fireEvent.click(row.getByRole("button", { name: "Result · extra" }));
+    await waitFor(() => expect(screen.getByText("answer", { exact: true, selector: "span" })).toBeVisible());
+    expect(row.queryByPlaceholderText("field")).not.toBeInTheDocument();
   });
 
   test("a schema that does close its list still refuses a name it cannot hold", () => {
@@ -754,9 +761,11 @@ describe("the Model section in the panel", () => {
     expect(text.indexOf("Input Variables")).toBeGreaterThanOrEqual(0);
     expect(text.indexOf("Model")).toBeGreaterThan(text.indexOf("Input Variables"));
     expect(text.indexOf("JSON Output")).toBeGreaterThan(text.indexOf("Model"));
-    expect(text.indexOf("Output Variables")).toBeGreaterThan(
-      text.indexOf("JSON Output"),
-    );
+    // JSON Output now belongs to the Output disclosure. Its header precedes
+    // the schema, while the actual mapping editor still follows the schema.
+    expect(text.indexOf("Output Variables")).toBeGreaterThan(text.indexOf("Model"));
+    expect(screen.getByTestId("process-section-output")).toContainElement(screen.getByTestId("skeleton-output-schema"));
+    expect(screen.getByTestId("skeleton-output-schema").compareDocumentPosition(screen.getByTestId("skeleton-output-variables")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   test("an Agent with no model says the run will refuse it", () => {
@@ -827,7 +836,9 @@ describe("the JSON Output section, and the two halves it joins", () => {
     const text = screen.getByTestId("recipe-detail-panel").textContent;
     expect(text.indexOf("Input Variables")).toBeGreaterThanOrEqual(0);
     expect(text.indexOf("JSON Output")).toBeGreaterThan(text.indexOf("Input Variables"));
-    expect(text.indexOf("Output Variables")).toBeGreaterThan(text.indexOf("JSON Output"));
+    expect(text.indexOf("Output Variables")).toBeGreaterThan(text.indexOf("Input Variables"));
+    expect(screen.getByTestId("process-section-output")).toContainElement(screen.getByTestId("skeleton-output-schema"));
+    expect(screen.getByTestId("skeleton-output-schema").compareDocumentPosition(screen.getByTestId("skeleton-output-variables")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   test("only an Agent has one, because only an Agent has a kernel", () => {

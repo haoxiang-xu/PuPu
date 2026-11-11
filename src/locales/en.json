@@ -546,6 +546,7 @@
     "workspaces": "Workspaces",
     "settings": "Settings",
     "chats": "Chats",
+    "home": "Home",
     "no_chats_found": "No chats found",
     "models": "Models"
   },
@@ -1951,6 +1952,7 @@
         "write_here": "Write the code here"
       },
       "kernel": {
+        "advanced": "Advanced",
         "and_when_the_window_fills": "and when the window fills",
         "at_most": "At most",
         "auth_unsupported": "authentication mode is not supported for this provider and protocol",
@@ -1981,6 +1983,7 @@
         "pending_count": "A whole number of one or more. This was not stored — it still holds {stored}.",
         "pick_a_model": "pick a model",
         "positive_count_required": "{key} must be a whole number of one or more",
+        "previous_model": "Previously: {model}",
         "profile_facts": "{protocol} · {endpoint} · window {window}",
         "prompt_must_be_text": "prompt must be text",
         "prompt_placeholder": "what this Agent is for",
@@ -2436,6 +2439,12 @@
       "workflow_revision": "{name} · rev {ordinal}"
     },
     "subagents": {
+      "field_mode": "Mode",
+      "field_reads": "Reads",
+      "field_memory": "Memory",
+      "field_parallel": "Parallel",
+      "field_tools": "Tools",
+      "new_embedded_short": "+ Embedded",
       "add_agent": "+ Add an Agent",
       "agent_kind_required": "Agent preparation requires agent kind",
       "agent_node_required": "agent graph requires an agent node",

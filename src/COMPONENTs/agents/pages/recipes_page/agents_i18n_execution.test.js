@@ -1,4 +1,7 @@
 import React from "react";
+
+/* Contract text is asserted here; real help disclosure is covered separately. */
+jest.mock("./detail_panel/panel_help", () => function GuidanceText({ children }) { return <>{children}</>; });
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { ConfigContext, LocaleContext } from "../../../../CONTAINERs/config/context";
 import ToolCallSection from "./detail_panel/tool_call_section";

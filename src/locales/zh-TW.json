@@ -546,6 +546,7 @@
     "workspaces": "工作區",
     "settings": "設定",
     "chats": "聊天",
+    "home": "首頁",
     "no_chats_found": "找不到聊天",
     "models": "模型"
   },
@@ -1887,6 +1888,7 @@
         "write_here": "在此撰寫程式碼"
       },
       "kernel": {
+        "advanced": "進階",
         "and_when_the_window_fills": "視窗填滿時",
         "at_most": "最多",
         "auth_unsupported": "此提供方和協議不支援該身份驗證模式",
@@ -1917,6 +1919,7 @@
         "pending_count": "請輸入大於或等於 1 的整數。此輸入未儲存——仍保留 {stored}。",
         "pick_a_model": "選擇模型",
         "positive_count_required": "{key} 必須是大於或等於 1 的整數",
+        "previous_model": "原模型：{model}",
         "profile_facts": "{protocol} · {endpoint} · 視窗 {window}",
         "prompt_must_be_text": "prompt 必須是文字",
         "prompt_placeholder": "此智慧體的用途",
@@ -2239,6 +2242,12 @@
       "unreadable_source": "無法讀取的來源"
     },
     "subagents": {
+      "field_mode": "呼叫方式",
+      "field_reads": "讀取",
+      "field_memory": "記憶",
+      "field_parallel": "並行",
+      "field_tools": "工具",
+      "new_embedded_short": "+ 內嵌",
       "label_agent_resource_id": "智慧體資源 id",
       "label_subagent_id": "子智慧體 id",
       "label_subagent_name": "子智慧體名稱",

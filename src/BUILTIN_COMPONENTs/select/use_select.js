@@ -209,14 +209,14 @@ export const rebuild_flat_selectable = (
  * stopping propagation here that forward would still fire and the
  * chaining bug would persist even though this guard "blocked" it.
  */
-export const useDropdownWheelGuard = (open, panelRef, listRef) => {
+export const useDropdownWheelGuard = (open, panelRef, listRef, railRef) => {
   useEffect(() => {
     if (!open) return undefined;
     const panel = panelRef.current;
     if (!panel) return undefined;
     const handle_wheel = (e) => {
-      const list = listRef.current;
-      if (!list || !list.contains(e.target)) {
+      const list = [listRef.current, railRef?.current].find((surface) => surface?.contains(e.target));
+      if (!list) {
         // wheel over dropdown chrome (padding, group headers, search row)
         e.preventDefault();
         e.stopPropagation();
@@ -236,7 +236,7 @@ export const useDropdownWheelGuard = (open, panelRef, listRef) => {
     };
     panel.addEventListener("wheel", handle_wheel, { passive: false });
     return () => panel.removeEventListener("wheel", handle_wheel);
-  }, [open, panelRef, listRef]);
+  }, [open, panelRef, listRef, railRef]);
 };
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

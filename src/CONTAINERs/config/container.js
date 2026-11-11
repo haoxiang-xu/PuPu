@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   useSystemTheme,
   useWindowSize,
@@ -14,6 +14,12 @@ import ArcSpinner from "../../BUILTIN_COMPONENTs/spinner/arc_spinner";
 import TitleBar from "../../BUILTIN_COMPONENTs/electron/title_bar";
 import SideMenu from "../../COMPONENTs/side-menu/side_menu";
 import InitSetupModal from "../../COMPONENTs/init-setup/init_setup_modal";
+import AgentsWorkspaceHost from "../../COMPONENTs/agents/agents_workspace_host";
+import AgentsDetailHost from "../../COMPONENTs/agents/agents_detail_host";
+import {
+  readSideMenuWidth,
+  writeSideMenuWidthVar,
+} from "../../SERVICEs/side_menu_width";
 /* { Components } ------------------------------------------------------------------------------------------------------------ */
 
 /* { Contexts } -------------------------------------------------------------------------------------------------------------- */
@@ -434,11 +440,35 @@ const ConfigContainer = ({ children }) => {
   );
   const settingsPersistenceReadyRef = useRef(false);
 
+  /* Which surface fills the window: the chat, or the Agents workspace the
+     side menu drills into. Session-only on purpose — the app always opens on
+     the chat. `agentsSidebarSlot` is the element the side menu's Agents pane
+     hands over, so the workspace can render its agent list there. */
+  const [appMode, setAppMode] = useState("chat");
+  const [agentsSidebarSlot, setAgentsSidebarSlot] = useState(null);
+  /* The right-hand side menu of the Agents workspace (the node detail
+     panel) renders into this element, so it can run the full window height
+     like the left one instead of floating inside the canvas. */
+  const [agentsDetailSlot, setAgentsDetailSlot] = useState(null);
+  const [sideMenuWidth, setSideMenuWidth] = useState(() =>
+    readSideMenuWidth(_persisted),
+  );
+  /* While the side menu's edge is being dragged, whatever follows its width
+     drops its slide transition so it tracks the pointer. */
+  const [sideMenuResizing, setSideMenuResizing] = useState(false);
+  /* Everything that follows the side menu's width reads it from a CSS
+     variable, so a drag can move it without a render. */
+  useLayoutEffect(() => {
+    writeSideMenuWidthVar(sideMenuWidth);
+  }, [sideMenuWidth]);
+
   useEffect(() => {
     if (!settingsPersistenceReadyRef.current) {
       settingsPersistenceReadyRef.current = true;
       return;
     }
+    /* One write when the drag ends, not one per pointer move. */
+    if (sideMenuResizing) return;
     saveSettingsStorage({
       appearance: {
         theme_mode: syncWithSystemTheme ? "sync_with_browser" : onThemeMode,
@@ -446,9 +476,17 @@ const ConfigContainer = ({ children }) => {
       },
       ui: {
         side_menu_open: onFragment === "side_menu",
+        side_menu_width: sideMenuWidth,
       },
     });
-  }, [locale, onFragment, onThemeMode, syncWithSystemTheme]);
+  }, [
+    locale,
+    onFragment,
+    onThemeMode,
+    syncWithSystemTheme,
+    sideMenuWidth,
+    sideMenuResizing,
+  ]);
 
   /* { Init Setup } ============================================ */
   const [showInitSetup, setShowInitSetup] = useState(() => !isSetupComplete());
@@ -475,8 +513,28 @@ const ConfigContainer = ({ children }) => {
   );
 
   const navigationValue = useMemo(
-    () => ({ onFragment, setOnFragment }),
-    [onFragment],
+    () => ({
+      onFragment,
+      setOnFragment,
+      appMode,
+      setAppMode,
+      agentsSidebarSlot,
+      setAgentsSidebarSlot,
+      agentsDetailSlot,
+      setAgentsDetailSlot,
+      sideMenuWidth,
+      setSideMenuWidth,
+      sideMenuResizing,
+      setSideMenuResizing,
+    }),
+    [
+      onFragment,
+      appMode,
+      agentsSidebarSlot,
+      agentsDetailSlot,
+      sideMenuWidth,
+      sideMenuResizing,
+    ],
   );
 
   /* Legacy combined value — kept for backward compatibility.
@@ -548,9 +606,23 @@ const ConfigContainer = ({ children }) => {
                 bottom: 0,
               }}
             >
-              {children}
+              {/* The chat stays mounted under the Agents workspace, so a
+                  stream in flight and the draft in the input survive a trip
+                  to the builder and back. */}
+              <div
+                aria-hidden={appMode === "agents" ? true : undefined}
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  visibility: appMode === "agents" ? "hidden" : "visible",
+                }}
+              >
+                {children}
+              </div>
+              <AgentsWorkspaceHost />
             </div>
             <SideMenu />
+            <AgentsDetailHost />
             <InitSetupModal
               open={showInitSetup}
               onClose={() => setShowInitSetup(false)}

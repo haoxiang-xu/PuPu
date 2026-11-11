@@ -1726,6 +1726,9 @@ def migrate_known_legacy_sources(store: SkeletonResourceStore | None = None) -> 
                     "message": "legacy source could not be read",
                 },
             })
+    from skeleton_legacy_auto_upgrade import auto_upgrade_known_resources
+    blocked_sources = {item["source_identity"] for item in results if item.get("stage") == "failed"}
+    results.extend(auto_upgrade_known_resources(store, blocked_sources=blocked_sources))
     return results
 
 

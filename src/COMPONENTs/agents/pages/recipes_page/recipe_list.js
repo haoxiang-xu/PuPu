@@ -42,6 +42,20 @@ export const RECIPE_PANEL_HEADER = Object.freeze({
   RADIUS: HEADER_RADIUS,
 });
 
+/* A section title's action button (the Agents list's import / new, the side
+   menu's new chat): icon only, quiet until hovered. */
+export const HEADER_ICON_BUTTON = {
+  paddingVertical: (HEADER_HEIGHT - HEADER_ICON) / 2,
+  paddingHorizontal: (HEADER_HEIGHT - HEADER_ICON) / 2,
+  borderRadius: HEADER_RADIUS,
+  opacity: 0.55,
+  WebkitAppRegion: "no-drag",
+  content: {
+    prefixIconWrap: { display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 0 },
+    icon: { width: HEADER_ICON, height: HEADER_ICON },
+  },
+};
+
 const PENDING_AGENT_ID = "__new_agent__";
 const ROOT_ORDER_KEY = "__root__";
 const FOLDER_NODE_PREFIX = "folder:";

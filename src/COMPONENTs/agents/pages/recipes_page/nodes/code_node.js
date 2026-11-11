@@ -181,7 +181,7 @@ export default function CodeNode({ node, isDark, lowZoom = false, onOpenNode, so
         close();
       }}
     >
-      <PuzzleShape tabs={["right"]} cutouts={["left"]} isDark={isDark}>
+      <PuzzleShape tabs={["right"]} cutouts={["left"]} anchor={CODE_PORT_ANCHOR} isDark={isDark}>
         <div style={{ padding: "13px 16px 12px" }}>
           {/* The header is CODE_PORT_ANCHOR tall to its centre line: 13px of
               padding above a 28px glyph. The ports anchor there. */}

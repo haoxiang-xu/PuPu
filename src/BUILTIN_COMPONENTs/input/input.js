@@ -918,6 +918,7 @@ const FloatingInput = ({
  */
 const Input = ({
   label,
+  aria_label,
   placeholder,
   value,
   set_value = () => {},
@@ -1048,6 +1049,7 @@ const Input = ({
       {/* input */}
       <input
         ref={input_ref || default_input_ref}
+        aria-label={aria_label}
         type={type}
         disabled={disabled}
         maxLength={max_length}

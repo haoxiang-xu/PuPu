@@ -752,6 +752,7 @@ const Timeline = ({
   style,
   compact = false,
   hideTrack = false,
+  show_all_points = false,
 }) => {
   const { theme } = useContext(ConfigContext);
   const tl = useMemo(
@@ -808,7 +809,7 @@ const Timeline = ({
         const isLast = i === items.length - 1;
         const isActive = (item.status ?? "pending") === "active";
         const isPreset = item.point === "start" || item.point === "end";
-        const isPassThrough = !isFirst && !isLast && !isActive && !isPreset;
+        const isPassThrough = !show_all_points && !isFirst && !isLast && !isActive && !isPreset;
         const hasBranch =
           Array.isArray(item.children) && item.children.length > 0;
 

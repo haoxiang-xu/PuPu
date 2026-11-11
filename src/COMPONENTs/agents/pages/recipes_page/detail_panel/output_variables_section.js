@@ -3,6 +3,7 @@ import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use
 import React from "react";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import OutputRow from "./output_row";
+import OutputValuePill from "./output_value_pill";
 import {
   node_bindings,
   node_declares_outputs,
@@ -165,6 +166,9 @@ export default function OutputVariablesSection({
   rowDiagnostics,
   isDark,
   onChange,
+  hideHeading = false,
+  addAtEnd = false,
+  breadcrumb = false,
 }) {
   const { t } = useTranslation();
   /* A branch selects an outlet rather than producing a value, and a pool
@@ -175,6 +179,7 @@ export default function OutputVariablesSection({
   const kinds = output_source_kinds_for(node.type);
   const names = input_names(node);
   const roots = result_roots_for(node, t);
+  const Row = breadcrumb ? OutputValuePill : OutputRow;
   const composed = [
     ...output_mapping_problems(mappings, t),
     ...output_surface_problems(node, mappings, t),
@@ -199,6 +204,17 @@ export default function OutputVariablesSection({
     ]);
   }
 
+  const add_button = <Button
+    prefix_icon={addAtEnd ? undefined : "add"}
+    label={addAtEnd ? t("agents.io.add_output") : undefined}
+    ariaLabel={t("agents.io.add_output")}
+    title={t("agents.io.add_output")}
+    onClick={add_mapping}
+    style={{ fontSize: 11, paddingVertical: addAtEnd ? 5 : 3, paddingHorizontal: addAtEnd ? 6 : 4,
+      iconOnlyPaddingVertical: 3, iconOnlyPaddingHorizontal: 4, borderRadius: 5,
+      alignSelf: addAtEnd ? "flex-start" : undefined,
+      content: { icon: { width: 14, height: 14 } }, color: addAtEnd ? (isDark ? "#a1a1aa" : "#68686f") : "#4a5bd8" }} />;
+
   return (
     /* Addressable on its own: the legacy Start panel heads its own section with
        the same words, and although the two models never render together — a
@@ -208,35 +224,25 @@ export default function OutputVariablesSection({
       data-testid="skeleton-output-variables"
       style={{ display: "flex", flexDirection: "column", gap: 8 }}
     >
-      <div
+      {(!hideHeading || !addAtEnd) && <div
         style={{
           display: "flex",
-          justifyContent: "space-between",
+          justifyContent: hideHeading ? "flex-end" : "space-between",
           alignItems: "center",
         }}
       >
-        <span style={SECTION_LABEL}>{t("agents.io.output_variables")}</span>
-        <Button
-          label={t("agents.io.add_output")}
-          onClick={add_mapping}
-          style={{
-            fontSize: 11,
-            paddingVertical: 3,
-            paddingHorizontal: 8,
-            borderRadius: 5,
-            color: "#4a5bd8",
-          }}
-        />
-      </div>
+        {!hideHeading && <span style={SECTION_LABEL}>{t("agents.io.output_variables")}</span>}
+        {!addAtEnd && add_button}
+      </div>}
 
-      {mappings.length === 0 && (
+      {mappings.length === 0 && !addAtEnd && (
         <span style={{ fontSize: 11, color: "#86868b" }}>
           {t("agents.io.this_node_passes_nothing_on_so_nothing_downstream_can_read_from_it")}
         </span>
       )}
 
       {mappings.map((mapping, index) => (
-        <OutputRow
+        <Row
           key={index}
           mapping={mapping}
           index={index}
@@ -278,6 +284,7 @@ export default function OutputVariablesSection({
           onRemove={() => set_mappings(mappings.filter((_, i) => i !== index))}
         />
       ))}
+      {addAtEnd && add_button}
     </div>
   );
 }
