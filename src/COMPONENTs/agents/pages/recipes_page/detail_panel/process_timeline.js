@@ -49,7 +49,7 @@ function ProblemCount({ count, section, isDark }) {
 }
 
 /* A part that is always open: a quiet caption, then the control. */
-function Block({ section, title, help, problems = [], isDark, children }) {
+function Block({ section, title, help, problems = [], aside, isDark, children }) {
   return (
     <div role="region" aria-label={title} data-testid={`process-section-${section}`}
       style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
@@ -60,6 +60,11 @@ function Block({ section, title, help, problems = [], isDark, children }) {
         {help && <span style={{ display: "inline-flex", flexShrink: 0, marginLeft: -2 }}>
           <PanelHelp label={title}>{help}</PanelHelp>
         </span>}
+        {/* The same place a folded part keeps its row count. */}
+        {aside !== undefined && <span data-testid={`process-aside-${section}`}
+          style={{ marginLeft: "auto", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+            fontSize: 11.5, fontVariantNumeric: "tabular-nums", color: MUTED(isDark),
+            userSelect: "none", WebkitUserSelect: "none" }}>{aside}</span>}
       </div>
       {children}
     </div>
@@ -148,7 +153,7 @@ export default function ProcessTimeline({ document, node, revision, isDark, onCh
       isDark={isDark} onChange={onChange} hideHeading addAtEnd breadcrumb />
   </>;
   return <KernelSection document={document} node={node} revision={revision} isDark={isDark} onChange={onChange}
-    renderSections={({ modelPicker, advanced, prompt, promptHelp, modelProblems, promptProblems }) => {
+    renderSections={({ modelPicker, advanced, prompt, promptHelp, promptSummary, modelProblems, promptProblems }) => {
       const wiring = [
         { key: "input", title: t("agents.io.input_variables"), content: input, problems: inputProblems,
           summary: countOf(node_bindings(node)) },
@@ -163,7 +168,10 @@ export default function ProcessTimeline({ document, node, revision, isDark, onCh
               {modelPicker}
             </Block>
             <Block section="prompt" title={t("agents.execution.agent.prompt")} help={promptHelp}
-              problems={promptProblems} isDark={isDark}>
+              problems={promptProblems} isDark={isDark}
+              /* Counted in characters as a reader sees them, so a CJK prompt
+                 and an emoji are not over-counted. */
+              aside={t("agents.execution.kernel.prompt_characters", { count: Array.from(typeof promptSummary === "string" ? promptSummary : "").length })}>
               {prompt}
             </Block>
             <div data-testid="process-wiring" style={{ display: "flex", flexDirection: "column", gap: 20, minWidth: 0 }}>

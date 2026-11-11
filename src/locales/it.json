@@ -2069,6 +2069,7 @@
         "positive_count_required": "{key} deve essere un numero intero di almeno uno",
         "previous_model": "In precedenza: {model}",
         "profile_facts": "{protocol} · {endpoint} · finestra {window}",
+        "prompt_characters": "{count} caratteri",
         "prompt_must_be_text": "prompt deve essere testo",
         "prompt_placeholder": "Lo scopo di questo Agent",
         "protocol_unsupported": "Questa build usa openai-responses, anthropic, gemini e ollama",

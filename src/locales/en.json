@@ -1989,6 +1989,7 @@
         "positive_count_required": "{key} must be a whole number of one or more",
         "previous_model": "Previously: {model}",
         "profile_facts": "{protocol} · {endpoint} · window {window}",
+        "prompt_characters": "{count} characters",
         "prompt_must_be_text": "prompt must be text",
         "prompt_placeholder": "what this Agent is for",
         "protocol_unsupported": "this build speaks openai-responses, anthropic, gemini and ollama",

@@ -2069,6 +2069,7 @@
         "positive_count_required": "{key} は 1 以上の整数である必要があります",
         "previous_model": "以前のモデル：{model}",
         "profile_facts": "{protocol} · {endpoint} · ウィンドウ {window}",
+        "prompt_characters": "{count} 文字",
         "prompt_must_be_text": "prompt はテキストである必要があります",
         "prompt_placeholder": "このエージェントの役割",
         "protocol_unsupported": "このビルドが使えるのは openai-responses、anthropic、gemini、ollama です",

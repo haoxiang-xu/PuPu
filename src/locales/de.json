@@ -2069,6 +2069,7 @@
         "positive_count_required": "{key} muss eine ganze Zahl ab eins sein",
         "previous_model": "Bisher: {model}",
         "profile_facts": "{protocol} · {endpoint} · Fenster {window}",
+        "prompt_characters": "{count} Zeichen",
         "prompt_must_be_text": "prompt muss Text sein",
         "prompt_placeholder": "Wofür dieser Agent gedacht ist",
         "protocol_unsupported": "Dieser Build spricht openai-responses, anthropic, gemini und ollama",

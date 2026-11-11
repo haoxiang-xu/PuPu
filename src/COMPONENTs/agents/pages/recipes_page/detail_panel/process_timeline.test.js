@@ -344,3 +344,12 @@ test("only the words and the arrow fold a part; the rest of its row is safe to c
   fireEvent.click(toggle);
   expect(toggle).toHaveAttribute("aria-expanded", "false");
 });
+
+test("the Prompt caption says how long the prompt is, and keeps up with typing", async () => {
+  await show();
+  const aside = screen.getByTestId("process-aside-prompt");
+  expect(aside).toHaveTextContent(`${"Read {{#input.question#}}.".length} characters`);
+  const box = within(screen.getByRole("region", { name: "Prompt", exact: true })).getByRole("textbox");
+  fireEvent.change(box, { target: { value: "你好🙂" } });
+  expect(aside).toHaveTextContent("3 characters");
+});

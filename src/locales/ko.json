@@ -2069,6 +2069,7 @@
         "positive_count_required": "{key}은(는) 1 이상의 정수여야 합니다",
         "previous_model": "이전 모델: {model}",
         "profile_facts": "{protocol} · {endpoint} · 윈도 {window}",
+        "prompt_characters": "{count}자",
         "prompt_must_be_text": "prompt는 텍스트여야 합니다",
         "prompt_placeholder": "이 에이전트의 용도",
         "protocol_unsupported": "이 빌드는 openai-responses, anthropic, gemini 및 ollama를 지원합니다",

@@ -2069,6 +2069,7 @@
         "positive_count_required": "{key} должен быть целым числом не меньше одного",
         "previous_model": "Ранее: {model}",
         "profile_facts": "{protocol} · {endpoint} · окно {window}",
+        "prompt_characters": "Символов: {count}",
         "prompt_must_be_text": "prompt должен быть текстом",
         "prompt_placeholder": "Назначение этого Agent",
         "protocol_unsupported": "Эта сборка использует openai-responses, anthropic, gemini и ollama",

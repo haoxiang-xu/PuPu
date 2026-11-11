@@ -1925,6 +1925,7 @@
         "positive_count_required": "{key} 必須是大於或等於 1 的整數",
         "previous_model": "原模型：{model}",
         "profile_facts": "{protocol} · {endpoint} · 視窗 {window}",
+        "prompt_characters": "{count} 字元",
         "prompt_must_be_text": "prompt 必須是文字",
         "prompt_placeholder": "此智慧體的用途",
         "protocol_unsupported": "此組建支援 openai-responses、anthropic、gemini 和 ollama",
