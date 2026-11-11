@@ -3,11 +3,10 @@ import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use
 import { agentEnglishText, agentMessage, renderAgentMessage } from "../agents_i18n";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
-import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
+import Input from "./panel_input";
 import Select from "./panel_select";
 import Switch from "../../../../../BUILTIN_COMPONENTs/input/switch";
 import TextField from "../../../../../BUILTIN_COMPONENTs/input/textfield";
-import { BUILDER_SWITCH_SIZE } from "../builder_switch_size";
 import usePendingText from "./pending_text";
 import useListIdentities from "./list_identity";
 import { FieldRow } from "./output_schema_section";
@@ -33,6 +32,9 @@ import {
   with_code_settings,
 } from "../code_config";
 import { managed_path, sha256_text } from "../managed_code_sources";
+import { CAPTION_TEXT } from "./panel_style";
+/* The panel's switches are 38×20, a step quieter than the builder's. */
+const BUILDER_SWITCH_SIZE = Object.freeze({ width: 38, height: 20 });
 
 /* A Code node (#357): the Python it runs with, the file that holds
  * `main(input, context)`, how long and how much it may produce, and the
@@ -58,13 +60,13 @@ import { managed_path, sha256_text } from "../managed_code_sources";
  * `code` at all, and each control writes its own key the first time it is
  * used. The problems list says what is still missing. */
 
-const LABEL = { fontSize: 11, fontWeight: 600, color: "var(--pupu-text-muted)", textTransform: "uppercase", letterSpacing: 0.4 };
-const NOTE = { fontSize: 10.5, color: "var(--pupu-text-muted)", lineHeight: 1.45 };
+const LABEL = CAPTION_TEXT;
+const NOTE = { fontSize: 11.5, color: "var(--pupu-text-muted)", lineHeight: 1.45 };
 const MONO = { fontFamily: "ui-monospace, Menlo, monospace" };
 const ROW = { display: "flex", alignItems: "center", gap: 6 };
-const FIELD = { width: "100%", fontSize: 11.5, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 5 };
+const FIELD = { width: "100%", fontSize: 12, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 8 };
 const problem_style = (isDark) => ({
-  fontSize: 10.5,
+  fontSize: 11.5,
   lineHeight: 1.45,
   color: isDark ? "rgba(255,140,140,0.95)" : "rgba(176,32,32,0.95)",
 });
@@ -73,7 +75,7 @@ const EMPTY_CLOSED_SCHEMA = Object.freeze({ type: "object", properties: {}, addi
 const record = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 
 function Divider({ isDark }) {
-  return <div style={{ height: 1, margin: "2px 0", background: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)" }} />;
+  return <div aria-hidden="true" style={{ height: 6 }} />;
 }
 
 function refusal_text(result, fallback, t = agentEnglishText) {
@@ -337,7 +339,7 @@ export default function CodeSection({ document, node, revision, sources, isDark,
         {library.status === "error" && (
           <span data-testid="code-runtime-error" style={problem_style(isDark)}>
             {t("agents.execution.code.profiles_refused", { message: refusal_text(library.error, agentMessage("agents.execution.code.store_refused"), t) })}{" "}
-            <Button label={t("agents.explorer.try_again")} onClick={reloadProfiles} style={{ fontSize: 10.5, paddingVertical: 1, paddingHorizontal: 6 }} />
+            <Button label={t("agents.explorer.try_again")} onClick={reloadProfiles} style={{ fontSize: 11.5, paddingVertical: 1, paddingHorizontal: 6 }} />
           </span>
         )}
         {listed && (
@@ -353,7 +355,7 @@ export default function CodeSection({ document, node, revision, sources, isDark,
               ariaLabel={t("agents.execution.code.check_profile_id", { profile_id: profile_id })}
               disabled={probe.status === "loading"}
               onClick={check}
-              style={{ fontSize: 10.5, paddingVertical: 2, paddingHorizontal: 8, borderRadius: 5 }}
+              style={{ fontSize: 11.5, paddingVertical: 2, paddingHorizontal: 8, borderRadius: 8 }}
             />
             {probe.status === "done" && probe.id === profile_id && (
               <span data-testid="code-runtime-probe" style={probe.result.ok ? NOTE : problem_style(isDark)}>
@@ -372,12 +374,12 @@ export default function CodeSection({ document, node, revision, sources, isDark,
                 setAddState({ status: "idle", result: null });
                 setAdding({ id: "", executable: "" });
               }}
-              style={{ fontSize: 10.5, paddingVertical: 2, paddingHorizontal: 8, borderRadius: 5, color: "var(--pupu-accent)" }}
+              style={{ fontSize: 11.5, paddingVertical: 2, paddingHorizontal: 8, borderRadius: 8, color: "var(--pupu-text-muted)" }}
             />
           </span>
         )}
         {adding && (
-          <div data-testid="code-runtime-add" style={{ display: "flex", flexDirection: "column", gap: 6, padding: "8px 10px", borderRadius: 7, background: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)" }}>
+          <div data-testid="code-runtime-add" style={{ display: "flex", flexDirection: "column", gap: 6, padding: 0, background: "transparent" }}>
             <Input value={adding.id} placeholder={t("agents.execution.code.profile_name_placeholder")} set_value={(next) => setAdding({ ...adding, id: next })} style={FIELD} />
             <Input value={adding.executable} placeholder={t("agents.execution.code.executable_placeholder")} set_value={(next) => setAdding({ ...adding, executable: next })} style={{ ...FIELD, ...MONO }} />
             <span style={NOTE}>{t("agents.execution.code.executable_note")}</span>
@@ -386,9 +388,9 @@ export default function CodeSection({ document, node, revision, sources, isDark,
                 label={addState.status === "saving" ? t("agents.execution.code.probing") : t("agents.execution.code.add")}
                 disabled={addState.status === "saving" || !adding.id.trim() || !adding.executable.trim()}
                 onClick={addProfile}
-                style={{ fontSize: 10.5, paddingVertical: 2, paddingHorizontal: 8, borderRadius: 5 }}
+                style={{ fontSize: 11.5, paddingVertical: 2, paddingHorizontal: 8, borderRadius: 8 }}
               />
-              <Button label={t("agents.explorer.cancel")} onClick={cancelAdd} style={{ fontSize: 10.5, paddingVertical: 2, paddingHorizontal: 8, borderRadius: 5, opacity: 0.75 }} />
+              <Button label={t("agents.explorer.cancel")} onClick={cancelAdd} style={{ fontSize: 11.5, paddingVertical: 2, paddingHorizontal: 8, borderRadius: 8, opacity: 0.75 }} />
             </div>
             {addState.status === "done" && !addState.result.ok && (
               <span data-testid="code-runtime-add-problem" style={problem_style(isDark)}>{refusal_text(addState.result, agentMessage("agents.execution.code.python_refused"), t)}</span>
@@ -420,7 +422,7 @@ export default function CodeSection({ document, node, revision, sources, isDark,
                 pendingPath.release();
                 setMode(mode === "here" ? "file" : "here");
               }}
-              style={{ fontSize: 10.5, paddingVertical: 1, paddingHorizontal: 6, borderRadius: 5, color: "var(--pupu-accent)" }}
+              style={{ fontSize: 11.5, paddingVertical: 1, paddingHorizontal: 6, borderRadius: 8, color: "var(--pupu-text-muted)" }}
             />
           )}
         </div>
@@ -440,7 +442,7 @@ export default function CodeSection({ document, node, revision, sources, isDark,
                   }}
                   min_rows={8}
                   max_display_rows={24}
-                  style={{ width: "100%", fontSize: 11, ...MONO, lineHeight: 1.45, borderRadius: 6, padding: 8 }}
+                  style={{ width: "100%", fontSize: 11.5, ...MONO, lineHeight: 1.45, borderRadius: 8, padding: 8 }}
                 />
               </span>
             )}
@@ -556,7 +558,7 @@ export default function CodeSection({ document, node, revision, sources, isDark,
               rows.added();
               set_fields([...fields, new_field(free_field_name(fields.map((field) => (field && field.name) || "")))], declared ? closed : true, root);
             }}
-            style={{ alignSelf: "flex-start", fontSize: 11, paddingVertical: 3, paddingHorizontal: 8, borderRadius: 5, color: "var(--pupu-accent)" }}
+            style={{ alignSelf: "flex-start", fontSize: 11.5, paddingVertical: 3, paddingHorizontal: 8, borderRadius: 8, color: "var(--pupu-text-muted)" }}
           />
         )}
         {declared && !as_json && (
@@ -586,7 +588,7 @@ export default function CodeSection({ document, node, revision, sources, isDark,
             }}
             min_rows={6}
             max_display_rows={18}
-            style={{ width: "100%", fontSize: 11, ...MONO, borderRadius: 6, padding: 8 }}
+            style={{ width: "100%", fontSize: 11.5, ...MONO, borderRadius: 8, padding: 8 }}
           />
         )}
         {as_json && !json_parsed.ok && (
@@ -598,7 +600,7 @@ export default function CodeSection({ document, node, revision, sources, isDark,
           <Button
             label={editor.as_json ? t("agents.schema.edit_as_fields") : t("agents.schema.edit_as_json")}
             onClick={() => setEditor({ as_json: !editor.as_json, of: schema, text: null })}
-            style={{ alignSelf: "flex-start", fontSize: 11, paddingVertical: 3, paddingHorizontal: 8, borderRadius: 5, color: "var(--pupu-accent)" }}
+            style={{ alignSelf: "flex-start", fontSize: 11.5, paddingVertical: 3, paddingHorizontal: 8, borderRadius: 8, color: "var(--pupu-text-muted)" }}
           />
         )}
 
@@ -636,7 +638,7 @@ export default function CodeSection({ document, node, revision, sources, isDark,
                 ariaLabel={t("agents.execution.code.remove_artifacts")}
                 disabled={!editable}
                 onClick={remove_artifacts_key}
-                style={{ fontSize: 10.5, paddingVertical: 2, paddingHorizontal: 6, borderRadius: 5 }}
+                style={{ fontSize: 11.5, paddingVertical: 2, paddingHorizontal: 6, borderRadius: 8 }}
               />
             </div>
           )}
@@ -650,7 +652,7 @@ export default function CodeSection({ document, node, revision, sources, isDark,
                 ariaLabel={t("agents.execution.code.remove_artifact", { index: index })}
                 disabled={!editable}
                 onClick={() => write("artifacts", artifacts.filter((_, i) => i !== index))}
-                style={{ fontSize: 10.5, paddingVertical: 2, paddingHorizontal: 6, borderRadius: 5 }}
+                style={{ fontSize: 11.5, paddingVertical: 2, paddingHorizontal: 6, borderRadius: 8 }}
               />
             </div>
           ))}
@@ -674,7 +676,7 @@ export default function CodeSection({ document, node, revision, sources, isDark,
               delete next[key];
               setCode(next);
             }}
-            style={{ fontSize: 10.5, paddingVertical: 2, paddingHorizontal: 6, borderRadius: 5 }}
+            style={{ fontSize: 11.5, paddingVertical: 2, paddingHorizontal: 6, borderRadius: 8 }}
           />
         </div>
       ))}

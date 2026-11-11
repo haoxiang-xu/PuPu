@@ -14,6 +14,7 @@ import {
 import { identity_of } from "../document_values";
 import { make_output_mapping, output_mapping_problems } from "../skeleton_io";
 import { result_roots_for } from "../skeleton_result_roots";
+import { CAPTION_TEXT } from "./panel_style";
 
 /* Output Variables: what this node passes on, and from where.
  *
@@ -37,13 +38,7 @@ import { result_roots_for } from "../skeleton_result_roots";
  * it over-corrected and spoke as if an Agent's schema always closed its own
  * field list, which is wrong whenever the schema does not say so. */
 
-const SECTION_LABEL = {
-  fontSize: 11,
-  fontWeight: 600,
-  color: "#86868b",
-  textTransform: "uppercase",
-  letterSpacing: 0.4,
-};
+const SECTION_LABEL = CAPTION_TEXT;
 
 function input_names(node) {
   return node_bindings(node)
@@ -213,7 +208,7 @@ export default function OutputVariablesSection({
     style={{ fontSize: 11, paddingVertical: addAtEnd ? 5 : 3, paddingHorizontal: addAtEnd ? 6 : 4,
       iconOnlyPaddingVertical: 3, iconOnlyPaddingHorizontal: 4, borderRadius: 5,
       alignSelf: addAtEnd ? "flex-start" : undefined,
-      content: { icon: { width: 14, height: 14 } }, color: addAtEnd ? (isDark ? "#a1a1aa" : "#68686f") : "#4a5bd8" }} />;
+      content: { icon: { width: 14, height: 14 } }, color: addAtEnd ? (isDark ? "#a1a1aa" : "#68686f") : "var(--pupu-text-muted)" }} />;
 
   return (
     /* Addressable on its own: the legacy Start panel heads its own section with

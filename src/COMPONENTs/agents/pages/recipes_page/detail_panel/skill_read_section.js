@@ -18,6 +18,7 @@ import {
   with_skill,
   without_inputs,
 } from "../skill_read_config";
+import { CAPTION_TEXT } from "./panel_style";
 
 /* A Skill Read node: one skill, read by the runtime when the run reaches it
  * (#352). Every rule here is the fixed runtime's (see `skill_read_config`):
@@ -34,22 +35,22 @@ import {
  * the user-skills switch is on, the same switch a chat run reads) and the
  * installed skill packs. */
 
-const LABEL = { fontSize: 11, fontWeight: 600, color: "#86868b", textTransform: "uppercase", letterSpacing: 0.4 };
-const NOTE = { fontSize: 10.5, color: "#86868b", lineHeight: 1.45 };
+const LABEL = CAPTION_TEXT;
+const NOTE = { fontSize: 11.5, color: "#86868b", lineHeight: 1.45 };
 const MONO = { fontFamily: "ui-monospace, Menlo, monospace" };
 const ROW = { display: "flex", alignItems: "center", gap: 6 };
-const FIELD = { width: "100%", fontSize: 11.5, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 5 };
-const SMALL_BUTTON = { fontSize: 10.5, paddingVertical: 1, paddingHorizontal: 6 };
+const FIELD = { width: "100%", fontSize: 12, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 8 };
+const SMALL_BUTTON = { fontSize: 11.5, paddingVertical: 1, paddingHorizontal: 6 };
 const STORED = "\u0000stored";
 const IDENTITY_KEYS = ["source", "source_id", "name"];
 const problem_style = (isDark) => ({
-  fontSize: 10.5,
+  fontSize: 11.5,
   lineHeight: 1.45,
   color: isDark ? "rgba(255,140,140,0.95)" : "rgba(176,32,32,0.95)",
 });
 
 function Divider({ isDark }) {
-  return <div style={{ height: 1, margin: "2px 0", background: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)" }} />;
+  return <div aria-hidden="true" style={{ height: 6 }} />;
 }
 
 const size_text = (bytes, t = agentEnglishText) => (bytes < 1024 ? t("agents.execution.skill.bytes", { count: bytes }) : t("agents.execution.skill.kilobytes", { count: (bytes / 1024).toFixed(1) }));
@@ -165,7 +166,7 @@ export default function SkillReadSection({ document, node, isDark, onChange }) {
             </span>
             <span>
               <Button label={t("agents.execution.skill.remove_inputs")} disabled={!editable} onClick={() => commit(without_inputs(document, node.id))}
-                style={{ ...SMALL_BUTTON, paddingVertical: 2, borderRadius: 5 }} />
+                style={{ ...SMALL_BUTTON, paddingVertical: 2, borderRadius: 8 }} />
             </span>
           </div>
         )}
@@ -245,13 +246,13 @@ export default function SkillReadSection({ document, node, isDark, onChange }) {
                 margin: 0,
                 maxHeight: 220,
                 overflow: "auto",
-                fontSize: 11,
+                fontSize: 11.5,
                 lineHeight: 1.5,
                 whiteSpace: "pre-wrap",
                 wordBreak: "break-word",
                 padding: "8px 10px",
-                borderRadius: 6,
-                background: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)",
+                borderRadius: 8,
+                background: isDark ? "rgba(255,255,255,0.075)" : "rgba(0,0,0,0.045)",
               }}
             >
               {preview.preview.body}
@@ -273,7 +274,7 @@ export default function SkillReadSection({ document, node, isDark, onChange }) {
               delete config[key];
               commit({ ...document, nodes: document.nodes.map((item) => (item === node ? { ...node, config } : item)) });
             }}
-            style={{ ...SMALL_BUTTON, paddingVertical: 2, borderRadius: 5 }}
+            style={{ ...SMALL_BUTTON, paddingVertical: 2, borderRadius: 8 }}
           />
         </div>
       ))}

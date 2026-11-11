@@ -165,7 +165,7 @@ export default function DetailPanel({
     padding: "14px 16px",
     display: "flex",
     flexDirection: "column",
-    gap: 14,
+    gap: 20,
   };
 
   if (!node) {
@@ -380,6 +380,7 @@ export default function DetailPanel({
                 rowDiagnostics={routed.rows.inputs}
                 isDark={isDark}
                 onChange={onDocumentChange}
+                addAtEnd
               />
             )}
             {/* A branch decides where the flow goes from what it was given, so
@@ -406,6 +407,7 @@ export default function DetailPanel({
               rowDiagnostics={routed.rows.outputs}
               isDark={isDark}
               onChange={onDocumentChange}
+              addAtEnd
             />
             </>}
           </>

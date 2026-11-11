@@ -3,7 +3,7 @@ import { agentMessage, renderAgentMessage } from "../agents_i18n";
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
-import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
+import Input from "./panel_input";
 import Select from "./panel_select";
 import SegmentedControl from "../../../../toolkit/components/segmented_control";
 import { api } from "../../../../../SERVICEs/api";
@@ -44,6 +44,7 @@ import {
   with_hooks,
   without_pool_setting,
 } from "../hooks_pool_config";
+import { CAPTION_TEXT } from "./panel_style";
 
 /* A Hooks Pool (#357): the hooks one Agent runs around its tool calls. Every
  * rule is the fixed runtime's (see `hooks_pool_config`):
@@ -65,13 +66,13 @@ import {
  *     its id, and each control writes its own key. A stored value the runtime
  *     refuses is shown as stored, with what is wrong and how to fix it. */
 
-const LABEL = { fontSize: 11, fontWeight: 600, color: "var(--pupu-text-muted)", textTransform: "uppercase", letterSpacing: 0.4 };
-const NOTE = { fontSize: 10.5, color: "var(--pupu-text-muted)", lineHeight: 1.45 };
+const LABEL = CAPTION_TEXT;
+const NOTE = { fontSize: 11.5, color: "var(--pupu-text-muted)", lineHeight: 1.45 };
 const MONO = { fontFamily: "ui-monospace, Menlo, monospace" };
 const ROW = { display: "flex", alignItems: "center", gap: 6 };
-const FIELD = { width: "100%", fontSize: 11.5, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 5 };
-const SMALL = { fontSize: 10.5, paddingVertical: 2, paddingHorizontal: 8, borderRadius: 5 };
-const problem_style = (isDark) => ({ fontSize: 10.5, lineHeight: 1.45, color: isDark ? "rgba(255,140,140,0.95)" : "rgba(176,32,32,0.95)" });
+const FIELD = { width: "100%", fontSize: 12, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 8 };
+const SMALL = { fontSize: 11.5, paddingVertical: 2, paddingHorizontal: 8, borderRadius: 8 };
+const problem_style = (isDark) => ({ fontSize: 11.5, lineHeight: 1.45, color: isDark ? "rgba(255,140,140,0.95)" : "rgba(176,32,32,0.95)" });
 const record = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 const has = (value, key) => record(value) && Object.prototype.hasOwnProperty.call(value, key);
 const EVENT_LABEL = { before_tool_call: "Before the tool call", after_tool_call: "After the tool call" };
@@ -85,7 +86,7 @@ const raw = (value) => {
 };
 
 function Divider({ isDark }) {
-  return <div style={{ height: 1, margin: "2px 0", background: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)" }} />;
+  return <div aria-hidden="true" style={{ height: 6 }} />;
 }
 
 /* Tool names from the same library the Toolkit Pool and Tool Call read. */
@@ -265,7 +266,7 @@ function HookEditor({ entry, index, rowId, nodeId, parentId, siblings, scopeDupl
   const testid = `hook-${index}`;
 
   return (
-    <div data-testid={`${testid}-editor`} style={{ display: "flex", flexDirection: "column", gap: 10, padding: "8px 10px", borderRadius: 7, background: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)" }}>
+    <div data-testid={`${testid}-editor`} style={{ display: "flex", flexDirection: "column", gap: 10, padding: 0, background: "transparent" }}>
       <div style={ROW}>
         <span style={{ ...NOTE, width: 64, flexShrink: 0 }}>{t("agents.hooks.id")}</span>
         <IdInput entry={entry} editable={editable} isDark={isDark} testid={`${testid}-id`} about={`${rowId}:id`} onWrite={(value) => set("id", value)} />
@@ -568,7 +569,7 @@ export default function HooksPoolSection({ document, node, isDark, onChange, man
                 commit(with_hooks(latest.current.document, node.id, [...entries, { id: free_hook_id(taken) }]));
                 setOpenLast(true);
               }}
-              style={{ fontSize: 11, paddingVertical: 3, paddingHorizontal: 8, borderRadius: 5, color: "var(--pupu-accent)" }}
+              style={{ fontSize: 11.5, paddingVertical: 3, paddingHorizontal: 8, borderRadius: 8, color: "var(--pupu-text-muted)" }}
             />
           )}
         </div>
@@ -580,7 +581,7 @@ export default function HooksPoolSection({ document, node, isDark, onChange, man
             <div key={rowId} data-testid={`hook-row-${index}`} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <div style={{ ...ROW, justifyContent: "space-between", flexWrap: "wrap" }}>
                 <span style={{ flex: "1 1 160px", minWidth: 0, overflowWrap: "anywhere" }}>
-                  <span style={{ ...MONO, fontSize: 11.5 }}>{safe_text(label.title)}</span>
+                  <span style={{ ...MONO, fontSize: 12 }}>{safe_text(label.title)}</span>
                   <span style={{ ...NOTE, marginLeft: 6 }}>{safe_text(label.detail)}</span>
                   {count > 0 && <span style={{ ...problem_style(isDark), marginLeft: 6 }}>{t("agents.hooks.to_fix", { count })}</span>}
                 </span>
@@ -696,7 +697,7 @@ export default function HooksPoolSection({ document, node, isDark, onChange, man
                         if (own && item.index === from) return;
                         move(from, landing(from, item));
                       } : undefined}
-                      style={{ ...ROW, justifyContent: "space-between", padding: "2px 6px", borderRadius: 5, cursor: can ? "grab" : "default", opacity: item.runs ? 1 : 0.55 }}
+                      style={{ ...ROW, justifyContent: "space-between", padding: "2px 6px", borderRadius: 8, cursor: can ? "grab" : "default", opacity: item.runs ? 1 : 0.55 }}
                     >
                       <span style={{ ...NOTE, minWidth: 0 }}>
                         {t("agents.hooks.row_order", { id: "{id}", order: "{order}", pool: "{pool}", enabled: "{enabled}" }).split(/(\{id\}|\{order\}|\{pool\}|\{enabled\})/g).map((part, index) => ({ __proto__: null, "{id}": (<span key={index} style={MONO}>{safe_text(item.id)}</span>), "{order}": item.order, "{pool}": own ? "" : ` · ${safe_text(item.pool_id)}`, "{enabled}": item.runs ? "" : t("agents.hooks.off_not_run") }[part] ?? part))}

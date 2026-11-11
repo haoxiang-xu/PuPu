@@ -3,7 +3,7 @@ import { agentEnglishText } from "../agents_i18n";
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
-import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
+import Input from "./panel_input";
 import Select from "./panel_select";
 import SegmentedButton from "../../../../../BUILTIN_COMPONENTs/input/segmented_button";
 import { api } from "../../../../../SERVICEs/api";
@@ -28,6 +28,7 @@ import {
   with_argument,
   with_tool_settings,
 } from "../tool_call_config";
+import { CAPTION_TEXT } from "./panel_style";
 
 /* A Tool Call node: one tool, the arguments you fix, and what happens when it
  * fails (#352). Every rule here is the fixed runtime's (see `tool_call_config`):
@@ -44,13 +45,13 @@ import {
  *   - the error policy and the approval wait are required by the runtime and
  *     never chosen for the author. */
 
-const LABEL = { fontSize: 11, fontWeight: 600, color: "#86868b", textTransform: "uppercase", letterSpacing: 0.4 };
-const NOTE = { fontSize: 10.5, color: "#86868b", lineHeight: 1.45 };
+const LABEL = CAPTION_TEXT;
+const NOTE = { fontSize: 11.5, color: "#86868b", lineHeight: 1.45 };
 const MONO = { fontFamily: "ui-monospace, Menlo, monospace" };
 const ROW = { display: "flex", alignItems: "center", gap: 6 };
-const FIELD = { width: "100%", fontSize: 11.5, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 5 };
+const FIELD = { width: "100%", fontSize: 12, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 8 };
 const problem_style = (isDark) => ({
-  fontSize: 10.5,
+  fontSize: 11.5,
   lineHeight: 1.45,
   color: isDark ? "rgba(255,140,140,0.95)" : "rgba(176,32,32,0.95)",
 });
@@ -59,7 +60,7 @@ const KEY = "\u0000";
 const record = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 
 function Divider({ isDark }) {
-  return <div style={{ height: 1, margin: "2px 0", background: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)" }} />;
+  return <div aria-hidden="true" style={{ height: 6 }} />;
 }
 
 function type_hint(row, t = agentEnglishText) {
@@ -142,7 +143,7 @@ export function ArgumentRow({ row, sources, toolName, editable, onSet, isDark })
   return (
     <div data-testid={testid} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
       <div style={{ ...ROW, justifyContent: "space-between" }}>
-        <span style={{ ...MONO, fontSize: 11 }}>
+        <span style={{ ...MONO, fontSize: 11.5 }}>
           {row.name}
           {row.required && <span aria-label={t("agents.schema.required")} style={{ color: problem_style(isDark).color, marginLeft: 3 }}>*</span>}
         </span>
@@ -155,7 +156,7 @@ export function ArgumentRow({ row, sources, toolName, editable, onSet, isDark })
             value={mode}
             on_change={setMode}
             disabled={!editable}
-            style={{ fontSize: 11.5, padding: 2, borderRadius: 8 }}
+            style={{ fontSize: 12, padding: 2, borderRadius: 8 }}
             button_style={{ height: 22, padding: "0 9px", fontWeight: 500 }}
           />
         </span>
@@ -213,7 +214,7 @@ export function ArgumentRow({ row, sources, toolName, editable, onSet, isDark })
               setMode(null);
               onSet(null);
             }}
-            style={{ fontSize: 10.5, paddingVertical: 2, paddingHorizontal: 6, borderRadius: 5, opacity: 0.75 }}
+            style={{ fontSize: 11.5, paddingVertical: 2, paddingHorizontal: 6, borderRadius: 8, opacity: 0.75 }}
           />
         </span>
       )}
@@ -343,7 +344,7 @@ export default function ToolCallSection({ document, node, isDark, onChange }) {
           />
         </span>
         {library.status === "error" && (
-          <span data-testid="tool-call-library-error" style={problem_style(isDark)}>{t("agents.execution.tool.library_failed")}<Button label={t("agents.explorer.try_again")} onClick={reloadLibrary} style={{ fontSize: 10.5, paddingVertical: 1, paddingHorizontal: 6 }} />
+          <span data-testid="tool-call-library-error" style={problem_style(isDark)}>{t("agents.execution.tool.library_failed")}<Button label={t("agents.explorer.try_again")} onClick={reloadLibrary} style={{ fontSize: 11.5, paddingVertical: 1, paddingHorizontal: 6 }} />
           </span>
         )}
         {listed && listed.description && <span style={NOTE}>{listed.description}</span>}
@@ -370,7 +371,7 @@ export default function ToolCallSection({ document, node, isDark, onChange }) {
         {name && home && schemas.status === "error" && (
           <span data-testid="tool-call-schema-error" style={problem_style(isDark)}>
             {safe_text((schemas.error && schemas.error.message) || t("agents.execution.tool.arguments_failed"))}{" "}
-            <Button label={t("agents.explorer.try_again")} onClick={reloadSchemas} style={{ fontSize: 10.5, paddingVertical: 1, paddingHorizontal: 6 }} />
+            <Button label={t("agents.explorer.try_again")} onClick={reloadSchemas} style={{ fontSize: 11.5, paddingVertical: 1, paddingHorizontal: 6 }} />
           </span>
         )}
         {name && home && schemas.status === "ready" && !schema && (
@@ -406,7 +407,7 @@ export default function ToolCallSection({ document, node, isDark, onChange }) {
                   ariaLabel={t("agents.execution.tool.remove_stored_argument", { extraName: extraName })}
                   disabled={!editable}
                   onClick={() => commit(with_argument(document, node.id, extraName, null, order))}
-                  style={{ fontSize: 10.5, paddingVertical: 2, paddingHorizontal: 6, borderRadius: 5 }}
+                  style={{ fontSize: 11.5, paddingVertical: 2, paddingHorizontal: 6, borderRadius: 8 }}
                 />
               )}
             </div>
@@ -431,7 +432,7 @@ export default function ToolCallSection({ document, node, isDark, onChange }) {
             value={tool?.on_error ?? null}
             on_change={(value) => setTool({ ...(tool || {}), on_error: value })}
             disabled={!editable || !name}
-            style={{ fontSize: 11.5, padding: 2, borderRadius: 8 }}
+            style={{ fontSize: 12, padding: 2, borderRadius: 8 }}
             button_style={{ height: 22, padding: "0 9px", fontWeight: 500 }}
           />
         </span>
@@ -485,7 +486,7 @@ export default function ToolCallSection({ document, node, isDark, onChange }) {
               delete next[key];
               setTool(next);
             }}
-            style={{ fontSize: 10.5, paddingVertical: 2, paddingHorizontal: 6, borderRadius: 5 }}
+            style={{ fontSize: 11.5, paddingVertical: 2, paddingHorizontal: 6, borderRadius: 8 }}
           />
         </div>
       ))}

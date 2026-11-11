@@ -100,13 +100,12 @@ test("choosing another output root directly retains the rest of the path", async
 });
 
 
-test.each([false, true])("expanded input settings form a bounded, aligned group (dark=%s)", (dark) => {
+test.each([false, true])("expanded input settings form an aligned group (dark=%s)", (dark) => {
   show(input({ isDark: dark }), dark);
   fireEvent.click(screen.getByRole("button", { name: "question · More" }));
   const surface = screen.getByTestId("binding-row-0-settings-surface");
-  expect(surface.style.backgroundColor).not.toBe("");
-  expect(surface.style.borderWidth).toBe("1px");
-  expect(surface.style.borderRadius).toBe("8px");
+  /* The settings sit on the panel itself: no card, no outline. */
+  expect(surface.style.borderWidth).not.toBe("1px");
   expect(within(surface).getByText("Source")).toBeVisible();
   expect(within(surface).getByText("Source").style.width).toBe(within(surface).getByText("If missing").style.width);
   expect(within(surface).getAllByRole("combobox").every(control => control.style.justifyContent === "flex-end")).toBe(true);

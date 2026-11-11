@@ -22,15 +22,15 @@ const BOX = (isDark) => ({
   flexDirection: "column",
   gap: 4,
   padding: "8px 10px",
-  borderRadius: 7,
+  borderRadius: 8,
   background: isDark ? "rgba(120,90,20,0.22)" : "rgba(255,244,214,0.9)",
   border: isDark
     ? "1px solid rgba(220,180,80,0.28)"
     : "1px solid rgba(190,150,40,0.25)",
 });
 
-const TITLE = { fontSize: 10.5, fontWeight: 600, letterSpacing: 0.3 };
-const LINE = { fontSize: 10.5, lineHeight: 1.45 };
+const TITLE = { fontSize: 11.5, fontWeight: 600, letterSpacing: 0.3 };
+const LINE = { fontSize: 11.5, lineHeight: 1.45 };
 
 export function SkeletonNodeDiagnostics({ diagnostics, isDark }) {
   const { t } = useTranslation();

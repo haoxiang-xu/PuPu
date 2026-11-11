@@ -2,10 +2,9 @@ import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use
 import PanelHelp from "./panel_help";
 import React, { useState } from "react";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
-import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
+import Input from "./panel_input";
 import Select from "./panel_select";
 import Switch from "../../../../../BUILTIN_COMPONENTs/input/switch";
-import { BUILDER_SWITCH_SIZE } from "../builder_switch_size";
 import TextField from "../../../../../BUILTIN_COMPONENTs/input/textfield";
 import {
   node_kernel,
@@ -31,6 +30,8 @@ import {
   schema_from_fields,
   why_fields_cannot_hold,
 } from "../output_schema_fields";
+/* The panel's switches are 38×20, a step quieter than the builder's. */
+const BUILDER_SWITCH_SIZE = Object.freeze({ width: 38, height: 20 });
 
 /* JSON Output: what an Agent produces besides its reply.
  *
@@ -246,8 +247,8 @@ export function FieldRow({ field, index, taken, revision, isDark, onChange, onRe
         flexDirection: "column",
         gap: 6,
         padding: "8px 10px",
-        borderRadius: 7,
-        background: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)",
+        borderRadius: 8,
+        background: isDark ? "rgba(255,255,255,0.035)" : "rgba(0,0,0,0.022)",
       }}
     >
       {/* The panel is resizable and there is no global border-box here, so a

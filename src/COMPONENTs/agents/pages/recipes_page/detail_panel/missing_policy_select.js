@@ -1,6 +1,6 @@
 import React from "react";
 import Select from "./panel_select";
-import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
+import Input from "./panel_input";
 import PanelHelp from "./panel_help";
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { safe_text } from "../document_values";
@@ -24,7 +24,7 @@ import {
  * rejects the whole document for it. */
 
 const CAPTION = {
-  fontSize: 10.5,
+  fontSize: 11.5,
   lineHeight: 1.45,
   color: "#86868b",
 };
@@ -80,10 +80,10 @@ export default function MissingPolicySelect({ binding, onChange, isDark, labelWi
             ...(labelWidth === undefined ? {} : { justifyContent: "flex-start" }),
             flex: 1,
             minWidth: 0,
-            fontSize: 11.5,
+            fontSize: 12,
             paddingVertical: 4,
             paddingHorizontal: 6,
-            borderRadius: 5,
+            borderRadius: 8,
             gap: 4,
           }}
         />
@@ -104,13 +104,10 @@ export default function MissingPolicySelect({ binding, onChange, isDark, labelWi
             style={{
               flex: 1,
               minWidth: 0,
-              fontSize: 11.5,
+              fontSize: 12,
               paddingVertical: 4,
               paddingHorizontal: 6,
-              borderRadius: 5,
-              backgroundColor: isDark
-                ? "rgba(255,255,255,0.04)"
-                : "rgba(0,0,0,0.025)",
+              borderRadius: 8,
             }}
           />
         </div>

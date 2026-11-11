@@ -17,6 +17,7 @@ import { binding_problems, expression_is_editable, make_binding, ref_expression 
 import { conditional_sources } from "../skeleton_branch_config";
 import { node_display_title } from "../node_display_labels";
 import { start_context_for_view } from "../start_context";
+import { CAPTION_TEXT } from "./panel_style";
 
 /* Input Variables: what this node reads, and from where.
  *
@@ -36,13 +37,7 @@ import { start_context_for_view } from "../start_context";
  * panel knows how many rows exist and routes a path to a row only when that row
  * is rendered, so nothing can claim a row that is not there and vanish. */
 
-const SECTION_LABEL = {
-  fontSize: 11,
-  fontWeight: 600,
-  color: "#86868b",
-  textTransform: "uppercase",
-  letterSpacing: 0.4,
-};
+const SECTION_LABEL = CAPTION_TEXT;
 
 function node_label(node) {
   return node_display_title(node, node && node.id);
@@ -155,7 +150,7 @@ export default function InputVariablesSection({
     style={{ fontSize: 11, paddingVertical: addAtEnd ? 5 : 3, paddingHorizontal: addAtEnd ? 6 : 4,
       iconOnlyPaddingVertical: 3, iconOnlyPaddingHorizontal: 4, borderRadius: 5,
       alignSelf: addAtEnd ? "flex-start" : undefined,
-      content: { icon: { width: 14, height: 14 } }, color: addAtEnd ? (isDark ? "#a1a1aa" : "#68686f") : "#4a5bd8" }} />;
+      content: { icon: { width: 14, height: 14 } }, color: addAtEnd ? (isDark ? "#a1a1aa" : "#68686f") : "var(--pupu-text-muted)" }} />;
 
   return (
     /* Addressable on its own, like the outputs section: the legacy Start and

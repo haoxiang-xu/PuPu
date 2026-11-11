@@ -1,7 +1,7 @@
 import PanelHelp from "./panel_help";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
-import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
+import Input from "./panel_input";
 import Select from "./panel_select";
 import { subscribeSkeletonLibraryRefresh } from "../../../../../SERVICEs/skeleton_library_refresh";
 import { ArgumentRow } from "./tool_call_section";
@@ -28,6 +28,7 @@ import {
   workflow_call_problems,
   workflow_reference,
 } from "../workflow_call_config";
+import { CAPTION_TEXT } from "./panel_style";
 
 /* A Workflow Call node (#357): which published Workflow revision it runs, the
  * values that revision's Start reads, and what its End gives back. Every rule
@@ -46,14 +47,14 @@ import {
  *     pick from;
  *   - there is no error policy to choose. */
 
-const LABEL = { fontSize: 11, fontWeight: 600, color: "var(--pupu-text-muted)", textTransform: "uppercase", letterSpacing: 0.4 };
-const NOTE = { fontSize: 10.5, color: "var(--pupu-text-muted)", lineHeight: 1.45 };
+const LABEL = CAPTION_TEXT;
+const NOTE = { fontSize: 11.5, color: "var(--pupu-text-muted)", lineHeight: 1.45 };
 const MONO = { fontFamily: "ui-monospace, Menlo, monospace" };
 const ROW = { display: "flex", alignItems: "center", gap: 6 };
-const FIELD = { width: "100%", fontSize: 11.5, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 5 };
-const SMALL = { fontSize: 10.5, paddingVertical: 2, paddingHorizontal: 8, borderRadius: 5 };
+const FIELD = { width: "100%", fontSize: 12, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 8 };
+const SMALL = { fontSize: 11.5, paddingVertical: 2, paddingHorizontal: 8, borderRadius: 8 };
 const problem_style = (isDark) => ({
-  fontSize: 10.5,
+  fontSize: 11.5,
   lineHeight: 1.45,
   color: isDark ? "rgba(255,140,140,0.95)" : "rgba(176,32,32,0.95)",
 });
@@ -61,7 +62,7 @@ const PUBLISHING = agentMessage("agents.workflow.publishing");
 const record = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 
 function Divider({ isDark }) {
-  return <div style={{ height: 1, margin: "2px 0", background: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)" }} />;
+  return <div aria-hidden="true" style={{ height: 6 }} />;
 }
 
 function refusal_text(result, fallback) {
@@ -289,7 +290,7 @@ export default function WorkflowCallSection({ document, node, rowDiagnostics, is
         {library.status === "error" && (
           <span data-testid="workflow-call-library-error" style={problem_style(isDark)}>
             {t("agents.workflow.library_failed", { message: renderAgentMessage(refusal_text(library.error, agentMessage("agents.workflow.store_refused")), t) })}{" "}
-            <Button label={t("agents.explorer.try_again")} onClick={reloadLibrary} style={{ fontSize: 10.5, paddingVertical: 1, paddingHorizontal: 6 }} />
+            <Button label={t("agents.explorer.try_again")} onClick={reloadLibrary} style={{ fontSize: 11.5, paddingVertical: 1, paddingHorizontal: 6 }} />
           </span>
         )}
         {library.status === "ready" && library.rows.length === 0 && (
@@ -339,7 +340,7 @@ export default function WorkflowCallSection({ document, node, rowDiagnostics, is
                 label={working && pinState.message === PUBLISHING ? t("agents.workflow.publishing") : pin_here ? t("agents.workflow.publish_again") : t("agents.workflow.publish")}
                 disabled={working}
                 onClick={publishAndPin}
-                style={{ ...SMALL, color: "var(--pupu-accent)" }}
+                style={{ ...SMALL, color: "var(--pupu-text-muted)" }}
               />
             </div>
             <span style={NOTE}>
@@ -442,7 +443,7 @@ export default function WorkflowCallSection({ document, node, rowDiagnostics, is
                   ariaLabel={t("agents.workflow.remove_input", { name })}
                   disabled={!editable}
                   onClick={() => commit(remove_call_input(document, node.id, index))}
-                  style={{ fontSize: 10.5, paddingVertical: 2, paddingHorizontal: 6, borderRadius: 5, flexShrink: 0 }}
+                  style={{ fontSize: 11.5, paddingVertical: 2, paddingHorizontal: 6, borderRadius: 8, flexShrink: 0 }}
                 />
               </div>
               <Diagnostics index={index} testid={`workflow-call-extra-${index}`} />

@@ -39,3 +39,10 @@ export function SettingRow({ label, isDark, children, testid }) {
     </div>
   );
 }
+
+/* The panel's one heading, as a constant for sections that style it without
+   knowing the theme: small spaced capitals in the text colour, quiet. */
+export const CAPTION_TEXT = Object.freeze({
+  fontSize: 11, fontWeight: 400, textTransform: "uppercase", letterSpacing: "1.5px", lineHeight: "18px",
+  color: "var(--pupu-text, currentColor)", opacity: 0.4,
+});

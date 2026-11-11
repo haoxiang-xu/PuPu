@@ -98,3 +98,15 @@
 - Toolkit Pool：三个区 Pool → Workflows as tools → Installed。Pool 里每个 toolkit 是一条 32px 填充行（图标、名称、上下箭头，右侧开启数 `2/5`、All / None、删除），展开后工具以 chip 显示在同一块底里：开启是深一级的底，关闭只留淡色文字，不再用蓝色实心。「Merge with user-selected」是 Pool 区下面的一行设置（38×20 开关），说明收进 info。Installed 是搜索框加单列填充行，每行末尾「+ Add」。原来只写着「即将推出」的 Store 标签页去掉了。
 - Workflows as tools：说明收进 info，不可用时标题旁出红色徽标；每个 Workflow tool 是一块填充底，删除是行内的叉，`+ Add Workflow tool` 在列表末尾。
 - Subagent Pool：标题行右侧显示条目数。每个条目由一条填充的身份行（图标、名字、来源、Open、删除）、一个描述输入框和五行「标签在左、值在右」的设置（Mode chip、Reads、Memory、Parallel、Tools）组成，条目之间只靠间距分隔，没有卡片。`+ Add an Agent` / `+ Embedded` 在列表末尾，选择 Agent 时候选项是同款填充行。
+
+## 其余节点（Code、If/Else、Switch、Tool Call、Skill Read、Workflow Call、Hooks Pool）
+
+这些节点不改结构，只统一外观：
+
+- 分区标题一律用 `CAPTION_TEXT`（`panel_style.js`），与左侧菜单分区标题同款小号大写，不再有各自的 LABEL 常量。
+- 输入框统一用 `PanelInput`（`panel_input.js`），下拉统一用 `PanelSelect`：浅色填充、8px 圆角、透明描边。
+- 分区之间不画分隔线，只留间距；去掉蓝色、绿色强调色，状态文字用 `--pupu-text-muted`，错误仍是红色。
+- 装控件的卡片（条件组、case 行、hooks 编辑器等）去掉底色和描边，只有 Switch 的 Default 保留一块填充底，因为它是一条固定出口而非可编辑行。
+- 输入/输出行展开后的设置区不再是带描边的卡片；标签统一 64px 宽、12px。
+- 字号收敛到 12.5 / 12 / 11.5 / 11px，圆角统一 8px，面板内开关 38×20。
+- 通用节点的输入、输出列表也把「+ Add」放在列表末尾。
