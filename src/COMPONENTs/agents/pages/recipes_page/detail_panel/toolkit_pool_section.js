@@ -3,6 +3,7 @@ import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
 import Switch from "../../../../../BUILTIN_COMPONENTs/input/switch";
 import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
+import useReducedMotion from "../../../../../BUILTIN_COMPONENTs/mini_react/use_reduced_motion";
 import { ToolkitIconFrame } from "../../../../toolkit/components/toolkit_icon";
 import { withMcpStoreIcon } from "../../../../../SERVICEs/mcp_toolkit_store";
 import { api } from "../../../../../SERVICEs/api";
@@ -13,7 +14,7 @@ import { read_toolkit_catalog, toolkit_pool_problems, with_toolkit_config } from
 import WorkflowToolsSection from "./workflow_tools_section";
 import PanelHelp from "./panel_help";
 import { Block } from "./process_timeline";
-import { fieldFill, fill, fillStrong, muted, note as noteStyle, problem as problemOf, removeButtonStyle, SettingRow, text } from "./panel_style";
+import { fill, fillStrong, muted, note as noteStyle, problem as problemOf, removeButtonStyle, SettingRow, text } from "./panel_style";
 
 const record = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const own = (v, key) => Object.prototype.hasOwnProperty.call(v, key);
@@ -32,6 +33,7 @@ const VISUALLY_HIDDEN = { position: "absolute", opacity: 0, width: 1, height: 1,
 function ToolkitRow({ entry, info, currentInfo, index, editable, isDark, onSet, onRemove, reading }) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
+  const reducedMotion = useReducedMotion();
   const note = noteStyle(isDark);
   const valid = record(entry);
   const enabled = valid ? entry.enabled_tools : undefined;
@@ -64,7 +66,15 @@ function ToolkitRow({ entry, info, currentInfo, index, editable, isDark, onSet, 
       <Button prefix_icon="close" ariaLabel={t("agents.toolkit.remove_toolkit")} disabled={!editable} onClick={onRemove}
         style={removeButtonStyle(isDark)} />
     </div>
-    {valid && expanded && <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "2px 10px 10px" }}>
+    {/* The tools open in place: the body keeps its height intrinsic and
+       grows from nothing, the same disclosure as a variable's settings. */}
+    {valid && <div aria-hidden={!expanded} inert={!expanded} data-testid={`native-toolkit-body-${index}`}
+      style={{ display: "grid", gridTemplateRows: expanded ? "1fr" : "0fr", opacity: expanded ? 1 : 0,
+        visibility: expanded ? "visible" : "hidden", minWidth: 0,
+        transition: reducedMotion ? "none"
+          : `grid-template-rows 200ms cubic-bezier(0.2, 0, 0, 1), opacity 160ms ease, visibility 0s ${expanded ? "0s" : "200ms"}` }}>
+    <div style={{ minHeight: 0, overflow: "hidden" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "2px 10px 10px" }}>
       {!reading && !info && <span style={note}>{t("agents.toolkit.unlisted")}</span>}
       {enabled !== null && !Array.isArray(enabled) && <span style={problemOf(isDark)}>{t("agents.toolkit.selection_invalid", { value: safe_text(enabled) })}</span>}
       {currentInfo && tools.length === 0 && <span style={note}>{t("agents.toolkit.no_executable")}</span>}
@@ -82,6 +92,8 @@ function ToolkitRow({ entry, info, currentInfo, index, editable, isDark, onSet, 
         <Button prefix_icon="close" ariaLabel={t("agents.toolkit.remove_selection_index", { index: at + 1 })} disabled={!editable} onClick={() => onSet({ enabled_tools: enabled.filter((_, i) => i !== at) })}
           style={removeButtonStyle(isDark)} />
       </div>)}
+    </div>
+    </div>
     </div>}
   </div>;
 }
@@ -189,7 +201,9 @@ export default function ToolkitPoolSection({ document, node, onChange, isDark })
       {library.status === "ready" && <div data-testid="native-toolkit-library-ready" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {library.rows.length === 0 ? <span style={note}>{t("agents.toolkit.empty_library")}</span> : <>
           <Input prefix_icon="search" placeholder={t("agents.legacy_tools.search")} value={search} set_value={setSearch}
-            style={{ width: "100%", fontSize: 12.5, height: 32, paddingVertical: 0, paddingHorizontal: 10, borderRadius: 8, ...fieldFill(isDark) }} />
+            style={{ width: "100%", fontSize: 12.5, height: 32, paddingVertical: 0, paddingHorizontal: 10, borderRadius: 8,
+              /* Only an outline: the filled rows below are what can be added. */
+              backgroundColor: "transparent", border: `1px solid ${isDark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.12)"}` }} />
           {choices.length > 0 && <div data-testid="native-toolkit-library-grid" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {choices.map((item) => <div key={item.toolkitId} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 5px 7px 10px", borderRadius: 8, background: fill(isDark), minWidth: 0 }}>
             <ToolkitIconFrame icon={withMcpStoreIcon(item).toolkitIcon || {}} isDark={isDark} size={20} iconSize={12} transparentIconSize={15} borderRadius={6} fallbackColor={ACCENT} />
