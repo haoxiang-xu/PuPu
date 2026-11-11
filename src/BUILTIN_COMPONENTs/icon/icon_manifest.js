@@ -1114,19 +1114,19 @@ const SideMenuBottom = (props) => (
 const SideMenuClose = (props) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 24 24"
+    viewBox="0 0 256 256"
     fill="currentColor"
   >
-    <path fillRule="evenodd" d="M6.5 3H17.5A4.5 4.5 0 0 1 22 7.5V16.5A4.5 4.5 0 0 1 17.5 21H6.5A4.5 4.5 0 0 1 2 16.5V7.5A4.5 4.5 0 0 1 6.5 3ZM6.5 5H17.5A2.5 2.5 0 0 1 20 7.5V16.5A2.5 2.5 0 0 1 17.5 19H6.5A2.5 2.5 0 0 1 4 16.5V7.5A2.5 2.5 0 0 1 6.5 5ZM7 7H10A1 1 0 0 1 11 8V16A1 1 0 0 1 10 17H7A1 1 0 0 1 6 16V8A1 1 0 0 1 7 7Z"></path>
+    <path d="M216,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40ZM40,56H80V200H40ZM216,200H96V56H216V200Z"></path>
   </svg>
 );
 const SideMenuLeft = (props) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 24 24"
+    viewBox="0 0 256 256"
     fill="currentColor"
   >
-    <path fillRule="evenodd" d="M6.5 3H17.5A4.5 4.5 0 0 1 22 7.5V16.5A4.5 4.5 0 0 1 17.5 21H6.5A4.5 4.5 0 0 1 2 16.5V7.5A4.5 4.5 0 0 1 6.5 3ZM6.5 5H17.5A2.5 2.5 0 0 1 20 7.5V16.5A2.5 2.5 0 0 1 17.5 19H6.5A2.5 2.5 0 0 1 4 16.5V7.5A2.5 2.5 0 0 1 6.5 5ZM7 7H7A1 1 0 0 1 8 8V16A1 1 0 0 1 7 17H7A1 1 0 0 1 6 16V8A1 1 0 0 1 7 7Z"></path>
+    <path d="M216,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40ZM40,56H80V200H40ZM216,200H96V56H216V200Z"></path>
   </svg>
 );
 const SideMenuRight = (props) => (

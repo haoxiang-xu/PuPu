@@ -55,10 +55,9 @@ describe("Icon", () => {
 
     const path = container.querySelector("path");
     expect(path).not.toBeNull();
-    /* the rounded frame, with the rounded panel on its left */
-    expect(path.getAttribute("d")).toContain("A4.5 4.5 0 0 1 22 7.5");
-    expect(path.getAttribute("d")).toContain("M7 7H10A1 1 0 0 1 11 8V16");
-    expect(path.getAttribute("fill-rule")).toBe("evenodd");
+    /* the frame, with the panel on its left */
+    expect(path.getAttribute("d")).toContain("M216,40H40");
+    expect(path.getAttribute("d")).toContain("M40,56H80V200H40Z");
 
     const hasInvalidPathError = consoleErrorSpy.mock.calls.some((call) =>
       call.some(
