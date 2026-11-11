@@ -493,7 +493,7 @@ export default function RecipeCanvas({
           </span>
           <span title={t("agents.canvas.center")} style={{ display: "inline-flex" }}>
             <Button
-              prefix_icon="home"
+              prefix_icon="home_door"
               onClick={() => setResetToken((t) => t + 1)}
               style={{
                 fontSize: 12,

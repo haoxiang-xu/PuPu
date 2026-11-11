@@ -139,7 +139,7 @@ export function CanvasControlCenter({
       </span>
       <span title={t("agents.canvas.center")} style={{ display: "inline-flex" }}>
         <Button
-          prefix_icon="home"
+          prefix_icon="home_door"
           onClick={onHome}
           style={{
             fontSize: 12,
