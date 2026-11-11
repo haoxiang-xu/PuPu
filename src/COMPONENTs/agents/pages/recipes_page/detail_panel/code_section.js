@@ -5,7 +5,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import Input from "./panel_input";
 import Select from "./panel_select";
-import Switch from "../../../../../BUILTIN_COMPONENTs/input/switch";
+import { SemiSwitch } from "../../../../../BUILTIN_COMPONENTs/input/switch";
 import TextField from "../../../../../BUILTIN_COMPONENTs/input/textfield";
 import usePendingText from "./pending_text";
 import useListIdentities from "./list_identity";
@@ -32,9 +32,7 @@ import {
   with_code_settings,
 } from "../code_config";
 import { managed_path, sha256_text } from "../managed_code_sources";
-import { CAPTION_TEXT } from "./panel_style";
-/* The panel's switches are 38×20, a step quieter than the builder's. */
-const BUILDER_SWITCH_SIZE = Object.freeze({ width: 38, height: 20 });
+import { CAPTION_TEXT, PANEL_SWITCH } from "./panel_style";
 
 /* A Code node (#357): the Python it runs with, the file that holds
  * `main(input, context)`, how long and how much it may produce, and the
@@ -563,7 +561,7 @@ export default function CodeSection({ document, node, revision, sources, isDark,
         )}
         {declared && !as_json && (
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Switch on={closed} set_on={(next) => set_fields(fields, Boolean(next), root)} style={{ ...BUILDER_SWITCH_SIZE, flexShrink: 0 }} />
+            <SemiSwitch on={closed} set_on={(next) => set_fields(fields, Boolean(next), root)} style={{ ...PANEL_SWITCH, flexShrink: 0 }} />
             <span data-testid="code-result-closed-caption" style={NOTE}>
               {closed
                 ? t("agents.execution.code.closed_result_note")

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
-import Switch from "../../../../../BUILTIN_COMPONENTs/input/switch";
+import { SemiSwitch } from "../../../../../BUILTIN_COMPONENTs/input/switch";
 import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
 import useReducedMotion from "../../../../../BUILTIN_COMPONENTs/mini_react/use_reduced_motion";
 import { ToolkitIconFrame } from "../../../../toolkit/components/toolkit_icon";
@@ -14,7 +14,7 @@ import { read_toolkit_catalog, toolkit_pool_problems, with_toolkit_config } from
 import WorkflowToolsSection from "./workflow_tools_section";
 import PanelHelp from "./panel_help";
 import { Block } from "./process_timeline";
-import { fill, muted, note as noteStyle, problem as problemOf, removeButtonStyle, SettingRow, text } from "./panel_style";
+import { fill, muted, PANEL_SWITCH, note as noteStyle, problem as problemOf, removeButtonStyle, SettingRow, text } from "./panel_style";
 
 const record = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const own = (v, key) => Object.prototype.hasOwnProperty.call(v, key);
@@ -183,11 +183,10 @@ export default function ToolkitPoolSection({ document, node, onChange, isDark })
           onClick={() => { if (editable) set_merge(); }}
           onKeyDown={(event) => { if (editable && (event.key === " " || event.key === "Enter")) { event.preventDefault(); set_merge(); } }}
           style={{ display: "inline-flex", flexShrink: 0, cursor: editable ? "pointer" : "default", opacity: editable ? 1 : 0.5 }}>
-          {/* The glass switch at its own 60:38 proportion, so its puck springs
-              (回弹) and frosts as designed. It stops its click from bubbling,
-              so it commits the change itself. */}
+          {/* The switch stops its click from bubbling, so it commits the
+              change itself; the outer span answers the keyboard. */}
           <span style={{ display: "inline-flex", pointerEvents: editable ? "auto" : "none" }}>
-            <Switch material="glass" on={merge_on} set_on={() => { if (editable) set_merge(); }} style={{ width: 38, height: 24 }} />
+            <SemiSwitch on={merge_on} set_on={() => { if (editable) set_merge(); }} style={PANEL_SWITCH} />
           </span>
         </span>
       </SettingRow>

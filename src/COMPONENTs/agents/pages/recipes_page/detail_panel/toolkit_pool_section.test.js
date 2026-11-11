@@ -29,8 +29,9 @@ test("adds exact native reference, selects all by null, and toggles merge explic
   expect(latest.nodes[0].config).toEqual({ toolkits: [{ id: "core", enabled_tools: null }], merge_with_user_selected: false });
   fireEvent.click(screen.getByRole("switch", { name: "Merge with user-selected" }));
   expect(latest.nodes[0].config.merge_with_user_selected).toBe(true);
-  /* A click on the glass switch itself, which does not bubble, toggles too. */
-  fireEvent.click(within(screen.getByRole("switch", { name: "Merge with user-selected" })).getByRole("switch"));
+  /* A click on the switch itself, which does not bubble, toggles exactly once. */
+  // eslint-disable-next-line testing-library/no-node-access
+  fireEvent.click(screen.getByRole("switch", { name: "Merge with user-selected" }).querySelector(".mini-ui-switch-track"));
   expect(latest.nodes[0].config.merge_with_user_selected).toBe(false);
   expect(api.unchain.listToolModalCatalog).toHaveBeenCalledWith({ strict: true });
 });

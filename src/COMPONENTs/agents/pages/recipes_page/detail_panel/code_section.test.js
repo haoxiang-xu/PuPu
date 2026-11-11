@@ -37,8 +37,11 @@ jest.mock("../../../../../BUILTIN_COMPONENTs/input/textfield", () => function Mo
 jest.mock("../../../../../BUILTIN_COMPONENTs/input/button", () => function MockButton({ label, ariaLabel, onClick, disabled }) {
   return <button type="button" aria-label={ariaLabel} disabled={disabled} onClick={onClick}>{label || ariaLabel}</button>;
 });
-jest.mock("../../../../../BUILTIN_COMPONENTs/input/switch", () => function MockSwitch({ on, set_on }) {
-  return <input type="checkbox" role="switch" checked={Boolean(on)} onChange={(event) => set_on(event.target.checked)} />;
+jest.mock("../../../../../BUILTIN_COMPONENTs/input/switch", () => {
+  const MockSwitch = function MockSwitch({ on, set_on }) {
+    return <input type="checkbox" role="switch" checked={Boolean(on)} onChange={(event) => set_on(event.target.checked)} />;
+  };
+  return { __esModule: true, default: MockSwitch, SemiSwitch: MockSwitch };
 });
 
 const PROFILES = capture.profiles.list_after;

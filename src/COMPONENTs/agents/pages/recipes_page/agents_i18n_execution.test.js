@@ -35,8 +35,11 @@ jest.mock("../../../../BUILTIN_COMPONENTs/input/textfield", () => function Textf
 jest.mock("../../../../BUILTIN_COMPONENTs/input/button", () => function Button({ label, ariaLabel, onClick, disabled }) {
   return <button aria-label={ariaLabel} onClick={onClick} disabled={disabled}>{label || ariaLabel}</button>;
 });
-jest.mock("../../../../BUILTIN_COMPONENTs/input/switch", () => function Switch({ on, set_on }) {
-  return <input type="checkbox" checked={Boolean(on)} onChange={(event) => set_on(event.target.checked)} />;
+jest.mock("../../../../BUILTIN_COMPONENTs/input/switch", () => {
+  const Switch = function Switch({ on, set_on }) {
+    return <input type="checkbox" checked={Boolean(on)} onChange={(event) => set_on(event.target.checked)} />;
+  };
+  return { __esModule: true, default: Switch, SemiSwitch: Switch };
 });
 
 const localized = (locale, child) => <ConfigContext.Provider value={{ theme: {}, onThemeMode: "light_mode" }}>

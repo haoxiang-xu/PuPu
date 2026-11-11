@@ -12,6 +12,11 @@ export const muted = (isDark) => (isDark ? "#a6a6af" : "#686870");
 export const text = (isDark) => (isDark ? "#eeeef1" : "#26262c");
 export const errorColor = (isDark) => (isDark ? "#ff8c8c" : "#b02020");
 
+/* The panel's switches: Settings' SemiSwitch at 0.85 of its 56×28, themed by
+   the switch itself — no colours passed. Size goes through width/height
+   because the switch derives its geometry from them. */
+export const PANEL_SWITCH = Object.freeze({ width: 48, height: 24 });
+
 /* A filled control: the selects, inputs and boxes of the panel. */
 export const fieldFill = (isDark) => ({ backgroundColor: fill(isDark), border: "1px solid transparent" });
 

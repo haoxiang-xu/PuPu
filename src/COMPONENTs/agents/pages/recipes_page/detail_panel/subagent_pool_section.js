@@ -5,7 +5,7 @@ import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
 import SegmentedButton from "../../../../../BUILTIN_COMPONENTs/input/segmented_button";
 import useReducedMotion from "../../../../../BUILTIN_COMPONENTs/mini_react/use_reduced_motion";
-import Switch from "../../../../../BUILTIN_COMPONENTs/input/switch";
+import { SemiSwitch } from "../../../../../BUILTIN_COMPONENTs/input/switch";
 import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
 import useTakenName from "./taken_name";
 import useListIdentities from "./list_identity";
@@ -49,7 +49,7 @@ import { identity_of, safe_text } from "../document_values";
 import { new_embedded_entry } from "../new_embedded_entry";
 import { captionStyle, ProblemCount } from "./process_timeline";
 import { variablePillField } from "./variable_pill";
-import { addButtonStyle, errorColor, fieldFill, fill, fillStrong, muted as mutedOf, problem as problemOf, text } from "./panel_style";
+import { addButtonStyle, errorColor, fieldFill, fill, fillStrong, muted as mutedOf, PANEL_SWITCH, problem as problemOf, text } from "./panel_style";
 
 /* The Subagent Pool: which Agents this one may call, and how.
  *
@@ -711,13 +711,10 @@ function EntryRow({
                 title={entry.parallel_safe === true ? t("agents.subagents.parallel_note") : t("agents.subagents.serial_note")}
                 style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", minHeight: 28 }}
               >
-                {/* The glass switch at its own 60:38 proportion, so its puck
-                    springs and frosts as designed. */}
-                <Switch
-                  material="glass"
+                <SemiSwitch
                   on={entry.parallel_safe === true}
                   set_on={(next) => set({ parallel_safe: Boolean(next) })}
-                  style={{ width: 38, height: 24 }}
+                  style={PANEL_SWITCH}
                 />
               </div>
 
