@@ -14,7 +14,7 @@ import { read_toolkit_catalog, toolkit_pool_problems, with_toolkit_config } from
 import WorkflowToolsSection from "./workflow_tools_section";
 import PanelHelp from "./panel_help";
 import { Block } from "./process_timeline";
-import { fill, fillStrong, muted, note as noteStyle, problem as problemOf, removeButtonStyle, SettingRow, text } from "./panel_style";
+import { fill, muted, note as noteStyle, problem as problemOf, removeButtonStyle, SettingRow, text } from "./panel_style";
 
 const record = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const own = (v, key) => Object.prototype.hasOwnProperty.call(v, key);
@@ -81,7 +81,7 @@ function ToolkitRow({ entry, info, currentInfo, index, editable, isDark, onSet, 
       {tools.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
         {tools.map((tool) => {
           const on = enabled === null || (Array.isArray(enabled) && enabled.includes(tool.name));
-          return <label key={tool.name} title={tool.description || undefined} style={{ position: "relative", fontSize: 11.5, fontFamily: "ui-monospace, Menlo, monospace", color: on ? text(isDark) : muted(isDark), opacity: on ? 1 : 0.6, background: on ? fillStrong(isDark) : "transparent", padding: "3px 8px", borderRadius: 999, cursor: editable ? "pointer" : "default", userSelect: "none" }}>
+          return <label key={tool.name} title={tool.description || undefined} style={{ position: "relative", fontSize: 11.5, fontFamily: "ui-monospace, Menlo, monospace", color: on ? "var(--pupu-accent)" : muted(isDark), opacity: on ? 1 : 0.6, background: on ? "rgba(var(--pupu-accent-rgb),0.14)" : "transparent", padding: "3px 8px", borderRadius: 999, cursor: editable ? "pointer" : "default", userSelect: "none" }}>
             <input type="checkbox" aria-label={tool.name} disabled={!editable} checked={on} onChange={(event) => toggle(tool.name, event.target.checked)} style={VISUALLY_HIDDEN} />
             {tool.name}
           </label>;
@@ -183,7 +183,7 @@ export default function ToolkitPoolSection({ document, node, onChange, isDark })
           onClick={() => { if (editable) set_merge(); }}
           onKeyDown={(event) => { if (editable && (event.key === " " || event.key === "Enter")) { event.preventDefault(); set_merge(); } }}
           style={{ display: "inline-flex", flexShrink: 0, cursor: editable ? "pointer" : "default", opacity: editable ? 1 : 0.5 }}>
-          <span style={{ display: "inline-flex", pointerEvents: "none" }}><Switch on={merge_on} set_on={() => {}} style={{ width: 38, height: 20 }} /></span>
+          <span style={{ display: "inline-flex", pointerEvents: "none" }}><Switch on={merge_on} set_on={() => {}} style={{ width: 30, height: 16 }} /></span>
         </span>
       </SettingRow>
       {typeof config.merge_with_user_selected !== "boolean" && <div style={problemStyle}>{t("agents.toolkit.stored_merge", { value: safe_text(config.merge_with_user_selected) })}</div>}
