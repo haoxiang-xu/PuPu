@@ -1115,42 +1115,27 @@ const SideMenuClose = (props) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
     viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
+    fill="currentColor"
   >
-    <path d="M4 6a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2l0 -12"></path>
-    <path d="M9 4l0 16"></path>
+    <path fillRule="evenodd" d="M6 3H18A4 4 0 0 1 22 7V17A4 4 0 0 1 18 21H6A4 4 0 0 1 2 17V7A4 4 0 0 1 6 3ZM6 5H18A2 2 0 0 1 20 7V17A2 2 0 0 1 18 19H6A2 2 0 0 1 4 17V7A2 2 0 0 1 6 5ZM6 5H11V19H6A2 2 0 0 1 4 17V7A2 2 0 0 1 6 5Z"></path>
   </svg>
 );
 const SideMenuLeft = (props) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
     viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
+    fill="currentColor"
   >
-    <path d="M4 6a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2l0 -12"></path>
-    <path d="M9 4l0 16"></path>
+    <path fillRule="evenodd" d="M6 3H18A4 4 0 0 1 22 7V17A4 4 0 0 1 18 21H6A4 4 0 0 1 2 17V7A4 4 0 0 1 6 3ZM6 5H18A2 2 0 0 1 20 7V17A2 2 0 0 1 18 19H6A2 2 0 0 1 4 17V7A2 2 0 0 1 6 5ZM9 5H11V19H9Z"></path>
   </svg>
 );
 const SideMenuRight = (props) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
     viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
+    fill="currentColor"
   >
-    <path d="M4 6a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2l0 -12"></path>
-    <path d="M15 4l0 16"></path>
+    <path fillRule="evenodd" d="M6 3H18A4 4 0 0 1 22 7V17A4 4 0 0 1 18 21H6A4 4 0 0 1 2 17V7A4 4 0 0 1 6 3ZM6 5H18A2 2 0 0 1 20 7V17A2 2 0 0 1 18 19H6A2 2 0 0 1 4 17V7A2 2 0 0 1 6 5ZM13 5H15V19H13Z"></path>
   </svg>
 );
 const SideMenuTop = (props) => (
