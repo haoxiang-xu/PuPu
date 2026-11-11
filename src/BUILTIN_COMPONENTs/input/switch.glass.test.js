@@ -96,3 +96,44 @@ describe("Glass Switch (material='glass')", () => {
     expect(el).toHaveAttribute("aria-checked", "true");
   });
 });
+
+describe("Switch thumb shadow stays in sync with the thumb's motion", () => {
+  /* Force the engine path where ShadowSurface WOULD detach the shadow into an anchored SVG
+     sibling (Chromium + anchor positioning). A thumb's shadow must stay native on the moving
+     element itself, so no detached layer may appear for any material. */
+  const withCompositedShadows = (fn) => {
+    const ua = navigator.userAgent, css = window.CSS, Resize = window.ResizeObserver;
+    Object.defineProperty(navigator, "userAgent", { configurable: true, value: "Chrome/144.0" });
+    window.CSS = { supports: () => true };
+    window.ResizeObserver = class { observe() {} disconnect() {} };
+    jest.spyOn(Element.prototype, "getBoundingClientRect").mockReturnValue({ left: 50, top: 50, right: 90, bottom: 90, width: 40, height: 40 });
+    jest.spyOn(window, "getComputedStyle").mockImplementation((node) => ({
+      boxShadow: node.style.boxShadow, opacity: "1", transform: "none",
+      overflowX: "visible", overflowY: "visible", borderTopLeftRadius: "50%",
+      borderTopRightRadius: "50%", borderBottomRightRadius: "50%", borderBottomLeftRadius: "50%",
+      getPropertyValue: () => "",
+    }));
+    try { fn(); } finally {
+      jest.restoreAllMocks();
+      Object.defineProperty(navigator, "userAgent", { configurable: true, value: ua });
+      window.CSS = css; window.ResizeObserver = Resize;
+    }
+  };
+
+  test.each(["glass", "plain"])("%s thumb paints its shadow natively on the animated element", (material) => {
+    withCompositedShadows(() => {
+      const { container, unmount } = render(
+        <ConfigContext.Provider value={config("light_mode")}>
+          <Switch material={material} on={false} set_on={() => {}} style={{ width: 60, height: 32 }} />
+        </ConfigContext.Provider>,
+      );
+      expect(container.querySelector("svg[aria-hidden='true'] filter")).toBeNull();
+      const thumb = material === "glass"
+        ? screen.getByRole("switch").lastElementChild
+        : container.querySelector(".mini-ui-switch-thumb");
+      expect(thumb.style.boxShadow).toMatch(/rgba\(0, ?0, ?0/);
+      expect(thumb.style.transition).not.toBe("");
+      unmount();
+    });
+  });
+});

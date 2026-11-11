@@ -14,6 +14,11 @@ import Icon from "../icon/icon";
 import { useMaterial, resolveComponentMaterial } from "../material";
 /* { Material } -------------------------------------------------------------------------------------------------------------- */
 
+/* Animated switch thumbs deliberately render a plain element with a NATIVE box-shadow, not
+   ShadowSurface. ShadowSurface paints the shadow as a separate anchored SVG that re-runs the
+   owner's transition on its own (so it trails the thumb) and drops back to the native shadow
+   whenever the thumb is scaled (so hover pops between two shadows). A native shadow is painted
+   with the thumb itself, so it follows every slide, spring scale and press stretch frame-for-frame. */
 const SemiSwitch = ({
   style,
   on_icon_src = "subtract",
@@ -140,7 +145,7 @@ const SemiSwitch = ({
       }}
       draggable={false}
     >
-      <ShadowSurface
+      <div
         className="mini-ui-switch-thumb"
         style={{
           transition: theme?.switch?.transition || "none",
@@ -160,7 +165,7 @@ const SemiSwitch = ({
           boxShadow: "0 2px 4px rgba(0, 0, 0, 0.32)",
         }}
         draggable={false}
-      ></ShadowSurface>
+      ></div>
       <Icon
         src={on || defaultOn ? on_icon_src : off_icon_src}
         style={{
@@ -273,7 +278,7 @@ const MaterialSwitch = ({
           boxShadow: switchStyle.boxShadow || "none",
         }}
       ></ShadowSurface>
-      <ShadowSurface
+      <div
         className="mini-ui-switch-thumb-highlighter"
         style={{
           transition:
@@ -319,7 +324,7 @@ const MaterialSwitch = ({
           boxShadow: "0 2px 4px rgba(0, 0, 0, 0.32)",
         }}
       />
-      <ShadowSurface
+      <div
         className="mini-ui-switch-thumb"
         style={{
           transition: switchStyle.transition || "none",
@@ -356,7 +361,7 @@ const MaterialSwitch = ({
             width: "70%",
           }}
         />
-      </ShadowSurface>
+      </div>
     </div>
   );
 };
@@ -522,7 +527,7 @@ const PlainSwitch = ({
       }}
       draggable={false}
     >
-      <ShadowSurface
+      <div
         className="mini-ui-switch-thumb"
         style={{
           transition: theme?.switch?.transition || "none",
@@ -542,7 +547,7 @@ const PlainSwitch = ({
           backgroundColor: switchStyle.color,
           boxShadow: "0 2px 4px rgba(0, 0, 0, 0.32)",
         }}
-      ></ShadowSurface>
+      ></div>
       <Icon
         src={on || defaultOn ? on_icon_src : off_icon_src}
         style={{
@@ -699,7 +704,7 @@ const GlassSwitchImpl = ({ style, on, set_on }) => {
       />
       {/* frosted glass puck — icon-less; elongates into a pill on press (PlainSwitch graft).
           Fixed-px corner radius (= half height) so a wider box reads as a stadium, not an ellipse. */}
-      <ShadowSurface
+      <div
         style={{
           position: "absolute",
           top: "50%",
@@ -736,7 +741,7 @@ const GlassSwitchImpl = ({ style, on, set_on }) => {
             transition: `width 0.28s ${QELASTIC}`,
           }}
         />
-      </ShadowSurface>
+      </div>
     </div>
   );
 };
