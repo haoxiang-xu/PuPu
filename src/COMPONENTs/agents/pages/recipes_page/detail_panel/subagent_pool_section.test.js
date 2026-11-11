@@ -288,13 +288,16 @@ describe("a row manages the entry, never the subagent's contents", () => {
   });
 
   test("there is no prompt, no model and nothing else of the subagent's own", async () => {
-    /* Two selects on the row and no more: what this Agent reads back, and
-       what memory the child gets. A model or a prompt box here would be
-       editing the subagent itself, which is the one thing this panel does
-       not do. */
+    /* Two choices on the row and no more: what this Agent reads back, and
+       what memory the child gets — five segments between them. A model or a
+       prompt box here would be editing the subagent itself, which is the one
+       thing this panel does not do. */
     await show(pool({ subagents: [entry()] }));
     const row = within(screen.getByTestId("subagent-entry-0"));
-    expect(row.getAllByTestId("select")).toHaveLength(2);
+    expect(row.queryAllByTestId("select")).toHaveLength(0);
+    for (const label of ["Summary", "Last message", "Full trace", "None", "Own scope"]) {
+      expect(row.getByText(label)).toBeInTheDocument();
+    }
     expect(screen.queryByPlaceholderText(/prompt/i)).not.toBeInTheDocument();
     expect(screen.queryByPlaceholderText(/model/i)).not.toBeInTheDocument();
   });
@@ -353,18 +356,14 @@ describe("a row manages the entry, never the subagent's contents", () => {
   test("what this Agent reads back is stored as the wire's own token", async () => {
     const { onChange } = await show(pool({ subagents: [entry()] }));
     const row = within(screen.getByTestId("subagent-entry-0"));
-    fireEvent.change(row.getAllByTestId("select")[0], {
-      target: { value: "full_trace" },
-    });
+    fireEvent.click(row.getByText("Full trace"));
     expect(written(onChange)[0].output_mode).toBe("full_trace");
   });
 
   test("the child's memory policy is stored as its own token", async () => {
     const { onChange } = await show(pool({ subagents: [entry()] }));
     const row = within(screen.getByTestId("subagent-entry-0"));
-    fireEvent.change(row.getAllByTestId("select")[1], {
-      target: { value: "scoped_persistent" },
-    });
+    fireEvent.click(row.getByText("Own scope"));
     expect(written(onChange)[0].memory_policy).toBe("scoped_persistent");
   });
 
@@ -386,11 +385,12 @@ describe("a row manages the entry, never the subagent's contents", () => {
     );
   });
 
-  test("every tool and no tool are different sentences", async () => {
-    await show(pool({ subagents: [entry({ allowed_tools: null })] }));
-    expect(screen.getByTestId("subagent-entry-0-tools").textContent).toBe(
-      "every tool",
-    );
+  test("every tool is the default and is not restated; no tool is said", async () => {
+    const { view } = await show(pool({ subagents: [entry({ allowed_tools: null })] }));
+    expect(screen.queryByTestId("subagent-entry-0-tools")).not.toBeInTheDocument();
+    view.unmount();
+    await show(pool({ subagents: [entry({ allowed_tools: [] })] }));
+    expect(screen.getByTestId("subagent-entry-0-tools").textContent).toBe("no tool");
   });
 
   test("an entry removed takes only that one out", async () => {
@@ -558,7 +558,7 @@ describe("a control that is not offered says why", () => {
   test("the tools line explains that it is shown rather than edited", async () => {
     /* The runtime accepts any tool name without checking it, so a name typed
        here could restrict nothing and look as though it had. */
-    await show(pool({ subagents: [entry()] }));
+    await show(pool({ subagents: [entry({ allowed_tools: ["write"] })] }));
     expect(screen.getByTestId("subagent-entry-0-tools").title).toMatch(
       /not edited here/i,
     );
@@ -2040,5 +2040,72 @@ describe("two entries the pool cannot tell apart by id", () => {
     await show(pool({ subagents: [null, entry({ id: "dup" })] }));
     expect(screen.getByTestId("subagent-entry-0-unreadable")).toBeTruthy();
     expect(screen.queryByTestId("subagent-entry-0-shared-id")).toBeNull();
+  });
+});
+
+describe("the pool reads as a roster", () => {
+  const two = () =>
+    pool({
+      subagents: [
+        entry({ description: "shortens long text" }),
+        entry({ id: "subagent-2", name: "Checker" }),
+      ],
+    });
+  const open = (index) =>
+    screen.getByTestId(`subagent-entry-${index}-toggle`).getAttribute("aria-expanded");
+
+  test("several entries start folded, each saying what it is for", async () => {
+    await show(two());
+    expect(open(0)).toBe("false");
+    expect(open(1)).toBe("false");
+    expect(screen.getByTestId("subagent-entry-0-summary").textContent).toMatch(/Summarizer.*shortens long text/);
+    expect(screen.getByTestId("subagent-entry-1-summary").textContent).toMatch(/No description yet/);
+    expect(screen.getByTestId("subagent-entry-0-body")).toHaveAttribute("aria-hidden", "true");
+  });
+
+  test("one opens at a time, and opening writes nothing", async () => {
+    const { onChange } = await show(two());
+    fireEvent.click(screen.getByTestId("subagent-entry-0-toggle"));
+    expect(open(0)).toBe("true");
+    fireEvent.click(screen.getByTestId("subagent-entry-1-summary"));
+    expect(open(0)).toBe("false");
+    expect(open(1)).toBe("true");
+    fireEvent.click(screen.getByTestId("subagent-entry-1-toggle"));
+    expect(open(1)).toBe("false");
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  test("a pool of one starts open", async () => {
+    await show(pool({ subagents: [entry()] }));
+    expect(open(0)).toBe("true");
+    expect(screen.queryByTestId("subagent-entry-0-summary")).not.toBeInTheDocument();
+  });
+
+  test("a folded row with something wrong says so, and the first such row starts open", async () => {
+    await show(
+      pool({
+        subagents: [
+          entry(),
+          entry({ id: "subagent-2", name: "Checker", allowed_modes: [] }),
+          entry({ id: "subagent-3", name: "Third", allowed_modes: [] }),
+        ],
+      }),
+    );
+    expect(open(0)).toBe("false");
+    expect(open(1)).toBe("true");
+    expect(screen.getByTestId("subagent-entry-2-summary").textContent).toMatch(
+      /allowed_modes must be a non-empty array/i,
+    );
+  });
+
+  test("an added Agent opens, and the picker can be searched", async () => {
+    const { onChange } = await show(two());
+    await open_picker();
+    fireEvent.change(screen.getByPlaceholderText("Search Agents…"), { target: { value: "zzz" } });
+    expect(screen.getByTestId("subagent-picker-no-match")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Reference Summarizer")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText("Search Agents…"), { target: { value: "summ" } });
+    fireEvent.click(screen.getByLabelText("Reference Summarizer"));
+    expect(written(onChange)).toHaveLength(3);
   });
 });

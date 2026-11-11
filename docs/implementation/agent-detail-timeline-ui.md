@@ -97,7 +97,13 @@
 
 - Toolkit Pool：三个区 Pool → Workflows as tools → Installed。Pool 里每个 toolkit 是一条 32px 填充行（图标、名称、上下箭头，右侧开启数 `2/5`、All / None、删除），展开后工具以 chip 显示在同一块底里：开启是深一级的底，关闭只留淡色文字，不再用蓝色实心。「Merge with user-selected」是 Pool 区下面的一行设置（38×20 开关），说明收进 info。Installed 是搜索框加单列填充行，每行末尾「+ Add」。原来只写着「即将推出」的 Store 标签页去掉了。
 - Workflows as tools：说明收进 info，不可用时标题旁出红色徽标；每个 Workflow tool 是一块填充底，删除是行内的叉，`+ Add Workflow tool` 在列表末尾。
-- Subagent Pool：标题行右侧显示条目数。每个条目由一条填充的身份行（图标、名字、来源、Open、删除）、一个描述输入框和五行「标签在左、值在右」的设置（Mode chip、Reads、Memory、Parallel、Tools）组成，条目之间只靠间距分隔，没有卡片。`+ Add an Agent` / `+ Embedded` 在列表末尾，选择 Agent 时候选项是同款填充行。
+- Subagent Pool：一份可折叠的名册，标题行右侧显示条目数。
+  - 收起时每个条目是一条 46px 的填充行：图标、名字、允许的调用方式，第二行是描述（没有描述时淡色提示，条目有问题时这一行变红并写明原因）；右侧是 Open 和折叠箭头，位置在收起和展开时不变。
+  - 同时只展开一个。只有一个条目的池默认展开，否则默认展开第一个有问题的条目；刚添加的条目自动展开，光标落在描述框。折叠只隐藏内容，编辑器保持挂载，未存入的名字不会丢。
+  - 展开后在同一块底里自上而下：名字（标题行内直接编辑）→ 描述（三行输入框，说明写明「调用方 Agent 会读这段话」）→ 调用方式（三行，每行勾选框、名称、一句解释，选中用 accent 色）→ Reads / Memory（Mini UI `SegmentedButton`）与 Parallel（glass 开关），标签一列、控件一列，控件左右边缘对齐 → 来源与 Remove。
+  - Tools 只在不是默认的「every tool」时出现，只读。
+  - 开关一律用 `<Switch material="glass">`，保持它自己的 60:38 比例（38×24），状态改动写在 `set_on` 里：glass 开关会拦住点击冒泡，不能靠外层元素接点击。
+  - 添加只有一个入口 `+ Add an Agent`：展开后是细边框搜索框加候选 Agent 的填充行，最后一项是 `New embedded Agent`。
 
 ## 其余节点（Code、If/Else、Switch、Tool Call、Skill Read、Workflow Call、Hooks Pool）
 
