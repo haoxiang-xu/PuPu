@@ -8,9 +8,11 @@ import React from "react";
    with its value on the right; red only for what is wrong. The captions
    themselves are `Block` in process_timeline. */
 
-/* A region's surface: barely off the panel in either theme. The panel's own
-   background is the shell's and is never tinted from here. */
-export const fill = (isDark) => (isDark ? "rgba(255,255,255,0.035)" : "rgba(0,0,0,0.028)");
+/* A region's surface. The panel is see-through glass, so in the light an
+   opaque surface colour is the brighter of the two; in the dark a faint lift
+   is enough. The panel's own background is the shell's and is never tinted
+   from here. */
+export const fill = (isDark) => (isDark ? "rgba(255,255,255,0.035)" : "var(--pupu-surface, #ffffff)");
 /* What is chosen inside a region or a control. */
 export const fillStrong = (isDark) => (isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.07)");
 /* Between the rows of one region. */
