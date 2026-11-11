@@ -133,6 +133,12 @@ export default function DetailPanel({
       ? Array.isArray(node_toolkit_refs(skeleton_node)) ? node_toolkit_refs(skeleton_node).length === 1
         ? t("agents.nodes.toolkit_count_one", { count: node_toolkit_refs(skeleton_node).length })
         : t("agents.nodes.toolkit_count_other", { count: node_toolkit_refs(skeleton_node).length }) : t("agents.nodes.tool_settings_incomplete")
+      : !legacy_node && skeleton_node?.type === "subagent_pool" && Array.isArray(skeleton_node.config?.subagents)
+        /* A Skeleton pool keeps its entries under config, which the drawn
+           node does not carry, so the header counted none. */
+        ? skeleton_node.config.subagents.length === 0 ? t("agents.identity.no_subagents")
+          : t(skeleton_node.config.subagents.length === 1 ? "agents.nodes.subagent_count_one" : "agents.nodes.subagent_count_other",
+            { count: skeleton_node.config.subagents.length })
       : !legacy_node && is_branch_type(skeleton_node?.type)
         ? branch_summary(skeleton_node, t)
         : !legacy_node && skeleton_node?.type === "code"

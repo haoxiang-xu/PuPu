@@ -90,3 +90,11 @@
 - 已有的嵌套地址按原值显示，不在这里逐级编辑；逐级路径编辑器仍用于 Code、Tool Call 等其他节点。
 
 实现入口：`detail_panel/start_end_panel.js`、`detail_panel/first_present_pill.js`；共用 `process_timeline.js` 导出的 `Block`。
+
+## Toolkit Pool 与 Subagent Pool
+
+同一套标题、填充行和「标签在左、值在右」，共用样式在 `detail_panel/panel_style.js`。
+
+- Toolkit Pool：三个区 Pool → Workflows as tools → Installed。Pool 里每个 toolkit 是一条 32px 填充行（图标、名称、上下箭头，右侧开启数 `2/5`、All / None、删除），展开后工具以 chip 显示在同一块底里：开启是深一级的底，关闭只留淡色文字，不再用蓝色实心。「Merge with user-selected」是 Pool 区下面的一行设置（38×20 开关），说明收进 info。Installed 是搜索框加单列填充行，每行末尾「+ Add」。原来只写着「即将推出」的 Store 标签页去掉了。
+- Workflows as tools：说明收进 info，不可用时标题旁出红色徽标；每个 Workflow tool 是一块填充底，删除是行内的叉，`+ Add Workflow tool` 在列表末尾。
+- Subagent Pool：标题行右侧显示条目数。每个条目由一条填充的身份行（图标、名字、来源、Open、删除）、一个描述输入框和五行「标签在左、值在右」的设置（Mode chip、Reads、Memory、Parallel、Tools）组成，条目之间只靠间距分隔，没有卡片。`+ Add an Agent` / `+ Embedded` 在列表末尾，选择 Agent 时候选项是同款填充行。
