@@ -265,6 +265,9 @@ export default function SideMenuBreadcrumb({ crumbs, isDark }) {
               trigger={HOVER_ONLY}
               /* Gone as the pointer leaves: no grace period to cross into it. */
               close_delay={0}
+              /* The whole crumb answers the pointer; the bubble centres on
+                 the icon. */
+              anchor_selector="[data-crumb-icon]"
               style={{ whiteSpace: "nowrap" }}
             >
               <Crumb
@@ -392,18 +395,22 @@ function Crumb({ crumb, notch, point: pointed, current, isDark }) {
           testId={`side-menu-crumb-${crumb.key}-shape`}
         />
       )}
-      <Icon
-        src={crumb.icon}
-        color={fg}
-        style={{
-          position: "relative",
-          width: ICON,
-          height: ICON,
-          /* Where you are is the quiet one. */
-          opacity: interactive ? (hovered ? 1 : 0.85) : 0.4,
-          transition: "opacity 0.15s ease",
-        }}
-      />
+      {/* What the tooltip points at: the crumb is wider than its icon on the
+          side of a notch or a point, so its own middle is not the icon's. */}
+      <span data-crumb-icon="" style={{ position: "relative", display: "flex", width: ICON, height: ICON, flexShrink: 0 }}>
+        <Icon
+          src={crumb.icon}
+          color={fg}
+          style={{
+            position: "relative",
+            width: ICON,
+            height: ICON,
+            /* Where you are is the quiet one. */
+            opacity: interactive ? (hovered ? 1 : 0.85) : 0.4,
+            transition: "opacity 0.15s ease",
+          }}
+        />
+      </span>
     </button>
   );
 }

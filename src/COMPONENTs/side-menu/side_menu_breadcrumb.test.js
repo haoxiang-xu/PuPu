@@ -160,3 +160,15 @@ describe("a crumb joining or leaving the trail", () => {
     expect(screen.getByTestId("side-menu-crumb-agents-slot").dataset.phase).toBe("idle");
   });
 });
+
+test("every crumb marks its icon, which is what its tooltip points at", () => {
+  const trail = [
+    { key: "home", icon: "home", label: "Home", onClick: () => {} },
+    { key: "agents", icon: "agents", label: "Agents" },
+  ];
+  render(<SideMenuBreadcrumb crumbs={trail} />);
+  trail.forEach(({ key }) => {
+    const crumb = screen.getByTestId(`side-menu-crumb-${key}`);
+    expect(crumb.querySelectorAll("[data-crumb-icon]")).toHaveLength(1);
+  });
+});

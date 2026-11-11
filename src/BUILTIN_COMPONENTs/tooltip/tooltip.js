@@ -362,6 +362,11 @@ const Tooltip = ({
      frame and re-positions the moment it changes. Off by default: most
      anchors never move, and a frame loop is not free. */
   follow_trigger = false,
+  /* Opt-in: place the bubble against a part of the trigger rather than its
+     whole box — a trigger whose shape is wider than what it stands for. The
+     whole trigger still opens it. Horizontal placement only: the bubble
+     keeps its distance from the trigger's own edge. */
+  anchor_selector,
 }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const trigger_ref = useRef(null);
@@ -570,8 +575,14 @@ const Tooltip = ({
   const update_position = useCallback(
     (sizeOverride) => {
       if (!trigger_ref.current) return;
-      const rect = trigger_ref.current.getBoundingClientRect();
-      if (!rect) return;
+      const whole = trigger_ref.current.getBoundingClientRect();
+      if (!whole) return;
+      const part = anchor_selector ? trigger_ref.current.querySelector(anchor_selector) : null;
+      const partRect = part ? part.getBoundingClientRect() : null;
+      const rect = partRect && partRect.width > 0
+        ? { left: partRect.left, right: partRect.right, width: partRect.width,
+            top: whole.top, bottom: whole.bottom, height: whole.height }
+        : whole;
 
       const size = sizeOverride || bubbleSizeRef.current;
       if (!size || (!size.width && !size.height)) return;
@@ -747,7 +758,7 @@ const Tooltip = ({
         transform: anchor.transform,
       });
     },
-    [position, offset, show_arrow, arrowHeight, align],
+    [position, offset, show_arrow, arrowHeight, align, anchor_selector],
   );
 
   useLayoutEffect(() => {
