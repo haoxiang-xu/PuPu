@@ -57,9 +57,9 @@ const SECTION_LABEL = {
   letterSpacing: 0.4,
 };
 
-const CAPTION = { fontSize: 10.5, color: "#86868b", lineHeight: 1.45 };
+const CAPTION = { fontSize: 11.5, color: "#86868b", lineHeight: 1.45 };
 const MONO = { fontFamily: "ui-monospace, Menlo, monospace" };
-const PROBLEM = { fontSize: 10.5, lineHeight: 1.45 };
+const PROBLEM = { fontSize: 11.5, lineHeight: 1.45 };
 
 /* The same pair the pool section uses: the light-mode red is unreadable on a
    dark panel. */
@@ -432,7 +432,7 @@ export default function KernelSection({
           placeholder={t("agents.execution.kernel.prompt_placeholder")}
           min_rows={3}
           max_display_rows={12}
-          style={{ fontSize: 11.5, borderRadius: 6 }}
+          style={{ fontSize: 12.5, lineHeight: 1.5, borderRadius: 6 }}
         />
         {kernel && unbound.length > 0 && (
           <span data-testid="kernel-prompt-unbound" style={refused_style(isDark)}>
@@ -459,6 +459,9 @@ export default function KernelSection({
             background: "none",
             cursor: "pointer",
             ...SECTION_LABEL,
+            /* Laid out by the panel, it reads as one of the panel's captions. */
+            ...(renderSections ? { fontWeight: 400, letterSpacing: "1.5px", lineHeight: "18px",
+              color: isDark ? "rgba(255,255,255,0.9)" : "rgba(0,0,0,0.9)", opacity: 0.4 } : null),
           }}
         >
           <Icon
@@ -575,6 +578,10 @@ export default function KernelSection({
   if (renderSections) {
     return renderSections({
       model: <div data-testid="skeleton-kernel" style={{ display: "flex", flexDirection: "column", gap: 12 }}>{model_section}{advanced_section}</div>,
+      /* The same two halves apart, for a layout that keeps the model on top
+         and the rarely touched limits at the bottom. */
+      modelPicker: model_section,
+      advanced: advanced_section,
       prompt: prompt_section,
       promptHelp: prompt_help,
       modelSummary: is_object(stored_profile) && typeof stored_profile.model === "string" ? stored_profile.model : "",

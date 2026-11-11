@@ -101,7 +101,7 @@ export default function InputValuePill({ binding, index, sources, problems, isDa
       </div>
       {problems.map((problem, i) => (
         <span key={i} data-testid={`binding-row-${index}-problem-${i}`}
-          style={{ fontSize: 10.5, lineHeight: 1.45, overflowWrap: "anywhere", color: isDark ? "#ff8c8c" : "#b02020" }}>
+          style={{ fontSize: 11.5, lineHeight: 1.45, overflowWrap: "anywhere", color: isDark ? "#ff8c8c" : "#b02020" }}>
           {problem.message}
         </span>
       ))}

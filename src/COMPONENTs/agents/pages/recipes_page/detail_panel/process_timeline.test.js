@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { ConfigContext } from "../../../../../CONTAINERs/config/context";
 import DetailPanel from "./detail_panel";
+import { resetProcessPanelMemory } from "./process_timeline";
 import { kernel_profiles } from "../skeleton_resources";
 
 jest.mock("../skeleton_resources", () => ({
@@ -56,56 +57,81 @@ async function show({ document = seed, selected = "process", dark = false, chang
 }
 
 beforeEach(() => {
+  resetProcessPanelMemory();
   kernel_profiles.mockResolvedValue({ ok: true, data: { profiles: [profile, otherProfile], unavailable: [] } });
 });
 
-test.each([false, true])("the Process inspector is one Timeline with independent disclosures (dark=%s)", async (dark) => {
+test.each([false, true])("Model and Prompt are always in view; Input and Output fold on the rail (dark=%s)", async (dark) => {
   const { changed } = await show({ dark });
-  const timeline = screen.getByTestId("process-detail-timeline");
-  const titles = ["Input Variables", "Model", "Prompt", "Output Variables"];
-  const buttons = within(timeline).getAllByRole("button").filter((button) => titles.includes(button.getAttribute("aria-label")));
-  expect(buttons.map((button) => button.getAttribute("aria-label"))).toEqual(["Input Variables", "Model", "Prompt", "Output Variables"]);
-  expect(buttons.map((button) => button.getAttribute("aria-expanded"))).toEqual(["true", "false", "false", "false"]);
-  for (const [section, summary] of [["input", "question"], ["model", "research"], ["prompt", "Read {{#input.question#}}."], ["output", "answer"]]) {
-    expect(within(screen.getByTestId(`process-header-${section}`)).queryByText(summary)).not.toBeInTheDocument();
-  }
-  expect(within(timeline).queryByText(/^Step [12]$|^Start$|^End$/)).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "Model", exact: true }));
-  fireEvent.click(screen.getByRole("button", { name: "Prompt", exact: true }));
+  const panel = screen.getByTestId("process-detail-timeline");
+  /* what the Agent is: there without a click, and with nothing to fold */
   expect(screen.getByRole("region", { name: "Model", exact: true })).toBeVisible();
-  expect(screen.getByRole("region", { name: "Prompt", exact: true })).toBeVisible();
-  expect(screen.getByRole("region", { name: "Input Variables", exact: true })).toBeVisible();
+  const prompt = screen.getByRole("region", { name: "Prompt", exact: true });
+  expect(within(prompt).getByRole("textbox")).toHaveValue("Read {{#input.question#}}.");
+  expect(within(panel).queryByRole("button", { name: "Model", exact: true })).toBeNull();
+  expect(within(panel).queryByRole("button", { name: "Prompt", exact: true })).toBeNull();
+  /* what it is wired to: two disclosures, in the order values flow */
+  const wiring = screen.getByTestId("process-wiring");
+  const titles = ["Input Variables", "Output Variables"];
+  const buttons = within(wiring).getAllByRole("button").filter((button) => titles.includes(button.getAttribute("aria-label")));
+  expect(buttons.map((button) => button.getAttribute("aria-label"))).toEqual(titles);
+  expect(buttons.map((button) => button.getAttribute("aria-expanded"))).toEqual(["true", "false"]);
+  /* Model, then Prompt, then the wiring, then the rarely touched limits */
+  const order = [screen.getByTestId("process-section-model"), prompt, wiring, screen.getByTestId("process-advanced")];
+  order.slice(1).forEach((element, index) =>
+    expect(order[index].compareDocumentPosition(element) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy());
+  expect(within(panel).queryByText(/^Step [12]$|^Start$|^End$/)).not.toBeInTheDocument();
   expect(changed).not.toHaveBeenCalled();
   expect(kernel_profiles).toHaveBeenCalledTimes(1);
 });
 
-test("closing and reopening Prompt keeps the same editor and the unsaved document", async () => {
+test("a folded part says how many rows it holds", async () => {
+  await show();
+  expect(screen.getByTestId("process-summary-output")).toHaveTextContent("1");
+  expect(screen.getByTestId("process-summary-output")).toHaveStyle({ opacity: "1" });
+  /* open, the rows speak for themselves */
+  expect(screen.getByTestId("process-summary-input")).toHaveStyle({ opacity: "0" });
+});
+
+test("which parts are open is remembered from one node to the next", async () => {
+  const first = await show();
+  fireEvent.click(screen.getByRole("button", { name: "Output Variables", exact: true }));
+  first.unmount();
+  await show();
+  expect(screen.getByRole("button", { name: "Output Variables", exact: true })).toHaveAttribute("aria-expanded", "true");
+});
+
+test("a part that holds a problem shows the count and opens itself", async () => {
+  const document = JSON.parse(JSON.stringify(seed));
+  document.nodes[1].config.kernel.prompt = "Read {{#input.missing#}}.";
+  await show({ document });
+  expect(screen.getByTestId("process-problems-prompt")).toHaveTextContent("1");
+  expect(screen.getByTestId("process-header-prompt")).toContainElement(screen.getByTestId("process-problems-prompt"));
+});
+
+test("folding Output keeps the same editors and the unsaved document", async () => {
   const { changed } = await show();
-  const toggle = screen.getByRole("button", { name: "Prompt", exact: true });
-  fireEvent.click(toggle);
   const editor = within(screen.getByRole("region", { name: "Prompt", exact: true })).getByRole("textbox");
   fireEvent.change(editor, { target: { value: "Draft instructions {{#input.question#}}" } });
   const written = changed.mock.calls.at(-1)[0];
   expect(written.nodes[1].config.kernel.prompt).toBe("Draft instructions {{#input.question#}}");
   expect(written.nodes[1].config.execution).toEqual(seed.nodes[1].config.execution);
   const count = changed.mock.calls.length;
+  const toggle = screen.getByRole("button", { name: "Input Variables", exact: true });
+  const row = within(screen.getByRole("region", { name: "Input Variables", exact: true })).getByDisplayValue("question");
   fireEvent.click(toggle);
-  expect(screen.getByTestId("process-section-prompt")).toHaveAttribute("inert");
+  expect(screen.getByTestId("process-section-input")).toHaveAttribute("inert");
   fireEvent.click(toggle);
-  expect(within(screen.getByRole("region", { name: "Prompt", exact: true })).getByRole("textbox")).toBe(editor);
+  expect(within(screen.getByRole("region", { name: "Input Variables", exact: true })).getByDisplayValue("question")).toBe(row);
   expect(editor).toHaveValue("Draft instructions {{#input.question#}}");
   expect(changed).toHaveBeenCalledTimes(count);
 });
 
 test("Model and Prompt edit the same latest Kernel without duplicate catalog requests", async () => {
   const { changed } = await show();
-  fireEvent.click(screen.getByRole("button", { name: "Prompt", exact: true }));
   fireEvent.change(within(screen.getByRole("region", { name: "Prompt", exact: true })).getByRole("textbox"), { target: { value: "Keep this draft" } });
-  fireEvent.click(screen.getByRole("button", { name: "Model", exact: true }));
   fireEvent.change(within(screen.getByRole("region", { name: "Model", exact: true })).getAllByRole("combobox")[0], { target: { value: otherProfile.id } });
   expect(changed.mock.calls.at(-1)[0].nodes[1].config.kernel).toMatchObject({ profile: otherProfile, prompt: "Keep this draft" });
-  fireEvent.click(screen.getByRole("button", { name: "Model", exact: true }));
-  fireEvent.click(screen.getByRole("button", { name: "Model", exact: true }));
   expect(kernel_profiles).toHaveBeenCalledTimes(1);
 });
 
@@ -162,17 +188,16 @@ test("Output shows a saved nested source and only offers declared fields or whol
   });
 });
 
-test("folding Model preserves a refused partial number without writing it", async () => {
+test("folding Advanced preserves a refused partial number without writing it", async () => {
   const { changed } = await show();
-  const toggle = screen.getByRole("button", { name: "Model", exact: true });
+  const toggle = screen.getByTestId("kernel-advanced-toggle");
   fireEvent.click(toggle);
-  fireEvent.click(screen.getByTestId("kernel-advanced-toggle"));
-  const count = within(screen.getByRole("region", { name: "Model", exact: true })).getByDisplayValue("12");
+  const count = within(screen.getByTestId("process-advanced")).getByDisplayValue("12");
   fireEvent.change(count, { target: { value: "0." } });
   expect(count).toHaveValue("0.");
   fireEvent.click(toggle);
   fireEvent.click(toggle);
-  expect(within(screen.getByRole("region", { name: "Model", exact: true })).getByDisplayValue("0.")).toBe(count);
+  expect(within(screen.getByTestId("process-advanced")).getByDisplayValue("0.")).toBe(count);
   expect(changed).not.toHaveBeenCalled();
 });
 
@@ -182,31 +207,16 @@ test("Start and other non-Process panels keep their existing presentation", asyn
   expect(screen.getByTestId("skeleton-input-variables")).toBeInTheDocument();
 });
 
-test("a collapsed section keeps its larger click target without hover highlighting", async () => {
+test("a folded part keeps its larger click target without hover highlighting", async () => {
   const { changed } = await show();
-  const section = screen.getByTestId("process-disclosure-prompt");
-  const toggle = screen.getByRole("button", { name: "Prompt", exact: true });
+  const section = screen.getByTestId("process-disclosure-output");
+  const toggle = screen.getByRole("button", { name: "Output Variables", exact: true });
   expect(section).toHaveStyle({ backgroundColor: "transparent" });
   fireEvent.mouseEnter(toggle);
   expect(section).toHaveStyle({ backgroundColor: "transparent" });
   expect(toggle).toHaveStyle({ minHeight: "32px", backgroundColor: "transparent" });
-  fireEvent.mouseLeave(section);
-  expect(section).toHaveStyle({ backgroundColor: "transparent" });
-  expect(changed).not.toHaveBeenCalled();
-});
-
-test("an expanded section stays transparent over both its title and editor", async () => {
-  const { changed } = await show();
-  const section = screen.getByTestId("process-disclosure-prompt");
-  const toggle = screen.getByRole("button", { name: "Prompt", exact: true });
   fireEvent.click(toggle);
-  const editor = within(screen.getByRole("region", { name: "Prompt", exact: true })).getByRole("textbox");
-  fireEvent.focus(editor);
-  expect(section).toHaveStyle({ backgroundColor: "transparent" });
   fireEvent.mouseEnter(toggle);
-  expect(section).toHaveStyle({ backgroundColor: "transparent" });
-  fireEvent.mouseLeave(toggle, { relatedTarget: editor });
-  fireEvent.mouseEnter(editor, { relatedTarget: toggle });
   expect(section).toHaveStyle({ backgroundColor: "transparent" });
   expect(toggle).toHaveStyle({ backgroundColor: "transparent" });
   fireEvent.mouseLeave(section);
@@ -233,28 +243,23 @@ test("list add actions follow the rows and still preserve the rest of the docume
   expect(saved.nodes[1].config.kernel).toEqual(seed.nodes[1].config.kernel);
 });
 
-test("section guidance sits beside the title and never toggles or edits the section", async () => {
+test("prompt guidance sits beside its caption and edits nothing", async () => {
   const { changed } = await show();
-  const toggle = screen.getByRole("button", { name: "Prompt", exact: true });
   const help = screen.getByRole("button", { name: "Prompt · About", exact: true });
   expect(screen.getByTestId("process-header-prompt")).toContainElement(help);
-  expect(toggle).not.toContainElement(help);
   fireEvent.click(help);
   expect(await screen.findByTestId("kernel-prompt-references")).toHaveTextContent("{{#input.question#}}");
-  expect(toggle).toHaveAttribute("aria-expanded", "false");
   expect(changed).not.toHaveBeenCalled();
 });
 
 test("model guidance belongs beside the model selector rather than floating above it", async () => {
   const { changed } = await show();
-  fireEvent.click(screen.getByRole("button", { name: "Model", exact: true }));
   const field = screen.getByTestId("kernel-model");
   const picker = within(field).getByRole("combobox");
   const help = within(field).getByRole("button", { name: "Model · About", exact: true });
   expect(picker).not.toContainElement(help);
   fireEvent.focus(help);
   expect(await screen.findByTestId("kernel-profile-facts")).toHaveTextContent("http://127.0.0.1:1");
-  expect(screen.getByRole("button", { name: "Model", exact: true })).toHaveAttribute("aria-expanded", "true");
   expect(changed).not.toHaveBeenCalled();
 });
 

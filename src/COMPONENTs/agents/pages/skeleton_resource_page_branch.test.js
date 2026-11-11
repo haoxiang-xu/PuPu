@@ -122,10 +122,8 @@ test("If / Else: add, bind, write the condition, wire both outlets and a rejoin,
   expect(screen.getByTestId("branch-node-if-summary")).toHaveTextContent("1 comparison");
 
   await add("agent");
-  fireEvent.click(screen.getByRole("button", { name: "Model", exact: true }));
   fireEvent.click(within(await screen.findByTestId("kernel-model")).getByRole("combobox"));
   fireEvent.click(within(screen.getByRole("listbox", { hidden: true })).getByText(profile.model, { exact: true }));
-  fireEvent.click(screen.getByRole("button", { name: "Prompt", exact: true }));
   fireEvent.change(await screen.findByPlaceholderText("what this Agent is for"), { target: { value: "[yes-branch]" } });
   fireEvent.click(screen.getByRole("button", { name: "Output Variables", exact: true }));
   fireEvent.click(screen.getByRole("button", { name: "+ Add output", exact: true }));

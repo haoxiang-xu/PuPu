@@ -13,7 +13,7 @@ const mutedColor = (isDark) => isDark ? "#a6a6af" : "#686870";
 
 export const variablePillField = {
   width: "100%", minWidth: 0, border: 0, height: 24,
-  paddingVertical: 0, paddingHorizontal: 3, fontSize: 11.5,
+  paddingVertical: 0, paddingHorizontal: 3, fontSize: 12,
   "--pupu-overlay-hover": "transparent",
   "--pupu-overlay-active": "transparent",
 };
@@ -42,7 +42,7 @@ export default function VariablePill({
       <div style={{
         display: "grid",
         gridTemplateColumns: "minmax(0, 1fr) 20px minmax(0, 1fr)",
-        flex: 1, minWidth: 0, color, fontSize: 11.5,
+        flex: 1, minWidth: 0, color, fontSize: 12,
         borderRadius: 8, overflow: "hidden", background: track,
       }}>
         <div style={{ ...SEGMENT, padding: "0 0 0 9px" }}>

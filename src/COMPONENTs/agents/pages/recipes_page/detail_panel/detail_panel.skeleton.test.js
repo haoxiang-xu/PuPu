@@ -8,6 +8,10 @@ import DetailPanel from "./detail_panel";
 import { has_node_identity, node_identity } from "./node_identity";
 import { LOOKUP_ROWS } from "../skeleton_drill_replacement_capture";
 import { kernel_profiles, list_resources } from "../skeleton_resources";
+import { resetProcessPanelMemory } from "./process_timeline";
+
+/* Which parts are open is remembered for the session: start each test fresh. */
+beforeEach(() => resetProcessPanelMemory());
 
 /* An Agent node's Model section reads the Kernel profile catalog on mount, so
    the panel is shown one here. Without it the catalog read settles after the
@@ -751,19 +755,17 @@ describe("the Model section in the panel", () => {
       selectedNodeId: "kernel",
     });
 
-  test("an Agent reads downwards: inputs, model, result, outputs", () => {
-    /* The model comes before JSON Output because the schema depends on it —
-       a model that cannot be asked for structured output makes that section
-       unavailable — and both stay between the two IO sections rule 2 pins to
-       the top and the bottom. */
+  test("an Agent reads downwards: model, prompt, then inputs, result, outputs", () => {
+    /* What the Agent is stays on top and in view; under it the wiring, in
+       the order values flow. JSON Output belongs to the Output disclosure:
+       its header precedes the schema, the mapping editor follows it. */
     open({ execution: { inputs: [], outputs: [] } });
     const text = screen.getByTestId("recipe-detail-panel").textContent;
-    expect(text.indexOf("Input Variables")).toBeGreaterThanOrEqual(0);
-    expect(text.indexOf("Model")).toBeGreaterThan(text.indexOf("Input Variables"));
-    expect(text.indexOf("JSON Output")).toBeGreaterThan(text.indexOf("Model"));
-    // JSON Output now belongs to the Output disclosure. Its header precedes
-    // the schema, while the actual mapping editor still follows the schema.
-    expect(text.indexOf("Output Variables")).toBeGreaterThan(text.indexOf("Model"));
+    expect(text.indexOf("Model")).toBeGreaterThanOrEqual(0);
+    expect(text.indexOf("Prompt")).toBeGreaterThan(text.indexOf("Model"));
+    expect(text.indexOf("Input Variables")).toBeGreaterThan(text.indexOf("Prompt"));
+    expect(text.indexOf("Output Variables")).toBeGreaterThan(text.indexOf("Input Variables"));
+    expect(text.indexOf("JSON Output")).toBeGreaterThan(text.indexOf("Output Variables"));
     expect(screen.getByTestId("process-section-output")).toContainElement(screen.getByTestId("skeleton-output-schema"));
     expect(screen.getByTestId("skeleton-output-schema").compareDocumentPosition(screen.getByTestId("skeleton-output-variables")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });

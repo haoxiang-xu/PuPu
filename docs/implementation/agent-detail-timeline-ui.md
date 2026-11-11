@@ -1,10 +1,14 @@
 # Agent detail Timeline — 交互语言
 
-当前落地范围：Process（原生 Agent）详情页。使用 Mini UI Timeline 的点与连线；输入、模型、指令、输出是配置区，不表示运行进度。
+当前落地范围：Process（原生 Agent）详情页。模型与指令是 Agent 的身份，始终展开在最上方；其下用 Mini UI Timeline 的点与连线承载输入、输出两个可折叠配置区（值进来、结果出去，这里的连线确实表示顺序）；少有人动的上限放在最底部的 Advanced。都不表示运行进度。
 
 ## 分组与交互
 
-- 每个 section 是一个独立 disclosure，标题后紧跟上下展开箭头；右侧不显示配置摘要或其他说明文字。
+- 自上而下：Model → Prompt → Input / Output（Timeline）→ Advanced。
+- Model、Prompt 不可折叠：一行小号大写说明文字（11px、字距 1.5px、40% 不透明度，与侧边菜单的分区标题同款），下面直接是控件。Advanced 的开关用同款说明文字。
+- Input、Output 各是一个独立 disclosure，标题 12.5px，后面紧跟上下展开箭头。收起时行尾右对齐显示条目数量，展开后淡出。
+- 某个区里有问题时，其标题旁显示红色数字徽标（问题条数），折叠或滚走时仍可见；Input / Output 第一次出现问题时自动展开一次，之后由作者自行折叠。
+- Input / Output 的展开状态在本次会话内记住，切换节点不会复位；默认只展开 Input。
 - 收起时箭头向下，展开后箭头向上；不使用朝右的箭头。
 - 收起时，标题整行可点击，最小高度 **32px**。
 - **标题和整个 section 都没有 hover 高光背景**。无论收起、展开、鼠标停留还是键盘 focus，section 背景始终透明。
@@ -20,6 +24,7 @@
 - selector 内的文字与图标作为一组靠右对齐，保留原有内边距；旁边的 info 仍是独立按钮。
 - 除下述 Model picker 外，详情页其他 selector 经 `PanelSelect` 使用 Attach Panel 同款 Mini UI `Select` 的 `palette` 菜单：圆角、玻璃材质、选中态、滑动高亮和底部搜索共用现有实现，不另造一套下拉菜单。
 - Model picker 与 Attach Panel **共用 `ModelPicker` 组件**：32px 模型胶囊、provider 图标侧栏、固定高度列表、底部 model 搜索、选中后保持打开。Builder 选择并保存宿主提供的完整 Kernel profile。
+- 正文字号：指令输入框与 disclosure 标题 12.5px，变量 pill 12px，辅助说明与报错 11.5px。
 - 详情页 Model picker 在标题下方左对齐，宽度 220px；窄面板时随可用空间缩小，info 紧跟其后。
 - BC-003 · Sidecar 从 wheel catalog 和既有 Ollama 安装模型目录生成本地/原生 profile，Main 用执行时同一个可信注册表和授权规则补齐 DeepSeek、Kimi 与用户配置。既有 `GET /skeleton_kernel_profiles`、IPC 回包与 CLOSED Kernel profile 形状沿用，凭据引用、协议、端点与模型按原身份保留，回包不读密钥。用户自定义组沿用 Settings 的功能开关。缺远程模型额度、非支持鉴权或额外请求头的模型维持不可选。已安装 Ollama 缺上限时使用 PuPu 的本地请求窗口，输出额度以 4096 为宿主预算上限并低于窗口。
 - SEQ-003 · 模型目录更新只刷新候选，保存的 Kernel 与既有运行快照保持各自 profile。明确选模型才写草稿，运行时仍以当前注册表校验目标后解析密钥。
