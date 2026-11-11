@@ -69,7 +69,23 @@ const deleteEdge = (id) => {
    one is the last in the document. */
 const choose = (container, label, which = 0) => {
   const row = container.getAttribute("data-testid") || "";
+  if (/-alt-\d+$/.test(row) && !within(container).queryByRole("combobox")) {
+    /* A first-of-several source drawn as a pill picks from its menu, where an
+       option is the node and the field side by side. */
+    const [node, name] = label.replace(/ — only if its branch ran$/, "").split(" · ");
+    fireEvent.click(within(container).getAllByRole("button")[0]);
+    const options = screen.getAllByText((_, el) => el?.tagName === "SPAN" && el.children.length === 2
+      && el.textContent === `${node}${name}`);
+    fireEvent.click(options[options.length - 1]);
+    return;
+  }
   if (/^(binding|output)-row-\d+$/.test(row)) {
+    /* A row drawn as one filled pill picks from the menu under its value. */
+    if (which === 0 && !within(container).queryByRole("button", { name: / · More$/ })) {
+      fireEvent.click(within(container).getByRole("textbox", { name: /^(?!name$).+/ }));
+      fireEvent.click(screen.getByText(label, { exact: true }));
+      return;
+    }
     if (which === 0) {
       const more = within(container).getByRole("button", { name: / · More$/ });
       if (more.getAttribute("aria-expanded") !== "true") fireEvent.click(more);

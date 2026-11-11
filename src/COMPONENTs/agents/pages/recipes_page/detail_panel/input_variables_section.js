@@ -5,6 +5,7 @@ import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
 import PanelHelp from "./panel_help";
 import BindingRow from "./binding_row";
 import InputValuePill from "./input_value_pill";
+import FirstPresentPill from "./first_present_pill";
 import {
   node_bindings,
   node_output_mappings,
@@ -12,7 +13,7 @@ import {
   upstream_node_ids,
   with_node_bindings,
 } from "../skeleton_document";
-import { binding_problems, make_binding, ref_expression } from "../skeleton_io";
+import { binding_problems, expression_is_editable, make_binding, ref_expression } from "../skeleton_io";
 import { conditional_sources } from "../skeleton_branch_config";
 import { node_display_title } from "../node_display_labels";
 import { start_context_for_view } from "../start_context";
@@ -182,7 +183,9 @@ export default function InputVariablesSection({
       )}
 
       {bindings.map((binding, index) => {
-        const Row = breadcrumb && binding?.value?.kind !== "first_present" ? InputValuePill : BindingRow;
+        const Row = !breadcrumb ? BindingRow
+          : binding?.value?.kind !== "first_present" ? InputValuePill
+            : expression_is_editable(binding.value) ? FirstPresentPill : BindingRow;
         return <Row
           key={index}
           binding={binding}

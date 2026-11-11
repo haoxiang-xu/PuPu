@@ -26,7 +26,7 @@ export const resetProcessPanelMemory = () => {
 const MUTED = (isDark) => (isDark ? "#a1a1aa" : "#68686f");
 
 /* The side menus' section title: small, spaced capitals, quiet. */
-const captionStyle = (isDark) => ({
+export const captionStyle = (isDark) => ({
   fontSize: 11, textTransform: "uppercase", letterSpacing: "1.5px", lineHeight: "18px",
   color: isDark ? "rgba(255,255,255,0.9)" : "rgba(0,0,0,0.9)", opacity: 0.4,
   userSelect: "none", WebkitUserSelect: "none",
@@ -34,7 +34,7 @@ const captionStyle = (isDark) => ({
 
 /* How many things are wrong, as a number you can see while the part that
    holds them is folded or scrolled away. */
-function ProblemCount({ count, section, isDark }) {
+export function ProblemCount({ count, section, isDark }) {
   if (!count) return null;
   return (
     <span data-testid={`process-problems-${section}`} role="status" aria-label={String(count)}
@@ -49,7 +49,7 @@ function ProblemCount({ count, section, isDark }) {
 }
 
 /* A part that is always open: a quiet caption, then the control. */
-function Block({ section, title, help, problems = [], aside, isDark, children }) {
+export function Block({ section, title, help, problems = [], aside, isDark, children }) {
   return (
     <div role="region" aria-label={title} data-testid={`process-section-${section}`}
       style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>

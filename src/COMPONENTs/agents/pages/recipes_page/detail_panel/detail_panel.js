@@ -10,6 +10,7 @@ import SubagentPoolPanel from "./subagent_pool_panel";
 import { node_identity } from "./node_identity";
 import InputVariablesSection from "./input_variables_section";
 import ProcessTimeline from "./process_timeline";
+import StartEndPanel from "./start_end_panel";
 import SkeletonDiagnostics from "./skeleton_diagnostics_notice";
 import SubagentPoolSection from "./subagent_pool_section";
 import ToolkitPoolSection from "./toolkit_pool_section";
@@ -312,6 +313,9 @@ export default function DetailPanel({
               <ProcessTimeline key={JSON.stringify([document.id, skeleton_node.id])}
                 document={document} node={skeleton_node} revision={documentRevision}
                 rowDiagnostics={routed.rows} isDark={isDark} onChange={onDocumentChange} />
+            ) : skeleton_node.type === "start" || skeleton_node.type === "end" ? (
+              <StartEndPanel document={document} node={skeleton_node} revision={documentRevision}
+                rowDiagnostics={routed.rows} startContext={startContext} isDark={isDark} onChange={onDocumentChange} />
             ) : <>
             {/* A pool attaches to a Kernel rather than running in the flow,
                 so it carries no execution IO at all — the sections around

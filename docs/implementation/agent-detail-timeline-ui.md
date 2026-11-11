@@ -76,3 +76,17 @@
 - `src/COMPONENTs/agents/pages/recipes_page/detail_panel/output_variables_section.js`
 
 `process_timeline.js` 保留文件名，但已不再使用 Timeline 组件；共用 Timeline 的默认 Trace Chain 行为保持原样。
+
+## Start 与 End
+
+两端节点沿用同一套语言：一列到底，同款分区标题，同款 32px 填充行（8px 圆角、无描边），删除叉在行内。
+
+- 两个区：Input Variables、Output Variables。各只有一两条短列表，所以都**不折叠**；条目数放在标题行右侧，与折叠区收起时的位置一致。说明文字一律收进标题旁的 info。
+- Start · Input：调用方提供的字段，只读。行内是字段名、右侧类型和一把小锁，没有可编辑控件；库视图里调用方未知时只有一行「调用方输入 · object」。字段无法确定时标题旁出红色徽标，正文用 11.5px 红字说明。
+- Start · Output：值一侧显示为「调用方输入 · 字段」。调用方的形状没有声明，所以字段名直接在值一侧输入（Enter 或离开输入框确认，Esc 放弃，未改动不写入）；菜单另有「收到的全部值」。
+- End · Input：与 Agent 的输入行完全相同。上游有分支时，来源菜单末尾多一项「多个来源中的首个可用值」：把这一行变成首个可用值列表，可能没运行的分支来源排第一，原来的来源作为兜底。
+- 首个可用值列表：行头只写名字和「多个来源中的首个可用值」，下面按尝试顺序列出来源，每个来源是一条 28px 填充行（序号、来源、删除；至少保留两条），末尾「+ 添加来源」。
+- End · Output：与 Agent 的输出行相同，菜单只列本节点的输入和「收到的全部值」。
+- 已有的嵌套地址按原值显示，不在这里逐级编辑；逐级路径编辑器仍用于 Code、Tool Call 等其他节点。
+
+实现入口：`detail_panel/start_end_panel.js`、`detail_panel/first_present_pill.js`；共用 `process_timeline.js` 导出的 `Block`。

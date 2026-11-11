@@ -5,6 +5,7 @@ jest.mock("./panel_help", () => function GuidanceText({ children }) { return <>{
 import { render, screen, fireEvent, within, act, waitFor } from "@testing-library/react";
 import { ConfigContext } from "../../../../../CONTAINERs/config/context";
 import DetailPanel from "./detail_panel";
+import OutputVariablesSection from "./output_variables_section";
 import { has_node_identity, node_identity } from "./node_identity";
 import { LOOKUP_ROWS } from "../skeleton_drill_replacement_capture";
 import { kernel_profiles, list_resources } from "../skeleton_resources";
@@ -367,6 +368,16 @@ describe("the Output Variables section in the panel", () => {
   });
 });
 
+/* Start and End now draw their rows as the Agent panel's pills, which show a
+   deeper address as stored rather than step by step. The step editor these
+   tests hold to account is still the one every other runnable node uses, so
+   it is driven here directly, on the same End rows. */
+function PathHost({ document, selectedNodeId, onDocumentChange, documentRevision }) {
+  const node = document.nodes.find((candidate) => candidate.id === selectedNodeId);
+  return <OutputVariablesSection document={document} node={node} revision={documentRevision}
+    isDark={false} onChange={onDocumentChange} />;
+}
+
 describe("UI-L1 — refused text belongs to one node, one row, one step", () => {
   /* A refused position stays on screen so it can be corrected. It stays in
      local state, because the document deliberately does not hold it — and
@@ -404,7 +415,7 @@ describe("UI-L1 — refused text belongs to one node, one row, one step", () => 
   test("selecting another node shows that node's stored position", () => {
     const view = render(
       <ConfigContext.Provider value={cfg}>
-        <DetailPanel
+        <PathHost
           recipe={legacy_recipe}
           document={two_ends}
           selectedNodeId="endA"
@@ -419,7 +430,7 @@ describe("UI-L1 — refused text belongs to one node, one row, one step", () => 
 
     view.rerender(
       <ConfigContext.Provider value={cfg}>
-        <DetailPanel
+        <PathHost
           recipe={legacy_recipe}
           document={two_ends}
           selectedNodeId="endB"
@@ -463,7 +474,7 @@ describe("UI-L1 — refused text belongs to one node, one row, one step", () => 
       const [doc, setDoc] = React.useState(start);
       return (
         <ConfigContext.Provider value={cfg}>
-          <DetailPanel
+          <PathHost
             recipe={legacy_recipe}
             document={doc}
             selectedNodeId="end"
@@ -519,7 +530,7 @@ describe("UI-L1 — refused text belongs to one node, one row, one step", () => 
       const [doc, setDoc] = React.useState(start);
       return (
         <ConfigContext.Provider value={cfg}>
-          <DetailPanel
+          <PathHost
             recipe={legacy_recipe}
             document={doc}
             selectedNodeId="end"
@@ -547,7 +558,7 @@ describe("UI-L1 — refused text belongs to one node, one row, one step", () => 
     };
     const panel = (selected) => (
       <ConfigContext.Provider value={cfg}>
-        <DetailPanel
+        <PathHost
           recipe={legacy_recipe}
           document={same}
           selectedNodeId={selected}
@@ -570,7 +581,7 @@ describe("UI-L1 — refused text belongs to one node, one row, one step", () => 
        the panel moved. */
     const view = render(
       <ConfigContext.Provider value={cfg}>
-        <DetailPanel
+        <PathHost
           recipe={legacy_recipe}
           document={two_ends}
           selectedNodeId="endA"
@@ -584,7 +595,7 @@ describe("UI-L1 — refused text belongs to one node, one row, one step", () => 
     fireEvent.change(position_box(0), { target: { value: "-1" } });
     view.rerender(
       <ConfigContext.Provider value={cfg}>
-        <DetailPanel
+        <PathHost
           recipe={legacy_recipe}
           document={two_ends}
           selectedNodeId="endA"

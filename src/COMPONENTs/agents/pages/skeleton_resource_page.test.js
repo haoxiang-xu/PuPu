@@ -366,9 +366,10 @@ describe("editing an output on the real page", () => {
     await open_end();
     pressCanvasNode(screen.getByTestId("skeleton-node-start"));
     expect(screen.getByTestId("output-row-0")).toBeInTheDocument();
-    expect(screen.getByTestId("output-row-0-fixed-kind").getAttribute("title")).toMatch(
-      /what the run was called with/i,
-    );
+    /* A Start's result is what the run was called with, so the row names it
+       as the caller's input, and the section says why behind its info. */
+    expect(screen.getByTestId("output-row-0-selected")).toHaveTextContent(/Caller input\s*text/);
+    expect(screen.getByTestId("process-header-start-output")).toBeInTheDocument();
   });
 
   test("an output the author removes is gone from what is sent", async () => {
@@ -452,9 +453,12 @@ describe("the whole-value and result-root choices on the real page", () => {
     pressCanvasNode(screen.getByTestId("skeleton-node-end"));
   };
 
-  test("a named first step offers deeper steps", async () => {
+  test("a named first step is shown on the row as the field it reads", async () => {
+    /* An End's row is a pick from its own inputs, as an Agent's is; a deeper
+       address it already holds is shown as stored rather than re-edited. */
     await open_with_output({ kind: "input", path: ["payload"] });
-    expect(screen.getByText(/Go deeper/)).toBeInTheDocument();
+    expect(screen.getByTestId("output-row-0-source")).toHaveTextContent(/payload/);
+    expect(screen.queryByText(/Go deeper/)).not.toBeInTheDocument();
   });
 
   test("the whole object has no deeper steps to offer", async () => {
@@ -467,8 +471,9 @@ describe("the whole-value and result-root choices on the real page", () => {
   test("a result naming a field the producer does not have is said on the row", async () => {
     await open_end();
     pressCanvasNode(screen.getByTestId("skeleton-node-start"));
-    /* A Start's result is the caller's, so nothing is claimed about it. */
-    expect(screen.getByTestId("output-row-0-result-unknown")).toBeInTheDocument();
+    /* A Start's result is the caller's, so nothing is claimed about it: the
+       field it reads is typed rather than picked from a list. */
+    expect(within(screen.getByTestId("output-row-0-source")).getByRole("textbox")).toBeInTheDocument();
     expect(screen.queryByTestId("output-row-0-problem-0")).not.toBeInTheDocument();
   });
 

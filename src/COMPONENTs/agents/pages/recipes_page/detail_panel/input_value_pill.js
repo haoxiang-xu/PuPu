@@ -2,7 +2,7 @@ import React, { useRef, useState } from "react";
 import ContextMenu from "../../../../../BUILTIN_COMPONENTs/context_menu/context_menu";
 import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
-import { expression_is_editable, expression_summary, literal_expression, ref_expression } from "../skeleton_io";
+import { expression_is_editable, expression_summary, first_present_expression, literal_expression, ref_expression } from "../skeleton_io";
 import VariablePill, { VariablePillValue, variablePillField } from "./variable_pill";
 
 export default function InputValuePill({ binding, index, sources, problems, isDark, onChange, onRemove }) {
@@ -55,6 +55,27 @@ export default function InputValuePill({ binding, index, sources, problems, isDa
     prefix_icon: source.conditional ? "circle" : undefined,
     onClick: () => choose(ref_expression(source.node_id, [source.name])),
   }));
+  /* Downstream of a branch a value may come from whichever side ran, which
+     one pick cannot say: the row becomes a first-of-several list, the source
+     that may not have run first and what it reads now as the fallback. */
+  if (!editing || !filter) {
+    const conditional = sources.filter((candidate) => candidate.conditional);
+    if (conditional.length > 0) {
+      const current = isRef && value.path.length > 0 ? value : null;
+      const same = (candidate, ref) => ref && candidate.node_id === ref.node_id && candidate.name === ref.path[0];
+      const currentConditional = current && conditional.some((candidate) => same(candidate, current));
+      const first = currentConditional ? current : ref_expression(conditional[0].node_id, [conditional[0].name]);
+      const fallback = current && !same({ node_id: first.node_id, name: first.path[0] }, current) ? current
+        : (() => {
+          const other = sources.find((candidate) => !same(candidate, first));
+          return other ? ref_expression(other.node_id, [other.name]) : { ...first };
+        })();
+      items.push({ type: "separator" }, {
+        label: t("agents.io.source.first_present"),
+        onClick: () => choose(first_present_expression([first, fallback])),
+      });
+    }
+  }
   const menuVisible = menu !== null && items.length > 0;
 
   return (
