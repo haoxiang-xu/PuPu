@@ -510,15 +510,16 @@ function GraphDrawing({
         style={{ width: "100%", height: "100%", borderRadius: 0 }}
         theme={{
           canvasBackground: "var(--pupu-background)",
-          gridColor: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)",
+          gridColor: "var(--pupu-overlay-ghost)",
           nodeBackground: "transparent",
           nodeShadow: "none",
           nodeShadowHover: "none",
           nodeSelectedBorder: "transparent",
           portShape: "puzzle",
-          portColor: isDark ? "rgba(255,255,255,0.32)" : "rgba(0,0,0,0.22)",
-          edgeColor: isDark ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.14)",
-          edgeActiveColor: "#4a5bd8",
+          portHoverColor: "var(--pupu-accent)",
+          portColor: "var(--pupu-border-strong)",
+          edgeColor: "var(--pupu-border-mid)",
+          edgeActiveColor: "var(--pupu-accent)",
           edgeWidth: 1.6,
         }}
         nodes={nodes}

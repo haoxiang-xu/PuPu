@@ -44,7 +44,7 @@ export default function AgentNode({ node, isDark }) {
                   fontSize: 12.5,
                   fontWeight: 600,
                   lineHeight: 1.15,
-                  color: isDark ? "#f0f0f3" : "#1d1d22",
+                  color: "var(--pupu-text)",
                   overflow: "hidden",
                   textOverflow: "ellipsis",
                   whiteSpace: "nowrap",
@@ -55,7 +55,7 @@ export default function AgentNode({ node, isDark }) {
               <div
                 style={{
                   fontSize: 10.5,
-                  color: isDark ? "#a8a8b0" : "#6b6b73",
+                  color: "var(--pupu-text-muted)",
                   marginTop: 2,
                 }}
               >

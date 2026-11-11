@@ -53,8 +53,10 @@ export const ABOVE_CONTROLS = 62;
 
 export function overlay_tokens(isDark) {
   return {
-    background: isDark ? "rgba(20, 20, 20, 0.72)" : "rgba(255, 255, 255, 0.78)",
-    border: isDark ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(0,0,0,0.08)",
+    background: isDark
+      ? "rgba(var(--pupu-surface-rgb, 20, 20, 20), 0.72)"
+      : "rgba(var(--pupu-surface-rgb, 255, 255, 255), 0.78)",
+    border: "1px solid var(--pupu-border-subtle, transparent)",
     backdrop: "blur(16px) saturate(1.4)",
     shadow: isDark ? "0 8px 32px rgba(0,0,0,0.5)" : "0 8px 32px rgba(0,0,0,0.1)",
     controlShadow: isDark ? "0 4px 24px rgba(0,0,0,0.4)" : "0 4px 24px rgba(0,0,0,0.08)",
@@ -84,7 +86,7 @@ const Divider = ({ isDark }) => (
       width: 1,
       height: 18,
       margin: "0 2px",
-      backgroundColor: isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)",
+      backgroundColor: "var(--pupu-border-subtle)",
     }}
   />
 );
@@ -126,6 +128,7 @@ export function CanvasControlCenter({
         borderRadius: 12,
         ...glass(tokens),
         boxShadow: tokens.controlShadow,
+        color: "var(--pupu-text)",
       }}
     >
       <span title={undoHint} style={{ display: "inline-flex" }}>
@@ -164,8 +167,8 @@ export function CanvasControlCenter({
           paddingVertical: 5,
           paddingHorizontal: 14,
           borderRadius: 7,
-          backgroundColor: saveActive ? "#4a5bd8" : "transparent",
-          color: saveActive ? "#fff" : isDark ? "#ddd" : "#333",
+          backgroundColor: saveActive ? "var(--pupu-accent)" : "transparent",
+          color: saveActive ? "#fff" : "var(--pupu-text)",
           opacity: saveActive ? 1 : 0.5,
         }}
       />
@@ -212,7 +215,7 @@ export function ControlPopover({ isDark, testId, children, width = 320 }) {
         borderRadius: 12,
         ...glass(tokens),
         boxShadow: tokens.shadow,
-        color: isDark ? "#e6e6ea" : "#222",
+        color: "var(--pupu-text)",
         display: "flex",
         flexDirection: "column",
         gap: 8,
@@ -312,14 +315,14 @@ export function FloatingBreadcrumb({
             paddingVertical: 2,
             paddingHorizontal: 6,
             borderRadius: 5,
-            color: isDark ? "#c9c9d1" : "#55555d",
+            color: "var(--pupu-text-muted)",
           }}
         />
       ) : (
         <span
           style={{
             padding: "2px 6px",
-            color: isDark ? "#f0f0f3" : "#1d1d22",
+            color: "var(--pupu-text)",
             opacity: index === list.length - 1 ? 1 : 0.55,
             overflow: "hidden",
             textOverflow: "ellipsis",
@@ -631,7 +634,7 @@ function FloatingDetailCard({
           borderRadius: 10,
           ...glass(tokens),
           ...(resizing && {
-            backgroundColor: isDark ? "#141414" : "#fff",
+            backgroundColor: "var(--pupu-surface)",
             backdropFilter: "none",
             WebkitBackdropFilter: "none",
           }),

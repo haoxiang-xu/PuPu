@@ -32,8 +32,8 @@ export function RunTrigger({ open, onToggle }) {
         paddingVertical: 5,
         paddingHorizontal: 12,
         borderRadius: 7,
-        backgroundColor: "#4a5bd8",
-        hoverBackgroundColor: "#3f4fc4",
+        backgroundColor: "var(--pupu-accent)",
+        hoverBackgroundColor: "var(--pupu-accent)",
         color: "#fff",
         opacity: open ? 0.85 : 1,
         content: { icon: { width: 11, height: 11 } },
@@ -56,7 +56,7 @@ export default function SkeletonRunMenu({ session, isDark, onCheck, onViewRun })
     onCheck();
   }, [checkable, saved_version, session.preflight, onCheck]);
 
-  const muted = "#86868b";
+  const muted = "var(--pupu-text-muted)";
   const title = session.document && session.document.kind === "workflow" ? t("agents.run_menu.workflow_title") : t("agents.run_menu.agent_title");
   return (
     <ControlPopover isDark={isDark} testId="skeleton-run-menu">
@@ -82,7 +82,7 @@ export default function SkeletonRunMenu({ session, isDark, onCheck, onViewRun })
           style={{ fontSize: 11.5, paddingVertical: 4, paddingHorizontal: 10, borderRadius: 6 }}
         />
       </div>
-      <div style={{ height: 1, backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)" }} />
+      <div style={{ height: 1, backgroundColor: "var(--pupu-border-subtle)" }} />
       {typeof onViewRun === "function" && <Button label={t("agents.run_menu.view_chat_run")} prefix_icon="eye_open" onClick={onViewRun}
         style={{ fontSize: 11.5, paddingVertical: 4, paddingHorizontal: 10, borderRadius: 6 }} />}
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>

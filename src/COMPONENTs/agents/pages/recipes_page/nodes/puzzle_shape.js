@@ -37,7 +37,7 @@ export default function PuzzleShape({
       ? isDarkOverride
       : cfg?.onThemeMode === "dark_mode";
 
-  const body_bg = isDark ? "#1f1f1f" : "#ffffff";
+  const body_bg = `var(--pupu-surface, ${isDark ? "#1f1f1f" : "#ffffff"})`;
   const shadow = isDark
     ? "drop-shadow(0 1px 1.5px rgba(0,0,0,0.5)) drop-shadow(0 4px 12px rgba(0,0,0,0.45))"
     : "drop-shadow(0 1px 1.5px rgba(15,18,38,0.08)) drop-shadow(0 4px 12px rgba(15,18,38,0.08))";

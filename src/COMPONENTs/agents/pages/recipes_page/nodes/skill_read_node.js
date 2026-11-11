@@ -15,8 +15,8 @@ export default function SkillReadNode({ node, isDark }) {
   const { t } = useTranslation();
   const identity = skill_identity(node);
   const name = identity && typeof identity.name === "string" && identity.name ? identity.name : null;
-  const muted = isDark ? "#a8a8b0" : "#6b6b73";
-  const text = isDark ? "#f0f0f3" : "#1d1d22";
+  const muted = "var(--pupu-text-muted)";
+  const text = "var(--pupu-text)";
 
   return (
     <div data-testid={`skill-read-node-${node.id}`} style={{ width: 210 }}>

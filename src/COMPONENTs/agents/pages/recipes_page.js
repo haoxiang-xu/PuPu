@@ -478,11 +478,9 @@ export default function RecipesPage({
   const messages = [saveError, ...notices].filter(Boolean);
 
   const overlayBg = isDark
-    ? "rgba(20, 20, 20, 0.72)"
-    : "rgba(255, 255, 255, 0.78)";
-  const overlayBorder = isDark
-    ? "1px solid rgba(255,255,255,0.08)"
-    : "1px solid rgba(0,0,0,0.08)";
+    ? "rgba(var(--pupu-surface-rgb, 20, 20, 20), 0.72)"
+    : "rgba(var(--pupu-surface-rgb, 255, 255, 255), 0.78)";
+  const overlayBorder = "1px solid var(--pupu-border-subtle)";
   const overlayBackdrop = "blur(16px) saturate(1.4)";
   const resizingList = resizingPanel === "list";
   const listSurface = useSurfaceComposite({
@@ -498,7 +496,7 @@ export default function RecipesPage({
     position: "absolute",
     zIndex: AGENTS_MODAL_Z.PANEL,
     borderRadius: 10,
-    backgroundColor: resizingList ? (isDark ? "#141414" : "#fff") : overlayBg,
+    backgroundColor: resizingList ? "var(--pupu-surface)" : overlayBg,
     border: overlayBorder,
     backdropFilter: resizingList ? "none" : overlayBackdrop,
     WebkitBackdropFilter: resizingList ? "none" : overlayBackdrop,

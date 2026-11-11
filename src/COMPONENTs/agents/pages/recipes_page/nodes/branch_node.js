@@ -30,7 +30,7 @@ export default function BranchNode({ node, rows, summary, isDark }) {
   const identity = IDENTITY[node.type] || IDENTITY.if_else;
   const list = Array.isArray(rows) ? rows : [];
   const height = (Math.max(list.length, 1) + 1) * BRANCH_ROW_HEIGHT;
-  const muted = isDark ? "#a8a8b0" : "#6b6b73";
+  const muted = "var(--pupu-text-muted)";
   return (
     <div data-testid={`branch-node-${node.id}`} style={{ width: 236, height }}>
       <PuzzleShape tabs={[]} cutouts={["left"]} isDark={isDark}>
@@ -44,7 +44,7 @@ export default function BranchNode({ node, rows, summary, isDark }) {
               <Icon src={identity.icon} color="#fff" style={{ width: 16, height: 16 }} />
             </div>
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 12.5, fontWeight: 600, lineHeight: 1.15, color: isDark ? "#f0f0f3" : "#1d1d22", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              <div style={{ fontSize: 12.5, fontWeight: 600, lineHeight: 1.15, color: "var(--pupu-text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                 {node_display_title(node, node.type === "switch_case" ? t("agents.nodes.switch_case") : t("agents.nodes.if_else"))}
               </div>
               <div data-testid={`branch-node-${node.id}-summary`} style={{
@@ -67,9 +67,9 @@ export default function BranchNode({ node, rows, summary, isDark }) {
                 <span style={{
                   fontSize: 10.5, lineHeight: "16px", padding: "0 7px", borderRadius: 8, maxWidth: 94,
                   overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                  color: row.declared ? (isDark ? "#d8d8de" : "#3a3a42") : (isDark ? "#ff9b9b" : "#b02020"),
-                  background: row.declared ? (isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)") : "transparent",
-                  border: row.declared ? "1px solid transparent" : `1px dashed ${isDark ? "rgba(255,155,155,0.6)" : "rgba(176,32,32,0.5)"}`,
+                  color: row.declared ? "var(--pupu-text)" : "var(--pupu-danger)",
+                  background: row.declared ? "var(--pupu-overlay-hover)" : "transparent",
+                  border: row.declared ? "1px solid transparent" : "1px dashed var(--pupu-danger-tint-border)",
                 }}>
                   {safe_text(row.label)}
                 </span>

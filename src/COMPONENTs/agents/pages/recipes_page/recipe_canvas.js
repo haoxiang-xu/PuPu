@@ -386,11 +386,9 @@ export default function RecipeCanvas({
   const redoHint = t("agents.canvas.redo", { shortcut: isMac ? "⌘⇧Z" : "Ctrl+Y" });
 
   const overlayBg = isDark
-    ? "rgba(20, 20, 20, 0.72)"
-    : "rgba(255, 255, 255, 0.78)";
-  const overlayBorder = isDark
-    ? "1px solid rgba(255,255,255,0.08)"
-    : "1px solid rgba(0,0,0,0.08)";
+    ? "rgba(var(--pupu-surface-rgb, 20, 20, 20), 0.72)"
+    : "rgba(var(--pupu-surface-rgb, 255, 255, 255), 0.78)";
+  const overlayBorder = "1px solid var(--pupu-border-subtle)";
   const overlayBackdrop = "blur(16px) saturate(1.4)";
 
   return (
@@ -404,16 +402,16 @@ export default function RecipeCanvas({
           }}
           theme={{
             canvasBackground: isDark ? "var(--pupu-background, #1a1a1a)" : "var(--pupu-background, #fafafb)",
-            gridColor: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)",
+            gridColor: "var(--pupu-overlay-ghost)",
             nodeBackground: "transparent",
             nodeShadow: "none",
             nodeShadowHover: "none",
             nodeSelectedBorder: "transparent",
             portShape: "puzzle",
-            portColor: isDark ? "rgba(255,255,255,0.32)" : "rgba(0,0,0,0.22)",
-            portHoverColor: "#4a5bd8",
-            edgeColor: isDark ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.14)",
-            edgeActiveColor: "#4a5bd8",
+            portColor: "var(--pupu-border-strong)",
+            portHoverColor: "var(--pupu-accent)",
+            edgeColor: "var(--pupu-border-mid)",
+            edgeActiveColor: "var(--pupu-accent)",
             edgeWidth: 1.6,
           }}
           nodes={nodes}
@@ -516,8 +514,8 @@ export default function RecipeCanvas({
               paddingVertical: 5,
               paddingHorizontal: 14,
               borderRadius: 7,
-              backgroundColor: dirty ? "#4a5bd8" : "transparent",
-              color: dirty ? "#fff" : isDark ? "#ddd" : "#333",
+              backgroundColor: dirty ? "var(--pupu-accent)" : "transparent",
+              color: dirty ? "#fff" : "var(--pupu-text)",
               opacity: dirty ? 1 : 0.5,
             }}
           />
