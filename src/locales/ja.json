@@ -980,6 +980,7 @@
       "definition_empty": "返された定義が空です",
       "recipe_graph_invalid": "レシピのグラフが無効です",
       "show_agents": "エージェントを表示",
+      "show_details": "詳細を表示",
       "view_changed": "ビューが変わりました。現在表示されているグラフで編集をやり直してください。",
       "chat_required_for_observation": "まずこのエージェントとのチャットを開いてください。確認できる実行識別情報がありません。",
       "escape_unsaved": "未保存の変更があります。保存するまで Escape キーではビルダーを閉じられません。",

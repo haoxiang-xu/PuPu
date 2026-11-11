@@ -6,7 +6,7 @@ import { NavigationContext } from "../../../../CONTAINERs/config/context";
 
 if (!global.ResizeObserver) global.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
 
-const shell = (open, slot, onClose, appMode = "agents", children = <button type="button">field</button>) => (
+const shell = (open, slot, onClose, appMode = "agents", children = <button type="button">field</button>, onOpen) => (
   <NavigationContext.Provider value={{ agentsDetailSlot: slot, appMode }}>
     <div data-testid="canvas">
       <FloatingDetailShell
@@ -17,6 +17,7 @@ const shell = (open, slot, onClose, appMode = "agents", children = <button type=
         resizing={false}
         testId="detail-shell"
         onClose={onClose}
+        onOpen={onOpen}
         handle={{ testId: "detail-handle", pillTestId: "detail-pill", onDragStart() {}, onDrag() {}, onDragEnd() {} }}
       >
         {children}
@@ -123,7 +124,7 @@ test("without an anchor it stays the floating card inside the canvas", () => {
   expect(panel.style.borderRadius).toBe("10px");
 });
 
-test.each(["darwin", "win32", "linux"])("the close button sits in the panel's upper-left corner (%s)", (platform) => {
+test.each(["win32", "linux"])("the close button sits in the panel's upper-left corner, clear of the window buttons (%s)", (platform) => {
   const original = window.osInfo;
   window.osInfo = { platform };
   const slot = document.createElement("div");
@@ -133,6 +134,27 @@ test.each(["darwin", "win32", "linux"])("the close button sits in the panel's up
   expect(holder.style.top).toBe("25px");
   expect(holder.style.left).toBe("25px");
   expect(holder.style.transform).toBe("translate(-50%, -50%)");
+  slot.remove();
+  window.osInfo = original;
+});
+
+test("on macOS the toggle keeps one spot at the right edge, open or closed", () => {
+  const original = window.osInfo;
+  window.osInfo = { platform: "darwin" };
+  const slot = document.createElement("div");
+  document.body.appendChild(slot);
+  const onOpen = jest.fn();
+  const place = (testid) => {
+    const holder = screen.getByTestId(testid).closest("div[style*='position: absolute']");
+    return [holder.style.top, holder.style.right, holder.style.transform];
+  };
+  const view = render(shell(true, slot, () => {}, "agents", undefined, onOpen));
+  expect(place("detail-shell-close")).toEqual(["25px", "25px", "translate(50%, -50%)"]);
+  expect(screen.getByTestId("detail-shell-open")).toBeDisabled();
+  view.rerender(shell(false, slot, () => {}, "agents", undefined, onOpen));
+  expect(place("detail-shell-open")).toEqual(["25px", "25px", "translate(50%, -50%)"]);
+  fireEvent.click(screen.getByTestId("detail-shell-open"));
+  expect(onOpen).toHaveBeenCalledTimes(1);
   slot.remove();
   window.osInfo = original;
 });

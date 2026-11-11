@@ -980,6 +980,7 @@
       "definition_empty": "傳回的定義為空",
       "recipe_graph_invalid": "配方圖無效",
       "show_agents": "顯示智慧體",
+      "show_details": "顯示詳情",
       "view_changed": "此檢視已變更。請在目前畫面上的圖中重試編輯。",
       "chat_required_for_observation": "請先開啟與此智慧體的聊天；目前沒有可供查看的執行識別資訊。",
       "escape_unsaved": "有未儲存的變更。儲存前，Escape 不會關閉建構器。",

@@ -1032,6 +1032,7 @@
       "definition_empty": "la definizione ricevuta era vuota",
       "recipe_graph_invalid": "Il grafo della ricetta non è valido",
       "show_agents": "Mostra agenti",
+      "show_details": "Mostra dettagli",
       "view_changed": "Questa vista è cambiata. Riprova la modifica nel grafo ora visualizzato.",
       "chat_required_for_observation": "Apri prima una chat con questo agente; non è disponibile un’identità di esecuzione da ispezionare.",
       "escape_unsaved": "Ci sono modifiche non salvate. Escape non chiude il generatore finché non vengono salvate.",

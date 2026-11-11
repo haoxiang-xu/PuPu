@@ -980,6 +980,7 @@
       "definition_empty": "返回的定义为空",
       "recipe_graph_invalid": "配方图无效",
       "show_agents": "显示智能体",
+      "show_details": "显示详情",
       "view_changed": "此视图已更改。请在当前屏幕上的图中重试编辑。",
       "chat_required_for_observation": "请先打开与此智能体的聊天；目前没有可供查看的执行标识。",
       "escape_unsaved": "有未保存的更改。保存前，Escape 不会关闭构建器。",

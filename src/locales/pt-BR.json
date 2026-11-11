@@ -1032,6 +1032,7 @@
       "definition_empty": "a definição recebida estava vazia",
       "recipe_graph_invalid": "O grafo da receita é inválido",
       "show_agents": "Mostrar agentes",
+      "show_details": "Mostrar detalhes",
       "view_changed": "Esta visualização mudou. Tente editar novamente no grafo que está na tela agora.",
       "chat_required_for_observation": "Abra primeiro um chat com este agente; não há uma identidade de execução disponível para inspecionar.",
       "escape_unsaved": "Há alterações não salvas. Escape não fecha o construtor até que sejam salvas.",

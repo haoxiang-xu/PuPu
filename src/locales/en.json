@@ -980,6 +980,7 @@
       "definition_empty": "the definition came back empty",
       "recipe_graph_invalid": "Recipe graph is invalid",
       "show_agents": "Show agents",
+      "show_details": "Show details",
       "view_changed": "This view changed. Try the edit in the graph now on screen.",
       "chat_required_for_observation": "Open a chat with this Agent first; no execution identity is available to inspect.",
       "escape_unsaved": "Unsaved changes. Escape does not close the Builder until they are saved.",

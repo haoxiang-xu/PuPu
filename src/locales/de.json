@@ -1032,6 +1032,7 @@
       "definition_empty": "die zurückgegebene Definition war leer",
       "recipe_graph_invalid": "Der Rezeptgraph ist ungültig",
       "show_agents": "Agenten anzeigen",
+      "show_details": "Details anzeigen",
       "view_changed": "Diese Ansicht hat sich geändert. Versuchen Sie die Bearbeitung im jetzt angezeigten Graphen erneut.",
       "chat_required_for_observation": "Öffnen Sie zuerst einen Chat mit diesem Agenten; es liegt keine Ausführungskennung zur Prüfung vor.",
       "escape_unsaved": "Ungespeicherte Änderungen. Escape schließt den Builder erst, wenn sie gespeichert sind.",

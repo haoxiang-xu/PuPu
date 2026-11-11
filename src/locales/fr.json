@@ -1032,6 +1032,7 @@
       "definition_empty": "la définition reçue était vide",
       "recipe_graph_invalid": "Le graphe de la recette n’est pas valide",
       "show_agents": "Afficher les agents",
+      "show_details": "Afficher les détails",
       "view_changed": "Cette vue a changé. Réessayez la modification dans le graphe actuellement affiché.",
       "chat_required_for_observation": "Ouvrez d’abord une conversation avec cet agent ; aucune identité d’exécution n’est disponible pour l’inspection.",
       "escape_unsaved": "Des modifications ne sont pas enregistrées. Échap ne ferme pas le générateur tant qu’elles ne sont pas enregistrées.",
