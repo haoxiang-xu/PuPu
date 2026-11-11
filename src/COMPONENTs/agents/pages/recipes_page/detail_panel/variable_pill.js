@@ -2,7 +2,7 @@ import React from "react";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
-import { fieldBorder, fillStrong } from "./panel_style";
+import { fillStrong } from "./panel_style";
 
 const HEIGHT = 32;
 const SEGMENT = {
@@ -38,7 +38,7 @@ export default function VariablePill({
 
   return (
     /* One row of its region: name, what it is given, and the way to drop it.
-       The surface is the region's; only the value, which you pick, is
+       The surface is the region's; neither the name nor the value is
        outlined. */
     <div data-testid={`${testid}-header`} style={{ display: "flex", alignItems: "center", minWidth: 0 }}>
       <div style={{
@@ -54,8 +54,7 @@ export default function VariablePill({
         <span aria-hidden="true" style={{ alignSelf: "center", textAlign: "center", fontSize: 13, fontWeight: 500,
           lineHeight: 1, color: mutedColor(isDark), opacity: 0.7, userSelect: "none", pointerEvents: "none" }}>=</span>
         <div ref={sourceRef} data-testid={`${testid}-source`} style={{ ...SEGMENT, padding: "0 4px 0 6px" }}>
-          <div style={{ display: "flex", alignItems: "center", flex: 1, minWidth: 0, height: 26, boxSizing: "border-box",
-            borderRadius: 6, border: `1px solid ${fieldBorder(isDark)}` }}>{children}</div>
+          {children}
         </div>
       </div>
       <Button prefix_icon="close" ariaLabel={removeLabel} onClick={onRemove}
