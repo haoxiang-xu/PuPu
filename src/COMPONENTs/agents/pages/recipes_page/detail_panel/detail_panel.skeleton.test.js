@@ -2,7 +2,7 @@ import React from "react";
 
 /* Contract text is asserted here; real help disclosure is covered separately. */
 jest.mock("./panel_help", () => function GuidanceText({ children }) { return <>{children}</>; });
-import { render, screen, fireEvent, within, act } from "@testing-library/react";
+import { render, screen, fireEvent, within, act, waitFor } from "@testing-library/react";
 import { ConfigContext } from "../../../../../CONTAINERs/config/context";
 import DetailPanel from "./detail_panel";
 import { has_node_identity, node_identity } from "./node_identity";
@@ -697,16 +697,20 @@ describe("R-SCHEMA — a schema's own fields, through the real controls", () => 
       ["extra"],
     );
     expect(row_text()).not.toMatch(/produces no result named/i);
-    expect(row_text()).toMatch(/does not close its own field list/i);
+    fireEvent.click(screen.getByRole("button", { name: "Output Variables", exact: true }));
+    expect(within(screen.getByTestId("output-row-0")).getByRole("button", { name: "Result · extra" })).toBeVisible();
   });
 
-  test("an open schema's unlisted field stays editable rather than frozen", () => {
+  test("a stored unlisted field stays visible and the source menu offers declared replacements", async () => {
     open_agent(
       { type: "object", properties: { answer: { type: "string" } } },
       ["extra"],
     );
+    fireEvent.click(screen.getByRole("button", { name: "Output Variables", exact: true }));
     const row = within(screen.getByTestId("output-row-0"));
-    expect(row.getByPlaceholderText("field").value).toBe("extra");
+    fireEvent.click(row.getByRole("button", { name: "Result · extra" }));
+    await waitFor(() => expect(screen.getByText("answer", { exact: true, selector: "span" })).toBeVisible());
+    expect(row.queryByPlaceholderText("field")).not.toBeInTheDocument();
   });
 
   test("a schema that does close its list still refuses a name it cannot hold", () => {

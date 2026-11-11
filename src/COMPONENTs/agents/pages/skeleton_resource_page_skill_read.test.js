@@ -107,8 +107,10 @@ const pickNotes = async () => {
 const bindGuideIntoRouter = () => {
   pressCanvasNode("router");
   fireEvent.click(screen.getByRole("button", { name: "+ Add input", exact: true }));
-  fireEvent.change(within(screen.getByTestId("binding-row-1")).getByPlaceholderText("name"), { target: { value: "guide" } });
-  choose(screen.getByTestId("binding-row-1"), "skill · guide", 1);
+  const routerInput = within(screen.getByTestId("binding-row-1"));
+  fireEvent.change(routerInput.getByPlaceholderText("name"), { target: { value: "guide" } });
+  fireEvent.click(routerInput.getByRole("textbox", { name: /^(?!name$).+/ }));
+  fireEvent.click(screen.getByText("guide", { exact: true, selector: "span" }));
 };
 const SKILL_CONFIG = {
   execution: { inputs: [], outputs: [
@@ -154,7 +156,7 @@ test("Skill Read: add, pick, preview, map content and name, feed the router, sav
   expect(payload.expected_edit_token).toBe(baseRecord().edit_token);
   const document = payload.document;
   expect(nodeOf(document, "skill")).toStrictEqual({ id: "skill", type: "skill_read", config: SKILL_CONFIG });
-  expect(nodeOf(document, "router").config.execution.inputs[1]).toStrictEqual({ name: "guide", value: ref("skill", ["guide"]), missing: "error" });
+  expect(nodeOf(document, "router").config.execution.inputs[1]).toStrictEqual({ name: "guide", value: ref("skill", ["guide"]), missing: "null" });
   expect(edgeSet(document)).toEqual(["router.out>end.in", "skill.out>router.in", "start.out>skill.in"]);
   expect(JSON.stringify(document)).not.toContain(preview.body.split("\n")[0]);
   expect(document.nodes.every((node) => Object.keys(node).sort().join() === "config,id,type")).toBe(true);

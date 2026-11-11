@@ -140,8 +140,10 @@ test("Read: add, pick, bind one argument and fix another, choose Continue, map t
 
   pressCanvasNode("router");
   fireEvent.click(screen.getByRole("button", { name: "+ Add input", exact: true }));
-  fireEvent.change(within(screen.getByTestId("binding-row-1")).getByPlaceholderText("name"), { target: { value: "page" } });
-  choose(screen.getByTestId("binding-row-1"), "tool · page", 1);
+  const routerInput = within(screen.getByTestId("binding-row-1"));
+  fireEvent.change(routerInput.getByPlaceholderText("name"), { target: { value: "page" } });
+  fireEvent.click(routerInput.getByRole("textbox", { name: /^(?!name$).+/ }));
+  fireEvent.click(screen.getByText("page", { exact: true, selector: "span" }));
 
   /* When the read fails the router is skipped, so End answers with the
      router's reply if it ran and the path that was asked for otherwise. */
@@ -169,7 +171,7 @@ test("Read: add, pick, bind one argument and fix another, choose Continue, map t
     inputs: [{ name: "ok", value: ref("tool", ["ok"]), missing: "error" }],
     condition: { kind: "compare", operator: "eq", left: { kind: "input", path: ["ok"] }, right: { kind: "literal", value: true } },
   });
-  expect(nodeOf(document, "router").config.execution.inputs[1]).toStrictEqual({ name: "page", value: ref("tool", ["page"]), missing: "error" });
+  expect(nodeOf(document, "router").config.execution.inputs[1]).toStrictEqual({ name: "page", value: ref("tool", ["page"]), missing: "null" });
   expect(nodeOf(document, "end").config.execution.inputs[0].value).toStrictEqual({
     kind: "first_present", values: [ref("router", ["reply"]), ref("start", ["message"])],
   });
