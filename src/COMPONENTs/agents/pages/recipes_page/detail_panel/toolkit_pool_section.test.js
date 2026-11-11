@@ -29,6 +29,9 @@ test("adds exact native reference, selects all by null, and toggles merge explic
   expect(latest.nodes[0].config).toEqual({ toolkits: [{ id: "core", enabled_tools: null }], merge_with_user_selected: false });
   fireEvent.click(screen.getByRole("switch", { name: "Merge with user-selected" }));
   expect(latest.nodes[0].config.merge_with_user_selected).toBe(true);
+  /* A click on the glass switch itself, which does not bubble, toggles too. */
+  fireEvent.click(within(screen.getByRole("switch", { name: "Merge with user-selected" })).getByRole("switch"));
+  expect(latest.nodes[0].config.merge_with_user_selected).toBe(false);
   expect(api.unchain.listToolModalCatalog).toHaveBeenCalledWith({ strict: true });
 });
 test("all -> subset -> all -> none preserves the exact distinction", async () => {

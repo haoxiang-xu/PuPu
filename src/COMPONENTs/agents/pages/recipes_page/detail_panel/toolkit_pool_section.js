@@ -184,10 +184,10 @@ export default function ToolkitPoolSection({ document, node, onChange, isDark })
           onKeyDown={(event) => { if (editable && (event.key === " " || event.key === "Enter")) { event.preventDefault(); set_merge(); } }}
           style={{ display: "inline-flex", flexShrink: 0, cursor: editable ? "pointer" : "default", opacity: editable ? 1 : 0.5 }}>
           {/* The glass switch at its own 60:38 proportion, so its puck springs
-              (回弹) and frosts as designed. It takes the pointer for its hover
-              and press; the click itself bubbles to this row's switch. */}
+              (回弹) and frosts as designed. It stops its click from bubbling,
+              so it commits the change itself. */}
           <span style={{ display: "inline-flex", pointerEvents: editable ? "auto" : "none" }}>
-            <Switch material="glass" on={merge_on} set_on={() => {}} style={{ width: 38, height: 24 }} />
+            <Switch material="glass" on={merge_on} set_on={() => { if (editable) set_merge(); }} style={{ width: 38, height: 24 }} />
           </span>
         </span>
       </SettingRow>
