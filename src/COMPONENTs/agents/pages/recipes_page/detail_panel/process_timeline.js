@@ -1,5 +1,4 @@
 import React, { useEffect, useId, useRef, useState } from "react";
-import Timeline from "../../../../../BUILTIN_COMPONENTs/timeline/timeline";
 import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
 import useReducedMotion from "../../../../../BUILTIN_COMPONENTs/mini_react/use_reduced_motion";
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
@@ -10,10 +9,11 @@ import KernelSection from "./kernel_section";
 import PanelHelp from "./panel_help";
 import { node_bindings, node_output_mappings } from "../skeleton_document";
 
-/* What an Agent is comes first and stays in view: its model and its prompt,
-   never folded. Under them, what it is wired to: Input and Output on a rail,
-   which here does mean an order — values come in, results go out. The limits
-   few people touch wait at the bottom. */
+/* One column, one kind of heading. What an Agent is comes first and stays in
+   view: its model and its prompt, never folded. Under them, what it is wired
+   to: Input, then Output, each of which folds. The limits few people touch
+   wait at the bottom. Every part is headed by the same quiet caption and uses
+   the panel's full width; order and spacing do the grouping. */
 
 /* Which of Input / Output are open is remembered for the session, so walking
    from node to node does not fold them back each time. */
@@ -23,7 +23,6 @@ export const resetProcessPanelMemory = () => {
   rememberedOpen = new Set(DEFAULT_OPEN);
 };
 
-const TEXT = (isDark) => (isDark ? "#e6e6e6" : "#222");
 const MUTED = (isDark) => (isDark ? "#a1a1aa" : "#68686f");
 
 /* The side menus' section title: small, spaced capitals, quiet. */
@@ -69,20 +68,17 @@ function Block({ section, title, help, problems = [], isDark, children }) {
 
 function Disclosure({ id, section, title, summary, problems, expanded, onToggle, isDark, reducedMotion, children }) {
   return (
-    // Keep the larger title hit target on Timeline's point baseline. Grouping
-    // comes from the rail and spacing, with no hover surface.
-    <div data-testid={`process-disclosure-${section}`}
-      style={{ marginTop: -8, marginLeft: -6, marginRight: -6, minWidth: 0, backgroundColor: "transparent" }}>
+    // No hover surface and no card: the caption row is the whole target.
+    <div data-testid={`process-disclosure-${section}`} style={{ minWidth: 0, backgroundColor: "transparent" }}>
       <div data-testid={`process-header-${section}`}
-        style={{ position: "relative", display: "flex", alignItems: "center", gap: 7, minWidth: 0,
-          padding: "6px 9px", minHeight: 32, boxSizing: "border-box",
-          fontSize: 12.5, lineHeight: "18px", color: TEXT(isDark) }}>
+        style={{ position: "relative", display: "flex", alignItems: "center", gap: 6, minWidth: 0,
+          minHeight: 32, margin: "-5px 0", boxSizing: "border-box" }}>
         <button type="button" aria-label={title} aria-expanded={expanded}
           aria-controls={id} onClick={onToggle}
           style={{ position: "absolute", inset: 0, width: "100%", minHeight: 32,
-            padding: "6px 9px", border: 0, borderRadius: 8, cursor: "pointer", backgroundColor: "transparent" }} />
-        <span style={{ flexShrink: 0, fontWeight: 500, pointerEvents: "none" }}>{title}</span>
-        <Icon src="arrow_down" color="#86868b" style={{ width: 12, height: 12, flexShrink: 0,
+            padding: 0, border: 0, borderRadius: 6, cursor: "pointer", backgroundColor: "transparent" }} />
+        <span style={{ ...captionStyle(isDark), flexShrink: 0, pointerEvents: "none" }}>{title}</span>
+        <Icon src="arrow_down" color="#86868b" style={{ width: 11, height: 11, flexShrink: 0, opacity: 0.8,
           pointerEvents: "none", transform: expanded ? "rotate(180deg)" : "none",
           transition: reducedMotion ? "none" : "transform 200ms cubic-bezier(0.32,0.72,0,1)" }} />
         <ProblemCount count={problems.length} section={section} isDark={isDark} />
@@ -100,10 +96,8 @@ function Disclosure({ id, section, title, summary, problems, expanded, onToggle,
           opacity: expanded ? 1 : 0, visibility: expanded ? "visible" : "hidden",
           transition: reducedMotion ? "none" : `grid-template-rows 200ms cubic-bezier(0.32,0.72,0,1), opacity 160ms ease, visibility 0s ${expanded ? "0s" : "200ms"}` }}>
         <div style={{ minHeight: 0, overflow: "hidden" }}>
-          <div style={{ paddingTop: 5 }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0, padding: "0 9px 10px" }}>
-              {children}
-            </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0, padding: "8px 0 2px" }}>
+            {children}
           </div>
         </div>
       </div>
@@ -144,13 +138,10 @@ export default function ProcessTimeline({ document, node, revision, isDark, onCh
   const input = <InputVariablesSection document={document} node={node} rowDiagnostics={rowDiagnostics?.inputs}
     isDark={isDark} onChange={onChange} hideHeading addAtEnd breadcrumb />;
   const output = <>
-    <OutputSchemaSection document={document} node={node} revision={revision} isDark={isDark} onChange={onChange} />
+    <OutputSchemaSection document={document} node={node} revision={revision} isDark={isDark} onChange={onChange} quiet />
     <OutputVariablesSection document={document} node={node} revision={revision} rowDiagnostics={rowDiagnostics?.outputs}
       isDark={isDark} onChange={onChange} hideHeading addAtEnd breadcrumb />
   </>;
-  const point = <span aria-hidden="true" style={{ display: "block", width: 11, height: 11, borderRadius: "50%",
-    background: isDark ? "#a0a0aa" : "#81818b" }} />;
-
   return <KernelSection document={document} node={node} revision={revision} isDark={isDark} onChange={onChange}
     renderSections={({ modelPicker, advanced, prompt, promptHelp, modelProblems, promptProblems }) => {
       const wiring = [
@@ -160,7 +151,7 @@ export default function ProcessTimeline({ document, node, revision, isDark, onCh
           summary: countOf(node_output_mappings(node)) },
       ];
       return (
-        <div data-testid="process-detail-timeline" style={{ display: "flex", flexDirection: "column", gap: 18, minWidth: 0 }}>
+        <div data-testid="process-detail-timeline" style={{ display: "flex", flexDirection: "column", gap: 20, minWidth: 0 }}>
           {/* One Kernel editor, laid out in three places. */}
           <div data-testid="skeleton-kernel" style={{ display: "contents" }}>
             <Block section="model" title={t("agents.inspector.model")} problems={modelProblems} isDark={isDark}>
@@ -170,15 +161,13 @@ export default function ProcessTimeline({ document, node, revision, isDark, onCh
               problems={promptProblems} isDark={isDark}>
               {prompt}
             </Block>
-            <div data-testid="process-wiring" style={{ minWidth: 0, marginTop: 4 }}>
-              <Timeline compact show_all_points items={wiring.map((section) => ({
-                key: section.key,
-                point,
-                body: <Disclosure id={`${id}-${section.key}`} section={section.key} title={section.title}
+            <div data-testid="process-wiring" style={{ display: "flex", flexDirection: "column", gap: 20, minWidth: 0 }}>
+              {wiring.map((section) => (
+                <Disclosure key={section.key} id={`${id}-${section.key}`} section={section.key} title={section.title}
                   summary={section.summary} problems={section.problems}
                   expanded={open.has(section.key)} onToggle={() => toggle(section.key)}
-                  isDark={isDark} reducedMotion={reducedMotion}>{section.content}</Disclosure>,
-              }))} />
+                  isDark={isDark} reducedMotion={reducedMotion}>{section.content}</Disclosure>
+              ))}
             </div>
             <div data-testid="process-advanced" style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
               {advanced}

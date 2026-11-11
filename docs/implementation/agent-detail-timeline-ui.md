@@ -1,18 +1,21 @@
 # Agent detail Timeline — 交互语言
 
-当前落地范围：Process（原生 Agent）详情页。模型与指令是 Agent 的身份，始终展开在最上方；其下用 Mini UI Timeline 的点与连线承载输入、输出两个可折叠配置区（值进来、结果出去，这里的连线确实表示顺序）；少有人动的上限放在最底部的 Advanced。都不表示运行进度。
+当前落地范围：Process（原生 Agent）详情页。一列到底，只有一种标题。模型与指令是 Agent 的身份，始终展开在最上方；其下是输入、输出两个可折叠配置区；少有人动的上限放在最底部的 Advanced。不再使用 Timeline 的点与连线：两项内容用不着一条轨道，缩进还会挤掉变量行的宽度。
 
 ## 分组与交互
 
-- 自上而下：Model → Prompt → Input / Output（Timeline）→ Advanced。
-- Model、Prompt 不可折叠：一行小号大写说明文字（11px、字距 1.5px、40% 不透明度，与侧边菜单的分区标题同款），下面直接是控件。Advanced 的开关用同款说明文字。
-- Input、Output 各是一个独立 disclosure，标题 12.5px，后面紧跟上下展开箭头。收起时行尾右对齐显示条目数量，展开后淡出。
+- 自上而下：Model → Prompt → Input → Output → Advanced，区与区之间只靠 20px 间距分隔，没有分隔线、卡片或缩进，内容占满面板宽度。
+- 五个区用同一种标题：小号大写说明文字（11px、字距 1.5px、40% 不透明度，与侧边菜单的分区标题同款）。
+- Model、Prompt 不可折叠。Input、Output、Advanced 可折叠，标题后紧跟上下展开箭头。Input / Output 收起时行尾右对齐显示条目数量，展开后淡出。
 - 某个区里有问题时，其标题旁显示红色数字徽标（问题条数），折叠或滚走时仍可见；Input / Output 第一次出现问题时自动展开一次，之后由作者自行折叠。
 - Input / Output 的展开状态在本次会话内记住，切换节点不会复位；默认只展开 Input。
+- 面板内所有可编辑控件用同一种安静的填充底（深色 7.5% 白、浅色 4.5% 黑）、8px 圆角、无描边：Model 选择器、Prompt 输入框、变量行、Advanced 的数字框与下拉。
+- Output 里的 JSON Output 是一行设置（12.5px 正文 + 38×20 开关），不是又一个标题。
+- Advanced 是「标签在左、值在右」的四行：Max turns、Reply tokens（旁边以 `≤ N` 标出上限）、History、When the window fills。不再用拆开的句子夹输入框。
 - 收起时箭头向下，展开后箭头向上；不使用朝右的箭头。
 - 收起时，标题整行可点击，最小高度 **32px**。
 - **标题和整个 section 都没有 hover 高光背景**。无论收起、展开、鼠标停留还是键盘 focus，section 背景始终透明。
-- 依靠 Timeline 的点、连线、缩进和间距区分配置区，不使用 section 卡片的背景、边框或阴影。
+- 依靠间距和统一标题区分配置区，不使用 section 卡片的背景、边框或阴影。
 - 原生表单控件继续保留自己的边框、focus 和 hover，不能把输入框也当作 section 卡片去掉。
 
 ## 说明与选择器
@@ -20,12 +23,12 @@
 - 解释整个 section 的 info icon 紧挨 section 标题，收起时也可查看；点击 info 不展开 section，不写入文档。
 - 解释某个 selector 的 info icon 紧挨该 selector，和它在同一行，不单独悬在上方或下方。
 - info 和展开按钮是独立的原生按钮，不嵌套交互控件。
-- 详情页的 selector 使用统一 **1px** 细边框、沿用控件圆角与主题颜色，和输入框一起界定可编辑区域；section 自身仍无边框、无 hover 背景。
+- Process 面板的 selector 与输入框使用上述统一填充底，无描边；section 自身仍无边框、无 hover 背景。
 - selector 内的文字与图标作为一组靠右对齐，保留原有内边距；旁边的 info 仍是独立按钮。
 - 除下述 Model picker 外，详情页其他 selector 经 `PanelSelect` 使用 Attach Panel 同款 Mini UI `Select` 的 `palette` 菜单：圆角、玻璃材质、选中态、滑动高亮和底部搜索共用现有实现，不另造一套下拉菜单。
 - Model picker 与 Attach Panel **共用 `ModelPicker` 组件**：32px 模型胶囊、provider 图标侧栏、固定高度列表、底部 model 搜索、选中后保持打开。Builder 选择并保存宿主提供的完整 Kernel profile。
 - 正文字号：指令输入框与 disclosure 标题 12.5px，变量 pill 12px，辅助说明与报错 11.5px。
-- 详情页 Model picker 在标题下方左对齐，宽度 220px；窄面板时随可用空间缩小，info 紧跟其后。
+- 详情页 Model picker 在标题下方占满整行（高 34px、8px 圆角，模型名靠左、箭头靠右），info 紧跟其后。
 - BC-003 · Sidecar 从 wheel catalog 和既有 Ollama 安装模型目录生成本地/原生 profile，Main 用执行时同一个可信注册表和授权规则补齐 DeepSeek、Kimi 与用户配置。既有 `GET /skeleton_kernel_profiles`、IPC 回包与 CLOSED Kernel profile 形状沿用，凭据引用、协议、端点与模型按原身份保留，回包不读密钥。用户自定义组沿用 Settings 的功能开关。缺远程模型额度、非支持鉴权或额外请求头的模型维持不可选。已安装 Ollama 缺上限时使用 PuPu 的本地请求窗口，输出额度以 4096 为宿主预算上限并低于窗口。
 - SEQ-003 · 模型目录更新只刷新候选，保存的 Kernel 与既有运行快照保持各自 profile。明确选模型才写草稿，运行时仍以当前注册表校验目标后解析密钥。
 - AC-003 · 离线用固定 wheel 的实际验证器、Ollama 安装目录替身、Main 与 preload 回放验证精确 profile、拒绝不支持项、刷新与 UI 选择。打包配对、真实 provider、改后运行的冷进程与恢复另行验收。
@@ -41,7 +44,7 @@
 
 ## Process 输入
 
-- 整行使用接近 slider 轨道的中性灰圆角长方形。左侧变量名和右侧值使用无边框 Mini UI Input，中间用静态等号表示赋值。点击右侧打开 Mini UI Context Menu，搜索并选择上游节点输出。未选择候选时，按 Enter 或离开输入框把改动的原文保存为固定值，Esc 放弃未确认的输入。末尾用带圆形底的叉删除。
+- 整行使用接近 slider 轨道的中性灰圆角长方形。左侧变量名和右侧值使用无边框 Mini UI Input，中间用静态等号表示赋值。点击右侧打开 Mini UI Context Menu，搜索并选择上游节点输出。未选择候选时，按 Enter 或离开输入框把改动的原文保存为固定值，Esc 放弃未确认的输入。删除用的叉在行内最右侧，和这一行同属一块底。
 - BC-001 · Builder 通过现有 Skeleton 草稿保存路径把 `execution.inputs` 交给 Store 与运行时。沿用既有 CLOSED binding 和 expression schema、资源身份及配对协议。新建或明确替换来源时写既有 `missing: "null"`，移除旧 `default`；仅查看、搜索、折叠或改名不改变既有策略。不新增协议字段或失败回退。
 - SEQ-001 · 同一草稿中的节点和输入行，从读回已有 binding 到搜索、取消或选择，再到保存重开。取消保留旧文档；选择后重新读取应保持来源及 null 策略。已经选定的旧运行快照沿用原运行定义。
 - AC-001 · Process 组件测试检查搜索与取消零写入、选择精确节点与路径、新建与改绑写 null、未编辑旧行原样保留。现有 Store 诊断与执行路径仍负责拒绝不合法的 binding。安装配对的保存重开与运行回归留待交付验收，本次是本地设计预览。
@@ -56,10 +59,9 @@
 
 | 项目 | 规则 |
 | --- | --- |
-| 标题内边距 | 纵向 6px、横向 9px |
-| 标题到内容 | 7px |
-| 内容左右内边距 | 9px，与标题文字对齐 |
-| 内容底部留白 | 8px |
+| 标题行 | 点击区高 32px，无内边距，与内容左对齐 |
+| 标题到内容 | 8px |
+| 区与区 | 20px |
 | 控件组间距 | 12px；列表项与添加行沿用列表的 8px |
 | section / 标题背景 | 始终透明，无 hover 高光或背景过渡 |
 | 展开与收起 | 自适应高度 200ms；透明度 160ms；箭头旋转 200ms |
@@ -72,4 +74,4 @@
 - `src/COMPONENTs/agents/pages/recipes_page/detail_panel/input_variables_section.js`
 - `src/COMPONENTs/agents/pages/recipes_page/detail_panel/output_variables_section.js`
 
-共用 Timeline 的默认 Trace Chain 行为保持原样。
+`process_timeline.js` 保留文件名，但已不再使用 Timeline 组件；共用 Timeline 的默认 Trace Chain 行为保持原样。

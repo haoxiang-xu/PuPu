@@ -68,6 +68,14 @@ const refused_style = (isDark) => ({
   color: isDark ? "rgba(255,140,140,0.95)" : "rgba(176,32,32,0.95)",
 });
 const ROW = { display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" };
+/* The panel's own layout: what it is on the left, its value on the right. */
+/* Every control in it is one quiet filled surface, the same as a variable row:
+   no outlines competing with each other down the column. */
+const fieldFill = (isDark) => ({ backgroundColor: isDark ? "rgba(255,255,255,0.075)" : "rgba(0,0,0,0.045)",
+  border: "1px solid transparent" });
+const LINE = { display: "flex", alignItems: "center", gap: 8, minHeight: 30, minWidth: 0 };
+const lineLabel = (isDark) => ({ flex: 1, minWidth: 0, fontSize: 12.5, lineHeight: "18px",
+  color: isDark ? "#c9c9cf" : "#3a3a40", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" });
 
 
 
@@ -137,7 +145,7 @@ export function unbound_references(prompt, bindings) {
  * not a stored state. It is a box on its way to another number, and what the
  * document still holds is said out loud so the author is not guessing which
  * of their keystrokes landed. */
-function CountRow({ label, stored, ceiling, caption, onStore, about, isDark, testId }) {
+function CountRow({ label, stored, ceiling, caption, onStore, about, isDark, testId, line }) {
   const { t } = useTranslation();
   /* The ceiling is part of what the text was typed against, not just part of
      the verdict on it. Measured: 20000 refused against a 4096 limit, then a
@@ -169,6 +177,24 @@ function CountRow({ label, stored, ceiling, caption, onStore, about, isDark, tes
     const value = parsed.ok ? parsed.value : undefined;
     pending.hold(next, storable(value) ? value : stored);
     if (storable(value)) onStore(value);
+  }
+
+  if (line) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+        <div style={LINE}>
+          <span style={lineLabel(isDark)}>{line.label}</span>
+          {line.hint && <span style={{ ...CAPTION, ...MONO, fontSize: 11, flexShrink: 0 }}>{line.hint}</span>}
+          <Input value={shown} set_value={type} placeholder="—" aria_label={line.label}
+            style={{ width: 84, fontSize: 12, ...MONO, paddingVertical: 5, paddingHorizontal: 8, borderRadius: 8, outline: "none", ...fieldFill(isDark) }} />
+        </div>
+        {refused && (
+          <span data-testid={`${testId}-refused`} style={refused_style(isDark)}>
+            {ceiling === undefined ? t("agents.execution.kernel.pending_count", { stored: safe_text(stored) }) : t("agents.execution.kernel.pending_bounded_count", { ceiling, stored: safe_text(stored) })}
+          </span>
+        )}
+      </div>
+    );
   }
 
   return (
@@ -384,8 +410,11 @@ export default function KernelSection({
               value={typeof stored_id === "string" ? stored_id : null}
               set_value={pick}
               on_group_toggle={(key) => setCollapsedProviders((old) => ({ ...old, [key]: !own(old, key) }))}
-              trigger_wrapper_style={{ display: "inline-flex", width: 220, minWidth: 0, maxWidth: "100%" }}
-              style={{ width: "100%", maxWidth: "100%", boxSizing: "border-box" }}
+              trigger_wrapper_style={renderSections
+                ? { display: "flex", flex: 1, minWidth: 0 }
+                : { display: "inline-flex", width: 220, minWidth: 0, maxWidth: "100%" }}
+              style={{ width: "100%", maxWidth: "100%", boxSizing: "border-box",
+                ...(renderSections ? { borderRadius: 8, height: 34, fontSize: 12.5, padding: "0 12px", justifyContent: "space-between", textAlign: "left", ...fieldFill(isDark) } : null) }}
             />
             {model_help && <PanelHelp label={t("agents.inspector.model")}>{model_help}</PanelHelp>}
           </div>
@@ -432,7 +461,7 @@ export default function KernelSection({
           placeholder={t("agents.execution.kernel.prompt_placeholder")}
           min_rows={3}
           max_display_rows={12}
-          style={{ fontSize: 12.5, lineHeight: 1.5, borderRadius: 6 }}
+          style={{ fontSize: 12.5, lineHeight: 1.55, borderRadius: 8, ...(renderSections ? { backgroundColor: fieldFill(isDark).backgroundColor, restBorder: "1px solid transparent" } : null) }}
         />
         {kernel && unbound.length > 0 && (
           <span data-testid="kernel-prompt-unbound" style={refused_style(isDark)}>
@@ -452,7 +481,7 @@ export default function KernelSection({
           style={{
             display: "inline-flex",
             alignItems: "center",
-            gap: 4,
+            gap: renderSections ? 6 : 4,
             alignSelf: "flex-start",
             padding: 0,
             border: "none",
@@ -464,7 +493,7 @@ export default function KernelSection({
               color: isDark ? "rgba(255,255,255,0.9)" : "rgba(0,0,0,0.9)", opacity: 0.4 } : null),
           }}
         >
-          <Icon
+          {!renderSections && <Icon
             src="arrow_down"
             color="#86868b"
             style={{
@@ -473,15 +502,17 @@ export default function KernelSection({
               transform: advancedOpen ? "none" : "rotate(-90deg)",
               transition: "transform 0.15s ease",
             }}
-          />
+          />}
           {t("agents.execution.kernel.advanced")}
+          {renderSections && <Icon src="arrow_down" color="#86868b" style={{ width: 11, height: 11, marginLeft: 2,
+            transform: advancedOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s cubic-bezier(0.32,0.72,0,1)" }} />}
         </button>
 
         {/* Collapsed is hidden, not unmounted: the counts hold text the
             document does not, and closing the fold must not throw it away. */}
         <div
           data-testid="kernel-advanced"
-          style={{ display: advancedOpen ? "flex" : "none", flexDirection: "column", gap: 8 }}
+          style={{ display: advancedOpen ? "flex" : "none", flexDirection: "column", gap: renderSections ? 4 : 8 }}
         >
           {!renderSections && profile_facts}
 
@@ -500,6 +531,7 @@ export default function KernelSection({
               about={identity_of([revision, node.id, "draft_max_iterations"])}
               isDark={isDark}
               testId="kernel-draft-iterations"
+              line={renderSections ? { label: t("agents.execution.kernel.label_turns") } : undefined}
             />
           )}
 
@@ -513,6 +545,7 @@ export default function KernelSection({
                 about={identity_of([revision, node.id, "max_iterations"])}
                 isDark={isDark}
                 testId="kernel-iterations"
+                line={renderSections ? { label: t("agents.execution.kernel.label_turns") } : undefined}
               />
 
               <CountRow
@@ -526,9 +559,41 @@ export default function KernelSection({
                 about={identity_of([revision, node.id, "output_tokens"])}
                 isDark={isDark}
                 testId="kernel-reservation"
+                line={renderSections ? { label: t("agents.execution.kernel.label_reply_tokens"), hint: reservation_ceiling(stored_profile) === undefined ? null : `≤ ${reservation_ceiling(stored_profile)}` } : undefined}
               />
 
-              <div style={ROW}>
+              {renderSections ? <>
+                <div style={LINE}>
+                  <span style={lineLabel(isDark)}>{t("agents.execution.kernel.label_history")}</span>
+                  <span data-testid="kernel-history" style={{ display: "contents" }}>
+                <Select
+                  options={HISTORY_SCOPES.map((value) => ({
+                    value,
+                    label: t(`agents.execution.kernel.history_${value}`),
+                  }))}
+                  value={own(kernel, "history")}
+                  set_value={(next) => store({ ...kernel, history: next })}
+                  filterable={false}
+                  style={renderSections ? { ...select_style, fontSize: 12, paddingVertical: 5, paddingHorizontal: 8, borderRadius: 8, width: 172, flexShrink: 0, ...fieldFill(isDark) } : { ...select_style, width: 168, flexShrink: 0 }}
+                />
+                </span>
+                </div>
+                <div style={LINE}>
+                  <span style={lineLabel(isDark)}>{t("agents.execution.kernel.label_overflow")}</span>
+                  <span data-testid="kernel-overflow" style={{ display: "contents" }}>
+                <Select
+                  options={OVERFLOW_POLICIES.map((value) => ({
+                    value,
+                    label: t(`agents.execution.kernel.overflow_${value}`),
+                  }))}
+                  value={own(kernel, "overflow")}
+                  set_value={(next) => store({ ...kernel, overflow: next })}
+                  filterable={false}
+                  style={renderSections ? { ...select_style, fontSize: 12, paddingVertical: 5, paddingHorizontal: 8, borderRadius: 8, width: 172, flexShrink: 0, ...fieldFill(isDark) } : { ...select_style, width: 168, flexShrink: 0 }}
+                />
+                </span>
+                </div>
+              </> : <div style={ROW}>
                 <span style={{ ...CAPTION, flexShrink: 0 }}>{t("agents.execution.kernel.it_sees")}</span>
                 <span data-testid="kernel-history" style={{ display: "contents" }}>
                 <Select
@@ -539,7 +604,7 @@ export default function KernelSection({
                   value={own(kernel, "history")}
                   set_value={(next) => store({ ...kernel, history: next })}
                   filterable={false}
-                  style={{ ...select_style, width: 168, flexShrink: 0 }}
+                  style={renderSections ? { ...select_style, fontSize: 12, paddingVertical: 5, paddingHorizontal: 8, borderRadius: 8, width: 172, flexShrink: 0, ...fieldFill(isDark) } : { ...select_style, width: 168, flexShrink: 0 }}
                 />
                 </span>
                 <span style={{ ...CAPTION, flexShrink: 0 }}>{t("agents.execution.kernel.and_when_the_window_fills")}</span>
@@ -552,10 +617,10 @@ export default function KernelSection({
                   value={own(kernel, "overflow")}
                   set_value={(next) => store({ ...kernel, overflow: next })}
                   filterable={false}
-                  style={{ ...select_style, width: 168, flexShrink: 0 }}
+                  style={renderSections ? { ...select_style, fontSize: 12, paddingVertical: 5, paddingHorizontal: 8, borderRadius: 8, width: 172, flexShrink: 0, ...fieldFill(isDark) } : { ...select_style, width: 168, flexShrink: 0 }}
                 />
                 </span>
-              </div>
+              </div>}
             </>
           )}
         </div>

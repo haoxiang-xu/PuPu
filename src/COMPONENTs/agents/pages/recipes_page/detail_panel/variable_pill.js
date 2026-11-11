@@ -38,26 +38,27 @@ export default function VariablePill({
   const track = trackFill(isDark);
 
   return (
-    <div data-testid={`${testid}-header`} style={{ display: "flex", alignItems: "center", gap: 5, minWidth: 0 }}>
+    /* One surface per row: name, what it is given, and the way to drop it. */
+    <div data-testid={`${testid}-header`} style={{ display: "flex", alignItems: "center", minWidth: 0,
+      borderRadius: 8, overflow: "hidden", background: track }}>
       <div style={{
         display: "grid",
-        gridTemplateColumns: "minmax(0, 1fr) 20px minmax(0, 1fr)",
+        gridTemplateColumns: "minmax(0, 5fr) 18px minmax(0, 6fr)",
         flex: 1, minWidth: 0, color, fontSize: 12,
-        borderRadius: 8, overflow: "hidden", background: track,
       }}>
-        <div style={{ ...SEGMENT, padding: "0 0 0 9px" }}>
+        <div style={{ ...SEGMENT, padding: "0 0 0 8px" }}>
           <Input aria_label={t("agents.io.name_placeholder")} placeholder={t("agents.io.name_placeholder")}
             value={name} set_value={onNameChange}
             style={{ ...variablePillField, color, fontFamily: "ui-monospace, Menlo, monospace" }} />
         </div>
-        <span aria-hidden="true" style={{ alignSelf: "center", textAlign: "center", fontSize: 15, fontWeight: 700,
-          lineHeight: 1, color: mutedColor(isDark), userSelect: "none", pointerEvents: "none" }}>=</span>
-        <div ref={sourceRef} data-testid={`${testid}-source`} style={{ ...SEGMENT, padding: "0 12px 0 8px" }}>
+        <span aria-hidden="true" style={{ alignSelf: "center", textAlign: "center", fontSize: 13, fontWeight: 500,
+          lineHeight: 1, color: mutedColor(isDark), opacity: 0.7, userSelect: "none", pointerEvents: "none" }}>=</span>
+        <div ref={sourceRef} data-testid={`${testid}-source`} style={{ ...SEGMENT, padding: "0 4px 0 6px" }}>
           {children}
         </div>
       </div>
       <Button prefix_icon="close" ariaLabel={removeLabel} onClick={onRemove}
-        style={{ flexShrink: 0, width: 20, height: 20, borderRadius: 10, backgroundColor: track, color: mutedColor(isDark),
+        style={{ flexShrink: 0, width: 22, height: 22, marginRight: 5, borderRadius: 6, backgroundColor: "transparent", color: mutedColor(isDark), opacity: 0.75,
           iconOnlyPaddingVertical: 0, iconOnlyPaddingHorizontal: 0,
           content: { icon: { width: 13, height: 13 } } }} />
     </div>

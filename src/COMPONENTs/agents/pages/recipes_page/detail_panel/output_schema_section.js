@@ -364,6 +364,9 @@ export default function OutputSchemaSection({
   revision,
   isDark,
   onChange,
+  /* The Process panel heads its parts itself: here this is a setting inside
+     Output, so it reads as a line, not as another heading. */
+  quiet = false,
 }) {
   const { t } = useTranslation();
   const schema = node_output_schema(node);
@@ -439,7 +442,7 @@ export default function OutputSchemaSection({
         style={{ display: "flex", flexDirection: "column", gap: 8 }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-          <span style={SECTION_LABEL}>{t("agents.schema.title")}</span>
+          <span style={quiet ? { fontSize: 12.5, lineHeight: "18px", color: isDark ? "#c9c9cf" : "#3a3a40" } : SECTION_LABEL}>{t("agents.schema.title")}</span>
           <PanelHelp label={t("agents.schema.title")}>
             <span data-testid={!has_kernel ? "schema-no-kernel" : "schema-no-structured-output"}>
               {t(!has_kernel ? "agents.schema.no_kernel_caption" : "agents.schema.no_structured_output_caption")}
@@ -503,7 +506,7 @@ export default function OutputSchemaSection({
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-          <span style={SECTION_LABEL}>{t("agents.schema.title")}</span>
+          <span style={quiet ? { fontSize: 12.5, lineHeight: "18px", color: isDark ? "#c9c9cf" : "#3a3a40" } : SECTION_LABEL}>{t("agents.schema.title")}</span>
           {!on && <PanelHelp label={t("agents.schema.title")}>
             <span data-testid="schema-off">{t("agents.schema.off_caption")}</span>
           </PanelHelp>}
@@ -516,7 +519,7 @@ export default function OutputSchemaSection({
                schema, which would declare an object with no fields. */
             store(next ? EMPTY_SCHEMA : null, null);
           }}
-          style={BUILDER_SWITCH_SIZE}
+          style={quiet ? { width: 38, height: 20 } : BUILDER_SWITCH_SIZE}
         />
       </div>
 
