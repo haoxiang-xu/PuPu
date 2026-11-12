@@ -2462,7 +2462,8 @@
       "node_missing_target": "接続先ノード「{value2}」が存在しません",
       "node_ambiguous_generic": "ノード id「{value2}」に一致するノードが {value3} 個あります",
       "node_ambiguous_source": "接続元ノード id「{value2}」に一致するノードが {value3} 個あります",
-      "node_ambiguous_target": "接続先ノード id「{value2}」に一致するノードが {value3} 個あります"
+      "node_ambiguous_target": "接続先ノード id「{value2}」に一致するノードが {value3} 個あります",
+      "move_shape": "移動には各ノードの数値の位置が必要です。"
     },
     "runtime": {
       "rename_loading": "ステップの名前を変更できるか確認しています…",
@@ -2506,7 +2507,9 @@
       "source_size": "このコードは、1 つの Code ノードが保存できる上限の 4 MiB を超えています。",
       "string_required": "{label} は文字列である必要があります",
       "nonempty_required": "{label} は空にできません",
-      "presentation_value": "{label} の形式が正しくありません"
+      "presentation_value": "{label} の形式が正しくありません",
+      "layout_node_missing": "レイアウトがドキュメントにないノードを参照しています",
+      "layout_coordinate": "{label} は -1000000 から 1000000 までの数値である必要があります"
     },
     "managed": {
       "resource_aggregate": "リソースの応答が v2 集約ではありません。",

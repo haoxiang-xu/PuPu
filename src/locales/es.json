@@ -2462,7 +2462,8 @@
       "node_missing_target": "El nodo de destino \"{value2}\" no existe",
       "node_ambiguous_generic": "El id de nodo \"{value2}\" coincide con {value3} nodos",
       "node_ambiguous_source": "El id del nodo de origen \"{value2}\" coincide con {value3} nodos",
-      "node_ambiguous_target": "El id del nodo de destino \"{value2}\" coincide con {value3} nodos"
+      "node_ambiguous_target": "El id del nodo de destino \"{value2}\" coincide con {value3} nodos",
+      "move_shape": "Para mover hace falta una posición numérica para cada nodo."
     },
     "runtime": {
       "rename_loading": "Comprobando si se pueden renombrar los pasos…",
@@ -2506,7 +2507,9 @@
       "source_size": "Este código supera los 4 MiB, el máximo que puede almacenar un nodo Code.",
       "string_required": "{label} debe ser una cadena",
       "nonempty_required": "{label} no puede estar vacío",
-      "presentation_value": "{label} no tiene el formato permitido"
+      "presentation_value": "{label} no tiene el formato permitido",
+      "layout_node_missing": "el diseño nombra un nodo que no está en el documento",
+      "layout_coordinate": "{label} debe ser un número entre -1000000 y 1000000"
     },
     "managed": {
       "resource_aggregate": "La respuesta del recurso no es un agregado v2.",

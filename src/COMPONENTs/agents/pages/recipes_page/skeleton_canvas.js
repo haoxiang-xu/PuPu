@@ -23,7 +23,7 @@ import SubagentPoolNode from "./nodes/subagent_pool_node";
 import ToolPoolNode from "./nodes/tool_pool_node";
 import { ports_for_type } from "./recipe_node_catalog";
 import { own } from "./document_values";
-import { NODE_TYPES, drawn_node } from "./skeleton_document";
+import { NODE_TYPES, document_layout_positions, drawn_node } from "./skeleton_document";
 import { is_valid_node_label, node_display_title } from "./node_display_labels";
 import { node_identity } from "./detail_panel/node_identity";
 import { useNodeLabelCapability } from "./node_label_capability";
@@ -44,10 +44,13 @@ import {
  * says what the graph IS, and `skeleton_layout` says where it is drawn. The
  * projection below is the only place they meet, and it only reads.
  *
- * So dragging a node cannot change execution — not because the handler is
- * careful, but because the handler has no route to the document. It writes
- * positions to the layout service and nothing else. Semantic edits use the
- * separate command callback; no drawing array can become a document.
+ * Dragging a node still cannot change execution. Where the runtime stores a
+ * drawing (skeleton_execution 1.10, `document_layout_v1`), a drop is sent as
+ * a `move_nodes` command into the document's display-only `layout`, which
+ * every prepared plan drops: it marks the draft unsaved, Save keeps it, and
+ * it travels with the Agent. Without that runtime, positions stay on this
+ * machine in the layout service, as before. Either way no drawing array
+ * becomes a document.
  *
  * Which node is open is the page's business, not the canvas's: FlowEditor
  * keeps its own highlight, and `on_select` is what tells the page to open the
@@ -192,6 +195,7 @@ function GraphDrawing({
     graph?.schema_version === 1;
   const renameScope = JSON.stringify([resourceId, commandScope, graph?.id]);
   const labelCapability = useNodeLabelCapability(canEdit, renameScope);
+  const layoutInDocument = canEdit && labelCapability.layout === true;
   const [rename, setRename] = useState(null);
   const [selection, setSelection] = useState({ node_ids: [], edge_id: null });
   const observeSelection = useCallback((next) => setSelection(next), []);
@@ -233,8 +237,16 @@ function GraphDrawing({
      plain object the read answered with an inherited member and the write set
      a prototype instead of storing the drag. The layout service's own note
      has the measurements. */
-  const positions = useRef(node_table(stored.nodes));
-  positions.current = node_table({ ...stored.nodes, ...positions.current });
+  /* What the document places wins over this machine's record and the auto
+     layout; a live drag wins over both only while the drawing is kept here. */
+  const documentPositions = useMemo(() => document_layout_positions(graph), [graph]);
+  const positions = useRef(node_table({ ...stored.nodes, ...documentPositions }));
+  positions.current = node_table({ ...stored.nodes, ...documentPositions, ...positions.current });
+  /* Where each node was drawn when this graph opened. `stored` is re-read
+     whenever the graph object changes, and by then this machine's record
+     already holds the drop, so undo needs its own copy. */
+  const openedAt = useRef(null);
+  if (openedAt.current === null) openedAt.current = node_table(stored.nodes);
   /* Bumped when a node is dropped. Without it the projection below would keep
      returning the positions it was memoized with, and the next re-render for
      any other reason would snap the node back to where it was dragged from. */
@@ -245,7 +257,12 @@ function GraphDrawing({
   const nodes = useMemo(
     () =>
       ((graph && graph.nodes) || []).map((node) => {
-        const at = own(positions.current, node.id) || { x: 0, y: 0 };
+        /* With the drawing in the document, undo moves a node back: the
+           document's place, else where it was when this graph opened, else
+           (a node added since) where it was put. */
+        const at = (layoutInDocument
+          ? own(documentPositions, node.id) || own(openedAt.current, node.id) || own(positions.current, node.id)
+          : own(positions.current, node.id)) || { x: 0, y: 0 };
         /* A branch's ports are its outlets, read from its own config (and from
            any edge still leaving through an outlet it no longer declares), so
            they cannot come from the per-type catalog. The rows travel with the
@@ -277,7 +294,7 @@ function GraphDrawing({
         };
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [graph, moveTick, canEdit, t],
+    [graph, moveTick, canEdit, t, layoutInDocument, documentPositions],
   );
 
   /* Run A must never paint the editor's draft B. Only the frozen document
@@ -290,7 +307,11 @@ function GraphDrawing({
     return skipped.size ? list.map((edge) => skipped.has(edge.id) ? { ...edge, style: "dashed" } : edge) : list;
   }, [graph, observed]);
 
-  /* The only write this component makes, and it goes to the layout service. */
+  /* A drop. The editor reports every node with the dropped one moved, so the
+     command carries the whole drawing and the stored layout is complete from
+     the first move. This machine's record is written too: it is what the
+     canvas falls back to with an older runtime. */
+  const moveRef = useRef(null);
   const handleNodesChange = useCallback(
     (next) => {
       const moved = node_table();
@@ -300,6 +321,7 @@ function GraphDrawing({
       });
       positions.current = node_table({ ...positions.current, ...moved });
       writeSkeletonNodePositions(resourceId, moved);
+      if (moveRef.current) moveRef.current({ ...moved });
       setMoveTick((tick) => tick + 1);
     },
     [resourceId],
@@ -320,6 +342,7 @@ function GraphDrawing({
     if (result.ok && command.type === "delete" && command.node_ids.length) onSelectNode?.(null);
     return result;
   }, [onGraphCommand, onSelectNode, say]);
+  moveRef.current = layoutInDocument && canEdit ? (moved) => perform({ type: "move_nodes", positions: moved }) : null;
   const renameTarget = useCallback((id) => {
     const matches = (graph.nodes || []).filter((node) => node && node.id === id);
     return matches.length === 1 && NODE_TYPES.includes(matches[0].type) ? matches[0] : null;
@@ -361,6 +384,8 @@ function GraphDrawing({
       const at = { x: palette.canvas_x, y: palette.canvas_y };
       positions.current[node.id] = at;
       writeSkeletonNodePositions(resourceId, { [node.id]: at });
+      /* Same gesture, so the add and its place undo as one step. */
+      if (moveRef.current) moveRef.current({ [node.id]: at });
       setMoveTick((tick) => tick + 1);
       onSelectNode?.(node.id);
       setPalette(null);

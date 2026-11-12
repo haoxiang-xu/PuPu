@@ -25,7 +25,83 @@ export const DOCUMENT_REQUIRED_KEYS = Object.freeze([
   "nodes",
   "edges",
 ]);
-export const DOCUMENT_OPTIONAL_KEYS = Object.freeze(["description", "presentation"]);
+export const DOCUMENT_OPTIONAL_KEYS = Object.freeze(["description", "presentation", "layout"]);
+/* Display-only `layout` (`schema.py` `_validate_layout`, skeleton_execution
+   1.10 `document_layout_v1`): `{nodes: {<node id>: {x, y}}}`, closed at every
+   level. A coordinate is a finite number within ±1e6 and every key names a
+   node of the same document. The runtime drops it from every prepared plan,
+   so where a node is drawn never changes what the Agent does. */
+export const LAYOUT_KEYS = Object.freeze(["nodes"]);
+export const LAYOUT_POINT_KEYS = Object.freeze(["x", "y"]);
+export const LAYOUT_COORDINATE_LIMIT = 1000000;
+
+export const is_layout_coordinate = (value) =>
+  typeof value === "number" && Number.isFinite(value) &&
+  value >= -LAYOUT_COORDINATE_LIMIT && value <= LAYOUT_COORDINATE_LIMIT;
+
+const layout_nodes_of = (graph) =>
+  is_object(graph) && is_object(graph.layout) && is_object(graph.layout.nodes) ? graph.layout.nodes : null;
+
+/* The drawn position of each node the document places, as a table with no
+   prototype (a node id is data, and `__proto__` is a legal one). */
+export function document_layout_positions(graph) {
+  const table = Object.create(null);
+  const nodes = layout_nodes_of(graph);
+  if (!nodes) return table;
+  Object.keys(nodes).forEach((id) => {
+    const point = nodes[id];
+    if (is_object(point) && is_layout_coordinate(point.x) && is_layout_coordinate(point.y)) {
+      table[id] = { x: point.x, y: point.y };
+    }
+  });
+  return table;
+}
+
+/* The graph with its layout reduced to the nodes it still holds. The store
+   refuses a layout that names a missing node, so every write that can remove
+   a node passes through here. The same object comes back when nothing is
+   dropped; an empty layout is removed rather than stored. */
+export function with_pruned_layout(graph) {
+  const nodes = layout_nodes_of(graph);
+  if (!nodes || !Array.isArray(graph.nodes)) return graph;
+  const ids = new Set(graph.nodes.filter(is_object).map((node) => node.id));
+  const kept = Object.keys(nodes).filter((id) => ids.has(id));
+  if (kept.length === Object.keys(nodes).length) return graph;
+  const next = { ...graph };
+  if (kept.length === 0) {
+    delete next.layout;
+    return next;
+  }
+  const table = {};
+  kept.forEach((id) => { table[id] = nodes[id]; });
+  next.layout = { nodes: table };
+  return next;
+}
+
+/* The graph with these positions written into its layout, merged over what
+   it already places. Only nodes the graph holds are written; coordinates are
+   rounded to whole pixels. Returns the same object when nothing changes. */
+export function with_layout_positions(graph, positions) {
+  if (!is_object(graph) || !Array.isArray(graph.nodes) || !is_object(positions)) return graph;
+  const ids = new Set(graph.nodes.filter(is_object).map((node) => node.id));
+  const current = layout_nodes_of(graph) || {};
+  const table = {};
+  Object.keys(current).forEach((id) => { if (ids.has(id)) table[id] = current[id]; });
+  let changed = false;
+  Object.keys(positions).forEach((id) => {
+    const point = positions[id];
+    if (!ids.has(id) || !is_object(point)) return;
+    const x = Math.round(point.x);
+    const y = Math.round(point.y);
+    if (!is_layout_coordinate(x) || !is_layout_coordinate(y)) return;
+    const before = current[id];
+    if (is_object(before) && before.x === x && before.y === y) return;
+    table[id] = { x, y };
+    changed = true;
+  });
+  if (!changed) return with_pruned_layout(graph);
+  return { ...graph, layout: { nodes: table } };
+}
 /* Display-only `presentation` (`schema.py` `_validate_presentation`): a closed
    object of two optional ASCII-pattern strings. The runtime knows no icon
    catalogue — PuPu owns it — and both patterns are anchored at the very end
@@ -544,6 +620,11 @@ export function document_problems(document, t = agentEnglishText) {
       }
     });
   }
+  const has_layout = Object.prototype.hasOwnProperty.call(document, "layout") &&
+    closed_object(document.layout, "document.layout", LAYOUT_KEYS, [], problems, t);
+  if (has_layout && !is_object(document.layout.nodes)) {
+    problems.push(problem("invalid_type", "document.layout.nodes", t("agents.local_validation.object_required")));
+  }
   if ("nodes" in document && !Array.isArray(document.nodes)) {
     problems.push(problem("invalid_type", "document.nodes", t("agents.local_validation.nodes_array")));
   }
@@ -587,6 +668,26 @@ export function document_problems(document, t = agentEnglishText) {
       problems.push(problem("invalid_type", `${where}.config`, t("agents.local_validation.node_config_object")));
     }
   });
+
+  /* After the nodes, because a layout entry must name one of them. */
+  if (has_layout && is_object(document.layout.nodes)) {
+    Object.keys(document.layout.nodes).forEach((id) => {
+      const where = `document.layout.nodes.${id}`;
+      if (!node_ids.has(id)) {
+        problems.push(problem("missing_value", where, t("agents.local_validation.layout_node_missing")));
+      }
+      if (!closed_object(document.layout.nodes[id], where, LAYOUT_POINT_KEYS, [], problems, t)) return;
+      LAYOUT_POINT_KEYS.forEach((axis) => {
+        if (!(axis in document.layout.nodes[id])) return;
+        const value = document.layout.nodes[id][axis];
+        if (typeof value !== "number" || !Number.isFinite(value)) {
+          problems.push(problem("invalid_type", `${where}.${axis}`, t("agents.local_validation.layout_coordinate", { label: `layout ${axis}` })));
+        } else if (!is_layout_coordinate(value)) {
+          problems.push(problem("invalid_value", `${where}.${axis}`, t("agents.local_validation.layout_coordinate", { label: `layout ${axis}` })));
+        }
+      });
+    });
+  }
 
   const edge_ids = new Set();
   (Array.isArray(document.edges) ? document.edges : []).forEach((edge, index) => {

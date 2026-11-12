@@ -2255,7 +2255,9 @@
       "source_size": "This code is larger than 4 MiB, the most one Code node can store.",
       "string_required": "{label} must be a string",
       "nonempty_required": "{label} must be non-empty",
-      "presentation_value": "{label} does not have the allowed format"
+      "presentation_value": "{label} does not have the allowed format",
+      "layout_node_missing": "layout names a node that is not in the document",
+      "layout_coordinate": "{label} must be a number between -1000000 and 1000000"
     },
     "hook_source": {
       "checking_contract": "Checking whether this runtime takes a Workflow of the hook's own…",
@@ -2675,7 +2677,8 @@
       "node_missing_target": "target node \"{value2}\" does not exist",
       "node_ambiguous_generic": "the node id \"{value2}\" matches {value3} nodes",
       "node_ambiguous_source": "source node id \"{value2}\" matches {value3} nodes",
-      "node_ambiguous_target": "target node id \"{value2}\" matches {value3} nodes"
+      "node_ambiguous_target": "target node id \"{value2}\" matches {value3} nodes",
+      "move_shape": "A move needs a position, as numbers, for each node."
     },
     "managed": {
       "resource_aggregate": "The resource reply is not a v2 aggregate.",

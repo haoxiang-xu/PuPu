@@ -2462,7 +2462,8 @@
       "node_missing_target": "Le nœud cible « {value2} » n’existe pas",
       "node_ambiguous_generic": "L’id de nœud « {value2} » correspond à {value3} nœuds",
       "node_ambiguous_source": "L’id du nœud source « {value2} » correspond à {value3} nœuds",
-      "node_ambiguous_target": "L’id du nœud cible « {value2} » correspond à {value3} nœuds"
+      "node_ambiguous_target": "L’id du nœud cible « {value2} » correspond à {value3} nœuds",
+      "move_shape": "Un déplacement exige une position numérique pour chaque nœud."
     },
     "runtime": {
       "rename_loading": "Vérification de la possibilité de renommer les étapes…",
@@ -2506,7 +2507,9 @@
       "source_size": "Ce code dépasse 4 MiB, la capacité maximale d’un nœud Code.",
       "string_required": "{label} doit être une chaîne",
       "nonempty_required": "{label} ne doit pas être vide",
-      "presentation_value": "{label} n’a pas le format autorisé"
+      "presentation_value": "{label} n’a pas le format autorisé",
+      "layout_node_missing": "la disposition cite un nœud absent du document",
+      "layout_coordinate": "{label} doit être un nombre entre -1000000 et 1000000"
     },
     "managed": {
       "resource_aggregate": "La réponse de la ressource n’est pas un agrégat v2.",
