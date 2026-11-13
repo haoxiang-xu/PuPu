@@ -984,6 +984,9 @@ const ExplorerRowBase = ({
         >
           {showPrefixSpinner ? (
             <ArcSpinner size={iconSize} stroke_width={2} track_opacity={0.18} />
+          ) : typeof node.prefix_render === "function" ? (
+            /* A caller-drawn mark at the icon's size (an Agent's avatar). */
+            node.prefix_render(iconSize)
           ) : node.prefix_icon ? (
             <Icon
               src={node.prefix_icon}
@@ -1186,6 +1189,8 @@ const ExplorerRowBase = ({
                     stroke_width={2}
                     track_opacity={0.18}
                   />
+                ) : typeof node.prefix_render === "function" ? (
+                  node.prefix_render(iconSize)
                 ) : node.prefix_icon ? (
                   <Icon
                     src={node.prefix_icon}
@@ -2331,13 +2336,17 @@ const Explorer = ({
                   flexShrink: 0,
                 }}
               >
-                <Icon
-                  src={sourceNode.prefix_icon}
-                  style={{
-                    width: overlayIconSize,
-                    height: overlayIconSize,
-                  }}
-                />
+                {typeof sourceNode.prefix_render === "function" ? (
+                  sourceNode.prefix_render(overlayIconSize)
+                ) : (
+                  <Icon
+                    src={sourceNode.prefix_icon}
+                    style={{
+                      width: overlayIconSize,
+                      height: overlayIconSize,
+                    }}
+                  />
+                )}
               </span>
             )}
             {sourceNode.chatKind === "character" && (

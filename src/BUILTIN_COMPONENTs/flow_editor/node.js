@@ -1,6 +1,6 @@
 import ShadowSurface from "../material/shadow_surface";
 import React, { useState, useRef, useEffect } from "react";
-import { DEFAULT_PORTS } from "./utils";
+import { DEFAULT_PORTS, NODE_SIZE_MOTION_EVENT, PORT_ANCHOR_EDGE_INSET } from "./utils";
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 /*  Flow Editor Node                                                       */
@@ -29,6 +29,7 @@ const Port = React.memo(function Port({
   is_connected,
   interactive,
   on_port_mouse_down,
+  resizing,
 }) {
   const [port_hovered, set_port_hovered] = useState(false);
   const fraction = (index + 1) / (total + 1);
@@ -37,7 +38,15 @@ const Port = React.memo(function Port({
      and right sides) or left (top and bottom). A tall node keeps its in/out
      ports level with its header this way, so a chain of mixed heights still
      reads as one line. Absent or not a finite number, nothing changes. */
-  const anchor = Number.isFinite(port.anchor) ? `${port.anchor}px` : null;
+  /* While the node's own content animates its size, an anchor stays at least
+     PORT_ANCHOR_EDGE_INSET inside its side's far end — the same clamp
+     `get_port_position` puts on the edge end — so a port whose row is still
+     being revealed rides the growing edge. At rest the anchor is exact. */
+  const anchor = Number.isFinite(port.anchor)
+    ? resizing
+      ? `min(${port.anchor}px, calc(100% - ${PORT_ANCHOR_EDGE_INSET}px))`
+      : `${port.anchor}px`
+    : null;
   const shape = theme.portShape;
   const is_bar = shape === "bar";
   const is_puzzle = shape === "puzzle";
@@ -124,6 +133,7 @@ const Port = React.memo(function Port({
       data-port-side={side}
       data-port-kind={kind || ""}
       data-node-id={node_id}
+      data-anchor-clamped={resizing && Number.isFinite(port.anchor) ? "true" : undefined}
       style={{
         ...pos_style,
         width: port_w,
@@ -178,6 +188,10 @@ const FlowEditorNode = React.memo(function FlowEditorNode({
 }) {
   const node_ref = useRef(null);
   const [hovered, setHovered] = useState(false);
+  /* True while the node's content announces a size motion (a bubbling
+     NODE_SIZE_MOTION_EVENT from inside it). */
+  const [resizing, set_resizing] = useState(false);
+  const resizing_ref = useRef(false);
   const ports = node.ports || DEFAULT_PORTS;
 
   /* ── Register DOM element ref with parent ────────────────── */
@@ -190,14 +204,28 @@ const FlowEditorNode = React.memo(function FlowEditorNode({
   useEffect(() => {
     const el = node_ref.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => {
-      register_dimensions(node.id, {
-        width: el.offsetWidth,
-        height: el.offsetHeight,
-      });
-    });
+    const report = (sync) =>
+      register_dimensions(
+        node.id,
+        { width: el.offsetWidth, height: el.offsetHeight, resizing: resizing_ref.current },
+        /* From the observer (after layout, before paint): edges are
+           re-drawn in the same frame as the body, not one frame behind. */
+        { sync },
+      );
+    const ro = new ResizeObserver(() => report(true));
     ro.observe(el);
-    return () => ro.disconnect();
+    const on_motion = (event) => {
+      const running = !!(event && event.detail && event.detail.running);
+      if (resizing_ref.current === running) return;
+      resizing_ref.current = running;
+      set_resizing(running);
+      report(false);
+    };
+    el.addEventListener(NODE_SIZE_MOTION_EVENT, on_motion);
+    return () => {
+      ro.disconnect();
+      el.removeEventListener(NODE_SIZE_MOTION_EVENT, on_motion);
+    };
   }, [node.id, register_dimensions]);
 
   /* ── Group ports by side ─────────────────────────────────── */
@@ -266,6 +294,7 @@ const FlowEditorNode = React.memo(function FlowEditorNode({
             }
             interactive={interactive}
             on_port_mouse_down={on_port_mouse_down}
+            resizing={resizing}
           />
         )),
       )}

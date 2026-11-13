@@ -562,8 +562,10 @@ const TextField = ({
     ? "1px solid rgba(255,255,255,0.08)"
     : "1px solid rgba(0,0,0,0.12)";
   /* Opt-in: a caller that fills the field itself can ask for no resting
-     outline. Kept off the wrapper, which takes the rest of `style`. */
-  const { restBorder, ...outerStyle } = style || {};
+     outline. Kept off the wrapper, which takes the rest of `style`.
+     `restFill` gives the field a solid background and keeps it still: no
+     fill and no border change on hover or focus (the caret marks focus). */
+  const { restBorder, restFill, ...outerStyle } = style || {};
 
   const lineHeightPx = Math.round(fontSize * lineHeight);
 
@@ -584,6 +586,7 @@ const TextField = ({
   const hasValue = currentValue.length > 0;
 
   const showBg = hovered || focused;
+  const showFill = restFill === undefined ? showBg : false;
 
   /* ── measure functional section ── */
   useEffect(() => {
@@ -682,8 +685,8 @@ const TextField = ({
         style={{
           position: "relative",
           boxSizing: "border-box",
-          backgroundColor: "transparent",
-          border: showBg ? "1px solid transparent" : (restBorder ?? faintBorder),
+          backgroundColor: restFill ?? "transparent",
+          border: showBg && restFill === undefined ? "1px solid transparent" : (restBorder ?? faintBorder),
           borderRadius,
           transition:
             "border 0.2s ease, height 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
@@ -699,9 +702,9 @@ const TextField = ({
             inset: 0,
             borderRadius,
             backgroundColor: focused ? activeBg : hoverBg,
-            transform: showBg ? "scale(1)" : "scale(0.5, 0)",
-            opacity: showBg ? 1 : 0,
-            transition: showBg
+            transform: showFill ? "scale(1)" : "scale(0.5, 0)",
+            opacity: showFill ? 1 : 0,
+            transition: showFill
               ? "transform 0.25s cubic-bezier(0.2, 0.9, 0.3, 1.0), opacity 0.18s ease"
               : "transform 0.2s cubic-bezier(0.4, 0, 1, 1), opacity 0.15s ease",
             pointerEvents: "none",

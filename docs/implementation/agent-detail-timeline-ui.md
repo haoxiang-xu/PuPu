@@ -7,29 +7,33 @@
 - 自上而下：Model → Prompt → Input → Output → Advanced，区与区之间只靠 20px 间距分隔，没有分隔线、卡片或缩进，内容占满面板宽度。
 - 五个区用同一种标题：小号大写说明文字（11px、字距 1.5px、40% 不透明度，与侧边菜单的分区标题同款）。
 - Prompt 标题行右侧显示指令的字符数（按可见字符计，中文和 emoji 各算一个），随输入实时更新，位置与折叠区的条目数一致。
+- 没有自定义名字的 Agent 节点，画布和详情页标题都显示类型名「Agent」，不显示内部 id（如迁移来的 `agent_main`）；改过名则显示自定义名字。
 - Model、Prompt 不可折叠。Input、Output、Advanced 可折叠，标题后紧跟上下展开箭头。Input / Output 收起时行尾右对齐显示条目数量，展开后淡出。
 - 某个区里有问题时，其标题旁显示红色数字徽标（问题条数），折叠或滚走时仍可见；Input / Output 第一次出现问题时自动展开一次，之后由作者自行折叠。
 - Input / Output 的展开状态在本次会话内记住，切换节点不会复位；默认只展开 Input。
-- 面板内所有可编辑控件用同一种安静的填充底（深色 7.5% 白、浅色 4.5% 黑）、8px 圆角、无描边：Model 选择器、Prompt 输入框、变量行、Advanced 的数字框与下拉。
+- 底色与描边各只表示一件事（`panel_style.js`）：
+  - **底色＝区域。** 一段里的若干行共用一块淡底（`Region`，10px 圆角，`REGION_RADIUS`），行与行之间是一条细线（6%），行自身没有底色，不出现块中块。深色下区域是 3.5% 白；浅色下是不透明的 `--pupu-surface`（默认纯白），面板本身是半透明玻璃，所以区域比面板亮。面板自身的底色属于外壳，这里不改。
+  - **白底输入框＝可输入、可选择的控件。** Model 选择器、Prompt 输入框、Advanced 的数字框与下拉、分段选择，一律是同一个输入框：浅色下白底（`--pupu-surface`，`fieldBackground`）、深色下 7.5% 白，**无可见边框**（保留 1px 透明边以免尺寸变化），圆角与 Input / Output 区域相同（`FIELD_RADIUS = REGION_RADIUS = 10px`），**hover 不变**——没有 hover 填充、阴影或描边变化（`fieldFill` / `textFieldFill`，经 `PanelInput`、`PanelSelect` 统一）；focus 保留控件自身的 focus 标记。选中项用淡填充（`fillStrong`），不再套第二圈线；开关不描边。
+  - **变量行（名字 = 值）两边都不画边框**，也没有 hover 填充；行的底就是所在区域的底。
 - Output 里的 JSON Output 是一行设置（12.5px 正文 + 38×20 开关），不是又一个标题。
 - Advanced 是「标签在左、值在右」的四行：Max turns、Reply tokens（旁边以 `≤ N` 标出上限）、History、When the window fills。不再用拆开的句子夹输入框。
 - 收起时箭头向下，展开后箭头向上；不使用朝右的箭头。
 - 只有标题文字和箭头（外加四周约 8px）可点击展开或收起，点击区高 **32px**；这一行其余空白不响应，方便点空白处关掉打开的下拉菜单。
 - **标题和整个 section 都没有 hover 高光背景**。无论收起、展开、鼠标停留还是键盘 focus，section 背景始终透明。
 - 依靠间距和统一标题区分配置区，不使用 section 卡片的背景、边框或阴影。
-- 原生表单控件继续保留自己的边框、focus 和 hover，不能把输入框也当作 section 卡片去掉。
+- 原生表单控件不画边框、不做 hover 高光，只保留 focus 标记；不能把输入框也当作 section 卡片去掉。
 
 ## 说明与选择器
 
 - 解释整个 section 的 info icon 紧挨 section 标题，收起时也可查看；点击 info 不展开 section，不写入文档。
 - 解释某个 selector 的 info icon 紧挨该 selector，和它在同一行，不单独悬在上方或下方。
 - info 和展开按钮是独立的原生按钮，不嵌套交互控件。
-- Process 面板的 selector 与输入框使用上述统一填充底，无描边；section 自身仍无边框、无 hover 背景。
+- Process 面板的 selector 与输入框使用上述统一白底输入框（白底、无边框、10px 圆角，无 hover 高光）；section 自身仍无边框、无 hover 背景。
 - selector 内的文字与图标作为一组靠右对齐，保留原有内边距；旁边的 info 仍是独立按钮。
 - 除下述 Model picker 外，详情页其他 selector 经 `PanelSelect` 使用 Attach Panel 同款 Mini UI `Select` 的 `palette` 菜单：圆角、玻璃材质、选中态、滑动高亮和底部搜索共用现有实现，不另造一套下拉菜单。
 - Model picker 与 Attach Panel **共用 `ModelPicker` 组件**：32px 模型胶囊、provider 图标侧栏、固定高度列表、底部 model 搜索、选中后保持打开。Builder 选择并保存宿主提供的完整 Kernel profile。
 - 正文字号：指令输入框与 disclosure 标题 12.5px，变量 pill 12px，辅助说明与报错 11.5px。
-- 详情页 Model picker 在标题下方占满整行（高 34px、8px 圆角，模型名靠左、箭头靠右），info 紧跟其后。
+- 详情页 Model picker 在标题下方左对齐，**固定宽 200px**（`max-width: 100%`，面板很窄时仍可收缩），高 34px、白底、无边框、10px 圆角、无 hover / 按下高光，模型名靠左、箭头靠右，info 紧跟其后。
 - BC-003 · Sidecar 从 wheel catalog 和既有 Ollama 安装模型目录生成本地/原生 profile，Main 用执行时同一个可信注册表和授权规则补齐 DeepSeek、Kimi 与用户配置。既有 `GET /skeleton_kernel_profiles`、IPC 回包与 CLOSED Kernel profile 形状沿用，凭据引用、协议、端点与模型按原身份保留，回包不读密钥。用户自定义组沿用 Settings 的功能开关。缺远程模型额度、非支持鉴权或额外请求头的模型维持不可选。已安装 Ollama 缺上限时使用 PuPu 的本地请求窗口，输出额度以 4096 为宿主预算上限并低于窗口。
 - SEQ-003 · 模型目录更新只刷新候选，保存的 Kernel 与既有运行快照保持各自 profile。明确选模型才写草稿，运行时仍以当前注册表校验目标后解析密钥。
 - AC-003 · 离线用固定 wheel 的实际验证器、Ollama 安装目录替身、Main 与 preload 回放验证精确 profile、拒绝不支持项、刷新与 UI 选择。打包配对、真实 provider、改后运行的冷进程与恢复另行验收。
@@ -87,7 +91,7 @@
 - End · Input：与 Agent 的输入行完全相同。上游有分支时，来源菜单末尾多一项「多个来源中的首个可用值」：把这一行变成首个可用值列表，可能没运行的分支来源排第一，原来的来源作为兜底。
 - 首个可用值列表：行头只写名字和「多个来源中的首个可用值」，下面按尝试顺序列出来源，每个来源是一条 28px 填充行（序号、来源、删除；至少保留两条），末尾「+ 添加来源」。
 - End · Output：与 Agent 的输出行相同，菜单只列本节点的输入和「收到的全部值」。
-- 已有的嵌套地址按原值显示，不在这里逐级编辑；逐级路径编辑器仍用于 Code、Tool Call 等其他节点。
+- 已有的嵌套地址按原值显示，不在这里逐级编辑；Code、Tool Call、Skill Read、Workflow Call 的输出行用同一 pill，值一侧可直接输入路径（见下文「Code 面板」）。
 
 实现入口：`detail_panel/start_end_panel.js`、`detail_panel/first_present_pill.js`；共用 `process_timeline.js` 导出的 `Block`。
 
@@ -105,14 +109,83 @@
   - 开关一律用 `<Switch material="glass">`，保持它自己的 60:38 比例（38×24），状态改动写在 `set_on` 里：glass 开关会拦住点击冒泡，不能靠外层元素接点击。
   - 添加只有一个入口 `+ Add an Agent`：展开后是细边框搜索框加候选 Agent 的填充行，最后一项是 `New embedded Agent`。
 
-## 其余节点（Code、If/Else、Switch、Tool Call、Skill Read、Workflow Call、Hooks Pool）
+## 所有节点面板的统一标准（以 Start、End、Agent、Toolkit Pool 为定稿）
 
-这些节点不改结构，只统一外观：
+2026-11-11 project owner 定稿 Start、End、Agent、Toolkit Pool 四个面板；其余节点面板（If/Else、Switch、Tool Call、Skill Read、Code、Hooks Pool、Workflow Call）只按下列标准统一外观，不改行为、数据、test id、aria、i18n。Subagent Pool 另行重设计，只随共用样式变化。共用实现都在 `detail_panel/panel_style.js`、`panel_input.js`、`panel_select.js` 与 `process_timeline.js` 的 `Block`。
 
-- 分区标题一律用 `CAPTION_TEXT`（`panel_style.js`），与左侧菜单分区标题同款小号大写，不再有各自的 LABEL 常量。
-- 输入框统一用 `PanelInput`（`panel_input.js`），下拉统一用 `PanelSelect`：浅色填充、8px 圆角、透明描边。
-- 分区之间不画分隔线，只留间距；去掉蓝色、绿色强调色，状态文字用 `--pupu-text-muted`，错误仍是红色。
-- 装控件的卡片（条件组、case 行、hooks 编辑器等）去掉底色和描边，只有 Switch 的 Default 保留一块填充底，因为它是一条固定出口而非可编辑行。
-- 输入/输出行展开后的设置区不再是带描边的卡片；标签统一 64px 宽、12px。
-- 字号收敛到 12.5 / 12 / 11.5 / 11px，圆角统一 8px，面板内开关 38×20。
-- 通用节点的输入、输出列表也把「+ Add」放在列表末尾。
+- **分区标题**：`Block`（11px 大写、1.5px 字距、40% 不透明度；可带问题数徽标、info、右侧数量）。不再有各自的 `LABEL` / `SECTION_LABEL` 标题文字。
+- **分区间距**：20px；标题到内容 6px。
+- **一组行 = 一个 `Region`**：一块淡底（浅色 `--pupu-surface`，深色 3.5% 白），10px 圆角（`REGION_RADIUS`），无边框，行与行之间一条细线，行自身不带底色、不画卡片、不画彩色侧线。
+- **输入框与下拉**：`PanelInput` / `PanelSelect` / `fieldFill`，多行 `TextField` 用 `textFieldFill`。浅色白底、深色 4.5% 白，无边框，10px 圆角（`FIELD_RADIUS = REGION_RADIUS`），静止、hover、focus 外观一致（只靠光标表示 focus）。
+- **变量行（名字 = 值）**：两侧都无边框、无 hover 填充，底色就是所在 Region。
+- **Input / Output Variables 在每个节点上同一外观**（2026-11-11）：`Block`「Input Variables」/「Output Variables」标题（问题徽标 = 该区诊断数，右侧条目数，与 Start/End 一致），输入行是 `InputValuePill`（`name = value ×`）放在一个 `Region` 里，列表末尾「+ Add input」。外观与语义分开：`breadcrumb`（Agent、End）= 缺值一律读 null、行上没有缺值策略；其他节点（If/Else、Switch、Code 等）传 `look="pill"`，只借外观，仍保存自己的缺值策略（新行默认 `error`），行内删除叉左侧多一个「…」（aria-label「名字 · If missing」）展开原来的 `MissingPolicySelect`。Output Variables 在这些节点上同样传 `look="pill"`（2026-11-12）：行是 `OutputValuePill` 加 `typedPath`，值一侧是一个可输入的路径（`result.items[0].name`、`inputs.diff`，或只写字段名沿用当前一侧），输入时菜单按第一段过滤列出可选字段，Enter 或离开确认，Esc 放弃，不是路径的文字不写入；显示仍是中性 `NodeRefTag`（「Result · items[0].name」）。这样保留了 `OutputRow` 的多级路径与手写字段名，Agent / Start / End（`breadcrumb`）不受影响。Tool Call 的参数、Workflow Call 的输入由 schema 决定名字，仍是各自的行。
+- **节点标签 `NodeTag`**（`detail_panel/node_tag.js`，2026-11-11 改版）：指向画布上某个步骤时用它。圆角矩形（高 22px、圆角 6、左右内边距 6 / 8、字号 11.5px、字重 500），**整块填该步骤的纯色**（`node_identity` 的颜色，与画布节点一致；Agent 文档里的 Agent 节点用该 Agent 自己的 presentation 颜色与图标），不再有单独的图标方块。图标（13px）与名字用同一种字色，按底色亮度从白色 / 近黑 `#1d1d1f` 中取对比更高者（`avatar_glyph_color`）。名字最长 180px，超出省略号，完整名字在 title。可传 `node`，或直接传 `{icon, color, name}`；`node` 旁再传 `name` 时保留调用方的文字。未连接、已删除的步骤仍是原来的文字样式，不是标签。
+- **变量引用标签 `NodeRefTag`**（同文件）：变量行的值读自某个步骤时，`VariablePillValue` 把它画成**一个**标签，两半无缝拼接、外面一圈圆角 6 的描边（该色 40% / 暗色 50%）：左半是该步骤的 `NodeTag`（纯色底、图标 + 名字），右半是读取的字段路径（等宽 11.5px，正文字色），底是同色淡染（亮色 18%、暗色 22%）。两半之间不加箭头，颜色台阶本身就是分隔。左半最多占 62%，两半各自省略号。来源不是步骤（调用方输入、Inputs / Result）或步骤已被删除：同一形状的中性版（左半 `fillStrong` + 淡色字）。没有字段的值（如「First of several」、未选择）仍是淡色文字；固定值仍是行内无框文字。Start / End / Agent / If-Else / Switch / Code 等节点的 Input Variables 行、First of several 的各来源行、Output Variables 的值、以及选来源的菜单项都用它。
+- **问题数徽标**（`ProblemCount`）：16px 高、全圆角、10.5px 600。Jost 的行框让数字比正中高约 1px（实测墨迹距上 3.3px、距下 5.3px），所以内边距是 `2px 5px 0`（上 2、下 0），实测上下各约 4.3px。
+- **设置行**：`SettingRow`，标签在左、控件在右；开关用 `SemiSwitch` + `PANEL_SWITCH`。
+- **按钮**：列表末尾的添加用 `addButtonStyle`，行内删除用 `removeButtonStyle`。
+- **文字**：正文 12–12.5px；说明 `note`，报错 `problem` / `errorColor`；不写裸色值。
+- **选中的 chip**：成功绿（浅色 `--pupu-success` #22c55e + 白字，深色 #4ade80 + #052e16 字），600 字重。
+- **头部**：macOS 停靠面板里节点图标距面板上、左各 16px，标题右侧给开关留 44px，下方一条细线分开固定头部与滚动区。
+- 不加卡片底、描边、阴影；两种主题都按上述 token。
+- **条目列表的统一模型（Toolkit Pool 与 Subagent Pool 共用）**：
+  - 收起时每个条目是一条细条：图标、名称、折叠箭头、右侧摘要（数量或调用方式），整条（除行内按钮外）是一个 `aria-expanded` 按钮。
+  - 删除只有一个位置：细条最右侧的叉（`removeButtonStyle`，22×22，无文字）。
+  - 添加：每个列表末尾只有一个统一的 `AddButton`（`detail_panel/add_button.js`：加号图标 + 文字）。Toolkit Pool 的「Add」打开一个小菜单（`BUILTIN_COMPONENTs/context_menu`，`Z.POPOVER`）：Toolkit（第二级列出尚未加入的已安装 toolkit）与 Workflow（新增一个 Workflow tool）。Subagent Pool 的「New embedded Agent」就在最后一个 subagent 下面；已有 Agent 在下方「Agent library」区（搜索框 + 每行「+ Add」）。
+  - Toolkit Pool 自上而下：「Merge with user-selected」开关（独立一块，面板第一项）→「Tools and Workflows」一个列表（先 toolkit，后 Workflow tool，同一种可折叠细条，右侧删除叉；标题旁数量 = 两者之和）→ Add → Installed。
+  - 展开内容在同一块底里、细条下方，每个设置行之间一条细线，行自带内边距、不带底色。
+  - Subagent 细条高 36px，图标 22px，图标距细条上、下、左都是 7px；每个 subagent 一块独立 Region，块间 8px。Subagent 同时只展开一个（条目内容较长），Toolkit 可同时展开多个。
+- **节点图标**：一律纯色（原渐变的深色端），不再使用渐变；画布节点、详情头部与 Subagent 头像相同。
+
+落地情况（2026-11-11）：If/Else 与 Switch（`branch_section.js`）、Tool Call（`tool_call_section.js`）、Skill Read（`skill_read_section.js`）、Code（`code_section.js`）、Hooks Pool（`hooks_pool_section.js`、`hook_workflow_source.js`）、Workflow Call（`workflow_call_section.js`、`workflow_pin_control.js`）已按此标准改为 `Block` 标题、20px 分区间距、`Region` 行组、共用输入框与按钮、`note` / `problem` 文字色。尚未决定、暂按原样保留的：
+
+- `SegmentedButton` / `SegmentedControl`（Tool Call 的 On error 与 Approval、Hooks 的 Runs 等）是否改为下拉或开关。
+- If/Else 嵌套条件组去掉了青色侧线，只留 10px 缩进；是否需要更明显的分组。
+- 带文字的删除类按钮（Remove、Unset、Remove setting）沿用 `addButtonStyle` 的文字按钮，是否改为图标按钮。
+- Code 的 Result 开关行（标签是随状态变化的一句话）保留手写布局。
+- Switch 节点不再有外层「Switch」标题，直接是「Switch on」「Cases」两段。
+
+### Code 面板（2026-11-12）
+
+只改界面；`config.code` 的形状不变，运行时不变。从上到下：Input Variables（pill）→ Code → Limits → Result → On error →（有时）Stored artifacts / 不支持的设置 → Output Variables（pill，可输入路径）。
+
+- **只有 Python**：不再有 Runtime 区、Python 选择器、「Name a Python…」表单和探测按钮（后端/API 未删）。头部副标题：内置或未指定为「Python」，其他 profile 为「Python · id」。只有存的 Python 本机没有/不可用/不可读时，Code 区出现一条问题和「Use the built-in Python」。
+- **默认值（2026-11-12 修订）**：Python 与三个限制有默认值 `CODE_DEFAULTS`（`builtin`、30 s、1 MiB、1 MiB）。未设置 = 用默认值：面板不报问题，占位符显示默认值；清空输入框回到默认。运行时要求显式写出这些键，所以唯一的规范化函数 `with_code_defaults`（`code_config.js`，沿用 `owned_code_nodes` 的遍历，含嵌入图）在 `save_draft` 与 `diagnose` 里对整份文档补上缺的键；已存的值（无论是什么）不动；打开文档不会变脏，旧节点在下一次保存时写入。Preflight 与运行只传 resource id、读的是已存草稿，所以从未重新保存过的旧节点在保存前仍会被运行时拒绝（见开放问题）。
+- **新节点即可用**：画布添加 Code 节点时带一个 starter：`def main(input, context): return dict(input)`（原样传出输入，没有输入时返回 `{}`）作为面板写入的托管源 `__pupu_code__/sha256/<sha>.py`，加上一个封闭、没有字段的 Result 和默认值，所以零问题。文字随添加命令的 `sources` 进入会话表（`add_node` → `apply_graph_command` → `editCurrent` 的第三个参数），撤销即释放。
+- **问题文案**：没有设置的旧节点只有一条「Write the code for this step.」；有代码没有 Result 只有一条「Add the fields your code returns.」，在 Result 区显示并带徽标；每条问题显示在它所属的区（Code / Limits / Result），其他（不使用的设置、读不了的附件）在面板底部。
+- **Code 编辑器**（`code_editor.js`）：原生 textarea（文字透明、光标可见）叠在 highlight.js 高亮的 `<pre>` 上，字体/行高/内边距一致，随滚动同步；行号栏随纵向滚动；不换行，长行横向滚动；高度 = 行数夹在 8–24 行；内边距四边 10px，宽度与上下 Region 对齐；底色仍是 `textFieldFill`；配色与聊天代码块相同（vs2015 / atom-one-light，共用 `loadHighlightTheme`）；Tab 插入四个空格（浏览器编辑命令，可撤销），Shift+Tab 仍离开；输入法组字时隐藏高亮层。
+- **Limits**：一个 `Region`，三行「Run time ≤ __ seconds」「Result size ≤ __ bytes」「Printed output kept ≤ __ bytes」；数字在行内无框、无底、无悬停/聚焦高亮（`variablePillField`）。三者都是上限：运行到该秒数即停止进程（结果未知）；结果 JSON 超过该字节数节点失败；print/错误输出各保留该字节数，其余丢弃、运行继续。占位符是默认值（30、1048576、1048576）；清空输入框即删除该键（= 默认值，保存时写入）；非整数或越界的文字留在框内不写入并显示原因。
+- **画布卡片**：Code 节点在画布上只是共用头部（图标、名字、「Python」），最小高 63，端口/凸起/凹口与其他步骤相同；不显示代码、预览、查看器或展开按钮，也不再有低缩放特例。
+- **On error**：运行时没有可选策略，所以不放开关或下拉，只用两行只读 `SettingRow`：「Error or time limit → Run stops」「Result doesn't match → Run stops」，细节在标题 info。
+- Stored artifacts 与不支持的设置：行尾为 `removeButtonStyle` 的 ×，artifact 行放在 `Region` 里。各区标题带问题徽标（Code：源与 Python；Limits：缺失/越界；Result：schema）。
+
+### 变量继承（2026-11-12，只开 Code）
+
+`recipes_page/variable_inheritance.js`：与节点类型无关的共用部分 + 每类一个适配器（`INHERITANCE_ADAPTERS`），目前只启用 `code`。
+
+- **触发**：只有用户在画布上的 `connect` / `reconnect` 命令（`skeleton_graph_commands.apply_graph_command`）。加载、粘贴、复制、导入都不走这条路径，所以不触发。新出现的 flow 边的目标节点才会被考虑；attach 边不看。边和继承的变量是同一次编辑，一次撤销。
+- **继承什么**：目标节点的直接 flow 前驱的 Output Variables（不含运行时自己的 context），每个一条输入：同名、`ref` 到该前驱的 `[name]`、缺值 `error`（与输入选择器写入的完全相同）。多个前驱时先到者保留同名。
+- **只填没动过的节点**：没有存储标记（形状是封闭的），用比较判断：把节点现在的输入按它们引用的节点重新生成一遍，Result 和 Output Variables 按这些输入重新生成，源码仍是 starter——全部一致才算没动过，在连接前的文档上判断。没动过的节点重连到新上游时整体替换；用户改过输入、Result、输出或代码中任何一项后不再改写。
+- **Code 适配器**：输入 = 继承；Output Variables = 每个输入一条 `result.<name>`；Result = 上游声明了类型的字段（Agent 的 `message`、Agent JSON Output 字段、Code Result 字段、Tool Call 的 `ok`）为同类型 required 字段，类型未知的（Start 调用方输入、工具结果、Skill、Workflow Call、多级路径）不声明并让 Result 保持开放，这样字段行仍能显示，运行时也会发布这些键；全部已知或没有输入时 Result 封闭。starter 的 `return dict(input)` 正好返回这些。
+- **断开**：什么都不清除。输入仍引用原节点，商店的检查在该行报「reference must name an upstream flow node」（运行时要求引用来自任意上游 flow 节点，不必直接相连），缺值策略为 `error` 的输入在运行时失败。
+
+### Switch（`switch_case`）面板（2026-11-11 project owner 定稿）
+
+只改界面；存储形状仍是 `{inputs, value, cases: [{id, value}]}`，运行时不变。匹配是严格相等、取第一个相等的 case，值互不相同，所以顺序只决定画布上出口的排列（`branch_ports` 按列表顺序，标签即 `case_display`）。
+
+- **Switch on**：`Block` 标题，匹配规则写在 info 里。一个 `Region`，一行 `SettingRow`「Value」+ 本节点输入变量的 `PanelSelect`。下面一行是「Read inside」路径编辑（`PathEditor`，只编辑输入名之后的步骤，按需「+ Read inside it」添加）。没有「An input / A fixed value」选择：新节点只能按输入分支。已存的固定值（`kind: "literal"`）或读不懂的值原样显示、原样保存，下一行「Use an input instead」选一个输入后才替换。没有输入时只显示「先在上面添加输入」的说明。未选值、或选的输入不存在，是红字问题并计入标题徽标。
+- **Cases**：`Block` 标题，右侧是 case 数，问题徽标 = 每个 case 的问题（重复值、缺值等）+ 每个未连接的 case + 未连接的 Default。一个 `Region`，每个 case 是一条平铺行（不折叠），行间细线：
+  - 行的布局与变量行相同（`variable_pill` 的 5 : 18px : 6 三列、32px 高、右侧删除叉）：`值  →  [去向标签]  ×`。
+  - 左：值直接在行内编辑，用变量行的无框输入（`variablePillField`：无边框、无底色、hover/focus 无变化、空时占位符淡色、12px），没有逐行的类型选择。框的类型就是该 case 已存值的类型：文本 → 输入框，数字 → 同样无框的文本框（不是 number 输入，没有上下箭头；未成数字时不写入，行下淡色提示），true/false → `role="switch"` 包裹的 `SemiSwitch` 加 True/False 文字。null 等其他类型只读显示（null 显示为「Empty (no value)」），原样保存；类型与 Switch on 不一致的 case 只显示，不报错（运行时不会拒绝它，只是不会被选中）。
+  - 中：淡色箭头，然后去向的 `NodeTag`（`node_identity` 的图标与标题，与画布一致，从不显示节点 id）；连到已删除的步骤是淡色文字「A step that was removed」；未连接是红字「Not connected」（计入徽标）。
+  - 右：删除叉（`removeButtonStyle`）。已连接的 case 先在行下确认「Remove case and connection / Keep it」，确认后连同那条边一起删除。
+  - 没有上移/下移，也没有拖拽：顺序不影响走哪条分支。
+  - 每个 case 的问题以红字写在该行下方。
+  - **Default** 是同一 `Region` 的最后一行，同一布局：淡色「Default」+ 箭头 + 去向标签或红字「Not connected」，不可删、不可编辑，删除叉的位置留空以对齐。「When nothing matches」移进 Cases 标题的 info（「Default: When nothing matches」）。
+- **Switch on** 的下拉与 Kernel 的设置下拉同尺寸（12px，上下 5、左右 8），文字与左侧标签同一基线。
+- Region 下面是共用 `AddButton`「Add」（aria-label「Add a case」）。新值不与已有值重复：类型取 Switch on 输入已声明的类型（未知按文本）；文本先给空值，再给「case 2」「case 3」…；数字给最小未用的整数（从 0 起）；true/false 给未用的那个，两个都用了时 Add 置灰。
+- 面板顶部的提示（未知设置、只读、两个步骤无法区分）用不含开发术语的说法；If/Else 共用这几条提示。
+
+## Agent 图标与颜色
+
+Agent 节点详情头部的头像即该 Agent 的图标与颜色，可点击修改；目录、存储与显示位置见 [agent-icons.md](agent-icons.md)。

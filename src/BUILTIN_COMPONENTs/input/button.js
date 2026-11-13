@@ -103,7 +103,7 @@ const DEFAULT_BUTTON_STYLE = {
     pressedInset: 2,
     minPressedRadius: 2,
     transitionIn:
-      "transform 0.25s cubic-bezier(0.2, 0.9, 0.3, 1.0), opacity 0.18s ease, inset 0.15s cubic-bezier(0.32, 1, 0.32, 1), border-radius 0.15s ease",
+      "transform 0.25s cubic-bezier(0.2, 0.9, 0.3, 1.0), opacity 0.18s ease, inset 0.15s cubic-bezier(0.32, 1, 0.32, 1), border-radius 0.15s cubic-bezier(0.32, 1, 0.32, 1)",
     transitionOut:
       "transform 0.2s cubic-bezier(0.4, 0, 1, 1), opacity 0.15s ease, inset 0.15s ease, border-radius 0.15s ease",
   },
