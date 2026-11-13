@@ -14,10 +14,6 @@ export const SHELL_BACKGROUND_ALLOWLIST = [
     anchor: 'background: "#22c55e"',
   }, // green status badge
   {
-    file: "src/COMPONENTs/agents/pages/recipes_page/recipe_canvas.js",
-    anchor: 'dirty ? "#4a5bd8"',
-  }, // dirty-save button
-  {
     file: "src/COMPONENTs/agents/pages/recipes_page/subagent_picker.js",
     anchor: 'inlineName.trim() ? "#4a5bd8"',
   }, // brand "Add" button, same accent as recipe_canvas

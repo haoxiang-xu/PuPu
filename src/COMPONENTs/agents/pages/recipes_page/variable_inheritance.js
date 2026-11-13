@@ -222,4 +222,3 @@ export function with_inherited_variables(before, after) {
   });
   return { document, sources };
 }
-

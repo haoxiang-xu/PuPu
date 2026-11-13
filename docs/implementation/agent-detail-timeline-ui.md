@@ -208,3 +208,17 @@ Agent 节点详情头部的头像即该 Agent 的图标与颜色，可点击修�
 - 输入时画布快捷键（Delete/Backspace、空格平移、撤销、F2、Home、⌘F）、页面的 Escape、节点拖动和画布双击都不会收到事件。
 - 运行时不支持节点名（能力检查 `node_display_label_v1` 未通过）时，双击无反应，右键菜单不出现 Rename，也不提示。
 - 名字没有唯一性要求和长度上限，规则只有「不能全是空白」；节点 id 不变，引用不需要改写。Start 与 End 也可以命名。
+
+## Ask 输出的跨边界记录（PR #482）
+
+状态：active rollout **INCOMPLETE**。以下记录区分 UI 回归与真实 provider 验收；不以 CI 全绿代替未运行的验收。
+
+- **BC-004**：producer 是 `agent_asks.js` 经既有文档更新、资源保存路径产生的 Agent 草稿；consumer 是 sidecar Store、实际导入的 Unchain 严格文档验证器，以及既有 JSON Output provider 投影。没有新增文档或协议字段。一个 Ask 同时写 `config.kernel.json_schema` 的 required 属性及 `config.execution.outputs` 的 `{name, source: {kind: "result", path: [name]}}`；schema 的 `additionalProperties` 为 false。文档、映射和握手沿用 CLOSED 合同，schema 内保留已有 JSON Schema 表达能力。资源 id、节点 id、edit token 和 runtime manifest 沿用现有保存入口；冲突或拒绝不降级为另一种保存。模型 profile 未声明 `json_schema: true` 或 schema 无法表示为行时 UI 禁止添加，原有 JSON 编辑器仍处理复杂 schema。CI 必须绑定本 PuPu candidate 与同一次构建并复用的 Unchain wheel SHA-256 / manifest，不能用可变 sibling checkout 作为配对证据。
+- **SEQ-004**：同一资源、节点和草稿中，添加 Ask → 改名 → 改类型/描述 → 再添加 → 删除 → 保存/重开。每次编辑同步 schema 属性和对应 output，其他 output 保留；删除最后一项恢复普通回复。保存/重开、冷 sidecar 后重开，以及 provider 实际执行需另行验证。重复运行、第二条消息、interaction、retry/resume/replay 不由这个 UI 创建新的身份或恢复机制；是否保持既有执行语义仍需在真实 Agent 路径验收，不能标成已通过。
+
+| AC | 证据与状态 |
+| --- | --- |
+| AC-004a | `agent_asks.test.js` 精确比较 closed schema 与 output，覆盖添加、改名/类型/描述、连续添加、删除和普通回复；本地/CI 结果记录在 PR。 |
+| AC-004b | 同文件覆盖不支持 JSON Output 的 profile、复杂 schema 的拒绝；`process_timeline.test.js` 覆盖 UI 与 Advanced 编辑器。 |
+| AC-004c | 真实 UI 产物 → 固定 wheel 严格 validator → Store 保存/重开，含未知字段、错 identity/version 和拒绝零写入：NOT_RUN。既有通用契约测试不等于这条新 producer 路径的完整证据。 |
+| AC-004d | 实际 provider 的 schema 投影、第一次/第二次消息、interaction、retry/resume、冷 sidecar 及受影响 Agent/subagent 路径：NOT_RUN；绑定与 AC-004c 相同的 artifact identity 后验收。 |
