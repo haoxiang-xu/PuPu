@@ -2,7 +2,9 @@ import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use
 import { node_display_title } from "../node_display_labels";
 import React from "react";
 import PuzzleShape from "./puzzle_shape";
-import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
+import { node_caption } from "./node_caption";
+import NodeHeader, { NodeBody } from "./node_header";
+import { NODE_PORT_ANCHOR } from "./node_metrics";
 import { safe_text } from "../document_values";
 import { node_bindings } from "../skeleton_document";
 import { callee_interface, pinned_reference } from "../workflow_call_config";
@@ -16,7 +18,7 @@ import { useWorkflowVersions, workflow_version_state } from "../workflow_version
 
 const MAX_ROWS = 4;
 
-export default function WorkflowCallNode({ node, isDark }) {
+export default function WorkflowCallNode({ node, isDark, rename }) {
   const { t } = useTranslation();
   const pin = pinned_reference(node);
   useWorkflowVersions(pin ? [pin] : []);
@@ -26,13 +28,16 @@ export default function WorkflowCallNode({ node, isDark }) {
   const name = (version && typeof version.document.name === "string" && version.document.name) || (pin && pin.workflow_id) || null;
   const muted = "var(--pupu-text-muted)";
   const text = "var(--pupu-text)";
-  const subtitle = !pin
-    ? t("agents.nodes.workflow_pin")
+  const title = node_display_title(node, name ? safe_text(name) : t("agents.nodes.workflow_call"));
+  /* Which Workflow (left out while it is the title) and which revision. */
+  const revision = !pin
+    ? t("agents.nodes.pin_revision")
     : version
-      ? t("agents.nodes.workflow_revision", { revision: version.ordinal })
+      ? t("agents.nodes.revision", { revision: version.ordinal })
       : state && (state.status === "refused" || state.status === "unavailable")
-        ? t("agents.nodes.workflow_unreadable")
-        : t("agents.nodes.workflow_reading");
+        ? t("agents.nodes.revision_unreadable")
+        : t("agents.nodes.revision_reading");
+  const subtitle = node_caption({ type: "workflow_call", title, summary: [name ? safe_text(name) : "", revision] }, t);
   const bindings = node_bindings(node);
   const rows = shape && shape.readable
     ? shape.inputs.map(({ key }) => ({ key, bound: bindings.some((binding) => binding && binding.name === key) }))
@@ -42,32 +47,16 @@ export default function WorkflowCallNode({ node, isDark }) {
 
   return (
     <div data-testid={`workflow-call-node-${node.id}`} style={{ width: 220 }}>
-      <PuzzleShape tabs={["right"]} cutouts={["left"]} isDark={isDark}>
-        <div style={{ padding: "13px 16px 10px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div
-              style={{
-                width: 28,
-                height: 28,
-                borderRadius: 9,
-                background: "linear-gradient(135deg, #7c8cf5, #4f5fd6)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
-              }}
-            >
-              <Icon src="flow_chart" color="#fff" style={{ width: 16, height: 16 }} />
-            </div>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 12.5, fontWeight: 600, color: text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {node_display_title(node, name ? safe_text(name) : t("agents.nodes.workflow_call"))}
-              </div>
-              <div data-testid={`workflow-call-node-${node.id}-revision`} style={{ fontSize: 10.5, color: muted, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {subtitle}
-              </div>
-            </div>
-          </div>
+      <PuzzleShape tabs={["right"]} cutouts={["left"]} anchor={NODE_PORT_ANCHOR} isDark={isDark}>
+        <NodeBody>
+          <NodeHeader
+            src="workflow"
+            tile={{ background: "#4f5fd6" }}
+            title={title}
+            subtitle={subtitle}
+            rename={rename}
+            subtitleProps={{ "data-testid": `workflow-call-node-${node.id}-revision` }}
+          />
           {(shown.length > 0 || (shape && shape.readable)) && (
             <div style={{ marginTop: 8, paddingTop: 6, borderTop: "1px solid var(--pupu-border-subtle)", display: "flex", flexDirection: "column", gap: 2 }}>
               {shown.map((row) => (
@@ -88,7 +77,7 @@ export default function WorkflowCallNode({ node, isDark }) {
               )}
             </div>
           )}
-        </div>
+        </NodeBody>
       </PuzzleShape>
     </div>
   );

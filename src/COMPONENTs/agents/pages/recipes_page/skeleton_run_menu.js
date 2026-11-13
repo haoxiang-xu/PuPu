@@ -1,7 +1,7 @@
 import { useTranslation } from "../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import React, { useEffect, useRef } from "react";
 import Button from "../../../../BUILTIN_COMPONENTs/input/button";
-import { ControlPopover } from "./canvas_chrome";
+import { ControlHint, ControlPopover } from "./canvas_chrome";
 import { can_preflight, preflight_message } from "./skeleton_resource_session";
 
 /* Run, in the control center (menu C of the unified design).
@@ -19,26 +19,27 @@ import { can_preflight, preflight_message } from "./skeleton_resource_session";
 
 export const RUN_UNAVAILABLE = "Running from here is not available yet. Start a chat with this Agent to run it.";
 
-export function RunTrigger({ open, onToggle }) {
+export function RunTrigger({ open, onToggle, testId }) {
   const { t } = useTranslation();
+  /* Icon only: a play triangle needs no word, the way Home needs none. The
+     name stays in the tooltip and for assistive tech. */
   return (
-    <Button
-      label={t("agents.run_menu.run")}
-      prefix_icon="play"
-      ariaLabel={t("agents.run_menu.open")}
-      onClick={onToggle}
-      style={{
-        fontSize: 12,
-        paddingVertical: 5,
-        paddingHorizontal: 12,
-        borderRadius: 7,
-        backgroundColor: "var(--pupu-accent)",
-        hoverBackgroundColor: "var(--pupu-accent)",
-        color: "#fff",
-        opacity: open ? 0.85 : 1,
-        content: { icon: { width: 11, height: 11 } },
-      }}
-    />
+    <ControlHint label={t("agents.run_menu.run")} testId={testId ? `${testId}-hint` : undefined}>
+      <Button
+        prefix_icon="play"
+        ariaLabel={t("agents.run_menu.open")}
+        onClick={onToggle}
+        dom_props={{ "data-testid": testId }}
+        style={{
+          fontSize: 12,
+          paddingVertical: 5,
+          paddingHorizontal: 8,
+          borderRadius: 7,
+          opacity: open ? 1 : 0.7,
+          content: { icon: { width: 13, height: 13 } },
+        }}
+      />
+    </ControlHint>
   );
 }
 

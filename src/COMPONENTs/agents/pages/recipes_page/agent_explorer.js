@@ -10,7 +10,6 @@ import Modal from "../../../../BUILTIN_COMPONENTs/modal/modal";
 import { emitSkeletonLibraryRefresh, subscribeSkeletonLibraryRefresh } from "../../../../SERVICEs/skeleton_library_refresh";
 import { createFolder, getFolderState, renameFolder } from "../../../../SERVICEs/agent_folder_storage";
 import {
-  RECIPE_SOURCE_SCOPE,
   applyResourceExplorerReorder,
   assignResourceToFolder,
   deleteFolderKeepingResources,
@@ -24,6 +23,13 @@ import { new_agent_document, new_workflow_document } from "./skeleton_graph_edit
 import { safe_text } from "./document_values";
 import { useAgentsSidebarSearch } from "../../../../SERVICEs/agents_sidebar_search";
 import ImportResourceModal from "./import_resource_modal";
+import AgentAvatar from "../../agent_avatar";
+import AgentIconPicker from "../../agent_icon_picker";
+import { PRESENTATION_SUPPORTED, usePresentationCapability } from "../../use_presentation_capability";
+import { normalize_presentation, presentation_to_store, set_presentation } from "../../../../SERVICEs/agent_resource_icons";
+import { writeResourcePresentation } from "../../../../SERVICEs/agent_resource_presentation_store";
+import { load_resource, save_draft } from "./skeleton_resources";
+import { toast } from "../../../../SERVICEs/toast";
 
 /* The Agents side menu: the original explorer, listing native Agents.
  *
@@ -35,19 +41,16 @@ import ImportResourceModal from "./import_resource_modal";
  * repeat).
  *
  * Legacy recipes are migrated into the store when the sidecar starts, so each
- * one already appears here as its own Agent. A recipe the store cannot resolve
- * to a migrated Agent is listed under "Not migrated" and still opens in the
- * old editor, so nothing is stranded. Resources, including historical
- * archived entries, leave the library through Delete. */
+ * one already appears here as its own Agent; this list shows only the store.
+ * (Their folder placement is carried over once, by alias.) Resources,
+ * including historical archived entries, leave the library through Delete. */
 
 const PENDING_ID = "__pending_agent__";
 const ROOT = "__root__";
 const FOLDER = "folder:";
 const RESOURCE = "resource:";
 const DRAFT = "draft:";
-const LEGACY = "legacy:";
 const ARCHIVED = "archived:";
-const LEGACY_GROUP = "group:not-migrated";
 const ARCHIVED_GROUP = "group:archived";
 const DEFAULT_NAME = "Default";
 const MUTED = "#888";
@@ -69,6 +72,24 @@ function readItems(answer) {
 }
 
 const ICON_BUTTON = HEADER_ICON_BUTTON;
+
+/* An Agent row's mark: its own icon from the stored summary, or the default
+   bot when the summary has none (an older resource, a draft), always in the
+   row's text colour. Workflows keep the flow glyph. */
+function avatarFor(item, overrides) {
+  if (!item || item.kind === "workflow") return undefined;
+  const id = typeof item.id === "string" ? item.id : "";
+  /* A choice made here shows at once, before the store has answered; it is
+     dropped again if the write fails, or once the re-read carries it. */
+  const presentation = overrides && hasOwn(overrides, id)
+    ? overrides[id]
+    : isRecord(item.presentation) ? item.presentation : null;
+  return (size) => (
+    /* No tile in the list: the row's own icon, in the row's colour. */
+    <AgentAvatar variant="glyph" presentation={presentation} size={size} glyphScale={1}
+      testid={`agent-explorer-avatar-${id}`} />
+  );
+}
 
 function ConfirmModal({ open, title, body, action, onClose, onConfirm, isDark }) {
   const { t } = useTranslation();
@@ -125,15 +146,37 @@ function ordered(saved, folderIds, resourceIds) {
   return out;
 }
 
+/* A side-menu action that failed is said once, as a toast, not as a line
+   pushed on top of the tree. The toast holds the message itself, not its
+   English rendering, so it re-translates with the window's language for as
+   long as it is shown. A later action of the menu replaces it, and a success
+   withdraws it. */
+function AgentToastText({ message }) {
+  const { t } = useTranslation();
+  return renderAgentMessage(message, t);
+}
+
+/* Rename and Duplicate rewrite the stored resource through the v2 aggregate,
+   the way the editor saves it. The graph-only v1 verbs refuse any resource
+   that owns Code text (`source_api_required`), and every resource the editor
+   has saved is such a resource — Default included — so they cannot be used
+   here. The Code text read with the graph goes back with it unchanged. */
+async function rewrite_resource(resource_id, change, expected_edit_token) {
+  const loaded = await load_resource(resource_id);
+  if (!loaded.ok) throw loaded.error;
+  const saved = await save_draft(change(loaded.data.document), expected_edit_token, loaded.data.managed_sources);
+  if (!saved.ok) throw saved.error;
+  return saved.data;
+}
+
+/* `recipes`, `activeLegacyName` and `onSelectLegacy` are still passed by the
+   page and are ignored: legacy recipes are not listed here. */
 export default function AgentExplorer({
-  recipes,
   activeId,
-  activeLegacyName,
   newDraft,
   activeDirty = false,
   autoSelectDefault = false,
   onSelect,
-  onSelectLegacy,
   onCreate,
   onActiveChanged,
   onCollapse,
@@ -157,18 +200,32 @@ export default function AgentExplorer({
   const searchQuery = docked ? sharedQuery : localQuery;
   const setSearchQuery = docked ? setSharedQuery : setLocalQuery;
   const [library, setLibrary] = useState({ status: "loading", items: [], error: null });
-  const [loads, setLoads] = useState(0); // successful library reads so far
-  const [legacyChecks, setLegacyChecks] = useState({ version: 0 });
   const [folderVersion, setFolderVersion] = useState(0);
   const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, node: null });
   const [renaming, setRenaming] = useState({ nodeId: null, value: "" });
   const [pending, setPending] = useState(null);
   const [confirm, setConfirm] = useState({ open: false, kind: null, node: null });
   const [importOpen, setImportOpen] = useState(false);
-  const [notice, setNotice] = useState("");
+  const noticeToastRef = useRef(null);
+  const setNotice = useCallback((message) => {
+    if (noticeToastRef.current) toast.dismiss(noticeToastRef.current);
+    noticeToastRef.current = null;
+    if (!message) return;
+    noticeToastRef.current = toast.error(<AgentToastText message={message} />, {
+      dedupeKey: `agent-explorer:${renderAgentMessage(message)}`,
+    });
+  }, []);
+  /* "Change icon…" on a row: the picker at the menu's position, for one
+     stored Agent. `value` is what was last chosen, shown until the library
+     re-read carries it. */
+  const [iconPicker, setIconPicker] = useState({ open: false, x: 0, y: 0, resourceId: null, value: null });
+  /* Choices written from here and not yet read back, by resource id. */
+  const [presentationOverrides, setPresentationOverrides] = useState(() => Object.create(null));
+  /* An Agent's icon is editable only on a runtime that stores it; otherwise
+     (or while that is being asked) there is no "Change icon…" at all. */
+  const iconsEditable = usePresentationCapability(true) === PRESENTATION_SUPPORTED;
   const requestRef = useRef(0);
   const aliveRef = useRef(true);
-  const resolvedRef = useRef(new Map()); // legacy name → "migrated" | "missing" | "unknown"
   const migrationRef = useRef(false);
   const autoSelectedRef = useRef(false);
 
@@ -196,8 +253,20 @@ export default function AgentExplorer({
         setLibrary({ status: "failed", items: [], error: answer.error });
         return;
       }
-      setLibrary({ status: "ready", items: readItems(answer), error: null });
-      setLoads((n) => n + 1);
+      const items = readItems(answer);
+      setLibrary({ status: "ready", items, error: null });
+      /* A choice made here is dropped once the store reads it back. */
+      setPresentationOverrides((current) => {
+        const ids = Object.keys(current);
+        if (ids.length === 0) return current;
+        const copy = Object.assign(Object.create(null), current);
+        ids.forEach((id) => {
+          const row = items.find((entry) => entry.id === id);
+          const read = row ? normalize_presentation(row.presentation) : null;
+          if (JSON.stringify(read) === JSON.stringify(copy[id])) delete copy[id];
+        });
+        return Object.keys(copy).length === ids.length ? current : copy;
+      });
     } catch (error) {
       if (!aliveRef.current || request !== requestRef.current) return;
       setLibrary({ status: "failed", items: [], error });
@@ -214,54 +283,6 @@ export default function AgentExplorer({
       unsubscribe();
     };
   }, [load]);
-
-  /* ── which legacy recipes have a migrated Agent ──────────────── */
-  const recipeNames = useMemo(
-    () => (Array.isArray(recipes) ? recipes : []).map((r) => r && r.name).filter((n) => typeof n === "string" && n),
-    [recipes],
-  );
-  /* Asked only after the library itself answered, and asked again after each
-     later answer for every recipe whose check failed: a sidecar that was
-     briefly unreachable must not leave a migrated recipe listed twice. */
-  useEffect(() => {
-    if (!resolveAvailable || loads === 0) return undefined;
-    let cancelled = false;
-    (async () => {
-      for (const name of recipeNames) {
-        const known = resolvedRef.current.get(name);
-        if (known === "migrated" || known === "missing") continue;
-        let verdict;
-        try {
-          const answer = await api.unchain.resolveSkeletonResource({ legacy_name: name, source_scope: RECIPE_SOURCE_SCOPE });
-          verdict = isRecord(answer) && typeof answer.id === "string" && answer.id ? "migrated" : "unknown";
-        } catch (error) {
-          /* Ambiguous means the store holds several Agents for this recipe:
-             it was migrated, and they are in the main tree already. */
-          const code = error && error.code;
-          verdict = code === "resource_missing" ? "missing" : code === "legacy_name_ambiguous" ? "migrated" : "unknown";
-        }
-        if (cancelled) return;
-        resolvedRef.current.set(name, verdict);
-        setLegacyChecks((v) => ({ version: v.version + 1 }));
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [recipeNames, resolveAvailable, loads]);
-
-  /* A recipe is listed as not migrated unless the store resolved it. While
-     the answer is outstanding it is not shown, so a migrated recipe does not
-     flash in twice. With no resolver, or no library to list the migrated
-     Agents, nothing can be proven and every recipe stays reachable here. */
-  const notMigrated = useMemo(() => {
-    if (!resolveAvailable || library.status === "unavailable") return recipeNames;
-    return recipeNames.filter((name) => {
-      const verdict = resolvedRef.current.get(name);
-      return verdict === "missing" || verdict === "unknown";
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recipeNames, resolveAvailable, library.status, legacyChecks]);
 
   /* ── carry the legacy folders over, once ─────────────────────── */
   useEffect(() => {
@@ -311,9 +332,10 @@ export default function AgentExplorer({
       const item = library.items.find((entry) => entry.id === id);
       if (!item || item.name === next) return;
       try {
-        await api.unchain.renameSkeletonResource(id, next, item.edit_token);
+        await rewrite_resource(id, (document) => ({ ...document, name: next }), item.edit_token);
         setNotice("");
         if (id === activeId) onActiveChanged?.({ type: "reload", id });
+        return; // the save announced itself; the listing re-reads on that
       } catch (error) {
         setNotice(
           error && error.code === "edit_conflict"
@@ -386,7 +408,7 @@ export default function AgentExplorer({
       for (let n = 2; loadedNames.has(name); n += 1) name = `${item.name} copy ${n}`;
       try {
         const id = freshAgentId();
-        await api.unchain.duplicateSkeletonResource(item.id, id, name);
+        await rewrite_resource(item.id, (document) => ({ ...document, id, name }), null);
         const folderId = placement.resourceFolder[item.id];
         if (folderId) assignResourceToFolder(id, folderId);
         refreshFolders();
@@ -402,6 +424,53 @@ export default function AgentExplorer({
     },
     [closeContextMenu, library.items, loadedNames, placement, refreshFolders, load, onSelect],
   );
+
+  const handleChangeIcon = useCallback((node) => {
+    const x = contextMenu.x;
+    const y = contextMenu.y;
+    closeContextMenu();
+    const item = library.items.find((entry) => entry.id === node.resource_id);
+    if (!item) return;
+    setIconPicker({ open: true, x, y, resourceId: item.id, value: isRecord(item.presentation) ? item.presentation : null });
+  }, [contextMenu.x, contextMenu.y, closeContextMenu, library.items]);
+
+  /* Saved at once: the row and the picker show the choice immediately, and
+     both go back to what is stored, with a toast, if the write fails. Writes
+     are numbered per resource so a slow, failed earlier write cannot roll
+     back a later choice. */
+  const presentationWrites = useRef(Object.create(null));
+  const handlePresentationChange = useCallback(async (next) => {
+    const id = iconPicker.resourceId;
+    if (!id) return;
+    const item = library.items.find((entry) => entry.id === id);
+    const stored = item && isRecord(item.presentation) ? item.presentation : null;
+    const value = presentation_to_store(next);
+    const ticket = (presentationWrites.current[id] || 0) + 1;
+    presentationWrites.current[id] = ticket;
+    setIconPicker((current) => (current.resourceId === id ? { ...current, value } : current));
+    setPresentationOverrides((current) => Object.assign(Object.create(null), current, { [id]: value }));
+    const answer = await set_presentation(id, value, { write: writeResourcePresentation });
+    if (!aliveRef.current || presentationWrites.current[id] !== ticket) return;
+    if (!answer.ok) {
+      setPresentationOverrides((current) => {
+        const copy = Object.assign(Object.create(null), current);
+        delete copy[id];
+        return copy;
+      });
+      setIconPicker((current) => (current.resourceId === id ? { ...current, value: stored } : current));
+      /* One plain message for every cause; the cause is for developers. */
+      console.warn("[agent-icons] icon write refused:", answer.code || "unknown");
+      setNotice(agentMessage("agents.explorer.icon_failed", { name: safe_text(item ? item.name : id) }));
+      return;
+    }
+    setNotice("");
+    if (id === activeId) onActiveChanged?.({ type: "reload", id });
+    /* The writer's save announces the library refresh; read again here too,
+       so a writer that does not still ends on what is stored. */
+    load();
+  }, [iconPicker.resourceId, library.items, activeId, onActiveChanged, setNotice, load]);
+
+  const closeIconPicker = useCallback(() => setIconPicker((current) => ({ ...current, open: false })), []);
 
   const handleDeleteResource = useCallback((node) => {
     closeContextMenu();
@@ -485,11 +554,12 @@ export default function AgentExplorer({
         resource_id: item.id,
         name: item.name,
         label: safe_text(item.name),
-        prefix_icon: item.kind === "workflow" ? "flow_chart" : "bot",
+        prefix_icon: item.kind === "workflow" ? "workflow" : "bot",
+        prefix_render: avatarFor(item, presentationOverrides),
         on_click: () => onSelect(item.id),
         on_context_menu: (storeNode, event) =>
           handleNodeContextMenu(
-            { ...storeNode, kind: "resource", resource_id: item.id, name: item.name, active: item.id === activeId, is_default: isDefault },
+            { ...storeNode, kind: "resource", resource_id: item.id, resource_kind: item.kind, name: item.name, active: item.id === activeId, is_default: isDefault },
             event,
           ),
       });
@@ -501,11 +571,12 @@ export default function AgentExplorer({
         resource_id: draftRow.id,
         name: draftRow.name,
         label: safe_text(draftRow.name),
-        prefix_icon: draftRow.kind === "workflow" ? "flow_chart" : "bot",
+        prefix_icon: draftRow.kind === "workflow" ? "workflow" : "bot",
+        prefix_render: avatarFor(draftRow, presentationOverrides),
         postfix: t("agents.explorer.unsaved"),
       });
     }
-    const pendingNode = () => ({ id: PENDING_ID, kind: "pending", label: "", prefix_icon: pending?.kind === "workflow" ? "flow_chart" : "bot" });
+    const pendingNode = () => ({ id: PENDING_ID, kind: "pending", label: "", prefix_icon: pending?.kind === "workflow" ? "workflow" : "bot" });
     const children = (parentId) => {
       const folderIds = parentId
         ? (folders[parentId].childFolderIds || []).filter((id) => hasOwn(folders, id))
@@ -539,7 +610,7 @@ export default function AgentExplorer({
       return ids;
     };
     return { data: map, root: children(null) };
-  }, [placement, active, draftRow, pending, activeId, onSelect, handleNodeContextMenu, t]);
+  }, [placement, active, draftRow, pending, activeId, onSelect, handleNodeContextMenu, t, presentationOverrides]);
 
   const decorated = useMemo(() => {
     const next = { ...data };
@@ -571,25 +642,10 @@ export default function AgentExplorer({
     return ids;
   }, [placement]);
 
-  /* ── the side groups: not migrated, archived ─────────────────── */
+  /* ── the side group: archived ─────────────────────────────────── */
   const side = useMemo(() => {
     const map = {};
     const rootIds = [];
-    if (notMigrated.length > 0) {
-      map[LEGACY_GROUP] = {
-        id: LEGACY_GROUP, type: "folder", label: t("agents.explorer.not_migrated"), prefix_icon: "folder_2",
-        children: notMigrated.map((name) => {
-          const id = `${LEGACY}${name}`;
-          map[id] = {
-            id, kind: "legacy", name, label: safe_text(name), prefix_icon: "bot", postfix: t("agents.explorer.old_editor"),
-            on_click: () => onSelectLegacy(name),
-            on_context_menu: (storeNode, event) => handleNodeContextMenu({ ...storeNode, kind: "legacy", name }, event),
-          };
-          return id;
-        }),
-      };
-      rootIds.push(LEGACY_GROUP);
-    }
     if (archived.length > 0) {
       map[ARCHIVED_GROUP] = {
         id: ARCHIVED_GROUP, type: "folder", label: t("agents.explorer.archived"), prefix_icon: "folder_2",
@@ -597,7 +653,8 @@ export default function AgentExplorer({
           const id = `${ARCHIVED}${item.id}`;
           map[id] = {
             id, kind: "archived", resource_id: item.id, name: item.name, label: safe_text(item.name),
-            prefix_icon: item.kind === "workflow" ? "flow_chart" : "bot",
+            prefix_icon: item.kind === "workflow" ? "workflow" : "bot",
+            prefix_render: avatarFor(item, presentationOverrides),
             on_click: () => onSelect(item.id),
             on_context_menu: (storeNode, event) =>
               handleNodeContextMenu({ ...storeNode, kind: "archived", resource_id: item.id, name: item.name }, event),
@@ -608,7 +665,7 @@ export default function AgentExplorer({
       rootIds.push(ARCHIVED_GROUP);
     }
     return { data: map, root: rootIds };
-  }, [notMigrated, archived, onSelect, onSelectLegacy, handleNodeContextMenu, t]);
+  }, [archived, onSelect, handleNodeContextMenu, t, presentationOverrides]);
 
   /* Preserve the delivered list search when the native library replaces the
      legacy list. Search is a flat view only; it never rewrites placement. */
@@ -636,26 +693,23 @@ export default function AgentExplorer({
         },
         onStartRename: handleStartRename,
         onDuplicate: handleDuplicate,
+        onChangeIcon: iconsEditable ? handleChangeIcon : undefined,
         onDeleteResource: handleDeleteResource,
         onDeleteFolder: handleDeleteFolder,
-        onOpenLegacy: (node) => {
-          closeContextMenu();
-          onSelectLegacy(node.name);
-        },
       }, t),
     [contextMenu.node, activeDirty, handleNewAgent, handleNewWorkflow, handleNewFolder, handleStartRename, handleDuplicate,
-      handleDeleteResource, handleDeleteFolder, closeContextMenu, onSelectLegacy, t],
+      handleChangeIcon, iconsEditable, handleDeleteResource, handleDeleteFolder, closeContextMenu, t],
   );
 
   const activeNodeId = draftRow && activeId === draftRow.id ? `${DRAFT}${activeId}` : activeId ? `${RESOURCE}${activeId}` : undefined;
-  const sideActive = activeLegacyName ? `${LEGACY}${activeLegacyName}` : activeId ? `${ARCHIVED}${activeId}` : undefined;
+  const sideActive = activeId ? `${ARCHIVED}${activeId}` : undefined;
   const caption = { fontSize: 11, color: MUTED, padding: "4px 10px", lineHeight: 1.45 };
 
   const actionButtons = (
     <>
       <Button prefix_icon="upload" ariaLabel={t("agents.explorer.import")} onClick={() => setImportOpen(true)} style={ICON_BUTTON} />
       <Button prefix_icon="folder_new" ariaLabel={t("agents.explorer.new_folder")} onClick={() => handleNewFolder(null)} style={ICON_BUTTON} />
-      <Button prefix_icon="flow_chart" ariaLabel={t("agents.explorer.new_workflow")} disabled={!canCreate} onClick={() => handleNewWorkflow(null)} style={ICON_BUTTON} />
+      <Button prefix_icon="workflow" ariaLabel={t("agents.explorer.new_workflow")} disabled={!canCreate} onClick={() => handleNewWorkflow(null)} style={ICON_BUTTON} />
       <Button prefix_icon="add" ariaLabel={t("agents.explorer.new_agent")} disabled={!canCreate} onClick={() => handleNewAgent(null)} style={ICON_BUTTON} />
     </>
   );
@@ -730,7 +784,6 @@ export default function AgentExplorer({
       {library.status === "ready" && active.length === 0 && !draftRow && !pending && (
         <span data-testid="agent-explorer-empty" style={caption}>{t("agents.explorer.empty")}</span>
       )}
-      {notice && <span role="alert" style={{ ...caption, color: isDark ? "rgba(255,140,140,0.95)" : "rgba(176,32,32,0.95)" }}>{renderAgentMessage(notice, t)}</span>}
 
       <div className="scrollable" data-testid="agent-explorer-list" aria-hidden={locked ? true : undefined} style={{ flex: 1, minHeight: 0, overflowY: "auto", opacity: locked ? 0.35 : 1, pointerEvents: locked ? "none" : undefined, transition: "opacity 0.25s ease" }} onContextMenu={handleBackgroundContextMenu}>
         {filtered && filtered.root.length === 0 && <span style={caption}>{t("agents.explorer.no_results")}</span>}
@@ -749,21 +802,26 @@ export default function AgentExplorer({
             <Explorer
               data={side.data}
               root={side.root}
-              default_expanded={notMigrated.length > 0 ? [LEGACY_GROUP] : []}
+              default_expanded={[]}
               active_node_id={sideActive}
               context_menu_node_id={contextMenu.visible ? contextMenu.node?.id : undefined}
               style={{ width: "100%", fontSize: 13 }}
             />
-            {notMigrated.length > 0 && (
-              <span style={{ ...caption, display: "block" }}>
-                {t("agents.explorer.not_migrated_description")}
-              </span>
-            )}
           </div>
         )}
       </div>
 
       <ContextMenu visible={contextMenu.visible} x={contextMenu.x} y={contextMenu.y} items={menuItems} onClose={closeContextMenu} isDark={isDark} />
+
+      <AgentIconPicker
+        open={iconPicker.open}
+        anchor={{ x: iconPicker.x, y: iconPicker.y }}
+        value={iconPicker.value}
+        onChange={handlePresentationChange}
+        onClose={closeIconPicker}
+        isDark={isDark}
+        testid="agent-explorer-icon-picker"
+      />
 
       {/* Its own sitting: what it reads and chooses is nothing until Import,
           and closing it voids every answer still on its way. */}

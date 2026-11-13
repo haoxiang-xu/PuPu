@@ -189,10 +189,15 @@ export default function useSkeletonResource() {
      including earlier commands in the same React batch. The issued sitting
      belongs to the view that offered the command; a late view cannot edit a
      newly opened copy of the same resource. */
-  const editCurrent = useCallback((issued, transform) => apply((current) => {
+  /* `typed`, when given, is read after the transform: Code text the command
+     added (a new Code node's starter, #357 G1), joining the table the way a
+     typed edit's does. */
+  const editCurrent = useCallback((issued, transform, typed = null) => apply((current) => {
     if (!same_open(current, issued) || current.status !== "ready" || !current.document) return current;
     const next = transform(current);
-    return next && next !== current.document ? edited(current, next, record()) : current;
+    return next && next !== current.document
+      ? edited(current, next, { ...record(), sources: typed ? typed() : null })
+      : current;
   }), [apply, record]);
 
   const save = useCallback(async () => {

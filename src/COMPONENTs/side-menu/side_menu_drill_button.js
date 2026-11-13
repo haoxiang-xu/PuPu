@@ -1,63 +1,26 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useState } from "react";
 import Button from "../../BUILTIN_COMPONENTs/input/button";
-import { ArrowHoverShape } from "./side_menu_breadcrumb";
+import useReducedMotion from "../../BUILTIN_COMPONENTs/mini_react/use_reduced_motion";
 
 /**
- * A side menu entry that drills into a pane of its own (Agents). Same icon,
- * label and type as the entries around it, but its block is the
- * breadcrumb's Home block: square on the left, pointed on the right — the
- * shape says "this goes one level in", so it needs no › after the label.
+ * A normal side menu button with an arrow that slides in on hover to show
+ * that this entry opens the next pane. The label stays in place.
  */
-export default function SideMenuDrillButton({ icon, label, onClick, isDark, testId }) {
-  const ref = useRef(null);
-  const [box, setBox] = useState({ width: 0, height: 0 });
+export default function SideMenuDrillButton({ icon, label, onClick, testId }) {
   const [hovered, setHovered] = useState(false);
-  const [pressed, setPressed] = useState(false);
-
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return undefined;
-    const measure = () => {
-      const rect = el.getBoundingClientRect();
-      setBox((prev) =>
-        prev.width === rect.width && prev.height === rect.height
-          ? prev
-          : { width: rect.width, height: rect.height },
-      );
-    };
-    measure();
-    if (typeof ResizeObserver === "undefined") return undefined;
-    const observer = new ResizeObserver(measure);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
+  const reducedMotion = useReducedMotion();
 
   return (
     <div
-      ref={ref}
       data-testid={testId}
       style={{ position: "relative", marginBottom: 2, flexShrink: 0 }}
       onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => {
-        setHovered(false);
-        setPressed(false);
-      }}
-      onMouseDown={() => setPressed(true)}
-      onMouseUp={() => setPressed(false)}
+      onMouseLeave={() => setHovered(false)}
     >
-      <ArrowHoverShape
-        width={box.width}
-        height={box.height}
-        notch={false}
-        point
-        hovered={hovered}
-        pressed={pressed}
-        isDark={isDark}
-        testId={testId ? `${testId}-shape` : undefined}
-      />
       <Button
         prefix_icon={icon}
         label={label}
+        postfix_icon="arrow_right"
         onClick={onClick}
         style={{
           position: "relative",
@@ -65,12 +28,24 @@ export default function SideMenuDrillButton({ icon, label, onClick, isDark, test
           justifyContent: "flex-start",
           fontSize: 14,
           padding: "5px 8px",
+          paddingRight: 32,
           borderRadius: 6,
+          overflow: "hidden",
           WebkitAppRegion: "no-drag",
           iconSize: 16,
-          /* The arrow behind is the hover; the button's own box is not. */
-          hoverBackgroundColor: "transparent",
-          activeBackgroundColor: "transparent",
+          content: {
+            postfixIconWrap: {
+              position: "absolute",
+              top: "50%",
+              right: 8,
+              opacity: hovered ? 1 : 0,
+              transform: `translate(${hovered ? 0 : 24}px, -50%)`,
+              transition: reducedMotion
+                ? "none"
+                : "transform 180ms cubic-bezier(0.2, 0.9, 0.3, 1), opacity 140ms ease",
+              pointerEvents: "none",
+            },
+          },
         }}
       />
     </div>

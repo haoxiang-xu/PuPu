@@ -1,6 +1,7 @@
 import React from "react";
 import { install_legacy_store_bridge } from "./recipes_page/legacy_store_test_bridge";
-import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
+import { screen, fireEvent, waitFor, within } from "@testing-library/react";
+import { render } from "./drill_trail_test_helpers";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import { api } from "../../../SERVICEs/api";
 import SkeletonResourcePage from "./skeleton_resource_page";
@@ -46,9 +47,8 @@ beforeEach(() => {
 });
 afterEach(() => jest.restoreAllMocks());
 
-/* The embedded Agent is the last choice under the pool's one "add" control. */
+/* The embedded Agent is made from the button that heads the pool's library. */
 function add_embedded() {
-  fireEvent.click(screen.getByRole("button", { name: "+ Add an Agent", exact: true }));
   fireEvent.click(screen.getByRole("button", { name: "New embedded Agent", exact: true }));
 }
 
@@ -58,7 +58,7 @@ test("create an embedded Agent, open and edit it, then save only the owning reso
   expect(api.unchain.saveSkeletonResource).not.toHaveBeenCalled();
   expect(screen.getByRole("button", { name: "Open New Agent", exact: true })).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Open New Agent", exact: true }));
-  expect(screen.getByTestId("skeleton-drill-crumbs")).toHaveTextContent("New Agent");
+  expect(screen.getByTestId("side-menu-breadcrumb")).toHaveTextContent("New Agent");
   await chooseModel();
   fireEvent.change(screen.getByPlaceholderText("what this Agent is for"), { target: { value: "Child's own prompt" } });
   const payload = await save();
@@ -70,7 +70,7 @@ test("create an embedded Agent, open and edit it, then save only the owning reso
   expect(entry.source.document.nodes[1].config.kernel.prompt).toBe("Child's own prompt");
   expect(payload.document.nodes[1].config.kernel).toBeUndefined();
   expect(api.unchain.getSkeletonResource).toBeUndefined();
-  expect(screen.getByTestId("skeleton-drill-crumbs")).toHaveTextContent("New Agent");
+  expect(screen.getByTestId("side-menu-breadcrumb")).toHaveTextContent("New Agent");
   if (process.env.NATIVE_EMBEDDED_PAYLOAD_PATH) require("fs").writeFileSync(process.env.NATIVE_EMBEDDED_PAYLOAD_PATH, JSON.stringify(payload, null, 2) + "\n");
 });
 
@@ -92,7 +92,7 @@ test("two locally-created children keep separate graphs and nested creation save
   expect(after[1].source.document.nodes.at(-1).config.subagents).toHaveLength(1);
   expect(payload.expected_edit_token).toBe("embedded-saved");
   expect(payload.document.id).toBe(draft.id);
-  expect(screen.getByTestId("skeleton-drill-crumbs")).toHaveTextContent("New Agent 2");
+  expect(screen.getByTestId("side-menu-breadcrumb")).toHaveTextContent("New Agent 2");
 });
 
 test("a drilled child checks ancestor graph ids supplied by the owning page", async () => {

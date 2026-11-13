@@ -94,10 +94,16 @@ const save = async () => {
 };
 const nodeOf = (document, id) => document.nodes.find((node) => node.id === id);
 const edgeSet = (document) => document.edges.map((edge) => `${edge.source_node_id}.${edge.source_port_id}>${edge.target_node_id}.${edge.target_port_id}`).sort();
+/* A step's output row is the shared variable pill: what it passes on is
+   typed as a path (`result.<field>`), offered as you type. */
+const typePath = (container, text) => {
+  const box = within(container).getByRole("textbox", { name: /^(?!name$).+/ });
+  fireEvent.change(box, { target: { value: text } });
+  fireEvent.keyDown(box, { key: "Enter" });
+};
 const addOutput = (row, root, name) => {
   fireEvent.click(screen.getByRole("button", { name: "+ Add output", exact: true }));
-  choose(screen.getByTestId(`output-row-${row}`), "Result", 0);
-  choose(screen.getByTestId(`output-row-${row}`), root, 1);
+  typePath(screen.getByTestId(`output-row-${row}`), `result.${root}`);
   fireEvent.change(within(screen.getByTestId(`output-row-${row}`)).getByPlaceholderText("name"), { target: { value: name } });
 };
 const pickNotes = async () => {
@@ -141,7 +147,7 @@ test("Skill Read: add, pick, preview, map content and name, feed the router, sav
   deleteEdge("a");
   await add("skill_read");
   await screen.findByTestId("skill-read-section");
-  expect(screen.getByTestId("skill-read-node-skill")).toHaveTextContent("Skill read · pick a skill");
+  expect(screen.getByTestId("skill-read-node-skill")).toHaveTextContent(/^Skill read\s*pick a skill$/);
   drag("start", "out", "skill", "in");
   drag("skill", "out", "router", "in");
   await pickNotes();

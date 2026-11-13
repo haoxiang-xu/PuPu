@@ -270,6 +270,27 @@ class SkeletonResourceStore:
             "source_identity": row["source_identity"],
         }
 
+    @staticmethod
+    def _presentation(row: sqlite3.Row) -> dict[str, Any] | None:
+        """BC-AP-003: the stored document's display-only presentation, or None.
+
+        Derived from ``draft_json`` (no column, no migration). The document was
+        admitted by unchain's CLOSED validator when it was stored, so this only
+        projects it; a row without the key -- every row written before the
+        feature, legacy and managed rows included -- reads as None. It is kept
+        out of ``_summary`` and the single-resource reads because the managed
+        aggregate, import, legacy-upgrade and v1 get/resolve answers are
+        exact-key-set contracts compared against each other; those carry the
+        value only inside ``document``. Only the listing (which has no
+        document) projects it.
+        """
+        try:
+            document = json.loads(row["draft_json"])
+        except (TypeError, ValueError):
+            return None
+        value = document.get("presentation") if type(document) is dict else None
+        return deepcopy(value) if type(value) is dict else None
+
     def list_resources(self, *, include_archived: bool = True) -> list[dict[str, Any]]:
         clause = "" if include_archived else " WHERE archived=0"
         with self._connect() as connection:
@@ -279,6 +300,7 @@ class SkeletonResourceStore:
             result = []
             for row in rows:
                 summary = self._summary(row)
+                summary["presentation"] = self._presentation(row)
                 if row["kind"] == "workflow":
                     summary["published_revisions"] = connection.execute(
                         "SELECT count(*) AS count FROM workflow_versions WHERE workflow_id=?",

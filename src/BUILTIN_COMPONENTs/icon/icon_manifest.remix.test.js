@@ -1,7 +1,7 @@
 import { UISVGs } from "./icon_manifest";
 import { render } from "@testing-library/react";
 
-const ADDED = ["branch","switch_case","book_open","flow_chart","anchor","draggable","forbid","hand","loader","subagent_pool","toolkit_pool","home_door"];
+const ADDED = ["branch","switch_case","book_open","flow_chart","anchor","draggable","forbid","hand","loader","subagent_pool","toolkit_pool","home_door","external_link","workflow","switch_node","locate_start"];
 
 describe("icons added from Remix Icon", () => {
   test.each(ADDED)("%s renders a square svg with at least one path", (name) => {

@@ -361,8 +361,8 @@ def test_actual_producer_is_admitted_by_independent_consumer_without_parser(monk
     manifest = runtime_protocol.runtime_protocol_manifest()
     assert "skeleton_execution" in {item["id"] for item in manifest["protocols"]}
     assert _skeleton_protocol(manifest) == {
-        "id": "skeleton_execution", "major": 1, "minor": 8,
-        "features": sorted([*BASELINE_FEATURES, "kernel_profile_auth_v1", "hook_enable_v1", "hook_tool_set_v1", "hook_embedded_workflow_v1", "node_display_label_v1"])}
+        "id": "skeleton_execution", "major": 1, "minor": 9,
+        "features": sorted([*BASELINE_FEATURES, "kernel_profile_auth_v1", "hook_enable_v1", "hook_tool_set_v1", "hook_embedded_workflow_v1", "node_display_label_v1", "document_presentation_v1"])}
     assert _signed(manifest) == manifest
     parser_calls = []
 

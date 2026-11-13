@@ -28,7 +28,8 @@ import {
   with_argument,
   with_tool_settings,
 } from "../tool_call_config";
-import { CAPTION_TEXT } from "./panel_style";
+import { addButtonStyle, note, problem as problemOf, Region } from "./panel_style";
+import { Block } from "./process_timeline";
 
 /* A Tool Call node: one tool, the arguments you fix, and what happens when it
  * fails (#352). Every rule here is the fixed runtime's (see `tool_call_config`):
@@ -45,23 +46,16 @@ import { CAPTION_TEXT } from "./panel_style";
  *   - the error policy and the approval wait are required by the runtime and
  *     never chosen for the author. */
 
-const LABEL = CAPTION_TEXT;
-const NOTE = { fontSize: 11.5, color: "#86868b", lineHeight: 1.45 };
 const MONO = { fontFamily: "ui-monospace, Menlo, monospace" };
 const ROW = { display: "flex", alignItems: "center", gap: 6 };
-const FIELD = { width: "100%", fontSize: 12, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 8 };
-const problem_style = (isDark) => ({
-  fontSize: 11.5,
-  lineHeight: 1.45,
-  color: isDark ? "rgba(255,140,140,0.95)" : "rgba(176,32,32,0.95)",
-});
+const FIELD = { width: "100%", fontSize: 12, paddingVertical: 4, paddingHorizontal: 6 };
+/* An argument row inside the Arguments region brings its own padding. */
+const ARGUMENT_ROW_PAD = { padding: "8px 10px 8px 11px", minWidth: 0 };
+/* A text action that sits in a row beside what it removes. */
+const inRowButtonStyle = (isDark) => ({ ...addButtonStyle(isDark), alignSelf: "center", flexShrink: 0 });
 const KEY = "\u0000";
 
 const record = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
-
-function Divider({ isDark }) {
-  return <div aria-hidden="true" style={{ height: 6 }} />;
-}
 
 function type_hint(row, t = agentEnglishText) {
   const parts = [row.type || t("agents.execution.tool.any_value")];
@@ -116,7 +110,7 @@ function LiteralField({ row, binding, onSet, editable, isDark, testid }) {
         style={FIELD}
       />
       {parsed && !parsed.ok && (
-        <span data-testid={`${testid}-problem`} style={problem_style(isDark)}>
+        <span data-testid={`${testid}-problem`} style={problemOf(isDark)}>
           {t("agents.execution.tool.pending_literal", { problem: parsed.problem })}
         </span>
       )}
@@ -145,7 +139,7 @@ export function ArgumentRow({ row, sources, toolName, editable, onSet, isDark })
       <div style={{ ...ROW, justifyContent: "space-between" }}>
         <span style={{ ...MONO, fontSize: 11.5 }}>
           {row.name}
-          {row.required && <span aria-label={t("agents.schema.required")} style={{ color: problem_style(isDark).color, marginLeft: 3 }}>*</span>}
+          {row.required && <span aria-label={t("agents.schema.required")} style={{ color: problemOf(isDark).color, marginLeft: 3 }}>*</span>}
         </span>
         <PanelHelp label={row.name}>
           {type_hint(row, t)}{row.description ? ` — ${row.description}` : ""}
@@ -156,14 +150,14 @@ export function ArgumentRow({ row, sources, toolName, editable, onSet, isDark })
             value={mode}
             on_change={setMode}
             disabled={!editable}
-            style={{ fontSize: 12, padding: 2, borderRadius: 8 }}
+            style={{ fontSize: 12, padding: 2 }}
             button_style={{ height: 22, padding: "0 9px", fontWeight: 500 }}
           />
         </span>
       </div>
 
       {mode === null && (
-        <span data-testid={`${testid}-unset`} style={row.required ? problem_style(isDark) : NOTE}>
+        <span data-testid={`${testid}-unset`} style={row.required ? problemOf(isDark) : note(isDark)}>
           {row.required ? t("agents.execution.tool.required_unset", { toolName: toolName }) : t("agents.execution.tool.unset_default", { toolName: toolName })}
         </span>
       )}
@@ -194,7 +188,7 @@ export function ArgumentRow({ row, sources, toolName, editable, onSet, isDark })
           several sources, which neither editor composes, or a ref the picker
           cannot read. */}
       {binding && ((mode === "value" && kind !== "literal") || (mode === "variable" && !picked)) && (
-        <span data-testid={`${testid}-kept`} style={NOTE}>
+        <span data-testid={`${testid}-kept`} style={note(isDark)}>
           {t("agents.execution.tool.stored_value", { value: "{value}" }).split(/(\{value\})/g).map((part, index) => ({ __proto__: null, "{value}": (<span key={index} style={MONO}>{safe_text(expression_summary(binding.value, t))}</span>) }[part] || part))}
         </span>
       )}
@@ -214,7 +208,7 @@ export function ArgumentRow({ row, sources, toolName, editable, onSet, isDark })
               setMode(null);
               onSet(null);
             }}
-            style={{ fontSize: 11.5, paddingVertical: 2, paddingHorizontal: 6, borderRadius: 8, opacity: 0.75 }}
+            style={addButtonStyle(isDark)}
           />
         </span>
       )}
@@ -319,15 +313,69 @@ export default function ToolCallSection({ document, node, isDark, onChange }) {
   const pendingSeconds = usePendingText(seconds === null ? "" : String(seconds), `tool-call-approval-${node.id}`);
 
   return (
-    <section data-testid="tool-call-section" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+    <section data-testid="tool-call-section" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {!editable && (
-        <div style={problem_style(isDark)}>
+        <div style={problemOf(isDark)}>
           {!unique ? t("agents.execution.read_only.duplicate_ids") : t("agents.execution.read_only.stored")}
         </div>
       )}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <span style={LABEL}>{t("agents.execution.tool.tool")}</span>
+      <div data-testid="tool-call-arguments" style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+      <Block section="tool-call-arguments" title={t("agents.execution.tool.arguments")} isDark={isDark}>
+        {!name && <span style={note(isDark)}>{t("agents.execution.tool.pick_before_arguments")}</span>}
+        {name && home && schemas.status === "loading" && <span style={note(isDark)}>{t("agents.execution.tool.reading_arguments", { tool: name })}</span>}
+        {name && home && schemas.status === "error" && (
+          <span data-testid="tool-call-schema-error" style={problemOf(isDark)}>
+            {safe_text((schemas.error && schemas.error.message) || t("agents.execution.tool.arguments_failed"))}{" "}
+            <Button label={t("agents.explorer.try_again")} onClick={reloadSchemas} style={{ fontSize: 11.5, paddingVertical: 1, paddingHorizontal: 6 }} />
+          </span>
+        )}
+        {name && home && schemas.status === "ready" && !schema && (
+          <span style={problemOf(isDark)}>{t("agents.execution.tool.no_schema", { tool: name })}</span>
+        )}
+        {name && !home && library.status === "ready" && (
+          <span style={problemOf(isDark)}>
+            {homes.length > 1 ? t("agents.execution.tool.ambiguous_arguments", { name }) : t("agents.execution.tool.unlisted_arguments", { name })}
+          </span>
+        )}
+        {schema && layout.readable && layout.rows.length === 0 && <span style={note(isDark)}>{t("agents.execution.tool.no_arguments", { tool: name })}</span>}
+        <Region isDark={isDark}>
+        {schema && layout.rows.map((row) => (
+          <div key={row.name} style={ARGUMENT_ROW_PAD}>
+            <ArgumentRow
+              row={row}
+              sources={sources}
+              toolName={name}
+              editable={editable}
+              isDark={isDark}
+              onSet={(binding) => commit(with_argument(document, node.id, row.name, binding, order))}
+            />
+          </div>
+        ))}
+        {layout.extras.map(({ binding, index }) => {
+          const extraName = record(binding) && typeof binding.name === "string" ? binding.name : "";
+          return (
+            <div key={`extra-${index}`} data-testid={`tool-call-extra-${index}`} style={{ ...ROW, ...ARGUMENT_ROW_PAD, justifyContent: "space-between" }}>
+              <span style={problemOf(isDark)}>
+                {schema ? t("agents.execution.tool.extra_argument", { argument: "{argument}", tool: "{tool}" }).split(/(\{argument\}|\{tool\})/g).map((part, index) => ({ __proto__: null, "{argument}": (<span key={index} style={MONO}>{safe_text(extraName) || t("agents.execution.tool.unnamed")}</span>), "{tool}": name }[part] || part)) : t("agents.execution.tool.stored_argument", { argument: "{argument}" }).split(/(\{argument\})/g).map((part, index) => ({ __proto__: null, "{argument}": (<span key={index} style={MONO}>{safe_text(extraName) || t("agents.execution.tool.unnamed")}</span>), "{tool}": name }[part] || part))}
+              </span>
+              {schema && (
+                <Button
+                  label={t("agents.execution.tool.remove")}
+                  ariaLabel={t("agents.execution.tool.remove_stored_argument", { extraName: extraName })}
+                  disabled={!editable}
+                  onClick={() => commit(with_argument(document, node.id, extraName, null, order))}
+                  style={inRowButtonStyle(isDark)}
+                />
+              )}
+            </div>
+          );
+        })}
+        </Region>
+      </Block>
+      </div>
+
+      <Block section="tool-call-tool" title={t("agents.execution.tool.tool")} isDark={isDark}>
         <span data-testid="tool-call-picker">
           <Select
             options={options}
@@ -344,111 +392,49 @@ export default function ToolCallSection({ document, node, isDark, onChange }) {
           />
         </span>
         {library.status === "error" && (
-          <span data-testid="tool-call-library-error" style={problem_style(isDark)}>{t("agents.execution.tool.library_failed")}<Button label={t("agents.explorer.try_again")} onClick={reloadLibrary} style={{ fontSize: 11.5, paddingVertical: 1, paddingHorizontal: 6 }} />
+          <span data-testid="tool-call-library-error" style={problemOf(isDark)}>{t("agents.execution.tool.library_failed")}<Button label={t("agents.explorer.try_again")} onClick={reloadLibrary} style={{ fontSize: 11.5, paddingVertical: 1, paddingHorizontal: 6 }} />
           </span>
         )}
-        {listed && listed.description && <span style={NOTE}>{listed.description}</span>}
+        {listed && listed.description && <span style={note(isDark)}>{listed.description}</span>}
         {listed && (
-          <span data-testid="tool-call-confirmation" style={NOTE}>
+          <span data-testid="tool-call-confirmation" style={note(isDark)}>
             {listed.requiresConfirmation
               ? t("agents.execution.tool.approval_required_note")
               : t("agents.execution.tool.no_approval_note")}
           </span>
         )}
         {home && tool_availability(document, name, home.toolkitId) === "chat_only" && (
-          <span data-testid="tool-call-availability" style={NOTE}>
+          <span data-testid="tool-call-availability" style={note(isDark)}>
             {t("agents.execution.tool.chat_only", { toolkit: home.toolkitName || home.toolkitId })}
           </span>
         )}
-      </div>
+      </Block>
 
-      <Divider isDark={isDark} />
-
-      <div data-testid="tool-call-arguments" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        <span style={LABEL}>{t("agents.execution.tool.arguments")}</span>
-        {!name && <span style={NOTE}>{t("agents.execution.tool.pick_before_arguments")}</span>}
-        {name && home && schemas.status === "loading" && <span style={NOTE}>{t("agents.execution.tool.reading_arguments", { tool: name })}</span>}
-        {name && home && schemas.status === "error" && (
-          <span data-testid="tool-call-schema-error" style={problem_style(isDark)}>
-            {safe_text((schemas.error && schemas.error.message) || t("agents.execution.tool.arguments_failed"))}{" "}
-            <Button label={t("agents.explorer.try_again")} onClick={reloadSchemas} style={{ fontSize: 11.5, paddingVertical: 1, paddingHorizontal: 6 }} />
-          </span>
-        )}
-        {name && home && schemas.status === "ready" && !schema && (
-          <span style={problem_style(isDark)}>{t("agents.execution.tool.no_schema", { tool: name })}</span>
-        )}
-        {name && !home && library.status === "ready" && (
-          <span style={problem_style(isDark)}>
-            {homes.length > 1 ? t("agents.execution.tool.ambiguous_arguments", { name }) : t("agents.execution.tool.unlisted_arguments", { name })}
-          </span>
-        )}
-        {schema && layout.readable && layout.rows.length === 0 && <span style={NOTE}>{t("agents.execution.tool.no_arguments", { tool: name })}</span>}
-        {schema && layout.rows.map((row) => (
-          <ArgumentRow
-            key={row.name}
-            row={row}
-            sources={sources}
-            toolName={name}
-            editable={editable}
-            isDark={isDark}
-            onSet={(binding) => commit(with_argument(document, node.id, row.name, binding, order))}
-          />
-        ))}
-        {layout.extras.map(({ binding, index }) => {
-          const extraName = record(binding) && typeof binding.name === "string" ? binding.name : "";
-          return (
-            <div key={`extra-${index}`} data-testid={`tool-call-extra-${index}`} style={{ ...ROW, justifyContent: "space-between" }}>
-              <span style={problem_style(isDark)}>
-                {schema ? t("agents.execution.tool.extra_argument", { argument: "{argument}", tool: "{tool}" }).split(/(\{argument\}|\{tool\})/g).map((part, index) => ({ __proto__: null, "{argument}": (<span key={index} style={MONO}>{safe_text(extraName) || t("agents.execution.tool.unnamed")}</span>), "{tool}": name }[part] || part)) : t("agents.execution.tool.stored_argument", { argument: "{argument}" }).split(/(\{argument\})/g).map((part, index) => ({ __proto__: null, "{argument}": (<span key={index} style={MONO}>{safe_text(extraName) || t("agents.execution.tool.unnamed")}</span>), "{tool}": name }[part] || part))}
-              </span>
-              {schema && (
-                <Button
-                  label={t("agents.execution.tool.remove")}
-                  ariaLabel={t("agents.execution.tool.remove_stored_argument", { extraName: extraName })}
-                  disabled={!editable}
-                  onClick={() => commit(with_argument(document, node.id, extraName, null, order))}
-                  style={{ fontSize: 11.5, paddingVertical: 2, paddingHorizontal: 6, borderRadius: 8 }}
-                />
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      <Divider isDark={isDark} />
-
-      <div data-testid="tool-call-on-error" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-          <span style={LABEL}>{t("agents.execution.tool.on_error")}</span>
-          <PanelHelp label={t("agents.execution.tool.on_error")}>
-            <span data-testid="tool-call-on-error-note" style={NOTE}>
+      <div data-testid="tool-call-on-error" style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+      <Block section="tool-call-on-error" title={t("agents.execution.tool.on_error")} isDark={isDark} help={
+            <span data-testid="tool-call-on-error-note" style={note(isDark)}>
               {t("agents.execution.tool.error_contract", { ok: "{ok}", error: "{error}", denied: "{denied}", tool_error: "{tool_error}", result: "{result}", tool_failed: "{tool_failed}" }).split(/(\{ok\}|\{error\}|\{denied\}|\{tool_error\}|\{result\}|\{tool_failed\})/g).map((part, index) => ({ __proto__: null, "{ok}": (<span key={index} style={MONO}>ok</span>), "{error}": (<span key={index} style={MONO}>error</span>), "{denied}": (<span key={index} style={MONO}>denied</span>), "{tool_error}": (<span key={index} style={MONO}>tool_error</span>), "{result}": (<span key={index} style={MONO}>result</span>), "{tool_failed}": (<span key={index} style={MONO}>tool_failed</span>) }[part] || part))}
             </span>
-          </PanelHelp>
-        </div>
+      }>
         <span style={{ opacity: editable && name ? 1 : 0.5, pointerEvents: editable && name ? "auto" : "none" }}>
           <SegmentedButton
             options={ON_ERROR_CHOICES.map((choice) => ({ ...choice, label: choice.value === "stop" ? t("agents.execution.tool.fail_run") : t("agents.execution.tool.continue") }))}
             value={tool?.on_error ?? null}
             on_change={(value) => setTool({ ...(tool || {}), on_error: value })}
             disabled={!editable || !name}
-            style={{ fontSize: 12, padding: 2, borderRadius: 8 }}
+            style={{ fontSize: 12, padding: 2 }}
             button_style={{ height: 22, padding: "0 9px", fontWeight: 500 }}
           />
         </span>
         {/* The runtime's own rule, measured (steps-352/qualify-a1/measure-results):
             a result object with `ok: false` or a non-null `error` is a failure,
             as is a denied approval; returned text never is, whatever it says. */}
-
+      </Block>
       </div>
 
-      <div data-testid="tool-call-approval" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-          <span style={LABEL}>{t("agents.execution.tool.approval_wait")}</span>
-          <PanelHelp label={t("agents.execution.tool.approval_wait")}>
-            <span style={NOTE}>{t("agents.execution.tool.approval_limit_note")}</span>
-          </PanelHelp>
-        </div>
+      <div data-testid="tool-call-approval" style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+      <Block section="tool-call-approval" title={t("agents.execution.tool.approval_wait")} isDark={isDark}
+        help={<span style={note(isDark)}>{t("agents.execution.tool.approval_limit_note")}</span>}>
         <div style={ROW}>
           <Input
             value={pendingSeconds.text !== null ? pendingSeconds.text : seconds === null ? "" : String(seconds)}
@@ -466,17 +452,17 @@ export default function ToolCallSection({ document, node, isDark, onChange }) {
             }}
             style={{ ...FIELD, width: 120 }}
           />
-          <span style={NOTE}>{t("agents.execution.tool.seconds")}</span>
+          <span style={note(isDark)}>{t("agents.execution.tool.seconds")}</span>
         </div>
         {pendingSeconds.text !== null && (
-          <span data-testid="tool-call-approval-problem" style={problem_style(isDark)}>{t("agents.execution.tool.pending_approval_wait")}</span>
+          <span data-testid="tool-call-approval-problem" style={problemOf(isDark)}>{t("agents.execution.tool.pending_approval_wait")}</span>
         )}
-
+      </Block>
       </div>
 
       {extras_keys.map((key) => (
         <div key={key} data-testid={`tool-call-setting-${key}`} style={{ ...ROW, justifyContent: "space-between" }}>
-          <span style={problem_style(isDark)}>{t("agents.execution.tool.unsupported_setting", { key: safe_text(key) })}</span>
+          <span style={problemOf(isDark)}>{t("agents.execution.tool.unsupported_setting", { key: safe_text(key) })}</span>
           <Button
             label={t("agents.execution.tool.remove_setting")}
             ariaLabel={t("agents.execution.tool.remove_setting_key", { key: key })}
@@ -486,7 +472,7 @@ export default function ToolCallSection({ document, node, isDark, onChange }) {
               delete next[key];
               setTool(next);
             }}
-            style={{ fontSize: 11.5, paddingVertical: 2, paddingHorizontal: 6, borderRadius: 8 }}
+            style={inRowButtonStyle(isDark)}
           />
         </div>
       ))}
@@ -494,7 +480,7 @@ export default function ToolCallSection({ document, node, isDark, onChange }) {
       {problems.length > 0 && (
         <div data-testid="tool-call-problems" style={{ display: "flex", flexDirection: "column", gap: 2 }}>
           {problems.map((problem, index) => (
-            <span key={index} style={problem_style(isDark)}>{problem.message}</span>
+            <span key={index} style={problemOf(isDark)}>{problem.message}</span>
           ))}
         </div>
       )}

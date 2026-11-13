@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { render, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { drillTrailLinks, render } from "./drill_trail_test_helpers";
 import RecipesPage from "./recipes_page";
 
 jest.mock("../../../SERVICEs/api", () => ({
@@ -186,7 +187,7 @@ const undoButton = () => {
   return wrap ? within(wrap).getByRole("button") : null;
 };
 const crumbLabels = () =>
-  within(screen.getByTestId("recipe-drill-breadcrumb"))
+  within(screen.getByTestId("side-menu-breadcrumb"))
     .getAllByText(/./)
     .map((n) => n.textContent)
     .filter((t) => t !== "›");
@@ -217,11 +218,12 @@ describe("drilling into a referenced Agent", () => {
     expect(screen.queryByTestId("node-sp")).toBeNull();
   });
 
-  test("the breadcrumb names the graph, the pool and where you are", async () => {
+  test("the breadcrumb names the graph and where you are, not the pool between them", async () => {
     await show();
     fireEvent.doubleClick(poolRow());
     await waitFor(() => expect(screen.getByTestId("node-a1")).toBeInTheDocument());
-    expect(crumbLabels()).toEqual(["Reviewer", "Subagent Pool", "Summarizer"]);
+    expect(crumbLabels()).toEqual(["Reviewer", "Summarizer"]);
+    expect(screen.getByTestId("recipe-escape-hint")).toHaveAttribute("data-visible", "true");
   });
 
   test("the workflow list is out of the way while drilled in", async () => {
@@ -256,13 +258,13 @@ describe("coming back up", () => {
     await waitFor(() => expect(screen.getByTestId("node-a1")).toBeInTheDocument());
 
     fireEvent.click(
-      within(screen.getByTestId("recipe-drill-breadcrumb"))
+      within(screen.getByTestId("side-menu-breadcrumb"))
         .getByText("Reviewer")
         .closest("button"),
     );
 
     await waitFor(() => expect(screen.getByTestId("node-sp")).toBeInTheDocument());
-    expect(screen.queryByTestId("recipe-drill-breadcrumb")).toBeNull();
+    expect(drillTrailLinks()).toHaveLength(0);
   });
 
   test("Escape goes up one level", async () => {
@@ -376,7 +378,7 @@ describe("a reference that cannot be opened says so", () => {
     );
     /* Not "fell back to whatever was first in the library". */
     expect(screen.getByTestId("node-sp")).toBeInTheDocument();
-    expect(screen.queryByTestId("recipe-drill-breadcrumb")).toBeNull();
+    expect(drillTrailLinks()).toHaveLength(0);
   });
 
   test("a read failure reports the error instead of navigating", async () => {
@@ -391,7 +393,7 @@ describe("a reference that cannot be opened says so", () => {
       ),
     );
     expect(screen.getByTestId("node-sp")).toBeInTheDocument();
-    expect(screen.queryByTestId("recipe-drill-breadcrumb")).toBeNull();
+    expect(drillTrailLinks()).toHaveLength(0);
   });
 
   test("a legacy entry says it has a prompt, not a graph", async () => {
@@ -405,7 +407,7 @@ describe("a reference that cannot be opened says so", () => {
         /convert it to an agent/i,
       ),
     );
-    expect(screen.queryByTestId("recipe-drill-breadcrumb")).toBeNull();
+    expect(drillTrailLinks()).toHaveLength(0);
     parent.nodes[2].subagents = [{ kind: "recipe_ref", recipe_name: "Summarizer" }];
   });
 

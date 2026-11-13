@@ -1,12 +1,13 @@
 import { agentEnglishText, agentMessage, renderAgentMessage } from "../agents_i18n";
+import AddButton from "./add_button";
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
-import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
 import SegmentedButton from "../../../../../BUILTIN_COMPONENTs/input/segmented_button";
 import useReducedMotion from "../../../../../BUILTIN_COMPONENTs/mini_react/use_reduced_motion";
-import Switch from "../../../../../BUILTIN_COMPONENTs/input/switch";
+import { SemiSwitch } from "../../../../../BUILTIN_COMPONENTs/input/switch";
 import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
+import TextField from "../../../../../BUILTIN_COMPONENTs/input/textfield";
 import useTakenName from "./taken_name";
 import useListIdentities from "./list_identity";
 import {
@@ -16,7 +17,6 @@ import {
   with_node_subagents,
 } from "../skeleton_document";
 import {
-  SUBAGENT_MEMORY_POLICIES,
   SUBAGENT_MODES,
   SUBAGENT_OUTPUT_MODES,
   free_entry_id,
@@ -47,9 +47,12 @@ import {
 import { is_unavailable, list_resources } from "../skeleton_resources";
 import { identity_of, safe_text } from "../document_values";
 import { new_embedded_entry } from "../new_embedded_entry";
-import { captionStyle, ProblemCount } from "./process_timeline";
-import { variablePillField } from "./variable_pill";
-import { addButtonStyle, errorColor, fieldFill, fill, fillStrong, muted as mutedOf, problem as problemOf, text } from "./panel_style";
+import { Block, ProblemCount } from "./process_timeline";
+import { subscribeSkeletonLibraryRefresh } from "../../../../../SERVICEs/skeleton_library_refresh";
+import PanelHelp from "./panel_help";
+import AgentAvatar from "../../../agent_avatar";
+import PanelInput from "./panel_input";
+import { fieldFill, fillStrong, hairline, muted as mutedOf, note as noteStyle, PANEL_SWITCH, problem as problemOf, Region, removeButtonStyle, SettingRow, text, textFieldFill } from "./panel_style";
 
 /* The Subagent Pool: which Agents this one may call, and how.
  *
@@ -76,9 +79,42 @@ import { addButtonStyle, errorColor, fieldFill, fill, fillStrong, muted as muted
  * `subagent_pool_admission_capture`. */
 
 
-const CAPTION = { fontSize: 11.5, color: "#86868b", lineHeight: 1.45 };
 const MONO = { fontFamily: "ui-monospace, Menlo, monospace" };
-const PROBLEM = { fontSize: 11.5, lineHeight: 1.45 };
+
+/* An entry's strip, folded or open: its icon sits as far from the strip's
+   top, bottom and left edges (and the way out as far from its right), the
+   same inset on every side. */
+const STRIP_HEIGHT = 36;
+const STRIP_AVATAR = 22;
+export const SUBAGENT_STRIP = Object.freeze({
+  height: STRIP_HEIGHT,
+  avatar: STRIP_AVATAR,
+  inset: (STRIP_HEIGHT - STRIP_AVATAR) / 2,
+});
+/* A setting row inside an entry's surface: its own padding, no background. */
+const ROW_PADDING = Object.freeze({ padding: "6px 10px 6px 11px", minWidth: 0 });
+const ROW_COLUMN = Object.freeze({ ...ROW_PADDING, display: "flex", flexDirection: "column" });
+/* The right-hand column of a setting row, one width for every control so they
+   start and end on the same two edges. */
+const CONTROL = Object.freeze({ width: "62%", flexShrink: 0, minWidth: 0, display: "flex", justifyContent: "flex-end" });
+/* A subagent's mark in the list: the Agent's own icon with no tile, in the
+   row's own text colour, exactly as in the Agents explorer. The icon is
+   changed only from the Explorer. */
+function SubagentAvatar({ size, testid, presentation }) {
+  return <AgentAvatar variant="glyph" presentation={presentation} size={size} glyphScale={0.75} testid={testid} />;
+}
+
+/* Where a subagent's presentation is read: a referenced Agent's stored
+   summary, or the embedded graph's own document. */
+function entry_presentation(entry, referenced) {
+  if (referenced && is_object(referenced.presentation)) return referenced.presentation;
+  const source = is_object(entry) ? entry.source : null;
+  if (is_object(source) && source.kind === "embedded" && is_object(source.document) &&
+    is_object(source.document.presentation)) {
+    return source.document.presentation;
+  }
+  return null;
+}
 
 
 
@@ -278,11 +314,10 @@ const OUTPUT_MODE_SHORT = Object.freeze({
   full_trace: "agents.subagents.output_short_full_trace",
 });
 
-const MEMORY_SHORT = Object.freeze({
-  __proto__: null,
-  ephemeral: "agents.subagents.memory_short_ephemeral",
-  scoped_persistent: "agents.subagents.memory_short_scoped",
-});
+/* Memory is one question — does the child keep any of its own? — so it is one
+   switch over the wire's two tokens. */
+const MEMORY_NONE = "ephemeral";
+const MEMORY_OWN = "scoped_persistent";
 
 const ACCENT = "var(--pupu-accent, #4a5bd8)";
 const EASE = "cubic-bezier(0.2, 0, 0, 1)";
@@ -451,6 +486,7 @@ function EntryRow({
       ? library.items.find((item) => item && item.id === agent_id) || null
       : null;
   const missing = library.status === "ready" && agent_id !== null && referenced === null;
+  const presentation = entry_presentation(entry, referenced);
   /* The gate, asked of a reference that is already stored. It was asked only
      of one being added, so an entry written by hand, converted from a legacy
      definition or saved by another build pointed at a Workflow and the row
@@ -483,18 +519,17 @@ function EntryRow({
   const show_resource = referenced !== null
     ? resource_label(referenced) !== entry.name
     : agent_id !== null;
-  /* What is wrong with it, said on the folded row too: a broken entry must
-     not look like a healthy one until somebody opens it. */
-  const trouble =
-    refused !== null
-      ? refused
-      : missing
-        ? t("agents.subagents.reference_missing", { value1: agent_id })
-        : shared_id === true
-          ? t("agents.subagents.shared_id", { value1: entry.id })
-          : problems.length > 0
-            ? problems[0].message
-            : null;
+  /* How many things are wrong with it, counted on the strip: a broken entry
+     must not look like a healthy one while it is folded. What they are is
+     said in the body. A shared id is always one of the problems as well. */
+  const trouble_count = Math.max(
+    problems.length + (refused !== null || missing ? 1 : 0),
+    shared_id === true ? 1 : 0,
+  );
+  const memory_own = entry.memory_policy === MEMORY_OWN;
+  const set_memory = () => set({ memory_policy: memory_own ? MEMORY_NONE : MEMORY_OWN });
+  const parallel_on = entry.parallel_safe === true;
+  const set_parallel = () => set({ parallel_safe: !parallel_on });
   const description_text = typeof entry.description === "string" ? entry.description : "";
   /* "Every tool" is what an entry says by default, and a row that only ever
      says the default is noise. Anything else — a restriction, a missing key,
@@ -502,69 +537,48 @@ function EntryRow({
   const tools_default =
     entry.allowed_tools === null &&
     (!Array.isArray(entry.disabled_tools) || entry.disabled_tools.length === 0);
-  const label_style = { fontSize: 12, lineHeight: "18px", color: isDark ? "#c9c9cf" : "#3a3a40", whiteSpace: "nowrap" };
-  const segmented_style = { display: "flex", minWidth: 0, fontSize: 11.5, padding: 2, gap: 2, borderRadius: 8, boxShadow: "none", ...fieldFill(isDark) };
+  const note = noteStyle(isDark);
+  const problem_style = problemOf(isDark);
+  const segmented_style = { display: "flex", flex: "1 1 auto", minWidth: 0, fontSize: 11.5, padding: 2, gap: 2, ...fieldFill(isDark) };
   const toggle_label = t("agents.subagents.toggle_named", {
     name: typeof entry.name === "string" && entry.name ? entry.name : String(index + 1),
   });
+  const has_notice = name.held !== null || (shared_id === true && typeof onRepairId === "function") || refused !== null || (missing && refused === null);
 
   return (
     <div
       data-testid={`subagent-entry-${index}`}
-      style={{ display: "flex", flexDirection: "column", minWidth: 0, borderRadius: 8, background: fill(isDark) }}
+      style={{ display: "flex", flexDirection: "column", minWidth: 0 }}
     >
-      {/* Identity: what it is called, with the way in to its graph and the
-          fold arrow always in the same place. */}
-      <div style={{ display: "flex", alignItems: "center", gap: 6, minHeight: expanded ? 34 : 46, padding: "0 5px 0 8px", minWidth: 0,
-        transition: reducedMotion ? "none" : `min-height 200ms ${EASE}` }}>
-        <div style={{ width: 18, height: 18, borderRadius: 5, flexShrink: 0, background: "linear-gradient(135deg, #6478f6, #4a5bd8)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Icon src="bot" color="#fff" style={{ width: 11, height: 11 }} />
-        </div>
-        {/* The name box stays mounted while folded, so text that was typed
-            and not stored is still there when the row opens again. */}
-        <div style={{ flex: "1 1 0", minWidth: 0, display: expanded ? "flex" : "none", alignItems: "center" }}>
-          {/* A name the box cannot hold is shown rather than edited, for the
-              reason an unreadable source is: putting it in the control would
-              either ask the value to be a string or quietly replace it. */}
-          {name_editable ? (
-            <Input
-              value={name.shown}
-              set_value={(next) => {
-                const stored = name.type(next);
-                if (stored !== null) set({ name: stored });
-              }}
-              placeholder={t("agents.subagents.name_placeholder")}
-              style={{ ...variablePillField, fontSize: 12.5, fontWeight: 500, color: text(isDark) }}
-            />
-          ) : (
-            <span
-              data-testid={`subagent-entry-${index}-name-unreadable`}
-              style={{ ...CAPTION, ...MONO }}
-            >
-              {safe_text(entry.name)}
-            </span>
-          )}
-        </div>
-        {!expanded && (
-          <div
-            data-testid={`subagent-entry-${index}-summary`}
-            onClick={onToggle}
-            style={{ flex: "1 1 0", minWidth: 0, alignSelf: "stretch", display: "flex", flexDirection: "column", justifyContent: "center", cursor: "pointer" }}
+      {/* The strip, the same in both states: the icon, the name, a count of
+          what is wrong and the fold arrow are one toggle; the way into its
+          graph and the way out sit on the right, both icons. Everything else
+          is in the body. */}
+      <div
+        data-testid={`subagent-entry-${index}-strip`}
+        style={{ display: "flex", alignItems: "center", gap: 6, height: SUBAGENT_STRIP.height, boxSizing: "border-box",
+          padding: `0 ${SUBAGENT_STRIP.inset}px`, minWidth: 0 }}
+      >
+        <button
+          type="button"
+          aria-label={toggle_label}
+          aria-expanded={expanded}
+          data-testid={`subagent-entry-${index}-toggle`}
+          onClick={onToggle}
+          style={{ font: "inherit", flex: 1, minWidth: 0, alignSelf: "stretch", display: "flex", alignItems: "center", gap: 8,
+            padding: 0, border: "none", background: "none", color: text(isDark), cursor: "pointer", textAlign: "left" }}
+        >
+          <SubagentAvatar testid={`subagent-entry-${index}-icon`} size={SUBAGENT_STRIP.avatar} presentation={presentation} />
+          <span
+            data-testid={`subagent-entry-${index}-name`}
+            style={{ flex: "0 1 auto", minWidth: 0, fontSize: 12.5, fontWeight: 500, lineHeight: "18px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
           >
-            <div style={{ display: "flex", alignItems: "baseline", gap: 8, minWidth: 0 }}>
-              <span style={{ minWidth: 0, fontSize: 12.5, fontWeight: 500, lineHeight: "18px", color: text(isDark), overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {name_editable ? name.shown : safe_text(entry.name)}
-              </span>
-              <span style={{ flexShrink: 0, fontSize: 11.5, lineHeight: "18px", color: muted, whiteSpace: "nowrap" }}>
-                {SUBAGENT_MODES.filter((mode) => modes.includes(mode)).map((mode) => t(MODE_NAME[mode])).join(" · ")}
-              </span>
-            </div>
-            <span style={{ fontSize: 11.5, lineHeight: "16px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-              color: trouble !== null ? errorColor(isDark) : muted, opacity: trouble === null && !description_text ? 0.6 : 1 }}>
-              {trouble !== null ? trouble : description_text || t("agents.subagents.no_description")}
-            </span>
-          </div>
-        )}
+            {name_editable ? name.shown : safe_text(entry.name)}
+          </span>
+          <ProblemCount count={trouble_count} section={`subagent-entry-${index}`} isDark={isDark} />
+          <Icon src="arrow_down" color={muted} style={{ width: 11, height: 11, flexShrink: 0, opacity: 0.8, pointerEvents: "none",
+            transform: expanded ? "rotate(180deg)" : "none", transition: reducedMotion ? "none" : "transform 200ms cubic-bezier(0.32,0.72,0,1)" }} />
+        </button>
         {/* A subagent is a complete Agent graph, so its contents are not
             edited here: this opens it on the canvas, with a breadcrumb back.
             A row whose source the store would refuse at Run offers no such
@@ -574,26 +588,19 @@ function EntryRow({
           refused === null &&
           !missing && (
           <Button
-            label={t("agents.subagents.open")}
+            prefix_icon="external_link"
             ariaLabel={typeof entry.name === "string" && entry.name ? t("agents.subagents.open_named", { name: entry.name }) : t("agents.subagents.open_entry", { index: index + 1 })}
+            title={t("agents.subagents.open")}
             onClick={onOpen}
-            style={{ flexShrink: 0, fontSize: 11.5, paddingVertical: 3, paddingHorizontal: 6, borderRadius: 5, color: text(isDark) }}
+            style={removeButtonStyle(isDark)}
           />
         )}
-        <button
-          type="button"
-          aria-label={toggle_label}
-          aria-expanded={expanded}
-          data-testid={`subagent-entry-${index}-toggle`}
-          onClick={onToggle}
-          style={{ flexShrink: 0, width: 22, height: 22, padding: 0, border: "none", borderRadius: 6, background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
-        >
-          <Icon src="arrow_down" color="#86868b" style={{ width: 11, height: 11, opacity: 0.8, pointerEvents: "none",
-            transform: expanded ? "rotate(180deg)" : "none", transition: reducedMotion ? "none" : "transform 200ms cubic-bezier(0.32,0.72,0,1)" }} />
-        </button>
+        <Button prefix_icon="close" ariaLabel={remove_label(entry, index, t)} onClick={onRemove} style={removeButtonStyle(isDark)} />
       </div>
 
-      {/* How this Agent uses it. Opens in place, inside the same surface. */}
+      {/* How this Agent uses it. Opens in place, inside the same surface, one
+          setting per row with the hairline between them. Stays mounted while
+          folded so held text and half-typed values survive. */}
       <div
         aria-hidden={!expanded}
         inert={!expanded}
@@ -604,73 +611,117 @@ function EntryRow({
             : `grid-template-rows 200ms ${EASE}, opacity 160ms ease, visibility 0s ${expanded ? "0s" : "200ms"}` }}
       >
         <div style={{ minHeight: 0, overflow: "hidden" }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: "2px 10px 8px", minWidth: 0 }}>
-            {name.held !== null && (
-              <span data-testid={`subagent-entry-${index}-name-taken`} style={problemOf(isDark)}>
-                {name.taken
-                  ? name.held ? t("agents.subagents.name_taken", { name: name.held }) : t("agents.subagents.name_taken_empty")
-                  : t("agents.subagents.name_free_retry")}
-              </span>
-            )}
+          {/* The line under the strip is inside the fold, so a folded entry is
+              the strip alone. */}
+          <div style={{ borderTop: `1px solid ${hairline(isDark)}`, minWidth: 0 }}>
+          <Region isDark={isDark} testid={`subagent-entry-${index}-settings`} style={{ background: "transparent", borderRadius: 0 }}>
+            {has_notice && (
+              <div key="notices" style={{ ...ROW_COLUMN, gap: 6 }}>
+                {name.held !== null && (
+                  <span data-testid={`subagent-entry-${index}-name-taken`} style={problem_style}>
+                    {name.taken
+                      ? name.held ? t("agents.subagents.name_taken", { name: name.held }) : t("agents.subagents.name_taken_empty")
+                      : t("agents.subagents.name_free_retry")}
+                  </span>
+                )}
 
-            {/* Two entries under one id: the store runs neither of them. This
-                gives the row an id of its own and changes nothing else. */}
-            {shared_id === true && typeof onRepairId === "function" && (
-              <div
-                data-testid={`subagent-entry-${index}-shared-id`}
-                style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}
-              >
-                <span style={{ ...problemOf(isDark), flex: 1, minWidth: 0 }}>
-                  {t("agents.subagents.shared_id", { value1: entry.id })}
-                </span>
-                <Button
-                  label={t("agents.subagents.repair_id")}
-                  ariaLabel={typeof entry.name === "string" && entry.name ? t("agents.subagents.repair_named", { name: entry.name }) : t("agents.subagents.repair_entry", { index: index + 1 })}
-                  onClick={onRepairId}
-                  style={{ flexShrink: 0, fontSize: 11.5, paddingVertical: 3, paddingHorizontal: 7, borderRadius: 5, color: text(isDark) }}
-                />
+                {/* Two entries under one id: the store runs neither of them.
+                    This gives the row an id of its own and changes nothing
+                    else. */}
+                {shared_id === true && typeof onRepairId === "function" && (
+                  <div
+                    data-testid={`subagent-entry-${index}-shared-id`}
+                    style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}
+                  >
+                    <span style={{ ...problem_style, flex: 1, minWidth: 0 }}>
+                      {t("agents.subagents.shared_id", { value1: entry.id })}
+                    </span>
+                    <Button
+                      label={t("agents.subagents.repair_id")}
+                      ariaLabel={typeof entry.name === "string" && entry.name ? t("agents.subagents.repair_named", { name: entry.name }) : t("agents.subagents.repair_entry", { index: index + 1 })}
+                      onClick={onRepairId}
+                      style={{ flexShrink: 0, fontSize: 11.5, paddingVertical: 3, paddingHorizontal: 7, borderRadius: 5, color: text(isDark) }}
+                    />
+                  </div>
+                )}
+
+                {refused !== null && (
+                  <span data-testid={`subagent-entry-${index}-refused`} style={problem_style}>
+                    {refused}
+                  </span>
+                )}
+
+                {missing && refused === null && (
+                  <span data-testid={`subagent-entry-${index}-missing`} style={problem_style}>
+                    {t("agents.subagents.reference_missing", { value1: agent_id })}
+                  </span>
+                )}
               </div>
             )}
 
-            {refused !== null && (
-              <span data-testid={`subagent-entry-${index}-refused`} style={problemOf(isDark)}>
-                {refused}
-              </span>
-            )}
-
-            {missing && refused === null && (
-              <span data-testid={`subagent-entry-${index}-missing`} style={problemOf(isDark)}>
-                {t("agents.subagents.reference_missing", { value1: agent_id })}
-              </span>
-            )}
+            {/* The name box stays mounted while folded, so text that was
+                typed and not stored is still there when the row opens again.
+                A name the box cannot hold is shown rather than edited, for the
+                reason an unreadable source is: putting it in the control
+                would either ask the value to be a string or quietly replace
+                it. */}
+            <div key="name" style={ROW_PADDING}>
+              <SettingRow isDark={isDark} label={t("agents.subagents.field_name")}>
+                <div style={CONTROL}>
+                  {name_editable ? (
+                    <PanelInput
+                      value={name.shown}
+                      set_value={(next) => {
+                        const stored = name.type(next);
+                        if (stored !== null) set({ name: stored });
+                      }}
+                      placeholder={t("agents.subagents.name_placeholder")}
+                      style={{ width: "100%", fontSize: 12.5, height: 28, paddingVertical: 0, paddingHorizontal: 8, color: text(isDark) }}
+                    />
+                  ) : (
+                    <span
+                      data-testid={`subagent-entry-${index}-name-unreadable`}
+                      style={{ ...note, ...MONO }}
+                    >
+                      {safe_text(entry.name)}
+                    </span>
+                  )}
+                </div>
+              </SettingRow>
+            </div>
 
             {/* The description is what the calling Agent reads to decide when
                 to use this one, so it comes first and has room. */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
-              <span style={{ fontSize: 11.5, lineHeight: "16px", color: muted }}>{t("agents.subagents.when_label")}</span>
+            <div key="when" style={{ ...ROW_COLUMN, gap: 4 }}>
+              <span style={note}>{t("agents.subagents.when_label")}</span>
               {description_editable ? (
-                <textarea
-                  ref={description_box}
-                  rows={3}
-                  value={description_text}
-                  onChange={(event) => set({ description: event.target.value })}
-                  placeholder={t("agents.subagents.description_placeholder")}
-                  aria-label={t("agents.subagents.when_label")}
-                  style={{ display: "block", width: "100%", boxSizing: "border-box", resize: "none", font: "inherit", fontSize: 12.5,
-                    lineHeight: "18px", padding: "6px 10px", borderRadius: 8, outline: "none", color: text(isDark), ...fieldFill(isDark) }}
-                />
+                /* The panel's own multi-line field, the Agent's Prompt box:
+                   it grows to eight rows and then scrolls with the app's own
+                   scrollbar. */
+                <div data-testid={`subagent-entry-${index}-description`} style={{ minWidth: 0 }}>
+                  <TextField
+                    textarea_ref={description_box}
+                    aria_label={t("agents.subagents.when_label")}
+                    value={description_text}
+                    set_value={(next) => set({ description: next })}
+                    placeholder={t("agents.subagents.description_placeholder")}
+                    min_rows={3}
+                    max_display_rows={8}
+                    style={{ fontSize: 12.5, lineHeight: 1.55, borderRadius: 8, ...textFieldFill(isDark) }}
+                  />
+                </div>
               ) : (
                 <span
                   data-testid={`subagent-entry-${index}-description-unreadable`}
-                  style={{ ...CAPTION, ...MONO }}
+                  style={{ ...note, ...MONO }}
                 >
                   {safe_text(entry.description)}
                 </span>
               )}
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
-              <span style={{ fontSize: 11.5, lineHeight: "16px", color: muted }}>{t("agents.subagents.field_mode")}</span>
+            <div key="modes" style={{ ...ROW_COLUMN, gap: 4 }}>
+              <span style={note}>{t("agents.subagents.field_mode")}</span>
               <div style={{ display: "flex", flexDirection: "column", margin: "0 -4px" }}>
                 {SUBAGENT_MODES.map((mode) => (
                   <ModeRow
@@ -684,87 +735,108 @@ function EntryRow({
               </div>
             </div>
 
-            {/* One column of labels, one column of controls: every control
-                starts and ends on the same two edges. */}
-            <div style={{ display: "grid", gridTemplateColumns: "max-content minmax(0, 1fr)", columnGap: 12, rowGap: 4, alignItems: "center", minWidth: 0 }}>
-              <span style={label_style}>{t("agents.subagents.field_reads")}</span>
-              <SegmentedButton
-                options={SUBAGENT_OUTPUT_MODES.map((value) => ({ value, label: OUTPUT_MODE_SHORT[value] ? t(OUTPUT_MODE_SHORT[value]) : value }))}
-                value={typeof entry.output_mode === "string" ? entry.output_mode : null}
-                on_change={(next) => set({ output_mode: next })}
-                style={segmented_style}
-                button_style={SEGMENT_BUTTON}
-              />
+            <div key="reads" style={ROW_PADDING}>
+              <SettingRow isDark={isDark} label={t("agents.subagents.field_reads")}>
+                <div style={CONTROL}>
+                  <SegmentedButton
+                    options={SUBAGENT_OUTPUT_MODES.map((value) => ({ value, label: OUTPUT_MODE_SHORT[value] ? t(OUTPUT_MODE_SHORT[value]) : value }))}
+                    value={typeof entry.output_mode === "string" ? entry.output_mode : null}
+                    on_change={(next) => set({ output_mode: next })}
+                    style={segmented_style}
+                    button_style={SEGMENT_BUTTON}
+                  />
+                </div>
+              </SettingRow>
+            </div>
 
-              <span style={label_style}>{t("agents.subagents.field_memory")}</span>
-              <SegmentedButton
-                options={SUBAGENT_MEMORY_POLICIES.map((value) => ({ value, label: MEMORY_SHORT[value] ? t(MEMORY_SHORT[value]) : value }))}
-                value={typeof entry.memory_policy === "string" ? entry.memory_policy : null}
-                on_change={(next) => set({ memory_policy: next })}
-                style={segmented_style}
-                button_style={SEGMENT_BUTTON}
-              />
+            <div key="memory" style={ROW_PADDING}>
+              <SettingRow isDark={isDark} label={<span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                {t("agents.subagents.own_memory")}
+                <PanelHelp label={t("agents.subagents.own_memory")}>{memory_own ? t("agents.subagents.memory_scoped") : t("agents.subagents.memory_ephemeral")}</PanelHelp>
+              </span>}>
+                {/* On is the child's own scope, off is no memory: the wire's
+                    two tokens, nothing in between. */}
+                <span
+                  role="switch"
+                  aria-checked={memory_own}
+                  aria-label={t("agents.subagents.own_memory")}
+                  tabIndex={0}
+                  data-testid={`subagent-entry-${index}-memory`}
+                  onClick={(event) => { if (event.target === event.currentTarget) set_memory(); }}
+                  onKeyDown={(event) => { if (event.key === " " || event.key === "Enter") { event.preventDefault(); set_memory(); } }}
+                  style={{ display: "inline-flex", flexShrink: 0, cursor: "pointer" }}
+                >
+                  {/* The switch stops its click from bubbling, so it commits
+                      the change itself; the outer span answers the keyboard
+                      and an assistive click on itself. */}
+                  <SemiSwitch on={memory_own} set_on={set_memory} style={PANEL_SWITCH} />
+                </span>
+              </SettingRow>
+            </div>
 
-              <span style={label_style}>{t("agents.subagents.field_parallel")}</span>
-              <div
-                data-testid={`subagent-entry-${index}-parallel`}
-                title={entry.parallel_safe === true ? t("agents.subagents.parallel_note") : t("agents.subagents.serial_note")}
-                style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", minHeight: 28 }}
-              >
-                {/* The glass switch at its own 60:38 proportion, so its puck
-                    springs and frosts as designed. */}
-                <Switch
-                  material="glass"
-                  on={entry.parallel_safe === true}
-                  set_on={(next) => set({ parallel_safe: Boolean(next) })}
-                  style={{ width: 38, height: 24 }}
-                />
-              </div>
+            <div key="parallel" style={ROW_PADDING}>
+              {/* The same row as Own memory: what it means behind the info,
+                  and a switch the keyboard and assistive tech can work. */}
+              <SettingRow isDark={isDark} label={<span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                {t("agents.subagents.field_parallel")}
+                <PanelHelp label={t("agents.subagents.field_parallel")}>{parallel_on ? t("agents.subagents.parallel_note") : t("agents.subagents.serial_note")}</PanelHelp>
+              </span>}>
+                <span
+                  role="switch"
+                  aria-checked={parallel_on}
+                  aria-label={t("agents.subagents.field_parallel")}
+                  tabIndex={0}
+                  data-testid={`subagent-entry-${index}-parallel`}
+                  onClick={(event) => { if (event.target === event.currentTarget) set_parallel(); }}
+                  onKeyDown={(event) => { if (event.key === " " || event.key === "Enter") { event.preventDefault(); set_parallel(); } }}
+                  style={{ display: "inline-flex", flexShrink: 0, cursor: "pointer" }}
+                >
+                  <SemiSwitch on={parallel_on} set_on={set_parallel} style={PANEL_SWITCH} />
+                </span>
+              </SettingRow>
+            </div>
 
-              {!tools_default && (
-                <>
-                  <span style={label_style}>{t("agents.subagents.field_tools")}</span>
+            {/* "Every tool" is what an entry says by default, and a row that
+                only ever says the default is noise. */}
+            {!tools_default && (
+              <div key="tools" style={ROW_PADDING}>
+                <SettingRow isDark={isDark} label={t("agents.subagents.field_tools")}>
                   <span
                     data-testid={`subagent-entry-${index}-tools`}
                     title={t("agents.subagents.tool_restrictions_note")}
-                    style={{ fontSize: 12, color: muted, textAlign: "right", minWidth: 0, minHeight: 28, lineHeight: "28px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                    style={{ ...CONTROL, display: "block", fontSize: 12, color: muted, textAlign: "right", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
                   >
                     {tools_text(entry, t, true)}
                   </span>
-                </>
-              )}
-            </div>
+                </SettingRow>
+              </div>
+            )}
 
-            {problems.map((problem, position) => (
-              <span
-                key={position}
-                data-testid={`subagent-entry-${index}-problem-${position}`}
-                style={{
-                  ...PROBLEM,
-                  color: isDark ? "rgba(255,140,140,0.95)" : "rgba(176,32,32,0.95)",
-                }}
-              >
-                {`${problem.message} (${problem.where})`}
-              </span>
-            ))}
+            {problems.length > 0 && (
+              <div key="problems" style={{ ...ROW_COLUMN, gap: 4 }}>
+                {problems.map((problem, position) => (
+                  <span
+                    key={position}
+                    data-testid={`subagent-entry-${index}-problem-${position}`}
+                    style={problem_style}
+                  >
+                    {`${problem.message} (${problem.where})`}
+                  </span>
+                ))}
+              </div>
+            )}
 
-            {/* Where it comes from, and the way out. Removing is down here so
-                it is not one stray click away on a folded row. */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 24, marginRight: -4, minWidth: 0 }}>
-              <span data-testid={`subagent-entry-${index}-source`} style={{ flex: 1, minWidth: 0, fontSize: 11.5, color: muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {/* Where it comes from. */}
+            <div key="source" style={ROW_PADDING}>
+              <span data-testid={`subagent-entry-${index}-source`} style={{ ...note, display: "block", lineHeight: "18px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", overflowWrap: "normal" }}>
                 {`${entry_source_label(entry, t)}${
                   show_resource
                     ? ` · ${referenced !== null ? resource_label(referenced) : agent_id}`
                     : ""
                 }`}
               </span>
-              <Button
-                label={t("agents.subagents.remove")}
-                ariaLabel={remove_label(entry, index, t)}
-                onClick={onRemove}
-                style={{ flexShrink: 0, fontSize: 11.5, paddingVertical: 3, paddingHorizontal: 6, borderRadius: 5, color: muted }}
-              />
             </div>
+          </Region>
           </div>
         </div>
       </div>
@@ -800,7 +872,8 @@ export default function SubagentPoolSection({
   onEntryIdRepaired,
 }) {
   const { t } = useTranslation();
-  /* The library is read once per panel, for two jobs: offering Agents to
+  /* The library is read when the panel mounts and again whenever the store
+     announces a change, for two jobs: offering Agents to
      reference, and saying that an entry's reference is no longer there. A
      build that cannot reach the store says so rather than looking like an
      account with no Agents in it. */
@@ -810,7 +883,6 @@ export default function SubagentPoolSection({
     error: null,
     reading: true,
   });
-  const [picking, setPicking] = useState(false);
   const [creationError, setCreationError] = useState(null);
   const creationScope = identity_of([document.id, node.id, revision]);
   useEffect(() => { setCreationError(null); }, [creationScope]);
@@ -860,8 +932,14 @@ export default function SubagentPoolSection({
   useEffect(() => {
     alive.current = true;
     read_library();
+    /* The library is on screen for as long as the panel is, so it is read
+       again whenever the store says it may have changed — a save here or in
+       another window — rather than on the way into a picker that no longer
+       has to be opened. */
+    const unsubscribe = subscribeSkeletonLibraryRefresh(() => { read_library(); });
     return () => {
       alive.current = false;
+      unsubscribe();
     };
   }, [read_library]);
 
@@ -926,20 +1004,15 @@ export default function SubagentPoolSection({
   const offered = subagent_candidates(library.items, { owner_id });
   const reducedMotion = useReducedMotion();
   const [search, setSearch] = useState("");
-  /* Which row is open: one at a time, so the pool reads as a roster. A pool
-     of one has no roster to scan and starts open; so does the first row that
-     has something wrong with it. Named by the row's minted identity, so it
-     follows the row through this editor's own edits and lets go when the list
-     arrives from somewhere else. */
-  const [openRow, setOpenRow] = useState(() => {
-    if (legacy) return null;
-    const troubled = entries.findIndex((entry, index) =>
-      is_object(entry) &&
-      (shared_ids.includes(index) || problems_at(problems, `config.subagents[${index}]`).length > 0));
-    const first = troubled >= 0 ? troubled : entries.length === 1 ? 0 : -1;
-    return first >= 0 ? rows.ids[first] : null;
-  });
-  /* The row that was just added opens, with the caret in its description. Its
+  /* Which row is open: one at a time, so the pool reads as a roster. Every
+     row starts folded — a pool of one and a row with something wrong with it
+     too, whose folded strip already counts what is wrong — and only the
+     author opens one. Named by the row's minted identity, so it follows the
+     row through this editor's own edits and lets go when the list arrives
+     from somewhere else. */
+  const [openRow, setOpenRow] = useState(null);
+  /* The one exception: the row the author has just added opens, once, with
+     the caret in its description, because it is there to be filled in. Its
      identity does not exist until the list has rendered with it. */
   const [focusRow, setFocusRow] = useState(null);
   const opening_added = useRef(false);
@@ -1034,7 +1107,6 @@ export default function SubagentPoolSection({
   }
 
   function add(resource) {
-    setPicking(false);
     setSearch("");
     opening_added.current = true;
     rows.added();
@@ -1063,7 +1135,6 @@ export default function SubagentPoolSection({
       return;
     }
     setCreationError(null);
-    setPicking(false);
     setSearch("");
     opening_added.current = true;
     rows.added();
@@ -1072,36 +1143,42 @@ export default function SubagentPoolSection({
        describes the document before the new row existed. */
   }
 
+  const note = noteStyle(isDark);
+  const problem_style = problemOf(isDark);
+
   return (
     <div
       data-testid="skeleton-subagent-pool"
-      style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }}
+      style={{ display: "flex", flexDirection: "column", gap: 20, minWidth: 0 }}
     >
-      {/* The panel's one caption, with what is wrong counted beside it and how
-          many entries there are on the right. */}
-      <div style={{ display: "flex", alignItems: "center", gap: 6, minHeight: 22, minWidth: 0 }}>
-        <span data-testid="subagent-pool-title" title={t("agents.subagents.intro")} style={captionStyle(isDark)}>{t("agents.subagents.title")}</span>
-        <ProblemCount count={problems.length} section="subagents" isDark={isDark} />
-        {!legacy && <span style={{ marginLeft: "auto", fontSize: 11.5, fontVariantNumeric: "tabular-nums", color: mutedOf(isDark), userSelect: "none" }}>{entries.length}</span>}
-      </div>
-
-      {!legacy && !canCreateEmbedded && <span style={problemOf(isDark)}>{t("agents.subagents.embedded_unavailable")}</span>}
-      {!legacy && creationError?.scope === creationScope && <span role="alert" style={problemOf(isDark)}>{renderAgentMessage(creationError.message, t)}</span>}
+      {/* The panel's one caption, with what is wrong counted beside it, what
+          the panel is for behind the info and how many entries there are on
+          the right. */}
+      <Block
+        section="subagents"
+        title={t("agents.subagents.title")}
+        help={<span data-testid="subagent-pool-title" title={t("agents.subagents.intro")}>{t("agents.subagents.intro")}</span>}
+        problems={problems}
+        aside={legacy ? undefined : String(entries.length)}
+        isDark={isDark}
+      >
+      {!legacy && !canCreateEmbedded && <span style={problem_style}>{t("agents.subagents.embedded_unavailable")}</span>}
+      {!legacy && creationError?.scope === creationScope && <span role="alert" style={problem_style}>{renderAgentMessage(creationError.message, t)}</span>}
 
       {legacy && (
-        <span data-testid="subagent-pool-legacy" style={CAPTION}>
+        <span data-testid="subagent-pool-legacy" style={note}>
           {t("agents.subagents.legacy_note")}
         </span>
       )}
 
       {legacy && plan.refusal && (
-        <span data-testid="subagent-pool-legacy-needs-kernel" style={CAPTION}>
+        <span data-testid="subagent-pool-legacy-needs-kernel" style={note}>
           {refusal_caption(plan, node.id, t)}
         </span>
       )}
 
       {legacy && !plan.refusal && plan.required && (
-        <span data-testid="subagent-pool-legacy-kernel-chosen" style={CAPTION}>
+        <span data-testid="subagent-pool-legacy-kernel-chosen" style={note}>
           {conversion_caption(plan, node.id, t)}
         </span>
       )}
@@ -1109,19 +1186,19 @@ export default function SubagentPoolSection({
       {legacy &&
         !plan.refusal &&
         (typeof onConvertLegacy !== "function" ? (
-          <span data-testid="subagent-pool-legacy-unreachable" style={CAPTION}>
+          <span data-testid="subagent-pool-legacy-unreachable" style={note}>
             {t("agents.subagents.conversion_unreachable")}
           </span>
         ) : convertingLegacy ? (
-          <span data-testid="subagent-pool-legacy-converting" style={CAPTION}>
+          <span data-testid="subagent-pool-legacy-converting" style={note}>
             {t("agents.subagents.converting")}
           </span>
         ) : embedded ? (
-          <span data-testid="subagent-pool-legacy-embedded" style={CAPTION}>
+          <span data-testid="subagent-pool-legacy-embedded" style={note}>
             {t("agents.subagents.embedded_conversion_owner")}
           </span>
         ) : canConvertLegacy === false ? (
-          <span data-testid="subagent-pool-legacy-save-first" style={CAPTION}>
+          <span data-testid="subagent-pool-legacy-save-first" style={note}>
             {t("agents.subagents.save_before_convert")}
           </span>
         ) : (
@@ -1133,7 +1210,6 @@ export default function SubagentPoolSection({
               fontSize: 12,
               paddingVertical: 6,
               paddingHorizontal: 10,
-              borderRadius: 8,
               color: text(isDark),
               ...fieldFill(isDark),
             }}
@@ -1145,7 +1221,7 @@ export default function SubagentPoolSection({
           <span
             key={index}
             data-testid={`subagent-legacy-entry-${index}`}
-            style={{ ...CAPTION, ...MONO }}
+            style={{ ...note, ...MONO }}
           >
             {/* `legacy_fields` is the old node's keys copied verbatim
                 (`legacy.py:147`) and nothing has ever asked their shapes, so
@@ -1157,16 +1233,19 @@ export default function SubagentPoolSection({
         ))}
 
       {!legacy && entries.length === 0 && (
-        <span data-testid="subagent-pool-empty" style={CAPTION}>
+        <span data-testid="subagent-pool-empty" style={note}>
           {t("agents.subagents.empty")}
         </span>
       )}
 
-      {!legacy &&
-        entries.map((entry, index) =>
+      {/* One surface per subagent, a little apart, so each reads as its own
+          block; folded, it is its strip alone. */}
+      {!legacy && entries.length > 0 && (
+        <div data-testid="subagent-pool-entries" style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }}>
+        {entries.map((entry, index) =>
           is_object(entry) ? (
+            <Region key={rows.ids[index]} isDark={isDark} testid={`subagent-entry-${index}-region`}>
             <EntryRow
-              key={rows.ids[index]}
               entry={entry}
               index={index}
               identity={rows.ids[index]}
@@ -1205,160 +1284,64 @@ export default function SubagentPoolSection({
               }
               onRemove={() => remove_entry(index)}
             />
+            </Region>
           ) : (
             /* A draft can hold anything the format check takes, and a `config`
                object is all that layer asks of a pool. The problems are
                reported here rather than at the section, because they are about
                this position in the list and a reader looking for them will
                look where the entry should have been. */
-            <div
-              key={rows.ids[index]}
-              style={{ display: "flex", flexDirection: "column", gap: 4 }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <Region key={rows.ids[index]} isDark={isDark} testid={`subagent-entry-${index}-region`}>
+              <div
+                key="strip"
+                style={{ display: "flex", alignItems: "center", gap: 6, height: SUBAGENT_STRIP.height, boxSizing: "border-box",
+                  padding: `0 ${SUBAGENT_STRIP.inset}px 0 11px`, minWidth: 0 }}
+              >
                 <span
                   data-testid={`subagent-entry-${index}-unreadable`}
-                  style={{ ...problemOf(isDark), flex: 1, minWidth: 0 }}
+                  style={{ ...problem_style, flex: 1, minWidth: 0 }}
                 >{t("agents.subagents.entry_unreadable")}</span>
                 <Button
                   prefix_icon="close"
                   ariaLabel={remove_label(entry, index)}
                   onClick={() => remove_entry(index)}
-                  style={{
-                    flexShrink: 0,
-                    paddingVertical: 4,
-                    paddingHorizontal: 4,
-                    borderRadius: 4,
-                    content: { icon: { width: 11, height: 11 } },
-                  }}
+                  style={removeButtonStyle(isDark)}
                 />
               </div>
-              {problems_at(problems, `config.subagents[${index}]`).map(
-                (problem, position) => (
-                  <span
-                    key={position}
-                    data-testid={`subagent-entry-${index}-problem-${position}`}
-                    style={{
-                      ...PROBLEM,
-                      color: isDark
-                        ? "rgba(255,140,140,0.95)"
-                        : "rgba(176,32,32,0.95)",
-                    }}
-                  >
-                    {`${problem.message} (${problem.where})`}
-                  </span>
-                ),
+              {problems_at(problems, `config.subagents[${index}]`).length > 0 && (
+                <div key="problems" style={{ ...ROW_COLUMN, gap: 4 }}>
+                  {problems_at(problems, `config.subagents[${index}]`).map(
+                    (problem, position) => (
+                      <span
+                        key={position}
+                        data-testid={`subagent-entry-${index}-problem-${position}`}
+                        style={problem_style}
+                      >
+                        {`${problem.message} (${problem.where})`}
+                      </span>
+                    ),
+                  )}
+                </div>
               )}
-            </div>
+            </Region>
           ),
         )}
-
-      {/* One way in. Agents from the library are listed under it, with a
-          search; an Agent that lives only inside this one is the last choice
-          rather than a second button beside the first. */}
-      {!legacy && (
-        <Button
-          label={picking ? t("agents.explorer.cancel") : t("agents.subagents.add_agent")}
-          /* Read again on the way in: the library can change from
-             another window, and both an archived Agent being offered and
-             a reference wrongly called missing are worth a request. */
-          onClick={() => {
-            if (!picking) read_library();
-            setSearch("");
-            setPicking(!picking);
-          }}
-          style={addButtonStyle(isDark)}
-        />
-      )}
-
-      {!legacy && picking && library.reading && (
-        <span data-testid="subagent-library-reading" style={CAPTION}>{t("agents.subagents.library_reading")}</span>
-      )}
-
-      {!legacy && picking && !library.reading && library.status === "unavailable" && (
-        <span data-testid="subagent-library-unavailable" style={CAPTION}>
-          {t("agents.subagents.library_unreachable")}
-        </span>
-      )}
-
-      {!legacy && picking && !library.reading && library.status === "failed" && (
-        <span data-testid="subagent-library-failed" style={problemOf(isDark)}>
-          {t("agents.subagents.library_failed", { message: (library.error && library.error.message) || t("agents.subagents.store_refused") })}
-        </span>
-      )}
-
-      {!legacy && picking && !library.reading && library.status === "ready" && (
-        <div
-          data-testid="subagent-picker"
-          style={{ display: "flex", flexDirection: "column", gap: 8 }}
-        >
-          {offered.length === 0 && (
-            <span data-testid="subagent-picker-empty" style={CAPTION}>{t("agents.subagents.library_empty")}</span>
-          )}
-          {offered.length > 0 && (
-            <Input
-              prefix_icon="search"
-              placeholder={t("agents.subagents.search")}
-              value={search}
-              set_value={setSearch}
-              style={{ width: "100%", fontSize: 12.5, height: 32, paddingVertical: 0, paddingHorizontal: 10, borderRadius: 8,
-                /* Only an outline: the filled rows below are what can be added. */
-                backgroundColor: "transparent", border: `1px solid ${isDark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.12)"}` }}
-            />
-          )}
-          {matching.map((resource) => (
-            <Button
-              key={resource.id}
-              prefix_icon="bot"
-              label={resource_label(resource)}
-              ariaLabel={t("agents.subagents.reference", { value1: resource_label(resource) })}
-              onClick={() => add(resource)}
-              style={{
-                alignSelf: "stretch",
-                justifyContent: "flex-start",
-                fontSize: 12.5,
-                height: 32,
-                paddingVertical: 0,
-                paddingHorizontal: 10,
-                borderRadius: 8,
-                gap: 8,
-                color: text(isDark),
-                content: { icon: { width: 13, height: 13 } },
-                ...fieldFill(isDark),
-              }}
-            />
-          ))}
-          {offered.length > 0 && matching.length === 0 && (
-            <span data-testid="subagent-picker-no-match" style={CAPTION}>{t("agents.subagents.no_match", { search: search.trim() })}</span>
-          )}
-          {withheld > 0 && (
-            <span data-testid="subagent-picker-withheld" style={CAPTION}>
-              {t(withheld === 1 ? "agents.subagents.withheld_one" : "agents.subagents.withheld_other", { count: withheld })}
-            </span>
-          )}
         </div>
       )}
 
-      {/* Offered whatever the library answered: an embedded Agent is made
-          here and needs nothing from the store. */}
-      {!legacy && picking && (
-        <Button
-          label={t("agents.subagents.new_embedded")}
+      {/* The one add control, directly under the last subagent, the same as
+          the Toolkit Pool's: an Agent that lives only inside this pool. The
+          stored Agents are offered in the library below. */}
+      {!legacy && (
+        <AddButton
+          /* Just "+ Add", as the Toolkit Pool's; what it adds is said to
+             assistive tech and in the hover note. */
+          label={t("agents.legacy_tools.add")}
           ariaLabel={t("agents.subagents.new_embedded")}
           title={t("agents.subagents.embedded_note")}
           disabled={!canCreateEmbedded}
           onClick={create_embedded}
-          style={{
-            alignSelf: "stretch",
-            justifyContent: "flex-start",
-            fontSize: 12.5,
-            height: 32,
-            paddingVertical: 0,
-            paddingHorizontal: 10,
-            borderRadius: 8,
-            color: text(isDark),
-            ...fieldFill(isDark),
-          }}
+          isDark={isDark}
         />
       )}
 
@@ -1377,14 +1360,80 @@ export default function SubagentPoolSection({
             <span
               key={index}
               data-testid={`subagent-pool-problem-${index}`}
-              style={{
-                ...PROBLEM,
-                color: isDark ? "rgba(255,140,140,0.95)" : "rgba(176,32,32,0.95)",
-              }}
+              style={problem_style}
             >
               {`${problem.message} (${problem.where})`}
             </span>
           ))}
+      </Block>
+
+      {/* What can be referenced, always in view under the pool the way the
+          Toolkit Pool keeps its installed library under its own: the stored
+          Agents, searchable, each with its own Add. */}
+      {!legacy && (
+        <Block section="subagent-library" title={t("agents.subagents.library_title")} isDark={isDark}>
+          {library.reading && (
+            <span data-testid="subagent-library-reading" style={note}>{t("agents.subagents.library_reading")}</span>
+          )}
+
+          {!library.reading && library.status === "unavailable" && (
+            <span data-testid="subagent-library-unavailable" style={note}>
+              {t("agents.subagents.library_unreachable")}
+            </span>
+          )}
+
+          {!library.reading && library.status === "failed" && (
+            <span data-testid="subagent-library-failed" style={problem_style}>
+              {t("agents.subagents.library_failed", { message: (library.error && library.error.message) || t("agents.subagents.store_refused") })}
+            </span>
+          )}
+
+          {!library.reading && library.status === "ready" && (
+            <div
+              data-testid="subagent-picker"
+              style={{ display: "flex", flexDirection: "column", gap: 8 }}
+            >
+              {offered.length === 0 && (
+                <span data-testid="subagent-picker-empty" style={note}>{t("agents.subagents.library_empty")}</span>
+              )}
+              {offered.length > 0 && (
+                <PanelInput
+                  prefix_icon="search"
+                  placeholder={t("agents.subagents.search")}
+                  value={search}
+                  set_value={setSearch}
+                  style={{ width: "100%", fontSize: 12.5, height: 32, paddingVertical: 0, paddingHorizontal: 10 }}
+                />
+              )}
+              {/* The library's rows are the Toolkit library's: the mark, the
+                  name, and Add on the right. */}
+              <Region isDark={isDark}>{matching.map((resource) => (
+                <div key={resource.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 5px 7px 10px", minWidth: 0 }}>
+                  <SubagentAvatar size={20} presentation={resource.presentation} />
+                  <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: text(isDark), overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {resource_label(resource)}
+                  </span>
+                  <Button
+                    prefix_icon="add"
+                    label={t("agents.legacy_tools.add")}
+                    ariaLabel={t("agents.subagents.reference", { value1: resource_label(resource) })}
+                    onClick={() => add(resource)}
+                    style={{ flexShrink: 0, fontSize: 11.5, paddingVertical: 4, paddingHorizontal: 7, borderRadius: 6, gap: 3, color: text(isDark), content: { icon: { width: 11, height: 11 } } }}
+                  />
+                </div>
+              ))}</Region>
+              {offered.length > 0 && matching.length === 0 && (
+                <span data-testid="subagent-picker-no-match" style={note}>{t("agents.subagents.no_match", { search: search.trim() })}</span>
+              )}
+              {withheld > 0 && (
+                <span data-testid="subagent-picker-withheld" style={note}>
+                  {t(withheld === 1 ? "agents.subagents.withheld_one" : "agents.subagents.withheld_other", { count: withheld })}
+                </span>
+              )}
+            </div>
+          )}
+        </Block>
+      )}
     </div>
   );
 }

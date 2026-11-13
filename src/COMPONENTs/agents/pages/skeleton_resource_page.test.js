@@ -4,7 +4,8 @@ jest.mock("./recipes_page/detail_panel/panel_help", () => function GuidanceText(
 import React from "react";
 import { pressCanvasNode, openAddNode, openRunMenu } from "./recipes_page/skeleton_canvas_test_helpers";
 import { install_legacy_store_bridge } from "./recipes_page/legacy_store_test_bridge";
-import { render, screen, fireEvent, waitFor, act, within } from "@testing-library/react";
+import { screen, fireEvent, waitFor, act, within } from "@testing-library/react";
+import { drillTrailLinks, render } from "./drill_trail_test_helpers";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import SkeletonResourcePage from "./skeleton_resource_page";
 import { api } from "../../../SERVICEs/api";
@@ -898,11 +899,13 @@ describe("drilling into a subagent's own graph", () => {
     await act(async () => {});
   };
 
+  /* The names on the drill path, one per graph (a crumb on its way out is
+   not on it). */
   const crumbs = () =>
-    screen
-      .getByTestId("skeleton-drill-crumbs")
-      .textContent.split("›")
-      .map((part) => part.trim())
+    Array.from(
+      screen.getByTestId("side-menu-breadcrumb").querySelectorAll('[data-phase]:not([data-phase="exit"]) [data-testid$="-label"]'),
+    )
+      .map((node) => node.textContent.trim())
       .join(" › ");
 
   test("a pool row opens the referenced Agent's own graph, read by identity first", async () => {
@@ -917,12 +920,12 @@ describe("drilling into a subagent's own graph", () => {
     expect(screen.queryByTestId("skeleton-node-pool")).toBeNull();
   });
 
-  test("the breadcrumb names the graph it came from, the step, and the graph on screen", async () => {
+  test("the breadcrumb names the graph it came from and the graph on screen", async () => {
     await open_parent();
     await act(async () => {
       fireEvent.click(screen.getByLabelText("Open Summarizer"));
     });
-    expect(crumbs()).toBe("Reviewer › Subagent Pool › Summarizer");
+    expect(crumbs()).toBe("Reviewer › Summarizer");
     /* A referenced Agent is its own resource: Save writes it, so there is no
        caption saying otherwise. */
     expect(screen.queryByTestId("skeleton-drill-save-target")).toBeNull();
@@ -930,6 +933,40 @@ describe("drilling into a subagent's own graph", () => {
     /* Only the graph left behind is navigable. */
     expect(screen.getByLabelText("Back to Reviewer")).toBeInTheDocument();
     expect(screen.queryByLabelText("Back to Summarizer")).toBeNull();
+    /* Each graph is its icon and its name: a referenced Agent wears its own
+       icon. */
+    const trail = screen.getByTestId("side-menu-breadcrumb");
+    expect(within(trail).getByTestId("side-menu-crumb-drill-0-avatar")).toHaveAttribute("data-agent-variant", "glyph");
+    expect(within(trail).getByTestId("side-menu-crumb-drill-1-avatar")).toHaveAttribute("data-agent-variant", "glyph");
+    expect(within(trail).getByTestId("side-menu-crumb-drill-1-label")).toHaveTextContent("Summarizer");
+  });
+
+  test("the page draws no breadcrumb of its own: the path is the side menu's", async () => {
+    await open_parent();
+    /* Open, not drilled: the Agent alone, grey, leading nowhere, and no
+       Esc hint, since there is nothing to go back to. */
+    expect(crumbs()).toBe("Reviewer");
+    expect(screen.getByTestId("skeleton-escape-hint")).toHaveAttribute("data-visible", "false");
+    expect(screen.getByTestId("side-menu-crumb-drill-0")).toHaveAttribute("aria-disabled", "true");
+    expect(drillTrailLinks()).toHaveLength(0);
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Open Summarizer"));
+    });
+    const page = screen.getByTestId("skeleton-resource-page");
+    expect(page.contains(screen.getByTestId("side-menu-breadcrumb"))).toBe(false);
+    /* Drilled: the canvas says Esc goes back, and nothing more. */
+    const hint = screen.getByTestId("skeleton-escape-hint");
+    expect(hint).toHaveAttribute("data-visible", "true");
+    expect(hint).toHaveTextContent("Escto go back");
+    expect(hint.style.pointerEvents).toBe("none");
+    expect(within(page).queryByLabelText("Back to Reviewer")).toBeNull();
+    expect(within(page).queryByText("Subagent Pool")).toBeNull();
+    /* Clicking the segment goes back up a level. */
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Back to Reviewer"));
+    });
+    expect(screen.getByTestId("skeleton-node-pool")).toBeInTheDocument();
+    expect(drillTrailLinks()).toHaveLength(0);
   });
 
   test("coming back restores the parent's unsaved work and saves nothing", async () => {
@@ -959,7 +996,7 @@ describe("drilling into a subagent's own graph", () => {
     expect(screen.getByTestId("binding-row-0")).toBeInTheDocument();
     expect(screen.queryByTestId("binding-row-1")).toBeNull();
     expect(api.unchain.saveSkeletonResource).not.toHaveBeenCalled();
-    expect(screen.queryByTestId("skeleton-drill-breadcrumb")).toBeNull();
+    expect(drillTrailLinks()).toHaveLength(0);
   });
 
   test("a read that fails names the Agent and leaves the author on the parent", async () => {
@@ -971,7 +1008,7 @@ describe("drilling into a subagent's own graph", () => {
       /The Agent sum could not be opened — referenced Agent was not found/,
     );
     expect(screen.getByTestId("skeleton-node-pool")).toBeInTheDocument();
-    expect(screen.queryByTestId("skeleton-drill-breadcrumb")).toBeNull();
+    expect(drillTrailLinks()).toHaveLength(0);
   });
 
   test("a reference that turns out to be a Workflow is refused by the same gate the picker uses", async () => {
@@ -1015,7 +1052,7 @@ describe("drilling into a subagent's own graph", () => {
     await act(async () => {});
     /* No read at all: the graph was already in the parent's document. */
     expect(api.unchain.getSkeletonResource).toHaveBeenCalledTimes(1);
-    expect(crumbs()).toBe("Reviewer › Subagent Pool › Shortener");
+    expect(crumbs()).toBe("Reviewer › Shortener");
     expect(screen.getByTestId("skeleton-drill-save-target").textContent).toBe(
       "Save writes Reviewer, which owns this embedded graph.",
     );
@@ -1075,11 +1112,11 @@ describe("drilling into a subagent's own graph", () => {
     await open_parent();
     fireEvent.click(screen.getByLabelText("Open Shortener"));
     await act(async () => {});
-    expect(screen.getByTestId("skeleton-drill-breadcrumb")).toBeInTheDocument();
+    expect(drillTrailLinks().length).toBeGreaterThan(0);
     await act(async () => {
       fireEvent.keyDown(document, { key: "Escape" });
     });
-    expect(screen.queryByTestId("skeleton-drill-breadcrumb")).toBeNull();
+    expect(drillTrailLinks()).toHaveLength(0);
     expect(screen.getByTestId("skeleton-node-pool")).toBeInTheDocument();
     /* The Agents modal closes on Escape from its own window listener; while a
        drill was open this one belonged to the drill. */
@@ -1104,7 +1141,7 @@ describe("drilling into a subagent's own graph", () => {
     window.document.body.appendChild(field);
     field.focus();
     fireEvent.keyDown(document, { key: "Escape" });
-    expect(screen.getByTestId("skeleton-drill-breadcrumb")).toBeInTheDocument();
+    expect(drillTrailLinks().length).toBeGreaterThan(0);
     field.remove();
   });
 
@@ -1130,13 +1167,13 @@ describe("drilling into a subagent's own graph", () => {
     fireEvent.click(screen.getByLabelText("Open Deepest"));
     await act(async () => {});
     expect(crumbs()).toBe(
-      "Reviewer › Subagent Pool › Shortener › Subagent Pool › Deepest",
+      "Reviewer › Shortener › Deepest",
     );
     /* Back to the middle one, not all the way out. */
     await act(async () => {
       fireEvent.click(screen.getByLabelText("Back to Shortener"));
     });
-    expect(crumbs()).toBe("Reviewer › Subagent Pool › Shortener");
+    expect(crumbs()).toBe("Reviewer › Shortener");
     expect(screen.getByTestId("skeleton-node-inner-pool")).toBeInTheDocument();
   });
 
@@ -1161,7 +1198,7 @@ describe("drilling into a subagent's own graph", () => {
     expect(screen.getByTestId("skeleton-drill-notice").textContent).toMatch(
       /has not landed yet/,
     );
-    expect(screen.queryByTestId("skeleton-drill-breadcrumb")).toBeNull();
+    expect(drillTrailLinks()).toHaveLength(0);
     await act(async () => {
       land(result({ kind: "agent", document: parent_doc(), edit_token: "edit-2" }));
     });
@@ -1206,7 +1243,7 @@ describe("drilling into a subagent's own graph", () => {
       /no longer in this pool, so it was closed/,
     );
     expect(screen.getByTestId("skeleton-node-pool")).toBeInTheDocument();
-    expect(screen.queryByTestId("skeleton-drill-breadcrumb")).toBeNull();
+    expect(drillTrailLinks()).toHaveLength(0);
   });
 
   /* ── A read that answered too late ────────────────────────────────────────
@@ -1281,7 +1318,7 @@ describe("drilling into a subagent's own graph", () => {
     expect(screen.getByTestId("skeleton-node-elsewhere")).toBeInTheDocument();
     expect(screen.queryByTestId("skeleton-node-sum-end")).toBeNull();
     expect(screen.getByTestId("skeleton-save-state").textContent).toMatch(/unsaved/i);
-    expect(screen.queryByTestId("skeleton-drill-breadcrumb")).toBeNull();
+    expect(drillTrailLinks()).toHaveLength(0);
     expect(screen.queryByTestId("skeleton-drill-notice")).toBeNull();
   });
 
@@ -1305,7 +1342,7 @@ describe("drilling into a subagent's own graph", () => {
       land_read();
     });
 
-    expect(screen.queryByTestId("skeleton-drill-breadcrumb")).toBeNull();
+    expect(drillTrailLinks()).toHaveLength(0);
     expect(screen.getByTestId("skeleton-drill-notice").textContent).toMatch(
       /has not landed yet/,
     );
@@ -1326,7 +1363,7 @@ describe("drilling into a subagent's own graph", () => {
     await act(async () => {
       fireEvent.click(screen.getByLabelText("Open Summarizer"));
     });
-    expect(screen.getByTestId("skeleton-drill-breadcrumb")).toBeInTheDocument();
+    expect(drillTrailLinks().length).toBeGreaterThan(0);
   });
 
   test("a second opening wins, and the first read's answer is not drawn over it", async () => {
@@ -1341,7 +1378,7 @@ describe("drilling into a subagent's own graph", () => {
     await act(async () => {
       land_read();
     });
-    expect(crumbs()).toBe("Reviewer › Subagent Pool › Shortener");
+    expect(crumbs()).toBe("Reviewer › Shortener");
     expect(screen.getByTestId("skeleton-node-inner-end")).toBeInTheDocument();
     expect(screen.queryByTestId("skeleton-node-sum-end")).toBeNull();
     /* Nothing is said about the graph they decided against — the notice would

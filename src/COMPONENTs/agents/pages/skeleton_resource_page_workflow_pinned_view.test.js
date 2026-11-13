@@ -1,6 +1,7 @@
 /* eslint-disable testing-library/no-node-access -- the code block is read off the real shared editor. */
 import React from "react";
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { drillTrailLinks, render } from "./drill_trail_test_helpers";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import SkeletonResourcePage from "./skeleton_resource_page";
 import Modal from "../../../BUILTIN_COMPONENTs/modal/modal";
@@ -153,9 +154,9 @@ test("opens exactly the pinned workflow_id + revision_id, read-only: nothing is 
   expect(store.publish).not.toHaveBeenCalled();
   expect(store.save).not.toHaveBeenCalled();
 
-  const crumbs = screen.getByTestId("skeleton-drill-crumbs");
+  const crumbs = screen.getByTestId("side-menu-breadcrumb");
   expect(crumbs).toHaveTextContent("caller-complete-rev2");
-  expect(crumbs).toHaveTextContent("Workflow Call · call");
+  expect(crumbs).not.toHaveTextContent("Workflow call · call");
   expect(crumbs).toHaveTextContent("Summarize · revision 2");
   expect(screen.getByTestId("workflow-pinned-caption")).toHaveTextContent(`Read-only: revision 2 of Summarize · ${REV2}`);
 
@@ -211,7 +212,7 @@ test("the breadcrumb goes back too, to the same open panel, with nothing written
   await waitFor(() => expect(pinnedView()).not.toBeNull());
   fireEvent.click(screen.getByRole("button", { name: "Back to caller-complete-rev2" }));
   await waitFor(() => expect(pinnedView()).toBeNull());
-  expect(screen.queryByTestId("skeleton-drill-breadcrumb")).toBeNull();
+  expect(drillTrailLinks()).toHaveLength(0);
   expect(screen.getByTestId("workflow-call-section")).toBeInTheDocument();
   expect(screen.getByTestId("skeleton-save-state")).toHaveTextContent(/^Saved$/);
 });
@@ -242,7 +243,7 @@ test("a re-pinned call opens the new revision; a late answer about the old pin o
   openPinned();
   await waitFor(() => expect(pinnedView()).not.toBeNull());
   expect(viewReads(store, before)).toEqual([["wf-summarize", REV1]]);
-  expect(screen.getByTestId("skeleton-drill-crumbs")).toHaveTextContent("Summarize · revision 1");
+  expect(screen.getByTestId("side-menu-breadcrumb")).toHaveTextContent("Summarize · revision 1");
   expect(store.publish).not.toHaveBeenCalled();
 });
 
@@ -281,7 +282,7 @@ test("a revision that cannot be read opens nothing and says why; the editor is u
   expect(store.publish).not.toHaveBeenCalled();
 });
 
-test("a pinned revision with host-kept Code text draws that text from its own aggregate, not the caller's", async () => {
+test("a pinned revision with host-kept Code text opens read-only, its Code step drawn as the plain header card", async () => {
   const reply = g1_revision();
   const store = makeStore(["caller_complete_rev2_get"], {
     extraVersions: { [`${reply.version.workflow_id}\u0000${G1_REVISION}`]: reply },
@@ -293,9 +294,9 @@ test("a pinned revision with host-kept Code text draws that text from its own ag
   await screen.findByText("revision 1", { exact: false });
   openPinned();
   await waitFor(() => expect(pinnedView()).not.toBeNull());
-  expect(screen.getByTestId("code-node-score-block")).toHaveTextContent("def main(input, context):");
-  expect(screen.queryByTestId("code-node-score-text-missing")).toBeNull();
-  expect(screen.getByTestId("skeleton-drill-crumbs")).toHaveTextContent("G1 Root · revision 1");
+  expect(screen.getByTestId("code-node-score")).toHaveTextContent("Python");
+  expect(screen.getByTestId("code-node-score")).not.toHaveTextContent("def main");
+  expect(screen.getByTestId("side-menu-breadcrumb")).toHaveTextContent("G1 Root · revision 1");
   fireEvent.keyDown(window.document, { key: "Escape" });
   await waitFor(() => expect(pinnedView()).toBeNull());
   expect(store.save).not.toHaveBeenCalled();

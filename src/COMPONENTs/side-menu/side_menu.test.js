@@ -4,6 +4,7 @@ import SideMenu from "./side_menu";
 import { ConfigContext, LocaleContext } from "../../CONTAINERs/config/context";
 import { writeFeatureFlags } from "../../SERVICEs/feature_flags";
 import { getAgentsSidebarSearch, setAgentsSidebarSearch } from "../../SERVICEs/agents_sidebar_search";
+import { DRILL_TRAIL_RELEASE_MS, clearAgentsDrillTrail, resetAgentsDrillTrail, setAgentsDrillTrail } from "../../SERVICEs/agents_drill_trail";
 
 const originalWindowStateAPI = window.windowStateAPI;
 const originalRuntime = window.runtime;
@@ -76,6 +77,7 @@ const renderSideMenu = (nav = {}) =>
 describe("SideMenu", () => {
   beforeEach(() => {
     window.localStorage.clear();
+    resetAgentsDrillTrail();
   });
 
   afterEach(() => {
@@ -296,32 +298,62 @@ describe("SideMenu", () => {
     expect(setAppMode).toHaveBeenCalledWith("chat");
   });
 
-  test("the Agents entry drops its › and wears the Home crumb's pointed block instead", () => {
+  test("an open Agent takes the Agents crumb's place; drilled in, the graph left behind leads back", async () => {
+    /* Lets a crumb that left finish sliding out. */
+    const settle = () => act(() => new Promise((resolve) => setTimeout(resolve, 250)));
     writeFeatureFlags({ enable_user_access_to_agents: true });
-    const rect = jest
-      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
-      .mockReturnValue({ width: 296, height: 30, top: 0, left: 0, right: 296, bottom: 30 });
+    renderSideMenu({ appMode: "agents", setAppMode: jest.fn() });
+    const owner = {};
+    const navigate = jest.fn();
+    /* Selected, nothing drilled: one grey segment, its icon and its name. */
+    act(() => setAgentsDrillTrail(owner, [{ key: "drill-0", label: "Default", depth: null, presentation: null }], navigate));
+    await settle();
+    expect(screen.queryByTestId("side-menu-crumb-agents")).toBeNull();
+    const selected = screen.getByTestId("side-menu-crumb-drill-0");
+    expect(selected).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByTestId("side-menu-crumb-drill-0-label")).toHaveTextContent("Default");
+    expect(screen.getByTestId("side-menu-crumb-drill-0-avatar")).toBeInTheDocument();
+    expect(screen.queryByTestId("side-menu-crumb-drill-0-shape")).toBeNull();
+    /* Drilled into a subagent: Default › Summarizer, and Default goes back. */
+    act(() => setAgentsDrillTrail(owner, [
+      { key: "drill-0", label: "Default", depth: 0, presentation: null, ariaLabel: "Back to Default" },
+      { key: "drill-1", label: "Summarizer", depth: null, presentation: null },
+    ], navigate));
+    await settle();
+    expect(screen.getByTestId("side-menu-crumb-drill-1")).toHaveAttribute("aria-current", "page");
+    fireEvent.click(screen.getByRole("button", { name: "Back to Default" }));
+    expect(navigate).toHaveBeenCalledWith(0);
+    /* Nothing open: Agents again. */
+    act(() => clearAgentsDrillTrail(owner));
+    await act(() => new Promise((resolve) => setTimeout(resolve, DRILL_TRAIL_RELEASE_MS)));
+    await settle();
+    expect(screen.getByTestId("side-menu-crumb-agents")).toBeInTheDocument();
+  });
+
+  test("the Agents entry uses the standard button highlight and slides its arrow in from the right", () => {
+    writeFeatureFlags({ enable_user_access_to_agents: true });
     const setAppMode = jest.fn();
     renderSideMenu({ appMode: "chat", setAppMode });
     const entry = screen.getByTestId("side-menu-agents-entry");
-    const path = within(entry).getByTestId("side-menu-agents-entry-shape").querySelector("path");
-    /* pointed: the right edge is reached at mid height */
-    expect(path.getAttribute("d")).toContain("Q296 15");
-    const shape = within(entry).getByTestId("side-menu-agents-entry-shape");
-    /* like a plain button: nothing at rest, shown only under the pointer */
-    expect(shape.dataset.shown).toBe("false");
-    fireEvent.mouseEnter(entry);
-    expect(shape.dataset.shown).toBe("true");
-    /* pressed, it pulls in 2px on every side like a Button's block: on a
-       30px-high entry that is far more than a 4% scale would give */
-    fireEvent.mouseDown(entry);
-    expect(shape.style.transform).toBe(`scale(${1 - 4 / 296}, ${1 - 4 / 30})`);
-    fireEvent.mouseUp(entry);
-    fireEvent.mouseLeave(entry);
-    expect(shape.dataset.shown).toBe("false");
-    fireEvent.click(within(entry).getByText("Agents"));
+    const button = within(entry).getByRole("button", { name: "Agents" });
+    // Decorative layers have no accessible role to query.
+    // eslint-disable-next-line testing-library/no-node-access
+    const highlight = button.firstElementChild;
+    // eslint-disable-next-line testing-library/no-node-access
+    const arrow = button.lastElementChild;
+    expect(screen.queryByTestId("side-menu-agents-entry-shape")).toBeNull();
+    expect(button).toHaveStyle({ overflow: "hidden" });
+    expect(arrow).toHaveStyle({ opacity: "0", transform: "translate(24px, -50%)" });
+    expect(highlight).toHaveStyle({ opacity: "0" });
+    fireEvent.mouseEnter(button);
+    expect(arrow).toHaveStyle({ opacity: "1", transform: "translate(0px, -50%)" });
+    expect(highlight).toHaveStyle({ opacity: "1" });
+    expect(highlight.style.backgroundColor).not.toBe("transparent");
+    fireEvent.mouseLeave(button);
+    expect(arrow).toHaveStyle({ opacity: "0", transform: "translate(24px, -50%)" });
+    expect(highlight).toHaveStyle({ opacity: "0" });
+    fireEvent.click(button);
     expect(setAppMode).toHaveBeenCalledWith("agents");
-    rect.mockRestore();
   });
 
   test("New chat is the Chats title's action, not a top-bar button", () => {

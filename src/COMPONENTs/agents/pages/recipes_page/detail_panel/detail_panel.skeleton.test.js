@@ -5,6 +5,7 @@ jest.mock("./panel_help", () => function GuidanceText({ children }) { return <>{
 import { render, screen, fireEvent, within, act, waitFor } from "@testing-library/react";
 import { ConfigContext } from "../../../../../CONTAINERs/config/context";
 import DetailPanel from "./detail_panel";
+import { DetailChromeContext } from "../canvas_chrome";
 import OutputVariablesSection from "./output_variables_section";
 import { has_node_identity, node_identity } from "./node_identity";
 import { LOOKUP_ROWS } from "../skeleton_drill_replacement_capture";
@@ -341,7 +342,8 @@ describe("the Output Variables section in the panel", () => {
     const caller = screen.getByTestId("skeleton-input-variables");
     expect(caller).toHaveTextContent("Caller input");
     expect(within(caller).getByLabelText("Read-only caller input")).toBeInTheDocument();
-    expect(within(caller).queryByRole("button")).not.toBeInTheDocument();
+    /* Only the part's own fold toggle; no control to edit the caller input. */
+    expect(within(caller).queryAllByRole("button").filter((button) => !String(button.dataset.testid || "").startsWith("process-toggle-"))).toHaveLength(0);
     expect(within(caller).queryByRole("textbox")).not.toBeInTheDocument();
     expect(change).not.toHaveBeenCalled();
     expect(skeleton_document.nodes.find((node) => node.type === "start").config.execution).not.toHaveProperty("inputs");
@@ -766,19 +768,21 @@ describe("the Model section in the panel", () => {
       selectedNodeId: "kernel",
     });
 
-  test("an Agent reads downwards: model, prompt, then inputs, result, outputs", () => {
-    /* What the Agent is stays on top and in view; under it the wiring, in
-       the order values flow. JSON Output belongs to the Output disclosure:
-       its header precedes the schema, the mapping editor follows it. */
+  test("an Agent reads downwards: inputs first, then model, prompt, and outputs last", () => {
+    /* Input Variables come first and Output Variables last on every node's
+       page. JSON Output belongs to the Output disclosure: its header
+       precedes the schema, the mapping editor follows it. */
     open({ execution: { inputs: [], outputs: [] } });
     const text = screen.getByTestId("recipe-detail-panel").textContent;
-    expect(text.indexOf("Model")).toBeGreaterThanOrEqual(0);
+    expect(text.indexOf("Input Variables")).toBeGreaterThanOrEqual(0);
+    expect(text.indexOf("Model")).toBeGreaterThan(text.indexOf("Input Variables"));
     expect(text.indexOf("Prompt")).toBeGreaterThan(text.indexOf("Model"));
-    expect(text.indexOf("Input Variables")).toBeGreaterThan(text.indexOf("Prompt"));
-    expect(text.indexOf("Output Variables")).toBeGreaterThan(text.indexOf("Input Variables"));
+    expect(text.indexOf("Output Variables")).toBeGreaterThan(text.indexOf("Prompt"));
     expect(text.indexOf("JSON Output")).toBeGreaterThan(text.indexOf("Output Variables"));
     expect(screen.getByTestId("process-section-output")).toContainElement(screen.getByTestId("skeleton-output-schema"));
-    expect(screen.getByTestId("skeleton-output-schema").compareDocumentPosition(screen.getByTestId("skeleton-output-variables")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    /* The rows come first; the schema waits under Advanced: Edit as JSON. */
+    expect(screen.getByTestId("skeleton-output-variables").compareDocumentPosition(screen.getByTestId("agent-output-advanced")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByTestId("agent-output-advanced")).toContainElement(screen.getByTestId("skeleton-output-schema"));
   });
 
   test("an Agent with no model says the run will refuse it", () => {
@@ -851,7 +855,9 @@ describe("the JSON Output section, and the two halves it joins", () => {
     expect(text.indexOf("JSON Output")).toBeGreaterThan(text.indexOf("Input Variables"));
     expect(text.indexOf("Output Variables")).toBeGreaterThan(text.indexOf("Input Variables"));
     expect(screen.getByTestId("process-section-output")).toContainElement(screen.getByTestId("skeleton-output-schema"));
-    expect(screen.getByTestId("skeleton-output-schema").compareDocumentPosition(screen.getByTestId("skeleton-output-variables")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    /* The rows come first; the schema waits under Advanced: Edit as JSON. */
+    expect(screen.getByTestId("skeleton-output-variables").compareDocumentPosition(screen.getByTestId("agent-output-advanced")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByTestId("agent-output-advanced")).toContainElement(screen.getByTestId("skeleton-output-schema"));
   });
 
   test("only an Agent has one, because only an Agent has a kernel", () => {
@@ -1080,8 +1086,9 @@ describe("the panel header draws a node, not everything stored beside it", () =>
   test("a stored label that cannot become text does not take the panel down", () => {
     const document = node_with({ label: { toString: null } });
     show({ document, onDocumentChange: () => {}, selectedNodeId: "agent" });
-    /* The header is there, and it names the node by its id. */
-    expect(screen.getByText("agent")).toBeInTheDocument();
+    /* The header is there, and without a label it names the node by its
+       type, "Agent", not by its id. */
+    expect(screen.getByTestId("recipe-detail-panel-header")).toHaveTextContent("Agent");
     /* And the document still holds what the store holds. */
     expect(document.nodes[0].label).toEqual({ toString: null });
   });
@@ -1103,7 +1110,7 @@ describe("the panel header draws a node, not everything stored beside it", () =>
       onDocumentChange: () => {},
       selectedNodeId: "agent",
     });
-    expect(screen.getByText("agent")).toBeInTheDocument();
+    expect(screen.getByTestId("recipe-detail-panel-header")).toHaveTextContent("Agent");
     // Ignoring the forbidden override must not promise legacy inheritance:
     // this native node has no Kernel and is not runnable until configured.
     expect(screen.getByText("No model configured")).toBeInTheDocument();
@@ -1214,5 +1221,32 @@ describe("a node type the identity table does not own", () => {
     expect(screen.getByTestId("recipe-detail-panel-body")).toBeInTheDocument();
     /* The stored type is untouched. */
     expect(JSON.stringify(document)).toBe(before);
+  });
+});
+
+describe("in the docked macOS panel the header sits at the panel's top", () => {
+  test.each([["light_mode", "rgba(0,0,0,0.08)"], ["dark_mode", "rgba(255,255,255,0.08)"]])(
+    "the icon is as far from the top as from the left, the title keeps clear of the toggle, and a rule marks the scrolling body (%s)",
+    (mode, rule) => {
+      render(
+        <ConfigContext.Provider value={{ ...cfg, onThemeMode: mode }}>
+          <DetailChromeContext.Provider value={{ headerInTitleRow: true, toggleReserve: 44 }}>
+            <DetailPanel recipe={legacy_recipe} selectedNodeId="end" onChange={() => {}} onChangeSilent={() => {}} />
+          </DetailChromeContext.Provider>
+        </ConfigContext.Provider>,
+      );
+      const header = screen.getByTestId("recipe-detail-panel-header");
+      /* 11px + the 5px the 36px title block centres the 26px icon by = 16px,
+         the same as the left padding. */
+      expect(header.style.padding).toBe("11px 44px 12px 16px");
+      expect(header.style.borderBottom).toBe(`1px solid ${rule}`);
+    },
+  );
+
+  test("without the docked panel's word the header keeps its usual padding and rule", () => {
+    show();
+    const header = screen.getByTestId("recipe-detail-panel-header");
+    expect(header.style.padding).toBe("14px 16px 12px");
+    expect(header.style.borderBottom).toMatch(/^1px solid/);
   });
 });

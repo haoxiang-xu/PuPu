@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import Input from "./panel_input";
 import Select from "./panel_select";
-import Switch from "../../../../../BUILTIN_COMPONENTs/input/switch";
+import { SemiSwitch } from "../../../../../BUILTIN_COMPONENTs/input/switch";
 import TextField from "../../../../../BUILTIN_COMPONENTs/input/textfield";
 import {
   node_kernel,
@@ -15,6 +15,7 @@ import { identity_of } from "../document_values";
 import { output_schema_problems } from "../output_schema";
 import usePendingText from "./pending_text";
 import useTakenName from "./taken_name";
+import { fill, PANEL_SWITCH, textFieldFill } from "./panel_style";
 import useListIdentities from "./list_identity";
 import {
   BOUND_LABEL,
@@ -30,8 +31,6 @@ import {
   schema_from_fields,
   why_fields_cannot_hold,
 } from "../output_schema_fields";
-/* The panel's switches are 38×20, a step quieter than the builder's. */
-const BUILDER_SWITCH_SIZE = Object.freeze({ width: 38, height: 20 });
 
 /* JSON Output: what an Agent produces besides its reply.
  *
@@ -248,7 +247,7 @@ export function FieldRow({ field, index, taken, revision, isDark, onChange, onRe
         gap: 6,
         padding: "8px 10px",
         borderRadius: 8,
-        background: isDark ? "rgba(255,255,255,0.035)" : "rgba(0,0,0,0.022)",
+        background: fill(isDark),
       }}
     >
       {/* The panel is resizable and there is no global border-box here, so a
@@ -304,10 +303,10 @@ export function FieldRow({ field, index, taken, revision, isDark, onChange, onRe
         <div style={{ flex: 1, minWidth: 0 }} />
         <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
           <span style={CAPTION}>{t("agents.schema.required")}</span>
-          <Switch
+          <SemiSwitch
             on={Boolean(field.required)}
             set_on={(next) => onChange({ ...field, required: Boolean(next) })}
-            style={BUILDER_SWITCH_SIZE}
+            style={PANEL_SWITCH}
           />
         </div>
         <Button
@@ -512,7 +511,7 @@ export default function OutputSchemaSection({
             <span data-testid="schema-off">{t("agents.schema.off_caption")}</span>
           </PanelHelp>}
         </div>
-        <Switch
+        <SemiSwitch
           on={on}
           set_on={(next) => {
             /* Turning it off stores `null`, which is what the runtime reads as
@@ -520,7 +519,7 @@ export default function OutputSchemaSection({
                schema, which would declare an object with no fields. */
             store(next ? EMPTY_SCHEMA : null, null);
           }}
-          style={quiet ? { width: 38, height: 20 } : BUILDER_SWITCH_SIZE}
+          style={PANEL_SWITCH}
         />
       </div>
 
@@ -607,10 +606,10 @@ export default function OutputSchemaSection({
           />
 
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Switch
+            <SemiSwitch
               on={closed}
               set_on={(next) => set_fields(fields, Boolean(next), root)}
-              style={{ ...BUILDER_SWITCH_SIZE, flexShrink: 0 }}
+              style={{ ...PANEL_SWITCH, flexShrink: 0 }}
             />
             <span data-testid="schema-closed-caption" style={CAPTION}>
               {closed ? t("agents.schema.closed_caption") : t("agents.schema.open_caption")}
@@ -630,7 +629,7 @@ export default function OutputSchemaSection({
             width: "100%",
             fontSize: 11,
             ...MONO,
-            borderRadius: 6,
+            ...textFieldFill(isDark),
             padding: 8,
           }}
         />

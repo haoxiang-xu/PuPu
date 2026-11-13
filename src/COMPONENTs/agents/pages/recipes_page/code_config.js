@@ -1,7 +1,7 @@
 import { agentEnglishText } from "./agents_i18n";
 import { safe_text } from "./document_values";
 import { schema_root_scope } from "./output_schema";
-import { is_reserved_path, managed_sha, text_problem } from "./managed_code_sources";
+import { is_reserved_path, managed_path, managed_sha, owned_code_nodes, sha256_text, text_problem } from "./managed_code_sources";
 
 /* The Code node's configuration (#357).
  *
@@ -32,8 +32,13 @@ import { is_reserved_path, managed_sha, text_problem } from "./managed_code_sour
  * The store saves every one of those shapes, right or wrong, and its draft
  * check says nothing about any of them; preflight names one problem at a
  * time, and a node with no `code` at all passes preflight and fails only when
- * the run starts. So the editor states the problems itself and never writes
- * a value the author did not choose. */
+ * the run starts. So the editor states the problems itself.
+ *
+ * Python and the three limits have defaults (the built-in Python, 30 s,
+ * 1 MiB, 1 MiB — the values the runtime's own captures use). The runtime
+ * requires them written, so "not set" means "the default" in the panel and
+ * `with_code_defaults` writes them into the document on its way to the
+ * store; a value already stored is never touched. */
 
 export const CODE_LIMITS = Object.freeze({
   timeout_ms: Object.freeze({ min: 1, max: 86400000 }),
@@ -41,6 +46,90 @@ export const CODE_LIMITS = Object.freeze({
   max_log_bytes: Object.freeze({ min: 1, max: 8 * 1024 * 1024 }),
 });
 export const LIMIT_KEYS = Object.freeze(Object.keys(CODE_LIMITS));
+/* What each limit is called where the author sets it. */
+export const LIMIT_LABELS = Object.freeze({
+  timeout_ms: "agents.execution.code.limit_time",
+  max_result_bytes: "agents.execution.code.limit_result",
+  max_log_bytes: "agents.execution.code.limit_log",
+});
+
+/* The one Python a Code node runs with: the store's built-in profile
+   (`list_python_profiles` always lists it under this id). The panel no longer
+   offers another, so the first setting written on a node that names no
+   profile writes this one — the value picking "built-in Python" wrote before.
+   A profile already stored, whatever it is, is never rewritten. The runtime
+   has no fallback of its own: a missing id is refused before the run. */
+export const BUILTIN_PYTHON = "builtin";
+
+/* What an unset Python or limit means. */
+export const CODE_DEFAULTS = Object.freeze({
+  environment_profile_id: BUILTIN_PYTHON,
+  timeout_ms: 30000,
+  max_result_bytes: 1048576,
+  max_log_bytes: 1048576,
+});
+
+/* One Code node's settings with every unset default written in. A key that
+   is there — whatever it holds — is kept as it is; a node with no settings
+   at all gets the defaults. Anything that is not a settings object is left
+   for the problems list. The same object comes back when nothing is
+   missing. */
+export function code_with_defaults(code) {
+  if (code !== undefined && !record(code)) return code;
+  const base = code || {};
+  const missing = Object.keys(CODE_DEFAULTS).filter((key) => !has(base, key));
+  if (missing.length === 0) return code;
+  const next = { ...base };
+  missing.forEach((key) => { next[key] = CODE_DEFAULTS[key]; });
+  return next;
+}
+
+const set_at = (value, path, leaf) => {
+  if (path.length === 0) return leaf;
+  const [step, ...rest] = path;
+  const copy = Array.isArray(value) ? [...value] : { ...value };
+  copy[step] = set_at(value[step], rest, leaf);
+  return copy;
+};
+
+/* THE normalisation every document goes through on its way to the store
+   (save and the draft check; preflight and a run read what was saved): each
+   Code node this resource owns — embedded graphs included, the same walk the
+   managed-source manifest uses — gets its unset defaults. The document comes
+   back unchanged (the same object) when nothing is missing. */
+export function with_code_defaults(document) {
+  let next = document;
+  owned_code_nodes(document).forEach(({ node_path, node }) => {
+    const code = node.config.code;
+    const filled = code_with_defaults(code);
+    if (filled !== code) next = set_at(next, [...node_path, "config", "code"], filled);
+  });
+  return next;
+}
+
+/* A new Code node starts usable, and passes on what it is given: `main`
+   returns its input unchanged (an empty object when there is none), against
+   a Result that declares exactly that — nothing, until the node is connected
+   and inherits its inputs (`variable_inheritance`, which keeps this Result
+   and the Output Variables mirroring the inputs while the node is
+   untouched). The text is kept as panel-written text under its digest. */
+export const STARTER_CODE = "def main(input, context):\n    # Passes every input on unchanged. Edit to compute your own result.\n    return dict(input)\n";
+export const STARTER_RESULT_SCHEMA = Object.freeze({
+  type: "object",
+  properties: Object.freeze({}),
+  additionalProperties: false,
+});
+export function starter_code() {
+  const sha = sha256_text(STARTER_CODE);
+  return {
+    code: {
+      source: { kind: "file", path: managed_path(sha) },
+      ...CODE_DEFAULTS,
+      result_schema: JSON.parse(JSON.stringify(STARTER_RESULT_SCHEMA)),
+    },
+    sources: { [sha]: STARTER_CODE },
+  };
+}
 export const CODE_SETTING_KEYS = Object.freeze([
   "source",
   "environment_profile_id",
@@ -48,7 +137,6 @@ export const CODE_SETTING_KEYS = Object.freeze([
   "result_schema",
   "artifacts",
 ]);
-const REQUIRED_KEYS = CODE_SETTING_KEYS.filter((key) => key !== "artifacts");
 
 const record = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 /* Presence is a question about the key, never about its value: `own` answers
@@ -210,22 +298,19 @@ export function code_result_roots(node, t = agentEnglishText) {
 /* ── What the panel says is wrong ─────────────────────────────────────── */
 
 export function code_problems(node, profiles, sources, t = agentEnglishText) {
+  /* Python and the limits fall back to their defaults, so an unset one is
+     not a problem. Nothing written yet is ONE next step — write the code —
+     and the Result is asked for once there is code to declare it for. */
   const code = code_settings(node);
   if (!code) {
-    return [{ code: "code_missing", message: t("agents.execution.code.settings_missing") }];
+    return [{ code: "source_missing", message: t("agents.execution.code.source_missing") }];
   }
   const problems = [];
-  REQUIRED_KEYS.filter((key) => !has(code, key)).forEach((key) => {
-    if (LIMIT_KEYS.includes(key)) {
-      problems.push({ code: "limit_missing", setting: key, message: t("agents.execution.code.limit_missing", { value1: key.replace(/_/g, " ") }) });
-    } else if (key === "source") {
-      problems.push({ code: "source_missing", message: t("agents.execution.code.source_missing") });
-    } else if (key === "environment_profile_id") {
-      problems.push({ code: "profile_missing", message: t("agents.execution.code.profile_missing") });
-    } else {
-      problems.push({ code: "schema_missing", message: t("agents.execution.code.schema_missing") });
-    }
-  });
+  if (!has(code, "source")) {
+    problems.push({ code: "source_missing", message: t("agents.execution.code.source_missing") });
+  } else if (!has(code, "result_schema")) {
+    problems.push({ code: "schema_missing", message: t("agents.execution.code.schema_missing") });
+  }
   Object.keys(code).filter((key) => !CODE_SETTING_KEYS.includes(key)).forEach((key) => {
     problems.push({ code: "unknown_setting", setting: key, message: t("agents.execution.code.unknown_setting", { key: safe_text(key) }) });
   });
@@ -248,7 +333,9 @@ export function code_problems(node, profiles, sources, t = agentEnglishText) {
   }
   LIMIT_KEYS.filter((key) => has(code, key)).forEach((key) => {
     if (!limit_ok(code[key], CODE_LIMITS[key])) {
-      problems.push({ code: "limit_invalid", setting: key, message: t("agents.execution.code.limit_invalid", { value1: key.replace(/_/g, " "), value2_min: CODE_LIMITS[key].min, value3_max: CODE_LIMITS[key].max }) });
+      /* Said in the unit the panel types: the time limit in seconds. */
+      const scale = key === "timeout_ms" ? 1000 : 1;
+      problems.push({ code: "limit_invalid", setting: key, message: t("agents.execution.code.limit_invalid", { value1: t(LIMIT_LABELS[key]), value2_min: CODE_LIMITS[key].min, value3_max: CODE_LIMITS[key].max / scale }) });
     }
   });
   if (has(code, "result_schema")) {

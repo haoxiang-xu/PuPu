@@ -54,7 +54,8 @@ const open = async () => {
   show();
   await screen.findByTestId("skeleton-node-end");
 };
-const control = (title) => within(screen.getByTitle(title)).getByRole("button");
+/* Icon-only controls are named by their aria-label (the tooltip says the same). */
+const control = (name) => screen.getByRole("button", { name });
 const saveButton = () => screen.getByRole("button", { name: /^(Save|Saving…)$/ });
 const endInputs = (payload) => payload.document.nodes.find((n) => n.id === "end").config.execution.inputs;
 const keys = (init) => fireEvent.keyDown(window, init);
@@ -182,7 +183,7 @@ describe("the rest of the control center", () => {
   test("Home asks the canvas to center this graph's Start", async () => {
     await open();
     const before = editor.reset_token;
-    fireEvent.click(control("Center"));
+    fireEvent.click(control("Go to Start"));
     expect(editor.reset_token).toBe(before + 1);
     expect(editor.reset_focus_node_id).toBe("start");
   });
@@ -210,7 +211,7 @@ describe("finding a node by name, now that the row of nodes is gone", () => {
     expect(screen.getByRole("button", { name: "+ Add input", exact: true })).toBeInTheDocument();
     expect(editor.reset_token).toBe(before + 1);
     expect(editor.reset_focus_node_id).toBe("end");
-    fireEvent.click(control("Center"));
+    fireEvent.click(control("Go to Start"));
     expect(editor.reset_focus_node_id).toBe("start");
   });
 

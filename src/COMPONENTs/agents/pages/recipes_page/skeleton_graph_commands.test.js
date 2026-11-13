@@ -165,3 +165,37 @@ test.each([null, {}, { type: "__proto__" }, { type: "delete", node_ids: [null], 
     expect(duplicate.document).toBe(ambiguous);
   });
 });
+
+describe("resetting a node to unnamed", () => {
+  test("removes only the label; a node without one is left as it is", () => {
+    const original = seed();
+    const graph = { ...original, nodes: original.nodes.map((node) => node.id === "agent" ? { ...node, label: "Reviewer", extra: { keep: true } } : node) };
+    const result = command(graph, "reset_node_label", { node_id: "agent" });
+    expect(result.ok).toBe(true);
+    const agent = result.document.nodes.find((node) => node.id === "agent");
+    expect(agent).not.toHaveProperty("label");
+    expect(agent.extra).toBe(graph.nodes.find((node) => node.id === "agent").extra);
+    expect(agent.config).toBe(graph.nodes.find((node) => node.id === "agent").config);
+    expect(result.document.edges).toBe(graph.edges);
+    const again = command(result.document, "reset_node_label", { node_id: "agent" });
+    expect(again.ok).toBe(true);
+    expect(again.document).toBe(result.document);
+  });
+
+  test.each([
+    { type: "reset_node_label" },
+    { type: "reset_node_label", node_id: "agent", label: "x" },
+    { type: "reset_node_label", node_id: "" },
+  ])("a malformed reset is refused: %j", (next) => {
+    const graph = seed();
+    const result = apply_graph_command(graph, next);
+    expect(result).toMatchObject({ ok: false, document: graph });
+  });
+
+  test("missing or duplicate ids are refused", () => {
+    const graph = seed();
+    expect(command(graph, "reset_node_label", { node_id: "absent" })).toMatchObject({ ok: false, problem: { code: "missing_node" } });
+    const ambiguous = { ...graph, nodes: [...graph.nodes, { ...graph.nodes.find((node) => node.id === "agent") }] };
+    expect(command(ambiguous, "reset_node_label", { node_id: "agent" })).toMatchObject({ ok: false, problem: { code: "ambiguous_node" } });
+  });
+});

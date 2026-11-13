@@ -7,7 +7,7 @@ const record = (value) => value !== null && typeof value === "object" && !Array.
 const closed = (value, keys) => record(value) && Object.keys(value).length === keys.length && keys.every((key) => Object.prototype.hasOwnProperty.call(value, key));
 const nonempty = (value) => typeof value === "string" && value.length > 0;
 const unavailable = (reason) => ({ allowed: false, reason });
-export const LABEL_CAPABILITY_LOADING = "Checking the runtime's Rename support…";
+export const LABEL_CAPABILITY_LOADING = "Checking whether steps can be renamed…";
 
 const LOADING_NOTICE = agentMessage("agents.runtime.rename_loading");
 
@@ -51,8 +51,20 @@ export function useNodeLabelCapability(enabled, scope) {
     }
     setState({ scope, ...unavailable(LOADING_NOTICE) });
     Promise.resolve().then(() => api.unchain.getManagedCodeCapabilities()).then(
-      (response) => { if (current) setState({ scope, ...node_label_capability(response, agentMessage) }); },
-      () => { if (current) setState({ scope, ...unavailable(agentMessage("agents.runtime.rename_check_failed")) }); },
+      (response) => {
+        const verdict = node_label_capability(response, agentMessage);
+        /* The page says only that Rename is unavailable; why is for
+           developers. */
+        if (!verdict.allowed) {
+          console.warn("[rename] node labels unavailable; runtime protocols:",
+            JSON.stringify(response && response.runtime_manifest ? response.runtime_manifest.protocols : null));
+        }
+        if (current) setState({ scope, ...verdict });
+      },
+      (error) => {
+        console.warn("[rename] runtime capability check failed:", error && error.code);
+        if (current) setState({ scope, ...unavailable(agentMessage("agents.runtime.rename_check_failed")) });
+      },
     );
     return () => { current = false; };
   }, [enabled, scope]);

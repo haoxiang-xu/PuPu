@@ -28,13 +28,15 @@ import PanelResizeHandle from "./recipes_page/panel_resize_handle";
 import {
   CanvasMessageStrip,
   DETAIL_WIDTH_VAR,
-  FloatingBreadcrumb,
+  EscapeBackHint,
   FloatingDetailShell,
   HANDLE_GAP,
   PANEL_INSET,
 } from "./recipes_page/canvas_chrome";
 import { to_save_payload } from "./recipes_page/recipe_save_payload";
 import useRecipeHistory from "./recipes_page/use_recipe_history";
+import { drill_trail_segments } from "./recipes_page/drill_trail";
+import { usePublishAgentsDrillTrail } from "../../../SERVICEs/agents_drill_trail";
 import {
   DRILL,
   drill_crumbs,
@@ -73,8 +75,8 @@ export default function RecipesPage({
     left: topStripLeft,
     clearsTrafficLights,
   } = useTopStripCenter(fullscreen);
-  /* Docked, the canvas runs under the open side menu, so the chrome pinned
-     to the top-left starts past it. */
+  /* Docked, the canvas runs under the open side menu, so the hint pinned to
+     the top-left starts past it. */
   const nav = useContext(NavigationContext) || {};
   const crumbLeft =
     explorerDocked && nav.onFragment === "side_menu"
@@ -335,7 +337,7 @@ export default function RecipesPage({
         push_drill_frame(stack, {
           name: activeName,
           label: activeRecipe?.name || activeName,
-          via_label: agentMessage("agents.drill.subagent_pool"),
+          via_label: agentMessage("agents.nodes.subagent_pool"),
           recipe: activeRecipe,
           dirty,
           selectedNodeId,
@@ -387,6 +389,14 @@ export default function RecipesPage({
     drillStack,
     activeRecipe?.name || activeName || "",
     t,
+  );
+  /* The open recipe and the path to it are shown in the side menu's
+     breadcrumb, above its search field, where they can be clicked. A legacy
+     recipe has no icon of its own. */
+  const BOT = { icon: "bot" };
+  usePublishAgentsDrillTrail(
+    activeName && !skeletonResourceId ? drill_trail_segments(crumbs, () => BOT, BOT, t) : [],
+    handleDrillTo,
   );
 
   const handleRecipeChange = (next) => {
@@ -699,15 +709,14 @@ export default function RecipesPage({
         />
       )}
 
-      {/* ── Drill breadcrumb (top left, where the expand button would be) ── */}
-      {drilled && (
-        <FloatingBreadcrumb
+      {/* Esc goes back up a drill level; the breadcrumb is in the side menu. */}
+      {!skeletonResourceId && (
+        <EscapeBackHint
           isDark={isDark}
-          crumbs={crumbs}
-          onNavigate={handleDrillTo}
+          visible={drilled}
           top={topStripCenter}
           left={crumbLeft}
-          testId="recipe-drill-breadcrumb"
+          testId="recipe-escape-hint"
         />
       )}
 

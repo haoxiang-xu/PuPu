@@ -34,7 +34,7 @@ test("a refused Hook move changes no document while its local reason can follow 
   const original = move_hook(document, "pool", "owner", 0, 0); const translated = move_hook(document, "pool", "owner", 0, 0, t);
   expect(translated.document).toBe(original.document); expect(translated.problem.message).toMatch(/^T:agents\.hooks\./);
 });
-test.each([["hooks_pool", HooksPoolSection, { hooks: [] }, "+ Add hook"], ["subagent_pool", SubagentPoolSection, { subagents: [] }, "+ Add an Agent"]])("%s locale-only switch retains the control and performs no write or library reread", async (type, Section, config, label) => {
+test.each([["hooks_pool", HooksPoolSection, { hooks: [] }, "+ Add hook"], ["subagent_pool", SubagentPoolSection, { subagents: [] }, "New embedded Agent"]])("%s locale-only switch retains the control and performs no write or library reread", async (type, Section, config, label) => {
   const node = { id: "pool", type, config }; const document = graph(node); const before = JSON.stringify(document); const onChange = jest.fn();
   const element = <Section node={node} document={document} isDark={false} onChange={onChange} />;
   const view = render(tree("en", element)); await act(async () => { await Promise.resolve(); });

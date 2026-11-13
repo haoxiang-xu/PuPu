@@ -6,6 +6,7 @@ import React, {
   useMemo,
   useContext,
 } from "react";
+import { flushSync } from "react-dom";
 
 /* { Contexts } -------------------------------------------------------------------------------------------------------------- */
 import { ConfigContext } from "../../CONTAINERs/config/context";
@@ -366,11 +367,22 @@ function FlowEditor({
     else delete node_elements_ref.current[id];
   }, []);
 
-  const register_dimensions = useCallback((id, dims) => {
+  /* `sync`: the report comes from the node's ResizeObserver (after layout,
+     before paint). A node already measured once that changes size — its own
+     content grew, sprung or instant — gets its edges re-drawn now, in this
+     frame, so they move with the body instead of a frame behind. A node's
+     first report (graph load: every node at once) stays batched. */
+  const register_dimensions = useCallback((id, dims, options) => {
     const prev = node_dimensions_ref.current[id];
     node_dimensions_ref.current[id] = dims;
-    if (!prev || prev.width !== dims.width || prev.height !== dims.height) {
-      set_dims_version((v) => v + 1);
+    if (
+      !prev ||
+      prev.width !== dims.width ||
+      prev.height !== dims.height ||
+      Boolean(prev.resizing) !== Boolean(dims.resizing)
+    ) {
+      if (prev && options && options.sync) flushSync(() => set_dims_version((v) => v + 1));
+      else set_dims_version((v) => v + 1);
     }
   }, []);
 

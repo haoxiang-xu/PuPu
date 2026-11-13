@@ -2,7 +2,8 @@
    collapsed surface and interaction are covered in panel_help/compact_variables. */
 jest.mock("./recipes_page/detail_panel/panel_help", () => function GuidanceText({ children }) { return <>{children}</>; });
 import React from "react";
-import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
+import { screen, fireEvent, waitFor, within } from "@testing-library/react";
+import { drillTrailLinks, render } from "./drill_trail_test_helpers";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import { api } from "../../../SERVICEs/api";
 import SkeletonResourcePage from "./skeleton_resource_page";
@@ -49,7 +50,8 @@ test("a library Start shows the locked caller object with no input edits or auto
   select("start");
   expect(inputs()).toHaveTextContent("Caller input");
   expect(inputs()).toHaveTextContent("caller is not specified");
-  expect(within(inputs()).queryByRole("button")).not.toBeInTheDocument();
+  /* Only the part's own fold toggle; no control to edit the caller input. */
+  expect(within(inputs()).queryAllByRole("button").filter((button) => !String(button.dataset.testid || "").startsWith("process-toggle-"))).toHaveLength(0);
   expect(screen.getByTestId("skeleton-save-state")).toHaveTextContent(/^Saved$/);
   expect(api.unchain.saveSkeletonResource).not.toHaveBeenCalled();
 });
@@ -92,14 +94,14 @@ test("a referenced Subagent caller does not leak into the restored or newly open
   const view = render(page(document.id));
   await screen.findByTestId("start-test-node-pool-a");
   openChild();
-  await waitFor(() => expect(screen.getByTestId("skeleton-drill-crumbs")).toHaveTextContent("Peer"));
+  await waitFor(() => expect(screen.getByTestId("side-menu-breadcrumb")).toHaveTextContent("Peer"));
   select("start");
   expect(inputs()).toHaveTextContent("peer-task");
   fireEvent.keyDown(window.document, { key: "Escape" });
   select(document.nodes.find((n) => n.type === "start").id);
   expect(inputs()).toHaveTextContent("Caller input");
   view.rerender(page(peer.id));
-  await waitFor(() => expect(screen.queryByTestId("skeleton-drill-crumbs")).not.toBeInTheDocument());
+  await waitFor(() => expect(drillTrailLinks()).toHaveLength(0));
   await waitFor(() => expect(api.unchain.getSkeletonResource).toHaveBeenLastCalledWith(peer.id));
   select("start");
   expect(inputs()).toHaveTextContent("Caller input");

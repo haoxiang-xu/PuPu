@@ -47,7 +47,7 @@ test("status captions distinguish receipt, sealed result and unknown effects", (
   expect(run_status_caption({ state: "outcome_unknown", phase: "outcome_unknown" })).toBe("Outcome unknown");
 });
 
-test("recorded Code shows the frozen path without asking to reopen or borrowing draft text", () => {
+test("recorded Code is the plain header card: no path, no request to reopen, never the draft's text", () => {
   const sha = "a".repeat(64);
   const path = `__pupu_code__/sha256/${sha}.py`;
   const document = { ...graph.document, nodes: [graph.document.nodes[0], {
@@ -55,8 +55,8 @@ test("recorded Code shows the frozen path without asking to reopen or borrowing 
   }, graph.document.nodes[2]] };
   const observed = { ...graph, document, nodes: [{ node_id: "code", state: "pending", phase: "pending", reason: null }] };
   show({ document, readOnly: true, observation: observed, managedSources: { [sha]: "new B source must not appear" } });
-  expect(screen.getByTestId("code-node-code-source")).toHaveTextContent(path);
-  expect(screen.getByTestId("code-node-code-source")).toHaveTextContent(/text not included in this observation/i);
+  expect(screen.getByTestId("code-node-code")).toHaveTextContent("Python");
+  expect(screen.getByTestId("code-node-code")).not.toHaveTextContent(path);
   expect(screen.queryByText(/reopen this Agent/i)).toBeNull();
   expect(screen.queryByText(/new B source must not appear/)).toBeNull();
   expect(screen.queryByTestId("code-node-code-expand")).toBeNull();

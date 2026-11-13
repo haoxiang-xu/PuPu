@@ -380,7 +380,7 @@ describe("the Kernel profiles this build can offer", () => {
       expect(result.ok).toBe(false);
       expect(result.reason).toBe("refused");
       expect(result.error.code).toBe(CATALOG_MALFORMED);
-      expect(result.error.message).toMatch(/not a list of Kernel profiles/i);
+      expect(result.error.message).toMatch(/list of models could not be read/i);
     });
   });
 

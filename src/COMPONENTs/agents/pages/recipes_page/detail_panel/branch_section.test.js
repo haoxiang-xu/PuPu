@@ -11,8 +11,9 @@ jest.mock("../../../../../BUILTIN_COMPONENTs/select/select", () => function Mock
     </select>
   );
 });
-jest.mock("../../../../../BUILTIN_COMPONENTs/input/input", () => function MockInput({ value, set_value, placeholder, disabled }) {
-  return <input placeholder={placeholder} value={value} disabled={disabled} onChange={(event) => set_value(event.target.value)} />;
+jest.mock("../../../../../BUILTIN_COMPONENTs/input/input", () => function MockInput({ value, set_value, placeholder, disabled, input_ref }) {
+  /* input_ref is passed through like the real Input does, so focus can be asserted. */
+  return <input ref={input_ref} placeholder={placeholder} value={value} disabled={disabled} onChange={(event) => set_value(event.target.value)} />;
 });
 jest.mock("../../../../../BUILTIN_COMPONENTs/input/button", () => function MockButton({ label, ariaLabel, onClick, disabled }) {
   return <button type="button" aria-label={ariaLabel} disabled={disabled} onClick={onClick}>{label || ariaLabel}</button>;
@@ -145,7 +146,7 @@ describe("If / Else", () => {
 
   test("a key the runtime does not know is kept, explained and removed only on request", () => {
     show(graph(ifNode({ inputs: [], outputs: [] })), "if");
-    expect(screen.getByTestId("branch-extra-outputs")).toHaveTextContent("is not a setting of this node");
+    expect(screen.getByTestId("branch-extra-outputs")).toHaveTextContent("is not a setting of this step");
     expect(writes).toHaveLength(0);
     click("Remove “outputs”");
     expect(execution()).toStrictEqual({ inputs: [] });
@@ -156,7 +157,7 @@ describe("If / Else", () => {
     document.nodes.push({ ...document.nodes[2] });
     show(document, "if");
     expect(screen.getByRole("button", { name: "+ Add a condition" })).toBeDisabled();
-    expect(screen.getByTestId("branch-section")).toHaveTextContent("Another node has the same id");
+    expect(screen.getByTestId("branch-section")).toHaveTextContent("Two steps in this graph can't be told apart");
   });
 });
 
@@ -165,37 +166,124 @@ describe("Switch / Case", () => {
     { id: "w1", kind: "flow", source_node_id: "sw", source_port_id: "case-1", target_node_id: "yes", target_port_id: "in" },
     { id: "w2", kind: "flow", source_node_id: "sw", source_port_id: "default", target_node_id: "end", target_port_id: "in" },
   ];
+  const flagInput = () => [binding("flag", ref("agent", "flag"))];
+  const rows = () => within(screen.getByTestId("branch-case-list")).getAllByTestId(/^branch-case-(\d+|default)$/);
 
   test("an unfinished switch picks its value from an input", () => {
     show(graph(switchNode({ inputs: withInputs("reply"), cases: [] })), "sw");
-    expect(screen.getByTestId("branch-switch-value")).toHaveTextContent("No value yet");
+    expect(screen.getByTestId("branch-switch-value")).toHaveTextContent("Choose the input to switch on.");
+    expect(screen.getByTestId("process-problems-branch-switch-on")).toHaveTextContent("1");
     pick("branch-switch-value-pick", "reply");
     expect(execution("sw")).toStrictEqual({ inputs: execution("sw").inputs, cases: [], value: input(["reply"]) });
+    expect(screen.queryByTestId("process-problems-branch-switch-on")).toBeNull();
   });
 
-  test("cases get fresh stable ids, keep them through edits and moves, and default stays put", () => {
+  test("there is no input-or-fixed-value choice; a stored fixed value is shown and kept until an input is picked", () => {
+    const stored = switchNode({ inputs: withInputs("reply"), value: literal("hi"), cases: [{ id: "case-1", value: "hi" }] });
+    show(graph(stored, edges), "sw");
+    expect(screen.queryByText("A fixed value")).toBeNull();
+    expect(screen.getByTestId("branch-switch-value-literal")).toHaveTextContent('Fixed: "hi"');
+    expect(writes).toHaveLength(0);
+    fireEvent.change(within(screen.getByTestId("branch-case-0-value-text")).getByPlaceholderText("text"), { target: { value: "ho" } });
+    expect(execution("sw").value).toBe(stored.config.execution.value);
+    pick("branch-switch-value-replace", "reply");
+    expect(execution("sw").value).toStrictEqual(input(["reply"]));
+  });
+
+  test("each case is one flat row and Default is the fixed last row, with nowhere to remove it", () => {
+    show(graph(switchNode({ inputs: withInputs("reply"), value: input(["reply"]),
+      cases: [{ id: "case-1", value: "a" }, { id: "case-2", value: "b" }] }), edges), "sw");
+    expect(rows().map((row) => row.getAttribute("data-testid"))).toEqual(["branch-case-0", "branch-case-1", "branch-case-default"]);
+    expect(screen.getByTestId("process-aside-branch-cases")).toHaveTextContent("2");
+    expect(screen.queryByRole("button", { name: /Move case/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /expand|collapse/i })).toBeNull();
+    const fallback = screen.getByTestId("branch-case-default");
+    expect(fallback).toHaveTextContent("Default");
+    /* What the Default is for is said once, in the Cases help, not on the row. */
+    expect(fallback).not.toHaveTextContent("When nothing matches");
+    expect(within(fallback).queryAllByRole("button")).toHaveLength(0);
+    expect(within(fallback).queryAllByRole("textbox")).toHaveLength(0);
+    expect(fallback).toHaveTextContent(/^Default→End$/);
+    expect(screen.getByTestId("branch-case-default-target")).toHaveTextContent(/^End$/);
+    expect(within(screen.getByTestId("branch-case-default-target")).getByTestId("branch-case-default-target-tag-0")).toBeInTheDocument();
+  });
+
+  test("Goes to names the step as the canvas does, never its stored id; an unconnected case is a problem", () => {
+    show(graph(switchNode({ inputs: withInputs("reply"), value: input(["reply"]),
+      cases: [{ id: "case-1", value: "a" }, { id: "case-2", value: "b" }] }), [edges[0]]), "sw");
+    expect(screen.getByTestId("branch-case-0-target").textContent).toBe("Agent");
+    expect(screen.getByTestId("branch-case-0-target-tag-0")).toHaveTextContent(/^Agent$/);
+    expect(screen.getByTestId("branch-case-1-target")).toHaveTextContent(/^Not connected$/);
+    expect(screen.getByTestId("branch-case-default-target")).toHaveTextContent(/^Not connected$/);
+    expect(screen.getByTestId("process-problems-branch-cases")).toHaveTextContent("2");
+    const panel = screen.getByTestId("branch-section").textContent;
+    for (const word of ["yes", "case-1", "case-2", "outlet", "runtime", "null", "kept as stored"]) expect(panel).not.toContain(word);
+  });
+
+  test("the value field follows the switch-on input's type: true/false is a switch", () => {
+    const document = graph(switchNode({ inputs: flagInput(), value: input(["flag"]), cases: [{ id: "case-1", value: true }] }));
+    document.nodes[1].config.execution.outputs.push(out("flag", "flag"));
+    document.nodes[1].config.kernel.json_schema.properties.flag = { type: "boolean" };
+    show(document, "sw");
+    const toggle = screen.getByRole("switch", { name: "Case 1 value" });
+    expect(toggle).toHaveAttribute("aria-checked", "true");
+    expect(screen.queryAllByTestId("select").length).toBe(1); // only the Switch-on input; no per-row type
+    fireEvent.click(toggle);
+    expect(execution("sw").cases).toStrictEqual([{ id: "case-1", value: false }]);
+    click("Add a case");
+    expect(execution("sw").cases[1]).toStrictEqual({ id: "case-2", value: true });
+    expect(screen.getByRole("button", { name: "Add a case" })).toBeDisabled();
+  });
+
+  test("adding never repeats a value: numbers take the next unused integer, ids stay stable", () => {
     show(graph(switchNode({ inputs: withInputs("score"), value: input(["score"]), cases: [] })), "sw");
-    click("+ Add a case");
-    click("+ Add a case");
-    expect(execution("sw").cases).toStrictEqual([{ id: "case-1", value: 0 }, { id: "case-2", value: 0 }]);
+    click("Add a case");
+    click("Add a case");
+    expect(execution("sw").cases).toStrictEqual([{ id: "case-1", value: 0 }, { id: "case-2", value: 1 }]);
+    fireEvent.change(within(screen.getByTestId("branch-case-1-value-number")).getByPlaceholderText("a number"), { target: { value: "0" } });
     expect(screen.getByTestId("branch-case-1-problem-0")).toHaveTextContent("Another case already matches this value");
-    fireEvent.change(within(screen.getByTestId("branch-case-1-value-number")).getByPlaceholderText("a number"), { target: { value: "2" } });
-    expect(execution("sw").cases[1]).toStrictEqual({ id: "case-2", value: 2 });
-    click("Move case 2 up");
-    expect(execution("sw").cases.map((entry) => entry.id)).toEqual(["case-2", "case-1"]);
-    expect(screen.getByTestId("branch-case-default")).toHaveTextContent("cannot be removed");
-    expect(screen.queryByRole("button", { name: /Remove default/i })).toBeNull();
+    click("Add a case");
+    expect(execution("sw").cases[2]).toStrictEqual({ id: "case-3", value: 1 });
+  });
+
+  test("adding text starts empty, then a unique placeholder", () => {
+    show(graph(switchNode({ inputs: withInputs("reply"), value: input(["reply"]), cases: [] })), "sw");
+    click("Add a case");
+    click("Add a case");
+    click("Add a case");
+    expect(execution("sw").cases.map((entry) => entry.value)).toEqual(["", "case 2", "case 3"]);
+    expect(case_values_unique(execution("sw").cases)).toBe(true);
+  });
+
+  test("the placeholder text is fixed English, whatever the interface language", () => {
+    /* It is stored and matched at run time, so it never comes from i18n. */
+    const source = require("fs").readFileSync(require("path").join(__dirname, "branch_section.js"), "utf8");
+    expect(source).not.toMatch(/case_seed/);
+    expect(source).toMatch(/`case \$\{n\}`/);
+  });
+
+  test("after Add, the focus lands in the new case's value field", () => {
+    show(graph(switchNode({ inputs: withInputs("reply"), value: input(["reply"]), cases: [{ id: "case-1", value: "a" }] })), "sw");
+    click("Add a case");
+    const added = within(screen.getByTestId("branch-case-1-value-text")).getByPlaceholderText(/./);
+    expect(added).toHaveFocus();
+  });
+
+  test("after Add on a number switch, the new number box takes the focus", () => {
+    show(graph(switchNode({ inputs: withInputs("score"), value: input(["score"]), cases: [] })), "sw");
+    click("Add a case");
+    expect(within(screen.getByTestId("branch-case-0-value-number")).getByPlaceholderText("a number")).toHaveFocus();
   });
 
   test("a half-typed number stays on screen and is not written until it is a number", () => {
     show(graph(switchNode({ inputs: withInputs("score"), value: input(["score"]), cases: [{ id: "case-1", value: 1 }] })), "sw");
     const box = within(screen.getByTestId("branch-case-0-value-number")).getByPlaceholderText("a number");
     fireEvent.change(box, { target: { value: "1." } });
-    expect(box.value).toBe("1.");
-    expect(writes).toHaveLength(0);
-    fireEvent.change(box, { target: { value: "x" } });
+    expect(box).toHaveValue("1.");
+    fireEvent.change(box, { target: { value: "-" } });
+    expect(box).toHaveValue("-");
     expect(screen.getByTestId("branch-case-0-value-number")).toHaveTextContent("Not a number yet");
-    expect(writes).toHaveLength(0);
+    expect(execution("sw").cases[0]).toStrictEqual({ id: "case-1", value: 1 });
     fireEvent.change(box, { target: { value: "1.5" } });
     expect(execution("sw").cases[0]).toStrictEqual({ id: "case-1", value: 1.5 });
   });
@@ -204,11 +292,9 @@ describe("Switch / Case", () => {
     const document = graph(switchNode({ inputs: withInputs("reply"), value: input(["reply"]),
       cases: [{ id: "case-1", value: "a" }, { id: "case-2", value: "b" }] }), edges);
     show(document, "sw");
-    expect(screen.getByTestId("branch-case-0-target")).toHaveTextContent("→ yes");
-    expect(screen.getByTestId("branch-case-1-target")).toHaveTextContent("Not connected yet");
     click("Remove case 1");
     expect(writes).toHaveLength(0);
-    expect(screen.getByTestId("branch-case-0-confirm")).toHaveTextContent("Removing it also removes that connection");
+    expect(screen.getByTestId("branch-case-0-confirm")).toHaveTextContent("This case goes to Agent. Removing it also removes that connection.");
     click("Keep it");
     expect(screen.queryByTestId("branch-case-0-confirm")).toBeNull();
     click("Remove case 1");
@@ -217,24 +303,36 @@ describe("Switch / Case", () => {
     expect(latest.edges.map((edge) => edge.id)).toEqual(["e1", "e2", "w2"]);
     click("Remove case 1"); // case-2, not connected: no question
     expect(execution("sw").cases).toStrictEqual([]);
-    expect(writes).toHaveLength(2);
+  });
+
+  test("stored cases of other types are shown and saved back unchanged while a sibling is edited", () => {
+    const cases = [{ id: "case-1", value: 2 }, { id: "case-2", value: null }, { id: "case-3", value: true }, { id: "case-4", value: "a" }];
+    show(graph(switchNode({ inputs: withInputs("reply"), value: input(["reply"]), cases }), edges), "sw");
+    expect(within(screen.getByTestId("branch-case-0-value-number")).getByPlaceholderText("a number")).toHaveValue("2");
+    expect(screen.getByTestId("branch-case-1-stored")).toHaveTextContent("Empty (no value)");
+    expect(screen.getByRole("switch", { name: "Case 3 value" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.queryByText(/Never taken/)).toBeNull();
+    fireEvent.change(within(screen.getByTestId("branch-case-3-value-text")).getByPlaceholderText("text"), { target: { value: "b" } });
+    const after = execution("sw").cases;
+    expect(after.slice(0, 3)).toStrictEqual(cases.slice(0, 3));
+    after.slice(0, 3).forEach((entry, index) => expect(entry).toBe(cases[index]));
+    expect(after[3]).toStrictEqual({ id: "case-4", value: "b" });
   });
 
   test("an unreadable case list is kept as stored and its edges are not touched", () => {
     show(graph(switchNode({ inputs: [], value: input(["reply"]), cases: "a,b" }), edges), "sw");
     expect(screen.getByTestId("branch-switch-cases-stored")).toHaveTextContent('"a,b"');
-    expect(screen.queryByRole("button", { name: "+ Add a case" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add a case" })).toBeNull();
     expect(writes).toHaveLength(0);
     click("Replace with an empty case list");
     expect(execution("sw").cases).toStrictEqual([]);
-    expect(latest.edges).toHaveLength(4);
-  });
-
-  test("a case value of another type than the switch value is flagged as never taken", () => {
-    show(graph(switchNode({ inputs: withInputs("reply"), value: input(["reply"]), cases: [{ id: "case-1", value: 2 }] })), "sw");
-    expect(screen.getByTestId("branch-case-0")).toHaveTextContent("Never taken while the switch value is text");
+    expect(latest.edges.map((edge) => edge.id)).toEqual(["e1", "e2", "w1", "w2"]);
   });
 });
+
+function case_values_unique(cases) {
+  return new Set(cases.map((entry) => JSON.stringify(entry.value))).size === cases.length;
+}
 
 test("the section renders nothing for other node types", () => {
   const document = graph(ifNode({ inputs: [] }));

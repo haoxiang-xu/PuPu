@@ -1,5 +1,10 @@
 import {
+  CODE_DEFAULTS,
   CODE_LIMITS,
+  STARTER_CODE,
+  code_with_defaults,
+  starter_code,
+  with_code_defaults,
   CODE_SETTING_KEYS,
   code_problems,
   code_result_roots,
@@ -83,7 +88,10 @@ describe("what the panel says is wrong, against the runtime's refusals", () => {
      rows' business), keys outside `code`, an absolute path (said sooner,
      below), and `30000.0` — refused as a float on the wire, but JSON hands
      this editor `30000` and it only ever writes integers. */
-  const PREFLIGHT_ONLY = new Set(["seed", "profile-missing", "profile-venv", "schema-open", "output-root-undeclared", "output-error-root", "extra-config-key", "source-absolute", "timeout-float"]);
+  /* `missing-limits` is refused because the draft was stored without them;
+     every save now writes the defaults first (`with_code_defaults`), so it
+     cannot reach the store that way — checked below. */
+  const PREFLIGHT_ONLY = new Set(["seed", "missing-limits", "profile-missing", "profile-venv", "schema-open", "output-root-undeclared", "output-error-root", "extra-config-key", "source-absolute", "timeout-float"]);
 
   test("a case preflight refuses inside config.code is a problem here, before any round trip", () => {
     const verdicts = capture.rows
@@ -100,7 +108,7 @@ describe("what the panel says is wrong, against the runtime's refusals", () => {
   test("a seed passes preflight but cannot run: the panel says what is missing (G8)", () => {
     expect(row("seed").preflight.ok).toBe(true);
     const problems = code_problems(node(undefined), PROFILES);
-    expect(problems.map((problem) => problem.code)).toEqual(["code_missing"]);
+    expect(problems.map((problem) => problem.code)).toEqual(["source_missing"]);
   });
 
   test("a profile the store does not list is a problem; an unknown list is not", () => {
@@ -111,13 +119,15 @@ describe("what the panel says is wrong, against the runtime's refusals", () => {
     expect(code_problems(node(complete), unavailable).map((problem) => problem.code)).toEqual(["profile_unavailable"]);
   });
 
-  test("an unknown key and a missing key are each named", () => {
+  test("an unknown key is named; an unset limit is its default, not a problem, and a save writes it", () => {
     expect(code_problems(node(row("unknown-code-key-on-error").config.code), PROFILES)).toEqual([
       expect.objectContaining({ code: "unknown_setting", setting: "on_error" }),
     ]);
-    expect(code_problems(node(row("missing-limits").config.code), PROFILES)).toEqual([
-      expect.objectContaining({ code: "limit_missing", setting: "max_log_bytes" }),
-    ]);
+    const missing = row("missing-limits").config.code;
+    expect(code_problems(node(missing), PROFILES)).toEqual([]);
+    /* What the save sends has the same keys as the complete row the store
+       admitted and preflight accepted. */
+    expect(Object.keys(code_with_defaults(missing)).sort()).toEqual(Object.keys(complete).sort());
   });
 
   test("the source is one normalized relative file path (FileCodeSourceResolver's lexical rules)", () => {
@@ -218,5 +228,43 @@ describe("a stored falsy value is present, and named for what it is", () => {
 
   test.each([null, false, 0, ""])("result_schema %j is an invalid schema, not a missing one", (value) => {
     expect(code_problems(node({ ...complete, result_schema: value }), PROFILES).map((problem) => problem.code)).toEqual(["schema_invalid"]);
+  });
+});
+
+describe("unset Python and limits are their defaults", () => {
+  test("the defaults are the built-in Python, 30 s, 1 MiB and 1 MiB", () => {
+    expect(CODE_DEFAULTS).toEqual({ environment_profile_id: "builtin", timeout_ms: 30000, max_result_bytes: 1048576, max_log_bytes: 1048576 });
+  });
+  test("only what is unset is filled; a stored value — whatever it is — is kept", () => {
+    expect(code_with_defaults({ timeout_ms: 1000 })).toStrictEqual({ ...CODE_DEFAULTS, timeout_ms: 1000 });
+    expect(code_with_defaults(undefined)).toStrictEqual({ ...CODE_DEFAULTS });
+    const odd = { environment_profile_id: "pupu-tools", timeout_ms: 0, max_result_bytes: null, max_log_bytes: "x" };
+    expect(code_with_defaults(odd)).toBe(odd);
+    expect(code_with_defaults("not settings")).toBe("not settings");
+  });
+  test("one walk fills every Code node the resource owns, embedded ones included, and nothing else", () => {
+    const child = { schema_version: 1, kind: "agent", id: "child", nodes: [{ id: "inner", type: "code", config: { execution: {}, code: { timeout_ms: 5 } } }], edges: [] };
+    const document = { schema_version: 1, kind: "agent", id: "d", nodes: [
+      { id: "a", type: "code", config: { execution: {} } },
+      { id: "b", type: "agent", config: { kernel: {} } },
+      { id: "p", type: "subagent_pool", config: { subagents: [{ id: "s", source: { kind: "embedded", document: child } }] } },
+    ], edges: [] };
+    const before = JSON.stringify(document);
+    const next = with_code_defaults(document);
+    expect(JSON.stringify(document)).toBe(before);
+    expect(next.nodes[0].config.code).toStrictEqual({ ...CODE_DEFAULTS });
+    expect(next.nodes[1]).toBe(document.nodes[1]);
+    expect(next.nodes[2].config.subagents[0].source.document.nodes[0].config.code).toStrictEqual({ ...CODE_DEFAULTS, timeout_ms: 5 });
+    /* Nothing missing: the very same document. */
+    expect(with_code_defaults(next)).toBe(next);
+  });
+  test("a new node's starter is usable: text kept under its digest, the field it returns declared", () => {
+    const { code, sources } = starter_code();
+    const [sha] = Object.keys(sources);
+    expect(sources[sha]).toBe(STARTER_CODE);
+    expect(code.source).toEqual({ kind: "file", path: `__pupu_code__/sha256/${sha}.py` });
+    expect(code.result_schema).toEqual({ type: "object", properties: {}, additionalProperties: false });
+    expect(STARTER_CODE).toContain("return dict(input)");
+    expect(code_problems({ id: "n", type: "code", config: { execution: {}, code } }, PROFILES, sources)).toEqual([]);
   });
 });

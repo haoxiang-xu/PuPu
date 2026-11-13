@@ -13,7 +13,7 @@ import { agentEnglishText, renderAgentMessage } from "./agents_i18n";
 
 /* The crumb between the editor's graph and the revision: like a pool crumb, it
    names where the step happened and is not a graph, so it is not navigable. */
-export const PINNED_VIA_LABEL = "Workflow Call";
+export const PINNED_VIA_LABEL = "Workflow call";
 
 /* Where the view's drawing is kept. A resource id is URL-safe, so a key built
    from a list can never be an editor's own key. */
@@ -42,7 +42,7 @@ export function pinned_view_crumbs(editor_crumbs, depth, node_id, label, t = age
   return [
     ...list,
     { label: last ? last.label : "", depth, navigable: true },
-    { label: `${t("agents.pinned.via_label")} · ${safe_text(node_id)}`, depth: null, navigable: false },
+    { label: `${t("agents.nodes.workflow_call")} · ${safe_text(node_id)}`, depth: null, navigable: false },
     { label, depth: null, navigable: false },
   ];
 }

@@ -35,6 +35,7 @@ import {
   admit_version_aggregate,
   save_edit,
 } from "./managed_code_sources";
+import { with_code_defaults } from "./code_config";
 
 const UNAVAILABLE_CODES = new Set(["bridge_unavailable", "bridge_missing"]);
 
@@ -113,7 +114,9 @@ export async function load_resource(resource_id) {
  * the address its node has in the document being sent. One whose text is not
  * on hand is refused here and nothing is sent. */
 export async function save_draft(document, expected_edit_token, sources) {
-  const built = save_edit(document, expected_edit_token, sources);
+  /* Every save writes the Code defaults an unset setting stands for: the
+     runtime needs them written, the panel shows them as defaults. */
+  const built = save_edit(with_code_defaults(document), expected_edit_token, sources);
   if (!built.ok) return refused(built.error);
   const result = admitted(
     await call("saveManagedSkeletonResource", (method) => method(built.edit)),
@@ -136,7 +139,7 @@ export async function save_draft(document, expected_edit_token, sources) {
 }
 
 export async function diagnose(document) {
-  const result = await call("diagnoseSkeletonResource", (method) => method(document));
+  const result = await call("diagnoseSkeletonResource", (method) => method(with_code_defaults(document)));
   if (!result.ok) return result;
   return {
     ok: true,

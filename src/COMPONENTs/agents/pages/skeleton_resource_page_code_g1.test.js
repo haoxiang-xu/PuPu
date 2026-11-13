@@ -1,4 +1,4 @@
-/* eslint-disable testing-library/no-node-access -- the code block and viewer are read off the real shared editor. */
+/* eslint-disable testing-library/no-node-access -- the code editor is read off the real shared editor. */
 import React from "react";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
@@ -8,6 +8,7 @@ import capture from "./recipes_page/managed_code_capture.json";
 import codeCapture from "./recipes_page/code_capture.json";
 import { code_node_at, managed_path, sha256_text } from "./recipes_page/managed_code_sources";
 import { openAddNode, pressCanvasNode } from "./recipes_page/skeleton_canvas_test_helpers";
+import { STARTER_CODE } from "./recipes_page/code_config";
 
 /* #357 G1 on the real page: SkeletonResourcePage, FlowEditor, DetailPanel,
  * the panel's text box, the node's preview and viewer, drilling into an
@@ -135,23 +136,16 @@ beforeEach(() => {
 
 const NEW_ROOT = "def main(input, context):\n\tvalue = input.get(\"x\")   \n    return {\"message\": \"naïve — 你好 \u{1F680}\"}";
 
-test("write the code, see it on the node and in the viewer, Save it through v2, reopen it byte for byte", async () => {
+test("write the code in the panel (the card never shows it), Save it through v2, reopen it byte for byte", async () => {
   const store = makeStore(["root_get"]);
   await open("g1-root");
   await openNode("score");
   expect(textBox("score")).toHaveValue(T.root);
-  const block = screen.getByTestId("code-node-score-block");
-  expect(block).toHaveTextContent("def main(input, context):");
+  expect(screen.getByTestId("code-node-score")).not.toHaveTextContent("def main");
 
   type("score", NEW_ROOT);
   expect(textBox("score")).toHaveValue(NEW_ROOT);
-  expect(screen.getByTestId("code-node-score-block")).toHaveTextContent("value = input.get(\"x\")");
-  expect(screen.getByTestId("code-node-score-block")).toHaveTextContent("3 lines");
-  fireEvent.mouseEnter(screen.getByTestId("code-node-score"));
-  fireEvent.click(screen.getByRole("button", { name: "View the code of score" }));
-  const viewer = await screen.findByTestId("code-node-score-viewer");
-  expect(viewer).toHaveTextContent("Read-only · 3 lines");
-  expect(viewer.textContent).toContain("naïve — 你好 \u{1F680}");
+  expect(screen.getByTestId("code-node-score")).toHaveTextContent("Python");
 
   const edit = await save(store);
   expect(edit.expected_edit_token).toBe("edit-1-445cb3d55fd3de7ba89a707a");
@@ -244,7 +238,7 @@ test("code with carriage returns is shown as stored, not edited, and a Save for 
   await openNode("crlf_code");
   expect(textBox("crlf_code")).toBeDisabled();
   expect(screen.getByTestId("code-text-crlf")).toBeInTheDocument();
-  fireEvent.change(within(screen.getByTestId("code-limits")).getByPlaceholderText("seconds"), { target: { value: "9" } });
+  fireEvent.change(within(screen.getByTestId("code-limits")).getByPlaceholderText("30"), { target: { value: "9" } });
   const edit = await save(store);
   expect(edit.managed_sources).toEqual([{ node_path: ["nodes", 1], text: T.crlf }]);
   expect(edit.document.nodes[1].config.code.timeout_ms).toBe(9000);
@@ -267,14 +261,14 @@ test("choosing a workspace file replaces the written code explicitly; the Save b
   exportPayload("root-to-file", "root_get", edit);
 });
 
-test("a new Code node opens on the text; the first keystroke is the first thing written", async () => {
+test("a new Code node opens on its starter text; what is typed over it is what is written", async () => {
   const store = makeStore(["plain_get"]);
   await open("g1-plain");
   openAddNode();
   fireEvent.click(screen.getByTestId("palette-entry-code"));
   await screen.findByTestId("code-section");
   const box = screen.getByRole("textbox", { name: /^Code of / });
-  expect(box).toHaveValue("");
+  expect(box).toHaveValue(STARTER_CODE);
   const id = box.getAttribute("aria-label").replace("Code of ", "");
   fireEvent.change(box, { target: { value: "def main(input, context):\n    return {}\n" } });
   const edit = await save(store);

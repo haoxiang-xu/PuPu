@@ -17,7 +17,7 @@ import {
   CanvasControlCenter,
   CanvasMessageStrip,
   ControlPopover,
-  FloatingBreadcrumb,
+  EscapeBackHint,
   FloatingDetailShell,
   VISUALLY_HIDDEN,
 } from "./recipes_page/canvas_chrome";
@@ -88,6 +88,8 @@ import {
   pinned_view_key,
   pinned_view_label,
 } from "./recipes_page/pinned_workflow_view";
+import { drill_level_icon, drill_trail_segments, graph_icon } from "./recipes_page/drill_trail";
+import { usePublishAgentsDrillTrail } from "../../../SERVICEs/agents_drill_trail";
 
 /* One Skeleton resource, open for editing.
  *
@@ -376,7 +378,7 @@ export default function SkeletonResourcePage({
       result = apply_graph_command(shown, command, agentMessage);
       if (!result.ok || result.document === shown) return current.document;
       return steps.length === 0 ? result.document : with_embedded_document(current.document, steps, result.document, revision);
-    });
+    }, () => (result.ok && result.sources) || null);
     return result;
   }, [commandNavigation, commandOpen, commandResource, editCurrent, revision, steps]);
 
@@ -472,7 +474,7 @@ export default function SkeletonResourcePage({
               label: shown_label,
               steps,
               selected_node_id: selectedNodeId,
-              via_label: agentMessage("agents.drill.subagent_pool"),
+              via_label: agentMessage("agents.nodes.subagent_pool"),
             }),
           ),
         );
@@ -541,7 +543,7 @@ export default function SkeletonResourcePage({
             selected_node_id: selectedNodeId,
             session: answer.left,
             saved_version: saved_version_of(answer.left.resource_id),
-          }), via_label: agentMessage("agents.drill.subagent_pool") },
+          }), via_label: agentMessage("agents.nodes.subagent_pool") },
         ),
       );
       setSteps([]);
@@ -593,7 +595,7 @@ export default function SkeletonResourcePage({
             label: shown_label,
             steps,
             selected_node_id: selectedNodeId,
-            via_label: agentMessage("agents.drill.hooks_pool"),
+            via_label: agentMessage("agents.nodes.hooks_pool"),
           }),
         ),
       );
@@ -875,6 +877,28 @@ export default function SkeletonResourcePage({
     close_pinned();
     return depth === stack.length ? true : drill_to(depth);
   };
+  /* The open graph and the path to it are shown in the side menu's
+     breadcrumb, above its search field, where they can be clicked: the
+     canvas's top edge is the window's drag region. Each graph is its icon and
+     its name; with nothing drilled it is the one open, which leads nowhere.
+     Under the run view nothing on it leads anywhere either. */
+  const trail_segments =
+    session.status === SESSION_STATUS.READY || drilled || pinned
+      ? drill_trail_segments(
+          pinned ? crumbs : editor_crumbs,
+          (depth) => depth === stack.length
+            ? graph_icon(document, steps.length > 0)
+            : drill_level_icon(stack, session, depth),
+          pinned ? { icon: "workflow" } : graph_icon(document, steps.length > 0),
+          t,
+        )
+      : [];
+  usePublishAgentsDrillTrail(
+    runViewScope
+      ? trail_segments.map(({ ariaLabel, hint, ...segment }) => ({ ...segment, depth: null }))
+      : trail_segments,
+    navigate_crumb,
+  );
   /* The sentence for a graph that has just gone is said in the same render
      that stops showing it, rather than one commit later. */
   const shown_notices = notices_still_true(lost === null ? notices : [lost], session);
@@ -993,18 +1017,15 @@ export default function SkeletonResourcePage({
         </div>
       )}
 
-      {!runViewScope && (drilled || pinned) && (
-        <FloatingBreadcrumb
-          isDark={isDark}
-          crumbs={crumbs}
-          onNavigate={navigate_crumb}
-          top={chrome.crumbTop}
-          left={chrome.crumbLeft}
-          testId="skeleton-drill-breadcrumb"
-          crumbsTestId="skeleton-drill-crumbs"
-          crumbAriaLabel={(crumb) => t("agents.editor.back_to", { label: crumb.label })}
-        />
-      )}
+      {/* Esc goes back up a level (the breadcrumb itself is in the side
+          menu); not under the run view, which Esc closes instead. */}
+      <EscapeBackHint
+        isDark={isDark}
+        visible={!runViewScope && Boolean(drilled || pinned)}
+        top={(chrome && chrome.crumbTop) ?? DEFAULT_CHROME.crumbTop}
+        left={(chrome && chrome.crumbLeft) ?? DEFAULT_CHROME.crumbLeft}
+        testId="skeleton-escape-hint"
+      />
       {/* What a sub-graph is saved with. An empty diagnostics area would
           otherwise read as "nothing is wrong" here, and it is not what it
           means: measured on the real store, the draft check answers the same
@@ -1095,7 +1116,7 @@ export default function SkeletonResourcePage({
           saveLabel={session.saving ? t("agents.save.saving") : t("agents.save.save")}
           saveDisabled={!can_save(session)}
           saveActive={Boolean(session.dirty && !session.conflict)}
-          run={<RunTrigger open={runOpen} onToggle={() => setRunOpen((open) => !open)} />}
+          run={<RunTrigger testId="skeleton-control-center-run" open={runOpen} onToggle={() => setRunOpen((open) => !open)} />}
         />
       )}
       {session.status !== SESSION_STATUS.EMPTY &&

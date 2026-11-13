@@ -829,3 +829,78 @@ describe("a port that anchors itself along its side (#357)", () => {
   });
 });
 /* eslint-enable testing-library/no-container, testing-library/no-node-access */
+
+/* eslint-disable testing-library/no-container, testing-library/no-node-access -- port dots and edge paths carry no role; they are found by the data attributes the editor stamps on them. */
+describe("a node that animates its own size (node size motion)", () => {
+  const { get_port_position, NODE_SIZE_MOTION_EVENT, PORT_ANCHOR_EDGE_INSET } = require("./utils");
+  const { act } = require("@testing-library/react");
+  const ports = [
+    { id: "in", side: "left", kind: "in", anchor: 27 },
+    { id: "row3", side: "right", kind: "out", anchor: 90 },
+    { id: "bot", side: "bottom", kind: "attach" },
+  ];
+  const node = { id: "a", x: 100, y: 50, ports };
+
+  test("at rest an anchor is exact; while resizing it stays inside the edge the body has reached", () => {
+    expect(get_port_position(node, "row3", { a: { width: 200, height: 60 } })).toEqual({ x: 300, y: 140, side: "right" });
+    expect(get_port_position(node, "row3", { a: { width: 200, height: 60, resizing: true } }))
+      .toEqual({ x: 300, y: 50 + 60 - PORT_ANCHOR_EDGE_INSET, side: "right" });
+    /* an anchor already inside the body is untouched either way */
+    expect(get_port_position(node, "in", { a: { width: 200, height: 60, resizing: true } })).toEqual({ x: 100, y: 77, side: "left" });
+    /* a bottom port reads the measured (animated) height */
+    expect(get_port_position(node, "bot", { a: { width: 200, height: 73.5, resizing: true } }).y).toBe(50 + 73.5);
+  });
+
+  test("the edge re-draws from each ResizeObserver report of the animated height, and the dot clamps only while moving", () => {
+    const observers = [];
+    const original = global.ResizeObserver;
+    const offset = Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, "offsetHeight");
+    let height = 60;
+    global.ResizeObserver = class {
+      constructor(callback) {
+        this.callback = callback;
+        observers.push(this);
+      }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
+    Object.defineProperty(window.HTMLElement.prototype, "offsetHeight", {
+      configurable: true,
+      get() {
+        return this.getAttribute && this.getAttribute("data-flow-node-id") === "a" ? height : 0;
+      },
+    });
+    try {
+      const other = { id: "b", x: 400, y: 50, ports: [{ id: "top", side: "top", kind: "attach" }] };
+      const { container } = render(wrap(
+        <FlowEditor
+          nodes={[node, other]}
+          edges={[{ id: "e", source_node_id: "a", source_port_id: "bot", target_node_id: "b", target_port_id: "top" }]}
+          render_node={(n) => <div data-content={n.id}>{n.id}</div>}
+        />,
+      ));
+      const edge_d = () => container.querySelector('[data-flow-edge-id="e"]').getAttribute("d");
+      const report = () => act(() => observers.forEach((o) => o.callback([])));
+      report();
+      expect(edge_d()).toContain(`${50 + 60}`);
+      const content = container.querySelector('[data-content="a"]');
+      act(() => content.dispatchEvent(new window.CustomEvent(NODE_SIZE_MOTION_EVENT, { bubbles: true, detail: { running: true } })));
+      const dot = container.querySelector('[data-node-id="a"][data-port-id="row3"]');
+      /* jsdom drops CSS min(); the attribute says the clamp is on (the
+         Chromium harness checks the computed position). */
+      expect(dot.getAttribute("data-anchor-clamped")).toBe("true");
+      /* one frame of the spring: the edge end follows the reported height */
+      height = 71.5;
+      report();
+      expect(edge_d()).toContain(`${50 + 71.5}`);
+      act(() => content.dispatchEvent(new window.CustomEvent(NODE_SIZE_MOTION_EVENT, { bubbles: true, detail: { running: false } })));
+      expect(dot.style.top).toBe("90px");
+      expect(dot.hasAttribute("data-anchor-clamped")).toBe(false);
+    } finally {
+      global.ResizeObserver = original;
+      if (offset) Object.defineProperty(window.HTMLElement.prototype, "offsetHeight", offset);
+    }
+  });
+});
+/* eslint-enable testing-library/no-container, testing-library/no-node-access */

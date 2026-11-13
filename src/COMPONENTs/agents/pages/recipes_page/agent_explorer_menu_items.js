@@ -14,14 +14,14 @@ export function buildAgentExplorerMenuItems({
   onImport,
   onStartRename,
   onDuplicate,
+  onChangeIcon,
   onDeleteResource,
   onDeleteFolder,
-  onOpenLegacy,
 }, t = agentEnglishText) {
   if (!node) {
     return [
       { icon: "add", label: t("agents.explorer.menu.new_agent"), onClick: () => onNewAgent(null) },
-      ...(onNewWorkflow ? [{ icon: "flow_chart", label: t("agents.explorer.menu.new_workflow"), onClick: () => onNewWorkflow(null) }] : []),
+      ...(onNewWorkflow ? [{ icon: "workflow", label: t("agents.explorer.menu.new_workflow"), onClick: () => onNewWorkflow(null) }] : []),
       { icon: "folder_new", label: t("agents.explorer.menu.new_folder"), onClick: () => onNewFolder(null) },
       ...(onImport ? [{ type: "separator" }, { icon: "upload", label: t("agents.explorer.menu.import"), onClick: () => onImport() }] : []),
     ];
@@ -30,7 +30,7 @@ export function buildAgentExplorerMenuItems({
   if (node.kind === "folder") {
     return [
       { icon: "add", label: t("agents.explorer.menu.new_agent"), onClick: () => onNewAgent(node.folder_id) },
-      ...(onNewWorkflow ? [{ icon: "flow_chart", label: t("agents.explorer.menu.new_workflow"), onClick: () => onNewWorkflow(node.folder_id) }] : []),
+      ...(onNewWorkflow ? [{ icon: "workflow", label: t("agents.explorer.menu.new_workflow"), onClick: () => onNewWorkflow(node.folder_id) }] : []),
       { icon: "folder_new", label: t("agents.explorer.menu.new_folder"), onClick: () => onNewFolder(node.folder_id) },
       { type: "separator" },
       { icon: "rename", label: t("agents.explorer.menu.rename"), onClick: () => onStartRename(node) },
@@ -44,6 +44,12 @@ export function buildAgentExplorerMenuItems({
     return [
       { icon: "rename", label: t("agents.explorer.menu.rename"), disabled: unsaved, trail: unsaved ? t("agents.explorer.menu.save_first") : undefined, onClick: () => onStartRename(node) },
       { icon: "copy", label: t("agents.explorer.menu.duplicate"), onClick: () => onDuplicate(node) },
+      /* An Agent's icon and colour live in its document, so an open Agent
+         with unsaved edits would conflict with this write: save first, as
+         for Rename. Workflows have no icon of their own. */
+      ...(onChangeIcon && node.resource_kind !== "workflow"
+        ? [{ icon: "color", label: t("agents.explorer.menu.change_icon"), disabled: unsaved, trail: unsaved ? t("agents.explorer.menu.save_first") : undefined, onClick: () => onChangeIcon(node) }]
+        : []),
       { type: "separator" },
       {
         icon: "delete",
@@ -56,10 +62,6 @@ export function buildAgentExplorerMenuItems({
 
   if (node.kind === "archived") {
     return [{ icon: "delete", label: t("agents.explorer.menu.delete"), danger: true, onClick: () => onDeleteResource(node) }];
-  }
-
-  if (node.kind === "legacy") {
-    return [{ icon: "eye_open", label: t("agents.explorer.menu.open_legacy"), onClick: () => onOpenLegacy(node) }];
   }
 
   return [];

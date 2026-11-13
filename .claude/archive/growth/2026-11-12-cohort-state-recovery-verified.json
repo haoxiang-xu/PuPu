@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "type": "historical_cohort_state_recovery_verified",
+  "verified_at": "2026-11-12T00:22:01.062Z",
+  "repo": "haoxiang-xu/PuPu",
+  "prepared_record": {
+    "path": ".claude/archive/growth/2026-11-12-cohort-state-recovery-prepared.json",
+    "sha256": "07552188e9beeb08d57c11dcf26c12717e7420d2d0e12d15abb68c7fa2993491",
+    "bytes": 48515
+  },
+  "local_state_before_sha256": "a2c8c1a4a7a29adbdca4fdb2a8fc8b529e01543f44b40128e932d3d52614fa3a",
+  "local_state_after_sha256": "561a93c80627496b64d7a46f4aaf00dbc3cafcbd7923de83d9154a6e31951915",
+  "historical_checksum_exact_match": true,
+  "github_independent_readback": {
+    "endpoint": "repos/haoxiang-xu/PuPu/topics",
+    "requested_at": "2026-11-12T00:22:00.444Z",
+    "status": 200,
+    "headers": {
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "ETag, Link, Location, Retry-After, X-GitHub-OTP, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Used, X-RateLimit-Resource, X-RateLimit-Reset, X-OAuth-Scopes, X-Accepted-OAuth-Scopes, X-Poll-Interval, X-GitHub-Media-Type, X-GitHub-SSO, X-GitHub-Request-Id, Deprecation, Sunset, Warning",
+      "cache-control": "private, max-age=60, s-maxage=60",
+      "content-security-policy": "default-src 'none'",
+      "content-type": "application/json; charset=utf-8",
+      "date": "Thu, 12 Nov 2026 00:22:00 GMT",
+      "etag": "W/\"3eb4fd593b8b17a428ac6e984c5880cdacc972a4f7708d425977fa7e5579d4f1\"",
+      "referrer-policy": "origin-when-cross-origin, strict-origin-when-cross-origin",
+      "server": "github.com",
+      "strict-transport-security": "max-age=31536000; includeSubdomains; preload",
+      "vary": "Accept, Authorization, Cookie, X-GitHub-OTP,Accept-Encoding, Accept, X-Requested-With",
+      "x-accepted-oauth-scopes": "repo",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "deny",
+      "x-github-api-version-selected": "2022-11-28",
+      "x-github-edge-region": "iad",
+      "x-github-media-type": "github.v3; format=json",
+      "x-github-request-id": "913C:2B86A6:22E6D5B:6DDA958:6AF506A8",
+      "x-oauth-client-id": "178c6fc778ccc68e1d6a",
+      "x-oauth-scopes": "gist, project, read:org, repo, workflow",
+      "x-ratelimit-limit": "5000",
+      "x-ratelimit-remaining": "4866",
+      "x-ratelimit-reset": "1794443690",
+      "x-ratelimit-resource": "core",
+      "x-ratelimit-used": "134",
+      "x-xss-protection": "0"
+    },
+    "data": {
+      "names": [
+        "local-ai-chat",
+        "ollama-gui",
+        "mcp-config",
+        "mcp-installer",
+        "bring-your-own-key",
+        "chat-folders",
+        "context-visualization",
+        "memory-curation",
+        "skill-inventory",
+        "skill-organizer",
+        "token-tracking",
+        "tool-approval",
+        "agent-skill-management",
+        "chat-memory",
+        "context-inspection",
+        "file-chat",
+        "mcp-server-manager",
+        "model-switching",
+        "skill-packs",
+        "workspace-context"
+      ]
+    },
+    "collected_at": "2026-11-12T00:22:01.035Z"
+  },
+  "github_write_attempts": 0,
+  "cohort_membership_or_revision_newly_changed": false,
+  "restored_revisions": {
+    "A": 4,
+    "B": 5
+  },
+  "next_reviews": {
+    "A": "2026-11-24T00:00:00Z",
+    "B": "2026-11-17T00:00:00Z"
+  },
+  "due_review_performed": false,
+  "history_prefix_unchanged": true,
+  "remaining_data_gap": "Missing historical raw traffic/download snapshots cannot be recovered from current cumulative counters. New daily evidence is collected independently."
+}

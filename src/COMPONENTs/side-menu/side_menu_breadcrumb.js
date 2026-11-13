@@ -1,6 +1,7 @@
 import { useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
+import AgentAvatar from "../agents/agent_avatar";
 import Tooltip from "../../BUILTIN_COMPONENTs/tooltip/tooltip";
 
 /* Each crumb is an arrow-shaped block: square on its left when it opens the
@@ -16,6 +17,11 @@ const depthFor = (height) => height / 2 / Math.tan(((TIP_ANGLE / 2) * Math.PI) /
 const DEPTH = depthFor(HEIGHT);
 const GAP = 3; // between a point and the notch it sits in
 const ICON = 16;
+/* A crumb that carries its name (a graph the Agents editor is drilled into):
+   the gap between its icon and the name, and how wide the name may grow
+   before it ends in an ellipsis. */
+const LABEL_GAP = 5;
+const LABEL_MAX = 140;
 const HOVER_ONLY = ["hover"];
 /* Button's own pressed inset. */
 const PRESSED_INSET = 2;
@@ -204,8 +210,13 @@ const useTrailPresence = (crumbs) => {
     crumb,
     phase: entering.has(crumb.key) ? "enter" : "idle",
   }));
+  /* A crumb whose key is in the trail again is simply there: drawing its
+     leaving copy too would give two children one key, and React then keeps
+     orphaned copies on screen that nothing removes (an invisible run of
+     crumbs pushing the trail to the right). */
+  const present = new Set(crumbs.map((crumb) => crumb.key));
   leaving
-    .slice()
+    .filter(({ crumb }) => !present.has(crumb.key))
     .sort((a, b) => a.index - b.index)
     .forEach(({ crumb, index }) => {
       drawn.splice(Math.min(index, drawn.length), 0, { crumb, phase: "exit" });
@@ -215,17 +226,39 @@ const useTrailPresence = (crumbs) => {
 
 /**
  * Where the side menu is, always on its first line, above the search field:
- * Home on the chat list, Home › Agents in the Agents pane. Every crumb
- * names itself in a tooltip (on hover only: a click must not pin it); only
- * the ones that lead somewhere react to the pointer.
+ * Home on the chat list, Home › Agents in the Agents pane, and then the
+ * graphs the Agents editor is drilled into, each its icon and its name.
+ * Every crumb names itself in a tooltip (on hover only: a click must not pin
+ * it); only the ones that lead somewhere react to the pointer.
  *
- * crumbs: [{ key, icon, label, onClick? }] — the last one is where you are.
+ * A trail wider than the side menu scrolls sideways, with no scrollbar, and
+ * keeps its end — where you are — in view.
+ *
+ * crumbs: [{ key, icon | presentation, label, onClick?, showLabel?,
+ * ariaLabel?, hint? }] — the last one is where you are. `presentation` draws
+ * an Agent's own icon; `hint` is a second line in the tooltip.
  */
 export default function SideMenuBreadcrumb({ crumbs, isDark }) {
   const drawn = useTrailPresence(crumbs);
   const lastKey = crumbs.length ? crumbs[crumbs.length - 1].key : null;
+  const navRef = useRef(null);
+  const trail = crumbs.map((crumb) => `${crumb.key}:${crumb.label}`).join("/");
+  useEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return undefined;
+    const toEnd = () => {
+      nav.scrollLeft = nav.scrollWidth;
+    };
+    toEnd();
+    /* Names are measured after the first paint; follow them out. */
+    const frame = typeof requestAnimationFrame === "function" ? requestAnimationFrame(toEnd) : 0;
+    return () => {
+      if (frame && typeof cancelAnimationFrame === "function") cancelAnimationFrame(frame);
+    };
+  }, [trail]);
   return (
     <nav
+      ref={navRef}
       data-testid="side-menu-breadcrumb"
       aria-label="Breadcrumb"
       style={{
@@ -233,6 +266,11 @@ export default function SideMenuBreadcrumb({ crumbs, isDark }) {
         alignItems: "center",
         height: HEIGHT,
         flexShrink: 0,
+        minWidth: 0,
+        maxWidth: "100%",
+        overflowX: "auto",
+        overflowY: "hidden",
+        scrollbarWidth: "none",
         WebkitAppRegion: "no-drag",
       }}
     >
@@ -241,12 +279,14 @@ export default function SideMenuBreadcrumb({ crumbs, isDark }) {
         const leavingNow = phase === "exit";
         return (
           <div
-            key={crumb.key}
+            /* A leaving copy never shares a key with a crumb in the trail. */
+            key={leavingNow ? `leaving:${crumb.key}` : crumb.key}
             data-testid={`side-menu-crumb-${crumb.key}-slot`}
             data-phase={phase}
             aria-hidden={leavingNow ? true : undefined}
             style={{
               display: "flex",
+              flexShrink: 0,
               marginLeft: index > 0 ? GAP - DEPTH : 0,
               /* Later crumbs sit under earlier ones, so one sliding in
                  tucks its notch under the point it snaps onto. */
@@ -261,6 +301,14 @@ export default function SideMenuBreadcrumb({ crumbs, isDark }) {
           >
             <Tooltip
               label={crumb.label}
+              tooltip_component={
+                crumb.hint ? (
+                  <span style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                    <span>{crumb.label}</span>
+                    <span style={{ opacity: 0.6 }}>{crumb.hint}</span>
+                  </span>
+                ) : undefined
+              }
               position="bottom"
               trigger={HOVER_ONLY}
               /* Gone as the pointer leaves: no grace period to cross into it. */
@@ -324,22 +372,46 @@ const usePointAmount = (point) => {
   return amount;
 };
 
+/* The name's drawn width, so the crumb's shape can be cut to fit it. */
+const useLabelWidth = (ref, label, shown) => {
+  const [width, setWidth] = useState(0);
+  useLayoutEffect(() => {
+    const node = ref.current;
+    if (!shown || !node) {
+      setWidth(0);
+      return undefined;
+    }
+    const measure = () => setWidth(Math.ceil(node.getBoundingClientRect().width));
+    measure();
+    if (typeof ResizeObserver !== "function") return undefined;
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [ref, label, shown]);
+  return width;
+};
+
 function Crumb({ crumb, notch, point: pointed, current, isDark }) {
   const [hovered, setHovered] = useState(false);
   const [pressed, setPressed] = useState(false);
   const point = usePointAmount(pointed);
   const interactive = !current && typeof crumb.onClick === "function";
   const fg = isDark ? "rgba(255,255,255,0.9)" : "rgba(0,0,0,0.85)";
+  const labelRef = useRef(null);
+  const showLabel = Boolean(crumb.showLabel) && Boolean(crumb.label);
+  const labelWidth = useLabelWidth(labelRef, crumb.label, showLabel);
   const padLeft = notch ? DEPTH + 4 : 6;
   const padRight = 6 + (DEPTH - 2) * point;
-  const width = padLeft + ICON + padRight;
+  const content = showLabel ? ICON + LABEL_GAP + labelWidth : ICON;
+  const width = padLeft + content + padRight;
+  const iconOpacity = interactive ? (hovered ? 1 : 0.85) : 0.4;
   return (
     <button
       type="button"
       data-testid={`side-menu-crumb-${crumb.key}`}
       data-notch={notch ? "true" : "false"}
       data-point={pointed ? "true" : "false"}
-      aria-label={crumb.label}
+      aria-label={crumb.ariaLabel || crumb.label}
       aria-current={current ? "page" : undefined}
       /* Not `disabled`: a disabled button swallows the hover that shows its
          tooltip. */
@@ -357,6 +429,7 @@ function Crumb({ crumb, notch, point: pointed, current, isDark }) {
         position: "relative",
         display: "flex",
         alignItems: "center",
+        flexShrink: 0,
         width,
         height: HEIGHT,
         padding: `0 ${padRight}px 0 ${padLeft}px`,
@@ -398,19 +471,59 @@ function Crumb({ crumb, notch, point: pointed, current, isDark }) {
       {/* What the tooltip points at: the crumb is wider than its icon on the
           side of a notch or a point, so its own middle is not the icon's. */}
       <span data-crumb-icon="" style={{ position: "relative", display: "flex", width: ICON, height: ICON, flexShrink: 0 }}>
-        <Icon
-          src={crumb.icon}
-          color={fg}
+        {crumb.presentation !== undefined ? (
+          /* An Agent's own icon, bare, in the crumb's colour — as in the
+             lists. */
+          <AgentAvatar
+            variant="glyph"
+            presentation={crumb.presentation}
+            size={ICON}
+            glyphScale={1}
+            testid={`side-menu-crumb-${crumb.key}-avatar`}
+            style={{
+              position: "relative",
+              opacity: iconOpacity,
+              transition: "opacity 0.15s ease",
+            }}
+          />
+        ) : (
+          <Icon
+            src={crumb.icon}
+            color={fg}
+            style={{
+              position: "relative",
+              width: ICON,
+              height: ICON,
+              /* Where you are is the quiet one. */
+              opacity: iconOpacity,
+              transition: "opacity 0.15s ease",
+            }}
+          />
+        )}
+      </span>
+      {showLabel && (
+        <span
+          ref={labelRef}
+          data-testid={`side-menu-crumb-${crumb.key}-label`}
           style={{
             position: "relative",
-            width: ICON,
-            height: ICON,
-            /* Where you are is the quiet one. */
-            opacity: interactive ? (hovered ? 1 : 0.85) : 0.4,
+            marginLeft: LABEL_GAP,
+            maxWidth: LABEL_MAX,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            fontSize: 12,
+            lineHeight: `${HEIGHT}px`,
+            flexShrink: 0,
+            /* A graph left behind is a link; one that leads nowhere — where
+               you are — is grey, like its icon. */
+            opacity: interactive ? (hovered ? 1 : 0.85) : 0.45,
             transition: "opacity 0.15s ease",
           }}
-        />
-      </span>
+        >
+          {crumb.label}
+        </span>
+      )}
     </button>
   );
 }

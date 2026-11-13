@@ -1,0 +1,369 @@
+{
+  "schema_version": 1,
+  "type": "historical_cohort_state_recovery_prepared",
+  "repo": "haoxiang-xu/PuPu",
+  "prepared_at": "2026-11-12T00:22:00.417Z",
+  "trigger_at": "2026-11-12T00:07:17.131Z",
+  "reason": "The current checkout contains a September A1/B1 state and only old growth snapshots. Independently observed live GitHub topics instead match the previously verified A4/B5 membership. Historical tool records permit exact state reconstruction without inventing exposure timestamps. The cause of local file loss or rollback is not established.",
+  "observed_local_state_utf8": "{\n  \"schema_version\": 2,\n  \"mode\": \"staggered-two-week-cohorts\",\n  \"repo\": \"haoxiang-xu/PuPu\",\n  \"status\": \"active\",\n  \"policy_corrected_at\": \"2026-09-22T21:27:30Z\",\n  \"authorization\": \"Owner clarified that A and B are two simultaneous groups within the 20 live topics, each held/reviewed for two weeks with a one-week offset. Optimize only part of the due group; retain good topics. This corrects the assistant's earlier whole-set alternation interpretation.\",\n  \"required_total_topics\": 20,\n  \"required_topics_per_group\": 10,\n  \"group_review_interval_days\": 14,\n  \"between_group_review_offset_days\": 7,\n  \"max_swaps_per_review\": 5,\n  \"preferred_swaps_per_review\": [\n    1,\n    3\n  ],\n  \"allow_zero_swaps\": true,\n  \"groups\": {\n    \"A\": {\n      \"revision\": 1,\n      \"topics\": [\n        \"agent-workspace\",\n        \"ai-client\",\n        \"ai-harness\",\n        \"desktop-agent\",\n        \"desktop-app\",\n        \"electron\",\n        \"llm\",\n        \"llm-ui\",\n        \"local-llm\",\n        \"mcp\"\n      ],\n      \"cohort_registered_at\": \"2026-09-22T21:27:30Z\",\n      \"latest_member_added_at\": \"2026-09-22T21:09:08Z\",\n      \"first_complete_observation_day_utc\": \"2026-09-23\",\n      \"next_review_due_utc\": \"2026-10-07T00:00:00Z\",\n      \"last_review_at\": null,\n      \"completed_reviews\": 0,\n      \"member_exposure\": {\n        \"agent-workspace\": {\n          \"added_at\": \"2026-09-22T21:09:08Z\",\n          \"evidence\": \"2026-09-22-topics-change.md\"\n        },\n        \"ai-client\": {\n          \"added_at\": \"2026-09-22T21:09:08Z\",\n          \"evidence\": \"2026-09-22-topics-change.md\"\n        },\n        \"ai-harness\": {\n          \"added_at\": \"2026-09-22T21:09:08Z\",\n          \"evidence\": \"2026-09-22-topics-change.md\"\n        },\n        \"desktop-agent\": {\n          \"added_at\": \"2026-09-22T21:09:08Z\",\n          \"evidence\": \"2026-09-22-topics-change.md\"\n        },\n        \"desktop-app\": {\n          \"known_present_by_date\": \"2026-09-08\",\n          \"exact_added_at\": null,\n          \"evidence\": \"2026-09-08-topics-change.md; subsequent membership snapshots\"\n        },\n        \"electron\": {\n          \"known_present_by_date\": \"2026-09-08\",\n          \"exact_added_at\": null,\n          \"evidence\": \"2026-09-08-topics-change.md; subsequent membership snapshots\"\n        },\n        \"llm\": {\n          \"known_present_by_date\": \"2026-09-08\",\n          \"exact_added_at\": null,\n          \"evidence\": \"2026-09-08-topics-change.md; subsequent membership snapshots\"\n        },\n        \"llm-ui\": {\n          \"added_at\": \"2026-09-22T21:09:08Z\",\n          \"evidence\": \"2026-09-22-topics-change.md\"\n        },\n        \"local-llm\": {\n          \"known_present_by_date\": \"2026-09-08\",\n          \"exact_added_at\": null,\n          \"evidence\": \"2026-09-08-topics-change.md; subsequent membership snapshots\"\n        },\n        \"mcp\": {\n          \"known_present_by_date\": \"2026-09-08\",\n          \"exact_added_at\": null,\n          \"evidence\": \"2026-09-08-topics-change.md; subsequent membership snapshots\"\n        }\n      }\n    },\n    \"B\": {\n      \"revision\": 1,\n      \"topics\": [\n        \"agent-orchestration\",\n        \"anthropic\",\n        \"deepseek\",\n        \"llm-client\",\n        \"mcp-client\",\n        \"multi-agent\",\n        \"ollama\",\n        \"ollama-client\",\n        \"openai\",\n        \"self-hosted\"\n      ],\n      \"cohort_registered_at\": \"2026-09-22T21:27:30Z\",\n      \"historical_exposure_note\": \"All ten tags were already in the recorded September 8 applied set and subsequent snapshots; first review September 30 does not reduce their historical exposure to seven days. Group membership is bookkeeping introduced today, not a new GitHub application.\",\n      \"next_review_due_utc\": \"2026-09-30T00:00:00Z\",\n      \"last_review_at\": null,\n      \"completed_reviews\": 0,\n      \"member_exposure\": {\n        \"agent-orchestration\": {\n          \"known_present_by_date\": \"2026-09-08\",\n          \"exact_added_at\": null,\n          \"evidence\": \"2026-09-08-topics-change.md; topics-history.ndjson\"\n        },\n        \"anthropic\": {\n          \"known_present_by_date\": \"2026-09-08\",\n          \"exact_added_at\": null,\n          \"evidence\": \"2026-09-08-topics-change.md; topics-history.ndjson\"\n        },\n        \"deepseek\": {\n          \"known_present_by_date\": \"2026-09-08\",\n          \"exact_added_at\": null,\n          \"evidence\": \"2026-09-08-topics-change.md; topics-history.ndjson\"\n        },\n        \"llm-client\": {\n          \"known_present_by_date\": \"2026-09-08\",\n          \"exact_added_at\": null,\n          \"evidence\": \"2026-09-08-topics-change.md; topics-history.ndjson\"\n        },\n        \"mcp-client\": {\n          \"known_present_by_date\": \"2026-09-08\",\n          \"exact_added_at\": null,\n          \"evidence\": \"2026-09-08-topics-change.md; topics-history.ndjson\"\n        },\n        \"multi-agent\": {\n          \"known_present_by_date\": \"2026-09-08\",\n          \"exact_added_at\": null,\n          \"evidence\": \"2026-09-08-topics-change.md; topics-history.ndjson\"\n        },\n        \"ollama\": {\n          \"known_present_by_date\": \"2026-09-08\",\n          \"exact_added_at\": null,\n          \"evidence\": \"2026-09-08-topics-change.md; topics-history.ndjson\"\n        },\n        \"ollama-client\": {\n          \"known_present_by_date\": \"2026-09-08\",\n          \"exact_added_at\": null,\n          \"evidence\": \"2026-09-08-topics-change.md; topics-history.ndjson\"\n        },\n        \"openai\": {\n          \"known_present_by_date\": \"2026-09-08\",\n          \"exact_added_at\": null,\n          \"evidence\": \"2026-09-08-topics-change.md; topics-history.ndjson\"\n        },\n        \"self-hosted\": {\n          \"known_present_by_date\": \"2026-09-08\",\n          \"exact_added_at\": null,\n          \"evidence\": \"2026-09-08-topics-change.md; topics-history.ndjson\"\n        }\n      }\n    }\n  },\n  \"live_topics\": [\n    \"agent-orchestration\",\n    \"agent-workspace\",\n    \"ai-client\",\n    \"ai-harness\",\n    \"anthropic\",\n    \"deepseek\",\n    \"desktop-agent\",\n    \"desktop-app\",\n    \"electron\",\n    \"llm\",\n    \"llm-client\",\n    \"llm-ui\",\n    \"local-llm\",\n    \"mcp\",\n    \"mcp-client\",\n    \"multi-agent\",\n    \"ollama\",\n    \"ollama-client\",\n    \"openai\",\n    \"self-hosted\"\n  ],\n  \"live_topics_last_applied_at\": \"2026-09-22T21:09:08Z\",\n  \"next_review_group\": \"B\",\n  \"next_review_due_utc\": \"2026-09-30T00:00:00Z\",\n  \"completed_reviews\": 0,\n  \"completed_topic_updates\": 0,\n  \"scheduler\": {\n    \"automation_id\": \"pupu-topics-cleanup-checkpoints\",\n    \"timezone\": \"America/Vancouver\",\n    \"daily_snapshot_local_time\": \"17:00\",\n    \"notes\": \"Daily 17:00 local corresponds to UTC midnight during daylight time. Scheduled reviews use the stored UTC due dates; preserve actual times, protect two-week topic exposure, and record delay or daylight-saving effects.\"\n  },\n  \"planned_reviews\": [\n    {\n      \"group\": \"B\",\n      \"utc\": \"2026-09-30T00:00:00Z\",\n      \"vancouver_local\": \"2026-09-29 17:00\"\n    },\n    {\n      \"group\": \"A\",\n      \"utc\": \"2026-10-07T00:00:00Z\",\n      \"vancouver_local\": \"2026-10-06 17:00\"\n    },\n    {\n      \"group\": \"B\",\n      \"utc\": \"2026-10-14T00:00:00Z\",\n      \"vancouver_local\": \"2026-10-13 17:00\"\n    },\n    {\n      \"group\": \"A\",\n      \"utc\": \"2026-10-21T00:00:00Z\",\n      \"vancouver_local\": \"2026-10-20 17:00\"\n    }\n  ],\n  \"baseline_snapshot\": \"2026-09-22-topics-baseline.json\",\n  \"candidate_backlog\": {\n    \"research\": {\n      \"collected_at\": \"2026-09-22T21:20:50Z\",\n      \"repo_counts\": {\n        \"ai-workspace\": 178,\n        \"desktop-assistant\": 321,\n        \"ollama-ui\": 90,\n        \"ollama-gui\": 182,\n        \"local-ai\": 5852\n      },\n      \"projected_star_sort_positions_at_35_stars\": {\n        \"ai-workspace\": \"23–24\",\n        \"desktop-assistant\": \"13–14\",\n        \"ollama-ui\": \"17\",\n        \"ollama-gui\": \"24\",\n        \"local-ai\": \">50\"\n      },\n      \"note\": \"Repository counts are ecosystem size, not search volume. Ranks are star-sort estimates, with ties bounded and >50 explicitly truncated.\"\n    },\n    \"usage\": \"Research candidates only, not a predefined future B set. Remeasure and validate fit at a due review; select only justified replacements for that group.\"\n  },\n  \"measurement_note\": \"Both groups are always live. The other cohort changes halfway through a group's 14-day exposure. Label results with both group revisions; do not claim isolated per-topic or per-group traffic from GitHub aggregate metrics. Planned staggered changes are the experiment design, while unexpected edits or releases/promotions need separate annotations.\"\n}\n",
+  "observed_local_state_sha256": "a2c8c1a4a7a29adbdca4fdb2a8fc8b529e01543f44b40128e932d3d52614fa3a",
+  "recovered_state_utf8": "{\n  \"schema_version\": 2,\n  \"mode\": \"staggered-two-week-cohorts\",\n  \"repo\": \"haoxiang-xu/PuPu\",\n  \"status\": \"active\",\n  \"policy_corrected_at\": \"2026-09-22T21:27:30Z\",\n  \"authorization\": \"The owner replaced retention-first topic optimisation on 2026-10-20 with a retrieval-first strategy: 20 topics are narrow, shipped-capability hypotheses for developer/AI-agent searches; broad positioning belongs in README/description. The owner explicitly authorized a full immediate replacement and instructed that a due cohort be rotated again when it has no repeated non-bot retrieval signal.\",\n  \"required_total_topics\": 20,\n  \"required_topics_per_group\": 10,\n  \"group_review_interval_days\": 14,\n  \"between_group_review_offset_days\": 7,\n  \"max_swaps_per_review\": 10,\n  \"preferred_swaps_per_review\": [\n    10,\n    10\n  ],\n  \"allow_zero_swaps\": true,\n  \"long_tail_retrieval_strategy\": {\n    \"effective_at\": \"2026-10-21T04:26:51Z\",\n    \"evidence_record\": \"2026-10-20-long-tail-topics-reset.md\",\n    \"selection_rule\": \"Use only existing, low-competition GitHub topics that name a narrow shipped user need. Do not use broad ecosystem, framework, provider or positioning topics. A small topic is a retrieval hypothesis, not proof of demand.\",\n    \"retention_rule\": \"At every staggered weekly cohort review, replace the complete due cohort by default if no narrow topic has a repeated non-bot retrieval signal. A specific topic may stay only with that signal; it has no automatic preservation right.\"\n  },\n  \"groups\": {\n    \"A\": {\n      \"revision\": 4,\n      \"topics\": [\n        \"mcp-config\",\n        \"mcp-installer\",\n        \"mcp-server-manager\",\n        \"agent-skill-management\",\n        \"chat-memory\",\n        \"model-switching\",\n        \"workspace-context\",\n        \"file-chat\",\n        \"context-inspection\",\n        \"skill-packs\"\n      ],\n      \"cohort_registered_at\": \"2026-09-22T21:27:30Z\",\n      \"latest_member_added_at\": \"2026-11-10T00:18:25.366Z\",\n      \"first_complete_observation_day_utc\": \"2026-11-11\",\n      \"next_review_due_utc\": \"2026-11-24T00:00:00Z\",\n      \"last_review_at\": \"2026-11-10T00:18:27.567Z\",\n      \"completed_reviews\": 4,\n      \"member_exposure\": {\n        \"mcp-config\": {\n          \"added_at\": \"2026-10-27T00:13:38.682Z\",\n          \"first_verified_at\": \"2026-10-27T00:13:39.213Z\",\n          \"evidence\": \"2026-10-27-topics-change-verified.json\"\n        },\n        \"mcp-installer\": {\n          \"added_at\": \"2026-10-27T00:13:38.682Z\",\n          \"first_verified_at\": \"2026-10-27T00:13:39.213Z\",\n          \"evidence\": \"2026-10-27-topics-change-verified.json\"\n        },\n        \"mcp-server-manager\": {\n          \"added_at\": \"2026-11-10T00:18:25.366Z\",\n          \"first_verified_at\": \"2026-11-10T00:18:27.567Z\",\n          \"evidence\": \"2026-11-10-topics-change-verified.json\",\n          \"timestamp_basis\": \"Client PUT start; membership independently confirmed by first_verified_at.\"\n        },\n        \"agent-skill-management\": {\n          \"added_at\": \"2026-11-10T00:18:25.366Z\",\n          \"first_verified_at\": \"2026-11-10T00:18:27.567Z\",\n          \"evidence\": \"2026-11-10-topics-change-verified.json\",\n          \"timestamp_basis\": \"Client PUT start; membership independently confirmed by first_verified_at.\"\n        },\n        \"chat-memory\": {\n          \"added_at\": \"2026-11-10T00:18:25.366Z\",\n          \"first_verified_at\": \"2026-11-10T00:18:27.567Z\",\n          \"evidence\": \"2026-11-10-topics-change-verified.json\",\n          \"timestamp_basis\": \"Client PUT start; membership independently confirmed by first_verified_at.\"\n        },\n        \"model-switching\": {\n          \"added_at\": \"2026-11-10T00:18:25.366Z\",\n          \"first_verified_at\": \"2026-11-10T00:18:27.567Z\",\n          \"evidence\": \"2026-11-10-topics-change-verified.json\",\n          \"timestamp_basis\": \"Client PUT start; membership independently confirmed by first_verified_at.\"\n        },\n        \"workspace-context\": {\n          \"added_at\": \"2026-11-10T00:18:25.366Z\",\n          \"first_verified_at\": \"2026-11-10T00:18:27.567Z\",\n          \"evidence\": \"2026-11-10-topics-change-verified.json\",\n          \"timestamp_basis\": \"Client PUT start; membership independently confirmed by first_verified_at.\"\n        },\n        \"file-chat\": {\n          \"added_at\": \"2026-11-10T00:18:25.366Z\",\n          \"first_verified_at\": \"2026-11-10T00:18:27.567Z\",\n          \"evidence\": \"2026-11-10-topics-change-verified.json\",\n          \"timestamp_basis\": \"Client PUT start; membership independently confirmed by first_verified_at.\"\n        },\n        \"context-inspection\": {\n          \"added_at\": \"2026-11-10T00:18:25.366Z\",\n          \"first_verified_at\": \"2026-11-10T00:18:27.567Z\",\n          \"evidence\": \"2026-11-10-topics-change-verified.json\",\n          \"timestamp_basis\": \"Client PUT start; membership independently confirmed by first_verified_at.\"\n        },\n        \"skill-packs\": {\n          \"added_at\": \"2026-11-10T00:18:25.366Z\",\n          \"first_verified_at\": \"2026-11-10T00:18:27.567Z\",\n          \"evidence\": \"2026-11-10-topics-change-verified.json\",\n          \"timestamp_basis\": \"Client PUT start; membership independently confirmed by first_verified_at.\"\n        }\n      },\n      \"retired_member_exposure\": [\n        {\n          \"topics\": [\n            \"agent-workspace\",\n            \"ai-client\",\n            \"ai-harness\",\n            \"desktop-agent\",\n            \"desktop-app\",\n            \"electron\",\n            \"llm\",\n            \"llm-ui\",\n            \"local-llm\",\n            \"mcp\"\n          ],\n          \"removed_at\": \"2026-10-21T04:26:51Z\",\n          \"revision_last_live\": 1,\n          \"evidence\": \"2026-10-20-long-tail-topics-reset.md\"\n        },\n        {\n          \"topic\": \"mcp-host\",\n          \"added_at\": \"2026-10-21T04:26:51Z\",\n          \"evidence\": \"2026-10-27-topics-change-verified.json\",\n          \"removed_at\": \"2026-10-27T00:13:38.682Z\",\n          \"revision_last_live\": 2\n        },\n        {\n          \"topic\": \"mcp-registry\",\n          \"added_at\": \"2026-10-21T04:26:51Z\",\n          \"evidence\": \"2026-10-27-topics-change-verified.json\",\n          \"removed_at\": \"2026-10-27T00:13:38.682Z\",\n          \"revision_last_live\": 2\n        },\n        {\n          \"topic\": \"mcp-directory\",\n          \"added_at\": \"2026-10-21T04:26:51Z\",\n          \"evidence\": \"2026-10-27-topics-change-verified.json\",\n          \"removed_at\": \"2026-10-27T00:13:38.682Z\",\n          \"revision_last_live\": 2\n        },\n        {\n          \"topic\": \"mcp-toolkit\",\n          \"added_at\": \"2026-10-21T04:26:51Z\",\n          \"evidence\": \"2026-10-27-topics-change-verified.json\",\n          \"removed_at\": \"2026-10-27T00:13:38.682Z\",\n          \"revision_last_live\": 2\n        },\n        {\n          \"topic\": \"mcp-hub\",\n          \"added_at\": \"2026-10-21T04:26:51Z\",\n          \"evidence\": \"2026-10-27-topics-change-verified.json\",\n          \"removed_at\": \"2026-10-27T00:13:38.682Z\",\n          \"revision_last_live\": 2\n        },\n        {\n          \"topic\": \"mcp-integration\",\n          \"added_at\": \"2026-10-21T04:26:51Z\",\n          \"evidence\": \"2026-10-27-topics-change-verified.json\",\n          \"removed_at\": \"2026-10-27T00:13:38.682Z\",\n          \"revision_last_live\": 2\n        },\n        {\n          \"topic\": \"mcp-management\",\n          \"added_at\": \"2026-10-27T00:13:38.682Z\",\n          \"first_verified_at\": \"2026-10-27T00:13:39.213Z\",\n          \"evidence\": \"2026-10-27-topics-change-verified.json\",\n          \"removed_at\": \"2026-11-10T00:18:25.366Z\",\n          \"revision_last_live\": 3,\n          \"removal_evidence\": \"2026-11-10-topics-change-verified.json\"\n        },\n        {\n          \"topic\": \"agent-skills-manager\",\n          \"added_at\": \"2026-10-27T00:13:38.682Z\",\n          \"first_verified_at\": \"2026-10-27T00:13:39.213Z\",\n          \"evidence\": \"2026-10-27-topics-change-verified.json\",\n          \"removed_at\": \"2026-11-10T00:18:25.366Z\",\n          \"revision_last_live\": 3,\n          \"removal_evidence\": \"2026-11-10-topics-change-verified.json\"\n        },\n        {\n          \"topic\": \"conversation-memory\",\n          \"added_at\": \"2026-10-27T00:13:38.682Z\",\n          \"first_verified_at\": \"2026-10-27T00:13:39.213Z\",\n          \"evidence\": \"2026-10-27-topics-change-verified.json\",\n          \"removed_at\": \"2026-11-10T00:18:25.366Z\",\n          \"revision_last_live\": 3,\n          \"removal_evidence\": \"2026-11-10-topics-change-verified.json\"\n        },\n        {\n          \"topic\": \"multi-model-chat\",\n          \"added_at\": \"2026-10-27T00:13:38.682Z\",\n          \"first_verified_at\": \"2026-10-27T00:13:39.213Z\",\n          \"evidence\": \"2026-10-27-topics-change-verified.json\",\n          \"removed_at\": \"2026-11-10T00:18:25.366Z\",\n          \"revision_last_live\": 3,\n          \"removal_evidence\": \"2026-11-10-topics-change-verified.json\"\n        },\n        {\n          \"topic\": \"workspace-chat\",\n          \"added_at\": \"2026-10-21T04:26:51Z\",\n          \"evidence\": \"2026-10-20-long-tail-topics-reset.md\",\n          \"removed_at\": \"2026-11-10T00:18:25.366Z\",\n          \"revision_last_live\": 3,\n          \"removal_evidence\": \"2026-11-10-topics-change-verified.json\"\n        },\n        {\n          \"topic\": \"file-context\",\n          \"added_at\": \"2026-10-21T04:26:51Z\",\n          \"evidence\": \"2026-10-20-long-tail-topics-reset.md\",\n          \"removed_at\": \"2026-11-10T00:18:25.366Z\",\n          \"revision_last_live\": 3,\n          \"removal_evidence\": \"2026-11-10-topics-change-verified.json\"\n        },\n        {\n          \"topic\": \"context-aware-chat\",\n          \"added_at\": \"2026-10-21T04:26:51Z\",\n          \"evidence\": \"2026-10-20-long-tail-topics-reset.md\",\n          \"removed_at\": \"2026-11-10T00:18:25.366Z\",\n          \"revision_last_live\": 3,\n          \"removal_evidence\": \"2026-11-10-topics-change-verified.json\"\n        },\n        {\n          \"topic\": \"mcp-marketplace\",\n          \"added_at\": \"2026-10-21T04:26:51Z\",\n          \"evidence\": \"2026-10-20-long-tail-topics-reset.md\",\n          \"removed_at\": \"2026-11-10T00:18:25.366Z\",\n          \"revision_last_live\": 3,\n          \"removal_evidence\": \"2026-11-10-topics-change-verified.json\"\n        }\n      ],\n      \"last_review_record\": \"2026-11-10-topics-change.md\",\n      \"last_verified_change_record\": \"2026-11-10-topics-change-verified.json\",\n      \"last_review_retention_note\": \"Retained the exact shipped MCP configuration/runtime-installer needs after researching existing alternatives. Eight other hypotheses replaced; no per-topic demand or conversion claim, no automatic preservation right or forced ten-swap quota.\"\n    },\n    \"B\": {\n      \"revision\": 5,\n      \"topics\": [\n        \"bring-your-own-key\",\n        \"skill-organizer\",\n        \"skill-inventory\",\n        \"chat-folders\",\n        \"context-visualization\",\n        \"token-tracking\",\n        \"memory-curation\",\n        \"tool-approval\",\n        \"ollama-gui\",\n        \"local-ai-chat\"\n      ],\n      \"cohort_registered_at\": \"2026-09-22T21:27:30Z\",\n      \"historical_exposure_note\": \"The owner directed a complete long-tail retrieval reset on 2026-10-20; former membership and its introduction evidence are preserved in the historical record and change report.\",\n      \"next_review_due_utc\": \"2026-11-17T00:00:00Z\",\n      \"last_review_at\": \"2026-11-03T00:35:25.075Z\",\n      \"completed_reviews\": 5,\n      \"member_exposure\": {\n        \"bring-your-own-key\": {\n          \"added_at\": \"2026-11-03T00:35:22.223Z\",\n          \"first_verified_at\": \"2026-11-03T00:35:25.075Z\",\n          \"evidence\": \"2026-11-03-topics-change-verified.json\",\n          \"timestamp_basis\": \"Client PUT request start; membership independently confirmed by first_verified_at.\"\n        },\n        \"skill-organizer\": {\n          \"added_at\": \"2026-11-03T00:35:22.223Z\",\n          \"first_verified_at\": \"2026-11-03T00:35:25.075Z\",\n          \"evidence\": \"2026-11-03-topics-change-verified.json\",\n          \"timestamp_basis\": \"Client PUT request start; membership independently confirmed by first_verified_at.\"\n        },\n        \"skill-inventory\": {\n          \"added_at\": \"2026-11-03T00:35:22.223Z\",\n          \"first_verified_at\": \"2026-11-03T00:35:25.075Z\",\n          \"evidence\": \"2026-11-03-topics-change-verified.json\",\n          \"timestamp_basis\": \"Client PUT request start; membership independently confirmed by first_verified_at.\"\n        },\n        \"chat-folders\": {\n          \"added_at\": \"2026-11-03T00:35:22.223Z\",\n          \"first_verified_at\": \"2026-11-03T00:35:25.075Z\",\n          \"evidence\": \"2026-11-03-topics-change-verified.json\",\n          \"timestamp_basis\": \"Client PUT request start; membership independently confirmed by first_verified_at.\"\n        },\n        \"context-visualization\": {\n          \"added_at\": \"2026-11-03T00:35:22.223Z\",\n          \"first_verified_at\": \"2026-11-03T00:35:25.075Z\",\n          \"evidence\": \"2026-11-03-topics-change-verified.json\",\n          \"timestamp_basis\": \"Client PUT request start; membership independently confirmed by first_verified_at.\"\n        },\n        \"token-tracking\": {\n          \"added_at\": \"2026-11-03T00:35:22.223Z\",\n          \"first_verified_at\": \"2026-11-03T00:35:25.075Z\",\n          \"evidence\": \"2026-11-03-topics-change-verified.json\",\n          \"timestamp_basis\": \"Client PUT request start; membership independently confirmed by first_verified_at.\"\n        },\n        \"memory-curation\": {\n          \"added_at\": \"2026-11-03T00:35:22.223Z\",\n          \"first_verified_at\": \"2026-11-03T00:35:25.075Z\",\n          \"evidence\": \"2026-11-03-topics-change-verified.json\",\n          \"timestamp_basis\": \"Client PUT request start; membership independently confirmed by first_verified_at.\"\n        },\n        \"tool-approval\": {\n          \"added_at\": \"2026-11-03T00:35:22.223Z\",\n          \"first_verified_at\": \"2026-11-03T00:35:25.075Z\",\n          \"evidence\": \"2026-11-03-topics-change-verified.json\",\n          \"timestamp_basis\": \"Client PUT request start; membership independently confirmed by first_verified_at.\"\n        },\n        \"ollama-gui\": {\n          \"added_at\": \"2026-10-21T04:26:51Z\",\n          \"evidence\": \"2026-10-20-long-tail-topics-reset.md\"\n        },\n        \"local-ai-chat\": {\n          \"added_at\": \"2026-10-21T04:26:51Z\",\n          \"evidence\": \"2026-10-20-long-tail-topics-reset.md\"\n        }\n      },\n      \"latest_member_added_at\": \"2026-11-03T00:35:22.223Z\",\n      \"retired_member_exposure\": [\n        {\n          \"topic\": \"agent-orchestration\",\n          \"known_present_by_date\": \"2026-09-08\",\n          \"exact_added_at\": null,\n          \"evidence\": \"2026-10-01-topics-recovery.json\",\n          \"removed_at\": \"2026-09-30T01:34:19.753Z\",\n          \"revision_last_live\": 1\n        },\n        {\n          \"topic\": \"anthropic\",\n          \"known_present_by_date\": \"2026-09-08\",\n          \"exact_added_at\": null,\n          \"evidence\": \"2026-10-19-topics-change.md\",\n          \"removed_at\": \"2026-10-19T01:22:03Z\",\n          \"revision_last_live\": 2\n        },\n        {\n          \"topic\": \"deepseek\",\n          \"known_present_by_date\": \"2026-09-08\",\n          \"exact_added_at\": null,\n          \"evidence\": \"2026-10-19-topics-change.md\",\n          \"removed_at\": \"2026-10-19T01:22:03Z\",\n          \"revision_last_live\": 2\n        },\n        {\n          \"topic\": \"openai\",\n          \"known_present_by_date\": \"2026-09-08\",\n          \"exact_added_at\": null,\n          \"evidence\": \"2026-10-19-topics-change.md\",\n          \"removed_at\": \"2026-10-19T01:22:03Z\",\n          \"revision_last_live\": 2\n        },\n        {\n          \"topics\": [\n            \"ai-workspace\",\n            \"desktop-assistant\",\n            \"llm-client\",\n            \"mcp-client\",\n            \"mcp-store\",\n            \"multi-agent\",\n            \"ollama\",\n            \"ollama-client\",\n            \"ollama-ui\",\n            \"self-hosted\"\n          ],\n          \"removed_at\": \"2026-10-21T04:26:51Z\",\n          \"revision_last_live\": 3,\n          \"evidence\": \"2026-10-20-long-tail-topics-reset.md\"\n        },\n        {\n          \"topic\": \"ollama-webui\",\n          \"added_at\": \"2026-10-21T04:26:51Z\",\n          \"evidence\": \"2026-10-20-long-tail-topics-reset.md\",\n          \"removed_at\": \"2026-11-03T00:35:22.223Z\",\n          \"revision_last_live\": 4,\n          \"removal_evidence\": \"2026-11-03-topics-change-verified.json\"\n        },\n        {\n          \"topic\": \"llm-interface\",\n          \"added_at\": \"2026-10-21T04:26:51Z\",\n          \"evidence\": \"2026-10-20-long-tail-topics-reset.md\",\n          \"removed_at\": \"2026-11-03T00:35:22.223Z\",\n          \"revision_last_live\": 4,\n          \"removal_evidence\": \"2026-11-03-topics-change-verified.json\"\n        },\n        {\n          \"topic\": \"llm-gui\",\n          \"added_at\": \"2026-10-21T04:26:51Z\",\n          \"evidence\": \"2026-10-20-long-tail-topics-reset.md\",\n          \"removed_at\": \"2026-11-03T00:35:22.223Z\",\n          \"revision_last_live\": 4,\n          \"removal_evidence\": \"2026-11-03-topics-change-verified.json\"\n        },\n        {\n          \"topic\": \"llm-desktop\",\n          \"added_at\": \"2026-10-21T04:26:51Z\",\n          \"evidence\": \"2026-10-20-long-tail-topics-reset.md\",\n          \"removed_at\": \"2026-11-03T00:35:22.223Z\",\n          \"revision_last_live\": 4,\n          \"removal_evidence\": \"2026-11-03-topics-change-verified.json\"\n        },\n        {\n          \"topic\": \"desktop-chat\",\n          \"added_at\": \"2026-10-21T04:26:51Z\",\n          \"evidence\": \"2026-10-20-long-tail-topics-reset.md\",\n          \"removed_at\": \"2026-11-03T00:35:22.223Z\",\n          \"revision_last_live\": 4,\n          \"removal_evidence\": \"2026-11-03-topics-change-verified.json\"\n        },\n        {\n          \"topic\": \"ai-desktop\",\n          \"added_at\": \"2026-10-21T04:26:51Z\",\n          \"evidence\": \"2026-10-20-long-tail-topics-reset.md\",\n          \"removed_at\": \"2026-11-03T00:35:22.223Z\",\n          \"revision_last_live\": 4,\n          \"removal_evidence\": \"2026-11-03-topics-change-verified.json\"\n        },\n        {\n          \"topic\": \"ai-desktop-app\",\n          \"added_at\": \"2026-10-21T04:26:51Z\",\n          \"evidence\": \"2026-10-20-long-tail-topics-reset.md\",\n          \"removed_at\": \"2026-11-03T00:35:22.223Z\",\n          \"revision_last_live\": 4,\n          \"removal_evidence\": \"2026-11-03-topics-change-verified.json\"\n        },\n        {\n          \"topic\": \"local-ai-assistant\",\n          \"added_at\": \"2026-10-21T04:26:51Z\",\n          \"evidence\": \"2026-10-20-long-tail-topics-reset.md\",\n          \"removed_at\": \"2026-11-03T00:35:22.223Z\",\n          \"revision_last_live\": 4,\n          \"removal_evidence\": \"2026-11-03-topics-change-verified.json\"\n        }\n      ],\n      \"minimum_exposure_note\": \"The owner's retrieval-first override replaces automatic fourteen-day preservation with weekly cohort decisions. A narrow topic may remain only when a repeated non-bot retrieval signal supports it.\",\n      \"first_complete_observation_day_utc\": \"2026-11-04\",\n      \"last_review_record\": \"2026-11-03-topics-change.md\",\n      \"last_verified_change_record\": \"2026-11-03-topics-change-verified.json\",\n      \"last_review_retention_note\": \"Retained two concrete shipped-fit hypotheses under latest owner direction; no automatic retention right or invented ten-swap quota. Missing topic attribution is not zero traffic. Eight generic/misaligned hypotheses replaced.\"\n    }\n  },\n  \"live_topics\": [\n    \"agent-skill-management\",\n    \"bring-your-own-key\",\n    \"chat-folders\",\n    \"chat-memory\",\n    \"context-inspection\",\n    \"context-visualization\",\n    \"file-chat\",\n    \"local-ai-chat\",\n    \"mcp-config\",\n    \"mcp-installer\",\n    \"mcp-server-manager\",\n    \"memory-curation\",\n    \"model-switching\",\n    \"ollama-gui\",\n    \"skill-inventory\",\n    \"skill-organizer\",\n    \"skill-packs\",\n    \"token-tracking\",\n    \"tool-approval\",\n    \"workspace-context\"\n  ],\n  \"live_topics_last_applied_at\": \"2026-11-10T00:18:25.366Z\",\n  \"next_review_group\": \"B\",\n  \"next_review_due_utc\": \"2026-11-17T00:00:00Z\",\n  \"completed_reviews\": 9,\n  \"completed_topic_updates\": 7,\n  \"scheduler\": {\n    \"automation_id\": \"pupu-topics-cleanup-checkpoints\",\n    \"timezone\": \"America/Vancouver\",\n    \"daily_snapshot_local_time\": \"17:00\",\n    \"notes\": \"Daily17:00 America/Vancouver is00:00Z under the verified B.C.2026 year-round Pacific Time (PCT, UTC-7) rule. There is no November1 clock fallback. Keep persisted UTC review due dates, fourteen-day cohort intervals and seven-day stagger; preserve actual execution timestamps and delays.\",\n    \"timezone_verification\": {\n      \"checked_at\": \"2026-11-01T17:03:18.086Z\",\n      \"timezone\": \"America/Vancouver\",\n      \"utc_offset\": \"-07:00\",\n      \"source_urls\": [\n        \"https://news.gov.bc.ca/releases/2026AG0013-000209\",\n        \"https://news.gov.bc.ca/releases/2026CITZ0009-001073\"\n      ],\n      \"correction_record\": \"2026-11-01-pacific-time-correction.json\"\n    }\n  },\n  \"planned_reviews\": [\n    {\n      \"group\": \"B\",\n      \"utc\": \"2026-11-17T00:00:00Z\",\n      \"vancouver_local\": \"2026-11-16 17:00\",\n      \"next_daily_execution_local\": \"2026-11-16 17:00\",\n      \"next_daily_execution_utc\": \"2026-11-17T00:00:00Z\"\n    },\n    {\n      \"group\": \"A\",\n      \"utc\": \"2026-11-24T00:00:00Z\",\n      \"vancouver_local\": \"2026-11-23 17:00\",\n      \"next_daily_execution_local\": \"2026-11-23 17:00\",\n      \"next_daily_execution_utc\": \"2026-11-24T00:00:00Z\"\n    },\n    {\n      \"group\": \"B\",\n      \"utc\": \"2026-12-01T00:00:00Z\",\n      \"vancouver_local\": \"2026-11-30 17:00\",\n      \"next_daily_execution_local\": \"2026-11-30 17:00\",\n      \"next_daily_execution_utc\": \"2026-12-01T00:00:00Z\"\n    },\n    {\n      \"group\": \"A\",\n      \"utc\": \"2026-12-08T00:00:00Z\",\n      \"vancouver_local\": \"2026-12-07 17:00\",\n      \"next_daily_execution_local\": \"2026-12-07 17:00\",\n      \"next_daily_execution_utc\": \"2026-12-08T00:00:00Z\"\n    }\n  ],\n  \"baseline_snapshot\": \"2026-09-22-topics-baseline.json\",\n  \"candidate_backlog\": {\n    \"research\": {\n      \"collected_at\": \"2026-09-22T21:20:50Z\",\n      \"repo_counts\": {\n        \"ai-workspace\": 178,\n        \"desktop-assistant\": 321,\n        \"ollama-ui\": 90,\n        \"ollama-gui\": 182,\n        \"local-ai\": 5852\n      },\n      \"projected_star_sort_positions_at_35_stars\": {\n        \"ai-workspace\": \"23–24\",\n        \"desktop-assistant\": \"13–14\",\n        \"ollama-ui\": \"17\",\n        \"ollama-gui\": \"24\",\n        \"local-ai\": \">50\"\n      },\n      \"note\": \"Repository counts are ecosystem size, not search volume. Ranks are star-sort estimates, with ties bounded and >50 explicitly truncated.\"\n    },\n    \"usage\": \"Research candidates only, not a predefined future B set. Remeasure and validate fit at a due review; select only justified replacements for that group.\"\n  },\n  \"measurement_note\": \"Both groups are always live. The other cohort changes halfway through a group's 14-day exposure. Label results with both group revisions; do not claim isolated per-topic or per-group traffic from GitHub aggregate metrics. Planned staggered changes are the experiment design, while unexpected edits or releases/promotions need separate annotations.\",\n  \"last_completed_review\": {\n    \"groups\": [\n      \"A\"\n    ],\n    \"completed_at\": \"2026-11-10T00:18:27.567Z\",\n    \"review_id\": \"2026-11-10-A-long-tail-review\",\n    \"old_revisions\": {\n      \"A\": 3,\n      \"B\": 5\n    },\n    \"new_revisions\": {\n      \"A\": 4,\n      \"B\": 5\n    },\n    \"replacements\": 8,\n    \"decision\": \"evidence-informed-long-tail-partial-replacement\",\n    \"review_record\": \"2026-11-10-topics-change.md\",\n    \"research_record\": \"2026-11-10-topics-review-A-research.json\",\n    \"verification_record\": \"2026-11-10-topics-change-verified.json\",\n    \"removed\": [\n      \"mcp-management\",\n      \"agent-skills-manager\",\n      \"conversation-memory\",\n      \"multi-model-chat\",\n      \"workspace-chat\",\n      \"file-context\",\n      \"context-aware-chat\",\n      \"mcp-marketplace\"\n    ],\n    \"added\": [\n      \"mcp-server-manager\",\n      \"agent-skill-management\",\n      \"chat-memory\",\n      \"model-switching\",\n      \"workspace-context\",\n      \"file-chat\",\n      \"context-inspection\",\n      \"skill-packs\"\n    ],\n    \"retained\": [\n      \"mcp-config\",\n      \"mcp-installer\"\n    ],\n    \"retention_note\": \"Retained the exact shipped MCP configuration/runtime-installer needs after researching existing alternatives. Eight other hypotheses replaced; no per-topic demand or conversion claim, no automatic preservation right or forced ten-swap quota.\"\n  },\n  \"live_topics_last_verified_at\": \"2026-11-10T00:18:27.567Z\",\n  \"policy_interpretation_note\": {\n    \"recorded_at\": \"2026-10-27T00:13:39.213Z\",\n    \"source\": \"2026-10-27 heartbeat and due review record\",\n    \"note\": \"Interpret older default-complete/attributed-nonbot retention wording using latest owner instruction: actively replace weak hypotheses within due group, up to ten, but preserve well-supported fit; unavailable topic attribution is not proof of zero traffic. This clarification does not restore broad topics or a permanent core.\"\n  }\n}\n",
+  "recovered_state_sha256": "561a93c80627496b64d7a46f4aaf00dbc3cafcbd7923de83d9154a6e31951915",
+  "current_local_history_sha256": "8a970aaecca57ce067626a43e2c98fc328bb7d6e98eb98dfed79d64d854517b2",
+  "current_local_history_rows": 18,
+  "history_last_entry": {
+    "date": "2026-09-29",
+    "local_date": "2026-09-28",
+    "collected_at": "2026-09-29T00:02:04.919Z",
+    "collection_completed_at": "2026-09-29T00:05:43.967Z",
+    "phase": "daily-observation",
+    "note": "Stars remain 36 with no new retained star. v0.1.11 raw installer packages 45→50, verified pipeline deduction remains 5, adjusted estimate 40→45 (+5 Windows setup packages). v0.1.10 remains raw42/deduction5/adjusted37. Existing traffic-data delay persists through five complete days; no tag-effect or growth-recovery conclusion. Both cohorts retained unchanged before review.",
+    "topics": [
+      "self-hosted",
+      "agent-orchestration",
+      "multi-agent",
+      "anthropic",
+      "deepseek",
+      "desktop-app",
+      "electron",
+      "llm",
+      "local-llm",
+      "mcp",
+      "mcp-client",
+      "ollama",
+      "openai",
+      "llm-client",
+      "ollama-client",
+      "agent-workspace",
+      "ai-client",
+      "ai-harness",
+      "desktop-agent",
+      "llm-ui"
+    ],
+    "volumes": {
+      "agent-orchestration": 3735,
+      "agent-workspace": 68,
+      "ai-client": 70,
+      "ai-harness": 150,
+      "anthropic": 24636,
+      "deepseek": 11472,
+      "desktop-agent": 132,
+      "desktop-app": 23426,
+      "electron": 27485,
+      "llm": 141283,
+      "llm-client": 86,
+      "llm-ui": 95,
+      "local-llm": 7341,
+      "mcp": 83415,
+      "mcp-client": 1789,
+      "multi-agent": 17382,
+      "ollama": 25106,
+      "ollama-client": 361,
+      "openai": 46407,
+      "self-hosted": 38268
+    },
+    "volume_measurement_note": "Ecosystem repository counts, not keyword search volume; original per-topic timestamps in snapshot.",
+    "traffic": {
+      "views14": 1050,
+      "uniques14": 93,
+      "coverage_from": "2026-09-10T00:00:00Z",
+      "coverage_through": "2026-09-23T00:00:00Z",
+      "missing_complete_days_utc": [
+        "2026-09-24",
+        "2026-09-25",
+        "2026-09-26",
+        "2026-09-27",
+        "2026-09-28"
+      ],
+      "weekly_views": {
+        "latest_seven_complete_calendar_days": {
+          "from": "2026-09-22",
+          "through": "2026-09-28",
+          "observed_days": 2,
+          "complete": false,
+          "count": null,
+          "observed_partial_count": 84
+        },
+        "preceding_seven_complete_calendar_days": {
+          "from": "2026-09-15",
+          "through": "2026-09-21",
+          "observed_days": 7,
+          "complete": true,
+          "count": 567,
+          "observed_partial_count": 567
+        },
+        "available_data_windows": {
+          "prior": {
+            "from": "2026-09-10",
+            "through": "2026-09-16",
+            "observed_days": 7,
+            "complete": true,
+            "count": 581,
+            "observed_partial_count": 581
+          },
+          "latest": {
+            "from": "2026-09-17",
+            "through": "2026-09-23",
+            "observed_days": 7,
+            "complete": true,
+            "count": 469,
+            "observed_partial_count": 469
+          }
+        },
+        "unique_visitors_per_week": null,
+        "note": "Available-data windows are lagged, not the requested latest weeks. Do not compare partial totals with complete weeks or sum daily uniques."
+      },
+      "search_referrers": {
+        "yandex.com": {
+          "count": 18,
+          "uniques": 17
+        },
+        "Google": {
+          "count": 12,
+          "uniques": 10
+        },
+        "Bing": {
+          "count": 8,
+          "uniques": 8
+        },
+        "DuckDuckGo": {
+          "count": 1,
+          "uniques": 1
+        },
+        "wap.yandex.com": {
+          "count": 1,
+          "uniques": 1
+        }
+      }
+    },
+    "clones14": {
+      "count": 3832,
+      "uniques": 352
+    },
+    "stars": 36,
+    "net_star_change": 0,
+    "observed_new_retained_stars": 0,
+    "new_star_evidence": [],
+    "latest_release_dl": {
+      "tag": "v0.1.11",
+      "raw_manual_packages": 50,
+      "pipeline_deduction": 5,
+      "adjusted_non_pipeline_packages": 45,
+      "adjusted_delta_since_previous": 5
+    },
+    "release_downloads": [
+      {
+        "tag": "v0.1.11",
+        "raw_manual_packages": 50,
+        "pipeline_deduction": 5,
+        "adjusted_non_pipeline_packages": 45,
+        "adjusted_delta_since_previous": 5
+      },
+      {
+        "tag": "v0.1.10",
+        "raw_manual_packages": 42,
+        "pipeline_deduction": 5,
+        "adjusted_non_pipeline_packages": 37,
+        "adjusted_delta_since_previous": 0
+      }
+    ],
+    "cohorts": {
+      "A": {
+        "revision": 1,
+        "topics": [
+          "agent-workspace",
+          "ai-client",
+          "ai-harness",
+          "desktop-agent",
+          "desktop-app",
+          "electron",
+          "llm",
+          "llm-ui",
+          "local-llm",
+          "mcp"
+        ]
+      },
+      "B": {
+        "revision": 1,
+        "topics": [
+          "agent-orchestration",
+          "anthropic",
+          "deepseek",
+          "llm-client",
+          "mcp-client",
+          "multi-agent",
+          "ollama",
+          "ollama-client",
+          "openai",
+          "self-hosted"
+        ]
+      }
+    },
+    "next_review_group": "B",
+    "next_review_due_utc": "2026-09-30T00:00:00Z",
+    "snapshot": "2026-09-29-topics-snapshot.json",
+    "verdict": "PENDING",
+    "topic_changes": [],
+    "review_completed": false,
+    "data_quality_warnings": [
+      {
+        "code": "TRAFFIC_STALE_FIVE_COMPLETE_DAYS",
+        "first_daily_snapshot_observed": "2026-09-25-topics-snapshot.json",
+        "current_latest_day_utc": "2026-09-23",
+        "unavailable_dates": [
+          "2026-09-24",
+          "2026-09-25",
+          "2026-09-26",
+          "2026-09-27",
+          "2026-09-28"
+        ],
+        "verified_with_fresh_http_response": true,
+        "impact": "Latest full 7-day and 14-day traffic comparisons unavailable. Preserve tags pending scheduled review; missing data is not proof of no growth or poor topic performance."
+      }
+    ],
+    "notification_decision": "DONT_NOTIFY"
+  },
+  "historical_source": {
+    "kind": "same-task local session tool records",
+    "session_id": "01a1328d-ea01-7f83-9d8a-0545301090f8",
+    "A3B4_full_state_patch_line": 7962,
+    "timezone_correction_preserved_in_state_output_line": 11919,
+    "B5_mutation_and_verification_output_line": 11455,
+    "B5_state_update_input_line": 11468,
+    "A4_mutation_and_verification_output_line": 15365,
+    "A4_state_update_input_line": 15370,
+    "A3B5_checksum_matches_original_output": {
+      "line": 14668,
+      "sha256": "3bf53de6da716caef323c9a51155337222e6c5211e41b1d487d87ff6477aafed"
+    },
+    "A4B5_checksum_matches_original_output": {
+      "lines": [
+        15372,
+        15381
+      ],
+      "sha256": "561a93c80627496b64d7a46f4aaf00dbc3cafcbd7923de83d9154a6e31951915"
+    },
+    "reconstruction_method": "Extract the full historical A3/B4 state patch, retain the historical timezone correction, and reproduce only the recorded B5 and A4 data transformations with their recorded timestamps. Both intermediate and final SHA256 values match their historical tool outputs."
+  },
+  "github_read_before_local_repair": {
+    "endpoint": "repos/haoxiang-xu/PuPu/topics",
+    "requested_at": "2026-11-12T00:11:56.090Z",
+    "status": 200,
+    "headers": {
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "ETag, Link, Location, Retry-After, X-GitHub-OTP, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Used, X-RateLimit-Resource, X-RateLimit-Reset, X-OAuth-Scopes, X-Accepted-OAuth-Scopes, X-Poll-Interval, X-GitHub-Media-Type, X-GitHub-SSO, X-GitHub-Request-Id, Deprecation, Sunset, Warning",
+      "cache-control": "private, max-age=60, s-maxage=60",
+      "content-security-policy": "default-src 'none'",
+      "content-type": "application/json; charset=utf-8",
+      "date": "Thu, 12 Nov 2026 00:11:56 GMT",
+      "etag": "W/\"3eb4fd593b8b17a428ac6e984c5880cdacc972a4f7708d425977fa7e5579d4f1\"",
+      "referrer-policy": "origin-when-cross-origin, strict-origin-when-cross-origin",
+      "server": "github.com",
+      "strict-transport-security": "max-age=31536000; includeSubdomains; preload",
+      "vary": "Accept, Authorization, Cookie, X-GitHub-OTP,Accept-Encoding, Accept, X-Requested-With",
+      "x-accepted-oauth-scopes": "repo",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "deny",
+      "x-github-api-version-selected": "2022-11-28",
+      "x-github-edge-region": "iad",
+      "x-github-media-type": "github.v3; format=json",
+      "x-github-request-id": "9115:93D3B:231FAAB:6E32F6C:6AF5044C",
+      "x-oauth-client-id": "178c6fc778ccc68e1d6a",
+      "x-oauth-scopes": "gist, project, read:org, repo, workflow",
+      "x-ratelimit-limit": "5000",
+      "x-ratelimit-remaining": "4966",
+      "x-ratelimit-reset": "1794443690",
+      "x-ratelimit-resource": "core",
+      "x-ratelimit-used": "34",
+      "x-xss-protection": "0"
+    },
+    "data": {
+      "names": [
+        "local-ai-chat",
+        "ollama-gui",
+        "mcp-config",
+        "mcp-installer",
+        "bring-your-own-key",
+        "chat-folders",
+        "context-visualization",
+        "memory-curation",
+        "skill-inventory",
+        "skill-organizer",
+        "token-tracking",
+        "tool-approval",
+        "agent-skill-management",
+        "chat-memory",
+        "context-inspection",
+        "file-chat",
+        "mcp-server-manager",
+        "model-switching",
+        "skill-packs",
+        "workspace-context"
+      ]
+    },
+    "collected_at": "2026-11-12T00:11:56.737Z"
+  },
+  "full_live_set_unchanged": [
+    "agent-skill-management",
+    "bring-your-own-key",
+    "chat-folders",
+    "chat-memory",
+    "context-inspection",
+    "context-visualization",
+    "file-chat",
+    "local-ai-chat",
+    "mcp-config",
+    "mcp-installer",
+    "mcp-server-manager",
+    "memory-curation",
+    "model-switching",
+    "ollama-gui",
+    "skill-inventory",
+    "skill-organizer",
+    "skill-packs",
+    "token-tracking",
+    "tool-approval",
+    "workspace-context"
+  ],
+  "restored_cohorts": {
+    "A": {
+      "revision": 4,
+      "topics": [
+        "mcp-config",
+        "mcp-installer",
+        "mcp-server-manager",
+        "agent-skill-management",
+        "chat-memory",
+        "model-switching",
+        "workspace-context",
+        "file-chat",
+        "context-inspection",
+        "skill-packs"
+      ],
+      "next_review_due_utc": "2026-11-24T00:00:00Z"
+    },
+    "B": {
+      "revision": 5,
+      "topics": [
+        "bring-your-own-key",
+        "skill-organizer",
+        "skill-inventory",
+        "chat-folders",
+        "context-visualization",
+        "token-tracking",
+        "memory-curation",
+        "tool-approval",
+        "ollama-gui",
+        "local-ai-chat"
+      ],
+      "next_review_due_utc": "2026-11-17T00:00:00Z"
+    }
+  },
+  "actions_authorized": "Growth archive and cohort-state reconciliation only. No GitHub mutation or new optimization. No membership revision or exposure timestamp is advanced.",
+  "rollback_local_only_command": "python3 - <<'PY'\nimport json,pathlib\np=pathlib.Path('.claude/archive/growth/2026-11-12-cohort-state-recovery-prepared.json')\nobj=json.loads(p.read_text())\npathlib.Path('.claude/archive/growth/topics-weekly-rotation.json').write_text(obj['observed_local_state_utf8'])\nPY",
+  "github_rollback_required": false,
+  "limitations": [
+    "Historical traffic/download raw snapshots after September remain absent unless separately recovered. Their old API collection times or counts will not be fabricated.",
+    "The original local history prefix is preserved; this recovery does not relabel old revisions as current."
+  ]
+}

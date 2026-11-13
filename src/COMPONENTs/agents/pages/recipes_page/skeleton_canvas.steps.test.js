@@ -35,14 +35,15 @@ test("its ports are one inlet and one outlet", () => {
   show({ execution: { inputs: [], outputs: [] } });
   const drawn = editor.nodes.find((node) => node.id === "tool");
   expect(drawn.ports).toStrictEqual([
-    { id: "in", side: "left", kind: "in" },
-    { id: "out", side: "right", kind: "out" },
+    { id: "in", side: "left", kind: "in", anchor: 31.5 },
+    { id: "out", side: "right", kind: "out", anchor: 31.5 },
   ]);
 });
 
 test("an unpicked step says so; a picked one is titled by its tool and lists each argument's value or source", () => {
   const { unmount } = show({ execution: { inputs: [], outputs: [] } });
-  expect(screen.getByTestId("tool-call-node-tool")).toHaveTextContent("Tool call · pick a tool");
+  /* Titled by its type, so the line below says only what is missing. */
+  expect(screen.getByTestId("tool-call-node-tool")).toHaveTextContent(/^Tool call\s*pick a tool$/);
   unmount();
   show({
     execution: {
@@ -77,10 +78,10 @@ test("a Skill Read has the same ports; it is titled by its skill and says where 
     </ConfigContext.Provider>,
   );
   expect(editor.nodes.find((node) => node.id === "skill").ports).toStrictEqual([
-    { id: "in", side: "left", kind: "in" },
-    { id: "out", side: "right", kind: "out" },
+    { id: "in", side: "left", kind: "in", anchor: 31.5 },
+    { id: "out", side: "right", kind: "out", anchor: 31.5 },
   ]);
-  expect(screen.getByTestId("skill-read-node-skill")).toHaveTextContent("Skill read · pick a skill");
+  expect(screen.getByTestId("skill-read-node-skill")).toHaveTextContent(/^Skill read\s*pick a skill$/);
   expect(screen.getByTestId("skill-read-node-notes")).toHaveTextContent("notes");
   expect(screen.getByTestId("skill-read-node-notes")).toHaveTextContent("Skill read · your skills (~/.unchain)");
 });

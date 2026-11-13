@@ -19,8 +19,9 @@ test("every real native node drawing and identity displays its valid label", () 
 test("malformed native labels never masquerade as a valid title", () => {
   const node = native("agent", { toString: null });
   render(wrap(<AgentNode node={node} />));
-  expect(screen.getByText("agent")).toBeInTheDocument();
-  expect(node_identity(node).title).toBe("agent");
+  /* Without a valid label of its own a native Agent reads "Agent", not its id. */
+  expect(screen.getByText("Agent")).toBeInTheDocument();
+  expect(node_identity(node).title).toBe("Agent");
 });
 test("legacy Agent labels and Start fallback retain their existing titles", () => {
   render(wrap(<><AgentNode node={{ id: "legacy", type: "agent", label: "Legacy author name" }} /><StartNode /></>));

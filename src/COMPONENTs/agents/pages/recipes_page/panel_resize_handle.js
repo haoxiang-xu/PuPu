@@ -34,6 +34,9 @@ export default function PanelResizeHandle({
   onDragEnd,
   testId,
   pillTestId,
+  /* A panel may ask for its own hovered/dragging height (any CSS length);
+     by default the bar runs the strip's height less PILL_ACTIVE_MARGIN. */
+  activeHeight,
 }) {
   const [hovered, setHovered] = useState(false);
   const [dragging, setDragging] = useState(false);
@@ -106,7 +109,7 @@ export default function PanelResizeHandle({
         data-testid={pillTestId}
         style={{
           width: PILL_WIDTH,
-          height: active ? `calc(100% - ${PILL_ACTIVE_MARGIN}px)` : PILL_HEIGHT,
+          height: active ? (activeHeight ?? `calc(100% - ${PILL_ACTIVE_MARGIN}px)`) : PILL_HEIGHT,
           borderRadius: 999,
           backgroundColor: active
             ? PILL_ACTIVE_COLOR

@@ -1,6 +1,6 @@
 import React from "react";
 import { act } from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import RecipesPage from "../recipes_page";
 import { api } from "../../../../SERVICEs/api";
 import { writeFeatureFlags } from "../../../../SERVICEs/feature_flags";
@@ -89,35 +89,6 @@ jest.mock("./detail_panel/detail_panel", () => {
   };
 });
 
-test("recipe list shows Explore as a workflow", async () => {
-  window.localStorage.clear();
-  mockExplorerProps.length = 0;
-  api.unchain.listRecipes.mockResolvedValue({
-    recipes: [{ name: "Default" }, { name: "Explore", description: "scout" }],
-  });
-  api.unchain.getRecipe.mockImplementation(async (name) => ({
-    name,
-    nodes: [],
-    edges: [],
-  }));
-
-  render(
-    <RecipesPage
-      isDark={false}
-      selectedNodeId={null}
-      onSelectNode={() => {}}
-      fullscreen={false}
-    />,
-  );
-
-  fireEvent.click(await screen.findByText("Explore"));
-
-  await waitFor(() =>
-    expect(api.unchain.getRecipe).toHaveBeenLastCalledWith("Explore"),
-  );
-  expect(screen.queryByText("Agent Templates")).not.toBeInTheDocument();
-});
-
 test("Memory V2 stays off the Agent Builder surface when enabled", async () => {
   window.localStorage.clear();
   mockExplorerProps.length = 0;
@@ -140,13 +111,13 @@ test("Memory V2 stays off the Agent Builder surface when enabled", async () => {
     />,
   );
 
-  expect(await screen.findByText("Default")).toBeInTheDocument();
+  await waitFor(() => expect(mockExplorerProps.length).toBeGreaterThan(0));
   expect(screen.queryByText("Memory Agent")).not.toBeInTheDocument();
   expect(screen.queryByText("System Agents")).not.toBeInTheDocument();
-  const explorerProps = mockExplorerProps.at(-1);
-  expect(explorerProps.root).toEqual(["group:not-migrated"]);
-  expect(explorerProps.data["group:not-migrated"].children).toEqual(["legacy:Default", "legacy:Explore"]);
-  expect(Object.keys(explorerProps.data).sort()).toEqual(["group:not-migrated", "legacy:Default", "legacy:Explore"]);
+  /* Legacy recipes are not listed in the Agents explorer at all. */
+  mockExplorerProps.forEach((props) => {
+    expect(Object.keys(props.data).filter((id) => id.startsWith("legacy:") || id === "group:not-migrated")).toEqual([]);
+  });
 });
 
 test("native resource list uses Explorer drag reorder and keeps legacy placement separate", async () => {

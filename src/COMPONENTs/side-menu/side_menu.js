@@ -51,6 +51,7 @@ import PanelResizeHandle from "../agents/pages/recipes_page/panel_resize_handle"
 import SideMenuBreadcrumb from "./side_menu_breadcrumb";
 import SideMenuDrillButton from "./side_menu_drill_button";
 import { useAgentsSidebarSearch } from "../../SERVICEs/agents_sidebar_search";
+import { drillTrailCrumbs, useAgentsDrillTrail } from "../../SERVICEs/agents_drill_trail";
 import { HEADER_ICON_BUTTON } from "../agents/pages/recipes_page/recipe_list";
 import {
   AGENTS_SIDEBAR_DRAG_WIDTH,
@@ -288,6 +289,10 @@ const SideMenu = () => {
   /* One search field for both panes: the chat list's query, or the agent
      list's (which the docked list reads). */
   const [agentsQuery, setAgentsQuery] = useAgentsSidebarSearch();
+  /* What the Agents editor has open, and the drill path to it: it takes the
+     place of the Agents crumb, each graph its icon and its name, and a click
+     on a graph left behind goes back to it. */
+  const agentsDrillTrail = useAgentsDrillTrail();
   const activeQuery = inAgents ? agentsQuery : searchQuery;
   const setActiveQuery = inAgents ? setAgentsQuery : setSearchQuery;
   const [memoryInspect, setMemoryInspect] = useState({
@@ -672,7 +677,9 @@ const SideMenu = () => {
             inAgents
               ? [
                   { key: "home", icon: "home_door", label: t("side_menu.home"), onClick: () => switchMode("chat") },
-                  { key: "agents", icon: "bot", label: t("side_menu.agents") },
+                  ...(agentsDrillTrail
+                    ? drillTrailCrumbs(agentsDrillTrail)
+                    : [{ key: "agents", icon: "bot", label: t("side_menu.agents") }]),
                 ]
               : [{ key: "home", icon: "home_door", label: t("side_menu.home") }]
           }
