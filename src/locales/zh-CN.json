@@ -937,6 +937,31 @@
     "usage_partial": "{total} 次调用中有 {excluded} 次无用量数据"
   },
   "agents": {
+    "parameters": {
+      "title": "参数",
+      "name": "参数名",
+      "required": "必填",
+      "default": "默认值",
+      "add": "添加参数",
+      "remove": "移除 {name}",
+      "unsupported": "当前运行时不支持编辑 Workflow 参数。",
+      "name_invalid": "请使用非空且不重复的名称。",
+      "invalid": "请检查 {path}。",
+      "unknown_argument": "未声明的参数 {name}{value}。",
+      "workflow_only": "只有 Workflow 可以声明参数。",
+      "required_value": "请填写必填参数“{key}”。",
+      "none": "无参数。",
+      "types": {
+        "any": "任意",
+        "string": "文本",
+        "number": "数字",
+        "integer": "整数",
+        "boolean": "布尔值",
+        "object": "对象",
+        "array": "列表",
+        "null": "Null"
+      }
+    },
     "missing": {
       "if_missing": "值缺失时",
       "default": "默认值",

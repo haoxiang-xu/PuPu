@@ -937,6 +937,31 @@
     "usage_partial": "{total} 件中 {excluded} 件の呼び出しは使用量なし"
   },
   "agents": {
+    "parameters": {
+      "title": "パラメーター",
+      "name": "パラメーター名",
+      "required": "必須",
+      "default": "既定値",
+      "add": "パラメーターを追加",
+      "remove": "{name} を削除",
+      "unsupported": "この実行環境では Workflow のパラメーターを編集できません。",
+      "name_invalid": "空白ではない一意の名前を使用してください。",
+      "invalid": "{path} を確認してください。",
+      "unknown_argument": "未定義のパラメーター {name}{value}。",
+      "workflow_only": "パラメーターを定義できるのは Workflow のみです。",
+      "required_value": "必須パラメーター「{key}」に値を指定してください。",
+      "none": "パラメーターなし。",
+      "types": {
+        "any": "任意",
+        "string": "テキスト",
+        "number": "数値",
+        "integer": "整数",
+        "boolean": "真偽値",
+        "object": "オブジェクト",
+        "array": "リスト",
+        "null": "Null"
+      }
+    },
     "missing": {
       "if_missing": "値がない場合",
       "default": "既定値",

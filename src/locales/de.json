@@ -937,6 +937,31 @@
     "usage_partial": "{excluded} von {total} Aufrufen ohne Nutzungsdaten"
   },
   "agents": {
+    "parameters": {
+      "title": "Parameter",
+      "name": "Parametername",
+      "required": "Erforderlich",
+      "default": "Standardwert",
+      "add": "Parameter hinzufügen",
+      "remove": "{name} entfernen",
+      "unsupported": "Diese Laufzeit kann keine Workflow-Parameter bearbeiten.",
+      "name_invalid": "Verwende einen eindeutigen, nicht leeren Namen.",
+      "invalid": "{path} prüfen.",
+      "unknown_argument": "Nicht deklarierter Parameter {name}{value}.",
+      "workflow_only": "Nur Workflows können Parameter deklarieren.",
+      "required_value": "Der erforderliche Parameter „{key}“ braucht einen Wert.",
+      "none": "Keine Parameter.",
+      "types": {
+        "any": "Beliebig",
+        "string": "Text",
+        "number": "Zahl",
+        "integer": "Ganzzahl",
+        "boolean": "Boolesch",
+        "object": "Objekt",
+        "array": "Liste",
+        "null": "Null"
+      }
+    },
     "missing": {
       "if_missing": "Wenn der Wert fehlt",
       "default": "Standardwert",

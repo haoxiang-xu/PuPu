@@ -937,6 +937,31 @@
     "usage_partial": "{total}개 호출 중 {excluded}개는 사용량 없음"
   },
   "agents": {
+    "parameters": {
+      "title": "매개변수",
+      "name": "매개변수 이름",
+      "required": "필수",
+      "default": "기본값",
+      "add": "매개변수 추가",
+      "remove": "{name} 삭제",
+      "unsupported": "이 런타임에서는 Workflow 매개변수를 편집할 수 없습니다.",
+      "name_invalid": "비어 있지 않은 고유한 이름을 사용하세요.",
+      "invalid": "{path}을(를) 확인하세요.",
+      "unknown_argument": "선언되지 않은 매개변수 {name}{value}.",
+      "workflow_only": "Workflow만 매개변수를 선언할 수 있습니다.",
+      "required_value": "필수 매개변수 “{key}”에 값이 필요합니다.",
+      "none": "매개변수가 없습니다.",
+      "types": {
+        "any": "모든 형식",
+        "string": "텍스트",
+        "number": "숫자",
+        "integer": "정수",
+        "boolean": "불리언",
+        "object": "객체",
+        "array": "목록",
+        "null": "Null"
+      }
+    },
     "missing": {
       "if_missing": "값이 없을 때",
       "default": "기본값",

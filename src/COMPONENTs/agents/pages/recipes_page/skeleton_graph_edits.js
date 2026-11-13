@@ -505,6 +505,7 @@ export function new_workflow_document(args, t = agentEnglishText) {
   return accept({
     schema_version: 1,
     kind: WORKFLOW_KIND,
+    input_schema: { type: "object", properties: {}, required: [], additionalProperties: false },
     id: args.id,
     name: args.name,
     nodes: [

@@ -332,15 +332,23 @@ class SkeletonResourceStore:
 
     def _validate_draft(self, document: Any) -> dict[str, Any]:
         try:
+            from skeleton_workflow_parameters import require_workflow_parameters
+            require_workflow_parameters(document)
             return validate_skeleton_document(document)
+        except SkeletonRuntimeCompatibilityError as exc:
+            raise SkeletonResourceError(exc.code, ("document", "input_schema"), str(exc), status=409) from exc
         except SkeletonValidationError as exc:
             raise SkeletonResourceError(exc.code, exc.path, str(exc)) from exc
 
     def _validate_execution(self, document: Any):
         try:
+            from skeleton_workflow_parameters import require_workflow_parameters
+            require_workflow_parameters(document)
             checked = validate_skeleton_for_execution(document)
             plan = prepare_workflow(checked) if checked["kind"] == "workflow" else prepare_agent_graph(checked)
             _validate_all(plan.snapshot(), agent_graph=checked["kind"] == "agent")
+        except SkeletonRuntimeCompatibilityError as exc:
+            raise SkeletonResourceError(exc.code, ("document", "input_schema"), str(exc), status=409) from exc
         except SkeletonValidationError as exc:
             raise SkeletonResourceError(exc.code, exc.path, str(exc)) from exc
         from skeleton_workflow_tools import attached_workflow_tools, workflow_tool_entries, workflow_tool_capabilities

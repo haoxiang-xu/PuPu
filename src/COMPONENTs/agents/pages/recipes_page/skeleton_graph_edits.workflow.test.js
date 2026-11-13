@@ -32,11 +32,13 @@ describe("new_workflow_document", () => {
     const result = new_workflow_document({ id: "wf-new", name: "New Workflow" });
     expect(result.ok).toBe(true);
     expect(result.problem).toBeNull();
-    expect(canonical(result.document)).toEqual(canonical(row("wf_seed_save").reply.resource.document));
-    expect(canonical(result.document)).toEqual(canonical(row("wf_seed_save").document));
+    const input_schema = { type: "object", properties: {}, required: [], additionalProperties: false };
+    // The retained producer capture predates explicit Workflow parameters.
+    expect(canonical(result.document)).toEqual(canonical({ ...row("wf_seed_save").reply.resource.document, input_schema }));
+    expect(canonical(result.document)).toEqual(canonical({ ...row("wf_seed_save").document, input_schema }));
     expect(row("wf_seed_diagnose").reply).toEqual([]);
     expect(row("wf_seed_preflight").reply.preflight.ok).toBe(true);
-    expect(Object.keys(result.document).sort()).toEqual(["edges", "id", "kind", "name", "nodes", "schema_version"]);
+    expect(Object.keys(result.document).sort()).toEqual(["edges", "id", "input_schema", "kind", "name", "nodes", "schema_version"]);
   });
 
   test("refuses what the Agent factory refuses, and nothing else", () => {
