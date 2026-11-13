@@ -1,6 +1,7 @@
 import { agentEnglishText, agentProblemFromMessage } from "./agents_i18n";
 import { add_node, connect_nodes, delete_edge, delete_node } from "./skeleton_graph_edits";
 import { is_valid_node_label } from "./node_display_labels";
+import { with_inherited_variables } from "./variable_inheritance";
 
 /* The canvas reports intent, never a replacement drawing array. Each command
  * is atomic against the latest graph; a refusal returns the original object,
@@ -44,6 +45,14 @@ function remove(graph, nodeIds, edgeIds, t = agentEnglishText) {
   return accept(next);
 }
 
+/* A user's connect: the edge, and the variables the connected step inherits
+   from it, as one edit (so one undo step). */
+function inherit(graph, result) {
+  if (!result.ok || result.document === graph) return result;
+  const { document, sources } = with_inherited_variables(graph, result.document);
+  return sources ? { ...result, document, sources } : { ...result, document };
+}
+
 export function apply_graph_command(graph, command, t = agentEnglishText) {
   if (!record(command) || !record(graph) || graph.schema_version !== 1 || (graph.kind !== "agent" && graph.kind !== "workflow") ||
       !Array.isArray(graph.nodes) || !Array.isArray(graph.edges)) {
@@ -85,7 +94,7 @@ export function apply_graph_command(graph, command, t = agentEnglishText) {
   }
   if (command.type === "connect" && shape(command, ["type", "connection"])) {
     const next = normalized(command.connection);
-    return next ? connect_nodes(graph, next, t) : refuse(graph, t("agents.graph.connection_pair"));
+    return next ? inherit(graph, connect_nodes(graph, next, t)) : refuse(graph, t("agents.graph.connection_pair"));
   }
   if (command.type === "reconnect" && shape(command, ["type", "edge_id", "connection"]) && text(command.edge_id)) {
     const next = normalized(command.connection);
@@ -95,7 +104,7 @@ export function apply_graph_command(graph, command, t = agentEnglishText) {
     const connected = connect_nodes(removed.document, { ...next, id: command.edge_id }, t);
     if (!connected.ok) return { ...connected, document: graph };
     const replacement = connected.document.edges.find((edge) => edge.id === command.edge_id);
-    return accept({ ...graph, edges: graph.edges.map((edge) => edge.id === command.edge_id ? { ...edge, ...replacement } : edge) });
+    return inherit(graph, accept({ ...graph, edges: graph.edges.map((edge) => edge.id === command.edge_id ? { ...edge, ...replacement } : edge) }));
   }
   return refuse(graph, t("agents.graph.command_unsupported"));
 }

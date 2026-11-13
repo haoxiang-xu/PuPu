@@ -48,15 +48,14 @@ test("tool captions translate without interpreting an authored label, parameter 
   expect(JSON.stringify(node)).toBe(before);
 });
 
-test("Code source paths and identities remain exact while the empty-runtime and source explanations translate", () => {
-  const path = "src/agents.nodes.code.choose_runtime {path} é.py";
+test("a Code card keeps its id exact, names the language, and never draws its source", () => {
+  const path = "src/agents.nodes.code.python {path} é.py";
   const node = { id: "agents.rename.title", type: "code", config: { code: { source: { kind: "file", path } } } };
   const before = JSON.stringify(node);
   render(localized("zh-CN", <CodeNode node={node} isDark={false} />));
   const card = screen.getByTestId(`code-node-${node.id}`);
-  expect(card).toHaveTextContent("Code · 选择运行时");
-  expect(within(card).getByText(path)).toBeInTheDocument();
-  expect(card).not.toHaveTextContent("read when the run gets here");
+  expect(card).toHaveTextContent("Python");
+  expect(card).not.toHaveTextContent(path);
   expect(card).toHaveTextContent(node.id);
   expect(JSON.stringify(node)).toBe(before);
 });

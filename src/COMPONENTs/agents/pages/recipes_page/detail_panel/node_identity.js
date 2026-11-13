@@ -15,34 +15,36 @@ import { node_display_title } from "../node_display_labels";
 const IDENTITY = {
   start: {
     icon: "flag",
-    gradient: "linear-gradient(135deg, #4cbe8b, #2f9a68)",
+    gradient: "#2f9a68",
     title: () => "Start",
     subtitle: () => "Workflow entry",
   },
   end: {
     icon: "target",
-    gradient: "linear-gradient(135deg, #f0635a, #d23f37)",
+    gradient: "#d23f37",
     title: () => "End",
     subtitle: () => "Workflow exit",
   },
   agent: {
     icon: "bot",
-    gradient: "linear-gradient(135deg, #6478f6, #4a5bd8)",
+    gradient: "#4a5bd8",
     /* The legacy Agent reader. Native optional labels are validated uniformly
-       in node_identity below; their label-free fallback remains the node id. */
+       in node_identity below; without one a native Agent reads "Agent". */
     title: (node) => safe_text(node?.label || node?.id || "Agent"),
     subtitle: (node) =>
       safe_text(node?.override?.model || "Inherits the chat's model"),
   },
+  /* Icons and colours match the canvas nodes (nodes/*_node.js); a test
+     compares the two. */
   [TOOLKIT_POOL_TYPE]: {
-    icon: "tool",
-    gradient: "linear-gradient(135deg, #f6a341, #ea7547)",
+    icon: "toolkit_pool",
+    gradient: "#ea7547",
     title: () => "Toolkit Pool",
     subtitle: (node) => count_label(node?.toolkits, "toolkit"),
   },
   subagent_pool: {
-    icon: "shapes",
-    gradient: "linear-gradient(135deg, #8a8cee, #5a5dd6)",
+    icon: "subagent_pool",
+    gradient: "#5a5dd6",
     title: () => "Subagent Pool",
     subtitle: (node) => count_label(node?.subagents, "subagent"),
   },
@@ -51,26 +53,26 @@ const IDENTITY = {
      header replaces the subtitle with what the stored branch holds. */
   if_else: {
     icon: "branch",
-    gradient: "linear-gradient(135deg, #2fb2c4, #1d8798)",
+    gradient: "#1d8798",
     title: () => "If / Else",
     subtitle: () => "Branch",
   },
   switch_case: {
-    icon: "switch_case",
-    gradient: "linear-gradient(135deg, #2fb2c4, #1d8798)",
+    icon: "switch_node",
+    gradient: "#1d8798",
     title: () => "Switch / Case",
     subtitle: () => "Branch",
   },
   /* The deterministic steps (#352), native only like the branches. */
   tool_call: {
     icon: "tool",
-    gradient: "linear-gradient(135deg, #f6a341, #ea7547)",
+    gradient: "#ea7547",
     title: () => "Tool call",
     subtitle: () => "Run one tool, no model",
   },
   skill_read: {
     icon: "book_open",
-    gradient: "linear-gradient(135deg, #4fbf87, #2e9a63)",
+    gradient: "#2e9a63",
     title: () => "Skill read",
     subtitle: () => "Read one skill when the run gets here",
   },
@@ -79,19 +81,19 @@ const IDENTITY = {
      the subtitle with the runtime the node runs with. */
   code: {
     icon: "code",
-    gradient: "linear-gradient(135deg, #949cad, #5b6475)",
+    gradient: "#5b6475",
     title: () => "Code",
     subtitle: () => "Python in its own process",
   },
   hooks_pool: {
     icon: "anchor",
-    gradient: "linear-gradient(135deg, #e0759a, #b94a74)",
+    gradient: "#b94a74",
     title: () => "Hooks Pool",
     subtitle: () => "Workflows around this Agent's tool calls",
   },
   workflow_call: {
-    icon: "flow_chart",
-    gradient: "linear-gradient(135deg, #7c8cf5, #4f5fd6)",
+    icon: "workflow",
+    gradient: "#4f5fd6",
     title: () => "Workflow call",
     subtitle: () => "Run one published Workflow revision",
   },
@@ -126,7 +128,7 @@ export function node_identity(node, t = agentEnglishText) {
   const native = is_skeleton_node(node);
   const title = type === "agent"
     ? native
-      ? typeof node.id === "string" ? node.id : t("agents.nodes.agent")
+      ? t("agents.nodes.agent")
       : node.label || node.id ? entry.title(node) : t("agents.nodes.agent")
     : palette_entry_caption({ type, label: entry.title(node) }, t).label;
   let subtitle = entry.subtitle(node);

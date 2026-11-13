@@ -25,7 +25,14 @@ export const DOCUMENT_REQUIRED_KEYS = Object.freeze([
   "nodes",
   "edges",
 ]);
-export const DOCUMENT_OPTIONAL_KEYS = Object.freeze(["description"]);
+export const DOCUMENT_OPTIONAL_KEYS = Object.freeze(["description", "presentation"]);
+/* Display-only `presentation` (`schema.py` `_validate_presentation`): a closed
+   object of two optional ASCII-pattern strings. The runtime knows no icon
+   catalogue — PuPu owns it — and both patterns are anchored at the very end
+   (`re.fullmatch`), so a trailing newline is refused here as there. */
+export const PRESENTATION_OPTIONAL_KEYS = Object.freeze(["icon", "color"]);
+export const PRESENTATION_ICON_PATTERN = /^[a-z0-9_]{1,40}$/;
+export const PRESENTATION_COLOR_PATTERN = /^#[0-9a-f]{6}$/;
 
 export const NODE_KEYS = Object.freeze(["id", "type", "config"]);
 export const NODE_OPTIONAL_KEYS = Object.freeze(["label"]);
@@ -518,6 +525,24 @@ export function document_problems(document, t = agentEnglishText) {
     problems.push(
       problem("invalid_type", "document.description", t("agents.local_validation.description_text")),
     );
+  }
+  if (Object.prototype.hasOwnProperty.call(document, "presentation") &&
+      closed_object(document.presentation, "document.presentation", [], PRESENTATION_OPTIONAL_KEYS, problems, t)) {
+    [
+      ["icon", PRESENTATION_ICON_PATTERN],
+      ["color", PRESENTATION_COLOR_PATTERN],
+    ].forEach(([key, pattern]) => {
+      if (!Object.prototype.hasOwnProperty.call(document.presentation, key)) return;
+      const value = document.presentation[key];
+      const label = `presentation ${key}`;
+      if (typeof value !== "string") {
+        problems.push(problem("invalid_type", `document.presentation.${key}`,
+          t("agents.local_validation.string_required", { label })));
+      } else if (!pattern.test(value)) {
+        problems.push(problem("invalid_value", `document.presentation.${key}`,
+          t("agents.local_validation.presentation_value", { label })));
+      }
+    });
   }
   if ("nodes" in document && !Array.isArray(document.nodes)) {
     problems.push(problem("invalid_type", "document.nodes", t("agents.local_validation.nodes_array")));

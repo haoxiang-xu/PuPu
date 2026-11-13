@@ -35,8 +35,8 @@ test("its ports are one inlet and one outlet", () => {
   show({ execution: { inputs: [], outputs: [] } });
   const drawn = editor.nodes.find((node) => node.id === "tool");
   expect(drawn.ports).toStrictEqual([
-    { id: "in", side: "left", kind: "in" },
-    { id: "out", side: "right", kind: "out" },
+    { id: "in", side: "left", kind: "in", anchor: 31.5 },
+    { id: "out", side: "right", kind: "out", anchor: 31.5 },
   ]);
 });
 
@@ -77,8 +77,8 @@ test("a Skill Read has the same ports; it is titled by its skill and says where 
     </ConfigContext.Provider>,
   );
   expect(editor.nodes.find((node) => node.id === "skill").ports).toStrictEqual([
-    { id: "in", side: "left", kind: "in" },
-    { id: "out", side: "right", kind: "out" },
+    { id: "in", side: "left", kind: "in", anchor: 31.5 },
+    { id: "out", side: "right", kind: "out", anchor: 31.5 },
   ]);
   expect(screen.getByTestId("skill-read-node-skill")).toHaveTextContent("Skill read · pick a skill");
   expect(screen.getByTestId("skill-read-node-notes")).toHaveTextContent("notes");

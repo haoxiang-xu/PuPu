@@ -2,7 +2,7 @@ import { agentMessage, renderAgentMessage, agentProblemMessage } from "../agents
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import React, { useEffect, useRef, useState } from "react";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
-import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
+import Input from "./panel_input";
 import SegmentedControl from "../../../../toolkit/components/segmented_control";
 import { api } from "../../../../../SERVICEs/api";
 import WorkflowPinControl from "./workflow_pin_control";
@@ -10,7 +10,8 @@ import { safe_text } from "../document_values";
 import { embedded_supported, hook_embedded } from "../hooks_pool_config";
 import { new_workflow_document } from "../skeleton_graph_edits";
 import { save_draft } from "../skeleton_resources";
-import { CAPTION_TEXT } from "./panel_style";
+import { Block } from "./process_timeline";
+import { addButtonStyle, note, problem } from "./panel_style";
 
 /* Which Workflow one hook runs (#357): a pinned published revision, or — only
  * where the host's Hook Workflow contract says the runtime reads it — a
@@ -26,13 +27,9 @@ import { CAPTION_TEXT } from "./panel_style";
  *     new draft resource under an id the author names. It is not published
  *     and the hook keeps running its own copy; nothing is replaced. */
 
-const LABEL = CAPTION_TEXT;
-const NOTE = { fontSize: 11.5, color: "#86868b", lineHeight: 1.45 };
 const MONO = { fontFamily: "ui-monospace, Menlo, monospace" };
 const ROW = { display: "flex", alignItems: "center", gap: 6 };
-const FIELD = { width: "100%", fontSize: 12, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 8 };
-const SMALL = { fontSize: 11.5, paddingVertical: 2, paddingHorizontal: 8, borderRadius: 8 };
-const problem_style = (isDark) => ({ fontSize: 11.5, lineHeight: 1.45, color: isDark ? "rgba(255,140,140,0.95)" : "rgba(176,32,32,0.95)" });
+const FIELD = { width: "100%", fontSize: 12, paddingVertical: 4, paddingHorizontal: 6 };
 const record = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 const RESOURCE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/;
 
@@ -113,14 +110,20 @@ export default function HookWorkflowSource({ entry, index, nodeId, parentId, pin
       const error = result.error || {};
       const message = error.message
         ? typeof error.message === "string" ? agentProblemMessage(error, agentMessage) : safe_text(error.message)
-        : error.code ? safe_text(error.code) : agentMessage("agents.execution.code.store_refused");
+        : agentMessage("agents.execution.code.store_refused");
+      /* The store's code is for developers; the panel shows the message. */
+      if (error.code) console.warn("[hook-source] copy refused:", error.code);
       setSaveState({ status: "refused", message: error.code ? agentMessage("agents.hook_source.copy_refused_code", { message, code: safe_text(error.code) }) : agentMessage("agents.hook_source.copy_refused", { message }) });
     }
   };
 
+  const NOTE = note(isDark);
+  /* The small text actions, centred with what sits beside them. */
+  const SMALL = { ...addButtonStyle(isDark), alignSelf: "auto" };
+
   return (
-    <div data-testid={`${testid}-source`} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <span style={LABEL}>{t("agents.hook_source.title")}</span>
+    <div data-testid={`${testid}-source`}>
+    <Block section={`${testid}-source`} title={t("agents.hook_source.title")} isDark={isDark}>
       {offered && (
         <span style={{ opacity: editable ? 1 : 0.5, pointerEvents: editable ? "auto" : "none" }}>
           <SegmentedControl
@@ -174,7 +177,7 @@ export default function HookWorkflowSource({ entry, index, nodeId, parentId, pin
               {t("agents.hook_source.own_summary", { name: "{name}", id: "{id}", count: "{count}" }).split(/(\{name\}|\{id\}|\{count\})/g).map((part, index) => ({ __proto__: null, "{name}": (<b key={index}>{safe_text(body.name || body.id)}</b>), "{id}": (<span key={index} style={MONO}>{safe_text(body.id)}</span>), "{count}": Array.isArray(body.nodes) ? body.nodes.length : 0 }[part] ?? part))}
             </span>
           ) : (
-            <span style={problem_style(isDark)}>{t("agents.hook_source.unreadable")}</span>
+            <span style={problem(isDark)}>{t("agents.hook_source.unreadable")}</span>
           )}
           <div style={{ ...ROW, flexWrap: "wrap" }}>
             <Button
@@ -210,10 +213,11 @@ export default function HookWorkflowSource({ entry, index, nodeId, parentId, pin
             </div>
           )}
           {saveState.message && (
-            <span data-testid={`${testid}-save-as-state`} style={saveState.status === "refused" ? problem_style(isDark) : NOTE}>{renderAgentMessage(saveState.message, t)}</span>
+            <span data-testid={`${testid}-save-as-state`} style={saveState.status === "refused" ? problem(isDark) : NOTE}>{renderAgentMessage(saveState.message, t)}</span>
           )}
         </div>
       )}
+    </Block>
     </div>
   );
 }

@@ -120,7 +120,7 @@ describe("AgentPanel", () => {
     expect(call.nodes[0].outputs).toEqual([{ name: "", type: "string" }]);
   });
 
-  test("optimizer switches use the builder's switch size (80% of default)", () => {
+  test("optimizer switches are Settings' switch at 0.85 of its 56×28", () => {
     const recipe = {
       nodes: [
         {
@@ -152,8 +152,8 @@ describe("AgentPanel", () => {
     const switches = container.querySelectorAll(".mini-ui-switch-track");
     expect(switches.length).toBeGreaterThanOrEqual(1);
     switches.forEach((el) => {
-      expect(el.style.width).toBe("52px");
-      expect(el.style.height).toBe("26px");
+      expect(el.style.width).toBe("48px");
+      expect(el.style.height).toBe("24px");
     });
   });
 

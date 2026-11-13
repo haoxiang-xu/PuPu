@@ -30,6 +30,11 @@ function Harness({ initial = base(), siblings = [] }) {
   return <ConfigContext.Provider value={{ theme: {} }}><ToolkitPoolSection document={document} node={document.nodes[1]} isDark={false} onChange={(next) => { writes.push(next); setDocument(next); }} /></ConfigContext.Provider>;
 }
 const row = (index = 0) => screen.getByTestId(`native-workflow-tool-row-${index}`);
+/* A Workflow tool's strip folds like a toolkit's; a complete one starts shut. */
+const expand = (index, name) => fireEvent.click(within(row(index)).getByRole("button", { name, exact: true }));
+/* The one Add under the list opens a menu: Toolkit or Workflow. */
+const openAdd = () => fireEvent.click(screen.getByRole("button", { name: "Add", exact: true }));
+const addWorkflow = () => { openAdd(); fireEvent.click(screen.getByTestId("native-toolkit-add-menu-workflow")); };
 const start = async (props = {}) => {
   render(<Harness {...props} />);
   await screen.findByTestId("native-workflow-tools-ready");
@@ -50,7 +55,7 @@ test("reading and opening write nothing; add writes only a local id then pin wri
   await start();
   expect(writes).toHaveLength(0);
   expect(latest.nodes[1].config).not.toHaveProperty("workflow_tools");
-  fireEvent.click(screen.getByRole("button", { name: "Add Workflow tool" }));
+  addWorkflow();
   expect(latest.nodes[1].config).toEqual({ ...base(), workflow_tools: [{ id: "tool-1" }] });
   fireEvent.click(within(row()).getByRole("button", { name: "Pin fixed Workflow" }));
   expect(latest.nodes[1].config.workflow_tools).toEqual([{ id: "tool-1", workflow: ref() }]);
@@ -71,6 +76,7 @@ test("each write preserves current ordinary toolkit settings, other row fields a
 
 test("invalid id text stays editable without writing; valid replacement changes only id", async () => {
   await start({ initial: { ...base(), workflow_tools: [{ id: "stored", workflow: ref() }] } });
+  expand(0, "stored");
   const input = within(row()).getByRole("textbox", { name: "Workflow tool id" });
   fireEvent.change(input, { target: { value: "bad id" } });
   expect(input).toHaveValue("bad id");
@@ -82,7 +88,7 @@ test("invalid id text stays editable without writing; valid replacement changes 
 
 test("new ids avoid pools attached to this Kernel", async () => {
   await start({ siblings: [{ id: "sibling", type: "toolkit_pool", config: { ...base(), workflow_tools: [{ id: "tool-1", workflow: ref() }] } }] });
-  fireEvent.click(screen.getByRole("button", { name: "Add Workflow tool" }));
+  addWorkflow();
   expect(latest.nodes[1].config.workflow_tools).toEqual([{ id: "tool-2" }]);
   expect(latest.nodes[2].config.workflow_tools).toEqual([{ id: "tool-1", workflow: ref() }]);
 });
@@ -107,6 +113,7 @@ test("a malformed list is retained until explicit replacement", async () => {
 
 test("removing a preceding bad row preserves another row's pending id text", async () => {
   await start({ initial: { ...base(), workflow_tools: [null, { id: "kept", workflow: ref() }] } });
+  expand(1, "kept");
   fireEvent.change(within(row(1)).getByRole("textbox", { name: "Workflow tool id" }), { target: { value: "not valid" } });
   fireEvent.click(within(row(0)).getByRole("button", { name: "Remove Workflow tool" }));
   expect(within(row()).getByRole("textbox", { name: "Workflow tool id" })).toHaveValue("not valid");
@@ -118,7 +125,10 @@ test("unavailable capability permits removal but never invents support or clears
   const stored = [{ id: "kept", workflow: ref() }];
   render(<Harness initial={{ ...base(), workflow_tools: stored }} />);
   await screen.findByTestId("native-workflow-tools-unavailable");
-  expect(screen.queryByRole("button", { name: "Add Workflow tool" })).not.toBeInTheDocument();
+  openAdd();
+  expect(screen.queryByTestId("native-toolkit-add-menu-workflow")).not.toBeInTheDocument();
+  fireEvent.keyDown(document, { key: "Escape" });
+  expand(0, "kept");
   expect(within(row()).getByRole("textbox", { name: "Workflow tool id" })).toBeDisabled();
   expect(writes).toHaveLength(0);
   expect(latest.nodes[1].config.workflow_tools).toBe(stored);
@@ -132,9 +142,74 @@ test("loading capability never writes or offers a stale authoring control", asyn
   let done;
   api.unchain.getSkeletonWorkflowToolCapabilities.mockReturnValue(new Promise((resolve) => { done = resolve; }));
   render(<Harness />);
-  expect(screen.queryByRole("button", { name: "Add Workflow tool" })).not.toBeInTheDocument();
+  openAdd();
+  expect(screen.getByTestId("native-toolkit-add-menu-toolkit")).toBeInTheDocument();
+  expect(screen.queryByTestId("native-toolkit-add-menu-workflow")).not.toBeInTheDocument();
   expect(writes).toHaveLength(0);
   await act(async () => done(capability));
-  expect(await screen.findByRole("button", { name: "Add Workflow tool" })).toBeEnabled();
+  /* the open menu gains the entry once the contract is read */
+  expect(await screen.findByTestId("native-toolkit-add-menu-workflow")).toBeInTheDocument();
+  // eslint-disable-next-line testing-library/no-node-access
+  expect(screen.getByTestId("native-toolkit-add-menu-workflow").parentElement.parentElement.style.cursor).toBe("pointer");
+  expect(writes).toHaveLength(0);
+});
+
+test("one Tools and Workflows list: toolkits first, then Workflow tool strips, one count", async () => {
+  const first = { id: "first", workflow: ref() };
+  await start({ initial: { ...base(), toolkits: [{ id: "core", enabled_tools: null }], workflow_tools: [first, { id: "second" }] } });
+  const block = screen.getByRole("region", { name: "Tools and Workflows" });
+  expect(screen.queryByText("Workflows as tools")).not.toBeInTheDocument();
+  expect(screen.queryByText("Pool")).not.toBeInTheDocument();
+  expect(screen.queryByTestId("process-section-workflow-tools")).not.toBeInTheDocument();
+  expect(screen.getByTestId("process-aside-toolkits")).toHaveTextContent("3");
+  const toolkit = screen.getByTestId("native-toolkit-row-0");
+  expect(block).toContainElement(row(0));
+  /* the same surface: each row sits in a cell of one Region, toolkit first */
+  // eslint-disable-next-line testing-library/no-node-access
+  const surface = toolkit.parentElement.parentElement;
+  // eslint-disable-next-line testing-library/no-node-access
+  expect(row(0).parentElement.parentElement).toBe(surface);
+  // eslint-disable-next-line testing-library/no-node-access
+  expect(row(1).parentElement.parentElement).toBe(surface);
+  // eslint-disable-next-line no-bitwise
+  expect(toolkit.compareDocumentPosition(row(0)) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  /* a complete tool starts folded; an unpinned one starts open */
+  const toggle = within(row(0)).getByRole("button", { name: "first", exact: true });
+  expect(toggle).toHaveAttribute("aria-expanded", "false");
+  expect(within(row(0)).queryByRole("textbox")).not.toBeInTheDocument();
+  expect(within(row(0)).getByTestId("native-workflow-tool-pinned-0")).toHaveTextContent("echo");
+  fireEvent.click(toggle);
+  expect(toggle).toHaveAttribute("aria-expanded", "true");
+  expect(within(row(0)).getByRole("textbox", { name: "Workflow tool id" })).toHaveValue("first");
+  expect(within(row(1)).getByRole("button", { name: "second", exact: true })).toHaveAttribute("aria-expanded", "true");
+  /* the way out is the strip's last control */
+  // eslint-disable-next-line testing-library/no-node-access
+  const remove = within(toggle.parentElement).getAllByRole("button").pop();
+  expect(remove).toHaveAccessibleName("Remove Workflow tool");
+  fireEvent.click(remove);
+  expect(latest.nodes[1].config.workflow_tools).toEqual([{ id: "second" }]);
+  expect(latest.nodes[1].config.toolkits).toEqual([{ id: "core", enabled_tools: null }]);
+  expect(screen.getByTestId("process-aside-toolkits")).toHaveTextContent("2");
+});
+
+test("the Add menu offers Toolkit and Workflow; Workflow adds a Workflow tool row and closes", async () => {
+  await start();
+  expect(screen.queryByRole("button", { name: "Add Workflow tool" })).not.toBeInTheDocument();
+  openAdd();
+  expect(screen.getByTestId("native-toolkit-add-menu-toolkit")).toHaveTextContent("Toolkit");
+  expect(screen.getByTestId("native-toolkit-add-menu-workflow")).toHaveTextContent("Workflow");
+  fireEvent.click(screen.getByTestId("native-toolkit-add-menu-workflow"));
+  expect(screen.queryByTestId("native-toolkit-add-menu-workflow")).not.toBeInTheDocument();
+  expect(latest.nodes[1].config.workflow_tools).toEqual([{ id: "tool-1" }]);
+  expect(within(row(0)).getByRole("button", { name: "tool-1", exact: true })).toHaveAttribute("aria-expanded", "true");
+  expect(within(row(0)).getByRole("textbox", { name: "Workflow tool id" })).toHaveValue("tool-1");
+});
+
+test("Escape closes the Add menu without writing", async () => {
+  await start();
+  openAdd();
+  expect(screen.getByTestId("native-toolkit-add-menu-workflow")).toBeInTheDocument();
+  fireEvent.keyDown(document, { key: "Escape" });
+  expect(screen.queryByTestId("native-toolkit-add-menu-workflow")).not.toBeInTheDocument();
   expect(writes).toHaveLength(0);
 });

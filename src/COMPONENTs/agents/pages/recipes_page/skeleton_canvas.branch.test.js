@@ -53,7 +53,11 @@ test("one inlet on the left and one outlet port per row on the right, in row ord
   expect(portsOf(container, "sw", "right")).toEqual(["case-1", "case-2", "default"]);
   const rows = within(screen.getByTestId("branch-node-sw")).getAllByText(/“a”|^2$|Default/).map((element) => element.textContent);
   expect(rows).toEqual(["“a”", "2", "Default"]);
-  expect(screen.getByTestId("branch-node-sw").style.height).toBe(`${4 * 26}px`); // (3 rows + 1) rows: ports land on row centres
+  /* Three rows start at the top inset and the node grows to hold them; each
+     outlet port is anchored on its row's centre, the inlet on the header's. */
+  expect(screen.getByTestId("branch-node-sw").querySelector("[data-branch-body]").style.height).toBe(`${5.5 + 3 * 26 + 5.5}px`);
+  expect(port(container, "sw", "in").style.top).toBe("31.5px");
+  expect(["case-1", "case-2", "default"].map((id) => port(container, "sw", id).style.top)).toEqual(["18.5px", "44.5px", "70.5px"]);
 });
 
 test("an edge leaving an outlet the switch no longer declares is still drawn, and its row says so", () => {

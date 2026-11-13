@@ -15,7 +15,7 @@ import ToolCallNode from "./nodes/tool_call_node";
 import WorkflowCallNode from "./nodes/workflow_call_node";
 import HooksPoolNode from "./nodes/hooks_pool_node";
 import SkillReadNode from "./nodes/skill_read_node";
-import CodeNode, { CODE_LOW_ZOOM } from "./nodes/code_node";
+import CodeNode from "./nodes/code_node";
 import AgentNode from "./nodes/agent_node";
 import EndNode from "./nodes/end_node";
 import StartNode from "./nodes/start_node";
@@ -66,7 +66,7 @@ import {
 const node_table = (from) => Object.assign(Object.create(null), from || undefined);
 
 function renderNode(node, isDark, onOpenSubagent, view = {}) {
-  if (node.type === "agent") return <AgentNode node={node} isDark={isDark} />;
+  if (node.type === "agent") return <AgentNode node={node} isDark={isDark} presentation={view.agentPresentation} />;
   if (node.type === "toolkit_pool") return <ToolPoolNode node={node} isDark={isDark} native toolkits={node_toolkit_refs(node)} />;
   if (node.type === "subagent_pool") {
     return (
@@ -103,10 +103,8 @@ function renderNode(node, isDark, onOpenSubagent, view = {}) {
   if (node.type === "workflow_call") return <WorkflowCallNode node={node} isDark={isDark} />;
   if (node.type === "hooks_pool") return <HooksPoolNode node={node} isDark={isDark} />;
   if (node.type === "skill_read") return <SkillReadNode node={node} isDark={isDark} />;
-  /* A Code node (#357) reads the canvas's zoom — below half it falls back to
-     its header — and its viewer hands editing to the panel, which is what
-     selecting the node opens. */
-  if (node.type === "code") return <CodeNode node={node} isDark={isDark} lowZoom={view.lowZoom === true} onOpenNode={view.onOpenNode} sources={view.sources} recordedSourceOnly={view.recordedSourceOnly === true} />;
+  /* A Code node (#357) is a plain header node; its code is read in the panel. */
+  if (node.type === "code") return <CodeNode node={node} isDark={isDark} />;
   if (node.type === "start") return <StartNode node={node} isDark={isDark} />;
   if (node.type === "end") return <EndNode node={node} isDark={isDark} />;
   /* A type this build has no drawing for still has to appear: a graph that
@@ -187,9 +185,6 @@ function GraphDrawing({
   homeToken,
   /* Where a refused edit is said. Without it the canvas says it itself. */
   onProblem,
-  /* The session's Code text, keyed by digest, for a Code node's preview and
-     viewer (#357 G1). Read only: the canvas never writes text. */
-  managedSources,
   isDark,
 }) {
   const { t } = useTranslation();
@@ -203,6 +198,10 @@ function GraphDrawing({
   useEffect(() => { setRename(null); }, [renameScope, canEdit]);
   /* A Workflow is offered only what it can hold (#357 G7). */
   const addableTypes = useMemo(() => addable_node_types(graph?.kind), [graph?.kind]);
+  /* In an Agent document the Agent node is the Agent itself, so it wears the
+     document's own icon and colour. A Workflow has no such node. */
+  const agentPresentation = graph && graph.kind === "agent" && Object.prototype.hasOwnProperty.call(graph, "presentation")
+    ? graph.presentation : null;
   const paletteEntries = useMemo(() => NATIVE_PALETTE_ENTRIES.map((entry) => palette_entry_caption(entry, t)), [t]);
   const containerRef = useRef(null);
   const closeRename = useCallback(() => {
@@ -307,19 +306,9 @@ function GraphDrawing({
   );
 
   const viewportRef = useRef(stored.viewport || { x: 0, y: 0, zoom: 1 });
-  /* Whether the graph is too small to read code in (#357). The editor keeps
-     the zoom in the ref it was handed, so this is read when a gesture ends —
-     the same moments the viewport is remembered — and after the editor's own
-     fit, reset and zoom-reset moves, which happen in its effects and so have
-     landed by the time the frame after them runs. */
-  const [lowZoom, setLowZoom] = useState(() => (viewportRef.current.zoom || 1) < CODE_LOW_ZOOM);
-  const syncZoom = useCallback(() => {
-    setLowZoom((viewportRef.current.zoom || 1) < CODE_LOW_ZOOM);
-  }, []);
   const rememberViewport = useCallback(() => {
     writeSkeletonViewport(resourceId, viewportRef.current);
-    syncZoom();
-  }, [resourceId, syncZoom]);
+  }, [resourceId]);
 
   const say = useCallback((message) => {
     if (typeof onProblem === "function") onProblem(message);
@@ -438,11 +427,6 @@ function GraphDrawing({
     [],
   );
 
-  useEffect(() => {
-    const frame = window.requestAnimationFrame(syncZoom);
-    return () => window.cancelAnimationFrame(frame);
-  }, [fitToken, zoomToken, resetToken, syncZoom]);
-
   /* Home centers this graph's own Start — a sub-graph opened by drilling in
      need not name its start node `start`, so it is found by type. The key is
      bound here as well as the control: the acceptance names Home, and the
@@ -536,7 +520,7 @@ function GraphDrawing({
         render_node={(node) => (
           <div data-testid={`skeleton-node-${node.id}`} style={{ display: "contents" }}>
             <RunNodeStatus projection={["toolkit_pool", "subagent_pool", "hooks_pool"].includes(node.type) ? null : runNodes.get(node.id)} isDark={isDark}>
-              {renderNode(node, isDark, onOpenSubagent, { lowZoom, onOpenNode: onSelectNode, sources: managedSources, recordedSourceOnly: Boolean(observed) })}
+              {renderNode(node, isDark, onOpenSubagent, { agentPresentation })}
             </RunNodeStatus>
           </div>
         )}

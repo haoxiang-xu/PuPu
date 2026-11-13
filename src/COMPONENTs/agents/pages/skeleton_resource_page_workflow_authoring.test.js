@@ -8,6 +8,8 @@ import capture from "./recipes_page/workflow_authoring_capture.json";
 import codeCapture from "./recipes_page/code_capture.json";
 import { forget_workflow_versions } from "./recipes_page/workflow_versions";
 import { openAddNode, pressCanvasNode } from "./recipes_page/skeleton_canvas_test_helpers";
+import { STARTER_CODE, starter_code } from "./recipes_page/code_config";
+import { sha256_text } from "./recipes_page/managed_code_sources";
 
 /* #357 G7 on the real page: a new Workflow is created, edited on the canvas,
  * saved, reopened, published and pinned by an Agent's Workflow Call.
@@ -48,7 +50,8 @@ function makeStore() {
     save: jest.fn(async (edit) => {
       expect(Object.keys(edit).sort()).toEqual(["document", "expected_edit_token", "managed_sources", "schema"]);
       expect(edit.schema).toBe("pupu.skeleton-edit.v2");
-      expect(edit.managed_sources).toEqual([]);
+      /* The only Code text here is a new Code step's starter. */
+      expect(edit.managed_sources.every((item) => item.text === STARTER_CODE)).toBe(true);
       const id = edit.document.id;
       const expected = held[id] ? held[id].resource.edit_token : null;
       if (edit.expected_edit_token !== expected) {
@@ -57,10 +60,16 @@ function makeStore() {
       }
       revision += 1;
       /* Constructed: the producer's reply, holding the document just saved. */
+      /* Host-kept text is answered the way the host answers it: one
+         manifest entry per node, each text once. */
+      const entries = edit.managed_sources.map((item) => ({ node_path: item.node_path, sha256: sha256_text(item.text) }));
+      const contents = [...new Map(edit.managed_sources.map((item) => [sha256_text(item.text), item.text])).entries()]
+        .sort(([a], [b]) => (a < b ? -1 : 1)).map(([sha256, text]) => ({ sha256, text }));
       held[id] = {
         ...template,
         resource: { ...template.resource, id, kind: edit.document.kind, name: edit.document.name,
           document: copy(edit.document), edit_token: `edit-${revision}-test`, diagnostics: [] },
+        ...(entries.length ? { sources_manifest: { schema: "pupu.skeleton-code-sources.v1", entries }, contents, content_digest: "a".repeat(64) } : {}),
       };
       return copy(held[id]);
     }),
@@ -168,9 +177,12 @@ test("a new Workflow is created, edited on the canvas, saved, reopened and still
   const second = await save(store);
   expect(second.expected_edit_token).toBe("edit-11-test");
   expect(second.document.kind).toBe("workflow");
-  /* The Code seed is the one the store saved inside a Workflow (there named "n"). */
+  /* The Code seed is the one the store saved inside a Workflow (there named
+     "n"), plus the starter a new Code step now comes with. */
+  const recorded = row("wf_add_code_save").reply.resource.document.nodes.find((node) => node.id === "n");
   expect(canonical({ ...second.document.nodes.find((node) => node.id === "code"), id: "n" }))
-    .toEqual(canonical(row("wf_add_code_save").reply.resource.document.nodes.find((node) => node.id === "n")));
+    .toEqual(canonical({ ...recorded, config: { ...recorded.config, code: starter_code().code } }));
+  expect(second.managed_sources).toEqual([{ node_path: ["nodes", 2], text: STARTER_CODE }]);
   expect(edgeSet(second.document)).toEqual(["flow:code.out>end.in", "flow:start.out>code.in"]);
   exportPayload("02-code-step", second);
 
@@ -253,7 +265,7 @@ test("a Workflow's Switch step is written, not only shown: a case added in its p
   await screen.findByTestId("skeleton-node-n");
   pressCanvasNode("n");
   await screen.findByTestId("branch-section");
-  fireEvent.click(screen.getByRole("button", { name: "+ Add a case" }));
+  fireEvent.click(screen.getByRole("button", { name: "Add a case" }));
   fireEvent.change(within(screen.getByTestId("branch-case-0-value-text")).getByPlaceholderText("text"), { target: { value: "a" } });
   const edit = await save(store);
   const node = edit.document.nodes.find((entry) => entry.id === "n");

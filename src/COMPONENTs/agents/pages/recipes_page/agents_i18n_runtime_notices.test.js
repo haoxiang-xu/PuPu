@@ -19,9 +19,9 @@ test("local Rename capability refusal translates without changing the capability
 test("an owned run-observation failure follows locale without reopening its read scope", async () => {
   delete api.unchain.getSkeletonRunObservation;
   const view = render(tree("en"));
-  await waitFor(() => expect(screen.getByTestId("run-observation-error")).toHaveTextContent("Run observation is unavailable in this build."));
+  await waitFor(() => expect(screen.getByTestId("run-observation-error")).toHaveTextContent("Run details are not available."));
   view.rerender(tree("zh-CN"));
-  expect(screen.getByTestId("run-observation-error")).not.toHaveTextContent("Run observation is unavailable in this build.");
+  expect(screen.getByTestId("run-observation-error")).not.toHaveTextContent("Run details are not available.");
   expect(screen.getByTestId("run-observation-error").textContent).not.toContain("agents.");
 });
 test("a backend error that resembles a catalog key remains literal across locale changes", async () => {

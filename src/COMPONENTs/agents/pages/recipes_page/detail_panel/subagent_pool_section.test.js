@@ -1,8 +1,9 @@
 import React from "react";
 import { render, screen, fireEvent, within, act } from "@testing-library/react";
-import SubagentPoolSection from "./subagent_pool_section";
+import SubagentPoolSection, { SUBAGENT_STRIP } from "./subagent_pool_section";
 import { node_subagents } from "../skeleton_document";
 import { list_resources } from "../skeleton_resources";
+import { emitSkeletonLibraryRefresh } from "../../../../../SERVICEs/skeleton_library_refresh";
 
 /* The facade is covered in its own suite; here it is the one seam, so the
    panel can be shown a library, an unreachable store and a refusal without a
@@ -45,9 +46,9 @@ jest.mock("../../../../../BUILTIN_COMPONENTs/input/input", () => {
 });
 
 jest.mock("../../../../../BUILTIN_COMPONENTs/input/button", () => {
-  return function MockButton({ label, ariaLabel, onClick }) {
+  return function MockButton({ label, ariaLabel, onClick, prefix_icon, title }) {
     return (
-      <button type="button" aria-label={ariaLabel} onClick={onClick}>
+      <button type="button" aria-label={ariaLabel} onClick={onClick} data-prefix-icon={prefix_icon} data-label={label} title={title}>
         {label || ariaLabel || "button"}
       </button>
     );
@@ -55,7 +56,7 @@ jest.mock("../../../../../BUILTIN_COMPONENTs/input/button", () => {
 });
 
 jest.mock("../../../../../BUILTIN_COMPONENTs/input/switch", () => {
-  return function MockSwitch({ on, set_on }) {
+  const MockSwitch = function MockSwitch({ on, set_on }) {
     return (
       <button
         type="button"
@@ -67,6 +68,7 @@ jest.mock("../../../../../BUILTIN_COMPONENTs/input/switch", () => {
       </button>
     );
   };
+  return { __esModule: true, default: MockSwitch, SemiSwitch: MockSwitch };
 });
 
 const entry = (over) => ({
@@ -136,6 +138,7 @@ async function show(node, options = {}) {
       isDark={false}
       onChange={onChange}
       onEntryIdRepaired={options.onEntryIdRepaired}
+      onOpenSubagent={options.onOpenSubagent}
     />,
   );
   /* The library is read in an effect, so let it land before anything is
@@ -144,12 +147,12 @@ async function show(node, options = {}) {
   return { onChange, view };
 }
 
-/* Opening the picker starts a fresh read, and the list is not offered until
-   that read is the current answer — so a test opens it the way a person does,
-   by waiting the moment out. */
-async function open_picker() {
+/* The library is always in view and is read again when the store announces
+   a change; a test that needs a fresh read announces one the way a save does,
+   and waits the moment out. */
+async function reread_library() {
   await act(async () => {
-    fireEvent.click(screen.getByText("+ Add an Agent"));
+    emitSkeletonLibraryRefresh({ reason: "resource_saved" });
   });
 }
 
@@ -188,7 +191,6 @@ describe("a pool that holds nothing", () => {
 describe("referencing an Agent from the library", () => {
   test("the entry written out carries every field the wire closes", async () => {
     const { onChange } = await show(pool({ subagents: [] }));
-    await open_picker();
     fireEvent.click(screen.getByLabelText("Reference Summarizer"));
     expect(written(onChange)).toEqual([
       {
@@ -208,7 +210,6 @@ describe("referencing an Agent from the library", () => {
 
   test("it references the resource id, never the name", async () => {
     const { onChange } = await show(pool({ subagents: [] }));
-    await open_picker();
     fireEvent.click(screen.getByLabelText("Reference Checker"));
     expect(written(onChange)[0].source).toEqual({
       kind: "agent_ref",
@@ -220,7 +221,6 @@ describe("referencing an Agent from the library", () => {
     /* The negative that matters. A pool holds Agents; a Workflow reaching an
        entry is a definition the store refuses at Run with `wrong_kind`. */
     const { onChange } = await show(pool({ subagents: [] }));
-    await open_picker();
     expect(screen.queryByText("Nightly flow")).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/Reference Nightly flow/)).not.toBeInTheDocument();
     expect(onChange).not.toHaveBeenCalled();
@@ -228,14 +228,12 @@ describe("referencing an Agent from the library", () => {
 
   test("neither is this Agent itself, nor an archived one", async () => {
     await show(pool({ subagents: [] }));
-    await open_picker();
     expect(screen.queryByText("Reviewer")).not.toBeInTheDocument();
     expect(screen.queryByText("Retired")).not.toBeInTheDocument();
   });
 
   test("and the absence is explained rather than left to be noticed", async () => {
     await show(pool({ subagents: [] }));
-    await open_picker();
     expect(screen.getByTestId("subagent-picker-withheld").textContent).toMatch(
       /3 other resources are not offered/i,
     );
@@ -243,7 +241,6 @@ describe("referencing an Agent from the library", () => {
 
   test("the same Agent can be referenced twice, under a free name", async () => {
     const { onChange } = await show(pool({ subagents: [entry()] }));
-    await open_picker();
     fireEvent.click(screen.getByLabelText("Reference Summarizer"));
     expect(written(onChange).map((row) => row.name)).toEqual([
       "Summarizer",
@@ -259,9 +256,8 @@ describe("referencing an Agent from the library", () => {
     await show(pool({ subagents: [] }), {
       library: { ok: false, reason: "unavailable", error: { code: "bridge_unavailable" } },
     });
-    await open_picker();
     expect(screen.getByTestId("subagent-library-unavailable").textContent).toMatch(
-      /not reachable in this build/i,
+      /library is not reachable/i,
     );
     expect(screen.queryByTestId("subagent-picker")).not.toBeInTheDocument();
   });
@@ -274,7 +270,6 @@ describe("referencing an Agent from the library", () => {
         error: { code: "skeleton_store_failed", message: "the store is locked", path: [] },
       },
     });
-    await open_picker();
     expect(screen.getByTestId("subagent-library-failed").textContent).toMatch(/locked/);
   });
 });
@@ -282,22 +277,28 @@ describe("referencing an Agent from the library", () => {
 describe("a row manages the entry, never the subagent's contents", () => {
   test("the section says where contents are edited", async () => {
     await show(pool({ subagents: [entry()] }));
-    expect(screen.getByTestId("subagent-pool-title").title).toMatch(
+    /* The caption is the panel's standard Block; what it is for sits behind
+       its info button. */
+    const help = screen.getByRole("button", { name: /^Subagents · / });
+    await act(async () => { fireEvent.mouseEnter(help.parentElement); });
+    expect((await screen.findByTestId("subagent-pool-title")).title).toMatch(
       /contents are edited by opening its graph/i,
     );
   });
 
   test("there is no prompt, no model and nothing else of the subagent's own", async () => {
-    /* Two choices on the row and no more: what this Agent reads back, and
-       what memory the child gets — five segments between them. A model or a
-       prompt box here would be editing the subagent itself, which is the one
-       thing this panel does not do. */
+    /* Two choices on the row and no more: what this Agent reads back — three
+       segments — and whether the child keeps a memory of its own — one
+       switch. A model or a prompt box here would be editing the subagent
+       itself, which is the one thing this panel does not do. */
     await show(pool({ subagents: [entry()] }));
     const row = within(screen.getByTestId("subagent-entry-0"));
     expect(row.queryAllByTestId("select")).toHaveLength(0);
-    for (const label of ["Summary", "Last message", "Full trace", "None", "Own scope"]) {
+    for (const label of ["Summary", "Last message", "Full trace", "Own memory"]) {
       expect(row.getByText(label)).toBeInTheDocument();
     }
+    expect(row.queryByText("None")).toBeNull();
+    expect(row.queryByText("Own scope")).toBeNull();
     expect(screen.queryByPlaceholderText(/prompt/i)).not.toBeInTheDocument();
     expect(screen.queryByPlaceholderText(/model/i)).not.toBeInTheDocument();
   });
@@ -362,18 +363,59 @@ describe("a row manages the entry, never the subagent's contents", () => {
 
   test("the child's memory policy is stored as its own token", async () => {
     const { onChange } = await show(pool({ subagents: [entry()] }));
-    const row = within(screen.getByTestId("subagent-entry-0"));
-    fireEvent.click(row.getByText("Own scope"));
+    const memory = screen.getByTestId("subagent-entry-0-memory");
+    expect(memory).toHaveAttribute("role", "switch");
+    expect(memory).toHaveAttribute("aria-label", "Own memory");
+    expect(memory).toHaveAttribute("aria-checked", "false");
+    fireEvent.click(within(memory).getByRole("switch"));
+    expect(onChange).toHaveBeenCalledTimes(1);
     expect(written(onChange)[0].memory_policy).toBe("scoped_persistent");
   });
 
-  test("parallel safety is a boolean, and the sentence changes with it", async () => {
+  test("own memory switches back to no memory, by click and by keyboard", async () => {
+    const { onChange } = await show(pool({ subagents: [entry({ memory_policy: "scoped_persistent" })] }));
+    const memory = screen.getByTestId("subagent-entry-0-memory");
+    expect(memory).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(within(memory).getByRole("switch"));
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(written(onChange)[0].memory_policy).toBe("ephemeral");
+    fireEvent.keyDown(memory, { key: " " });
+    expect(onChange).toHaveBeenCalledTimes(2);
+    expect(written(onChange, 1)[0].memory_policy).toBe("ephemeral");
+    /* An assistive click lands on the switch itself, and writes once. */
+    fireEvent.click(memory);
+    expect(onChange).toHaveBeenCalledTimes(3);
+  });
+
+  test("off is no memory, and an unknown policy is not called own memory", async () => {
+    const { onChange } = await show(pool({ subagents: [entry({ memory_policy: "nonsense" })] }));
+    const memory = screen.getByTestId("subagent-entry-0-memory");
+    expect(memory).toHaveAttribute("aria-checked", "false");
+    fireEvent.keyDown(memory, { key: "Enter" });
+    expect(written(onChange)[0].memory_policy).toBe("scoped_persistent");
+  });
+
+  test("parallel safety is a boolean, on the same switch row as Own memory", async () => {
     const { onChange } = await show(pool({ subagents: [entry()] }));
-    expect(screen.getByTestId("subagent-entry-0-parallel").title).toMatch(
-      /May run beside other subagents/i,
-    );
-    fireEvent.click(screen.getByRole("switch"));
+    const row = screen.getByTestId("subagent-entry-0-parallel");
+    /* the row itself is the switch, like Own memory: checked, labelled,
+       reachable by keyboard */
+    expect(row).toHaveAttribute("role", "switch");
+    expect(row).toHaveAttribute("aria-checked", "true");
+    expect(row).toHaveAttribute("tabindex", "0");
+    fireEvent.click(within(row).getByRole("switch"));
+    expect(onChange).toHaveBeenCalledTimes(1);
     expect(written(onChange)[0].parallel_safe).toBe(false);
+  });
+
+  test("the parallel switch answers the keyboard, and an assistive click writes once", async () => {
+    const { onChange } = await show(pool({ subagents: [entry()] }));
+    const row = screen.getByTestId("subagent-entry-0-parallel");
+    fireEvent.keyDown(row, { key: "Enter" });
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(written(onChange)[0].parallel_safe).toBe(false);
+    fireEvent.click(row);
+    expect(onChange).toHaveBeenCalledTimes(2);
   });
 
   test("tool restrictions are shown as stored and not edited here", async () => {
@@ -465,7 +507,8 @@ describe("a pool converted from a legacy definition", () => {
     expect(screen.getByTestId("subagent-pool-legacy").textContent).toMatch(
       /subagents would be lost/i,
     );
-    expect(screen.queryByText("+ Add an Agent")).not.toBeInTheDocument();
+    expect(screen.queryByText("New embedded Agent")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("process-section-subagent-library")).not.toBeInTheDocument();
     expect(screen.queryByTestId("subagent-entry-0")).not.toBeInTheDocument();
   });
 
@@ -504,37 +547,49 @@ describe("a draft can hold a shape no control can show", () => {
   });
 });
 
-describe("the library is read again on the way into the picker", () => {
+describe("the library is always in view, and read again when the store changes", () => {
   /* Within one sitting it can only change from somewhere else, and both ways
      it goes wrong are worth a request: offering an Agent that was just
      archived, and calling a reference missing when it is not. */
-  test("opening the picker asks the store again", async () => {
+  test("the add button sits under the subagents, and the library below is shown without any click", async () => {
+    await show(pool({ subagents: [entry()] }));
+    const library = screen.getByTestId("process-section-subagent-library");
+    expect(library).toHaveAttribute("aria-label", "Agent library");
+    expect(screen.queryByText("+ Add an Agent")).not.toBeInTheDocument();
+    /* New embedded Agent belongs to the Subagents section, after the last
+       subagent, not to the library. */
+    const pool_block = screen.getByTestId("process-section-subagents");
+    const create = within(pool_block).getByRole("button", { name: "New embedded Agent" });
+    expect(within(library).queryByRole("button", { name: "New embedded Agent" })).toBeNull();
+    const last_entry = screen.getByTestId("subagent-entry-0-region");
+    expect(last_entry.compareDocumentPosition(create) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(library).getByLabelText("Reference Summarizer")).toBeInTheDocument();
+    expect(within(library).getByTestId("subagent-picker")).toBeInTheDocument();
+    /* Below the pool, not inside it. */
+    const pool_section = screen.getByTestId("process-section-subagents");
+    expect(pool_section.contains(library)).toBe(false);
+    expect(pool_section.compareDocumentPosition(library) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  test("the panel reads it once on mount, and again when the store announces a change", async () => {
     await show(pool({ subagents: [] }));
     expect(list_resources).toHaveBeenCalledTimes(1);
-    await act(async () => {
-      await open_picker();
-    });
+    await reread_library();
     expect(list_resources).toHaveBeenCalledTimes(2);
   });
 
-  test("closing it again does not", async () => {
-    await show(pool({ subagents: [] }));
-    await act(async () => {
-      await open_picker();
-    });
-    fireEvent.click(screen.getByText("Cancel"));
-    expect(list_resources).toHaveBeenCalledTimes(2);
+  test("an unmounted panel stops listening", async () => {
+    const { view } = await show(pool({ subagents: [] }));
+    view.unmount();
+    await reread_library();
+    expect(list_resources).toHaveBeenCalledTimes(1);
   });
 
   test("an Agent that has since appeared is offered", async () => {
     await show(pool({ subagents: [] }), { library: { ok: true, data: { resources: [] } } });
-    await open_picker();
     expect(screen.getByTestId("subagent-picker-empty")).toBeInTheDocument();
     list_resources.mockResolvedValue({ ok: true, data: { resources: LIBRARY } });
-    fireEvent.click(screen.getByText("Cancel"));
-    await act(async () => {
-      await open_picker();
-    });
+    await reread_library();
     expect(screen.getByLabelText("Reference Summarizer")).toBeInTheDocument();
   });
 });
@@ -610,7 +665,6 @@ describe("a draft the store accepted but no control can show", () => {
 
   test("and an Agent can still be added beside it", async () => {
     const { onChange } = await show(pool({ subagents: [null] }));
-    await open_picker();
     fireEvent.click(screen.getByLabelText("Reference Summarizer"));
     expect(written(onChange)).toHaveLength(2);
     expect(written(onChange)[1].source.agent_id).toBe("res-1");
@@ -699,7 +753,7 @@ describe("a late reply from an older read", () => {
     );
     list_resources.mockResolvedValue({ ok: true, data: { resources: [] } });
     await act(async () => {
-      await open_picker();
+      await reread_library();
     });
     expect(screen.getByTestId("subagent-picker-empty")).toBeInTheDocument();
 
@@ -763,7 +817,6 @@ describe("the library is data too", () => {
 
   test("a name that cannot become text does not take the picker down", async () => {
     await show(pool({ subagents: [] }), { library: { ok: true, data: { resources: ODD } } });
-    await open_picker();
     expect(screen.getByLabelText("Reference res-1")).toBeInTheDocument();
   });
 
@@ -957,7 +1010,7 @@ describe("while a newer library is being read", () => {
         settle = () => resolve({ ok: true, data: { resources: [] } });
       }),
     );
-    fireEvent.click(screen.getByText("+ Add an Agent"));
+    act(() => { emitSkeletonLibraryRefresh({ reason: "resource_saved" }); });
     expect(screen.getByTestId("subagent-library-reading")).toBeInTheDocument();
     expect(screen.queryByLabelText("Reference Summarizer")).not.toBeInTheDocument();
     expect(onChange).not.toHaveBeenCalled();
@@ -1003,7 +1056,7 @@ describe("a read that throws instead of answering", () => {
   test("leaves the picker saying so rather than reading for ever", async () => {
     await show(pool({ subagents: [] }), { library: { ok: true, data: { resources: [] } } });
     list_resources.mockRejectedValueOnce(new Error("the bridge went away"));
-    await open_picker();
+    await reread_library();
     expect(screen.queryByTestId("subagent-library-reading")).not.toBeInTheDocument();
     expect(screen.getByTestId("subagent-library-failed").textContent).toMatch(
       /went away/,
@@ -1083,7 +1136,6 @@ describe("two entries the document cannot tell apart", () => {
     fireEvent.change(first().getByDisplayValue("Summarizer"), {
       target: { value: "Checker" },
     });
-    await open_picker();
     fireEvent.click(screen.getByLabelText("Reference Summarizer"));
     expect(first().getByDisplayValue("Checker")).toBeInTheDocument();
   });
@@ -1478,7 +1530,7 @@ describe("converting a legacy pool", () => {
   test("a panel with no resource session says so instead of offering it", async () => {
     await show_legacy(named, { onConvertLegacy: undefined });
     expect(screen.getByTestId("subagent-pool-legacy-unreachable").textContent).toMatch(
-      /cannot reach/i,
+      /not reachable/i,
     );
     expect(screen.queryByText("Convert to Agent entries")).not.toBeInTheDocument();
   });
@@ -1511,7 +1563,8 @@ describe("converting a legacy pool", () => {
     view.rerender(panel(pool({ subagents: [entry()] })));
     expect(screen.queryByTestId("subagent-pool-legacy")).not.toBeInTheDocument();
     expect(screen.getByTestId("subagent-entry-0")).toBeInTheDocument();
-    expect(screen.getByText("+ Add an Agent")).toBeInTheDocument();
+    /* the add control reads just "Add"; what it adds is its accessible name */
+    expect(screen.getByRole("button", { name: "New embedded Agent" })).toHaveTextContent("Add");
   });
 });
 
@@ -2054,12 +2107,13 @@ describe("the pool reads as a roster", () => {
   const open = (index) =>
     screen.getByTestId(`subagent-entry-${index}-toggle`).getAttribute("aria-expanded");
 
-  test("several entries start folded, each saying what it is for", async () => {
+  test("several entries start folded, each strip carrying only its name", async () => {
     await show(two());
     expect(open(0)).toBe("false");
     expect(open(1)).toBe("false");
-    expect(screen.getByTestId("subagent-entry-0-summary").textContent).toMatch(/Summarizer.*shortens long text/);
-    expect(screen.getByTestId("subagent-entry-1-summary").textContent).toMatch(/No description yet/);
+    expect(screen.getByTestId("subagent-entry-0-toggle").textContent).toBe("Summarizer");
+    expect(screen.getByTestId("subagent-entry-1-toggle").textContent).toBe("Checker");
+    expect(screen.queryByText("No description yet")).toBeNull();
     expect(screen.getByTestId("subagent-entry-0-body")).toHaveAttribute("aria-hidden", "true");
   });
 
@@ -2067,7 +2121,7 @@ describe("the pool reads as a roster", () => {
     const { onChange } = await show(two());
     fireEvent.click(screen.getByTestId("subagent-entry-0-toggle"));
     expect(open(0)).toBe("true");
-    fireEvent.click(screen.getByTestId("subagent-entry-1-summary"));
+    fireEvent.click(screen.getByTestId("subagent-entry-1-name"));
     expect(open(0)).toBe("false");
     expect(open(1)).toBe("true");
     fireEvent.click(screen.getByTestId("subagent-entry-1-toggle"));
@@ -2078,10 +2132,9 @@ describe("the pool reads as a roster", () => {
   test("a pool of one starts open", async () => {
     await show(pool({ subagents: [entry()] }));
     expect(open(0)).toBe("true");
-    expect(screen.queryByTestId("subagent-entry-0-summary")).not.toBeInTheDocument();
   });
 
-  test("a folded row with something wrong says so, and the first such row starts open", async () => {
+  test("a folded row with something wrong counts it, and the first such row starts open", async () => {
     await show(
       pool({
         subagents: [
@@ -2093,19 +2146,152 @@ describe("the pool reads as a roster", () => {
     );
     expect(open(0)).toBe("false");
     expect(open(1)).toBe("true");
-    expect(screen.getByTestId("subagent-entry-2-summary").textContent).toMatch(
-      /allowed_modes must be a non-empty array/i,
-    );
+    /* The strip counts it; what it is is said in the body. */
+    expect(screen.getByTestId("process-problems-subagent-entry-2").textContent).toBe("1");
+    expect(screen.queryByTestId("process-problems-subagent-entry-0")).toBeNull();
+    expect(screen.getByTestId("subagent-entry-2-strip").textContent).not.toMatch(/allowed_modes/);
   });
 
   test("an added Agent opens, and the picker can be searched", async () => {
     const { onChange } = await show(two());
-    await open_picker();
     fireEvent.change(screen.getByPlaceholderText("Search Agents…"), { target: { value: "zzz" } });
     expect(screen.getByTestId("subagent-picker-no-match")).toBeInTheDocument();
     expect(screen.queryByLabelText("Reference Summarizer")).not.toBeInTheDocument();
     fireEvent.change(screen.getByPlaceholderText("Search Agents…"), { target: { value: "summ" } });
     fireEvent.click(screen.getByLabelText("Reference Summarizer"));
     expect(written(onChange)).toHaveLength(3);
+  });
+});
+
+describe("each subagent is its own block, folded like a Toolkit row", () => {
+  const two = () =>
+    pool({
+      subagents: [
+        entry({ description: "shortens long text" }),
+        entry({ id: "subagent-2", name: "Checker" }),
+      ],
+    });
+
+  test("one surface per subagent, each holding only its own entry", async () => {
+    await show(two());
+    const first = screen.getByTestId("subagent-entry-0-region");
+    const second = screen.getByTestId("subagent-entry-1-region");
+    expect(first).not.toBe(second);
+    expect(within(first).getByTestId("subagent-entry-0")).toBeInTheDocument();
+    expect(within(first).queryByTestId("subagent-entry-1")).toBeNull();
+    expect(within(second).getByTestId("subagent-entry-1")).toBeInTheDocument();
+    expect(first.contains(second)).toBe(false);
+  });
+
+  test("the folded strip carries the fold arrow and the way out, as a Toolkit row does", async () => {
+    const { onChange } = await show(two());
+    const strip = within(screen.getByTestId("subagent-entry-1-strip"));
+    expect(strip.getByTestId("subagent-entry-1-toggle")).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByTestId("subagent-entry-1-body")).toHaveAttribute("aria-hidden", "true");
+    fireEvent.click(strip.getByLabelText("Remove Checker"));
+    expect(written(onChange)).toHaveLength(1);
+  });
+
+  test("the strip holds the avatar, the name, the fold arrow, Open as an icon and the way out — and nothing else", async () => {
+    const onOpenSubagent = jest.fn();
+    await show(
+      pool({
+        subagents: [
+          entry({ description: "shortens long text" }),
+          entry({ id: "subagent-2", name: "Checker", source: { kind: "agent_ref", agent_id: "res-2" } }),
+        ],
+      }),
+      { onOpenSubagent },
+    );
+    const assert_strip = () => {
+      const strip = screen.getByTestId("subagent-entry-0-strip");
+      const toggle = screen.getByTestId("subagent-entry-0-toggle");
+      /* Avatar, name and arrow are the toggle; no description, no modes. */
+      expect(toggle.textContent).toBe("Summarizer");
+      expect(within(toggle).getByTestId("subagent-entry-0-icon")).toBeInTheDocument();
+      expect(strip.textContent).not.toMatch(/shortens long text|Delegate|Worker|No description/i);
+      expect(screen.queryByTestId("subagent-entry-0-modes")).toBeNull();
+      const buttons = Array.from(strip.children).filter((child) => child !== toggle);
+      expect(buttons).toHaveLength(2);
+      const [openButton, removeButton] = buttons;
+      expect(openButton).toHaveAttribute("aria-label", "Open Summarizer");
+      expect(openButton).toHaveAttribute("data-prefix-icon", "external_link");
+      expect(openButton).toHaveAttribute("title", "Open");
+      expect(openButton.getAttribute("data-label")).toBeNull();
+      expect(removeButton).toHaveAttribute("aria-label", "Remove Summarizer");
+      expect(removeButton).toHaveAttribute("data-prefix-icon", "close");
+      return openButton;
+    };
+    expect(screen.getByTestId("subagent-entry-0-toggle")).toHaveAttribute("aria-expanded", "false");
+    assert_strip();
+    fireEvent.click(screen.getByTestId("subagent-entry-0-toggle"));
+    expect(screen.getByTestId("subagent-entry-0-toggle")).toHaveAttribute("aria-expanded", "true");
+    /* Open, the strip is the same strip. */
+    fireEvent.click(assert_strip());
+    expect(onOpenSubagent).toHaveBeenCalledTimes(1);
+    expect(onOpenSubagent.mock.calls[0][0]).toMatchObject({ pool_node_id: "pool", entry_index: 0 });
+  });
+
+  test("a folded entry with problems shows only their count beside its name", async () => {
+    await show(
+      pool({
+        subagents: [
+          entry({ allowed_modes: [] }),
+          entry({ id: "subagent-2", name: "Checker", allowed_modes: [] }),
+        ],
+      }),
+    );
+    const strip = screen.getByTestId("subagent-entry-1-strip");
+    const badge = within(strip).getByTestId("process-problems-subagent-entry-1");
+    expect(badge.textContent).toBe("1");
+    expect(screen.getByTestId("subagent-entry-1-toggle").textContent).toBe("Checker1");
+  });
+
+  test("when to call it is the panel's own multi-line field, and still writes", async () => {
+    const { onChange } = await show(pool({ subagents: [entry()] }));
+    const field = screen.getByTestId("subagent-entry-0-description");
+    const box = within(field).getByLabelText("When to call it · the calling Agent reads this");
+    expect(box.tagName).toBe("TEXTAREA");
+    /* TextField, not a bare textarea: the textarea sits absolutely inside the
+       field's own sized box, and that box carries the panel's fill. */
+    expect(box.style.position).toBe("absolute");
+    expect(field.querySelectorAll("textarea")).toHaveLength(1);
+    /* And it is wired to the app's own overlay scrollbar, not the native one. */
+    expect(box).toHaveAttribute("data-sb-wall", "4");
+    expect(box).toHaveAttribute("placeholder", "what it is for (optional)");
+    fireEvent.change(box, { target: { value: "checks the summary" } });
+    expect(written(onChange)[0].description).toBe("checks the summary");
+  });
+
+  test("an added Agent opens with the caret in its when-to-call-it field", async () => {
+    /* The page takes the written document in the same tick, as the real
+       owner of the draft does. */
+    list_resources.mockResolvedValue({ ok: true, data: { resources: LIBRARY } });
+    function Host() {
+      const [current, setCurrent] = React.useState(() => doc(pool({ subagents: [entry()] })));
+      return <SubagentPoolSection document={current} node={current.nodes[1]} isDark={false} onChange={setCurrent} />;
+    }
+    render(<Host />);
+    await act(async () => {});
+    fireEvent.click(screen.getByLabelText("Reference Checker"));
+    await act(async () => {});
+    expect(screen.getByTestId("subagent-entry-1-toggle")).toHaveAttribute("aria-expanded", "true");
+    expect(
+      within(screen.getByTestId("subagent-entry-1-description")).getByRole("textbox"),
+    ).toHaveFocus();
+  });
+
+  test("the icon sits as far from the strip's top, bottom and left edges", async () => {
+    await show(two());
+    expect(SUBAGENT_STRIP).toEqual({ height: 36, avatar: 22, inset: 7 });
+    const strip = screen.getByTestId("subagent-entry-0-strip");
+    const icon = screen.getByTestId("subagent-entry-0-icon");
+    const height = parseFloat(strip.style.height);
+    const size = parseFloat(icon.style.width);
+    expect(parseFloat(icon.style.height)).toBe(size);
+    expect(strip.style.boxSizing).toBe("border-box");
+    expect(parseFloat(strip.style.paddingLeft)).toBe((height - size) / 2);
+    expect((height - size) / 2).toBe(7);
+    expect(icon.style.background).not.toMatch(/gradient/);
   });
 });

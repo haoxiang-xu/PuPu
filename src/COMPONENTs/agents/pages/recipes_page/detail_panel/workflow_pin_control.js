@@ -8,7 +8,7 @@ import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use
 import { agentError, agentMessage, renderAgentMessage } from "../agents_i18n";
 import { is_unavailable, list_resources, load_resource, publish_workflow } from "../skeleton_resources";
 import { remember_workflow_version, request_workflow_version, useWorkflowVersions, workflow_version_state } from "../workflow_versions";
-import { CAPTION_TEXT } from "./panel_style";
+import { CAPTION_TEXT, addButtonStyle, note, problem } from "./panel_style";
 
 /* Choosing and pinning one published Workflow revision (#357 Hooks Pool).
  *
@@ -31,12 +31,9 @@ import { CAPTION_TEXT } from "./panel_style";
  * which, and the run resolves exactly the pinned one. */
 
 const LABEL = CAPTION_TEXT;
-const NOTE = { fontSize: 11.5, color: "#86868b", lineHeight: 1.45 };
 const MONO = { fontFamily: "ui-monospace, Menlo, monospace" };
 const ROW = { display: "flex", alignItems: "center", gap: 6 };
-const FIELD = { width: "100%", fontSize: 12, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 8 };
-const SMALL = { fontSize: 11.5, paddingVertical: 2, paddingHorizontal: 8, borderRadius: 8 };
-const problem_style = (isDark) => ({ fontSize: 11.5, lineHeight: 1.45, color: isDark ? "rgba(255,140,140,0.95)" : "rgba(176,32,32,0.95)" });
+const FIELD = { width: "100%", fontSize: 12, paddingVertical: 4, paddingHorizontal: 6 };
 const PUBLISHING = agentMessage("agents.workflow.publishing");
 const record = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 
@@ -154,6 +151,9 @@ export default function WorkflowPinControl({ pin, stored, editable, onPin, isDar
     }),
   ];
   const working = pinState.status === "working";
+  const NOTE = note(isDark);
+  // In a row the small actions centre with their neighbours.
+  const SMALL = { ...addButtonStyle(isDark), alignSelf: "auto" };
   const pin_here = pin && pin.workflow_id === chosen;
 
   return (
@@ -171,18 +171,18 @@ export default function WorkflowPinControl({ pin, stored, editable, onPin, isDar
         />
       </span>
       {library.status === "error" && (
-        <span style={problem_style(isDark)}>
+        <span style={problem(isDark)}>
           {t("agents.workflow.library_failed", { message: renderAgentMessage(refusal_text(library.error, agentMessage("agents.workflow.store_refused")), t) })}{" "}
           <Button label={t("agents.explorer.try_again")} onClick={reloadLibrary} style={{ fontSize: 11.5, paddingVertical: 1, paddingHorizontal: 6 }} />
         </span>
       )}
       {record(stored) && !pin && (
-        <span data-testid={`${testid}-stored-invalid`} style={problem_style(isDark)}>
+        <span data-testid={`${testid}-stored-invalid`} style={problem(isDark)}>
           {t("agents.workflow.stored", { value: "\uE000" }).split("\uE000").map((part, index) => <React.Fragment key={index}>{index > 0 && <span style={MONO}>{safe_text(JSON.stringify(stored))}</span>}{part}</React.Fragment>)}
         </span>
       )}
       {stored !== undefined && !record(stored) && (
-        <span data-testid={`${testid}-stored-invalid`} style={problem_style(isDark)}>
+        <span data-testid={`${testid}-stored-invalid`} style={problem(isDark)}>
           {t("agents.workflow.stored_not_ref", { value: "\uE000" }).split("\uE000").map((part, index) => <React.Fragment key={index}>{index > 0 && <span style={MONO}>{safe_text(JSON.stringify(stored))}</span>}{part}</React.Fragment>)}
         </span>
       )}
@@ -198,7 +198,7 @@ export default function WorkflowPinControl({ pin, stored, editable, onPin, isDar
         </span>
       )}
       {pin && state && (state.status === "refused" || state.status === "unavailable") && (
-        <span style={{ ...ROW, ...problem_style(isDark) }}>
+        <span style={{ ...ROW, ...problem(isDark) }}>
           {state.error && state.error.code === "resource_missing"
             ? t("agents.workflow.missing_revision", { revision: safe_text(pin.revision_id), workflow: safe_text(pin.workflow_id) })
             : t("agents.workflow.revision_failed", { message: renderAgentMessage(refusal_text(state, agentMessage("agents.workflow.store_refused")), t) })}
@@ -223,7 +223,7 @@ export default function WorkflowPinControl({ pin, stored, editable, onPin, isDar
         </>
       )}
       {pinState.message && pinState.status !== "idle" && (
-        <span data-testid={`${testid}-pin-state`} style={pinState.status === "refused" ? problem_style(isDark) : NOTE}>{renderAgentMessage(pinState.message, t)}</span>
+        <span data-testid={`${testid}-pin-state`} style={pinState.status === "refused" ? problem(isDark) : NOTE}>{renderAgentMessage(pinState.message, t)}</span>
       )}
     </div>
   );

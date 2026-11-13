@@ -80,69 +80,10 @@ beforeEach(() => {
   });
 });
 
-/* Rows of the Agents explorer, found by their label. This store has no legacy
-   resolver, so the recipe cannot be proven migrated and stays under "Not
-   migrated", where it opens in the old editor. */
+/* Rows of the Agents explorer, found by their label. Legacy recipes are not
+   listed there (owner decision: no "Not migrated" group), so the switch from a
+   legacy recipe to a Skeleton Agent is no longer reachable from it. */
 const agentRow = (label) => within(screen.getByTestId("agent-explorer")).getByText(label);
-
-describe("switching from a legacy Recipe to a Skeleton Agent", () => {
-  const openSkeleton = async () => {
-    render(<Harness />);
-    await waitFor(() => expect(agentRow("OldRecipe")).toBeInTheDocument());
-    fireEvent.click(agentRow("OldRecipe"));
-    await waitFor(() => expect(screen.getByTestId("recipe-detail-panel")).toBeInTheDocument());
-    await waitFor(() => expect(agentRow("Reviewer")).toBeInTheDocument());
-    fireEvent.click(agentRow("Reviewer"));
-    await waitFor(() => expect(screen.getByTestId("skeleton-resource-page")).toBeInTheDocument());
-  };
-
-  test("the legacy node's detail panel is gone, not merely covered", async () => {
-    /* It was still mounted and still editable: a click there would have
-     * written to a recipe the author is no longer looking at. */
-    await openSkeleton();
-    expect(screen.queryByTestId("recipe-detail-panel-shell")).not.toBeInTheDocument();
-  });
-
-  test("its resize handle goes with it", async () => {
-    await openSkeleton();
-    expect(screen.queryByTestId("recipe-detail-resize-handle")).not.toBeInTheDocument();
-  });
-
-  test("the legacy panel is there again when a Recipe is chosen", async () => {
-    await openSkeleton();
-    fireEvent.click(agentRow("OldRecipe"));
-    await waitFor(() =>
-      expect(screen.getByTestId("recipe-detail-panel-shell")).toBeInTheDocument(),
-    );
-    expect(screen.queryByTestId("skeleton-resource-page")).not.toBeInTheDocument();
-  });
-});
-
-describe("undo while a Skeleton Agent is open", () => {
-  test("the keys step the open editor, never the legacy recipe left behind", async () => {
-    /* The legacy history kept listening while the native page was on screen,
-       so ⌘Z there also stepped a recipe nobody was looking at. */
-    render(<Harness />);
-    await waitFor(() => expect(agentRow("OldRecipe")).toBeInTheDocument());
-    fireEvent.click(agentRow("OldRecipe"));
-    /* Open the legacy agent on its own canvas, once the recipe is read. */
-    fireEvent.mouseDown(await screen.findByTestId("flow-node-a1"));
-    await waitFor(() => expect(within(screen.getByTestId("recipe-detail-panel")).getByText("Prompt")).toBeInTheDocument());
-    const fields = () => within(screen.getByTestId("recipe-detail-panel")).queryAllByRole("textbox").length;
-    const before = fields();
-    fireEvent.click(screen.getByText("+ Add field"));
-    const edited = fields();
-    expect(edited).toBeGreaterThan(before);
-
-    fireEvent.click(agentRow("Reviewer"));
-    expect(await screen.findByTestId("skeleton-resource-page")).toBeInTheDocument();
-    fireEvent.keyDown(window, { key: "z", metaKey: true });
-
-    fireEvent.click(agentRow("OldRecipe"));
-    await waitFor(() => expect(within(screen.getByTestId("recipe-detail-panel")).getByText("Prompt")).toBeInTheDocument());
-    expect(fields()).toBe(edited);
-  });
-});
 
 describe("drilling into a subagent of a Skeleton Agent", () => {
   /* The resource list is not the graph being edited, and switching from it

@@ -14,8 +14,69 @@ function fieldPathLabel(path) {
   }, "");
 }
 
+/* A path typed as text — `result.items[0].name`, `inputs.query`, or just
+   `items` — read back into the source it names. The first step may name the
+   side (`result`/`input`, singular or plural, or the side's label as shown);
+   without one the row keeps the side it already reads. After it, `.name` is a
+   field, `[3]` a list position and `["a.b"]` a field whose name needs quoting,
+   which is exactly how `fieldPathLabel` writes them. Anything else is not a
+   path: null, and nothing is written. */
+export function parse_typed_path(text, kinds, current, labels = {}) {
+  const raw = typeof text === "string" ? text.trim() : "";
+  if (!raw) return null;
+  const sides = (word) => {
+    const lower = word.toLowerCase();
+    return kinds.find((kind) => lower === kind || lower === `${kind}s` ||
+      (typeof labels[kind] === "string" && lower === labels[kind].toLowerCase())) || null;
+  };
+  let kind = kinds.includes(current) ? current : kinds.includes("result") ? "result" : kinds[0];
+  let rest = raw;
+  const head = /^([^.[\]]+)(?=$|[.[])/.exec(raw);
+  if (head && sides(head[1].trim())) {
+    kind = sides(head[1].trim());
+    rest = raw.slice(head[0].length);
+  } else if (head) {
+    rest = `.${raw}`;
+  }
+  const path = [];
+  while (rest.length) {
+    let match = /^\.([^.[\]]+)/.exec(rest);
+    if (match) {
+      path.push(match[1].trim());
+      rest = rest.slice(match[0].length);
+      continue;
+    }
+    match = /^\[(\d+)\]/.exec(rest);
+    if (match) {
+      const position = Number(match[1]);
+      if (!Number.isSafeInteger(position)) return null;
+      path.push(position);
+      rest = rest.slice(match[0].length);
+      continue;
+    }
+    match = /^\[("(?:[^"\\]|\\.)*")\]/.exec(rest);
+    if (match) {
+      try {
+        path.push(JSON.parse(match[1]));
+      } catch (error) {
+        return null;
+      }
+      rest = rest.slice(match[0].length);
+      continue;
+    }
+    return null;
+  }
+  if (path.some((segment) => segment === "")) return null;
+  return { kind, path };
+}
+
 export default function OutputValuePill({
   mapping, index, identity, nodeType, kinds, inputNames, resultRoots, problems, isDark, onChange, onRemove,
+  /* Opt-in, for nodes whose outputs reach inside a value: the value side is
+     typed as a path (`result.items[0]`) with the fields offered as you type,
+     and any depth is kept. Agent, Start and End leave it off and are exactly
+     as they were. */
+  typedPath = false,
 }) {
   const { t } = useTranslation();
   const [menu, setMenu] = useState(null);
@@ -46,9 +107,20 @@ export default function OutputValuePill({
   /* Where a result's field list is not closed (a Start's caller input, an
      Agent whose schema leaves room), a field the list does not name can be
      typed. Elsewhere the list is the whole truth and only a pick is offered. */
-  const typable = editable && kinds.length === 1 && kinds[0] === "result" && !resultRoots.closed;
+  const typable = editable && (typedPath || (kinds.length === 1 && kinds[0] === "result" && !resultRoots.closed));
   const editing = query !== null;
-  const filter = editing ? query.trim().toLowerCase() : "";
+  /* What the typed text is reaching for, so the list can follow it: only
+     the first step after the side is a field the list can offer. */
+  const typedFirst = typedPath && editing
+    ? (() => {
+      const text = query.trim();
+      const head = /^([^.[\]]*)/.exec(text)[1];
+      const named = head && kinds.find((kind) => [kind, `${kind}s`, String(labels[kind]).toLowerCase()].includes(head.toLowerCase()));
+      const after = named ? text.slice(head.length).replace(/^\./, "") : text;
+      return /^[^.[\]]*$/.test(after) ? { kind: named || null, text: after.toLowerCase() } : null;
+    })()
+    : null;
+  const filter = editing ? (typedPath ? (typedFirst ? typedFirst.text : "\u0000") : query.trim().toLowerCase()) : "";
 
   function setSource(kind, nextPath) {
     onChange({ ...mapping, source: { kind, path: nextPath } });
@@ -59,22 +131,32 @@ export default function OutputValuePill({
     setQuery(null);
   }
 
+  /* The text a typed-path row opens with: the side, then the path, written
+     the way the parser reads it back. */
+  const typedText = source
+    ? (kinds.length > 1 ? `${source.kind}${detail ? (detail.startsWith("[") ? detail : `.${detail}`) : ""}` : (detail || ""))
+    : "";
+
   function startTyping() {
     if (editing) return;
     const bounds = sourceRef.current.getBoundingClientRect();
     setMenu({ identity, x: bounds.left, y: bounds.bottom + 4 });
-    setQuery(detail || "");
+    setQuery(typedPath ? typedText : (detail || ""));
   }
 
   /* A typed name that differs from what is shown becomes the field read;
-     leaving it unchanged, or emptied, keeps the stored address. */
+     leaving it unchanged, or emptied, keeps the stored address. A typed path
+     that is not one is not written either. */
   function finishTyping() {
     const typed = editing ? query.trim() : "";
-    if (typed && typed !== (detail || "")) setSource("result", [typed]);
+    if (typedPath) {
+      const next = typed && typed !== typedText ? parse_typed_path(typed, kinds, source?.kind, labels) : null;
+      if (next && (next.kind !== source?.kind || JSON.stringify(next.path) !== JSON.stringify(path))) setSource(next.kind, next.path);
+    } else if (typed && typed !== (detail || "")) setSource("result", [typed]);
     closeTyping();
   }
 
-  const items = kinds.flatMap((kind, position) => [
+  const items = kinds.filter((kind) => !typedFirst || !typedFirst.kind || typedFirst.kind === kind).flatMap((kind, position) => [
     ...(position ? [{ type: "separator" }] : []),
     ...fields[kind].filter((field) => !filter || String(field).toLowerCase().includes(filter)).map((field) => ({
       label: <VariablePillValue label={labels[kind]}
@@ -94,7 +176,7 @@ export default function OutputValuePill({
   ]);
 
   return (
-    <div data-testid={testid} style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
+    <div data-testid={testid} style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
       <VariablePill testid={testid} isDark={isDark} name={name}
         onNameChange={(next) => onChange({ ...mapping, name: next })}
         onRemove={onRemove} removeLabel={removeLabel} sourceRef={sourceRef}>
@@ -139,13 +221,13 @@ export default function OutputValuePill({
       </div>
       {!editable && mapping?.source !== undefined && (
         <span data-testid={`${testid}-unreadable`}
-          style={{ fontSize: 10.5, overflowWrap: "anywhere", fontFamily: "ui-monospace, Menlo, monospace" }}>
+          style={{ fontSize: 10.5, overflowWrap: "anywhere", padding: "0 10px 7px", fontFamily: "ui-monospace, Menlo, monospace" }}>
           {JSON.stringify(mapping.source)}
         </span>
       )}
       {problems.map((problem, i) => (
         <span key={i} data-testid={`${testid}-problem-${i}`}
-          style={{ fontSize: 11.5, lineHeight: 1.45, overflowWrap: "anywhere", color: isDark ? "#ff8c8c" : "#b02020" }}>
+          style={{ fontSize: 11.5, lineHeight: 1.45, overflowWrap: "anywhere", padding: "0 10px 7px", color: isDark ? "#ff8c8c" : "#b02020" }}>
           {problem.message}
         </span>
       ))}

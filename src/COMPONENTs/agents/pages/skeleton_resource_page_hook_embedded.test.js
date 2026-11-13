@@ -297,7 +297,8 @@ test("Save as a Workflow under an id the library already has is refused by the s
   fireEvent.change(form.getByPlaceholderText("new Workflow id, e.g. redact-paths"), { target: { value: "import-root-code" } });
   fireEvent.click(form.getByRole("button", { name: "Save the copy" }));
   expect(await screen.findByTestId("hook-0-save-as-state")).toHaveTextContent("Nothing was saved");
-  expect(screen.getByTestId("hook-0-save-as-state")).toHaveTextContent("edit_conflict");
+  /* The store's code is for developers, not shown on the page. */
+  expect(screen.getByTestId("hook-0-save-as-state")).not.toHaveTextContent("edit_conflict");
   expect(store.held["import-root-code"]).toEqual(other);
 });
 

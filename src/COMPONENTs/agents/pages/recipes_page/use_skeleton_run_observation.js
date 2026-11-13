@@ -38,7 +38,11 @@ export default function useSkeletonRunObservation(scope) {
         if (!wanted()) return;
         if (!result || result.ok !== true) throw (typeof result?.error?.message === "string" ? new Error(result.error.message) : agentError("agents.runtime.observation_failed"));
         const accepted = accept_run_observation(run, result.data.run, request);
-        if (!accepted.ok) throw agentError("agents.runtime.observation_rejected", { code: accepted.error });
+        if (!accepted.ok) {
+          /* The reason is for developers; the page says only that it failed. */
+          console.warn("[run-observation] observation rejected:", accepted.error);
+          throw agentError("agents.runtime.observation_rejected", { code: accepted.error });
+        }
         run = accepted.run;
         setState({ key, run, phase: run ? "ready" : "empty", error: null, refreshing: false });
       } catch (error) {

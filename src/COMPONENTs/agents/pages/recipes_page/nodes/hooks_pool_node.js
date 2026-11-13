@@ -2,7 +2,7 @@ import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use
 import { node_display_title } from "../node_display_labels";
 import React from "react";
 import PuzzleShape from "./puzzle_shape";
-import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
+import NodeHeader, { NodeBody } from "./node_header";
 import { safe_text } from "../document_values";
 import { hook_pin, hooks_list } from "../hooks_pool_config";
 import { cached_workflow_version, useWorkflowVersions } from "../workflow_versions";
@@ -44,16 +44,13 @@ export default function HooksPoolNode({ node, isDark }) {
   return (
     <div data-testid={`hooks-pool-node-${node.id}`} style={{ width: 210 }}>
       <PuzzleShape tabs={[]} cutouts={["top", "bottom"]} isDark={isDark}>
-        <div style={{ padding: "14px 18px 10px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 28, height: 28, borderRadius: 9, background: "linear-gradient(135deg, #e0759a, #b94a74)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <Icon src="anchor" color="#fff" style={{ width: 16, height: 16 }} />
-            </div>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 12.5, fontWeight: 600, color: text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{node_display_title(node, t("agents.nodes.hooks_pool"))}</div>
-              <div style={{ fontSize: 10.5, color: muted, marginTop: 2 }}>{subtitle}</div>
-            </div>
-          </div>
+        <NodeBody>
+          <NodeHeader
+            src="anchor"
+            tile={{ background: "#b94a74" }}
+            title={node_display_title(node, t("agents.nodes.hooks_pool"))}
+            subtitle={subtitle}
+          />
           {shown.length > 0 && (
             <div style={{ marginTop: 8, paddingTop: 6, borderTop: "1px solid var(--pupu-border-subtle)", display: "flex", flexDirection: "column", gap: 2 }}>
               {shown.map(({ entry, index }) => {
@@ -77,7 +74,7 @@ export default function HooksPoolNode({ node, isDark }) {
               {sorted.length > shown.length && <div style={{ fontSize: 10.5, color: muted }}>{t("agents.nodes.more", { count: sorted.length - shown.length })}</div>}
             </div>
           )}
-        </div>
+        </NodeBody>
       </PuzzleShape>
     </div>
   );

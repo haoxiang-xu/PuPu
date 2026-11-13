@@ -3,11 +3,11 @@ import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
 import useReducedMotion from "../../../../../BUILTIN_COMPONENTs/mini_react/use_reduced_motion";
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import InputVariablesSection from "./input_variables_section";
-import OutputVariablesSection from "./output_variables_section";
+import OutputVariablesSection, { visible_output_rows } from "./output_variables_section";
 import OutputSchemaSection from "./output_schema_section";
 import KernelSection from "./kernel_section";
 import PanelHelp from "./panel_help";
-import { node_bindings, node_output_mappings } from "../skeleton_document";
+import { node_bindings } from "../skeleton_document";
 
 /* One column, one kind of heading. What an Agent is comes first and stays in
    view: its model and its prompt, never folded. Under them, what it is wired
@@ -33,13 +33,16 @@ export const captionStyle = (isDark) => ({
 });
 
 /* How many things are wrong, as a number you can see while the part that
-   holds them is folded or scrolled away. */
+   holds them is folded or scrolled away. Jost's line box puts a digit about
+   1px above the middle of a 16px pill (ink 3.3px from the top, 5.3px from the
+   bottom); 2px at the top and none at the bottom centres it. */
+export const PROBLEM_COUNT_PADDING = "2px 5px 0";
 export function ProblemCount({ count, section, isDark }) {
   if (!count) return null;
   return (
     <span data-testid={`process-problems-${section}`} role="status" aria-label={String(count)}
       style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-        minWidth: 16, height: 16, padding: "0 5px", boxSizing: "border-box", borderRadius: 999,
+        minWidth: 16, height: 16, padding: PROBLEM_COUNT_PADDING, boxSizing: "border-box", borderRadius: 999,
         fontSize: 10.5, fontWeight: 600, lineHeight: 1, pointerEvents: "none",
         color: isDark ? "#ff9c9c" : "#a52a2a",
         background: isDark ? "rgba(255,120,120,0.18)" : "rgba(176,32,32,0.1)" }}>
@@ -158,7 +161,7 @@ export default function ProcessTimeline({ document, node, revision, isDark, onCh
         { key: "input", title: t("agents.io.input_variables"), content: input, problems: inputProblems,
           summary: countOf(node_bindings(node)) },
         { key: "output", title: t("agents.io.output_variables"), content: output, problems: outputProblems,
-          summary: countOf(node_output_mappings(node)) },
+          summary: countOf(visible_output_rows(node, rowDiagnostics?.outputs, document).map((row) => row.mapping)) },
       ];
       return (
         <div data-testid="process-detail-timeline" style={{ display: "flex", flexDirection: "column", gap: 20, minWidth: 0 }}>

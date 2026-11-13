@@ -6,6 +6,7 @@ jest.mock("./panel_help", () => function GuidanceText({ children }) { return <>{
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import OutputVariablesSection, {
   output_surface_problems,
+  result_root_problems,
 } from "./output_variables_section";
 import { node_output_mappings, output_source_kinds_for } from "../skeleton_document";
 
@@ -74,6 +75,80 @@ function show(n, extra = {}) {
 }
 
 const mapping = (name, kind, path = []) => ({ name, source: { kind, path } });
+
+describe("Agent context is preserved outside the ordinary output controls", () => {
+  test.each([false, true])("opening the editor hides metadata without changing the document (pill=%s)", (breadcrumb) => {
+    const n = node("agent", { outputs: [
+      mapping("run_info", "result", ["context"]),
+      mapping("reply", "result", ["message"]),
+      mapping("context", "result", ["message"]),
+    ] });
+    const before = JSON.stringify(n);
+    const write = show(n, { breadcrumb });
+    expect(screen.queryByTestId("output-row-0")).not.toBeInTheDocument();
+    expect(screen.getByDisplayValue("reply")).toBeInTheDocument();
+    // A business output called context is not the system result field.
+    expect(screen.getByDisplayValue("context")).toBeInTheDocument();
+    expect(write).not.toHaveBeenCalled();
+    expect(JSON.stringify(n)).toBe(before);
+    expect(result_root_problems(n, node_output_mappings(n))).toEqual([]);
+  });
+
+  test("editing a visible row retains hidden mappings, their positions and downstream references", () => {
+    const hidden = mapping("run_info", "result", ["context", "model"]);
+    const n = node("agent", { outputs: [hidden, mapping("reply", "result", ["message"])] });
+    const document = doc(n);
+    document.nodes.push({ id: "downstream", type: "end", config: { execution: {
+      inputs: [{ name: "model", value: { kind: "ref", node_id: "n", path: ["run_info"] }, missing: "error" }],
+      outputs: [],
+    } } });
+    const write = show(n, { document });
+    expect(screen.queryByTestId("output-row-0")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByDisplayValue("reply"), { target: { value: "answer" } });
+    const saved = write.mock.calls.at(-1)[0];
+    expect(saved.nodes[0].config.execution.outputs).toEqual([hidden, mapping("answer", "result", ["message"])]);
+    expect(saved.nodes[1]).toEqual(document.nodes[1]);
+    expect(n.config.execution.outputs[1].name).toBe("reply");
+  });
+
+  test("removing or adding a visible output leaves the stored context mapping intact", () => {
+    const hidden = mapping("run_info", "result", ["context"]);
+    const n = node("agent", { outputs: [hidden, mapping("reply", "result", ["message"])] });
+    const write = show(n);
+    fireEvent.click(screen.getByLabelText("Remove reply"));
+    expect(write.mock.calls.at(-1)[0].nodes[0].config.execution.outputs).toEqual([hidden]);
+    fireEvent.click(screen.getByLabelText(/Add output$/));
+    const outputs = write.mock.calls.at(-1)[0].nodes[0].config.execution.outputs;
+    expect(outputs.slice(0, 2)).toEqual(n.config.execution.outputs);
+    expect(outputs).toHaveLength(3);
+  });
+
+  test("the ordinary source picker omits context and still offers message", () => {
+    show(node("agent", { outputs: [mapping("reply", "result", ["message"])] }));
+    const labels = screen.getAllByRole("option").map((option) => option.textContent);
+    expect(labels).toContain("message");
+    expect(labels).not.toContain("context");
+  });
+
+  test.each(["code", "start"])("a %s node's business field named context is still editable", (type) => {
+    show(node(type, { outputs: [mapping("context", "result", ["context"])] }));
+    expect(screen.getByPlaceholderText("name")).toHaveValue("context");
+  });
+
+  test("an Agent's input named context remains an ordinary output source", () => {
+    show(node("agent", { inputs: [{ name: "context" }], outputs: [mapping("copied", "input", ["context"])] }));
+    expect(screen.getByDisplayValue("copied")).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "context" })).toBeInTheDocument();
+  });
+
+  test("metadata with a diagnostic stays available for repair", () => {
+    show(node("agent", { outputs: [mapping("run_info", "result", ["context"])] }), {
+      rowDiagnostics: { 0: [{ code: "invalid_shape", message: "Repair this stored output" }] },
+    });
+    expect(screen.getByDisplayValue("run_info")).toBeInTheDocument();
+    expect(screen.getByText("Repair this stored output")).toBeInTheDocument();
+  });
+});
 
 describe("which nodes have outputs at all", () => {
   /* Taken from the runtime's own per-type key sets, not from what looks

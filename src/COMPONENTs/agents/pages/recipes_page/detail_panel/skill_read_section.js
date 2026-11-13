@@ -1,4 +1,3 @@
-import PanelHelp from "./panel_help";
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { agentEnglishText } from "../agents_i18n";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -18,7 +17,8 @@ import {
   with_skill,
   without_inputs,
 } from "../skill_read_config";
-import { CAPTION_TEXT } from "./panel_style";
+import { addButtonStyle, note, problem as problemOf, Region } from "./panel_style";
+import { Block } from "./process_timeline";
 
 /* A Skill Read node: one skill, read by the runtime when the run reaches it
  * (#352). Every rule here is the fixed runtime's (see `skill_read_config`):
@@ -35,23 +35,14 @@ import { CAPTION_TEXT } from "./panel_style";
  * the user-skills switch is on, the same switch a chat run reads) and the
  * installed skill packs. */
 
-const LABEL = CAPTION_TEXT;
-const NOTE = { fontSize: 11.5, color: "#86868b", lineHeight: 1.45 };
 const MONO = { fontFamily: "ui-monospace, Menlo, monospace" };
 const ROW = { display: "flex", alignItems: "center", gap: 6 };
-const FIELD = { width: "100%", fontSize: 12, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 8 };
+const FIELD = { width: "100%", fontSize: 12, paddingVertical: 4, paddingHorizontal: 6 };
 const SMALL_BUTTON = { fontSize: 11.5, paddingVertical: 1, paddingHorizontal: 6 };
 const STORED = "\u0000stored";
 const IDENTITY_KEYS = ["source", "source_id", "name"];
-const problem_style = (isDark) => ({
-  fontSize: 11.5,
-  lineHeight: 1.45,
-  color: isDark ? "rgba(255,140,140,0.95)" : "rgba(176,32,32,0.95)",
-});
-
-function Divider({ isDark }) {
-  return <div aria-hidden="true" style={{ height: 6 }} />;
-}
+/* A text action that sits in a row beside what it removes. */
+const inRowButtonStyle = (isDark) => ({ ...addButtonStyle(isDark), alignSelf: "center", flexShrink: 0 });
 
 const size_text = (bytes, t = agentEnglishText) => (bytes < 1024 ? t("agents.execution.skill.bytes", { count: bytes }) : t("agents.execution.skill.kilobytes", { count: (bytes / 1024).toFixed(1) }));
 
@@ -148,43 +139,38 @@ export default function SkillReadSection({ document, node, isDark, onChange }) {
   const extras = Object.keys(node.config || {}).filter((key) => !["execution", "skill"].includes(key));
 
   return (
-    <section data-testid="skill-read-section" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+    <section data-testid="skill-read-section" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {!editable && (
-        <div style={problem_style(isDark)}>
+        <div style={problemOf(isDark)}>
           {!unique ? t("agents.execution.read_only.duplicate_ids") : t("agents.execution.read_only.stored")}
         </div>
       )}
 
-      <div data-testid="skill-read-inputs" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <span style={LABEL}>{t("agents.io.input_variables")}</span>
+      <div data-testid="skill-read-inputs" style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+      <Block section="skill-read-inputs" title={t("agents.io.input_variables")} isDark={isDark}>
         {inputs.length === 0 ? (
-          <span style={NOTE}>{t("agents.execution.skill.no_inputs")}</span>
+          <span style={note(isDark)}>{t("agents.execution.skill.no_inputs")}</span>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span style={problem_style(isDark)}>
+            <span style={problemOf(isDark)}>
               {inputs.length === 1 ? t("agents.execution.skill.one_input") : t("agents.execution.skill.many_inputs", { count: inputs.length })}
             </span>
             <span>
               <Button label={t("agents.execution.skill.remove_inputs")} disabled={!editable} onClick={() => commit(without_inputs(document, node.id))}
-                style={{ ...SMALL_BUTTON, paddingVertical: 2, borderRadius: 8 }} />
+                style={addButtonStyle(isDark)} />
             </span>
           </div>
         )}
+      </Block>
       </div>
 
-      <Divider isDark={isDark} />
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-          <span style={LABEL}>{t("agents.execution.skill.skill")}</span>
-          <PanelHelp label={t("agents.execution.skill.skill")}>
-            <span style={NOTE}>
+      <Block section="skill-read-skill" title={t("agents.execution.skill.skill")} isDark={isDark} help={
+            <span style={note(isDark)}>
               {includeUserDirs
               ? t("agents.execution.skill.all_sources_note")
               : t("agents.execution.skill.packs_only_note")}
             {" "}{t("agents.execution.skill.project_sources_note")}</span>
-          </PanelHelp>
-        </div>
+      }>
         <span data-testid="skill-read-picker">
           <Select
             options={options}
@@ -202,43 +188,37 @@ export default function SkillReadSection({ document, node, isDark, onChange }) {
           />
         </span>
         {list.status === "error" && (
-          <span data-testid="skill-read-list-error" style={problem_style(isDark)}>{t("agents.execution.skill.list_failed")}<Button label={t("agents.explorer.try_again")} onClick={reloadList} style={SMALL_BUTTON} />
+          <span data-testid="skill-read-list-error" style={problemOf(isDark)}>{t("agents.execution.skill.list_failed")}<Button label={t("agents.explorer.try_again")} onClick={reloadList} style={SMALL_BUTTON} />
           </span>
         )}
         {identity && !exact && (
-          <span data-testid="skill-read-stored" style={NOTE}>
+          <span data-testid="skill-read-stored" style={note(isDark)}>
             {t("agents.execution.skill.stored_identity", { identity: "{identity}", extra: "{extra}" }).split(/(\{identity\}|\{extra\})/g).map((part, index) => ({ __proto__: null, "{identity}": (<React.Fragment key={index}>{IDENTITY_KEYS.map((key, index) => <span key={key}>{index > 0 ? t("agents.schema.fields.list_separator") : ""}{key} <span style={MONO}>{safe_text(identity[key])}</span></span>)}</React.Fragment>), "{extra}": (<React.Fragment key={index}>{Object.keys(identity).filter((key) => !IDENTITY_KEYS.includes(key)).map((key) => <span key={`extra-${key}`}>{t("agents.schema.fields.list_separator")}{t("agents.execution.skill.extra_setting", { setting: "{setting}" }).split("{setting}").map((part, at) => <React.Fragment key={at}>{at > 0 && <span style={MONO}>{safe_text(key)}</span>}{part}</React.Fragment>)}</span>)}</React.Fragment>) }[part] || part))}
           </span>
         )}
-        {listed && listed.description && <span style={NOTE}>{listed.description}</span>}
+        {listed && listed.description && <span style={note(isDark)}>{listed.description}</span>}
         {identity && complete && (
-          <span data-testid="skill-read-source" style={NOTE}>
+          <span data-testid="skill-read-source" style={note(isDark)}>
             {t("agents.execution.skill.source_location", { location: "{location}", source: "{source}" }).split(/(\{location\}|\{source\})/g).map((part, index) => ({ __proto__: null, "{location}": (<span key={index} style={MONO}>{safe_text(identity.source_id)}</span>), "{source}": source_label(identity.source, t) }[part] || part))}
           </span>
         )}
-
-      </div>
+      </Block>
 
       {complete && (
-        <div data-testid="skill-read-preview" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <div style={{ ...ROW, justifyContent: "space-between" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-              <span style={LABEL}>{t("agents.execution.skill.preview")}</span>
-              <PanelHelp label={t("agents.execution.skill.preview")}>
-                <span style={NOTE}>{t("agents.execution.skill.preview_note")}</span>
-              </PanelHelp>
-            </div>
-            {preview.status === "ready" && (
-              <span data-testid="skill-read-preview-size" style={NOTE}>{size_text(preview.preview.bytes, t)}</span>
-            )}
-          </div>
-          {preview.status === "loading" && <span style={NOTE}>{t("agents.execution.skill.reading_preview", { name: safe_text(identity.name) })}</span>}
+        <div data-testid="skill-read-preview" style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+          <Block section="skill-read-preview" title={t("agents.execution.skill.preview")} isDark={isDark}
+            help={<span style={note(isDark)}>{t("agents.execution.skill.preview_note")}</span>}
+            aside={preview.status === "ready" ? (
+              <span data-testid="skill-read-preview-size">{size_text(preview.preview.bytes, t)}</span>
+            ) : undefined}>
+          {preview.status === "loading" && <span style={note(isDark)}>{t("agents.execution.skill.reading_preview", { name: safe_text(identity.name) })}</span>}
           {preview.status === "error" && (
-            <span data-testid="skill-read-preview-error" style={problem_style(isDark)}>
+            <span data-testid="skill-read-preview-error" style={problemOf(isDark)}>
               {refusal_text(preview.error, t)} <Button label={t("agents.explorer.try_again")} onClick={reloadPreview} style={SMALL_BUTTON} />
             </span>
           )}
           {preview.status === "ready" && (
+            <Region isDark={isDark}>
             <pre
               data-testid="skill-read-preview-body"
               style={{
@@ -251,20 +231,19 @@ export default function SkillReadSection({ document, node, isDark, onChange }) {
                 whiteSpace: "pre-wrap",
                 wordBreak: "break-word",
                 padding: "8px 10px",
-                borderRadius: 8,
-                background: isDark ? "rgba(255,255,255,0.075)" : "rgba(0,0,0,0.045)",
               }}
             >
               {preview.preview.body}
             </pre>
+            </Region>
           )}
-
+          </Block>
         </div>
       )}
 
       {extras.map((key) => (
         <div key={key} data-testid={`skill-read-setting-${key}`} style={{ ...ROW, justifyContent: "space-between" }}>
-          <span style={problem_style(isDark)}>{t("agents.execution.skill.unsupported_setting", { key: safe_text(key) })}</span>
+          <span style={problemOf(isDark)}>{t("agents.execution.skill.unsupported_setting", { key: safe_text(key) })}</span>
           <Button
             label={t("agents.execution.skill.remove_setting")}
             ariaLabel={t("agents.execution.skill.remove_setting_key", { key: key })}
@@ -274,7 +253,7 @@ export default function SkillReadSection({ document, node, isDark, onChange }) {
               delete config[key];
               commit({ ...document, nodes: document.nodes.map((item) => (item === node ? { ...node, config } : item)) });
             }}
-            style={{ ...SMALL_BUTTON, paddingVertical: 2, borderRadius: 8 }}
+            style={inRowButtonStyle(isDark)}
           />
         </div>
       ))}
@@ -282,7 +261,7 @@ export default function SkillReadSection({ document, node, isDark, onChange }) {
       {problems.length > 0 && (
         <div data-testid="skill-read-problems" style={{ display: "flex", flexDirection: "column", gap: 2 }}>
           {problems.map((problem, index) => (
-            <span key={index} style={problem_style(isDark)}>{problem.message}</span>
+            <span key={index} style={problemOf(isDark)}>{problem.message}</span>
           ))}
         </div>
       )}

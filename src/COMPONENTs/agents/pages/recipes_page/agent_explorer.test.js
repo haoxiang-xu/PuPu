@@ -6,6 +6,7 @@ import { api } from "../../../../SERVICEs/api";
 import { emitSkeletonLibraryRefresh } from "../../../../SERVICEs/skeleton_library_refresh";
 import { getFolderState, resetAgentFolderStorageForTests, setFolderState } from "../../../../SERVICEs/agent_folder_storage";
 import { LocaleContext } from "../../../../CONTAINERs/config/context";
+import capture from "./managed_code_capture.json";
 
 /* The Agents side menu (owner decision 2026-10-22: back to the original
  * explorer, native Agents only, legacy folders carried over by alias). The
@@ -16,6 +17,32 @@ import { LocaleContext } from "../../../../CONTAINERs/config/context";
  * listening, no creation without a save bridge. */
 
 jest.mock("../../../../SERVICEs/api", () => ({ api: { unchain: {} } }));
+/* The side menu reports a failed action as a toast. The toast service is a
+   recording fake; ToastProbe draws what is showing, under whatever language
+   the test renders it in, so an alert is read where a person would see it. */
+const mockToasts = { items: [], next: 1, listeners: new Set() };
+jest.mock("../../../../SERVICEs/toast", () => {
+  const changed = () => mockToasts.listeners.forEach((listener) => listener());
+  return { toast: {
+    // Plain functions: the CRA config resets jest.fn implementations per test.
+    error: (message, options = {}) => {
+      const id = `toast-${mockToasts.next++}`;
+      mockToasts.items = [...mockToasts.items, { id, message, options }];
+      changed();
+      return id;
+    },
+    dismiss: (id) => { mockToasts.items = mockToasts.items.filter((item) => item.id !== id); changed(); },
+  } };
+});
+function ToastProbe() {
+  const [, repaint] = React.useState(0);
+  React.useEffect(() => {
+    const listener = () => repaint((n) => n + 1);
+    mockToasts.listeners.add(listener);
+    return () => mockToasts.listeners.delete(listener);
+  }, []);
+  return mockToasts.items.map((item) => <div key={item.id} role="alert">{item.message}</div>);
+}
 /* The editor speaks v2 only (#357 G1); these mocks are graph-only. */
 install_legacy_store_bridge(api.unchain);
 const explorers = [];
@@ -54,6 +81,9 @@ jest.mock("../../../../BUILTIN_COMPONENTs/input/button", () => function MockButt
 });
 
 const agent = (id, name = id, extra = {}) => ({ id, name, kind: "agent", archived: false, edit_token: `token-${id}`, ...extra });
+/* What the store reads back for one: Rename and Duplicate rewrite the stored
+   document through the v2 aggregate (the legacy bridge stands in for it). */
+const stored = (id, name = id, extra = {}) => ({ ...agent(id, name, extra), document: { id, name, kind: "agent", nodes: [], edges: [] } });
 const missing = () => Object.assign(new Error("selected legacy resource was not found"), { code: "resource_missing" });
 const deferred = () => {
   let resolve;
@@ -67,7 +97,7 @@ const props = (extra = {}) => ({
 });
 const show = (extra) => {
   const p = props(extra);
-  const view = render(<AgentExplorer {...p} />);
+  const view = render(<><AgentExplorer {...p} /><ToastProbe /></>);
   return { ...view, p };
 };
 const openMenu = (rowId) => fireEvent.click(screen.getByTestId(`menu-${rowId}`));
@@ -78,6 +108,7 @@ beforeEach(() => {
   localStorage.clear();
   delete window.settingsStorageAPI;
   resetAgentFolderStorageForTests();
+  act(() => { mockToasts.items = []; mockToasts.listeners.forEach((listener) => listener()); });
   Object.keys(api.unchain).forEach((key) => delete api.unchain[key]);
   api.unchain.saveSkeletonResource = jest.fn();
 });
@@ -88,9 +119,10 @@ describe("locale changes preserve the live resource action", () => {
     const nextName = "  My raw 名称 {value}  ";
     const item = Object.freeze(agent("id-{raw}", rawName));
     api.unchain.listSkeletonResources = jest.fn().mockResolvedValue([item]);
-    api.unchain.renameSkeletonResource = jest.fn().mockResolvedValue(agent(item.id, nextName.trim()));
+    api.unchain.getSkeletonResource = jest.fn().mockResolvedValue(stored(item.id, rawName));
+    api.unchain.saveSkeletonResource = jest.fn(async ({ document }) => stored(document.id, document.name));
     const p = props({ activeId: item.id });
-    const tree = (locale) => <LocaleContext.Provider value={{ locale }}><AgentExplorer {...p} /></LocaleContext.Provider>;
+    const tree = (locale) => <LocaleContext.Provider value={{ locale }}><AgentExplorer {...p} /><ToastProbe /></LocaleContext.Provider>;
     const view = render(tree("en"));
     await screen.findByTestId(`row-resource:${item.id}`);
     openMenu(`resource:${item.id}`);
@@ -108,14 +140,15 @@ describe("locale changes preserve the live resource action", () => {
       expect(current).toHaveValue(nextName);
       expect([current.selectionStart, current.selectionEnd]).toEqual([3, 9]);
       expect(api.unchain.listSkeletonResources).toHaveBeenCalledTimes(1);
-      expect(api.unchain.renameSkeletonResource).not.toHaveBeenCalled();
+      expect(api.unchain.getSkeletonResource).not.toHaveBeenCalled();
       expect(api.unchain.saveSkeletonResource).not.toHaveBeenCalled();
       expect(JSON.stringify(getFolderState())).toBe(folderBefore);
       expect(p.onActiveChanged).not.toHaveBeenCalled();
     }
     fireEvent.keyDown(input, { key: "Enter" });
-    await waitFor(() => expect(api.unchain.renameSkeletonResource).toHaveBeenCalledTimes(1));
-    expect(api.unchain.renameSkeletonResource).toHaveBeenCalledWith(item.id, nextName.trim(), item.edit_token);
+    await waitFor(() => expect(api.unchain.saveSkeletonResource).toHaveBeenCalledTimes(1));
+    const [{ document, expected_edit_token }] = api.unchain.saveSkeletonResource.mock.calls[0];
+    expect([document.id, document.name, expected_edit_token]).toEqual([item.id, nextName.trim(), item.edit_token]);
     expect(item.name).toBe(rawName);
   });
 
@@ -125,9 +158,10 @@ describe("locale changes preserve the live resource action", () => {
     const rawError = "RAW_BACKEND {message} é document.nodes[0]";
     const item = Object.freeze(agent("opaque-resource-id", rawName));
     api.unchain.listSkeletonResources = jest.fn().mockResolvedValue([item]);
-    api.unchain.renameSkeletonResource = jest.fn().mockReturnValue(pending.promise);
+    api.unchain.getSkeletonResource = jest.fn().mockReturnValue(pending.promise);
+    api.unchain.saveSkeletonResource = jest.fn();
     const p = props({ activeId: item.id });
-    const tree = (locale) => <LocaleContext.Provider value={{ locale }}><AgentExplorer {...p} /></LocaleContext.Provider>;
+    const tree = (locale) => <LocaleContext.Provider value={{ locale }}><AgentExplorer {...p} /><ToastProbe /></LocaleContext.Provider>;
     const view = render(tree("en"));
     await screen.findByTestId(`row-resource:${item.id}`);
     openMenu(`resource:${item.id}`);
@@ -146,7 +180,7 @@ describe("locale changes preserve the live resource action", () => {
     view.rerender(tree("zh-CN"));
     expect(screen.getByRole("alert")).toHaveTextContent(`无法重命名“${rawName}”：${rawError}`);
     expect(api.unchain.listSkeletonResources).toHaveBeenCalledTimes(readsAfterAction);
-    expect(api.unchain.renameSkeletonResource).toHaveBeenCalledTimes(1);
+    expect(api.unchain.getSkeletonResource).toHaveBeenCalledTimes(1);
     expect(api.unchain.saveSkeletonResource).not.toHaveBeenCalled();
     expect(p.onActiveChanged).not.toHaveBeenCalled();
     expect(item.name).toBe(rawName);
@@ -165,7 +199,8 @@ describe("what is listed", () => {
 
   test("a build with no store lists no Agents and does not claim an empty library", async () => {
     show({ recipes: [{ name: "Old" }] });
-    expect(await screen.findByTestId("row-legacy:Old")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "New Agent" })).toBeInTheDocument();
+    expect(screen.queryByTestId("row-legacy:Old")).toBeNull();
     expect(screen.queryByTestId("agent-explorer-empty")).toBeNull();
     expect(screen.getByRole("button", { name: "New Agent" })).toBeDisabled();
   });
@@ -187,50 +222,15 @@ describe("what is listed", () => {
     expect(await screen.findByTestId("row-resource:a")).toBeInTheDocument(); // a bare array is accepted too
   });
 
-  test("a migrated recipe appears once, as its Agent; one with no migrated Agent stays reachable in the old editor", async () => {
+  test("legacy recipes are never listed — no \"Not migrated\" group, row or note — whatever the store says", async () => {
     api.unchain.listSkeletonResources = jest.fn().mockResolvedValue({ resources: [agent("legacy-default", "Default")] });
-    api.unchain.resolveSkeletonResource = jest.fn(async ({ legacy_name, source_scope }) => {
-      expect(source_scope).toBe("user:agent_recipes");
-      if (legacy_name === "Default") return agent("legacy-default", "Default");
-      throw missing();
-    });
-    const { p } = show({ recipes: [{ name: "Default" }, { name: "Ghost" }] });
-    expect(await screen.findByTestId("row-legacy:Ghost")).toBeInTheDocument();
-    expect(screen.queryByTestId("row-legacy:Default")).toBeNull();
-    expect(screen.getByTestId("main-tree")).toHaveTextContent("Default");
-    fireEvent.click(screen.getByTestId("open-legacy:Ghost"));
-    expect(p.onSelectLegacy).toHaveBeenCalledWith("Ghost");
-    expect(screen.getByTestId("postfix-legacy:Ghost")).toHaveTextContent("old editor");
-  });
-
-  test("a recipe the store holds several Agents for is not listed as not migrated", async () => {
-    /* legacy_name_ambiguous means it WAS migrated, more than once: its Agents
-       are in the main tree, so listing it again would show it twice. */
-    api.unchain.listSkeletonResources = jest.fn().mockResolvedValue([agent("w1", "Writer"), agent("w2", "Writer")]);
-    api.unchain.resolveSkeletonResource = jest.fn(async ({ legacy_name }) => {
-      if (legacy_name === "Writer") throw Object.assign(new Error("selected legacy name is ambiguous"), { code: "legacy_name_ambiguous" });
-      throw missing();
-    });
-    show({ recipes: [{ name: "Writer" }, { name: "Ghost" }] });
-    expect(await screen.findByTestId("row-legacy:Ghost")).toBeInTheDocument();
-    expect(screen.queryByTestId("row-legacy:Writer")).toBeNull();
-    expect(screen.getByTestId("row-resource:w1")).toBeInTheDocument();
-    expect(screen.getByTestId("row-resource:w2")).toBeInTheDocument();
-  });
-
-  test("a recipe whose migration could not be checked is checked again once the library answers again", async () => {
-    /* Otherwise a sidecar that was briefly unreachable leaves a migrated
-       recipe listed twice — as its Agent and as "not migrated" — for good. */
-    api.unchain.listSkeletonResources = jest.fn().mockResolvedValue([agent("legacy-w", "Writer")]);
-    api.unchain.resolveSkeletonResource = jest.fn()
-      .mockRejectedValueOnce(Object.assign(new Error("sidecar busy"), { code: "unchain_unavailable" }))
-      .mockResolvedValueOnce(agent("legacy-w", "Writer"));
-    show({ recipes: [{ name: "Writer" }] });
-    expect(await screen.findByTestId("row-legacy:Writer")).toBeInTheDocument();
-    act(() => { emitSkeletonLibraryRefresh(); });
-    await waitFor(() => expect(screen.queryByTestId("row-legacy:Writer")).toBeNull());
-    expect(api.unchain.resolveSkeletonResource).toHaveBeenCalledTimes(2);
-    expect(screen.getByTestId("row-resource:legacy-w")).toBeInTheDocument();
+    api.unchain.resolveSkeletonResource = jest.fn(async () => { throw missing(); });
+    show({ recipes: [{ name: "Default" }, { name: "Ghost" }] });
+    expect(await screen.findByTestId("row-resource:legacy-default")).toBeInTheDocument();
+    expect(screen.queryByTestId("row-legacy:Ghost")).toBeNull();
+    expect(screen.queryByTestId("row-group:not-migrated")).toBeNull();
+    expect(screen.queryByText(/Not migrated|old editor/i)).toBeNull();
+    expect(screen.queryByTestId("agent-explorer-side")).toBeNull();
   });
 
   test("with nothing open, the chat's default Agent is opened — only when exactly one active Agent is named Default", async () => {
@@ -366,7 +366,9 @@ describe("creating", () => {
 describe("the right-click verbs", () => {
   test("rename uses the listed token, refreshes, and asks the open editor to re-read", async () => {
     api.unchain.listSkeletonResources = jest.fn().mockResolvedValue([agent("a", "Alpha")]);
-    api.unchain.renameSkeletonResource = jest.fn().mockResolvedValue(agent("a", "Omega"));
+    api.unchain.getSkeletonResource = jest.fn().mockResolvedValue(stored("a", "Alpha"));
+    api.unchain.saveSkeletonResource = jest.fn(async ({ document }) => stored(document.id, document.name));
+    api.unchain.renameSkeletonResource = jest.fn();
     const { p } = show({ activeId: "a" });
     await screen.findByTestId("row-resource:a");
     openMenu("resource:a");
@@ -374,14 +376,18 @@ describe("the right-click verbs", () => {
     const input = within(screen.getByTestId("row-resource:a")).getByRole("textbox");
     fireEvent.change(input, { target: { value: "Omega" } });
     fireEvent.keyDown(input, { key: "Enter" });
-    await waitFor(() => expect(api.unchain.renameSkeletonResource).toHaveBeenCalledWith("a", "Omega", "token-a"));
+    await waitFor(() => expect(api.unchain.saveSkeletonResource).toHaveBeenCalledTimes(1));
+    const [{ document, expected_edit_token }] = api.unchain.saveSkeletonResource.mock.calls[0];
+    expect([document.id, document.name, expected_edit_token]).toEqual(["a", "Omega", "token-a"]);
+    expect(api.unchain.renameSkeletonResource).not.toHaveBeenCalled();
     await waitFor(() => expect(p.onActiveChanged).toHaveBeenCalledWith({ type: "reload", id: "a" }));
     expect(api.unchain.listSkeletonResources).toHaveBeenCalledTimes(2);
   });
 
   test("a rename that lost a race says so and changes nothing else", async () => {
     api.unchain.listSkeletonResources = jest.fn().mockResolvedValue([agent("a", "Alpha")]);
-    api.unchain.renameSkeletonResource = jest.fn().mockRejectedValue(Object.assign(new Error("resource changed"), { code: "edit_conflict" }));
+    api.unchain.getSkeletonResource = jest.fn().mockResolvedValue(stored("a", "Alpha"));
+    api.unchain.saveSkeletonResource = jest.fn().mockRejectedValue(Object.assign(new Error("resource changed"), { code: "edit_conflict" }));
     const { p } = show();
     await screen.findByTestId("row-resource:a");
     openMenu("resource:a");
@@ -390,7 +396,32 @@ describe("the right-click verbs", () => {
     fireEvent.change(input, { target: { value: "Omega" } });
     fireEvent.keyDown(input, { key: "Enter" });
     expect(await screen.findByRole("alert")).toHaveTextContent("changed elsewhere");
+    expect(within(screen.getByTestId("agent-explorer")).queryByRole("alert")).not.toBeInTheDocument();
+    expect(mockToasts.items).toHaveLength(1);
+    expect(mockToasts.items[0].options.dedupeKey).toMatch(/^agent-explorer:.*changed elsewhere/);
     expect(p.onActiveChanged).not.toHaveBeenCalled();
+  });
+
+  test("a later success withdraws the failure toast instead of leaving it up", async () => {
+    api.unchain.listSkeletonResources = jest.fn().mockResolvedValue([agent("a", "Alpha")]);
+    api.unchain.getSkeletonResource = jest.fn().mockResolvedValue(stored("a", "Alpha"));
+    api.unchain.saveSkeletonResource = jest.fn()
+      .mockRejectedValueOnce(Object.assign(new Error("resource changed"), { code: "edit_conflict" }))
+      .mockImplementation(async ({ document }) => stored(document.id, document.name));
+    show();
+    await screen.findByTestId("row-resource:a");
+    const rename = async (value) => {
+      openMenu("resource:a");
+      fireEvent.click(menuItem("Rename"));
+      const input = within(screen.getByTestId("row-resource:a")).getByRole("textbox");
+      fireEvent.change(input, { target: { value } });
+      fireEvent.keyDown(input, { key: "Enter" });
+    };
+    await rename("Omega");
+    expect(await screen.findByRole("alert")).toHaveTextContent("changed elsewhere");
+    await rename("Omega");
+    await waitFor(() => expect(api.unchain.saveSkeletonResource).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
   });
 
   test("Delete is available for an unsaved Agent and Default while Rename still requires saving", async () => {
@@ -410,17 +441,69 @@ describe("the right-click verbs", () => {
   test("duplicate saves a copy under a new id in the same folder and opens it", async () => {
     setFolderState({ folders: { f: { id: "f", name: "F", parentId: null, childFolderIds: [], expanded: true } }, folderOrder: ["f"], recipeFolder: {}, resourceFolder: { a: "f" }, resourceMigration: { version: 1, mapped: 0, unresolved: [] } });
     api.unchain.listSkeletonResources = jest.fn().mockResolvedValue([agent("a", "Alpha"), agent("b", "Alpha copy")]);
-    api.unchain.duplicateSkeletonResource = jest.fn().mockResolvedValue({});
+    api.unchain.getSkeletonResource = jest.fn().mockResolvedValue(stored("a", "Alpha"));
+    api.unchain.saveSkeletonResource = jest.fn(async ({ document }) => stored(document.id, document.name));
+    api.unchain.duplicateSkeletonResource = jest.fn();
     const { p } = show();
     await screen.findByTestId("row-resource:a");
     openMenu("resource:a");
     fireEvent.click(menuItem("Duplicate"));
     await waitFor(() => expect(p.onSelect).toHaveBeenCalled());
-    const [source, newId, name] = api.unchain.duplicateSkeletonResource.mock.calls[0];
-    expect([source, name]).toEqual(["a", "Alpha copy 2"]);
+    expect(api.unchain.getSkeletonResource).toHaveBeenCalledWith("a");
+    const [{ document, expected_edit_token }] = api.unchain.saveSkeletonResource.mock.calls[0];
+    const newId = document.id, name = document.name;
+    expect([name, expected_edit_token]).toEqual(["Alpha copy 2", undefined]);
+    expect(api.unchain.duplicateSkeletonResource).not.toHaveBeenCalled();
     expect(newId).toMatch(/^agent-[0-9a-f]{32}$/);
     expect(p.onSelect).toHaveBeenCalledWith(newId);
     expect(getFolderState().resourceFolder[newId]).toBe("f");
+  });
+
+  /* The reported failure: Default, once saved by the editor, owns Code text,
+     and the graph-only duplicate answered `source_api_required`. The copy is
+     now read and written as the v2 aggregate (the real producer's capture),
+     and every Code text goes with it at the same address. */
+  test("duplicate of a resource that owns Code text carries that text to the copy", async () => {
+    const copy = (value) => JSON.parse(JSON.stringify(value));
+    const reply = copy(capture.rows.find((row) => row.case === "nested_get").reply);
+    const source = reply.resource;
+    const v2 = (name, value) => Object.defineProperty(api.unchain, name, { configurable: true, writable: true, value });
+    try {
+      api.unchain.listSkeletonResources = jest.fn().mockResolvedValue([agent(source.id, source.name, { edit_token: source.edit_token })]);
+      api.unchain.duplicateSkeletonResource = jest.fn().mockRejectedValue(
+        Object.assign(new Error("this resource requires the managed-source API"), { code: "source_api_required" }));
+      v2("getManagedSkeletonResource", jest.fn().mockResolvedValue(copy(reply)));
+      v2("saveManagedSkeletonResource", jest.fn(async (edit) => {
+        const answer = copy(reply);
+        answer.resource = { ...answer.resource, id: edit.document.id, name: edit.document.name, document: edit.document };
+        return answer;
+      }));
+      const { p } = show();
+      await screen.findByTestId(`row-resource:${source.id}`);
+      openMenu(`resource:${source.id}`);
+      fireEvent.click(menuItem("Duplicate"));
+      await waitFor(() => expect(p.onSelect).toHaveBeenCalled());
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(api.unchain.duplicateSkeletonResource).not.toHaveBeenCalled();
+      expect(api.unchain.getManagedSkeletonResource).toHaveBeenCalledWith(source.id);
+      const [edit] = api.unchain.saveManagedSkeletonResource.mock.calls[0];
+      expect(Object.keys(edit).sort()).toEqual(["document", "expected_edit_token", "managed_sources", "schema"]);
+      expect(edit.schema).toBe("pupu.skeleton-edit.v2");
+      expect(edit.expected_edit_token).toBeNull();
+      expect(edit.document.id).toMatch(/^agent-[0-9a-f]{32}$/);
+      expect(edit.document.id).not.toBe(source.id);
+      expect(edit.document.name).toBe(`${source.name} copy`);
+      expect(edit.document.nodes).toEqual(source.document.nodes);
+      const texts = Object.fromEntries(reply.contents.map((row) => [row.sha256, row.text]));
+      const expected = reply.sources_manifest.entries.map((entry) => JSON.stringify({ node_path: entry.node_path, text: texts[entry.sha256] })).sort();
+      expect(edit.managed_sources.map((row) => JSON.stringify(row)).sort()).toEqual(expected);
+      expect(expected.length).toBe(3);
+      expect(p.onSelect).toHaveBeenCalledWith(edit.document.id);
+    } finally {
+      delete api.unchain.getManagedSkeletonResource;
+      delete api.unchain.saveManagedSkeletonResource;
+      install_legacy_store_bridge(api.unchain);
+    }
   });
 
   test.each(["agent", "workflow"])("Delete confirms then removes a %s, clears the editor and never archives it", async (kind) => {

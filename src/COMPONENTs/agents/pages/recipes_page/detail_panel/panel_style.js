@@ -1,19 +1,79 @@
 import React from "react";
 
 /* The detail panel's one vocabulary, for the parts drawn outside the Agent
-   timeline: one quiet fill for every control and row, 8px corners, no
-   outlines; a label on the left with its value on the right; red only for
-   what is wrong. The captions themselves are `Block` in process_timeline. */
+   timeline. A background means a region: one soft surface per group of rows,
+   barely off the panel. A white,
+   borderless field means a control you type into or pick from. Rows inside a region
+   are split by a hairline, never by a block of their own; a label on the left
+   with its value on the right; red only for what is wrong. The captions
+   themselves are `Block` in process_timeline. */
 
-export const fill = (isDark) => (isDark ? "rgba(255,255,255,0.075)" : "rgba(0,0,0,0.045)");
-/* A step stronger, for what is chosen inside a filled row. */
-export const fillStrong = (isDark) => (isDark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.085)");
+/* A region's surface. The panel is see-through glass, so in the light an
+   opaque surface colour is the brighter of the two; in the dark a faint lift
+   is enough. The panel's own background is the shell's and is never tinted
+   from here. */
+export const fill = (isDark) => (isDark ? "rgba(255,255,255,0.035)" : "var(--pupu-surface, #ffffff)");
+/* What is chosen inside a region or a control. */
+export const fillStrong = (isDark) => (isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.07)");
+/* Between the rows of one region. */
+export const hairline = (isDark) => (isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)");
+/* Around a control. */
+export const fieldBorder = (isDark) => (isDark ? "rgba(255,255,255,0.13)" : "rgba(0,0,0,0.13)");
 export const muted = (isDark) => (isDark ? "#a6a6af" : "#686870");
 export const text = (isDark) => (isDark ? "#eeeef1" : "#26262c");
 export const errorColor = (isDark) => (isDark ? "#ff8c8c" : "#b02020");
 
-/* A filled control: the selects, inputs and boxes of the panel. */
-export const fieldFill = (isDark) => ({ backgroundColor: fill(isDark), border: "1px solid transparent" });
+/* The panel's switches: Settings' SemiSwitch at 0.85 of its 56×28, themed by
+   the switch itself — no colours passed. Size goes through width/height
+   because the switch derives its geometry from them. */
+export const PANEL_SWITCH = Object.freeze({ width: 48, height: 24 });
+
+/* A region's corners, and every control's: the same, so a field reads as one
+   more surface beside the Input / Output regions. */
+export const REGION_RADIUS = 10;
+export const FIELD_RADIUS = REGION_RADIUS;
+/* Inside a control: white in the light (the theme's surface), a faint lift in
+   the dark — only a step above a region's 3.5%, so it does not glare. */
+export const fieldBackground = (isDark) => (isDark ? "rgba(255,255,255,0.045)" : "var(--pupu-surface, #ffffff)");
+
+/* A control: the selects, inputs and boxes of the panel. One white field, no
+   border (a transparent 1px keeps every size where it was), the regions'
+   corners, and nothing that changes on hover or focus — no fill, no shadow,
+   no border; the caret marks focus. The hover/active keys are read by
+   Button, Select and the model picker; the overlay variables by Input. */
+export const fieldFill = (isDark) => ({
+  backgroundColor: fieldBackground(isDark),
+  border: "1px solid transparent",
+  borderRadius: FIELD_RADIUS,
+  boxShadow: "none",
+  hoverBackgroundColor: fieldBackground(isDark),
+  activeBackgroundColor: fieldBackground(isDark),
+  "--pupu-overlay-hover": "transparent",
+  "--pupu-overlay-active": "transparent",
+});
+/* The same field for the multi-line TextField, which takes its fill and
+   outline through its own opt-in keys. */
+export const textFieldFill = (isDark) => ({
+  borderRadius: FIELD_RADIUS,
+  restFill: fieldBackground(isDark),
+  restBorder: "1px solid transparent",
+});
+
+/* One region: its rows share a single soft surface and a hairline between
+   them. A row brings its own padding and no background. */
+export function Region({ isDark, children, testid, style }) {
+  const rows = React.Children.toArray(children);
+  if (rows.length === 0) return null;
+  return (
+    <div data-testid={testid} style={{ display: "flex", flexDirection: "column", minWidth: 0, borderRadius: REGION_RADIUS,
+      background: fill(isDark), ...style }}>
+      {rows.map((row, index) => (
+        <div key={row.key ?? index} style={{ minWidth: 0, display: "flex", flexDirection: "column",
+          borderTop: index > 0 ? `1px solid ${hairline(isDark)}` : "none" }}>{row}</div>
+      ))}
+    </div>
+  );
+}
 
 export const note = (isDark) => ({ fontSize: 11.5, lineHeight: 1.45, color: muted(isDark), overflowWrap: "anywhere" });
 export const problem = (isDark) => ({ fontSize: 11.5, lineHeight: 1.45, color: errorColor(isDark), overflowWrap: "anywhere" });

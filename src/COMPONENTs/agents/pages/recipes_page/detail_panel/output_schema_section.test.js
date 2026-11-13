@@ -62,7 +62,7 @@ jest.mock("../../../../../BUILTIN_COMPONENTs/input/button", () => {
 });
 
 jest.mock("../../../../../BUILTIN_COMPONENTs/input/switch", () => {
-  return function MockSwitch({ on, set_on }) {
+  const MockSwitch = function MockSwitch({ on, set_on }) {
     return (
       <button
         type="button"
@@ -74,6 +74,7 @@ jest.mock("../../../../../BUILTIN_COMPONENTs/input/switch", () => {
       </button>
     );
   };
+  return { __esModule: true, default: MockSwitch, SemiSwitch: MockSwitch };
 });
 
 const KERNEL = {

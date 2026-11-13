@@ -55,7 +55,11 @@ beforeEach(() => {
     resources: [{ id: ID, name: stored.document.name, kind: "agent", archived: false, edit_token: stored.token }],
   }));
   api.unchain.getSkeletonResource = jest.fn(async () => result(JSON.parse(JSON.stringify(stored.document)), stored.token));
-  api.unchain.saveSkeletonResource = jest.fn();
+  api.unchain.saveSkeletonResource = jest.fn(async ({ document, expected_edit_token }) => {
+    expect(expected_edit_token).toBe(stored.token);
+    stored = { document, token: "edit-2" };
+    return result(stored.document, stored.token);
+  });
   api.unchain.listSkeletonKernelProfiles = jest.fn().mockResolvedValue({ profiles: [], unavailable: [] });
   api.unchain.resolveSkeletonResource = jest.fn();
   api.unchain.renameSkeletonResource = jest.fn(async (id, name) => {
@@ -126,8 +130,12 @@ test("renaming the open, clean Agent re-reads it, so the editor holds the new na
   const input = within(explorer()).getByRole("textbox", { name: "" });
   fireEvent.change(input, { target: { value: "Planner Two" } });
   fireEvent.keyDown(input, { key: "Enter" });
-  await waitFor(() => expect(api.unchain.renameSkeletonResource).toHaveBeenCalledWith(ID, "Planner Two", "edit-1"));
-  await waitFor(() => expect(api.unchain.getSkeletonResource).toHaveBeenCalledTimes(2));
+  await waitFor(() => expect(api.unchain.saveSkeletonResource).toHaveBeenCalledWith({
+    document: { ...new_agent_document({ id: ID, name: "Planner" }).document, name: "Planner Two" },
+    expected_edit_token: "edit-1",
+  }));
+  // Rename reads the managed aggregate, saves it, then reloads the open editor.
+  await waitFor(() => expect(api.unchain.getSkeletonResource).toHaveBeenCalledTimes(3));
   expect(await within(explorer()).findByText("Planner Two")).toBeInTheDocument();
   await screen.findByTestId("skeleton-node-start");
   expect(screen.getByTestId("skeleton-save-state")).toHaveTextContent(/^Saved$/);

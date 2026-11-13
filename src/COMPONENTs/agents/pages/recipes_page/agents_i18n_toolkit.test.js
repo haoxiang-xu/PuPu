@@ -7,7 +7,8 @@ import { toolkit_pool_problems } from "./toolkit_pool_config";
 import capture from "./skeleton_toolkit_capture.json";
 
 jest.mock("../../../../SERVICEs/api", () => ({ api: { unchain: {} } }));
-jest.mock("./detail_panel/workflow_tools_section", () => () => null);
+// The pool composes its Workflow tools from the real module; with no
+// capability reader on this mocked api they stay unavailable and write nothing.
 const localized = (locale, children) => <ConfigContext.Provider value={{ theme: {} }}>
   <LocaleContext.Provider value={{ locale }}>{children}</LocaleContext.Provider>
 </ConfigContext.Provider>;

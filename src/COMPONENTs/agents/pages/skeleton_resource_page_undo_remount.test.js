@@ -1,6 +1,6 @@
 import React from "react";
 import { install_legacy_store_bridge } from "./recipes_page/legacy_store_test_bridge";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import SkeletonResourcePage from "./skeleton_resource_page";
 import { api } from "../../../SERVICEs/api";
@@ -33,7 +33,7 @@ const result = (document) => ({
   id: "life", kind: "workflow", name: "life", document, edit_token: "t1",
 });
 const doc = { schema_version: 1, kind: "workflow", id: "life", name: "life", nodes: [], edges: [] };
-const control = (title) => within(screen.getByTitle(title)).getByRole("button");
+const control = (name) => screen.getByRole("button", { name });
 
 beforeEach(() => {
   mockMounts = 0;

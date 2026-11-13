@@ -1,7 +1,10 @@
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import React, { useContext } from "react";
 import { ConfigContext } from "../../../../../CONTAINERs/config/context";
+import { DetailChromeContext } from "../canvas_chrome";
 import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
+import AgentIconButton from "../../../agent_icon_button";
+import { with_document_presentation } from "../../../../../SERVICEs/agent_resource_icons";
 import StartPanel from "./start_panel";
 import EndPanel from "./end_panel";
 import AgentPanel from "./agent_panel";
@@ -9,7 +12,7 @@ import ToolPoolPanel from "./toolpool_panel";
 import SubagentPoolPanel from "./subagent_pool_panel";
 import { node_identity } from "./node_identity";
 import InputVariablesSection from "./input_variables_section";
-import ProcessTimeline from "./process_timeline";
+import ProcessTimeline, { Block } from "./process_timeline";
 import StartEndPanel from "./start_end_panel";
 import SkeletonDiagnostics from "./skeleton_diagnostics_notice";
 import SubagentPoolSection from "./subagent_pool_section";
@@ -22,7 +25,7 @@ import WorkflowCallSection from "./workflow_call_section";
 import HooksPoolSection from "./hooks_pool_section";
 import { pinned_reference } from "../workflow_call_config";
 import { useWorkflowVersions } from "../workflow_versions";
-import { code_settings } from "../code_config";
+import { BUILTIN_PYTHON, code_settings } from "../code_config";
 import { branch_summary, is_branch_type } from "../skeleton_branch_config";
 import { node_toolkit_refs } from "../toolkit_pool_config";
 import OutputVariablesSection from "./output_variables_section";
@@ -31,7 +34,9 @@ import {
   find_node,
   is_skeleton_node,
   node_bindings,
+  node_declares_outputs,
   node_output_mappings,
+  node_takes_inputs,
 } from "../skeleton_document";
 import { route_diagnostics } from "../skeleton_diagnostics";
 import { is_toolkit_pool_type } from "../recipe_graph";
@@ -95,6 +100,8 @@ export default function DetailPanel({
 }) {
   const { t } = useTranslation();
   const cfg = useContext(ConfigContext);
+  /* Set by the docked panel on macOS: the header shares the title bar's row. */
+  const titleRow = useContext(DetailChromeContext);
   const isDark = cfg?.onThemeMode === "dark_mode";
   /* The same node as seen in the Skeleton document, when one is being edited.
      `onDocumentChange` is what writes it back, so the legacy `onChange` path is
@@ -142,14 +149,25 @@ export default function DetailPanel({
       : !legacy_node && is_branch_type(skeleton_node?.type)
         ? branch_summary(skeleton_node, t)
         : !legacy_node && skeleton_node?.type === "code"
-          /* The runtime it runs with, the way an Agent's header names its
-             model (#357). */
+          /* Code runs Python. The built-in one is simply "Python"; a node
+             saved with another Python profile names it (#357). */
           ? (() => {
               const code = code_settings(skeleton_node);
               const profile = code && typeof code.environment_profile_id === "string" && code.environment_profile_id;
-              return profile ? t("agents.detail.python_profile", { profile: safe_text(profile) }) : t("agents.detail.python_choose_runtime");
+              return profile && profile !== BUILTIN_PYTHON
+                ? t("agents.detail.python_profile", { profile: safe_text(profile) }) : t("agents.detail.python");
             })()
           : identity?.subtitle;
+
+  /* The Agent node of an Agent document is that Agent, so its header is where
+     the Agent's icon and colour are shown and changed. They are the
+     document's own `presentation` (an embedded Agent's too: its document is
+     the one on screen), written through the ordinary document edit — the
+     draft goes dirty and Save stores it. */
+  const presentation_editable = Boolean(skeleton_node && !legacy_node && skeleton_node.type === "agent" &&
+    document && document.kind === "agent" && typeof onDocumentChange === "function");
+  const presentation = presentation_editable && Object.prototype.hasOwnProperty.call(document, "presentation")
+    ? document.presentation : null;
 
   const shell_style = {
     flex: 1,
@@ -234,7 +252,23 @@ export default function DetailPanel({
       {identity && (
         <div
           data-testid="recipe-detail-panel-header"
-          style={{
+          style={titleRow ? {
+            /* At the top of the rounded panel, beside the pinned toggle: the
+               icon sits as far from the panel's top as from its left (16px;
+               the 36px title block centres the 26px icon 5px down, hence 11),
+               the text stops short of the toggle, the usual rule marks where
+               the scrolling body begins, and the row drags the window as the
+               title bar did. */
+            flexShrink: 0,
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: `11px ${titleRow.toggleReserve}px 12px 16px`,
+            borderBottom: `1px solid ${
+              isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"
+            }`,
+            WebkitAppRegion: "drag",
+          } : {
             flexShrink: 0,
             display: "flex",
             alignItems: "center",
@@ -245,6 +279,17 @@ export default function DetailPanel({
             }`,
           }}
         >
+          {presentation_editable ? (
+            <AgentIconButton
+              presentation={presentation}
+              size={26}
+              radius={7}
+              glyphScale={14 / 26}
+              isDark={isDark}
+              testid="recipe-detail-panel-agent-icon"
+              onChange={(next) => onDocumentChange(with_document_presentation(document, next))}
+            />
+          ) : (
           <div
             style={{
               width: 26,
@@ -263,6 +308,7 @@ export default function DetailPanel({
               style={{ width: 14, height: 14 }}
             />
           </div>
+          )}
           <div style={{ minWidth: 0 }}>
             <div
               style={{
@@ -372,17 +418,25 @@ export default function DetailPanel({
                  the skill picker and the runtime-read preview instead. */
               <SkillReadSection key={JSON.stringify([document.id, skeleton_node.id, documentRevision])}
                 document={document} node={skeleton_node} isDark={isDark} onChange={onDocumentChange} />
-            ) : (
-              <InputVariablesSection
-                document={document}
-                node={skeleton_node}
-                startContext={startContext}
-                rowDiagnostics={routed.rows.inputs}
-                isDark={isDark}
-                onChange={onDocumentChange}
-                addAtEnd
-              />
-            )}
+            ) : node_takes_inputs(skeleton_node.type) ? (
+              /* The same caption and the same variable rows as an Agent's,
+                 Start's and End's. Only the look is shared: this node keeps
+                 the missing policy it stores (and the control for it). */
+              <Block section={`${skeleton_node.type}-input`} title={t("agents.io.input_variables")} isDark={isDark}
+                problems={Object.values(routed.rows.inputs || {}).flat()} aside={String(node_bindings(skeleton_node).filter(Boolean).length)}>
+                <InputVariablesSection
+                  document={document}
+                  node={skeleton_node}
+                  startContext={startContext}
+                  rowDiagnostics={routed.rows.inputs}
+                  isDark={isDark}
+                  onChange={onDocumentChange}
+                  hideHeading
+                  addAtEnd
+                  look="pill"
+                />
+              </Block>
+            ) : null}
             {/* A branch decides where the flow goes from what it was given, so
                 its condition or switch sits right under the inputs it reads.
                 It exports nothing: the outputs section renders nothing for it. */}
@@ -400,15 +454,22 @@ export default function DetailPanel({
             {/* Inputs at the top, outputs at the bottom: a node is read
                 downwards, and the order is the same in every panel so the two
                 halves of a wire are always found in the same place. */}
-            <OutputVariablesSection
-              document={document}
-              revision={documentRevision}
-              node={skeleton_node}
-              rowDiagnostics={routed.rows.outputs}
-              isDark={isDark}
-              onChange={onDocumentChange}
-              addAtEnd
-            />
+            {node_declares_outputs(skeleton_node.type) && (
+              <Block section={`${skeleton_node.type}-output`} title={t("agents.io.output_variables")} isDark={isDark}
+                problems={Object.values(routed.rows.outputs || {}).flat()} aside={String(node_output_mappings(skeleton_node).filter(Boolean).length)}>
+                <OutputVariablesSection
+                  document={document}
+                  revision={documentRevision}
+                  node={skeleton_node}
+                  rowDiagnostics={routed.rows.outputs}
+                  isDark={isDark}
+                  onChange={onDocumentChange}
+                  hideHeading
+                  addAtEnd
+                  look="pill"
+                />
+              </Block>
+            )}
             </>}
           </>
         )}

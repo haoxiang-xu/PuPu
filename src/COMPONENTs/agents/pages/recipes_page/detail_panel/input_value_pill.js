@@ -4,9 +4,12 @@ import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { expression_is_editable, expression_summary, first_present_expression, literal_expression, ref_expression } from "../skeleton_io";
 import VariablePill, { VariablePillValue, variablePillField } from "./variable_pill";
+import usePillMissingPolicy from "./pill_missing_policy";
 
-export default function InputValuePill({ binding, index, sources, problems, isDark, onChange, onRemove }) {
+export default function InputValuePill({ binding, index, sources, sourceTag, problems, isDark, onChange, onRemove, hideMissingPolicy = true }) {
+  const tagOf = (node_id) => (sourceTag && sourceTag(node_id)) || {};
   const { t } = useTranslation();
+  const policy = usePillMissingPolicy({ binding, onChange, isDark, hidden: hideMissingPolicy, testid: `binding-row-${index}` });
   const sourceRef = useRef(null);
   const [menu, setMenu] = useState(null);
   const [query, setQuery] = useState(null);
@@ -51,7 +54,7 @@ export default function InputValuePill({ binding, index, sources, problems, isDa
   }
 
   const items = options.map((source) => ({
-    label: <VariablePillValue label={source.node_label} detail={source.name} isDark={isDark} />,
+    label: <VariablePillValue label={source.node_label} detail={source.name} {...tagOf(source.node_id)} isDark={isDark} />,
     prefix_icon: source.conditional ? "circle" : undefined,
     onClick: () => choose(ref_expression(source.node_id, [source.name])),
   }));
@@ -79,10 +82,10 @@ export default function InputValuePill({ binding, index, sources, problems, isDa
   const menuVisible = menu !== null && items.length > 0;
 
   return (
-    <div data-testid={`binding-row-${index}`} style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
+    <div data-testid={`binding-row-${index}`} style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
       <VariablePill testid={`binding-row-${index}`} isDark={isDark} name={name}
         onNameChange={(next) => onChange({ ...binding, name: next })}
-        onRemove={onRemove} removeLabel={removeLabel} sourceRef={sourceRef}>
+        onRemove={onRemove} removeLabel={removeLabel} sourceRef={sourceRef} actions={policy.action}>
         <div onClick={startEditing} style={{ width: "100%", minWidth: 0 }}>
           <Input aria_label={selected && !editing ? t("agents.io.source_option", { node: nodeLabel, name: path }) : sourceLabel}
             value={editing ? query : displayValue}
@@ -111,10 +114,13 @@ export default function InputValuePill({ binding, index, sources, problems, isDa
         {selected && !editing && (
           <span aria-hidden="true" data-testid={`binding-row-${index}-selected`}
             style={{ position: "absolute", left: 11, right: 12, pointerEvents: "none" }}>
-            <VariablePillValue label={nodeLabel} detail={path} isDark={isDark} />
+            {/* A source whose step is gone keeps its words, in neutral. */}
+            <VariablePillValue label={nodeLabel} detail={path} {...(source ? tagOf(value.node_id) : {})}
+              testid={`binding-row-${index}-tag`} isDark={isDark} />
           </span>
         )}
       </VariablePill>
+      {policy.settings}
       {/* Keep the text field focused until the menu's click chooses a source. */}
       <div onMouseDown={(event) => event.preventDefault()}>
         <ContextMenu visible={menuVisible} x={menu?.x} y={menu?.y} items={items}
@@ -122,7 +128,7 @@ export default function InputValuePill({ binding, index, sources, problems, isDa
       </div>
       {problems.map((problem, i) => (
         <span key={i} data-testid={`binding-row-${index}-problem-${i}`}
-          style={{ fontSize: 11.5, lineHeight: 1.45, overflowWrap: "anywhere", color: isDark ? "#ff8c8c" : "#b02020" }}>
+          style={{ fontSize: 11.5, lineHeight: 1.45, overflowWrap: "anywhere", padding: "0 10px 7px", color: isDark ? "#ff8c8c" : "#b02020" }}>
           {problem.message}
         </span>
       ))}

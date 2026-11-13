@@ -5,6 +5,7 @@ jest.mock("./panel_help", () => function GuidanceText({ children }) { return <>{
 import { render, screen, fireEvent, within, act, waitFor } from "@testing-library/react";
 import { ConfigContext } from "../../../../../CONTAINERs/config/context";
 import DetailPanel from "./detail_panel";
+import { DetailChromeContext } from "../canvas_chrome";
 import OutputVariablesSection from "./output_variables_section";
 import { has_node_identity, node_identity } from "./node_identity";
 import { LOOKUP_ROWS } from "../skeleton_drill_replacement_capture";
@@ -1080,8 +1081,9 @@ describe("the panel header draws a node, not everything stored beside it", () =>
   test("a stored label that cannot become text does not take the panel down", () => {
     const document = node_with({ label: { toString: null } });
     show({ document, onDocumentChange: () => {}, selectedNodeId: "agent" });
-    /* The header is there, and it names the node by its id. */
-    expect(screen.getByText("agent")).toBeInTheDocument();
+    /* The header is there, and without a label it names the node by its
+       type, "Agent", not by its id. */
+    expect(screen.getByTestId("recipe-detail-panel-header")).toHaveTextContent("Agent");
     /* And the document still holds what the store holds. */
     expect(document.nodes[0].label).toEqual({ toString: null });
   });
@@ -1103,7 +1105,7 @@ describe("the panel header draws a node, not everything stored beside it", () =>
       onDocumentChange: () => {},
       selectedNodeId: "agent",
     });
-    expect(screen.getByText("agent")).toBeInTheDocument();
+    expect(screen.getByTestId("recipe-detail-panel-header")).toHaveTextContent("Agent");
     // Ignoring the forbidden override must not promise legacy inheritance:
     // this native node has no Kernel and is not runnable until configured.
     expect(screen.getByText("No model configured")).toBeInTheDocument();
@@ -1214,5 +1216,32 @@ describe("a node type the identity table does not own", () => {
     expect(screen.getByTestId("recipe-detail-panel-body")).toBeInTheDocument();
     /* The stored type is untouched. */
     expect(JSON.stringify(document)).toBe(before);
+  });
+});
+
+describe("in the docked macOS panel the header sits at the panel's top", () => {
+  test.each([["light_mode", "rgba(0,0,0,0.08)"], ["dark_mode", "rgba(255,255,255,0.08)"]])(
+    "the icon is as far from the top as from the left, the title keeps clear of the toggle, and a rule marks the scrolling body (%s)",
+    (mode, rule) => {
+      render(
+        <ConfigContext.Provider value={{ ...cfg, onThemeMode: mode }}>
+          <DetailChromeContext.Provider value={{ headerInTitleRow: true, toggleReserve: 44 }}>
+            <DetailPanel recipe={legacy_recipe} selectedNodeId="end" onChange={() => {}} onChangeSilent={() => {}} />
+          </DetailChromeContext.Provider>
+        </ConfigContext.Provider>,
+      );
+      const header = screen.getByTestId("recipe-detail-panel-header");
+      /* 11px + the 5px the 36px title block centres the 26px icon by = 16px,
+         the same as the left padding. */
+      expect(header.style.padding).toBe("11px 44px 12px 16px");
+      expect(header.style.borderBottom).toBe(`1px solid ${rule}`);
+    },
+  );
+
+  test("without the docked panel's word the header keeps its usual padding and rule", () => {
+    show();
+    const header = screen.getByTestId("recipe-detail-panel-header");
+    expect(header.style.padding).toBe("14px 16px 12px");
+    expect(header.style.borderBottom).toMatch(/^1px solid/);
   });
 });

@@ -17,7 +17,8 @@ import { binding_problems, expression_is_editable, make_binding, ref_expression 
 import { conditional_sources } from "../skeleton_branch_config";
 import { node_display_title } from "../node_display_labels";
 import { start_context_for_view } from "../start_context";
-import { CAPTION_TEXT } from "./panel_style";
+import { CAPTION_TEXT, Region } from "./panel_style";
+import { is_system_context_output, visible_input_rows } from "./system_context_visibility";
 
 /* Input Variables: what this node reads, and from where.
  *
@@ -91,6 +92,7 @@ export function binding_sources(document, node_id) {
     const node = by_id.get(id);
     node_output_mappings(node).forEach((mapping) => {
       if (!mapping || typeof mapping.name !== "string" || !mapping.name) return;
+      if (is_system_context_output(document, node, mapping)) return;
       sources.push({ node_id: id, node_label: node_label(node), name: mapping.name, conditional: conditional.has(id) });
     });
   });
@@ -107,8 +109,14 @@ export default function InputVariablesSection({
   hideHeading = false,
   addAtEnd = false,
   breadcrumb = false,
+  /* How the rows look, apart from what they store. `breadcrumb` is the
+     Agent / End reading — every missing value is null — and brings the pill
+     rows with it; `look="pill"` gives any other node the same rows while it
+     keeps its own stored policy (`error` by default) and the control for it. */
+  look,
 }) {
   const { t } = useTranslation();
+  const pill = breadcrumb || look === "pill";
   /* Start has no execution.inputs key: these rows describe the caller and
      deliberately have no write callback or input controls. */
   if (node?.type === "start") {
@@ -118,7 +126,17 @@ export default function InputVariablesSection({
   if (!node_takes_inputs(node && node.type)) return null;
 
   const bindings = node_bindings(node);
+  const visibleRows = visible_input_rows(document, node, rowDiagnostics);
   const sources = binding_sources(document, node && node.id);
+  /* The step a source names, so its tag wears that step's colour; an Agent
+     node of an Agent document wears the Agent's own presentation. */
+  const nodes_by_id = new Map(((document && document.nodes) || []).map((entry) => [entry && entry.id, entry]));
+  const agent_presentation = document && document.kind === "agent" &&
+    Object.prototype.hasOwnProperty.call(document, "presentation") ? document.presentation : null;
+  const source_tag = (node_id) => {
+    const source_node = nodes_by_id.get(node_id);
+    return source_node ? { node: source_node, presentation: agent_presentation } : null;
+  };
   /* The builder's own check, so a row says what is wrong with it before any
      round trip. It mirrors `resolve_inputs`; it never decides admission. */
   const composed = binding_problems(bindings, t);
@@ -177,8 +195,9 @@ export default function InputVariablesSection({
         </span>
       )}
 
-      {bindings.map((binding, index) => {
-        const Row = !breadcrumb ? BindingRow
+      {(() => {
+        const rows = visibleRows.map(({ binding, index }) => {
+        const Row = !pill ? BindingRow
           : binding?.value?.kind !== "first_present" ? InputValuePill
             : expression_is_editable(binding.value) ? FirstPresentPill : BindingRow;
         return <Row
@@ -186,6 +205,7 @@ export default function InputVariablesSection({
           binding={binding}
           index={index}
           sources={sources}
+          sourceTag={source_tag}
           isDark={isDark}
           hideMissingPolicy={breadcrumb}
           problems={[
@@ -203,7 +223,9 @@ export default function InputVariablesSection({
           }}
           onRemove={() => set_bindings(bindings.filter((_, i) => i !== index))}
         />;
-      })}
+      });
+        return pill ? <Region isDark={isDark}>{rows}</Region> : rows;
+      })()}
       {addAtEnd && add_button}
     </div>
   );

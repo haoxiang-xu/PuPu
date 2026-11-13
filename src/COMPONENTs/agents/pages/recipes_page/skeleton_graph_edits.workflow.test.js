@@ -52,6 +52,9 @@ describe("new_workflow_document", () => {
   });
 });
 
+const { starter_code } = jest.requireActual("./code_config");
+const NEW_CODE_SETTINGS = starter_code().code;
+
 describe("editing a Workflow", () => {
   test.each(["if_else", "switch_case", "tool_call", "skill_read", "code", "workflow_call"])(
     "adds a %s seed the real store saves inside a Workflow", (type) => {
@@ -59,7 +62,14 @@ describe("editing a Workflow", () => {
       expect(result.ok).toBe(true);
       const added = result.document.nodes.find((node) => node.id === "n");
       const stored = row(`wf_add_${type}_save`).reply.resource.document.nodes.find((node) => node.id === "n");
-      expect(canonical(added)).toEqual(canonical(stored));
+      /* The capture was recorded before a new Code node came with its
+         starter (code, Result, built-in Python, default limits); the store
+         keeps `config.code` as written, so the recorded seed plus that
+         starter is what it saves. */
+      const expected = type === "code"
+        ? { ...stored, config: { ...stored.config, code: NEW_CODE_SETTINGS } }
+        : stored;
+      expect(canonical(added)).toEqual(canonical(expected));
     });
 
   test.each(["agent", "toolkit_pool", "subagent_pool", "hooks_pool"])(
@@ -116,5 +126,32 @@ describe("editing a Workflow", () => {
     const next = add_node(base, { type: "code" }).document;
     expect(next.description).toBe("kept");
     expect(next.nodes[0]).toBe(base.nodes[0]);
+  });
+});
+
+describe("a new Code node's limits", () => {
+  test("a node created on the canvas starts with the starter: built-in Python, 30 s / 1 MiB / 1 MiB, code and Result", () => {
+    const result = add_node(seed(), { type: "code", id: "code" });
+    const added = result.document;
+    const node = added.nodes.find((item) => item.id === "code");
+    expect(node.config.code).toStrictEqual(NEW_CODE_SETTINGS);
+    expect(node.config.code).toMatchObject({ environment_profile_id: "builtin", timeout_ms: 30000, max_result_bytes: 1048576, max_log_bytes: 1048576 });
+    /* The text its source names travels with the add, for the session. */
+    expect(result.sources).toEqual(starter_code().sources);
+    const { CODE_LIMITS } = jest.requireActual("./code_config");
+    Object.entries(CODE_LIMITS).forEach(([key, { min, max }]) => {
+      expect(node.config.code[key]).toBeGreaterThanOrEqual(min);
+      expect(node.config.code[key]).toBeLessThanOrEqual(max);
+    });
+  });
+
+  test("each creation gets its own object, and an existing node without limits is left without them", () => {
+    const one = add_node(seed(), { type: "code", id: "code" }).document;
+    const two = add_node(seed(), { type: "code", id: "code" }).document;
+    expect(one.nodes.find((n) => n.id === "code").config.code).not.toBe(two.nodes.find((n) => n.id === "code").config.code);
+    const existing = { id: "old", type: "code", config: { execution: { inputs: [], outputs: [] } } };
+    const doc = { ...one, nodes: [...one.nodes, existing] };
+    const after = add_node(doc, { type: "code", id: "code2" }).document;
+    expect(after.nodes.find((n) => n.id === "old").config).toStrictEqual({ execution: { inputs: [], outputs: [] } });
   });
 });

@@ -3,6 +3,7 @@ import { render, screen, within } from "@testing-library/react";
 import { ConfigContext } from "../../../../../CONTAINERs/config/context";
 import { api } from "../../../../../SERVICEs/api";
 import ToolCallSection from "./tool_call_section";
+import { errorColor } from "./panel_style";
 import fixture from "./../tool_call_capture.json";
 import documents from "../../../../../../e2e/fixtures/skeleton_step_documents.json";
 
@@ -20,7 +21,7 @@ test.each([false, true])("required marker follows the theme and unset policy sta
   </ConfigContext.Provider>);
   const content = await screen.findByTestId("tool-call-argument-content");
   expect(within(content).getByLabelText("required")).toHaveStyle({
-    color: isDark ? "rgba(255,140,140,0.95)" : "rgba(176,32,32,0.95)",
+    color: errorColor(isDark),
   });
   const policy = screen.getByTestId("tool-call-on-error");
   expect(within(policy).getByRole("button", { name: "Fail the run" })).toHaveAttribute("aria-pressed", "false");

@@ -4,7 +4,7 @@ import { node_display_title } from "../node_display_labels";
 import React from "react";
 import { agentEnglishText, agentMessage, renderAgentMessage } from "../agents_i18n";
 import PuzzleShape from "./puzzle_shape";
-import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
+import NodeHeader, { NodeBody } from "./node_header";
 import { entry_reference } from "../subagent_eligibility";
 import {
   can_drill,
@@ -70,40 +70,15 @@ export default function SubagentPoolNode({
   return (
     <div style={{ width: 210 }}>
       <PuzzleShape tabs={[]} cutouts={["top", "bottom"]} isDark={isDark}>
-        <div style={{ padding: "14px 18px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div
-              style={{
-                width: 28,
-                height: 28,
-                borderRadius: 9,
-                background: "linear-gradient(135deg, #8a8cee, #5a5dd6)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
-              }}
-            >
-              <Icon src="subagent_pool" color="#fff" style={{ width: 16, height: 16 }} />
-            </div>
-            <div style={{ minWidth: 0 }}>
-              <div
-                style={{
-                  fontSize: 12.5,
-                  fontWeight: 600,
-                  ...(is_skeleton_node(node) ? { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } : {}),
-                  color: "var(--pupu-text)",
-                }}
-              >
-                {is_skeleton_node(node) ? node_display_title(node, t("agents.nodes.subagent_pool")) : t("agents.nodes.subagent_pool")}
-              </div>
-              <div style={{ fontSize: 10.5, color: muted, marginTop: 2 }}>
-                {all.length === 1
-                  ? t("agents.nodes.subagent_count_one", { count: all.length })
-                  : t("agents.nodes.subagent_count_other", { count: all.length })}
-              </div>
-            </div>
-          </div>
+        <NodeBody>
+          <NodeHeader
+            src="subagent_pool"
+            tile={{ background: "#5a5dd6" }}
+            title={is_skeleton_node(node) ? node_display_title(node, t("agents.nodes.subagent_pool")) : t("agents.nodes.subagent_pool")}
+            subtitle={all.length === 1
+              ? t("agents.nodes.subagent_count_one", { count: all.length })
+              : t("agents.nodes.subagent_count_other", { count: all.length })}
+          />
 
           {shown.length > 0 && (
             <div
@@ -173,7 +148,7 @@ export default function SubagentPoolNode({
               )}
             </div>
           )}
-        </div>
+        </NodeBody>
       </PuzzleShape>
     </div>
   );

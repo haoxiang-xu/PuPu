@@ -1,4 +1,3 @@
-import PanelHelp from "./panel_help";
 import { agentMessage, renderAgentMessage } from "../agents_i18n";
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -44,7 +43,8 @@ import {
   with_hooks,
   without_pool_setting,
 } from "../hooks_pool_config";
-import { CAPTION_TEXT } from "./panel_style";
+import { Block } from "./process_timeline";
+import { addButtonStyle, note, problem as problemOf, Region, SettingRow } from "./panel_style";
 
 /* A Hooks Pool (#357): the hooks one Agent runs around its tool calls. Every
  * rule is the fixed runtime's (see `hooks_pool_config`):
@@ -66,13 +66,13 @@ import { CAPTION_TEXT } from "./panel_style";
  *     its id, and each control writes its own key. A stored value the runtime
  *     refuses is shown as stored, with what is wrong and how to fix it. */
 
-const LABEL = CAPTION_TEXT;
-const NOTE = { fontSize: 11.5, color: "var(--pupu-text-muted)", lineHeight: 1.45 };
 const MONO = { fontFamily: "ui-monospace, Menlo, monospace" };
 const ROW = { display: "flex", alignItems: "center", gap: 6 };
-const FIELD = { width: "100%", fontSize: 12, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 8 };
-const SMALL = { fontSize: 11.5, paddingVertical: 2, paddingHorizontal: 8, borderRadius: 8 };
-const problem_style = (isDark) => ({ fontSize: 11.5, lineHeight: 1.45, color: isDark ? "rgba(255,140,140,0.95)" : "rgba(176,32,32,0.95)" });
+const FIELD = { width: "100%", fontSize: 12, paddingVertical: 4, paddingHorizontal: 6 };
+/* The small text actions of a row, centred with what sits beside them. */
+const small = (isDark) => ({ ...addButtonStyle(isDark), alignSelf: "auto" });
+/* One row of a region. */
+const ROW_PAD = "6px 10px 6px 11px";
 const record = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 const has = (value, key) => record(value) && Object.prototype.hasOwnProperty.call(value, key);
 const EVENT_LABEL = { before_tool_call: "Before the tool call", after_tool_call: "After the tool call" };
@@ -84,10 +84,6 @@ const raw = (value) => {
     return "(unreadable)";
   }
 };
-
-function Divider({ isDark }) {
-  return <div aria-hidden="true" style={{ height: 6 }} />;
-}
 
 /* Tool names from the same library the Toolkit Pool and Tool Call read. */
 function useToolNames() {
@@ -186,7 +182,7 @@ function OrderInput({ entry, editable, isDark, testid, about, onWrite }) {
         }}
         style={{ ...FIELD, width: 140, ...MONO }}
       />
-      {pending.text !== null && <span data-testid={`${testid}-problem`} style={problem_style(isDark)}>{t("agents.hooks.pending_order", { problem: check(pending.text).problem })}</span>}
+      {pending.text !== null && <span data-testid={`${testid}-problem`} style={problemOf(isDark)}>{t("agents.hooks.pending_order", { problem: check(pending.text).problem })}</span>}
     </span>
   );
 }
@@ -212,7 +208,7 @@ function IdInput({ entry, editable, isDark, testid, about, onWrite }) {
         }}
         style={{ ...FIELD, width: 180, ...MONO }}
       />
-      {pending.text !== null && <span data-testid={`${testid}-problem`} style={problem_style(isDark)}>{t("agents.hooks.id_pending")}</span>}
+      {pending.text !== null && <span data-testid={`${testid}-problem`} style={problemOf(isDark)}>{t("agents.hooks.id_pending")}</span>}
     </span>
   );
 }
@@ -264,19 +260,18 @@ function HookEditor({ entry, index, rowId, nodeId, parentId, siblings, scopeDupl
     ...toolNames.names.map((name) => ({ value: name, label: name })),
   ];
   const testid = `hook-${index}`;
+  const NOTE = note(isDark);
+  const SMALL = small(isDark);
 
   return (
-    <div data-testid={`${testid}-editor`} style={{ display: "flex", flexDirection: "column", gap: 10, padding: 0, background: "transparent" }}>
-      <div style={ROW}>
-        <span style={{ ...NOTE, width: 64, flexShrink: 0 }}>{t("agents.hooks.id")}</span>
+    <div data-testid={`${testid}-editor`} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <SettingRow label={t("agents.hooks.id")} isDark={isDark}>
         <IdInput entry={entry} editable={editable} isDark={isDark} testid={`${testid}-id`} about={`${rowId}:id`} onWrite={(value) => set("id", value)} />
-      </div>
-      <div style={ROW}>
-        <span style={{ ...NOTE, width: 64, flexShrink: 0 }}>{t("agents.hooks.order")}</span>
+      </SettingRow>
+      <SettingRow label={t("agents.hooks.order")} isDark={isDark}>
         <OrderInput entry={entry} editable={editable} isDark={isDark} testid={`${testid}-order`} about={`${rowId}:order`} onWrite={(value) => set("order", value)} />
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <span style={LABEL}>{t("agents.hooks.when")}</span>
+      </SettingRow>
+      <Block section={`${testid}-when`} title={t("agents.hooks.when")} isDark={isDark}>
         <span data-testid={`${testid}-event`}>
           <Select
             options={[
@@ -293,9 +288,9 @@ function HookEditor({ entry, index, rowId, nodeId, parentId, siblings, scopeDupl
             style={FIELD}
           />
         </span>
-      </div>
-      <div data-testid={`${testid}-tool`} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <span style={LABEL}>{t("agents.hooks.tool_matcher")}</span>
+      </Block>
+      <div data-testid={`${testid}-tool`}>
+      <Block section={`${testid}-tool-matcher`} title={t("agents.hooks.tool_matcher")} isDark={isDark}>
         <span style={{ opacity: editable ? 1 : 0.5, pointerEvents: editable ? "auto" : "none" }}>
           <SegmentedControl
             size="compact"
@@ -351,7 +346,7 @@ function HookEditor({ entry, index, rowId, nodeId, parentId, siblings, scopeDupl
           </span>
         )}
         {toolMode === "set" && sets_ok && setHeld !== null && setHeld.length === 0 && (
-          <span data-testid={`${testid}-tool-set-held`} style={problem_style(isDark)}>{t("agents.hooks.set_pending")}</span>
+          <span data-testid={`${testid}-tool-set-held`} style={problemOf(isDark)}>{t("agents.hooks.set_pending")}</span>
         )}
         {toolMode === "set" && sets_ok && set_value.length > 0 && (
           <span data-testid={`${testid}-tool-set-names`} style={NOTE}>
@@ -361,7 +356,7 @@ function HookEditor({ entry, index, rowId, nodeId, parentId, siblings, scopeDupl
           </span>
         )}
         {has(entry, "tool_name") && entry.tool_name !== null && typeof entry.tool_name !== "string" && !(stored_set_clean && sets_ok) && (
-          <span data-testid={`${testid}-tool-stored`} style={problem_style(isDark)}>{sets_ok ? t("agents.hooks.stored_set", { value: "{value}" }).split(/(\{value\})/g).map((part, index) => ({ __proto__: null, "{value}": (<span key={index} style={MONO}>{safe_text(raw(entry.tool_name))}</span>) }[part] ?? part)) : t("agents.hooks.stored_single", { value: "{value}" }).split(/(\{value\})/g).map((part, index) => ({ __proto__: null, "{value}": (<span key={index} style={MONO}>{safe_text(raw(entry.tool_name))}</span>) }[part] ?? part))}</span>
+          <span data-testid={`${testid}-tool-stored`} style={problemOf(isDark)}>{sets_ok ? t("agents.hooks.stored_set", { value: "{value}" }).split(/(\{value\})/g).map((part, index) => ({ __proto__: null, "{value}": (<span key={index} style={MONO}>{safe_text(raw(entry.tool_name))}</span>) }[part] ?? part)) : t("agents.hooks.stored_single", { value: "{value}" }).split(/(\{value\})/g).map((part, index) => ({ __proto__: null, "{value}": (<span key={index} style={MONO}>{safe_text(raw(entry.tool_name))}</span>) }[part] ?? part))}</span>
         )}
         {!sets_ok && (
           <span data-testid={`${testid}-tool-set-note`} style={NOTE}>
@@ -369,9 +364,10 @@ function HookEditor({ entry, index, rowId, nodeId, parentId, siblings, scopeDupl
           </span>
         )}
         <span style={NOTE}>{t("agents.hooks.named_tool_note")}</span>
+      </Block>
       </div>
-      <div data-testid={`${testid}-runs`} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <span style={LABEL}>{t("agents.hooks.runs")}</span>
+      <div data-testid={`${testid}-runs`}>
+      <Block section={`${testid}-runs`} title={t("agents.hooks.runs")} isDark={isDark}>
         <span style={{ opacity: editable && supported ? 1 : 0.5, pointerEvents: editable && supported ? "auto" : "none" }}>
           <SegmentedControl
             size="compact"
@@ -388,7 +384,7 @@ function HookEditor({ entry, index, rowId, nodeId, parentId, siblings, scopeDupl
           />
         </span>
         {supported && has(entry, "enabled") && typeof entry.enabled !== "boolean" && (
-          <span style={problem_style(isDark)}>{t("agents.hooks.stored_enabled", { value: "{value}" }).split(/(\{value\})/g).map((part, index) => ({ __proto__: null, "{value}": (<span key={index} style={MONO}>{safe_text(raw(entry.enabled))}</span>) }[part] ?? part))}</span>
+          <span style={problemOf(isDark)}>{t("agents.hooks.stored_enabled", { value: "{value}" }).split(/(\{value\})/g).map((part, index) => ({ __proto__: null, "{value}": (<span key={index} style={MONO}>{safe_text(raw(entry.enabled))}</span>) }[part] ?? part))}</span>
         )}
         <span data-testid={`${testid}-runs-note`} style={NOTE}>
           {capability.status === "loading"
@@ -399,14 +395,11 @@ function HookEditor({ entry, index, rowId, nodeId, parentId, siblings, scopeDupl
                 ? t("agents.hooks.enabled_absent_note")
                 : t("agents.hooks.disabled_note")}
         </span>
+      </Block>
       </div>
-      <div data-testid={`${testid}-approval`} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-          <span style={LABEL}>{t("agents.hooks.approval")}</span>
-          <PanelHelp label={t("agents.hooks.approval")}>
-            <span style={NOTE}>{t("agents.hooks.approval_note")}</span>
-          </PanelHelp>
-        </div>
+      <div data-testid={`${testid}-approval`}>
+      <Block section={`${testid}-approval`} title={t("agents.hooks.approval")} isDark={isDark}
+        help={<span style={NOTE}>{t("agents.hooks.approval_note")}</span>}>
         <span style={{ opacity: editable ? 1 : 0.5, pointerEvents: editable ? "auto" : "none" }}>
           <SegmentedControl
             size="compact"
@@ -418,9 +411,9 @@ function HookEditor({ entry, index, rowId, nodeId, parentId, siblings, scopeDupl
           />
         </span>
         {has(entry, "force_approval") && typeof entry.force_approval !== "boolean" && (
-          <span style={problem_style(isDark)}>{t("agents.hooks.stored_approval", { value: "{value}" }).split(/(\{value\})/g).map((part, index) => ({ __proto__: null, "{value}": (<span key={index} style={MONO}>{safe_text(raw(entry.force_approval))}</span>) }[part] ?? part))}</span>
+          <span style={problemOf(isDark)}>{t("agents.hooks.stored_approval", { value: "{value}" }).split(/(\{value\})/g).map((part, index) => ({ __proto__: null, "{value}": (<span key={index} style={MONO}>{safe_text(raw(entry.force_approval))}</span>) }[part] ?? part))}</span>
         )}
-
+      </Block>
       </div>
       <HookWorkflowSource
         entry={entry}
@@ -436,10 +429,8 @@ function HookEditor({ entry, index, rowId, nodeId, parentId, siblings, scopeDupl
         onWrite={(workflow) => set("workflow", workflow)}
         onOpen={onOpenEmbedded}
       />
-      <div data-testid={`${testid}-contract`} style={{ display: "flex", alignItems: "center", gap: 5 }}>
-        <span style={LABEL}>{t("agents.hooks.contract")}</span>
-        <PanelHelp label={t("agents.hooks.contract")}>
-        {event_ok ? (
+      <div data-testid={`${testid}-contract`}>
+      <Block section={`${testid}-contract`} title={t("agents.hooks.contract")} isDark={isDark} help={event_ok ? (
           <>
             <span style={NOTE}>{t("agents.hooks.start_given", { keys: "{keys}" }).split(/(\{keys\})/g).map((part, index) => ({ __proto__: null, "{keys}": (<span key={index} style={MONO}>{EVENT_INPUT_KEYS[entry.event].join(t("agents.schema.fields.list_separator"))}</span>) }[part] ?? part))}</span>
             <span style={NOTE}>
@@ -454,12 +445,11 @@ function HookEditor({ entry, index, rowId, nodeId, parentId, siblings, scopeDupl
           </>
         ) : (
           <span style={NOTE}>{t("agents.hooks.choose_event_contract")}</span>
-        )}
-        </PanelHelp>
+        )} />
       </div>
       {extras.map((key) => (
         <div key={key} data-testid={`${testid}-extra-${key}`} style={{ ...ROW, justifyContent: "space-between" }}>
-          <span style={problem_style(isDark)}>{key === "enabled" ? t("agents.hooks.stored_enabled_extra", { key: "{key}", value: "{value}" }).split(/(\{key\}|\{value\})/g).map((part, index) => ({ __proto__: null, "{key}": (<span key={index} style={MONO}>{safe_text(key)}</span>), "{value}": (<span key={index} style={MONO}>{safe_text(raw(entry[key]))}</span>) }[part] ?? part)) : t("agents.hooks.stored_unknown", { key: "{key}", value: "{value}" }).split(/(\{key\}|\{value\})/g).map((part, index) => ({ __proto__: null, "{key}": (<span key={index} style={MONO}>{safe_text(key)}</span>), "{value}": (<span key={index} style={MONO}>{safe_text(raw(entry[key]))}</span>) }[part] ?? part))}</span>
+          <span style={problemOf(isDark)}>{key === "enabled" ? t("agents.hooks.stored_enabled_extra", { key: "{key}", value: "{value}" }).split(/(\{key\}|\{value\})/g).map((part, index) => ({ __proto__: null, "{key}": (<span key={index} style={MONO}>{safe_text(key)}</span>), "{value}": (<span key={index} style={MONO}>{safe_text(raw(entry[key]))}</span>) }[part] ?? part)) : t("agents.hooks.stored_unknown", { key: "{key}", value: "{value}" }).split(/(\{key\}|\{value\})/g).map((part, index) => ({ __proto__: null, "{key}": (<span key={index} style={MONO}>{safe_text(key)}</span>), "{value}": (<span key={index} style={MONO}>{safe_text(raw(entry[key]))}</span>) }[part] ?? part))}</span>
           <Button
             label={t("agents.execution.tool.remove")}
             ariaLabel={t("agents.hooks.remove_setting", { key: key })}
@@ -475,7 +465,7 @@ function HookEditor({ entry, index, rowId, nodeId, parentId, siblings, scopeDupl
       ))}
       {problems.length > 0 && (
         <div data-testid={`${testid}-problems`} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          {problems.map((problem, at) => <span key={`${problem.code}-${at}`} style={problem_style(isDark)}>{problem.message}</span>)}
+          {problems.map((problem, at) => <span key={`${problem.code}-${at}`} style={problemOf(isDark)}>{problem.message}</span>)}
         </div>
       )}
       <span>
@@ -541,23 +531,24 @@ export default function HooksPoolSection({ document, node, isDark, onChange, man
     return { title: typeof entry.id === "string" && entry.id ? entry.id : t("agents.hooks.no_id"), detail: t("agents.hooks.row_summary", { when, tool, workflow, approval: entry.force_approval === true ? t("agents.hooks.always_asks_suffix") : "", enabled: hook_runs(entry) ? "" : t("agents.hooks.off_suffix") }) };
   };
 
+  const NOTE = note(isDark);
+  const SMALL = small(isDark);
+
   return (
-    <section data-testid="hooks-pool-section" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+    <section data-testid="hooks-pool-section" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {!editable && (
-        <div style={problem_style(isDark)}>{!unique ? t("agents.toolkit.duplicate_ids") : t("agents.execution.read_only.stored")}</div>
+        <div style={problemOf(isDark)}>{!unique ? t("agents.toolkit.duplicate_ids") : t("agents.execution.read_only.stored")}</div>
       )}
       {!Array.isArray(list) && (
         <div data-testid="hooks-pool-stored-invalid" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <span style={problem_style(isDark)}>{t("agents.hooks.stored_hooks", { value: "{value}" }).split(/(\{value\})/g).map((part, index) => ({ __proto__: null, "{value}": (<span key={index} style={MONO}>{safe_text(raw(list))}</span>) }[part] ?? part))}</span>
+          <span style={problemOf(isDark)}>{t("agents.hooks.stored_hooks", { value: "{value}" }).split(/(\{value\})/g).map((part, index) => ({ __proto__: null, "{value}": (<span key={index} style={MONO}>{safe_text(raw(list))}</span>) }[part] ?? part))}</span>
           <span>
             <Button label={t("agents.hooks.new_list")} ariaLabel={t("agents.hooks.replace_list")} disabled={!editable} onClick={() => commit(with_hooks(latest.current.document, node.id, []))} style={SMALL} />
           </span>
         </div>
       )}
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <div style={{ ...ROW, justifyContent: "space-between" }}>
-          <span style={LABEL}>{t("agents.hooks.title")}</span>
-          {Array.isArray(list) && (
+      <Block section="hooks-pool-hooks" title={t("agents.hooks.title")} isDark={isDark}
+        aside={Array.isArray(list) ? (
             <Button
               label={t("agents.hooks.add_hook")}
               disabled={!editable}
@@ -569,21 +560,20 @@ export default function HooksPoolSection({ document, node, isDark, onChange, man
                 commit(with_hooks(latest.current.document, node.id, [...entries, { id: free_hook_id(taken) }]));
                 setOpenLast(true);
               }}
-              style={{ fontSize: 11.5, paddingVertical: 3, paddingHorizontal: 8, borderRadius: 8, color: "var(--pupu-text-muted)" }}
+              style={addButtonStyle(isDark)}
             />
-          )}
-        </div>
-        {entries.map((entry, index) => {
+          ) : undefined}>
+        <Region isDark={isDark}>{entries.map((entry, index) => {
           const rowId = rows.ids[index];
           const label = row_label(entry);
           const count = hook_entry_problems(entry, { siblings: entries, scope_duplicates: scopeDuplicates, capability, toolSetCapability, workflowCapability }, t).length;
           return (
-            <div key={rowId} data-testid={`hook-row-${index}`} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <div key={rowId} data-testid={`hook-row-${index}`} style={{ display: "flex", flexDirection: "column", gap: 6, padding: ROW_PAD }}>
               <div style={{ ...ROW, justifyContent: "space-between", flexWrap: "wrap" }}>
                 <span style={{ flex: "1 1 160px", minWidth: 0, overflowWrap: "anywhere" }}>
                   <span style={{ ...MONO, fontSize: 12 }}>{safe_text(label.title)}</span>
                   <span style={{ ...NOTE, marginLeft: 6 }}>{safe_text(label.detail)}</span>
-                  {count > 0 && <span style={{ ...problem_style(isDark), marginLeft: 6 }}>{t("agents.hooks.to_fix", { count })}</span>}
+                  {count > 0 && <span style={{ ...problemOf(isDark), marginLeft: 6 }}>{t("agents.hooks.to_fix", { count })}</span>}
                 </span>
                 {record(entry) ? (
                   <Button label={open_index === index ? t("agents.import.close") : t("agents.hooks.edit")} ariaLabel={t(open_index === index ? "agents.hooks.close_hook" : "agents.hooks.edit_hook", { index: index + 1 })} onClick={() => setOpen(open_index === index ? null : rowId)} style={{ ...SMALL, flexShrink: 0 }} />
@@ -600,7 +590,7 @@ export default function HooksPoolSection({ document, node, isDark, onChange, man
                   />
                 )}
               </div>
-              {!record(entry) && <span style={problem_style(isDark)}>{hook_entry_problems(entry, {}, t)[0].message}</span>}
+              {!record(entry) && <span style={problemOf(isDark)}>{hook_entry_problems(entry, {}, t)[0].message}</span>}
               {record(entry) && open_index === index && (
                 <HookEditor
                   entry={entry}
@@ -643,18 +633,12 @@ export default function HooksPoolSection({ document, node, isDark, onChange, man
               )}
             </div>
           );
-        })}
-      </div>
+        })}</Region>
+      </Block>
 
-      <Divider isDark={isDark} />
-
-      <div data-testid="hooks-pool-order" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-          <span style={LABEL}>{t("agents.hooks.run_order")}</span>
-          <PanelHelp label={t("agents.hooks.run_order")}>
-            <span style={NOTE}>{t("agents.hooks.order_explanation")}</span>
-          </PanelHelp>
-        </div>
+      <div data-testid="hooks-pool-order">
+      <Block section="hooks-run-order" title={t("agents.hooks.run_order")} isDark={isDark}
+        help={<span style={NOTE}>{t("agents.hooks.order_explanation")}</span>}>
         {agents.length === 0 && <span style={NOTE}>{t("agents.hooks.not_attached")}</span>}
         {agents.map((agent_id) => {
           const order = kernel_hook_order(document, agent_id);
@@ -674,8 +658,8 @@ export default function HooksPoolSection({ document, node, isDark, onChange, man
               <span data-testid={`hooks-pool-order-${agent_id}`} style={NOTE}>
                 {t("agents.hooks.scope_order", { agent: "{agent}", order: "{order}" }).split(/(\{agent\}|\{order\})/g).map((part, index) => ({ __proto__: null, "{agent}": (<span key={index} style={MONO}>{safe_text(agent_id)}</span>), "{order}": order.length ? order.map((item) => `${safe_text(item.id)}${item.pool_id !== node.id ? ` (${safe_text(item.pool_id)})` : ""}`).join(" → ") : t("agents.hooks.none_yet") }[part] ?? part))}
               </span>
-              <div data-testid={`hooks-run-list-${agent_id}`} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                {scope.map((item, position) => {
+              <div data-testid={`hooks-run-list-${agent_id}`} style={{ display: "flex", flexDirection: "column" }}>
+                <Region isDark={isDark}>{scope.map((item, position) => {
                   const own = item.pool_id === node.id;
                   const can = own && editable;
                   return (
@@ -697,7 +681,7 @@ export default function HooksPoolSection({ document, node, isDark, onChange, man
                         if (own && item.index === from) return;
                         move(from, landing(from, item));
                       } : undefined}
-                      style={{ ...ROW, justifyContent: "space-between", padding: "2px 6px", borderRadius: 8, cursor: can ? "grab" : "default", opacity: item.runs ? 1 : 0.55 }}
+                      style={{ ...ROW, justifyContent: "space-between", padding: ROW_PAD, cursor: can ? "grab" : "default", opacity: item.runs ? 1 : 0.55 }}
                     >
                       <span style={{ ...NOTE, minWidth: 0 }}>
                         {t("agents.hooks.row_order", { id: "{id}", order: "{order}", pool: "{pool}", enabled: "{enabled}" }).split(/(\{id\}|\{order\}|\{pool\}|\{enabled\})/g).map((part, index) => ({ __proto__: null, "{id}": (<span key={index} style={MONO}>{safe_text(item.id)}</span>), "{order}": item.order, "{pool}": own ? "" : ` · ${safe_text(item.pool_id)}`, "{enabled}": item.runs ? "" : t("agents.hooks.off_not_run") }[part] ?? part))}
@@ -710,7 +694,7 @@ export default function HooksPoolSection({ document, node, isDark, onChange, man
                       )}
                     </div>
                   );
-                })}
+                })}</Region>
                 {scope.length > 0 && (
                   <div
                     data-testid={`hooks-run-end-${agent_id}`}
@@ -726,17 +710,17 @@ export default function HooksPoolSection({ document, node, isDark, onChange, man
                 )}
               </div>
               {moveProblem && moveProblem.agent_id === agent_id && (
-                <span data-testid={`hooks-run-problem-${agent_id}`} style={problem_style(isDark)}>{renderAgentMessage(moveProblem.message, t)}</span>
+                <span data-testid={`hooks-run-problem-${agent_id}`} style={problemOf(isDark)}>{renderAgentMessage(moveProblem.message, t)}</span>
               )}
             </div>
           );
         })}
-
+      </Block>
       </div>
 
       {pool_extras.map((key) => (
         <div key={key} data-testid={`hooks-pool-extra-${key}`} style={{ ...ROW, justifyContent: "space-between" }}>
-          <span style={problem_style(isDark)}>{t("agents.hooks.pool_stored_unknown", { key: "{key}", value: "{value}" }).split(/(\{key\}|\{value\})/g).map((part, index) => ({ __proto__: null, "{key}": (<span key={index} style={MONO}>{safe_text(key)}</span>), "{value}": (<span key={index} style={MONO}>{safe_text(raw(node.config[key]))}</span>) }[part] ?? part))}</span>
+          <span style={problemOf(isDark)}>{t("agents.hooks.pool_stored_unknown", { key: "{key}", value: "{value}" }).split(/(\{key\}|\{value\})/g).map((part, index) => ({ __proto__: null, "{key}": (<span key={index} style={MONO}>{safe_text(key)}</span>), "{value}": (<span key={index} style={MONO}>{safe_text(raw(node.config[key]))}</span>) }[part] ?? part))}</span>
           <Button
             label={t("agents.execution.tool.remove")}
             ariaLabel={t("agents.hooks.remove_pool_setting", { value1: key })}
@@ -748,7 +732,7 @@ export default function HooksPoolSection({ document, node, isDark, onChange, man
       ))}
       {problems.length > 0 && (
         <div data-testid="hooks-pool-problems" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          {problems.map((problem, at) => <span key={`${problem.code}-${at}`} style={problem_style(isDark)}>{problem.message}</span>)}
+          {problems.map((problem, at) => <span key={`${problem.code}-${at}`} style={problemOf(isDark)}>{problem.message}</span>)}
         </div>
       )}
     </section>
