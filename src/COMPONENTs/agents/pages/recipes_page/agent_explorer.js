@@ -348,7 +348,7 @@ export default function AgentExplorer({
       }
       load();
     },
-    [renaming, library.items, activeId, onActiveChanged, refreshFolders, load],
+    [renaming, library.items, activeId, onActiveChanged, refreshFolders, load, setNotice],
   );
 
   const handleNewFolder = useCallback(
@@ -396,7 +396,7 @@ export default function AgentExplorer({
       setNotice("");
       onCreate(workflow ? { id, name, kind: "workflow" } : { id, name });
     },
-    [pending, refreshFolders, onCreate],
+    [pending, refreshFolders, onCreate, setNotice],
   );
 
   const handleDuplicate = useCallback(
@@ -422,7 +422,7 @@ export default function AgentExplorer({
         }));
       }
     },
-    [closeContextMenu, library.items, loadedNames, placement, refreshFolders, load, onSelect],
+    [closeContextMenu, library.items, loadedNames, placement, refreshFolders, load, onSelect, setNotice],
   );
 
   const handleChangeIcon = useCallback((node) => {
@@ -507,7 +507,7 @@ export default function AgentExplorer({
       }));
     }
     load();
-  }, [confirm, library.items, onActiveChanged, refreshFolders, load]);
+  }, [confirm, library.items, onActiveChanged, refreshFolders, load, setNotice]);
 
   const handleNodeContextMenu = useCallback((storeNode, event) => {
     event.preventDefault();
