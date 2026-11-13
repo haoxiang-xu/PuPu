@@ -1,4 +1,3 @@
-import PanelHelp from "./panel_help";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import Input from "./panel_input";
@@ -28,7 +27,8 @@ import {
   workflow_call_problems,
   workflow_reference,
 } from "../workflow_call_config";
-import { CAPTION_TEXT } from "./panel_style";
+import { Block } from "./process_timeline";
+import { addButtonStyle, note, problem as problemOf, Region } from "./panel_style";
 
 /* A Workflow Call node (#357): which published Workflow revision it runs, the
  * values that revision's Start reads, and what its End gives back. Every rule
@@ -47,23 +47,13 @@ import { CAPTION_TEXT } from "./panel_style";
  *     pick from;
  *   - there is no error policy to choose. */
 
-const LABEL = CAPTION_TEXT;
-const NOTE = { fontSize: 11.5, color: "var(--pupu-text-muted)", lineHeight: 1.45 };
 const MONO = { fontFamily: "ui-monospace, Menlo, monospace" };
 const ROW = { display: "flex", alignItems: "center", gap: 6 };
-const FIELD = { width: "100%", fontSize: 12, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 8 };
-const SMALL = { fontSize: 11.5, paddingVertical: 2, paddingHorizontal: 8, borderRadius: 8 };
-const problem_style = (isDark) => ({
-  fontSize: 11.5,
-  lineHeight: 1.45,
-  color: isDark ? "rgba(255,140,140,0.95)" : "rgba(176,32,32,0.95)",
-});
+const FIELD = { width: "100%", fontSize: 12, paddingVertical: 4, paddingHorizontal: 6 };
+/* One input row of the Inputs region, as Tool Call's argument rows. */
+const ROW_PAD = "8px 10px 8px 11px";
 const PUBLISHING = agentMessage("agents.workflow.publishing");
 const record = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
-
-function Divider({ isDark }) {
-  return <div aria-hidden="true" style={{ height: 6 }} />;
-}
 
 function refusal_text(result, fallback) {
   if (is_unavailable(result)) return agentMessage("agents.workflow.store_unreachable");
@@ -254,28 +244,28 @@ export default function WorkflowCallSection({ document, node, rowDiagnostics, is
      stored row is drawn below, so each lands on the row it is about (R-WFC-04). */
   const diagnostics_at = (index) => (Number.isSafeInteger(index) && index >= 0 && Array.isArray(rowDiagnostics) && Array.isArray(rowDiagnostics[index]) ? rowDiagnostics[index] : []);
   const Diagnostics = ({ index, testid }) => diagnostics_at(index).map((item, at) => (
-    <span key={at} data-testid={`${testid}-diagnostic-${at}`} style={problem_style(isDark)}>{safe_text(item && item.message)}</span>
+    <span key={at} data-testid={`${testid}-diagnostic-${at}`} style={problemOf(isDark)}>{safe_text(item && item.message)}</span>
   ));
   const sources = binding_sources(document, node.id);
   const problems = workflow_call_problems(node, t);
 
+  const NOTE = note(isDark);
+  /* The small text actions, centred with what sits beside them. */
+  const SMALL = { ...addButtonStyle(isDark), alignSelf: "auto" };
+
   return (
-    <section data-testid="workflow-call-section" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+    <section data-testid="workflow-call-section" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {!editable && (
-        <div style={problem_style(isDark)}>
+        <div style={problemOf(isDark)}>
           {!unique ? t("agents.execution.read_only.duplicate_ids") : t("agents.execution.read_only.stored")}
         </div>
       )}
 
-      <div data-testid="workflow-call-target" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-          <span style={LABEL}>{t("agents.workflow.workflow")}</span>
-          <PanelHelp label={t("agents.workflow.workflow")}>
-            <span data-testid="workflow-call-failure" style={NOTE}>
-              {t("agents.workflow.failure")} {t("agents.workflow.pinned_contract")}
-            </span>
-          </PanelHelp>
-        </div>
+      <div data-testid="workflow-call-target">
+      <Block section="workflow-call-workflow" title={t("agents.workflow.workflow")} isDark={isDark}
+        help={<span data-testid="workflow-call-failure" style={NOTE}>
+          {t("agents.workflow.failure")} {t("agents.workflow.pinned_contract")}
+        </span>}>
         <span data-testid="workflow-call-picker">
           <Select
             options={options}
@@ -288,7 +278,7 @@ export default function WorkflowCallSection({ document, node, rowDiagnostics, is
           />
         </span>
         {library.status === "error" && (
-          <span data-testid="workflow-call-library-error" style={problem_style(isDark)}>
+          <span data-testid="workflow-call-library-error" style={problemOf(isDark)}>
             {t("agents.workflow.library_failed", { message: renderAgentMessage(refusal_text(library.error, agentMessage("agents.workflow.store_refused")), t) })}{" "}
             <Button label={t("agents.explorer.try_again")} onClick={reloadLibrary} style={{ fontSize: 11.5, paddingVertical: 1, paddingHorizontal: 6 }} />
           </span>
@@ -297,14 +287,15 @@ export default function WorkflowCallSection({ document, node, rowDiagnostics, is
           <span style={NOTE}>{t("agents.workflow.no_workflows")}</span>
         )}
         {record(stored) && !pin && (
-          <span data-testid="workflow-call-stored-invalid" style={problem_style(isDark)}>
+          <span data-testid="workflow-call-stored-invalid" style={problemOf(isDark)}>
             {t("agents.workflow.stored", { value: "\uE000" }).split("\uE000").map((part, index) => <React.Fragment key={index}>{index > 0 && <span style={MONO}>{safe_text(JSON.stringify(stored))}</span>}{part}</React.Fragment>)}
           </span>
         )}
+      </Block>
       </div>
 
-      <div data-testid="workflow-call-revision" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <span style={LABEL}>{t("agents.workflow.revision")}</span>
+      <div data-testid="workflow-call-revision">
+      <Block section="workflow-call-revision" title={t("agents.workflow.revision")} isDark={isDark}>
         {pin && (
           <span data-testid="workflow-call-pinned" style={NOTE}>
             {version
@@ -359,18 +350,17 @@ export default function WorkflowCallSection({ document, node, rowDiagnostics, is
           </>
         )}
         {pinState.message && pinState.status !== "idle" && (
-          <span data-testid="workflow-call-pin-state" style={pinState.status === "refused" ? problem_style(isDark) : NOTE}>{renderAgentMessage(pinState.message, t)}</span>
+          <span data-testid="workflow-call-pin-state" style={pinState.status === "refused" ? problemOf(isDark) : NOTE}>{renderAgentMessage(pinState.message, t)}</span>
         )}
+      </Block>
       </div>
 
-      <Divider isDark={isDark} />
-
-      <div data-testid="workflow-call-inputs" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        <span style={LABEL}>{t("agents.workflow.inputs")}</span>
+      <div data-testid="workflow-call-inputs">
+      <Block section="workflow-call-inputs" title={t("agents.workflow.inputs")} isDark={isDark}>
         {!pin && <span style={NOTE}>{t("agents.workflow.pin_for_inputs")}</span>}
         {pin && !version && <span style={NOTE}>{t("agents.workflow.inputs_loading")}</span>}
         {shape && !shape.readable && (
-          <span style={problem_style(isDark)}>{t("agents.workflow.unreadable_interface")}</span>
+          <span style={problemOf(isDark)}>{t("agents.workflow.unreadable_interface")}</span>
         )}
         {shape && shape.readable && shape.inputs.length === 0 && !shape.whole && (
           <span style={NOTE}>{t("agents.workflow.reads_nothing", { name: safe_text(workflow_name) })}</span>
@@ -380,8 +370,9 @@ export default function WorkflowCallSection({ document, node, rowDiagnostics, is
             {t("agents.workflow.whole_input")}
           </span>
         )}
+        <Region isDark={isDark}>
         {shape && layout.rows.map((row) => (
-          <div key={row.name} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          <div key={row.name} style={{ display: "flex", flexDirection: "column", gap: 2, padding: ROW_PAD, minWidth: 0 }}>
             <ArgumentRow
               row={{ name: row.name, required: true, type: null, description: t("agents.workflow.read_as", { names: row.read_as.map((name) => safe_text(name)).join(t("agents.schema.fields.list_separator")) }), binding: row.binding }}
               sources={sources}
@@ -406,7 +397,7 @@ export default function WorkflowCallSection({ document, node, rowDiagnostics, is
           const name = pending ? pending_name : record(binding) && typeof binding.name === "string" ? binding.name : "";
           if (pending || (whole && !duplicate && name)) {
             return (
-              <div key={`named-${name}`} data-testid={pending ? `workflow-call-added-${name}` : `workflow-call-extra-${index}`} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <div key={`named-${name}`} data-testid={pending ? `workflow-call-added-${name}` : `workflow-call-extra-${index}`} style={{ display: "flex", flexDirection: "column", gap: 2, padding: ROW_PAD, minWidth: 0 }}>
                 <ArgumentRow
                   row={{ name, required: false, type: null, description: t("agents.workflow.whole_key"), binding }}
                   sources={sources}
@@ -427,9 +418,9 @@ export default function WorkflowCallSection({ document, node, rowDiagnostics, is
             );
           }
           return (
-            <div key={`extra-${index}`} data-testid={`workflow-call-extra-${index}`} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <div key={`extra-${index}`} data-testid={`workflow-call-extra-${index}`} style={{ display: "flex", flexDirection: "column", gap: 2, padding: ROW_PAD, minWidth: 0 }}>
               <div style={{ ...ROW, justifyContent: "space-between", flexWrap: "wrap" }}>
-                <span style={{ ...(shape || duplicate ? problem_style(isDark) : NOTE), flex: "1 1 160px", minWidth: 0, overflowWrap: "anywhere" }}>
+                <span style={{ ...(shape || duplicate ? problemOf(isDark) : NOTE), flex: "1 1 160px", minWidth: 0, overflowWrap: "anywhere" }}>
                   {(duplicate ? t("agents.workflow.duplicate_input", { name: "\uE000", value: "\uE001" })
                     : shape ? t("agents.workflow.ignored_input", { name: "\uE000", value: "\uE001" })
                       : t("agents.workflow.stored_input", { name: "\uE000", value: "\uE001" }))
@@ -443,13 +434,14 @@ export default function WorkflowCallSection({ document, node, rowDiagnostics, is
                   ariaLabel={t("agents.workflow.remove_input", { name })}
                   disabled={!editable}
                   onClick={() => commit(remove_call_input(document, node.id, index))}
-                  style={{ fontSize: 11.5, paddingVertical: 2, paddingHorizontal: 6, borderRadius: 8, flexShrink: 0 }}
+                  style={{ ...SMALL, flexShrink: 0 }}
                 />
               </div>
               <Diagnostics index={index} testid={`workflow-call-extra-${index}`} />
             </div>
           );
         })}
+        </Region>
         {whole && editable && (
           <div style={ROW}>
             <Input value={newName} placeholder={t("agents.workflow.input_placeholder")} set_value={setNewName} style={{ ...FIELD, ...MONO }} />
@@ -464,6 +456,7 @@ export default function WorkflowCallSection({ document, node, rowDiagnostics, is
             />
           </div>
         )}
+      </Block>
       </div>
 
       {shape && shape.readable && (
@@ -479,7 +472,7 @@ export default function WorkflowCallSection({ document, node, rowDiagnostics, is
       {problems.length > 0 && (
         <div data-testid="workflow-call-problems" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           {problems.map((problem, index) => (
-            <span key={`${problem.code}-${index}`} style={problem_style(isDark)}>{problem.message}</span>
+            <span key={`${problem.code}-${index}`} style={problemOf(isDark)}>{problem.message}</span>
           ))}
         </div>
       )}

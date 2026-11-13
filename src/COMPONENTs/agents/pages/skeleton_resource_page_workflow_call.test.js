@@ -100,6 +100,13 @@ const openCall = async (id = "call") => {
   await screen.findByTestId("workflow-call-section");
 };
 /* jsdom reports the popover list as visibility:hidden (see the Code page test). */
+/* A step's output row is the shared variable pill: what it passes on is
+   typed as a path (`result.<field>`), offered as you type. */
+const typePath = (container, text) => {
+  const box = within(container).getByRole("textbox", { name: /^(?!name$).+/ });
+  fireEvent.change(box, { target: { value: text } });
+  fireEvent.keyDown(box, { key: "Enter" });
+};
 const choose = (container, label, which = 0) => {
   const row = container.getAttribute("data-testid") || "";
   if (/^(binding|output)-row-\d+$/.test(row)) {
@@ -174,8 +181,7 @@ test("choose a Workflow, publish its draft and pin that revision, fill the input
 
   /* The Output Variables pick from exactly its End's exports. */
   fireEvent.click(screen.getByRole("button", { name: "+ Add output", exact: true }));
-  choose(screen.getByTestId("output-row-0"), "Result", 0);
-  choose(screen.getByTestId("output-row-0"), "summary", 1);
+  typePath(screen.getByTestId("output-row-0"), "result.summary");
   fireEvent.change(within(screen.getByTestId("output-row-0")).getByPlaceholderText("name"), { target: { value: "summary" } });
 
   expect(screen.getByTestId("workflow-call-node-call-revision")).toHaveTextContent("revision 2");
@@ -225,8 +231,7 @@ test("a typed revision id is read back before it is pinned; one nobody published
   setValue("limit", "2");
   /* End reads call.summary, so the call has to export it. */
   fireEvent.click(screen.getByRole("button", { name: "+ Add output", exact: true }));
-  choose(screen.getByTestId("output-row-0"), "Result", 0);
-  choose(screen.getByTestId("output-row-0"), "summary", 1);
+  typePath(screen.getByTestId("output-row-0"), "result.summary");
   fireEvent.change(within(screen.getByTestId("output-row-0")).getByPlaceholderText("name"), { target: { value: "summary" } });
   const edit = await save(store);
   expect(callOf(edit.document).config.workflow).toEqual({ workflow_id: "wf-summarize", revision_id: REV1 });

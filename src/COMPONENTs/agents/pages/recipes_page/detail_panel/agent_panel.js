@@ -4,10 +4,10 @@ import ChipEditor from "../chip_editor";
 import { compute_variable_scope } from "../variable_scope";
 import Select from "./panel_select";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
-import Switch from "../../../../../BUILTIN_COMPONENTs/input/switch";
-import { BUILDER_SWITCH_SIZE } from "../builder_switch_size";
+import { SemiSwitch } from "../../../../../BUILTIN_COMPONENTs/input/switch";
 import { Input } from "../../../../../BUILTIN_COMPONENTs/input/input";
 import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
+import { PANEL_SWITCH } from "./panel_style";
 
 const MODEL_OPTIONS = [
   { value: "", label: "(use recipe default)" },
@@ -216,7 +216,7 @@ export default function AgentPanel({ node, recipe, onChange, onChangeSilent, isD
             width: 26,
             height: 26,
             borderRadius: 7,
-            background: "linear-gradient(135deg, #6478f6, #4a5bd8)",
+            background: "#4a5bd8",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -294,10 +294,10 @@ export default function AgentPanel({ node, recipe, onChange, onChangeSilent, isD
         >
           <span style={{ fontSize: 12, fontWeight: 500 }}>{t("agents.execution.agent.enabled")}</span>
           <div data-testid="optimizer-enabled-switch">
-            <Switch
+            <SemiSwitch
               on={optimizer_enabled}
               set_on={set_optimizer_enabled}
-              style={BUILDER_SWITCH_SIZE}
+              style={PANEL_SWITCH}
             />
           </div>
         </div>
@@ -440,30 +440,30 @@ export default function AgentPanel({ node, recipe, onChange, onChangeSilent, isD
               }}
             >
               <span>{t("agents.execution.agent.hash_payloads")}</span>
-              <Switch
+              <SemiSwitch
                 on={custom_optimizer.tool_history_compaction.hash_payloads}
                 set_on={(on) =>
                   update_custom_optimizer("tool_history_compaction", {
                     hash_payloads: !!on,
                   })
                 }
-                style={BUILDER_SWITCH_SIZE}
+                style={PANEL_SWITCH}
               />
               <span>{t("agents.execution.agent.context_usage")}</span>
-              <Switch
+              <SemiSwitch
                 on={custom_optimizer.context_usage.enabled}
                 set_on={(on) =>
                   update_custom_optimizer("context_usage", { enabled: !!on })
                 }
-                style={BUILDER_SWITCH_SIZE}
+                style={PANEL_SWITCH}
               />
               <span>{t("agents.execution.agent.pair_safety")}</span>
-              <Switch
+              <SemiSwitch
                 on={custom_optimizer.tool_pair_safety.enabled}
                 set_on={(on) =>
                   update_custom_optimizer("tool_pair_safety", { enabled: !!on })
                 }
-                style={BUILDER_SWITCH_SIZE}
+                style={PANEL_SWITCH}
               />
             </div>
           </div>

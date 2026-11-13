@@ -14,7 +14,7 @@
  * The write side is the production helper (`skeleton_resources.save_draft`),
  * not a hand-made "something changed" event: what the chat reacts to is a
  * store answer, and a refusal or an unreachable store changed nothing. The
- * read side is the real `ChatInput`/`AttachPanel`/`Select`, so "the list was
+ * read side is the real `ChatInput`/`AttachPanel` picker, so "the list was
  * refreshed" and "the new Agent can be chosen" are the same claim.
  */
 import {
@@ -59,7 +59,7 @@ jest.mock("../../COMPONENTs/chat-messages/chat_messages", () => ({
 }));
 
 /* The props are captured AND the real composer is rendered: the row under
-   test is the real Select, and the list it is given is the page's own prop. */
+   test is the real picker, and the list it is given is the page's own prop. */
 jest.mock("../../COMPONENTs/chat-input/chat_input", () => ({
   __esModule: true,
   default: (props) => {
@@ -163,14 +163,14 @@ describe("the saved Agent library of a chat that is already open", () => {
     window.unchainAPI.listSkeletonResources.mock.calls.length;
 
   const openAgentSelector = async () => {
-    const combo = within(screen.getByTestId("attach-agent-row")).getByRole(
-      "combobox",
+    const trigger = within(screen.getByTestId("attach-agent-row")).getByRole(
+      "button", { name: /^Agents/ },
     );
-    fireEvent.keyDown(combo, { key: "ArrowDown" });
+    fireEvent.click(trigger);
     await waitFor(() =>
-      expect(combo).toHaveAttribute("aria-expanded", "true"),
+      expect(trigger).toHaveAttribute("aria-expanded", "true"),
     );
-    return combo;
+    return trigger;
   };
 
   const optionIds = () =>

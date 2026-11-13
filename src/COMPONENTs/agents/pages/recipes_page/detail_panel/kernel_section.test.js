@@ -227,7 +227,7 @@ describe("when the runtime cannot be reached", () => {
     await show(bare());
     expect(
       screen.getByTestId("kernel-catalog-unavailable").textContent,
-    ).toMatch(/cannot reach/i);
+    ).toMatch(/could not be loaded/i);
   });
 
   test("a stored model is still shown, and still editable", async () => {
@@ -265,8 +265,9 @@ describe("an answer that is not a catalog", () => {
     });
     await show(bare());
     const said = screen.getByTestId("kernel-catalog-unreadable").textContent;
-    expect(said).toMatch(/not with a list of models/i);
-    expect(said).toMatch(/fault in this build/i);
+    /* Plain wording; the malformed answer is a developer's concern. */
+    expect(said).toMatch(/could not be loaded/i);
+    expect(said).not.toMatch(/build|runtime/i);
     expect(screen.queryByTestId("kernel-catalog-empty")).toBeNull();
     expect(screen.queryByTestId("kernel-catalog-unavailable")).toBeNull();
   });

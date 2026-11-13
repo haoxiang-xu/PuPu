@@ -185,7 +185,7 @@ test("If / Else: add, bind, write the condition, wire both outlets and a rejoin,
   expect(screen.getByTestId("skeleton-save-state")).toHaveTextContent(/^Saved$/);
 });
 
-test("Switch / Case: cases keep their outlets through rename and reorder; removing a wired case asks and takes its edge", async () => {
+test("Switch / Case: cases keep their outlets through rename; removing a wired case asks and takes its edge", async () => {
   await open(baseRecord());
   deleteEdge("b");
   await add("switch_case");
@@ -194,23 +194,22 @@ test("Switch / Case: cases keep their outlets through rename and reorder; removi
   fireEvent.click(screen.getByRole("button", { name: "+ Add input", exact: true }));
   fireEvent.change(within(screen.getByTestId("binding-row-0")).getByPlaceholderText("name"), { target: { value: "reply" } });
   choose(screen.getByTestId("branch-switch-value-pick"), "reply");
-  fireEvent.click(screen.getByRole("button", { name: "+ Add a case" }));
+  fireEvent.click(screen.getByRole("button", { name: "Add a case" }));
   fireEvent.change(within(screen.getByTestId("branch-case-0-value-text")).getByPlaceholderText("text"), { target: { value: "a" } });
-  fireEvent.click(screen.getByRole("button", { name: "+ Add a case" }));
+  fireEvent.click(screen.getByRole("button", { name: "Add a case" }));
   fireEvent.change(within(screen.getByTestId("branch-case-1-value-text")).getByPlaceholderText("text"), { target: { value: "b" } });
   expect(port("switch", "case-1")).not.toBeNull();
   expect(port("switch", "case-2")).not.toBeNull();
   drag("switch", "case-1", "end", "in");
   drag("switch", "case-2", "end", "in");
   drag("switch", "default", "end", "in");
-  expect(screen.getByTestId("branch-case-1-target")).toHaveTextContent("→ end");
+  expect(screen.getByTestId("branch-case-1-target")).toHaveTextContent(/^End$/);
 
   fireEvent.change(within(screen.getByTestId("branch-case-0-value-text")).getByPlaceholderText("text"), { target: { value: "x" } });
-  fireEvent.click(screen.getByRole("button", { name: "Move case 2 up" }));
-  expect(within(screen.getByTestId("branch-node-switch")).getAllByText(/“/).map((node) => node.textContent)).toEqual(["“b”", "“x”"]);
+  expect(within(screen.getByTestId("branch-node-switch")).getAllByText(/“/).map((node) => node.textContent)).toEqual(["“x”", "“b”"]);
 
-  fireEvent.click(screen.getByRole("button", { name: "Remove case 1" }));
-  expect(screen.getByTestId("branch-case-0-confirm")).toHaveTextContent("Removing it also removes that connection");
+  fireEvent.click(screen.getByRole("button", { name: "Remove case 2" }));
+  expect(screen.getByTestId("branch-case-1-confirm")).toHaveTextContent("Removing it also removes that connection");
   fireEvent.click(screen.getByRole("button", { name: "Remove case and connection" }));
   expect(port("switch", "case-2")).toBeNull();
 

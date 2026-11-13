@@ -14,7 +14,8 @@ import {
 import { identity_of } from "../document_values";
 import { make_output_mapping, output_mapping_problems } from "../skeleton_io";
 import { result_roots_for } from "../skeleton_result_roots";
-import { CAPTION_TEXT } from "./panel_style";
+import { CAPTION_TEXT, Region } from "./panel_style";
+import { is_system_context_input, is_system_context_output } from "./system_context_visibility";
 
 /* Output Variables: what this node passes on, and from where.
  *
@@ -40,8 +41,9 @@ import { CAPTION_TEXT } from "./panel_style";
 
 const SECTION_LABEL = CAPTION_TEXT;
 
-function input_names(node) {
+function input_names(node, document) {
   return node_bindings(node)
+    .filter((binding) => !document || !is_system_context_input(document, node, binding))
     .map((binding) => binding && binding.name)
     .filter((name) => typeof name === "string" && name);
 }
@@ -152,6 +154,20 @@ export function result_root_problems(node, mappings, t = agentEnglishText) {
   return problems;
 }
 
+/* Presentation only: the runtime's context remains in the result and any
+   stored exports. Keep original indexes so editing a visible row never
+   addresses a hidden one. Invalid metadata stays visible for repair. */
+export function visible_output_rows(node, rowDiagnostics, document) {
+  const mappings = node_output_mappings(node);
+  const problems = output_mapping_problems(mappings);
+  return mappings.flatMap((mapping, index) => {
+    const metadata = is_system_context_output(document, node, mapping);
+    const hasProblem = Boolean(rowDiagnostics?.[index]?.length)
+      || problems.some((problem) => problem.where.startsWith(`mappings[${index}]`));
+    return metadata && !hasProblem ? [] : [{ mapping, index }];
+  });
+}
+
 export default function OutputVariablesSection({
   document,
   node,
@@ -164,17 +180,28 @@ export default function OutputVariablesSection({
   hideHeading = false,
   addAtEnd = false,
   breadcrumb = false,
+  /* How the rows look, apart from what they store. `breadcrumb` is the
+     Agent / Start / End reading; `look="pill"` gives any other node the same
+     rows, with the value typed as a path so a row can still reach inside a
+     result (`result.items[0]`) as the older row's path editor could. */
+  look,
 }) {
   const { t } = useTranslation();
+  const pill = breadcrumb || look === "pill";
   /* A branch selects an outlet rather than producing a value, and a pool
      attaches rather than runs, so neither has an outputs key at all. */
   if (!node_declares_outputs(node && node.type)) return null;
 
   const mappings = node_output_mappings(node);
   const kinds = output_source_kinds_for(node.type);
-  const names = input_names(node);
+  const names = input_names(node, document);
   const roots = result_roots_for(node, t);
-  const Row = breadcrumb ? OutputValuePill : OutputRow;
+  const pickerRoots = node.type === "agent"
+    ? { ...roots, roots: roots.roots.filter((name) => name !== "context") }
+    : roots;
+  const visibleRows = visible_output_rows(node, rowDiagnostics, document);
+  const Row = pill ? OutputValuePill : OutputRow;
+  const rowLook = pill && !breadcrumb ? { typedPath: true } : {};
   const composed = [
     ...output_mapping_problems(mappings, t),
     ...output_surface_problems(node, mappings, t),
@@ -236,7 +263,8 @@ export default function OutputVariablesSection({
         </span>
       )}
 
-      {mappings.map((mapping, index) => (
+      {(() => {
+        const rows = visibleRows.map(({ mapping, index }) => (
         <Row
           key={index}
           mapping={mapping}
@@ -265,8 +293,9 @@ export default function OutputVariablesSection({
           nodeType={node.type}
           kinds={kinds}
           inputNames={names}
-          resultRoots={roots}
+          resultRoots={pickerRoots}
           isDark={isDark}
+          {...rowLook}
           problems={[
             ...composed.filter((problem) =>
               problem.where.startsWith(`mappings[${index}]`),
@@ -278,7 +307,9 @@ export default function OutputVariablesSection({
           }
           onRemove={() => set_mappings(mappings.filter((_, i) => i !== index))}
         />
-      ))}
+      ));
+        return pill ? <Region isDark={isDark}>{rows}</Region> : rows;
+      })()}
       {addAtEnd && add_button}
     </div>
   );

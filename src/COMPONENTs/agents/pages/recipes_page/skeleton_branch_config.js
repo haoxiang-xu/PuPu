@@ -2,6 +2,7 @@ import { own } from "./document_values";
 import { agentEnglishText } from "./agents_i18n";
 import { flow_outlets } from "./skeleton_graph_edits";
 import { find_node, node_bindings, node_output_mappings } from "./skeleton_document";
+import { NODE_PORT_ANCHOR, branch_layout } from "./nodes/node_metrics";
 
 /* If / Else and Switch / Case configuration — the pure half of #351.
  *
@@ -459,8 +460,14 @@ export function branch_ports(document, node, t = agentEnglishText) {
       push(edge.source_port_id, edge.source_port_id, false);
     }
   });
+  const layout = branch_layout(rows.length);
   return {
-    ports: [IN_PORT, ...rows.map((row) => ({ id: row.port_id, side: "right", kind: "out" }))].map((port) => ({ ...port })),
+    /* Anchored where the node draws them: the inlet on the header's centre
+       line, like every other node's, and each outlet on its own row. */
+    ports: [
+      { ...IN_PORT, anchor: NODE_PORT_ANCHOR },
+      ...rows.map((row, index) => ({ id: row.port_id, side: "right", kind: "out", anchor: layout.anchors[index] })),
+    ],
     rows,
     readable: declared.ok,
   };

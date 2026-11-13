@@ -257,10 +257,10 @@ describe("canvas ports", () => {
     ] };
     expect(branch_ports(document, node)).toStrictEqual({
       ports: [
-        { id: "in", side: "left", kind: "in" },
-        { id: "case-1", side: "right", kind: "out" },
-        { id: "default", side: "right", kind: "out" },
-        { id: "case-9", side: "right", kind: "out" },
+        { id: "in", side: "left", kind: "in", anchor: 31.5 },
+        { id: "case-1", side: "right", kind: "out", anchor: 18.5 },
+        { id: "default", side: "right", kind: "out", anchor: 44.5 },
+        { id: "case-9", side: "right", kind: "out", anchor: 70.5 },
       ],
       rows: [
         { port_id: "case-1", label: "“a”", declared: true },

@@ -3,6 +3,23 @@
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 /**
+ * While a node's own content animates its size (`resizing` in its measured
+ * dimensions, set by FlowEditorNode while the node announces a size motion),
+ * a px-anchored port stays at least this far inside the end of its side, so
+ * an outlet whose row is still being revealed rides the growing edge instead
+ * of floating outside the node. At rest no clamp applies: an anchor is exact.
+ */
+export const PORT_ANCHOR_EDGE_INSET = 12;
+
+/** Bubbling DOM event a node's content dispatches when its own size starts
+ * (`detail.running: true`) or stops animating; FlowEditorNode listens. */
+export const NODE_SIZE_MOTION_EVENT = "flow-node-size-motion";
+
+export function clamp_anchor_to_extent(anchor, extent) {
+  return Number.isFinite(extent) ? Math.min(anchor, extent - PORT_ANCHOR_EDGE_INSET) : anchor;
+}
+
+/**
  * Default port configuration — one port on each side
  */
 export const DEFAULT_PORTS = [
@@ -100,8 +117,12 @@ export function get_port_position(node, port_id, node_dimensions) {
      rather than at an even fraction — the drawn dot and the edge's endpoint
      read the same field, so they cannot disagree. */
   if (Number.isFinite(port.anchor)) {
-    if (port.side === "left" || port.side === "right") pos.y = node.y + port.anchor;
-    else if (port.side === "top" || port.side === "bottom") pos.x = node.x + port.anchor;
+    const resizing = dims.resizing === true;
+    if (port.side === "left" || port.side === "right") {
+      pos.y = node.y + (resizing ? clamp_anchor_to_extent(port.anchor, dims.height) : port.anchor);
+    } else if (port.side === "top" || port.side === "bottom") {
+      pos.x = node.x + (resizing ? clamp_anchor_to_extent(port.anchor, dims.width) : port.anchor);
+    }
   }
   return { ...pos, side: port.side };
 }

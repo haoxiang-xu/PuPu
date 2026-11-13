@@ -64,8 +64,8 @@ test("the native palette offers it, with the step ports the canvas draws", () =>
   const entry = NATIVE_PALETTE_ENTRIES.find((item) => item.type === "tool_call");
   expect(entry).toMatchObject({ type: "tool_call", label: "Tool call", group: "steps", icon: "tool" });
   expect(native_step_ports("tool_call")).toStrictEqual([
-    { id: "in", side: "left", kind: "in" },
-    { id: "out", side: "right", kind: "out" },
+    { id: "in", side: "left", kind: "in", anchor: 31.5 },
+    { id: "out", side: "right", kind: "out", anchor: 31.5 },
   ]);
   expect(native_step_ports("agent")).toBeNull();
 });
@@ -100,8 +100,8 @@ describe("Skill Read", () => {
       type: "skill_read", label: "Skill read", group: "steps", icon: "book_open",
     });
     expect(native_step_ports("skill_read")).toStrictEqual([
-      { id: "in", side: "left", kind: "in" },
-      { id: "out", side: "right", kind: "out" },
+      { id: "in", side: "left", kind: "in", anchor: 31.5 },
+      { id: "out", side: "right", kind: "out", anchor: 31.5 },
     ]);
   });
 });
@@ -117,9 +117,13 @@ describe("Code", () => {
     expect(ADDABLE_NODE_TYPES.indexOf("code")).toBeGreaterThan(ADDABLE_NODE_TYPES.indexOf("skill_read"));
   });
 
-  test("a new Code node carries exactly the measured seed and nothing invented", () => {
+  test("a new Code node carries the measured seed plus its starter", () => {
     const added = ok(add_node(seed(), { type: "code" }));
-    expect(added.nodes.at(-1)).toStrictEqual({ id: "code", type: "code", config: { execution: { inputs: [], outputs: [] } } });
+    const { starter_code } = jest.requireActual("./code_config");
+    expect(added.nodes.at(-1)).toStrictEqual({ id: "code", type: "code", config: {
+      execution: { inputs: [], outputs: [] },
+      code: starter_code().code,
+    } });
     expect(ok(add_node(added, { type: "code" })).nodes.at(-1).id).toBe("code-2");
   });
 
@@ -141,11 +145,11 @@ describe("Code", () => {
     expect(NATIVE_PALETTE_ENTRIES.find((item) => item.type === "code")).toMatchObject({
       type: "code", label: "Code", group: "steps", icon: "code", graph_kinds: ["agent", "workflow"],
     });
-    /* Level with the header, not centred: the node grows below it. */
+    /* Level with the shared header, not centred: the node grows below it. */
     expect(native_step_ports("code")).toStrictEqual([
-      { id: "in", side: "left", kind: "in", anchor: 27 },
-      { id: "out", side: "right", kind: "out", anchor: 27 },
+      { id: "in", side: "left", kind: "in", anchor: 31.5 },
+      { id: "out", side: "right", kind: "out", anchor: 31.5 },
     ]);
-    expect(native_step_ports("tool_call")[0]).not.toHaveProperty("anchor");
+    expect(native_step_ports("tool_call")[0].anchor).toBe(31.5);
   });
 });

@@ -3,7 +3,8 @@ import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use
 import { node_display_title } from "../node_display_labels";
 import React from "react";
 import PuzzleShape from "./puzzle_shape";
-import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
+import NodeHeader, { NodeBody } from "./node_header";
+import { NODE_PORT_ANCHOR } from "./node_metrics";
 import { safe_text } from "../document_values";
 import { tool_settings } from "../tool_call_config";
 
@@ -52,32 +53,15 @@ export default function ToolCallNode({ node, isDark }) {
 
   return (
     <div data-testid={`tool-call-node-${node.id}`} style={{ width: 210 }}>
-      <PuzzleShape tabs={["right"]} cutouts={["left"]} isDark={isDark}>
-        <div style={{ padding: "13px 16px 10px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div
-              style={{
-                width: 28,
-                height: 28,
-                borderRadius: 9,
-                background: "linear-gradient(135deg, #f6a341, #ea7547)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
-              }}
-            >
-              <Icon src="tool" color="#fff" style={{ width: 16, height: 16 }} />
-            </div>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 12.5, fontWeight: 600, color: text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: name ? "ui-monospace, Menlo, monospace" : undefined }}>
-                {node_display_title(node, name ? safe_text(name) : t("agents.nodes.tool_call"))}
-              </div>
-              <div style={{ fontSize: 10.5, color: muted, marginTop: 2 }}>
-                {name ? t("agents.nodes.tool_call") : t("agents.nodes.tool_call_pick")}
-              </div>
-            </div>
-          </div>
+      <PuzzleShape tabs={["right"]} cutouts={["left"]} anchor={NODE_PORT_ANCHOR} isDark={isDark}>
+        <NodeBody>
+          <NodeHeader
+            src="tool"
+            tile={{ background: "#ea7547" }}
+            title={node_display_title(node, name ? safe_text(name) : t("agents.nodes.tool_call"))}
+            titleStyle={name ? { fontFamily: "ui-monospace, Menlo, monospace" } : undefined}
+            subtitle={name ? t("agents.nodes.tool_call") : t("agents.nodes.tool_call_pick")}
+          />
           {shown.length > 0 && (
             <div style={{ marginTop: 8, paddingTop: 6, borderTop: "1px solid var(--pupu-border-subtle)", display: "flex", flexDirection: "column", gap: 2 }}>
               {shown.map((binding, index) => {
@@ -99,7 +83,7 @@ export default function ToolCallNode({ node, isDark }) {
               {overflow > 0 && <div style={{ fontSize: 10.5, color: muted }}>{t("agents.nodes.more", { count: overflow })}</div>}
             </div>
           )}
-        </div>
+        </NodeBody>
       </PuzzleShape>
     </div>
   );

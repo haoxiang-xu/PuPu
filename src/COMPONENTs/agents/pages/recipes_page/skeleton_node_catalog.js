@@ -1,5 +1,6 @@
 import { addable_nodes } from "./recipe_node_catalog";
 import { ADDABLE_NODE_TYPES } from "./skeleton_graph_edits";
+import { NODE_PORT_ANCHOR } from "./nodes/node_metrics";
 
 /* What the native canvas's Add node… palette offers.
  *
@@ -23,7 +24,7 @@ const BRANCH_ENTRIES = [
     label: "Switch / Case",
     description: "Take the path whose case matches a value",
     group: "steps",
-    icon: "switch_case",
+    icon: "switch_node",
   },
 ];
 
@@ -63,7 +64,7 @@ const STEP_ENTRIES = [
     label: "Workflow call",
     description: "Run one published Workflow revision as a step",
     group: "steps",
-    icon: "flow_chart",
+    icon: "workflow",
     graph_kinds: ["agent", "workflow"],
   },
 ];
@@ -77,17 +78,15 @@ const STEP_PORTS = Object.freeze([
 ]);
 const STEP_TYPES = new Set(STEP_ENTRIES.map((entry) => entry.type));
 
-/* A Code node is taller than its header once it shows code, and its in/out
-   ports stay level with that header rather than centring on the node, so a
-   chain of mixed heights still reads as one line (design canvas, "Showing the
-   code on the node"). The distance is the header's centre: the node's top
-   padding plus half its 28px glyph. The editor honours `anchor` on a port;
-   the node draws its header to match. */
-export const CODE_PORT_ANCHOR = 27;
-
+/* A step can grow below its header (a Tool Call's arguments, a Code node's
+   code), and its in/out ports stay level with that header rather than
+   centring on the node, so a chain of mixed heights still reads as one line —
+   at the same height as Start's and Agent's ports. The distance is the shared
+   header's centre (`NODE_PORT_ANCHOR`); the editor honours `anchor` on a
+   port, and each node draws its header to match. */
 export function native_step_ports(type) {
   if (!STEP_TYPES.has(type)) return null;
-  return STEP_PORTS.map((port) => (type === "code" ? { ...port, anchor: CODE_PORT_ANCHOR } : { ...port }));
+  return STEP_PORTS.map((port) => ({ ...port, anchor: NODE_PORT_ANCHOR }));
 }
 
 /* Hooks Pool (#357): an attach pool, like the Toolkit and Subagent Pools,

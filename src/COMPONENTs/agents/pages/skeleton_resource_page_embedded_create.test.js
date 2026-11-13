@@ -46,9 +46,8 @@ beforeEach(() => {
 });
 afterEach(() => jest.restoreAllMocks());
 
-/* The embedded Agent is the last choice under the pool's one "add" control. */
+/* The embedded Agent is made from the button that heads the pool's library. */
 function add_embedded() {
-  fireEvent.click(screen.getByRole("button", { name: "+ Add an Agent", exact: true }));
   fireEvent.click(screen.getByRole("button", { name: "New embedded Agent", exact: true }));
 }
 

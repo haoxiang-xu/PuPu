@@ -281,7 +281,7 @@ test("a revision that cannot be read opens nothing and says why; the editor is u
   expect(store.publish).not.toHaveBeenCalled();
 });
 
-test("a pinned revision with host-kept Code text draws that text from its own aggregate, not the caller's", async () => {
+test("a pinned revision with host-kept Code text opens read-only, its Code step drawn as the plain header card", async () => {
   const reply = g1_revision();
   const store = makeStore(["caller_complete_rev2_get"], {
     extraVersions: { [`${reply.version.workflow_id}\u0000${G1_REVISION}`]: reply },
@@ -293,8 +293,8 @@ test("a pinned revision with host-kept Code text draws that text from its own ag
   await screen.findByText("revision 1", { exact: false });
   openPinned();
   await waitFor(() => expect(pinnedView()).not.toBeNull());
-  expect(screen.getByTestId("code-node-score-block")).toHaveTextContent("def main(input, context):");
-  expect(screen.queryByTestId("code-node-score-text-missing")).toBeNull();
+  expect(screen.getByTestId("code-node-score")).toHaveTextContent("Python");
+  expect(screen.getByTestId("code-node-score")).not.toHaveTextContent("def main");
   expect(screen.getByTestId("skeleton-drill-crumbs")).toHaveTextContent("G1 Root · revision 1");
   fireEvent.keyDown(window.document, { key: "Escape" });
   await waitFor(() => expect(pinnedView()).toBeNull());

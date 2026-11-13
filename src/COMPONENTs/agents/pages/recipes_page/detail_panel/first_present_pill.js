@@ -4,16 +4,18 @@ import ContextMenu from "../../../../../BUILTIN_COMPONENTs/context_menu/context_
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { first_present_expression, ref_expression } from "../skeleton_io";
 import VariablePill, { VariablePillValue, variablePillField } from "./variable_pill";
+import usePillMissingPolicy from "./pill_missing_policy";
 
 /* A row that reads the first of several sources, in the pill's language: the
    row names it, and the sources follow in the order they are tried, each one
    filled row, numbered, with its own pick and its own way out. */
 
-const fill = (isDark) => (isDark ? "rgba(255,255,255,0.075)" : "rgba(0,0,0,0.045)");
 const muted = (isDark) => (isDark ? "#a6a6af" : "#686870");
 
-export default function FirstPresentPill({ binding, index, sources, problems, isDark, onChange, onRemove }) {
+export default function FirstPresentPill({ binding, index, sources, sourceTag, problems, isDark, onChange, onRemove, hideMissingPolicy = true }) {
+  const tagOf = (node_id) => (sourceTag && sourceTag(node_id)) || {};
   const { t } = useTranslation();
+  const policy = usePillMissingPolicy({ binding, onChange, isDark, hidden: hideMissingPolicy, testid: `binding-row-${index}` });
   const [menu, setMenu] = useState(null);
   const name = typeof binding?.name === "string" ? binding.name : "";
   const values = binding.value.values;
@@ -30,6 +32,7 @@ export default function FirstPresentPill({ binding, index, sources, problems, is
     return {
       node: source ? source.node_label : entry?.node_id || "—",
       path: Array.isArray(entry?.path) ? entry.path.join(".") : "",
+      tag: source ? tagOf(entry.node_id) : {},
     };
   };
 
@@ -39,7 +42,7 @@ export default function FirstPresentPill({ binding, index, sources, problems, is
   };
 
   const items = sources.map((source) => ({
-    label: <VariablePillValue label={source.node_label} detail={source.name} isDark={isDark} />,
+    label: <VariablePillValue label={source.node_label} detail={source.name} {...tagOf(source.node_id)} isDark={isDark} />,
     prefix_icon: source.conditional ? "circle" : undefined,
     onClick: () => {
       const next = ref_expression(source.node_id, [source.name]);
@@ -51,10 +54,10 @@ export default function FirstPresentPill({ binding, index, sources, problems, is
   }));
 
   return (
-    <div data-testid={testid} style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
+    <div data-testid={testid} style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
       <VariablePill testid={testid} isDark={isDark} name={name}
         onNameChange={(next) => onChange({ ...binding, name: next })}
-        onRemove={onRemove} removeLabel={removeLabel}>
+        onRemove={onRemove} removeLabel={removeLabel} actions={policy.action}>
         <span title={t("agents.io.first_present_caption")} style={{ ...variablePillField, display: "flex", alignItems: "center", minWidth: 0 }}>
           <VariablePillValue label={t("agents.io.source.first_present")} isDark={isDark} />
         </span>
@@ -64,14 +67,15 @@ export default function FirstPresentPill({ binding, index, sources, problems, is
         return (
           <div key={i} data-testid={`${testid}-alt-${i}`}
             style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, height: 28,
-              padding: "0 5px 0 10px", borderRadius: 8, background: fill(isDark) }}>
+              padding: "0 5px 0 20px" }}>
             <span aria-hidden="true" style={{ width: 12, flexShrink: 0, fontSize: 11.5, color: muted(isDark),
               fontVariantNumeric: "tabular-nums" }}>{i + 1}</span>
             <Button ariaLabel={t("agents.io.source_option", { node: shown.node, name: shown.path })}
               dom_props={{ type: "button", "aria-haspopup": "menu", onBlur: () => setMenu(null) }}
               onClick={(event) => open(event, i)}
               style={{ ...variablePillField, flex: 1, justifyContent: "flex-start", content: { root: { minWidth: 0 } } }}>
-              <VariablePillValue label={shown.node} detail={shown.path || undefined} isDark={isDark} />
+              <VariablePillValue label={shown.node} detail={shown.path || undefined} {...shown.tag}
+                testid={`${testid}-alt-${i}-tag`} isDark={isDark} />
             </Button>
             <Button prefix_icon="close" ariaLabel={t("agents.io.remove_source", { position: i + 1 })}
               disabled={values.length <= 2} onClick={() => setValues(values.filter((_, j) => j !== i))}
@@ -85,14 +89,15 @@ export default function FirstPresentPill({ binding, index, sources, problems, is
         dom_props={{ type: "button", "aria-haspopup": "menu", onBlur: () => setMenu(null) }}
         onClick={(event) => open(event, values.length)}
         style={{ alignSelf: "flex-start", fontSize: 11, paddingVertical: 5, paddingHorizontal: 6, borderRadius: 5,
-          color: muted(isDark) }} />
+          marginLeft: 14, marginBottom: 4, color: muted(isDark) }} />
+      {policy.settings}
       <div onMouseDown={(event) => event.preventDefault()}>
         <ContextMenu visible={menu !== null && items.length > 0} x={menu?.x} y={menu?.y} items={items}
           onClose={() => setMenu(null)} isDark={isDark} scrollable />
       </div>
       {problems.map((problem, i) => (
         <span key={i} data-testid={`${testid}-problem-${i}`}
-          style={{ fontSize: 11.5, lineHeight: 1.45, overflowWrap: "anywhere", color: isDark ? "#ff8c8c" : "#b02020" }}>
+          style={{ fontSize: 11.5, lineHeight: 1.45, overflowWrap: "anywhere", padding: "0 10px 7px", color: isDark ? "#ff8c8c" : "#b02020" }}>
           {problem.message}
         </span>
       ))}

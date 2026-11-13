@@ -78,9 +78,20 @@ const choose = (container, label, which = 0) => {
   }
   if (/^(binding|output)-row-\d+$/.test(row)) {
     /* A row drawn as one filled pill picks from the menu under its value. */
-    if (which === 0 && !within(container).queryByRole("button", { name: / · More$/ })) {
+    const pill = !within(container).queryByRole("button", { name: / · More$/ });
+    if (which === 0 && pill) {
       fireEvent.click(within(container).getByRole("textbox", { name: /^(?!name$).+/ }));
       fireEvent.click(screen.getByText(label, { exact: true }));
+      return;
+    }
+    if (pill) {
+      /* Any node's input row is the same pill now: its source is picked from
+         the menu under its value, an option being the node and the field. */
+      const [node, name] = label.split(" · ");
+      fireEvent.click(within(container).getByRole("textbox", { name: /^(?!name$).+/ }));
+      const options = screen.getAllByText((_, el) => el?.tagName === "SPAN" && el.children.length === 2
+        && el.textContent === `${node}${name}`);
+      fireEvent.click(options[options.length - 1]);
       return;
     }
     if (which === 0) {
@@ -104,10 +115,16 @@ const save = async () => {
 };
 const nodeOf = (document, id) => document.nodes.find((node) => node.id === id);
 const edgeSet = (document) => document.edges.map((edge) => `${edge.source_node_id}.${edge.source_port_id}>${edge.target_node_id}.${edge.target_port_id}`).sort();
+/* A step's output row is the shared variable pill: what it passes on is
+   typed as a path (`result.<field>`), offered as you type. */
+const typePath = (container, text) => {
+  const box = within(container).getByRole("textbox", { name: /^(?!name$).+/ });
+  fireEvent.change(box, { target: { value: text } });
+  fireEvent.keyDown(box, { key: "Enter" });
+};
 const addOutput = (row, root, name) => {
   fireEvent.click(screen.getByRole("button", { name: "+ Add output", exact: true }));
-  choose(screen.getByTestId(`output-row-${row}`), "Result", 0);
-  choose(screen.getByTestId(`output-row-${row}`), root, 1);
+  typePath(screen.getByTestId(`output-row-${row}`), `result.${root}`);
   fireEvent.change(within(screen.getByTestId(`output-row-${row}`)).getByPlaceholderText("name"), { target: { value: name } });
 };
 

@@ -1,6 +1,7 @@
+/* eslint-disable testing-library/no-container, testing-library/no-node-access -- The shadow is a sibling SVG and a host style; both are inspected directly. */
 import { createRef } from "react";
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import ShadowSurface, { parseResolvedShadows } from "./shadow_surface";
+import ShadowSurface, { parseResolvedShadows, transitionMovesShadow } from "./shadow_surface";
 
 test("parses resolved colours, multiple layers, negative spreads and inset borders", () => {
   const layers = parseResolvedShadows("rgba(0, 0, 0, 0.5) 0px 8px 32px 0px, rgb(30, 60, 90) -1px 2px 8px -2px, rgb(0, 0, 0) 0px 0px 0px 1px inset");
@@ -107,3 +108,106 @@ test("keeps callback refs stable on rerender and honors their cleanup on host re
   unmount();
   expect(cleanup).toHaveBeenCalledTimes(2);
 });
+
+/* The follower SVG cannot move in the same frame as an animating host: it was
+   re-easing the host's transition on top of anchor() values and redrawing its
+   shape a frame late, so the shadow trailed buttons, segmented indicators and
+   slider thumbs. Anything that moves the shadow's box keeps the native shadow. */
+function withFollowerEngine(run, { transform = () => "none" } = {}) {
+  return async () => {
+    const ua = navigator.userAgent, css = window.CSS, Resize = window.ResizeObserver;
+    Object.defineProperty(navigator, "userAgent", { configurable: true, value: "Chrome/144.0" });
+    window.CSS = { supports: () => true };
+    window.ResizeObserver = class { observe() {} disconnect() {} };
+    jest.spyOn(Element.prototype, "getBoundingClientRect").mockReturnValue({ left: 50, top: 50, right: 150, bottom: 150, width: 100, height: 100 });
+    jest.spyOn(window, "getComputedStyle").mockImplementation(node => ({
+      boxShadow: "rgba(0, 0, 0, 0.5) 0px 8px 32px 0px", opacity: "1", transform: transform(node),
+      overflowX: "visible", overflowY: "visible", borderTopLeftRadius: "12px",
+      borderTopRightRadius: "12px", borderBottomRightRadius: "12px", borderBottomLeftRadius: "12px",
+      transitionProperty: "all", transitionDuration: "0s", transitionDelay: "0s", animationName: "none",
+    }));
+    try { await run(); } finally {
+      jest.restoreAllMocks();
+      Object.defineProperty(navigator, "userAgent", { configurable: true, value: ua });
+      window.CSS = css; window.ResizeObserver = Resize;
+    }
+  };
+}
+
+const SHADOW = "0 8px 32px rgba(0,0,0,.5)";
+const flush = () => act(() => Promise.resolve());
+
+test("classifies which transitions can move a shadow", () => {
+  expect(transitionMovesShadow("left 0.3s cubic-bezier(0.32, 1, 0.32, 1), width 0.3s cubic-bezier(0.32, 1, 0.32, 1)")).toBe(true);
+  expect(transitionMovesShadow("all 0.2s ease")).toBe(true);
+  expect(transitionMovesShadow("0.2s")).toBe(true);
+  expect(transitionMovesShadow("transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1)")).toBe(true);
+  expect(transitionMovesShadow("opacity 0.18s ease")).toBe(true);
+  expect(transitionMovesShadow("box-shadow 0.32s ease")).toBe(true);
+  expect(transitionMovesShadow("background-color 0.2s ease, color 0.2s ease, border-color 0.15s")).toBe(false);
+  expect(transitionMovesShadow("none")).toBe(false);
+  expect(transitionMovesShadow("all 0s")).toBe(false);
+  expect(transitionMovesShadow(undefined)).toBe(false);
+});
+
+test.each([
+  ["a sliding indicator", { transition: "left 0.3s cubic-bezier(0.32, 1, 0.32, 1), width 0.3s cubic-bezier(0.32, 1, 0.32, 1)" }],
+  ["a springing thumb", { transition: "transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)" }],
+  ["a host that animates everything", { transition: "all 0.2s ease" }],
+  ["a keyframed host", { animation: "pulse 1s infinite" }],
+])("%s keeps its native shadow and mounts no follower", (_, motion) => withFollowerEngine(async () => {
+  const { container } = render(<ShadowSurface style={{ boxShadow: SHADOW, borderRadius: 12, ...motion }}>x</ShadowSurface>);
+  await flush();
+  expect(container.querySelector("svg")).toBeNull();
+  expect(container.firstElementChild.style.boxShadow).toBe(SHADOW);
+})());
+
+test("a follower never re-runs the host's transition on its own box", withFollowerEngine(async () => {
+  const { container } = render(<ShadowSurface style={{ boxShadow: SHADOW, borderRadius: 12, transition: "background-color 0.2s ease" }}>x</ShadowSurface>);
+  await flush();
+  const svg = container.querySelector("svg");
+  expect(svg).not.toBeNull();
+  expect(svg.style.transition).toBe("");
+}));
+
+test("a translated host keeps its native shadow (anchor() ignores the host's own transform)", withFollowerEngine(async () => {
+  // A pure translate: the old stability test let this through, leaving the
+  // follower at the untransformed box.
+  window.DOMMatrix = class { constructor() { Object.assign(this, { is2D: true, a: 1, b: 0, c: 0, d: 1, e: 4, f: 0 }); } };
+  const { container } = render(<ShadowSurface style={{ boxShadow: SHADOW, borderRadius: 12, transform: "translateX(4px)" }}>x</ShadowSurface>);
+  await flush();
+  expect(container.querySelector("svg")).toBeNull();
+  expect(container.firstElementChild.style.boxShadow).toBe(SHADOW);
+  delete window.DOMMatrix;
+}, { transform: node => node.style?.transform ? "matrix(1, 0, 0, 1, 4, 0)" : "none" }));
+
+test("a moving ancestor hands the shadow to the host in the same frame, and back when it settles", withFollowerEngine(async () => {
+  const { container } = render(<div data-testid="parent"><ShadowSurface style={{ boxShadow: SHADOW, borderRadius: 12 }}>x</ShadowSurface></div>);
+  await flush();
+  const parent = screen.getByTestId("parent");
+  const host = parent.firstElementChild;
+  expect(host.style.boxShadow).toBe("none");
+  expect(container.querySelector("svg")).not.toBeNull();
+
+  // A colour fade on the parent cannot move the host: the follower stays.
+  const fade = new Event("transitionrun", { bubbles: true });
+  fade.propertyName = "background-color";
+  parent.dispatchEvent(fade);
+  expect(host.style.boxShadow).toBe("none");
+
+  // Before React re-renders, the native shadow is already back on the host
+  // and the follower is hidden — the swap happens inside the event, not a
+  // frame later.
+  const run = new Event("transitionrun", { bubbles: true });
+  run.propertyName = "height";
+  parent.dispatchEvent(run);
+  expect(host.style.boxShadow).toBe(SHADOW);
+  await flush();
+  expect(container.querySelector("svg")).toBeNull();
+
+  const end = new Event("transitionend", { bubbles: true });
+  end.propertyName = "height";
+  await act(async () => { parent.dispatchEvent(end); });
+  expect(container.querySelector("svg")).not.toBeNull();
+  expect(host.style.boxShadow).toBe("none");
+}));

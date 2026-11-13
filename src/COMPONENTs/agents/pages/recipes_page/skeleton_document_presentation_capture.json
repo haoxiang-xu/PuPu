@@ -1,0 +1,850 @@
+{
+ "schema": "pupu.capture.skeleton_document_presentation.v1",
+ "producer": {
+  "module": "unchain.skeleton.schema.validate_skeleton_document + unchain.skeleton.subagent_config.validate_subagent_pool_config(prepare_agent_graph)",
+  "unchain_source": "/Users/red/Desktop/GITRepo/unchain-dev",
+  "git_head": "2e455628b454ce225dd8e813e0ae33a85e56450a",
+  "working_tree": "dirty (presentation change not yet committed)",
+  "schema_py_sha256": "62cc83aac0070ceb9170661286edad33c4ca9b0ef38a033560fc12acae5ffb94"
+ },
+ "envelope": [
+  {
+   "label": "no presentation",
+   "accepted": true,
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}]}"
+  },
+  {
+   "label": "a full presentation",
+   "accepted": true,
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"icon\": \"robot\", \"color\": \"#1a2b3c\"}}"
+  },
+  {
+   "label": "an icon only",
+   "accepted": true,
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"icon\": \"chat_bubble_2\"}}"
+  },
+  {
+   "label": "a colour only",
+   "accepted": true,
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"color\": \"#ffffff\"}}"
+  },
+  {
+   "label": "an empty presentation",
+   "accepted": true,
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {}}"
+  },
+  {
+   "label": "an icon of forty characters",
+   "accepted": true,
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"icon\": \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}}"
+  },
+  {
+   "label": "presentation is null",
+   "accepted": false,
+   "code": "invalid_type",
+   "path": [
+    "document",
+    "presentation"
+   ],
+   "message": "expected an object",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": null}"
+  },
+  {
+   "label": "presentation is a string",
+   "accepted": false,
+   "code": "invalid_type",
+   "path": [
+    "document",
+    "presentation"
+   ],
+   "message": "expected an object",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": \"robot\"}"
+  },
+  {
+   "label": "presentation is an array",
+   "accepted": false,
+   "code": "invalid_type",
+   "path": [
+    "document",
+    "presentation"
+   ],
+   "message": "expected an object",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": [\"robot\"]}"
+  },
+  {
+   "label": "presentation is a number",
+   "accepted": false,
+   "code": "invalid_type",
+   "path": [
+    "document",
+    "presentation"
+   ],
+   "message": "expected an object",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": 3}"
+  },
+  {
+   "label": "presentation has an extra key",
+   "accepted": false,
+   "code": "unknown_field",
+   "path": [
+    "document",
+    "presentation",
+    "label"
+   ],
+   "message": "unknown field",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"icon\": \"robot\", \"label\": \"Robot\"}}"
+  },
+  {
+   "label": "presentation has a mis-cased key",
+   "accepted": false,
+   "code": "unknown_field",
+   "path": [
+    "document",
+    "presentation",
+    "Icon"
+   ],
+   "message": "unknown field",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"Icon\": \"robot\"}}"
+  },
+  {
+   "label": "icon is not a string",
+   "accepted": false,
+   "code": "invalid_type",
+   "path": [
+    "document",
+    "presentation",
+    "icon"
+   ],
+   "message": "presentation icon must be a string",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"icon\": 3}}"
+  },
+  {
+   "label": "icon is null",
+   "accepted": false,
+   "code": "invalid_type",
+   "path": [
+    "document",
+    "presentation",
+    "icon"
+   ],
+   "message": "presentation icon must be a string",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"icon\": null}}"
+  },
+  {
+   "label": "color is not a string",
+   "accepted": false,
+   "code": "invalid_type",
+   "path": [
+    "document",
+    "presentation",
+    "color"
+   ],
+   "message": "presentation color must be a string",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"color\": true}}"
+  },
+  {
+   "label": "color is an object",
+   "accepted": false,
+   "code": "invalid_type",
+   "path": [
+    "document",
+    "presentation",
+    "color"
+   ],
+   "message": "presentation color must be a string",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"color\": {}}}"
+  },
+  {
+   "label": "icon is empty",
+   "accepted": false,
+   "code": "invalid_value",
+   "path": [
+    "document",
+    "presentation",
+    "icon"
+   ],
+   "message": "presentation icon must match ^[a-z0-9_]{1,40}$",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"icon\": \"\"}}"
+  },
+  {
+   "label": "icon has uppercase",
+   "accepted": false,
+   "code": "invalid_value",
+   "path": [
+    "document",
+    "presentation",
+    "icon"
+   ],
+   "message": "presentation icon must match ^[a-z0-9_]{1,40}$",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"icon\": \"Robot\"}}"
+  },
+  {
+   "label": "icon has a hyphen",
+   "accepted": false,
+   "code": "invalid_value",
+   "path": [
+    "document",
+    "presentation",
+    "icon"
+   ],
+   "message": "presentation icon must match ^[a-z0-9_]{1,40}$",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"icon\": \"robot-face\"}}"
+  },
+  {
+   "label": "icon has a space",
+   "accepted": false,
+   "code": "invalid_value",
+   "path": [
+    "document",
+    "presentation",
+    "icon"
+   ],
+   "message": "presentation icon must match ^[a-z0-9_]{1,40}$",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"icon\": \"robot face\"}}"
+  },
+  {
+   "label": "icon has a trailing newline",
+   "accepted": false,
+   "code": "invalid_value",
+   "path": [
+    "document",
+    "presentation",
+    "icon"
+   ],
+   "message": "presentation icon must match ^[a-z0-9_]{1,40}$",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"icon\": \"robot\\n\"}}"
+  },
+  {
+   "label": "icon is forty-one characters",
+   "accepted": false,
+   "code": "invalid_value",
+   "path": [
+    "document",
+    "presentation",
+    "icon"
+   ],
+   "message": "presentation icon must match ^[a-z0-9_]{1,40}$",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"icon\": \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}}"
+  },
+  {
+   "label": "icon has a non-ASCII letter",
+   "accepted": false,
+   "code": "invalid_value",
+   "path": [
+    "document",
+    "presentation",
+    "icon"
+   ],
+   "message": "presentation icon must match ^[a-z0-9_]{1,40}$",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"icon\": \"roböt\"}}"
+  },
+  {
+   "label": "icon has a full-width letter",
+   "accepted": false,
+   "code": "invalid_value",
+   "path": [
+    "document",
+    "presentation",
+    "icon"
+   ],
+   "message": "presentation icon must match ^[a-z0-9_]{1,40}$",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"icon\": \"ｒobot\"}}"
+  },
+  {
+   "label": "color is uppercase",
+   "accepted": false,
+   "code": "invalid_value",
+   "path": [
+    "document",
+    "presentation",
+    "color"
+   ],
+   "message": "presentation color must be lowercase #rrggbb",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"color\": \"#ABCDEF\"}}"
+  },
+  {
+   "label": "color is mixed case",
+   "accepted": false,
+   "code": "invalid_value",
+   "path": [
+    "document",
+    "presentation",
+    "color"
+   ],
+   "message": "presentation color must be lowercase #rrggbb",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"color\": \"#AbCdEf\"}}"
+  },
+  {
+   "label": "color has no hash",
+   "accepted": false,
+   "code": "invalid_value",
+   "path": [
+    "document",
+    "presentation",
+    "color"
+   ],
+   "message": "presentation color must be lowercase #rrggbb",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"color\": \"123456\"}}"
+  },
+  {
+   "label": "color is short hex",
+   "accepted": false,
+   "code": "invalid_value",
+   "path": [
+    "document",
+    "presentation",
+    "color"
+   ],
+   "message": "presentation color must be lowercase #rrggbb",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"color\": \"#fff\"}}"
+  },
+  {
+   "label": "color has seven digits",
+   "accepted": false,
+   "code": "invalid_value",
+   "path": [
+    "document",
+    "presentation",
+    "color"
+   ],
+   "message": "presentation color must be lowercase #rrggbb",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"color\": \"#1234567\"}}"
+  },
+  {
+   "label": "color has a non-hex digit",
+   "accepted": false,
+   "code": "invalid_value",
+   "path": [
+    "document",
+    "presentation",
+    "color"
+   ],
+   "message": "presentation color must be lowercase #rrggbb",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"color\": \"#12345g\"}}"
+  },
+  {
+   "label": "color is a name",
+   "accepted": false,
+   "code": "invalid_value",
+   "path": [
+    "document",
+    "presentation",
+    "color"
+   ],
+   "message": "presentation color must be lowercase #rrggbb",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"color\": \"red\"}}"
+  },
+  {
+   "label": "color has a trailing newline",
+   "accepted": false,
+   "code": "invalid_value",
+   "path": [
+    "document",
+    "presentation",
+    "color"
+   ],
+   "message": "presentation color must be lowercase #rrggbb",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"color\": \"#123456\\n\"}}"
+  },
+  {
+   "label": "color has full-width digits",
+   "accepted": false,
+   "code": "invalid_value",
+   "path": [
+    "document",
+    "presentation",
+    "color"
+   ],
+   "message": "presentation color must be lowercase #rrggbb",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"color\": \"#１２３４５６\"}}"
+  },
+  {
+   "label": "icon fine, color uppercase",
+   "accepted": false,
+   "code": "invalid_value",
+   "path": [
+    "document",
+    "presentation",
+    "color"
+   ],
+   "message": "presentation color must be lowercase #rrggbb",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"icon\": \"robot\", \"color\": \"#FFFFFF\"}}"
+  }
+ ],
+ "embedded": [
+  {
+   "label": "embedded: no presentation",
+   "accepted": true,
+   "json": "{\"subagents\": [{\"id\": \"sa1\", \"name\": \"Summarizer\", \"description\": \"\", \"source\": {\"kind\": \"embedded\", \"document\": {\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"child\", \"name\": \"Child\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}, \"kernel\": {\"schema_version\": 1, \"profile\": {\"id\": \"p\", \"provider\": \"openai\", \"model\": \"gpt-4.1\", \"protocol\": \"openai-responses\", \"endpoint\": \"https://api.openai.com/v1/responses\", \"credential_ref\": \"openai\", \"context_window\": 128000, \"output_limit\": 4096, \"capabilities\": {\"json_schema\": true, \"images\": false, \"files\": false}}, \"prompt\": \"do the thing\", \"max_iterations\": 1, \"output_tokens\": 1024, \"history\": \"none\", \"overflow\": \"error\", \"json_schema\": null}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}]}}, \"allowed_modes\": [\"delegate\"], \"output_mode\": \"summary\", \"memory_policy\": \"ephemeral\", \"parallel_safe\": true, \"allowed_tools\": null, \"disabled_tools\": []}]}"
+  },
+  {
+   "label": "embedded: a full presentation",
+   "accepted": true,
+   "json": "{\"subagents\": [{\"id\": \"sa1\", \"name\": \"Summarizer\", \"description\": \"\", \"source\": {\"kind\": \"embedded\", \"document\": {\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"child\", \"name\": \"Child\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}, \"kernel\": {\"schema_version\": 1, \"profile\": {\"id\": \"p\", \"provider\": \"openai\", \"model\": \"gpt-4.1\", \"protocol\": \"openai-responses\", \"endpoint\": \"https://api.openai.com/v1/responses\", \"credential_ref\": \"openai\", \"context_window\": 128000, \"output_limit\": 4096, \"capabilities\": {\"json_schema\": true, \"images\": false, \"files\": false}}, \"prompt\": \"do the thing\", \"max_iterations\": 1, \"output_tokens\": 1024, \"history\": \"none\", \"overflow\": \"error\", \"json_schema\": null}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"icon\": \"robot\", \"color\": \"#1a2b3c\"}}}, \"allowed_modes\": [\"delegate\"], \"output_mode\": \"summary\", \"memory_policy\": \"ephemeral\", \"parallel_safe\": true, \"allowed_tools\": null, \"disabled_tools\": []}]}"
+  },
+  {
+   "label": "embedded: an icon only",
+   "accepted": true,
+   "json": "{\"subagents\": [{\"id\": \"sa1\", \"name\": \"Summarizer\", \"description\": \"\", \"source\": {\"kind\": \"embedded\", \"document\": {\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"child\", \"name\": \"Child\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}, \"kernel\": {\"schema_version\": 1, \"profile\": {\"id\": \"p\", \"provider\": \"openai\", \"model\": \"gpt-4.1\", \"protocol\": \"openai-responses\", \"endpoint\": \"https://api.openai.com/v1/responses\", \"credential_ref\": \"openai\", \"context_window\": 128000, \"output_limit\": 4096, \"capabilities\": {\"json_schema\": true, \"images\": false, \"files\": false}}, \"prompt\": \"do the thing\", \"max_iterations\": 1, \"output_tokens\": 1024, \"history\": \"none\", \"overflow\": \"error\", \"json_schema\": null}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"icon\": \"chat_bubble_2\"}}}, \"allowed_modes\": [\"delegate\"], \"output_mode\": \"summary\", \"memory_policy\": \"ephemeral\", \"parallel_safe\": true, \"allowed_tools\": null, \"disabled_tools\": []}]}"
+  },
+  {
+   "label": "embedded: a colour only",
+   "accepted": true,
+   "json": "{\"subagents\": [{\"id\": \"sa1\", \"name\": \"Summarizer\", \"description\": \"\", \"source\": {\"kind\": \"embedded\", \"document\": {\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"child\", \"name\": \"Child\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}, \"kernel\": {\"schema_version\": 1, \"profile\": {\"id\": \"p\", \"provider\": \"openai\", \"model\": \"gpt-4.1\", \"protocol\": \"openai-responses\", \"endpoint\": \"https://api.openai.com/v1/responses\", \"credential_ref\": \"openai\", \"context_window\": 128000, \"output_limit\": 4096, \"capabilities\": {\"json_schema\": true, \"images\": false, \"files\": false}}, \"prompt\": \"do the thing\", \"max_iterations\": 1, \"output_tokens\": 1024, \"history\": \"none\", \"overflow\": \"error\", \"json_schema\": null}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"color\": \"#ffffff\"}}}, \"allowed_modes\": [\"delegate\"], \"output_mode\": \"summary\", \"memory_policy\": \"ephemeral\", \"parallel_safe\": true, \"allowed_tools\": null, \"disabled_tools\": []}]}"
+  },
+  {
+   "label": "embedded: an empty presentation",
+   "accepted": true,
+   "json": "{\"subagents\": [{\"id\": \"sa1\", \"name\": \"Summarizer\", \"description\": \"\", \"source\": {\"kind\": \"embedded\", \"document\": {\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"child\", \"name\": \"Child\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}, \"kernel\": {\"schema_version\": 1, \"profile\": {\"id\": \"p\", \"provider\": \"openai\", \"model\": \"gpt-4.1\", \"protocol\": \"openai-responses\", \"endpoint\": \"https://api.openai.com/v1/responses\", \"credential_ref\": \"openai\", \"context_window\": 128000, \"output_limit\": 4096, \"capabilities\": {\"json_schema\": true, \"images\": false, \"files\": false}}, \"prompt\": \"do the thing\", \"max_iterations\": 1, \"output_tokens\": 1024, \"history\": \"none\", \"overflow\": \"error\", \"json_schema\": null}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {}}}, \"allowed_modes\": [\"delegate\"], \"output_mode\": \"summary\", \"memory_policy\": \"ephemeral\", \"parallel_safe\": true, \"allowed_tools\": null, \"disabled_tools\": []}]}"
+  },
+  {
+   "label": "embedded: an icon of forty characters",
+   "accepted": true,
+   "json": "{\"subagents\": [{\"id\": \"sa1\", \"name\": \"Summarizer\", \"description\": \"\", \"source\": {\"kind\": \"embedded\", \"document\": {\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"child\", \"name\": \"Child\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}, \"kernel\": {\"schema_version\": 1, \"profile\": {\"id\": \"p\", \"provider\": \"openai\", \"model\": \"gpt-4.1\", \"protocol\": \"openai-responses\", \"endpoint\": \"https://api.openai.com/v1/responses\", \"credential_ref\": \"openai\", \"context_window\": 128000, \"output_limit\": 4096, \"capabilities\": {\"json_schema\": true, \"images\": false, \"files\": false}}, \"prompt\": \"do the thing\", \"max_iterations\": 1, \"output_tokens\": 1024, \"history\": \"none\", \"overflow\": \"error\", \"json_schema\": null}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"icon\": \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}}}, \"allowed_modes\": [\"delegate\"], \"output_mode\": \"summary\", \"memory_policy\": \"ephemeral\", \"parallel_safe\": true, \"allowed_tools\": null, \"disabled_tools\": []}]}"
+  },
+  {
+   "label": "embedded: presentation is null",
+   "accepted": false,
+   "code": "invalid_type",
+   "path": [
+    "config",
+    "subagents",
+    0,
+    "source",
+    "document",
+    "presentation"
+   ],
+   "message": "expected an object",
+   "json": "{\"subagents\": [{\"id\": \"sa1\", \"name\": \"Summarizer\", \"description\": \"\", \"source\": {\"kind\": \"embedded\", \"document\": {\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"child\", \"name\": \"Child\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}, \"kernel\": {\"schema_version\": 1, \"profile\": {\"id\": \"p\", \"provider\": \"openai\", \"model\": \"gpt-4.1\", \"protocol\": \"openai-responses\", \"endpoint\": \"https://api.openai.com/v1/responses\", \"credential_ref\": \"openai\", \"context_window\": 128000, \"output_limit\": 4096, \"capabilities\": {\"json_schema\": true, \"images\": false, \"files\": false}}, \"prompt\": \"do the thing\", \"max_iterations\": 1, \"output_tokens\": 1024, \"history\": \"none\", \"overflow\": \"error\", \"json_schema\": null}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": null}}, \"allowed_modes\": [\"delegate\"], \"output_mode\": \"summary\", \"memory_policy\": \"ephemeral\", \"parallel_safe\": true, \"allowed_tools\": null, \"disabled_tools\": []}]}"
+  },
+  {
+   "label": "embedded: presentation is a string",
+   "accepted": false,
+   "code": "invalid_type",
+   "path": [
+    "config",
+    "subagents",
+    0,
+    "source",
+    "document",
+    "presentation"
+   ],
+   "message": "expected an object",
+   "json": "{\"subagents\": [{\"id\": \"sa1\", \"name\": \"Summarizer\", \"description\": \"\", \"source\": {\"kind\": \"embedded\", \"document\": {\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"child\", \"name\": \"Child\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}, \"kernel\": {\"schema_version\": 1, \"profile\": {\"id\": \"p\", \"provider\": \"openai\", \"model\": \"gpt-4.1\", \"protocol\": \"openai-responses\", \"endpoint\": \"https://api.openai.com/v1/responses\", \"credential_ref\": \"openai\", \"context_window\": 128000, \"output_limit\": 4096, \"capabilities\": {\"json_schema\": true, \"images\": false, \"files\": false}}, \"prompt\": \"do the thing\", \"max_iterations\": 1, \"output_tokens\": 1024, \"history\": \"none\", \"overflow\": \"error\", \"json_schema\": null}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": \"robot\"}}, \"allowed_modes\": [\"delegate\"], \"output_mode\": \"summary\", \"memory_policy\": \"ephemeral\", \"parallel_safe\": true, \"allowed_tools\": null, \"disabled_tools\": []}]}"
+  },
+  {
+   "label": "embedded: presentation is an array",
+   "accepted": false,
+   "code": "invalid_type",
+   "path": [
+    "config",
+    "subagents",
+    0,
+    "source",
+    "document",
+    "presentation"
+   ],
+   "message": "expected an object",
+   "json": "{\"subagents\": [{\"id\": \"sa1\", \"name\": \"Summarizer\", \"description\": \"\", \"source\": {\"kind\": \"embedded\", \"document\": {\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"child\", \"name\": \"Child\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}, \"kernel\": {\"schema_version\": 1, \"profile\": {\"id\": \"p\", \"provider\": \"openai\", \"model\": \"gpt-4.1\", \"protocol\": \"openai-responses\", \"endpoint\": \"https://api.openai.com/v1/responses\", \"credential_ref\": \"openai\", \"context_window\": 128000, \"output_limit\": 4096, \"capabilities\": {\"json_schema\": true, \"images\": false, \"files\": false}}, \"prompt\": \"do the thing\", \"max_iterations\": 1, \"output_tokens\": 1024, \"history\": \"none\", \"overflow\": \"error\", \"json_schema\": null}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": [\"robot\"]}}, \"allowed_modes\": [\"delegate\"], \"output_mode\": \"summary\", \"memory_policy\": \"ephemeral\", \"parallel_safe\": true, \"allowed_tools\": null, \"disabled_tools\": []}]}"
+  },
+  {
+   "label": "embedded: presentation is a number",
+   "accepted": false,
+   "code": "invalid_type",
+   "path": [
+    "config",
+    "subagents",
+    0,
+    "source",
+    "document",
+    "presentation"
+   ],
+   "message": "expected an object",
+   "json": "{\"subagents\": [{\"id\": \"sa1\", \"name\": \"Summarizer\", \"description\": \"\", \"source\": {\"kind\": \"embedded\", \"document\": {\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"child\", \"name\": \"Child\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}, \"kernel\": {\"schema_version\": 1, \"profile\": {\"id\": \"p\", \"provider\": \"openai\", \"model\": \"gpt-4.1\", \"protocol\": \"openai-responses\", \"endpoint\": \"https://api.openai.com/v1/responses\", \"credential_ref\": \"openai\", \"context_window\": 128000, \"output_limit\": 4096, \"capabilities\": {\"json_schema\": true, \"images\": false, \"files\": false}}, \"prompt\": \"do the thing\", \"max_iterations\": 1, \"output_tokens\": 1024, \"history\": \"none\", \"overflow\": \"error\", \"json_schema\": null}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": 3}}, \"allowed_modes\": [\"delegate\"], \"output_mode\": \"summary\", \"memory_policy\": \"ephemeral\", \"parallel_safe\": true, \"allowed_tools\": null, \"disabled_tools\": []}]}"
+  },
+  {
+   "label": "embedded: presentation has an extra key",
+   "accepted": false,
+   "code": "unknown_field",
+   "path": [
+    "config",
+    "subagents",
+    0,
+    "source",
+    "document",
+    "presentation",
+    "label"
+   ],
+   "message": "unknown field",
+   "json": "{\"subagents\": [{\"id\": \"sa1\", \"name\": \"Summarizer\", \"description\": \"\", \"source\": {\"kind\": \"embedded\", \"document\": {\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"child\", \"name\": \"Child\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}, \"kernel\": {\"schema_version\": 1, \"profile\": {\"id\": \"p\", \"provider\": \"openai\", \"model\": \"gpt-4.1\", \"protocol\": \"openai-responses\", \"endpoint\": \"https://api.openai.com/v1/responses\", \"credential_ref\": \"openai\", \"context_window\": 128000, \"output_limit\": 4096, \"capabilities\": {\"json_schema\": true, \"images\": false, \"files\": false}}, \"prompt\": \"do the thing\", \"max_iterations\": 1, \"output_tokens\": 1024, \"history\": \"none\", \"overflow\": \"error\", \"json_schema\": null}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"icon\": \"robot\", \"label\": \"Robot\"}}}, \"allowed_modes\": [\"delegate\"], \"output_mode\": \"summary\", \"memory_policy\": \"ephemeral\", \"parallel_safe\": true, \"allowed_tools\": null, \"disabled_tools\": []}]}"
+  },
+  {
+   "label": "embedded: presentation has a mis-cased key",
+   "accepted": false,
+   "code": "unknown_field",
+   "path": [
+    "config",
+    "subagents",
+    0,
+    "source",
+    "document",
+    "presentation",
+    "Icon"
+   ],
+   "message": "unknown field",
+   "json": "{\"subagents\": [{\"id\": \"sa1\", \"name\": \"Summarizer\", \"description\": \"\", \"source\": {\"kind\": \"embedded\", \"document\": {\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"child\", \"name\": \"Child\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}, \"kernel\": {\"schema_version\": 1, \"profile\": {\"id\": \"p\", \"provider\": \"openai\", \"model\": \"gpt-4.1\", \"protocol\": \"openai-responses\", \"endpoint\": \"https://api.openai.com/v1/responses\", \"credential_ref\": \"openai\", \"context_window\": 128000, \"output_limit\": 4096, \"capabilities\": {\"json_schema\": true, \"images\": false, \"files\": false}}, \"prompt\": \"do the thing\", \"max_iterations\": 1, \"output_tokens\": 1024, \"history\": \"none\", \"overflow\": \"error\", \"json_schema\": null}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"Icon\": \"robot\"}}}, \"allowed_modes\": [\"delegate\"], \"output_mode\": \"summary\", \"memory_policy\": \"ephemeral\", \"parallel_safe\": true, \"allowed_tools\": null, \"disabled_tools\": []}]}"
+  },
+  {
+   "label": "embedded: icon is not a string",
+   "accepted": false,
+   "code": "invalid_type",
+   "path": [
+    "config",
+    "subagents",
+    0,
+    "source",
+    "document",
+    "presentation",
+    "icon"
+   ],
+   "message": "presentation icon must be a string",
+   "json": "{\"subagents\": [{\"id\": \"sa1\", \"name\": \"Summarizer\", \"description\": \"\", \"source\": {\"kind\": \"embedded\", \"document\": {\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"child\", \"name\": \"Child\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}, \"kernel\": {\"schema_version\": 1, \"profile\": {\"id\": \"p\", \"provider\": \"openai\", \"model\": \"gpt-4.1\", \"protocol\": \"openai-responses\", \"endpoint\": \"https://api.openai.com/v1/responses\", \"credential_ref\": \"openai\", \"context_window\": 128000, \"output_limit\": 4096, \"capabilities\": {\"json_schema\": true, \"images\": false, \"files\": false}}, \"prompt\": \"do the thing\", \"max_iterations\": 1, \"output_tokens\": 1024, \"history\": \"none\", \"overflow\": \"error\", \"json_schema\": null}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"icon\": 3}}}, \"allowed_modes\": [\"delegate\"], \"output_mode\": \"summary\", \"memory_policy\": \"ephemeral\", \"parallel_safe\": true, \"allowed_tools\": null, \"disabled_tools\": []}]}"
+  },
+  {
+   "label": "embedded: icon is null",
+   "accepted": false,
+   "code": "invalid_type",
+   "path": [
+    "config",
+    "subagents",
+    0,
+    "source",
+    "document",
+    "presentation",
+    "icon"
+   ],
+   "message": "presentation icon must be a string",
+   "json": "{\"subagents\": [{\"id\": \"sa1\", \"name\": \"Summarizer\", \"description\": \"\", \"source\": {\"kind\": \"embedded\", \"document\": {\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"child\", \"name\": \"Child\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}, \"kernel\": {\"schema_version\": 1, \"profile\": {\"id\": \"p\", \"provider\": \"openai\", \"model\": \"gpt-4.1\", \"protocol\": \"openai-responses\", \"endpoint\": \"https://api.openai.com/v1/responses\", \"credential_ref\": \"openai\", \"context_window\": 128000, \"output_limit\": 4096, \"capabilities\": {\"json_schema\": true, \"images\": false, \"files\": false}}, \"prompt\": \"do the thing\", \"max_iterations\": 1, \"output_tokens\": 1024, \"history\": \"none\", \"overflow\": \"error\", \"json_schema\": null}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"icon\": null}}}, \"allowed_modes\": [\"delegate\"], \"output_mode\": \"summary\", \"memory_policy\": \"ephemeral\", \"parallel_safe\": true, \"allowed_tools\": null, \"disabled_tools\": []}]}"
+  },
+  {
+   "label": "embedded: color is not a string",
+   "accepted": false,
+   "code": "invalid_type",
+   "path": [
+    "config",
+    "subagents",
+    0,
+    "source",
+    "document",
+    "presentation",
+    "color"
+   ],
+   "message": "presentation color must be a string",
+   "json": "{\"subagents\": [{\"id\": \"sa1\", \"name\": \"Summarizer\", \"description\": \"\", \"source\": {\"kind\": \"embedded\", \"document\": {\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"child\", \"name\": \"Child\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}, \"kernel\": {\"schema_version\": 1, \"profile\": {\"id\": \"p\", \"provider\": \"openai\", \"model\": \"gpt-4.1\", \"protocol\": \"openai-responses\", \"endpoint\": \"https://api.openai.com/v1/responses\", \"credential_ref\": \"openai\", \"context_window\": 128000, \"output_limit\": 4096, \"capabilities\": {\"json_schema\": true, \"images\": false, \"files\": false}}, \"prompt\": \"do the thing\", \"max_iterations\": 1, \"output_tokens\": 1024, \"history\": \"none\", \"overflow\": \"error\", \"json_schema\": null}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"color\": true}}}, \"allowed_modes\": [\"delegate\"], \"output_mode\": \"summary\", \"memory_policy\": \"ephemeral\", \"parallel_safe\": true, \"allowed_tools\": null, \"disabled_tools\": []}]}"
+  },
+  {
+   "label": "embedded: color is an object",
+   "accepted": false,
+   "code": "invalid_type",
+   "path": [
+    "config",
+    "subagents",
+    0,
+    "source",
+    "document",
+    "presentation",
+    "color"
+   ],
+   "message": "presentation color must be a string",
+   "json": "{\"subagents\": [{\"id\": \"sa1\", \"name\": \"Summarizer\", \"description\": \"\", \"source\": {\"kind\": \"embedded\", \"document\": {\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"child\", \"name\": \"Child\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}, \"kernel\": {\"schema_version\": 1, \"profile\": {\"id\": \"p\", \"provider\": \"openai\", \"model\": \"gpt-4.1\", \"protocol\": \"openai-responses\", \"endpoint\": \"https://api.openai.com/v1/responses\", \"credential_ref\": \"openai\", \"context_window\": 128000, \"output_limit\": 4096, \"capabilities\": {\"json_schema\": true, \"images\": false, \"files\": false}}, \"prompt\": \"do the thing\", \"max_iterations\": 1, \"output_tokens\": 1024, \"history\": \"none\", \"overflow\": \"error\", \"json_schema\": null}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"color\": {}}}}, \"allowed_modes\": [\"delegate\"], \"output_mode\": \"summary\", \"memory_policy\": \"ephemeral\", \"parallel_safe\": true, \"allowed_tools\": null, \"disabled_tools\": []}]}"
+  },
+  {
+   "label": "embedded: icon is empty",
+   "accepted": false,
+   "code": "invalid_value",
+   "path": [
+    "config",
+    "subagents",
+    0,
+    "source",
+    "document",
+    "presentation",
+    "icon"
+   ],
+   "message": "presentation icon must match ^[a-z0-9_]{1,40}$",
+   "json": "{\"subagents\": [{\"id\": \"sa1\", \"name\": \"Summarizer\", \"description\": \"\", \"source\": {\"kind\": \"embedded\", \"document\": {\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"child\", \"name\": \"Child\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}, \"kernel\": {\"schema_version\": 1, \"profile\": {\"id\": \"p\", \"provider\": \"openai\", \"model\": \"gpt-4.1\", \"protocol\": \"openai-responses\", \"endpoint\": \"https://api.openai.com/v1/responses\", \"credential_ref\": \"openai\", \"context_window\": 128000, \"output_limit\": 4096, \"capabilities\": {\"json_schema\": true, \"images\": false, \"files\": false}}, \"prompt\": \"do the thing\", \"max_iterations\": 1, \"output_tokens\": 1024, \"history\": \"none\", \"overflow\": \"error\", \"json_schema\": null}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"icon\": \"\"}}}, \"allowed_modes\": [\"delegate\"], \"output_mode\": \"summary\", \"memory_policy\": \"ephemeral\", \"parallel_safe\": true, \"allowed_tools\": null, \"disabled_tools\": []}]}"
+  },
+  {
+   "label": "embedded: icon has uppercase",
+   "accepted": false,
+   "code": "invalid_value",
+   "path": [
+    "config",
+    "subagents",
+    0,
+    "source",
+    "document",
+    "presentation",
+    "icon"
+   ],
+   "message": "presentation icon must match ^[a-z0-9_]{1,40}$",
+   "json": "{\"subagents\": [{\"id\": \"sa1\", \"name\": \"Summarizer\", \"description\": \"\", \"source\": {\"kind\": \"embedded\", \"document\": {\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"child\", \"name\": \"Child\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}, \"kernel\": {\"schema_version\": 1, \"profile\": {\"id\": \"p\", \"provider\": \"openai\", \"model\": \"gpt-4.1\", \"protocol\": \"openai-responses\", \"endpoint\": \"https://api.openai.com/v1/responses\", \"credential_ref\": \"openai\", \"context_window\": 128000, \"output_limit\": 4096, \"capabilities\": {\"json_schema\": true, \"images\": false, \"files\": false}}, \"prompt\": \"do the thing\", \"max_iterations\": 1, \"output_tokens\": 1024, \"history\": \"none\", \"overflow\": \"error\", \"json_schema\": null}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"icon\": \"Robot\"}}}, \"allowed_modes\": [\"delegate\"], \"output_mode\": \"summary\", \"memory_policy\": \"ephemeral\", \"parallel_safe\": true, \"allowed_tools\": null, \"disabled_tools\": []}]}"
+  },
+  {
+   "label": "embedded: icon has a hyphen",
+   "accepted": false,
+   "code": "invalid_value",
+   "path": [
+    "config",
+    "subagents",
+    0,
+    "source",
+    "document",
+    "presentation",
+    "icon"
+   ],
+   "message": "presentation icon must match ^[a-z0-9_]{1,40}$",
+   "json": "{\"subagents\": [{\"id\": \"sa1\", \"name\": \"Summarizer\", \"description\": \"\", \"source\": {\"kind\": \"embedded\", \"document\": {\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"child\", \"name\": \"Child\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}, \"kernel\": {\"schema_version\": 1, \"profile\": {\"id\": \"p\", \"provider\": \"openai\", \"model\": \"gpt-4.1\", \"protocol\": \"openai-responses\", \"endpoint\": \"https://api.openai.com/v1/responses\", \"credential_ref\": \"openai\", \"context_window\": 128000, \"output_limit\": 4096, \"capabilities\": {\"json_schema\": true, \"images\": false, \"files\": false}}, \"prompt\": \"do the thing\", \"max_iterations\": 1, \"output_tokens\": 1024, \"history\": \"none\", \"overflow\": \"error\", \"json_schema\": null}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"icon\": \"robot-face\"}}}, \"allowed_modes\": [\"delegate\"], \"output_mode\": \"summary\", \"memory_policy\": \"ephemeral\", \"parallel_safe\": true, \"allowed_tools\": null, \"disabled_tools\": []}]}"
+  },
+  {
+   "label": "embedded: icon has a space",
+   "accepted": false,
+   "code": "invalid_value",
+   "path": [
+    "config",
+    "subagents",
+    0,
+    "source",
+    "document",
+    "presentation",
+    "icon"
+   ],
+   "message": "presentation icon must match ^[a-z0-9_]{1,40}$",
+   "json": "{\"subagents\": [{\"id\": \"sa1\", \"name\": \"Summarizer\", \"description\": \"\", \"source\": {\"kind\": \"embedded\", \"document\": {\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"child\", \"name\": \"Child\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}, \"kernel\": {\"schema_version\": 1, \"profile\": {\"id\": \"p\", \"provider\": \"openai\", \"model\": \"gpt-4.1\", \"protocol\": \"openai-responses\", \"endpoint\": \"https://api.openai.com/v1/responses\", \"credential_ref\": \"openai\", \"context_window\": 128000, \"output_limit\": 4096, \"capabilities\": {\"json_schema\": true, \"images\": false, \"files\": false}}, \"prompt\": \"do the thing\", \"max_iterations\": 1, \"output_tokens\": 1024, \"history\": \"none\", \"overflow\": \"error\", \"json_schema\": null}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"icon\": \"robot face\"}}}, \"allowed_modes\": [\"delegate\"], \"output_mode\": \"summary\", \"memory_policy\": \"ephemeral\", \"parallel_safe\": true, \"allowed_tools\": null, \"disabled_tools\": []}]}"
+  },
+  {
+   "label": "embedded: icon has a trailing newline",
+   "accepted": false,
+   "code": "invalid_value",
+   "path": [
+    "config",
+    "subagents",
+    0,
+    "source",
+    "document",
+    "presentation",
+    "icon"
+   ],
+   "message": "presentation icon must match ^[a-z0-9_]{1,40}$",
+   "json": "{\"subagents\": [{\"id\": \"sa1\", \"name\": \"Summarizer\", \"description\": \"\", \"source\": {\"kind\": \"embedded\", \"document\": {\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"child\", \"name\": \"Child\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}, \"kernel\": {\"schema_version\": 1, \"profile\": {\"id\": \"p\", \"provider\": \"openai\", \"model\": \"gpt-4.1\", \"protocol\": \"openai-responses\", \"endpoint\": \"https://api.openai.com/v1/responses\", \"credential_ref\": \"openai\", \"context_window\": 128000, \"output_limit\": 4096, \"capabilities\": {\"json_schema\": true, \"images\": false, \"files\": false}}, \"prompt\": \"do the thing\", \"max_iterations\": 1, \"output_tokens\": 1024, \"history\": \"none\", \"overflow\": \"error\", \"json_schema\": null}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"icon\": \"robot\\n\"}}}, \"allowed_modes\": [\"delegate\"], \"output_mode\": \"summary\", \"memory_policy\": \"ephemeral\", \"parallel_safe\": true, \"allowed_tools\": null, \"disabled_tools\": []}]}"
+  },
+  {
+   "label": "embedded: icon is forty-one characters",
+   "accepted": false,
+   "code": "invalid_value",
+   "path": [
+    "config",
+    "subagents",
+    0,
+    "source",
+    "document",
+    "presentation",
+    "icon"
+   ],
+   "message": "presentation icon must match ^[a-z0-9_]{1,40}$",
+   "json": "{\"subagents\": [{\"id\": \"sa1\", \"name\": \"Summarizer\", \"description\": \"\", \"source\": {\"kind\": \"embedded\", \"document\": {\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"child\", \"name\": \"Child\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}, \"kernel\": {\"schema_version\": 1, \"profile\": {\"id\": \"p\", \"provider\": \"openai\", \"model\": \"gpt-4.1\", \"protocol\": \"openai-responses\", \"endpoint\": \"https://api.openai.com/v1/responses\", \"credential_ref\": \"openai\", \"context_window\": 128000, \"output_limit\": 4096, \"capabilities\": {\"json_schema\": true, \"images\": false, \"files\": false}}, \"prompt\": \"do the thing\", \"max_iterations\": 1, \"output_tokens\": 1024, \"history\": \"none\", \"overflow\": \"error\", \"json_schema\": null}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"icon\": \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}}}, \"allowed_modes\": [\"delegate\"], \"output_mode\": \"summary\", \"memory_policy\": \"ephemeral\", \"parallel_safe\": true, \"allowed_tools\": null, \"disabled_tools\": []}]}"
+  },
+  {
+   "label": "embedded: icon has a non-ASCII letter",
+   "accepted": false,
+   "code": "invalid_value",
+   "path": [
+    "config",
+    "subagents",
+    0,
+    "source",
+    "document",
+    "presentation",
+    "icon"
+   ],
+   "message": "presentation icon must match ^[a-z0-9_]{1,40}$",
+   "json": "{\"subagents\": [{\"id\": \"sa1\", \"name\": \"Summarizer\", \"description\": \"\", \"source\": {\"kind\": \"embedded\", \"document\": {\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"child\", \"name\": \"Child\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}, \"kernel\": {\"schema_version\": 1, \"profile\": {\"id\": \"p\", \"provider\": \"openai\", \"model\": \"gpt-4.1\", \"protocol\": \"openai-responses\", \"endpoint\": \"https://api.openai.com/v1/responses\", \"credential_ref\": \"openai\", \"context_window\": 128000, \"output_limit\": 4096, \"capabilities\": {\"json_schema\": true, \"images\": false, \"files\": false}}, \"prompt\": \"do the thing\", \"max_iterations\": 1, \"output_tokens\": 1024, \"history\": \"none\", \"overflow\": \"error\", \"json_schema\": null}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"icon\": \"roböt\"}}}, \"allowed_modes\": [\"delegate\"], \"output_mode\": \"summary\", \"memory_policy\": \"ephemeral\", \"parallel_safe\": true, \"allowed_tools\": null, \"disabled_tools\": []}]}"
+  },
+  {
+   "label": "embedded: icon has a full-width letter",
+   "accepted": false,
+   "code": "invalid_value",
+   "path": [
+    "config",
+    "subagents",
+    0,
+    "source",
+    "document",
+    "presentation",
+    "icon"
+   ],
+   "message": "presentation icon must match ^[a-z0-9_]{1,40}$",
+   "json": "{\"subagents\": [{\"id\": \"sa1\", \"name\": \"Summarizer\", \"description\": \"\", \"source\": {\"kind\": \"embedded\", \"document\": {\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"child\", \"name\": \"Child\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}, \"kernel\": {\"schema_version\": 1, \"profile\": {\"id\": \"p\", \"provider\": \"openai\", \"model\": \"gpt-4.1\", \"protocol\": \"openai-responses\", \"endpoint\": \"https://api.openai.com/v1/responses\", \"credential_ref\": \"openai\", \"context_window\": 128000, \"output_limit\": 4096, \"capabilities\": {\"json_schema\": true, \"images\": false, \"files\": false}}, \"prompt\": \"do the thing\", \"max_iterations\": 1, \"output_tokens\": 1024, \"history\": \"none\", \"overflow\": \"error\", \"json_schema\": null}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"icon\": \"ｒobot\"}}}, \"allowed_modes\": [\"delegate\"], \"output_mode\": \"summary\", \"memory_policy\": \"ephemeral\", \"parallel_safe\": true, \"allowed_tools\": null, \"disabled_tools\": []}]}"
+  },
+  {
+   "label": "embedded: color is uppercase",
+   "accepted": false,
+   "code": "invalid_value",
+   "path": [
+    "config",
+    "subagents",
+    0,
+    "source",
+    "document",
+    "presentation",
+    "color"
+   ],
+   "message": "presentation color must be lowercase #rrggbb",
+   "json": "{\"subagents\": [{\"id\": \"sa1\", \"name\": \"Summarizer\", \"description\": \"\", \"source\": {\"kind\": \"embedded\", \"document\": {\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"child\", \"name\": \"Child\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}, \"kernel\": {\"schema_version\": 1, \"profile\": {\"id\": \"p\", \"provider\": \"openai\", \"model\": \"gpt-4.1\", \"protocol\": \"openai-responses\", \"endpoint\": \"https://api.openai.com/v1/responses\", \"credential_ref\": \"openai\", \"context_window\": 128000, \"output_limit\": 4096, \"capabilities\": {\"json_schema\": true, \"images\": false, \"files\": false}}, \"prompt\": \"do the thing\", \"max_iterations\": 1, \"output_tokens\": 1024, \"history\": \"none\", \"overflow\": \"error\", \"json_schema\": null}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"color\": \"#ABCDEF\"}}}, \"allowed_modes\": [\"delegate\"], \"output_mode\": \"summary\", \"memory_policy\": \"ephemeral\", \"parallel_safe\": true, \"allowed_tools\": null, \"disabled_tools\": []}]}"
+  },
+  {
+   "label": "embedded: color is mixed case",
+   "accepted": false,
+   "code": "invalid_value",
+   "path": [
+    "config",
+    "subagents",
+    0,
+    "source",
+    "document",
+    "presentation",
+    "color"
+   ],
+   "message": "presentation color must be lowercase #rrggbb",
+   "json": "{\"subagents\": [{\"id\": \"sa1\", \"name\": \"Summarizer\", \"description\": \"\", \"source\": {\"kind\": \"embedded\", \"document\": {\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"child\", \"name\": \"Child\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}, \"kernel\": {\"schema_version\": 1, \"profile\": {\"id\": \"p\", \"provider\": \"openai\", \"model\": \"gpt-4.1\", \"protocol\": \"openai-responses\", \"endpoint\": \"https://api.openai.com/v1/responses\", \"credential_ref\": \"openai\", \"context_window\": 128000, \"output_limit\": 4096, \"capabilities\": {\"json_schema\": true, \"images\": false, \"files\": false}}, \"prompt\": \"do the thing\", \"max_iterations\": 1, \"output_tokens\": 1024, \"history\": \"none\", \"overflow\": \"error\", \"json_schema\": null}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"color\": \"#AbCdEf\"}}}, \"allowed_modes\": [\"delegate\"], \"output_mode\": \"summary\", \"memory_policy\": \"ephemeral\", \"parallel_safe\": true, \"allowed_tools\": null, \"disabled_tools\": []}]}"
+  },
+  {
+   "label": "embedded: color has no hash",
+   "accepted": false,
+   "code": "invalid_value",
+   "path": [
+    "config",
+    "subagents",
+    0,
+    "source",
+    "document",
+    "presentation",
+    "color"
+   ],
+   "message": "presentation color must be lowercase #rrggbb",
+   "json": "{\"subagents\": [{\"id\": \"sa1\", \"name\": \"Summarizer\", \"description\": \"\", \"source\": {\"kind\": \"embedded\", \"document\": {\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"child\", \"name\": \"Child\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}, \"kernel\": {\"schema_version\": 1, \"profile\": {\"id\": \"p\", \"provider\": \"openai\", \"model\": \"gpt-4.1\", \"protocol\": \"openai-responses\", \"endpoint\": \"https://api.openai.com/v1/responses\", \"credential_ref\": \"openai\", \"context_window\": 128000, \"output_limit\": 4096, \"capabilities\": {\"json_schema\": true, \"images\": false, \"files\": false}}, \"prompt\": \"do the thing\", \"max_iterations\": 1, \"output_tokens\": 1024, \"history\": \"none\", \"overflow\": \"error\", \"json_schema\": null}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"color\": \"123456\"}}}, \"allowed_modes\": [\"delegate\"], \"output_mode\": \"summary\", \"memory_policy\": \"ephemeral\", \"parallel_safe\": true, \"allowed_tools\": null, \"disabled_tools\": []}]}"
+  },
+  {
+   "label": "embedded: color is short hex",
+   "accepted": false,
+   "code": "invalid_value",
+   "path": [
+    "config",
+    "subagents",
+    0,
+    "source",
+    "document",
+    "presentation",
+    "color"
+   ],
+   "message": "presentation color must be lowercase #rrggbb",
+   "json": "{\"subagents\": [{\"id\": \"sa1\", \"name\": \"Summarizer\", \"description\": \"\", \"source\": {\"kind\": \"embedded\", \"document\": {\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"child\", \"name\": \"Child\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}, \"kernel\": {\"schema_version\": 1, \"profile\": {\"id\": \"p\", \"provider\": \"openai\", \"model\": \"gpt-4.1\", \"protocol\": \"openai-responses\", \"endpoint\": \"https://api.openai.com/v1/responses\", \"credential_ref\": \"openai\", \"context_window\": 128000, \"output_limit\": 4096, \"capabilities\": {\"json_schema\": true, \"images\": false, \"files\": false}}, \"prompt\": \"do the thing\", \"max_iterations\": 1, \"output_tokens\": 1024, \"history\": \"none\", \"overflow\": \"error\", \"json_schema\": null}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"color\": \"#fff\"}}}, \"allowed_modes\": [\"delegate\"], \"output_mode\": \"summary\", \"memory_policy\": \"ephemeral\", \"parallel_safe\": true, \"allowed_tools\": null, \"disabled_tools\": []}]}"
+  },
+  {
+   "label": "embedded: color has seven digits",
+   "accepted": false,
+   "code": "invalid_value",
+   "path": [
+    "config",
+    "subagents",
+    0,
+    "source",
+    "document",
+    "presentation",
+    "color"
+   ],
+   "message": "presentation color must be lowercase #rrggbb",
+   "json": "{\"subagents\": [{\"id\": \"sa1\", \"name\": \"Summarizer\", \"description\": \"\", \"source\": {\"kind\": \"embedded\", \"document\": {\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"child\", \"name\": \"Child\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}, \"kernel\": {\"schema_version\": 1, \"profile\": {\"id\": \"p\", \"provider\": \"openai\", \"model\": \"gpt-4.1\", \"protocol\": \"openai-responses\", \"endpoint\": \"https://api.openai.com/v1/responses\", \"credential_ref\": \"openai\", \"context_window\": 128000, \"output_limit\": 4096, \"capabilities\": {\"json_schema\": true, \"images\": false, \"files\": false}}, \"prompt\": \"do the thing\", \"max_iterations\": 1, \"output_tokens\": 1024, \"history\": \"none\", \"overflow\": \"error\", \"json_schema\": null}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"color\": \"#1234567\"}}}, \"allowed_modes\": [\"delegate\"], \"output_mode\": \"summary\", \"memory_policy\": \"ephemeral\", \"parallel_safe\": true, \"allowed_tools\": null, \"disabled_tools\": []}]}"
+  },
+  {
+   "label": "embedded: color has a non-hex digit",
+   "accepted": false,
+   "code": "invalid_value",
+   "path": [
+    "config",
+    "subagents",
+    0,
+    "source",
+    "document",
+    "presentation",
+    "color"
+   ],
+   "message": "presentation color must be lowercase #rrggbb",
+   "json": "{\"subagents\": [{\"id\": \"sa1\", \"name\": \"Summarizer\", \"description\": \"\", \"source\": {\"kind\": \"embedded\", \"document\": {\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"child\", \"name\": \"Child\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}, \"kernel\": {\"schema_version\": 1, \"profile\": {\"id\": \"p\", \"provider\": \"openai\", \"model\": \"gpt-4.1\", \"protocol\": \"openai-responses\", \"endpoint\": \"https://api.openai.com/v1/responses\", \"credential_ref\": \"openai\", \"context_window\": 128000, \"output_limit\": 4096, \"capabilities\": {\"json_schema\": true, \"images\": false, \"files\": false}}, \"prompt\": \"do the thing\", \"max_iterations\": 1, \"output_tokens\": 1024, \"history\": \"none\", \"overflow\": \"error\", \"json_schema\": null}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"color\": \"#12345g\"}}}, \"allowed_modes\": [\"delegate\"], \"output_mode\": \"summary\", \"memory_policy\": \"ephemeral\", \"parallel_safe\": true, \"allowed_tools\": null, \"disabled_tools\": []}]}"
+  },
+  {
+   "label": "embedded: color is a name",
+   "accepted": false,
+   "code": "invalid_value",
+   "path": [
+    "config",
+    "subagents",
+    0,
+    "source",
+    "document",
+    "presentation",
+    "color"
+   ],
+   "message": "presentation color must be lowercase #rrggbb",
+   "json": "{\"subagents\": [{\"id\": \"sa1\", \"name\": \"Summarizer\", \"description\": \"\", \"source\": {\"kind\": \"embedded\", \"document\": {\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"child\", \"name\": \"Child\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}, \"kernel\": {\"schema_version\": 1, \"profile\": {\"id\": \"p\", \"provider\": \"openai\", \"model\": \"gpt-4.1\", \"protocol\": \"openai-responses\", \"endpoint\": \"https://api.openai.com/v1/responses\", \"credential_ref\": \"openai\", \"context_window\": 128000, \"output_limit\": 4096, \"capabilities\": {\"json_schema\": true, \"images\": false, \"files\": false}}, \"prompt\": \"do the thing\", \"max_iterations\": 1, \"output_tokens\": 1024, \"history\": \"none\", \"overflow\": \"error\", \"json_schema\": null}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"color\": \"red\"}}}, \"allowed_modes\": [\"delegate\"], \"output_mode\": \"summary\", \"memory_policy\": \"ephemeral\", \"parallel_safe\": true, \"allowed_tools\": null, \"disabled_tools\": []}]}"
+  },
+  {
+   "label": "embedded: color has a trailing newline",
+   "accepted": false,
+   "code": "invalid_value",
+   "path": [
+    "config",
+    "subagents",
+    0,
+    "source",
+    "document",
+    "presentation",
+    "color"
+   ],
+   "message": "presentation color must be lowercase #rrggbb",
+   "json": "{\"subagents\": [{\"id\": \"sa1\", \"name\": \"Summarizer\", \"description\": \"\", \"source\": {\"kind\": \"embedded\", \"document\": {\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"child\", \"name\": \"Child\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}, \"kernel\": {\"schema_version\": 1, \"profile\": {\"id\": \"p\", \"provider\": \"openai\", \"model\": \"gpt-4.1\", \"protocol\": \"openai-responses\", \"endpoint\": \"https://api.openai.com/v1/responses\", \"credential_ref\": \"openai\", \"context_window\": 128000, \"output_limit\": 4096, \"capabilities\": {\"json_schema\": true, \"images\": false, \"files\": false}}, \"prompt\": \"do the thing\", \"max_iterations\": 1, \"output_tokens\": 1024, \"history\": \"none\", \"overflow\": \"error\", \"json_schema\": null}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"color\": \"#123456\\n\"}}}, \"allowed_modes\": [\"delegate\"], \"output_mode\": \"summary\", \"memory_policy\": \"ephemeral\", \"parallel_safe\": true, \"allowed_tools\": null, \"disabled_tools\": []}]}"
+  },
+  {
+   "label": "embedded: color has full-width digits",
+   "accepted": false,
+   "code": "invalid_value",
+   "path": [
+    "config",
+    "subagents",
+    0,
+    "source",
+    "document",
+    "presentation",
+    "color"
+   ],
+   "message": "presentation color must be lowercase #rrggbb",
+   "json": "{\"subagents\": [{\"id\": \"sa1\", \"name\": \"Summarizer\", \"description\": \"\", \"source\": {\"kind\": \"embedded\", \"document\": {\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"child\", \"name\": \"Child\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}, \"kernel\": {\"schema_version\": 1, \"profile\": {\"id\": \"p\", \"provider\": \"openai\", \"model\": \"gpt-4.1\", \"protocol\": \"openai-responses\", \"endpoint\": \"https://api.openai.com/v1/responses\", \"credential_ref\": \"openai\", \"context_window\": 128000, \"output_limit\": 4096, \"capabilities\": {\"json_schema\": true, \"images\": false, \"files\": false}}, \"prompt\": \"do the thing\", \"max_iterations\": 1, \"output_tokens\": 1024, \"history\": \"none\", \"overflow\": \"error\", \"json_schema\": null}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"color\": \"#１２３４５６\"}}}, \"allowed_modes\": [\"delegate\"], \"output_mode\": \"summary\", \"memory_policy\": \"ephemeral\", \"parallel_safe\": true, \"allowed_tools\": null, \"disabled_tools\": []}]}"
+  },
+  {
+   "label": "embedded: icon fine, color uppercase",
+   "accepted": false,
+   "code": "invalid_value",
+   "path": [
+    "config",
+    "subagents",
+    0,
+    "source",
+    "document",
+    "presentation",
+    "color"
+   ],
+   "message": "presentation color must be lowercase #rrggbb",
+   "json": "{\"subagents\": [{\"id\": \"sa1\", \"name\": \"Summarizer\", \"description\": \"\", \"source\": {\"kind\": \"embedded\", \"document\": {\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"child\", \"name\": \"Child\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}, \"kernel\": {\"schema_version\": 1, \"profile\": {\"id\": \"p\", \"provider\": \"openai\", \"model\": \"gpt-4.1\", \"protocol\": \"openai-responses\", \"endpoint\": \"https://api.openai.com/v1/responses\", \"credential_ref\": \"openai\", \"context_window\": 128000, \"output_limit\": 4096, \"capabilities\": {\"json_schema\": true, \"images\": false, \"files\": false}}, \"prompt\": \"do the thing\", \"max_iterations\": 1, \"output_tokens\": 1024, \"history\": \"none\", \"overflow\": \"error\", \"json_schema\": null}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"presentation\": {\"icon\": \"robot\", \"color\": \"#FFFFFF\"}}}, \"allowed_modes\": [\"delegate\"], \"output_mode\": \"summary\", \"memory_policy\": \"ephemeral\", \"parallel_safe\": true, \"allowed_tools\": null, \"disabled_tools\": []}]}"
+  }
+ ]
+}

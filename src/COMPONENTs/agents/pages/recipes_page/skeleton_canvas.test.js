@@ -343,12 +343,12 @@ describe("the drawing is given the node, not everything beside it", () => {
     const agent = child.nodes.find((node) => node.type === "agent");
     expect(agent.label).toEqual({ toString: null });
     show(child);
-    /* It draws at all — this threw — and it draws the node's own name, which
-       for a Skeleton node is its id. (The editor's mock prints the id once
-       itself, above whatever the drawing prints, so the drawing's own copy is
-       the second.) */
+    /* It draws at all — this threw — and without a label of its own it reads
+       as its type, "Agent", not as its id. (The editor's mock still prints the
+       id once itself, above whatever the drawing prints.) */
     const drawn = within(screen.getByTestId("node-agent"));
-    expect(drawn.getAllByText("agent")).toHaveLength(2);
+    expect(drawn.getAllByText("agent")).toHaveLength(1);
+    expect(drawn.getByText("Agent")).toBeInTheDocument();
     expect(screen.getByTestId("node-agent").textContent).not.toMatch(/unreadable/);
     /* And the drawing was never handed the key. */
     expect("label" in lastProps.nodes.find((node) => node.id === "agent")).toBe(false);
@@ -374,7 +374,8 @@ describe("the drawing is given the node, not everything beside it", () => {
       const child = stored_child(name);
       const { unmount } = show(child);
       const node = screen.getByTestId("node-agent");
-      expect(within(node).getAllByText("agent")).toHaveLength(2);
+      expect(within(node).getAllByText("agent")).toHaveLength(1);
+      expect(within(node).getByText("Agent")).toBeInTheDocument();
       expect([name, node.textContent.includes("unreadable")]).toEqual([name, false]);
       unmount();
     });

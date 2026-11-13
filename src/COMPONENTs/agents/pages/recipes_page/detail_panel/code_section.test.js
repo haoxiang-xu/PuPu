@@ -1,3 +1,4 @@
+/* eslint-disable testing-library/no-node-access -- the highlight layer is aria-hidden markup; its token spans are what is under test. */
 import React, { useState } from "react";
 
 /* This suite checks the guidance's contract and document writes. The real
@@ -5,7 +6,7 @@ import React, { useState } from "react";
 jest.mock("./panel_help", () => function GuidanceText({ children }) { return <>{children}</>; });
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import CodeSection from "./code_section";
-import { probe_python_profile, python_profiles, save_python_profile } from "../skeleton_resources";
+import { python_profiles } from "../skeleton_resources";
 import capture from "../code_capture.json";
 
 /* The Code panel (#357), fed the store's own answers: the Python profile
@@ -14,10 +15,7 @@ import capture from "../code_capture.json";
  * Only the controls are probes. */
 
 jest.mock("../skeleton_resources", () => ({
-  is_unavailable: (result) => Boolean(result) && result.ok === false && result.reason === "unavailable",
   python_profiles: jest.fn(),
-  save_python_profile: jest.fn(),
-  probe_python_profile: jest.fn(),
 }));
 jest.mock("../../../../../BUILTIN_COMPONENTs/select/select", () => function MockSelect({ options, value, set_value, disabled, placeholder }) {
   return (
@@ -28,8 +26,9 @@ jest.mock("../../../../../BUILTIN_COMPONENTs/select/select", () => function Mock
     </select>
   );
 });
-jest.mock("../../../../../BUILTIN_COMPONENTs/input/input", () => function MockInput({ value, set_value, placeholder, disabled }) {
-  return <input placeholder={placeholder} value={value} disabled={disabled} onChange={(event) => set_value(event.target.value)} />;
+jest.mock("../../../../../BUILTIN_COMPONENTs/input/input", () => function MockInput({ value, set_value, placeholder, disabled, aria_label, style }) {
+  return <input aria-label={aria_label} placeholder={placeholder} value={value} disabled={disabled} data-style={JSON.stringify(style || {})}
+    onChange={(event) => set_value(event.target.value)} />;
 });
 jest.mock("../../../../../BUILTIN_COMPONENTs/input/textfield", () => function MockTextField({ value, set_value, placeholder }) {
   return <textarea data-testid="json-text" placeholder={placeholder} value={value} onChange={(event) => set_value(event.target.value)} />;
@@ -37,8 +36,11 @@ jest.mock("../../../../../BUILTIN_COMPONENTs/input/textfield", () => function Mo
 jest.mock("../../../../../BUILTIN_COMPONENTs/input/button", () => function MockButton({ label, ariaLabel, onClick, disabled }) {
   return <button type="button" aria-label={ariaLabel} disabled={disabled} onClick={onClick}>{label || ariaLabel}</button>;
 });
-jest.mock("../../../../../BUILTIN_COMPONENTs/input/switch", () => function MockSwitch({ on, set_on }) {
-  return <input type="checkbox" role="switch" checked={Boolean(on)} onChange={(event) => set_on(event.target.checked)} />;
+jest.mock("../../../../../BUILTIN_COMPONENTs/input/switch", () => {
+  const MockSwitch = function MockSwitch({ on, set_on }) {
+    return <input type="checkbox" role="switch" checked={Boolean(on)} onChange={(event) => set_on(event.target.checked)} />;
+  };
+  return { __esModule: true, default: MockSwitch, SemiSwitch: MockSwitch };
 });
 
 const PROFILES = capture.profiles.list_after;
@@ -74,30 +76,44 @@ const show = async (document) => {
   await settle();
 };
 const stored = () => latest.nodes[1].config.code;
-const selectIn = (testid) => within(screen.getByTestId(testid)).getByTestId("select");
-const limitBox = (label) => within(screen.getByTestId("code-limits")).getByPlaceholderText(label);
+/* Every problem the panel says, wherever it says it (each section says its
+   own; the rest is said under the panel). */
+const said = (root = document.body) => [...root.querySelectorAll('[data-testid^="code-problems"]')].map((node) => node.textContent).join(" ");
+const limitBox = (label) => within(screen.getByTestId("code-limits")).getByRole("textbox", { name: label });
+const TIME = "Run time ≤ seconds";
+const RESULT = "Result size ≤ bytes";
+const LOG = "Printed output kept ≤ bytes";
 
 beforeEach(() => {
   python_profiles.mockResolvedValue({ ok: true, data: { profiles: PROFILES } });
-  save_python_profile.mockReset();
-  probe_python_profile.mockReset();
 });
 
 describe("a new Code node", () => {
-  test("has no settings, says what is missing, and writes only what the author chooses", async () => {
+  test("an old node with no settings has ONE next step, and opening it writes nothing", async () => {
     await show(graph(codeNode(undefined)));
-    expect(screen.getByTestId("code-problems")).toHaveTextContent("Choose a runtime, name the source file, set the limits and declare the Result.");
-    expect(screen.getByTestId("code-result-undeclared")).toHaveTextContent("No fields yet");
-    expect(screen.getByTestId("code-on-error")).toHaveTextContent("There is no error policy for Code");
+    expect(within(screen.getByTestId("code-source")).getByTestId("code-problems-source")).toHaveTextContent("Write the code for this step.");
+    expect(within(screen.getByTestId("code-source")).getByTestId("process-problems-code-source")).toHaveTextContent("1");
+    expect(said()).toBe("Write the code for this step.");
+    expect(screen.queryByTestId("process-problems-code-limits")).toBeNull();
+    expect(screen.queryByTestId("process-problems-code-result")).toBeNull();
+    expect(writes).toEqual([]);
 
-    fireEvent.change(selectIn("code-runtime-picker"), { target: { value: "builtin" } });
-    expect(stored()).toStrictEqual({ environment_profile_id: "builtin" });
-    expect(screen.getByTestId("code-runtime-executable")).toHaveTextContent("the built-in interpreter");
-    const messages = () => screen.getByTestId("code-problems").textContent;
-    expect(messages()).toContain("Set timeout ms");
-    expect(messages()).toContain("name the file");
-    expect(messages()).toContain("Declare the Result");
-    expect(messages()).not.toContain("Choose the Python");
+    /* Python only: no picker. */
+    expect(screen.queryByTestId("code-runtime")).toBeNull();
+    expect(screen.queryByTestId("select")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Name a Python/ })).toBeNull();
+    /* Unset limits are their defaults: shown, not complained about. */
+    fireEvent.change(limitBox(TIME), { target: { value: "45" } });
+    expect(stored()).toStrictEqual({ timeout_ms: 45000 });
+    expect(said()).toBe("Write the code for this step.");
+  });
+
+  test("code without a declared Result: exactly one problem, said at Result", async () => {
+    const { result_schema: _gone, ...noResult } = complete;
+    await show(graph(codeNode(noResult)));
+    expect(within(screen.getByTestId("code-result")).getByTestId("code-problems-result")).toHaveTextContent("Add the fields your code returns.");
+    expect(within(screen.getByTestId("code-result")).getByTestId("process-problems-code-result")).toHaveTextContent("1");
+    expect(said()).toBe("Add the fields your code returns.");
   });
 
   test("the source is written only as a normalized relative path; other text is held, not stored", async () => {
@@ -118,17 +134,57 @@ describe("a new Code node", () => {
 
   test("limits are whole numbers inside the runtime's bounds; the timeout is typed in seconds", async () => {
     await show(graph(codeNode({ environment_profile_id: "builtin" })));
-    fireEvent.change(limitBox("seconds"), { target: { value: "0" } });
+    fireEvent.change(limitBox(TIME), { target: { value: "0" } });
     expect(stored().timeout_ms).toBeUndefined();
     expect(screen.getByTestId("code-timeout-score-problem")).toHaveTextContent("whole number from 1 to 86400");
-    fireEvent.change(limitBox("seconds"), { target: { value: "30" } });
+    fireEvent.change(limitBox(TIME), { target: { value: "30" } });
     expect(stored().timeout_ms).toBe(30000);
-    const [resultBox, logBox] = within(screen.getByTestId("code-limits")).getAllByPlaceholderText("bytes");
-    fireEvent.change(resultBox, { target: { value: "8388609" } });
+    fireEvent.change(limitBox(RESULT), { target: { value: "8388609" } });
     expect(stored().max_result_bytes).toBeUndefined();
-    fireEvent.change(resultBox, { target: { value: "1048576" } });
-    fireEvent.change(logBox, { target: { value: "1048576" } });
+    fireEvent.change(limitBox(RESULT), { target: { value: "1048576" } });
+    fireEvent.change(limitBox(LOG), { target: { value: "1048576" } });
     expect(stored()).toMatchObject({ timeout_ms: 30000, max_result_bytes: 1048576, max_log_bytes: 1048576 });
+  });
+
+  test("each limit is one row: what it bounds, an upper-bound sign, a borderless number and its unit", async () => {
+    await show(graph(codeNode({ environment_profile_id: "builtin" })));
+    /* Unset: the placeholder is the default it stands for. */
+    const rows = [["code-timeout-score", "Run time", "seconds", "30"],
+      ["code-result-bytes-score", "Result size", "bytes", "1048576"],
+      ["code-log-bytes-score", "Printed output kept", "bytes", "1048576"]];
+    rows.forEach(([testid, label, unit, range]) => {
+      const row = screen.getByTestId(testid);
+      expect(row).toHaveTextContent(label);
+      expect(within(row).getByTestId(`${testid}-sign`)).toHaveTextContent("≤");
+      expect(row).toHaveTextContent(unit);
+      const box = within(row).getByRole("textbox");
+      /* The range it takes is the placeholder; nothing is pre-filled. */
+      expect(box).toHaveAttribute("placeholder", range);
+      expect(screen.queryByTestId("process-problems-code-limits")).toBeNull();
+      expect(box).toHaveValue("");
+      /* The variable row's field: no border, no fill at rest, hover or press. */
+      const style = JSON.parse(box.getAttribute("data-style"));
+      expect(style).toMatchObject({ border: 0, boxShadow: "none", hoverBackgroundColor: "transparent", activeBackgroundColor: "transparent",
+        "--pupu-overlay-hover": "transparent", "--pupu-overlay-active": "transparent" });
+    });
+  });
+
+  test("a half-typed limit is held unstored; emptying a box goes back to the default", async () => {
+    await show(graph(codeNode(complete)));
+    expect(limitBox(TIME)).toHaveValue("30");
+    fireEvent.change(limitBox(TIME), { target: { value: "4." } });
+    expect(stored().timeout_ms).toBe(30000);
+    expect(limitBox(TIME)).toHaveValue("4.");
+    expect(screen.getByTestId("code-timeout-score-problem")).toHaveTextContent("Enter a whole number. Nothing is stored until it is one.");
+    fireEvent.change(limitBox(TIME), { target: { value: "45" } });
+    expect(stored().timeout_ms).toBe(45000);
+    fireEvent.change(limitBox(TIME), { target: { value: "" } });
+    expect(Object.prototype.hasOwnProperty.call(stored(), "timeout_ms")).toBe(false);
+    expect(limitBox(TIME)).toHaveValue("");
+    expect(limitBox(TIME)).toHaveAttribute("placeholder", "30");
+    expect(said()).toBe("");
+    const { timeout_ms: _dropped, ...rest } = complete;
+    expect(stored()).toStrictEqual(rest);
   });
 
   test("the first declared field creates a closed object schema; the Result's fields are the output roots", async () => {
@@ -148,30 +204,43 @@ describe("a new Code node", () => {
 describe("a stored Code node", () => {
   test("shows the real complete config as it is and has nothing to complain about", async () => {
     await show(graph(codeNode(complete)));
-    expect(selectIn("code-runtime-picker")).toHaveValue("builtin");
+    expect(within(screen.getByTestId("code-source")).queryByTestId("select")).toBeNull();
     expect(within(screen.getByTestId("code-source")).getByPlaceholderText("tools/score.py")).toHaveValue("tools/score.py");
-    expect(limitBox("seconds")).toHaveValue("30");
+    expect(limitBox(TIME)).toHaveValue("30");
     expect(within(screen.getByTestId("schema-field-0")).getByPlaceholderText("field name")).toHaveValue("rows");
     expect(within(screen.getByTestId("schema-field-1")).getByPlaceholderText("field name")).toHaveValue("summary");
-    expect(screen.queryByTestId("code-problems")).toBeNull();
+    expect(said()).toBe("");
     expect(writes).toEqual([]);
   });
 
-  test("a profile the store no longer lists is shown as stored and named as the problem", async () => {
-    await show(graph(codeNode(capture.rows.find((row) => row.case === "profile-missing").config.code)));
-    expect(selectIn("code-runtime-picker")).toHaveValue("nope");
-    expect(within(selectIn("code-runtime-picker")).getByText("nope (not on this machine)")).toBeInTheDocument();
-    expect(screen.getByTestId("code-problems")).toHaveTextContent("No Python profile named “nope” is on this machine");
+  test("a Python this machine does not have is kept as stored, named, and has one way back", async () => {
+    const missing = capture.rows.find((row) => row.case === "profile-missing").config.code;
+    await show(graph(codeNode(missing)));
+    expect(said()).toContain("uses a Python named “nope” that this computer doesn't have");
+    /* An edit elsewhere keeps the stored Python exactly as it is. */
+    fireEvent.change(limitBox(TIME), { target: { value: "31" } });
+    expect(stored()).toStrictEqual({ ...missing, timeout_ms: 31000 });
+    fireEvent.click(within(screen.getByTestId("code-python-repair")).getByRole("button", { name: "Use the built-in Python" }));
+    expect(stored()).toStrictEqual({ ...missing, timeout_ms: 31000, environment_profile_id: "builtin" });
+    expect(screen.queryByTestId("code-python-repair")).toBeNull();
+  });
+
+  test("a stored Python the machine has is never rewritten and offers nothing to change", async () => {
+    await show(graph(codeNode({ ...complete, environment_profile_id: "pupu-tools" })));
+    expect(screen.queryByTestId("code-python-repair")).toBeNull();
+    expect(within(screen.getByTestId("code-source")).queryByTestId("select")).toBeNull();
+    fireEvent.change(limitBox(RESULT), { target: { value: "2048" } });
+    expect(stored()).toStrictEqual({ ...complete, environment_profile_id: "pupu-tools", max_result_bytes: 2048 });
   });
 
   test("a key this runtime does not read is named and can be removed; the rest is kept", async () => {
     const withExtra = capture.rows.find((row) => row.case === "unknown-code-key-on-error").config.code;
     await show(graph(codeNode(withExtra)));
     expect(screen.getByTestId("code-setting-on_error")).toHaveTextContent("Unsupported setting: on_error");
-    expect(screen.getByTestId("code-problems")).toHaveTextContent("does not read the setting “on_error”");
+    expect(screen.getByTestId("code-problems")).toHaveTextContent("PuPu doesn't use the setting “on_error”. Remove it.");
     fireEvent.click(screen.getByRole("button", { name: "Remove setting on_error" }));
     expect(stored()).toStrictEqual(complete);
-    expect(screen.queryByTestId("code-problems")).toBeNull();
+    expect(said()).toBe("");
   });
 
   test("a schema the fields cannot hold is shown as JSON, never rewritten; one that is not a schema is named", async () => {
@@ -186,7 +255,7 @@ describe("a stored Code node", () => {
 
     await show(graph(codeNode(capture.rows.find((row) => row.case === "schema-not-dict").config.code)));
     expect(screen.getAllByTestId("code-result-undeclared").at(-1)).toHaveTextContent("not a schema this editor can read");
-    expect(screen.getAllByTestId("code-problems").at(-1)).toHaveTextContent("must describe an object");
+    expect(screen.getAllByTestId("code-problems-result").at(-1)).toHaveTextContent("must describe an object");
   });
 
   test("stored artifacts are listed as they are and can only be removed", async () => {
@@ -201,119 +270,33 @@ describe("a stored Code node", () => {
   test("a Workflow document is editable here", async () => {
     await show(graph(codeNode(complete), "workflow"));
     expect(screen.getByTestId("code-section")).not.toHaveTextContent("read-only here");
-    expect(selectIn("code-runtime-picker")).not.toBeDisabled();
+    expect(limitBox(TIME)).not.toBeDisabled();
   });
 
   test("a document of another kind is read-only here", async () => {
     await show(graph(codeNode(complete), "recipe"));
     expect(screen.getByTestId("code-section")).toHaveTextContent("read-only here");
-    expect(selectIn("code-runtime-picker")).toBeDisabled();
-  });
-});
-
-describe("the Pythons on this machine", () => {
-  test("checking a profile asks the store and shows the version it reported", async () => {
-    probe_python_profile.mockResolvedValue({ ok: true, data: capture.profiles.probe_venv });
-    await show(graph(codeNode({ ...complete, environment_profile_id: "pupu-tools" })));
-    fireEvent.click(screen.getByRole("button", { name: "Check pupu-tools" }));
-    await settle();
-    expect(probe_python_profile).toHaveBeenCalledWith("pupu-tools");
-    expect(screen.getByTestId("code-runtime-probe")).toHaveTextContent("Python 3.12.10 (cpython)");
-  });
-
-  test("naming a Python sends its id and absolute executable; the store's refusal is shown, a success is picked", async () => {
-    save_python_profile.mockResolvedValueOnce({ ok: false, error: capture.profiles.save_relative.refusal });
-    await show(graph(codeNode({ environment_profile_id: "builtin" })));
-    fireEvent.click(screen.getByRole("button", { name: "Name a Python…" }));
-    const add = screen.getByTestId("code-runtime-add");
-    fireEvent.change(within(add).getByPlaceholderText(/profile name/), { target: { value: "rel" } });
-    fireEvent.change(within(add).getByPlaceholderText(/absolute path/), { target: { value: "bin/python" } });
-    fireEvent.click(within(add).getByRole("button", { name: "Add" }));
-    await settle();
-    expect(save_python_profile).toHaveBeenCalledWith("rel", "bin/python");
-    expect(screen.getByTestId("code-runtime-add-problem")).toHaveTextContent("absolute path");
-    expect(stored()).toStrictEqual({ environment_profile_id: "builtin" });
-
-    save_python_profile.mockResolvedValueOnce({ ok: true, data: capture.profiles.save_venv });
-    python_profiles.mockResolvedValue({ ok: true, data: { profiles: PROFILES } });
-    fireEvent.change(within(add).getByPlaceholderText(/profile name/), { target: { value: "pupu-tools" } });
-    fireEvent.change(within(add).getByPlaceholderText(/absolute path/), { target: { value: "/Users/someone/.venvs/pupu-tools/bin/python" } });
-    fireEvent.click(within(add).getByRole("button", { name: "Add" }));
-    await settle();
-    expect(save_python_profile).toHaveBeenLastCalledWith("pupu-tools", "/Users/someone/.venvs/pupu-tools/bin/python");
-    expect(stored().environment_profile_id).toBe("pupu-tools");
-    expect(screen.queryByTestId("code-runtime-add")).toBeNull();
-  });
-
-  test("a list that cannot be read is a refusal with a retry, not an empty picker", async () => {
-    python_profiles.mockResolvedValue({ ok: false, error: { code: "unauthorized", message: "no" } });
-    await show(graph(codeNode(complete)));
-    expect(screen.getByTestId("code-runtime-error")).toHaveTextContent("could not be read: no");
-    expect(screen.queryByTestId("code-problems")).toBeNull();
-    python_profiles.mockResolvedValue({ ok: true, data: { profiles: PROFILES } });
-    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
-    await settle();
-    expect(screen.queryByTestId("code-runtime-error")).toBeNull();
-    expect(selectIn("code-runtime-picker")).toHaveValue("builtin");
-  });
-});
-
-/* Review corrections R-357-01..04 (code-01-independent-review-20261024/report.md). */
-describe("R-357-01: a Python registered late selects itself only while the author still means it", () => {
-  const beginAdd = () => {
-    fireEvent.click(screen.getByRole("button", { name: "Name a Python…" }));
-    const add = screen.getByTestId("code-runtime-add");
-    fireEvent.change(within(add).getByPlaceholderText(/profile name/), { target: { value: "review-python" } });
-    fireEvent.change(within(add).getByPlaceholderText(/absolute path/), { target: { value: "/tmp/owned-python" } });
-    fireEvent.click(within(add).getByRole("button", { name: "Add" }));
-  };
-  const late = () => {
-    let resolve;
-    save_python_profile.mockReturnValue(new Promise((done) => { resolve = done; }));
-    return (value) => act(async () => { resolve(value); for (let tick = 0; tick < 6; tick += 1) await Promise.resolve(); });
-  };
-
-  test("an edit made while the registration is pending survives its success; only the profile id changes", async () => {
-    const answer = late();
-    await show(graph(codeNode(complete)));
-    beginAdd();
-    fireEvent.change(within(screen.getByTestId("code-source")).getByPlaceholderText("tools/score.py"), { target: { value: "tools/new.py" } });
-    expect(stored().source.path).toBe("tools/new.py");
-    await answer({ ok: true, data: { ...capture.profiles.save_venv, id: "review-python" } });
-    expect(stored()).toStrictEqual({ ...complete, source: { kind: "file", path: "tools/new.py" }, environment_profile_id: "review-python" });
-  });
-
-  test("Cancel before the reply revokes the selection; the profile may still exist on the machine", async () => {
-    const answer = late();
-    await show(graph(codeNode(complete)));
-    beginAdd();
-    fireEvent.click(within(screen.getByTestId("code-runtime-add")).getByRole("button", { name: "Cancel" }));
-    await answer({ ok: true, data: { ...capture.profiles.save_venv, id: "review-python" } });
-    expect(stored().environment_profile_id).toBe("builtin");
-    expect(python_profiles).toHaveBeenCalledTimes(2);
-  });
-
-  test("a reply arriving after the section is gone writes nothing", async () => {
-    const answer = late();
-    writes = [];
-    const view = render(<Harness initial={graph(codeNode(complete))} />);
-    await act(async () => { for (let tick = 0; tick < 4; tick += 1) await Promise.resolve(); });
-    beginAdd();
-    view.unmount();
-    await answer({ ok: true, data: { ...capture.profiles.save_venv, id: "review-python" } });
-    expect(writes).toEqual([]);
+    expect(limitBox(TIME)).toBeDisabled();
   });
 });
 
 describe("R-357-02: On error says what the installed runtime does", () => {
   test("a bad return fails the run, an exception or timeout leaves it unknown; nothing is published downstream", async () => {
     await show(graph(codeNode(complete)));
-    const text = screen.getByTestId("code-on-error").textContent;
-    expect(text).toMatch(/fails the run/);
-    expect(text).toMatch(/outcome_unknown/);
-    expect(text).toMatch(/nothing is published/i);
-    expect(text).not.toMatch(/route on what arrived/);
-    expect(text).not.toMatch(/completes with/);
+    const section = screen.getByTestId("code-on-error");
+    const text = section.textContent;
+    /* Nothing to choose: two plain rows, no control. */
+    expect(within(section).queryByRole("switch")).toBeNull();
+    expect(within(section).queryByTestId("select")).toBeNull();
+    expect(screen.getByTestId("code-on-error-raises")).toHaveTextContent("Error or time limit");
+    expect(screen.getByTestId("code-on-error-raises")).toHaveTextContent("Run stops");
+    expect(screen.getByTestId("code-on-error-mismatch")).toHaveTextContent("Result doesn't match");
+    expect(screen.getByTestId("code-on-error-mismatch")).toHaveTextContent("Run stops");
+    expect(text).toMatch(/outcome is unknown/);
+    expect(text).toMatch(/fails at this node/);
+    expect(text).toMatch(/nothing from this node is passed on/i);
+    /* No raw codes in what the author reads. */
+    expect(text).not.toMatch(/outcome_unknown|output_invalid|invalid_type|handler_error/);
   });
 });
 
@@ -346,7 +329,7 @@ describe("R-357-03: the JSON editor stays with its author", () => {
 describe("R-357-04: a malformed artifacts value has a way out", () => {
   test("the raw value is shown and can be removed whole; nothing else moves", async () => {
     await show(graph(codeNode({ ...complete, artifacts: { stored: "not-a-list" } })));
-    expect(screen.getByTestId("code-problems")).toHaveTextContent("not a list");
+    expect(screen.getByTestId("code-problems")).toHaveTextContent("can't be read. Remove them.");
     expect(screen.getByTestId("code-artifacts")).toHaveTextContent('{"stored":"not-a-list"}');
     expect(writes).toEqual([]);
     fireEvent.click(screen.getByRole("button", { name: "Remove artifacts" }));
@@ -363,62 +346,6 @@ describe("R-357-04: a malformed artifacts value has a way out", () => {
 });
 
 /* Second review round, R-357-01a / 03a / 04a (code-01-review-fixes-independent-20261024). */
-describe("R-357-01a: an obsolete reply never touches the registration that replaced it", () => {
-  const deferred = () => { let resolve; const promise = new Promise((done) => { resolve = done; }); return { promise, resolve }; };
-  const begin = (id) => {
-    fireEvent.click(screen.getByRole("button", { name: "Name a Python…" }));
-    const add = screen.getByTestId("code-runtime-add");
-    fireEvent.change(within(add).getByPlaceholderText(/profile name/), { target: { value: id } });
-    fireEvent.change(within(add).getByPlaceholderText(/absolute path/), { target: { value: `/tmp/python-${id}` } });
-    fireEvent.click(within(add).getByRole("button", { name: "Add" }));
-  };
-  const cancel = () => fireEvent.click(within(screen.getByTestId("code-runtime-add")).getByRole("button", { name: "Cancel" }));
-  const answer = async (request, value) => { await act(async () => request.resolve(value)); await settle(); };
-  const success = (id) => ({ ok: true, data: { ...capture.profiles.save_venv, id } });
-
-  test.each([
-    ["success", success("old-python")],
-    ["failure", { ok: false, error: capture.profiles.save_relative.refusal }],
-  ])("old %s first, then the current success: only the current one settles the form and selects", async (_label, oldAnswer) => {
-    const old = deferred(); const current = deferred();
-    save_python_profile.mockReturnValueOnce(old.promise).mockReturnValueOnce(current.promise);
-    await show(graph(codeNode(complete)));
-    begin("old-python"); cancel(); begin("current-python");
-    fireEvent.change(within(screen.getByTestId("code-source")).getByPlaceholderText("tools/score.py"), { target: { value: "tools/after.py" } });
-    await answer(old, oldAnswer);
-    expect(stored().environment_profile_id).toBe("builtin");
-    expect(screen.getByRole("button", { name: "Probing…" })).toBeInTheDocument();
-    expect(screen.queryByTestId("code-runtime-add-problem")).toBeNull();
-    await answer(current, success("current-python"));
-    expect(stored()).toStrictEqual({ ...complete, source: { kind: "file", path: "tools/after.py" }, environment_profile_id: "current-python" });
-    expect(screen.queryByTestId("code-runtime-add")).toBeNull();
-  });
-
-  test("current first, then the old one: the old one changes nothing", async () => {
-    const old = deferred(); const current = deferred();
-    save_python_profile.mockReturnValueOnce(old.promise).mockReturnValueOnce(current.promise);
-    await show(graph(codeNode(complete)));
-    begin("old-python"); cancel(); begin("current-python");
-    await answer(current, success("current-python"));
-    const count = writes.length;
-    await answer(old, success("old-python"));
-    expect(stored().environment_profile_id).toBe("current-python");
-    expect(writes.length).toBe(count);
-    expect(screen.queryByTestId("code-runtime-add")).toBeNull();
-  });
-
-  test("an old failure arriving while the current request is pending does not end it as a failure", async () => {
-    const old = deferred(); const current = deferred();
-    save_python_profile.mockReturnValueOnce(old.promise).mockReturnValueOnce(current.promise);
-    await show(graph(codeNode(complete)));
-    begin("old-python"); cancel(); begin("current-python");
-    await answer(old, { ok: false, error: capture.profiles.save_relative.refusal });
-    await answer(current, { ok: false, error: capture.profiles.save_missing_exe.refusal });
-    expect(screen.getByTestId("code-runtime-add-problem")).toHaveTextContent("runtime executable is unavailable");
-    expect(stored().environment_profile_id).toBe("builtin");
-  });
-});
-
 describe("R-357-03a: the JSON editor survives any value its own text parses to", () => {
   const titled = { type: "object", title: "Keep JSON", properties: {}, additionalProperties: false };
 
@@ -431,12 +358,12 @@ describe("R-357-03a: the JSON editor survives any value its own text parses to",
     expect(box).toBeInTheDocument();
     expect(box).toHaveFocus();
     expect(box).toHaveValue(text);
-    expect(screen.getByTestId("code-problems")).toHaveTextContent("must describe an object");
+    expect(screen.getByTestId("code-problems-result")).toHaveTextContent("must describe an object");
     const back = JSON.stringify(titled.properties ? { type: "object", properties: {}, additionalProperties: false } : titled);
     fireEvent.change(box, { target: { value: back } });
     expect(stored().result_schema).toEqual(JSON.parse(back));
     expect(box).toHaveFocus();
-    expect(screen.queryByTestId("code-problems")).toBeNull();
+    expect(said()).toBe("");
   });
 
   test("a stored non-object schema opened fresh still offers rows, not a box nobody asked for", async () => {
@@ -451,9 +378,75 @@ describe("R-357-04a: a falsy malformed artifacts is still there and still remova
     await show(graph(codeNode({ ...complete, artifacts: value })));
     expect(writes).toEqual([]);
     expect(screen.getByTestId("code-artifacts")).toHaveTextContent(JSON.stringify(value));
-    expect(screen.getByTestId("code-problems")).toHaveTextContent("not a list");
+    expect(screen.getByTestId("code-problems")).toHaveTextContent("can't be read. Remove them.");
     fireEvent.click(screen.getByRole("button", { name: "Remove artifacts" }));
     expect(stored()).toStrictEqual(complete);
     expect(writes).toHaveLength(1);
+  });
+});
+
+describe("the code editor", () => {
+  const program = "def main(input, context):\n    return {\"n\": 1}\n";
+  const typed = async (text) => {
+    const { sha256_text, managed_path } = jest.requireActual("../managed_code_sources");
+    const sha = sha256_text(text);
+    return { code: { ...complete, source: { kind: "file", path: managed_path(sha) } }, sources: { [sha]: text } };
+  };
+  function EditorHarness({ initial, sources }) {
+    const [document, setDocument] = useState(initial);
+    const [table, setTable] = useState(sources);
+    latest = document;
+    return (
+      <CodeSection document={document} node={document.nodes[1]} revision={1} isDark={false} sources={table}
+        onChange={(next, text) => { writes.push(next); if (text) setTable({ ...table, ...text }); setDocument(next); }} />
+    );
+  }
+
+  test("Python is highlighted under the text, and the text round-trips byte for byte", async () => {
+    const { code, sources } = await typed(program);
+    writes = [];
+    render(<EditorHarness initial={graph(codeNode(code))} sources={sources} />);
+    await settle();
+    const box = screen.getByRole("textbox", { name: "Code of score" });
+    expect(box).toHaveValue(program);
+    const layer = screen.getByTestId("code-text-editor-highlight");
+    expect(layer.querySelector(".hljs-keyword")).toHaveTextContent("def");
+    expect(layer.querySelector(".hljs-title")).toHaveTextContent("main");
+    expect(layer.querySelector(".hljs-string")).toBeInTheDocument();
+    expect(layer.textContent).toBe(program + "\n");
+    /* The textarea's own text is invisible; its caret is not. */
+    expect(box.style.color).toBe("transparent");
+    expect(box.style.caretColor).not.toBe("transparent");
+    expect(box).toHaveClass("scrollable");
+    expect(screen.getByTestId("code-text-editor-gutter").textContent).toBe("1\n2\n3");
+
+    const next = program + "print(1)\n";
+    fireEvent.change(box, { target: { value: next } });
+    expect(stored().source.path).toMatch(/^__pupu_code__\/sha256\/[0-9a-f]{64}\.py$/);
+    expect(screen.getByRole("textbox", { name: "Code of score" })).toHaveValue(next);
+    expect([...screen.getByTestId("code-text-editor-highlight").querySelectorAll(".hljs-built_in")].map((node) => node.textContent)).toContain("print");
+  });
+
+  test("Tab inserts four spaces where the caret is; Shift+Tab is left to the browser", async () => {
+    const { code, sources } = await typed("def main(input, context):\nreturn {}\n");
+    writes = [];
+    render(<EditorHarness initial={graph(codeNode(code))} sources={sources} />);
+    await settle();
+    const box = screen.getByRole("textbox", { name: "Code of score" });
+    box.focus();
+    box.setSelectionRange(26, 26);
+    fireEvent.keyDown(box, { key: "Tab" });
+    expect(screen.getByRole("textbox", { name: "Code of score" })).toHaveValue("def main(input, context):\n    return {}\n");
+    expect(box.selectionStart).toBe(30);
+    const count = writes.length;
+    fireEvent.keyDown(box, { key: "Tab", shiftKey: true });
+    expect(writes.length).toBe(count);
+  });
+
+  test("an empty editor shows its example in the layer, not as text", async () => {
+    await show(graph(codeNode({ environment_profile_id: "builtin" })));
+    const box = screen.getByRole("textbox", { name: "Code of score" });
+    expect(box).toHaveValue("");
+    expect(screen.getByTestId("code-text-editor-highlight")).toHaveTextContent("def main(input, context):");
   });
 });

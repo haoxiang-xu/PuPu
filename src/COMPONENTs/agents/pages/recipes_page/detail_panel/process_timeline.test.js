@@ -152,7 +152,7 @@ test("an Output pill edits its name and picks declared sources from the default 
   const row = within(output).getByTestId("output-row-0");
   fireEvent.click(within(row).getByRole("button", { name: "Result · message" }));
   await waitFor(() => expect(screen.getByText("question", { exact: true, selector: "span" })).toBeVisible());
-  expect(screen.getByText("context", { exact: true, selector: "span" })).toBeVisible();
+  expect(screen.queryByText("context", { exact: true, selector: "span" })).not.toBeInTheDocument();
   expect(within(row).queryByText("question")).not.toBeInTheDocument();
   expect(changed).not.toHaveBeenCalled();
 
@@ -169,23 +169,22 @@ test("an Output pill edits its name and picks declared sources from the default 
   expect(changed.mock.calls.at(-1)[0].nodes[1].config.execution.inputs).toEqual(seed.nodes[1].config.execution.inputs);
 });
 
-test("Output shows a saved nested source and only offers declared fields or whole objects", async () => {
+test("Output hides saved Agent context and keeps it when another output is edited", async () => {
   const document = JSON.parse(JSON.stringify(seed));
   const process = document.nodes[1];
   process.config.kernel.json_schema = { type: "object", properties: {}, additionalProperties: true };
   process.config.execution.outputs[0].source.path = ["context", "summary"];
+  process.config.execution.outputs.push({ name: "reply", source: { kind: "result", path: ["message"] } });
   const { changed } = await show({ document });
+  expect(screen.getByTestId("process-summary-output")).toHaveTextContent("1");
   fireEvent.click(screen.getByRole("button", { name: "Output Variables", exact: true }));
-  const row = screen.getByTestId("output-row-0");
-  fireEvent.click(within(row).getByRole("button", { name: "Result · context.summary" }));
-  expect(screen.queryByText("Path", { exact: true })).not.toBeInTheDocument();
-  expect(screen.queryByText(/A field it does not list/)).not.toBeInTheDocument();
+  expect(screen.queryByTestId("output-row-0")).not.toBeInTheDocument();
+  const row = screen.getByTestId("output-row-1");
   expect(changed).not.toHaveBeenCalled();
-
-  fireEvent.click(screen.getByText("context", { exact: true, selector: "span" }));
-  expect(changed.mock.calls.at(-1)[0].nodes[1].config.execution.outputs[0].source).toEqual({
-    kind: "result", path: ["context"],
-  });
+  fireEvent.change(within(row).getByRole("textbox", { name: "name" }), { target: { value: "edited" } });
+  const saved = changed.mock.calls.at(-1)[0];
+  expect(saved.nodes[1].config.execution.outputs[0]).toEqual(process.config.execution.outputs[0]);
+  expect(saved.nodes[1].config.execution.outputs[1].name).toBe("edited");
 });
 
 test("folding Advanced preserves a refused partial number without writing it", async () => {

@@ -1,4 +1,5 @@
 import { agentEnglishText, agentProblemFromMessage } from "./agents_i18n";
+import { starter_code } from "./code_config";
 /* Native Skeleton graph authoring — the pure command core.
  *
  * Six commands turn one native Agent or Workflow document into the next one:
@@ -98,9 +99,17 @@ const ADDABLE = new Map([
      (code-01/out/code-store-capture.json, "seed"): the store saves it, its
      draft check says nothing, and — unlike the two above — preflight passes
      it too, because the runtime admits `config.code` only when it is there;
-     the node then fails at run start. No runtime, source, limit or schema is
-     chosen here; the panel says what is missing. */
-  ["code", { id_base: "code", config: () => ({ execution: { inputs: [], outputs: [] } }) }],
+     the node then fails at run start. So a new node starts usable: the
+     built-in Python, the default limits, a starter `main(input, context)`
+     kept as panel-written text (#357 G1) and the one Result field it
+     returns (`starter_code`). The text travels with the add as `sources`,
+     the way a typed edit's does. A node loaded without settings gets the
+     defaults only when it is next saved (`with_code_defaults`). */
+  ["code", {
+    id_base: "code",
+    config: () => ({ execution: { inputs: [], outputs: [] }, code: starter_code().code }),
+    sources: () => starter_code().sources,
+  }],
   /* Workflow Call (#357): the same unfinished seed, refused by preflight with
      `missing_field` at `config.workflow` (workflow-call-01, "caller_seed")
      until a published revision is pinned. Nothing is pinned here. */
@@ -555,7 +564,9 @@ export function add_node(document, command, t = agentEnglishText) {
     id = free_id(taken, addable.id_base);
   }
   const node = { id, type, config: addable.config() };
-  return accept({ ...document, nodes: [...document.nodes, node] });
+  const added = accept({ ...document, nodes: [...document.nodes, node] });
+  /* Text the new node's source names, for the session's table. */
+  return addable.sources ? { ...added, sources: addable.sources() } : added;
 }
 
 /**

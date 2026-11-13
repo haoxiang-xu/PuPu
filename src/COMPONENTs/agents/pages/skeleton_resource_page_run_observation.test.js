@@ -1,5 +1,5 @@
 import React from "react";
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import { api } from "../../../SERVICEs/api";
 import { getChatMessages, getChatsStore } from "../../../SERVICEs/chat_storage";
@@ -67,7 +67,7 @@ test("a dirty draft B is preserved under frozen run A, including undo and explic
   expect(screen.getByTestId("skeleton-detail-panel-shell").closest("[inert]")).toBeNull();
   expect(screen.getByTestId("skeleton-save-state")).toHaveTextContent("Unsaved changes");
   expect(JSON.stringify(editor.nodes.map(({ config, ...node }) => ({ id: node.id, config })))).toBe(before);
-  fireEvent.click(within(screen.getByTitle(/^Undo/)).getByRole("button"));
+  fireEvent.click(screen.getByRole("button", { name: /^Undo/ }));
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
   await waitFor(() => expect(api.unchain.saveSkeletonResource).toHaveBeenCalledTimes(1));
   const saved = api.unchain.saveSkeletonResource.mock.calls[0][0].document;

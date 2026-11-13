@@ -12,7 +12,8 @@ from test_skeleton_legacy_upgrade_save import migrate, recipe, tables
 
 REQUEST = "pupu.skeleton-legacy-upgrade.request.v1"
 CAP = "/skeleton_resources/legacy_upgrade/capabilities"
-MANIFEST = "sha256:c172bc02718aee771ddd4d247904f13cdaf003d3794148fd3ecd4d4e9a419e6b"
+# Captured from the pinned 4cd77204 release wheel (skeleton_execution 1.10).
+MANIFEST = "sha256:6ea8156f69924ac2301e4f51f9fc71a01e28fed846de25ca59a02aacf3529337"
 
 
 @pytest.fixture
@@ -47,7 +48,7 @@ def payload(response, operation, resource):
     assert value["operation"] == operation and value["resource_id"] == resource["id"]
     assert value["expected_edit_token"] == resource["edit_token"]
     assert sha256(value["payload_json"].encode()).hexdigest() == value["payload_sha256"]
-    assert value["runtime_manifest_digest"].startswith("sha256:c172bc02")
+    assert value["runtime_manifest_digest"] == MANIFEST
     return json.loads(value["payload_json"]), value
 
 
@@ -72,7 +73,7 @@ def test_actual_manifest_capability_is_closed_and_requires_exact_negotiation(con
         "request_bytes", "response_bytes", "scope", "apply_policy", "runtime_manifest"}
     assert value["request_schema"] == REQUEST
     assert value["contract"] == "legacy_upgrade_v1"
-    assert value["runtime_manifest"]["manifest_digest"].startswith("sha256:c172bc02")
+    assert value["runtime_manifest"]["manifest_digest"] == MANIFEST
     for query, code in [("", "invalid_shape"), ("?contract=future", "unsupported_version"),
                         ("?contract=legacy_upgrade_v1&contract=legacy_upgrade_v1", "invalid_shape"),
                         ("?contract=legacy_upgrade_v1&extra=true", "invalid_shape")]:

@@ -8,8 +8,8 @@ jest.mock("../../../../SERVICEs/api", () => ({ api: { unchain: {} } }));
 const scope = { owner_chat_id: "production-chat", execution_id: "view-wait-session", resource_id: "production-agent" };
 const deferred = () => { let resolve; const promise = new Promise((r) => { resolve = r; }); return { promise, resolve }; };
 const flush = async () => { await act(async () => { await Promise.resolve(); }); };
-beforeEach(() => jest.useFakeTimers());
-afterEach(() => { jest.clearAllTimers(); jest.useRealTimers(); });
+beforeEach(() => { jest.useFakeTimers(); jest.spyOn(console, "warn").mockImplementation(() => {}); });
+afterEach(() => { jest.clearAllTimers(); jest.useRealTimers(); console.warn.mockRestore(); });
 
 test("discovery pins root; a higher-prefix receipt updates at the same graph revision", async () => {
   api.unchain.getSkeletonRunObservation = jest.fn().mockResolvedValueOnce({ ok: true, data: waiting }).mockResolvedValue({ ok: true, data: receipt });
@@ -58,7 +58,9 @@ test("a stale read is reported, without replacing the newer receipt", async () =
   await act(async () => { result.current.refresh(); });
   expect(result.current.run).toEqual(receipt.run);
   expect(result.current.phase).toBe("error");
-  expect(result.current.error).toMatch(/older_observation/);
+  /* A plain message on the page; the reason is logged for developers. */
+  expect(result.current.error).toBe("Run details could not be updated.");
+  expect(console.warn).toHaveBeenCalledWith(expect.any(String), expect.stringMatching(/older_observation/));
 });
 
 test("a response for chat A cannot become chat B's view", async () => {
@@ -71,5 +73,6 @@ test("a response for chat A cannot become chat B's view", async () => {
   expect(result.current.phase).toBe("loading");
   await act(async () => { b.resolve({ ok: true, data: waiting }); });
   expect(result.current.run).toBeNull();
-  expect(result.current.error).toMatch(/run_scope_mismatch/);
+  expect(result.current.error).toBe("Run details could not be updated.");
+  expect(console.warn).toHaveBeenCalledWith(expect.any(String), expect.stringMatching(/run_scope_mismatch/));
 });

@@ -35,8 +35,11 @@ jest.mock("../../../../BUILTIN_COMPONENTs/input/textfield", () => function Textf
 jest.mock("../../../../BUILTIN_COMPONENTs/input/button", () => function Button({ label, ariaLabel, onClick, disabled }) {
   return <button aria-label={ariaLabel} onClick={onClick} disabled={disabled}>{label || ariaLabel}</button>;
 });
-jest.mock("../../../../BUILTIN_COMPONENTs/input/switch", () => function Switch({ on, set_on }) {
-  return <input type="checkbox" checked={Boolean(on)} onChange={(event) => set_on(event.target.checked)} />;
+jest.mock("../../../../BUILTIN_COMPONENTs/input/switch", () => {
+  const Switch = function Switch({ on, set_on }) {
+    return <input type="checkbox" checked={Boolean(on)} onChange={(event) => set_on(event.target.checked)} />;
+  };
+  return { __esModule: true, default: Switch, SemiSwitch: Switch };
 });
 
 const localized = (locale, child) => <ConfigContext.Provider value={{ theme: {}, onThemeMode: "light_mode" }}>
@@ -63,7 +66,7 @@ test("Code locale changes preserve pending invalid limit text, focus, document a
   const tree = (locale) => localized(locale, <CodeSection document={document} node={node} revision={1} isDark={false} onChange={onChange} />);
   const view = render(tree("en"));
   await settle();
-  const input = within(screen.getByTestId("code-limits")).getByPlaceholderText("seconds");
+  const input = within(screen.getByTestId("code-limits")).getByPlaceholderText("30");
   input.focus();
   fireEvent.change(input, { target: { value: "-not-a-number {value}" } });
   const english = screen.getByTestId("code-timeout-raw-code-problem").textContent;
@@ -127,17 +130,19 @@ test("Skill list failure is a locale-responsive owned notice without repeating t
   expect(view.container.textContent).not.toBe(english);
 });
 
-test("Code store refusal keeps raw backend message literal while owned wrapper rerenders", async () => {
+test("Code: a Python list the store refuses says nothing raw, and a locale change does not ask again", async () => {
   const raw = "agents.execution.code {value} RAW_BACKEND";
   python_profiles.mockResolvedValue({ ok: false, error: { code: "raw-code", path: ["raw-path"], message: raw } });
   const node = { id: "code", type: "code", config: { execution: { inputs: [], outputs: [] } } };
   const tree = (locale) => localized(locale, <CodeSection document={graph(node)} node={node} revision={1} isDark={false} onChange={jest.fn()} />);
   const view = render(tree("en"));
   await settle();
-  const english = screen.getByTestId("code-runtime-error").textContent;
+  expect(view.container).not.toHaveTextContent(raw);
+  expect(screen.queryByTestId("code-runtime-error")).toBeNull();
+  const english = screen.getByTestId("code-on-error").textContent;
   view.rerender(tree("zh-CN"));
-  expect(screen.getByTestId("code-runtime-error")).toHaveTextContent(raw);
-  expect(screen.getByTestId("code-runtime-error").textContent).not.toBe(english);
+  expect(view.container).not.toHaveTextContent(raw);
+  expect(screen.getByTestId("code-on-error").textContent).not.toBe(english);
   expect(python_profiles).toHaveBeenCalledTimes(1);
 });
 

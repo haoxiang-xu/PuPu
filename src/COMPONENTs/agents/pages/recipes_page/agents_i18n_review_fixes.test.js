@@ -59,7 +59,9 @@ test.each([{ bad: 1 }, { toString: null }])("copy refusal retains safe raw-messa
   fireEvent.click(screen.getByRole("button", { name: "Save as a Workflow…" }));
   fireEvent.change(screen.getByPlaceholderText("new Workflow id, e.g. redact-paths"), { target: { value: "copied" } });
   fireEvent.click(screen.getByRole("button", { name: "Save the copy" }));
-  await waitFor(() => expect(screen.getByTestId("copy-save-as-state")).toHaveTextContent("Nothing was saved: an unreadable value (raw-code)."));
+  await waitFor(() => expect(screen.getByTestId("copy-save-as-state")).toHaveTextContent("Nothing was saved: an unreadable value"));
+  /* The store's code is for developers, not shown. */
+  expect(screen.getByTestId("copy-save-as-state")).not.toHaveTextContent("raw-code");
   view.rerender(tree("zh-CN", element));
   expect(screen.getByTestId("copy-save-as-state")).toHaveTextContent("an unreadable value");
   expect(save_draft).toHaveBeenCalledTimes(1);

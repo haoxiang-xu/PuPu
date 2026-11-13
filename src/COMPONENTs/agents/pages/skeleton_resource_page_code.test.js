@@ -9,6 +9,7 @@ import capture from "./recipes_page/skeleton_native_embedded_capture.json";
 import codeCapture from "./recipes_page/code_capture.json";
 import { RESOURCE_RESULT_KEYS } from "./recipes_page/skeleton_resource_capture";
 import { openAddNode, pressCanvasNode } from "./recipes_page/skeleton_canvas_test_helpers";
+import { STARTER_CODE, starter_code } from "./recipes_page/code_config";
 
 /* The #357 Code author flow on the real page: actual SkeletonResourcePage,
  * FlowEditor, DetailPanel, Select, Input, Switch and the shared field rows.
@@ -65,6 +66,17 @@ const deleteEdge = (id) => {
    found with `hidden: true`; the most recently opened one is the last. */
 const choose = (container, label, which = 0) => {
   const row = container.getAttribute("data-testid") || "";
+  if (/^binding-row-\d+$/.test(row) && !within(container).queryByRole("button", { name: / · More$/ })) {
+    /* A Code node's input row is the shared variable pill: its source is
+       picked from the menu under its value, an option being the node and
+       the field side by side. */
+    const [node, name] = label.split(" · ");
+    fireEvent.click(within(container).getByRole("textbox", { name: /^(?!name$).+/ }));
+    const options = screen.getAllByText((_, el) => el?.tagName === "SPAN" && el.children.length === 2
+      && el.textContent === `${node}${name}`);
+    fireEvent.click(options[options.length - 1]);
+    return;
+  }
   if (/^(binding|output)-row-\d+$/.test(row)) {
     if (which === 0) {
       const more = within(container).getByRole("button", { name: / · More$/ });
@@ -84,12 +96,19 @@ const save = async () => {
   await waitFor(() => expect(screen.getByTestId("skeleton-save-state")).toHaveTextContent(/^Saved$/));
   return api.unchain.saveSkeletonResource.mock.calls.at(-1)[0];
 };
+const edgeCount = () => new Set([...view.container.querySelectorAll("[data-flow-edge-id]")].map((element) => element.getAttribute("data-flow-edge-id"))).size;
 const nodeOf = (document, id) => document.nodes.find((node) => node.id === id);
 const edgeSet = (document) => document.edges.map((edge) => `${edge.source_node_id}.${edge.source_port_id}>${edge.target_node_id}.${edge.target_port_id}`).sort();
+/* A step's output row is the shared variable pill: what it passes on is
+   typed as a path (`result.<field>`), offered as you type. */
+const typePath = (container, text) => {
+  const box = within(container).getByRole("textbox", { name: /^(?!name$).+/ });
+  fireEvent.change(box, { target: { value: text } });
+  fireEvent.keyDown(box, { key: "Enter" });
+};
 const addOutput = (row, root, name) => {
   fireEvent.click(screen.getByRole("button", { name: "+ Add output", exact: true }));
-  choose(screen.getByTestId(`output-row-${row}`), "Result", 0);
-  choose(screen.getByTestId(`output-row-${row}`), root, 1);
+  typePath(screen.getByTestId(`output-row-${row}`), `result.${root}`);
   fireEvent.change(within(screen.getByTestId(`output-row-${row}`)).getByPlaceholderText("name"), { target: { value: name } });
 };
 const addField = (index, name, type) => {
@@ -99,6 +118,8 @@ const addField = (index, name, type) => {
   if (type) choose(row, type, 0);
 };
 const limits = () => screen.getByTestId("code-limits");
+/* Every problem the Code panel says, in whichever section says it. */
+const said = () => [...screen.getByTestId("code-section").querySelectorAll('[data-testid^="code-problems"]')].map((node) => node.textContent).join(" ");
 
 beforeEach(() => {
   localStorage.clear();
@@ -110,37 +131,42 @@ beforeEach(() => {
   api.unchain.saveSkeletonResource = jest.fn().mockImplementation(async ({ document }) => stored(document, "saved-token"));
 });
 
-test("Code: add, wire, choose the runtime, name the file, set the limits, declare the Result, bind an input, export the fields, save, reopen", async () => {
+test("Code: add, wire, name the file, set the limits, declare the Result, bind an input, export the fields, save, reopen", async () => {
   await open(baseRecord());
   deleteEdge("a");
   await add("code");
   await screen.findByTestId("code-section");
-  expect(screen.getByTestId("code-problems")).toHaveTextContent("Choose a runtime");
+  /* A new node starts usable: starter code, its Result field, the
+     defaults — nothing to complain about. */
+  expect(said()).toBe("");
+  expect(screen.getByRole("textbox", { name: "Code of code" })).toHaveValue(STARTER_CODE);
+  /* Python only: no runtime picker. */
+  expect(screen.queryByTestId("code-runtime-picker")).toBeNull();
   drag("start", "out", "code", "in");
   drag("code", "out", "router", "in");
 
-  /* Input Variables are the node's own, declared and bound as anywhere. */
-  fireEvent.click(screen.getByRole("button", { name: "+ Add input", exact: true }));
-  fireEvent.change(within(screen.getByTestId("binding-row-0")).getByPlaceholderText("name"), { target: { value: "diff" } });
-  choose(screen.getByTestId("binding-row-0"), "start · message", 1);
+  /* Connected after Start, it inherits Start's outputs: the input, a Result
+     that passes it on, and the matching output — still nothing to fix. */
+  expect(within(screen.getByTestId("binding-row-0")).getByPlaceholderText("name")).toHaveValue("message");
+  expect(within(screen.getByTestId("output-row-0")).getByPlaceholderText("name")).toHaveValue("message");
+  expect(said()).toBe("");
 
-  choose(screen.getByTestId("code-runtime-picker"), "builtin · built-in Python");
-  expect(screen.getByTestId("code-runtime-executable")).toHaveTextContent("the built-in interpreter");
+  /* From here the author's own: the input renamed, the mirror let go. */
+  fireEvent.change(within(screen.getByTestId("binding-row-0")).getByPlaceholderText("name"), { target: { value: "diff" } });
+  fireEvent.click(within(screen.getByTestId("output-row-0")).getByRole("button", { name: "Remove message" }));
+
   fireEvent.click(within(screen.getByTestId("code-source")).getByText("Use a workspace file"));
   fireEvent.change(within(screen.getByTestId("code-source")).getByPlaceholderText("tools/score.py"), { target: { value: "tools/score.py" } });
-  fireEvent.change(within(limits()).getByPlaceholderText("seconds"), { target: { value: "30" } });
-  const [resultBytes, logBytes] = within(limits()).getAllByPlaceholderText("bytes");
-  fireEvent.change(resultBytes, { target: { value: "1048576" } });
-  fireEvent.change(logBytes, { target: { value: "1048576" } });
+  /* The limits arrive as the defaults. */
+  expect(within(limits()).getByRole("textbox", { name: "Run time ≤ seconds" })).toHaveValue("30");
   addField(0, "rows", "integer");
   addField(1, "summary", null);
-  expect(screen.queryByTestId("code-problems")).toBeNull();
+  expect(said()).toBe("");
 
   /* The Output Variables offer exactly the declared fields. */
   addOutput(0, "rows", "count");
   addOutput(1, "summary", "first");
-  expect(screen.getByTestId("code-node-code")).toHaveTextContent("Code · builtin");
-  expect(screen.getByTestId("code-node-code-source")).toHaveTextContent("tools/score.py");
+  expect(screen.getByTestId("code-node-code")).toHaveTextContent("Python");
 
   const payload = await save();
   expect(payload.expected_edit_token).toBe(baseRecord().edit_token);
@@ -159,7 +185,8 @@ test("Code: add, wire, choose the runtime, name the file, set the limits, declar
       timeout_ms: 30000,
       max_result_bytes: 1048576,
       max_log_bytes: 1048576,
-      result_schema: { type: "object", properties: { rows: { type: "integer" }, summary: { type: "string" } }, additionalProperties: false },
+      /* Open: it was inherited from Start, whose field types nobody declares. */
+      result_schema: { type: "object", properties: { rows: { type: "integer" }, summary: { type: "string" } } },
     },
   } });
   /* The same keys, with the same values, that the real store admitted and
@@ -172,15 +199,14 @@ test("Code: add, wire, choose the runtime, name the file, set the limits, declar
 
   view.unmount();
   await open(stored(document, "saved-token"));
-  expect(screen.getByTestId("code-node-code")).toHaveTextContent("Code · builtin");
+  expect(screen.getByTestId("code-node-code")).toHaveTextContent("Python");
   pressCanvasNode("code");
   await screen.findByTestId("code-section");
-  expect(within(screen.getByTestId("code-runtime-picker")).getByRole("combobox")).toHaveTextContent("builtin · built-in Python");
   expect(within(screen.getByTestId("code-source")).getByPlaceholderText("tools/score.py")).toHaveValue("tools/score.py");
-  expect(within(limits()).getByPlaceholderText("seconds")).toHaveValue("30");
+  expect(within(limits()).getByRole("textbox", { name: "Run time ≤ seconds" })).toHaveValue("30");
   expect(within(screen.getByTestId("schema-field-0")).getByPlaceholderText("field name")).toHaveValue("rows");
   expect(within(screen.getByTestId("schema-field-1")).getByPlaceholderText("field name")).toHaveValue("summary");
-  expect(screen.queryByTestId("code-problems")).toBeNull();
+  expect(said()).toBe("");
   expect(screen.getByTestId("skeleton-save-state")).toHaveTextContent(/^Saved$/);
 });
 
@@ -194,34 +220,73 @@ test("a stored draft with a profile this machine does not have, an unknown key a
   const document = JSON.parse(JSON.stringify(BASE));
   document.nodes.splice(1, 0, { id: "score", type: "code", config: { execution: { inputs: [], outputs: [] }, code } });
   await open(stored(document, "stored-token"));
-  expect(screen.getByTestId("code-node-score")).toHaveTextContent("Code · nope");
+  expect(screen.getByTestId("code-node-score")).toHaveTextContent("Python");
   pressCanvasNode("score");
   await screen.findByTestId("code-section");
-  const problems = screen.getByTestId("code-problems").textContent;
-  expect(problems).toContain("No Python profile named “nope”");
-  expect(problems).toContain("does not read the setting “on_error”");
+  const problems = said();
+  expect(problems).toContain("a Python named “nope” that this computer doesn't have");
+  expect(problems).toContain("PuPu doesn't use the setting “on_error”");
   expect(problems).toContain("must describe an object");
   expect(screen.getByTestId("code-setting-on_error")).toBeInTheDocument();
   expect(screen.getByTestId("code-result-undeclared")).toHaveTextContent("not a schema this editor can read");
   expect(api.unchain.saveSkeletonResource).not.toHaveBeenCalled();
 });
 
-test("R-357-01: a Python registered late never rewrites an edit made while it was pending, in the actual Save request", async () => {
-  let resolveProfile;
-  api.unchain.saveSkeletonPythonProfile = jest.fn().mockImplementation(() => new Promise((resolve) => { resolveProfile = resolve; }));
+test("a new Code node saved as added carries its starter text, its Result and the defaults", async () => {
   await open(baseRecord());
   await add("code");
   await screen.findByTestId("code-section");
-  fireEvent.click(within(screen.getByTestId("code-source")).getByText("Use a workspace file"));
-  fireEvent.change(within(screen.getByTestId("code-source")).getByPlaceholderText("tools/score.py"), { target: { value: "tools/before.py" } });
-  fireEvent.click(screen.getByRole("button", { name: "Name a Python…" }));
-  fireEvent.change(screen.getByPlaceholderText("profile name, e.g. pupu-tools"), { target: { value: "review-python" } });
-  fireEvent.change(screen.getByPlaceholderText("absolute path to its python, e.g. ~/.venvs/x/bin/python"), { target: { value: "/tmp/owned-python" } });
-  fireEvent.click(within(screen.getByTestId("code-runtime-add")).getByRole("button", { name: "Add", exact: true }));
-  await waitFor(() => expect(api.unchain.saveSkeletonPythonProfile).toHaveBeenCalledTimes(1));
-  fireEvent.change(within(screen.getByTestId("code-source")).getByPlaceholderText("tools/score.py"), { target: { value: "tools/new.py" } });
-  resolveProfile({ id: "review-python", kind: "venv", available: true, executable: "/tmp/owned-python", fingerprint: "x", changed: false, edit_token: "edit-1-x" });
-  await waitFor(() => expect(screen.queryByTestId("code-runtime-add")).toBeNull());
+  expect(screen.queryByRole("button", { name: "Name a Python…" })).toBeNull();
+  /* The shared v1 bridge refuses host-kept text, so the v2 edit itself is
+     read here: the starter's text goes with the document that names it. */
+  const sent = jest.fn(async () => { throw Object.assign(new Error("probe"), { code: "probe" }); });
+  Object.defineProperty(api.unchain, "saveManagedSkeletonResource", { configurable: true, value: sent });
+  fireEvent.click(screen.getByRole("button", { name: "Save", exact: true }));
+  await waitFor(() => expect(sent).toHaveBeenCalledTimes(1));
+  const edit = sent.mock.calls[0][0];
+  const index = edit.document.nodes.findIndex((node) => node.id === "code");
+  expect(edit.document.nodes[index].config.code).toStrictEqual(starter_code().code);
+  expect(edit.managed_sources).toEqual([{ node_path: ["nodes", index], text: STARTER_CODE }]);
+  install_legacy_store_bridge(api.unchain);
+});
+
+test("an old Code node without limits or Python: no problem shown, opening writes nothing, and the next save writes the defaults", async () => {
+  const { timeout_ms: _a, max_result_bytes: _b, max_log_bytes: _c, environment_profile_id: _d, ...partial } =
+    codeCapture.rows.find((row) => row.case === "complete").config.code;
+  const document = JSON.parse(JSON.stringify(BASE));
+  document.nodes.splice(1, 0, { id: "score", type: "code", config: { execution: { inputs: [], outputs: [] }, code: partial } });
+  await open(stored(document, "stored-token"));
+  pressCanvasNode("score");
+  await screen.findByTestId("code-section");
+  expect(said()).toBe("");
+  expect(within(limits()).getByRole("textbox", { name: "Run time ≤ seconds" })).toHaveValue("");
+  expect(within(limits()).getByRole("textbox", { name: "Run time ≤ seconds" })).toHaveAttribute("placeholder", "30");
+  expect(screen.getByTestId("skeleton-save-state")).toHaveTextContent(/^Saved$/);
+  expect(api.unchain.saveSkeletonResource).not.toHaveBeenCalled();
+  /* Any edit, then Save: the defaults ride along; a cleared box is a default too. */
+  fireEvent.change(within(limits()).getByRole("textbox", { name: "Result size ≤ bytes" }), { target: { value: "2048" } });
+  fireEvent.change(within(limits()).getByRole("textbox", { name: "Result size ≤ bytes" }), { target: { value: "" } });
+  fireEvent.change(within(limits()).getByRole("textbox", { name: "Printed output kept ≤ bytes" }), { target: { value: "4096" } });
   const payload = await save();
-  expect(nodeOf(payload.document, "code").config.code).toStrictEqual({ source: { kind: "file", path: "tools/new.py" }, environment_profile_id: "review-python" });
+  expect(nodeOf(payload.document, "score").config.code).toStrictEqual({
+    ...partial, environment_profile_id: "builtin", timeout_ms: 30000, max_result_bytes: 1048576, max_log_bytes: 4096,
+  });
+});
+
+
+
+test("connecting is one undo step: the edge and the inherited variables go back together", async () => {
+  await open(baseRecord());
+  deleteEdge("a");
+  await add("code");
+  await screen.findByTestId("code-section");
+  expect(screen.queryByTestId("binding-row-0")).toBeNull();
+  const edges = edgeCount();
+  drag("start", "out", "code", "in");
+  expect(within(screen.getByTestId("binding-row-0")).getByPlaceholderText("name")).toHaveValue("message");
+  expect(edgeCount()).toBe(edges + 1);
+  fireEvent.click(screen.getByRole("button", { name: /^Undo/ }));
+  await waitFor(() => expect(screen.queryByTestId("binding-row-0")).toBeNull());
+  expect(edgeCount()).toBe(edges);
+  expect(screen.getByTestId("code-node-code")).toBeInTheDocument();
 });

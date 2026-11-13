@@ -376,7 +376,7 @@ export default function SkeletonResourcePage({
       result = apply_graph_command(shown, command, agentMessage);
       if (!result.ok || result.document === shown) return current.document;
       return steps.length === 0 ? result.document : with_embedded_document(current.document, steps, result.document, revision);
-    });
+    }, () => (result.ok && result.sources) || null);
     return result;
   }, [commandNavigation, commandOpen, commandResource, editCurrent, revision, steps]);
 
@@ -1095,7 +1095,7 @@ export default function SkeletonResourcePage({
           saveLabel={session.saving ? t("agents.save.saving") : t("agents.save.save")}
           saveDisabled={!can_save(session)}
           saveActive={Boolean(session.dirty && !session.conflict)}
-          run={<RunTrigger open={runOpen} onToggle={() => setRunOpen((open) => !open)} />}
+          run={<RunTrigger testId="skeleton-control-center-run" open={runOpen} onToggle={() => setRunOpen((open) => !open)} />}
         />
       )}
       {session.status !== SESSION_STATUS.EMPTY &&
