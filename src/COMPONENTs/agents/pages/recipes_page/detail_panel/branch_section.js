@@ -1,8 +1,8 @@
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { agentEnglishText } from "../agents_i18n";
 import React, { useState } from "react";
-import Select from "../../../../../BUILTIN_COMPONENTs/select/select";
-import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
+import Select from "./panel_select";
+import Input from "./panel_input";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import PathEditor from "./path_editor";
 import usePendingText from "./pending_text";
@@ -28,6 +28,7 @@ import {
   remove_case,
   with_branch_execution,
 } from "../skeleton_branch_config";
+import { CAPTION_TEXT } from "./panel_style";
 
 /* If / Else and Switch / Case settings, between Input Variables and the
  * (absent) outputs of a branch (#351).
@@ -43,19 +44,19 @@ import {
  * backend is the authority on admission: the problems shown here are the
  * runtime's own later refusals, named early, not a new gate. */
 
-const CAPTION = { fontSize: 10.5, color: "#86868b", lineHeight: 1.45 };
+const CAPTION = { fontSize: 11.5, color: "#86868b", lineHeight: 1.45 };
 const PROBLEM_LIGHT = "rgba(176,32,32,0.95)";
 const PROBLEM_DARK = "rgba(255,140,140,0.95)";
 const MONO = { fontFamily: "ui-monospace, Menlo, monospace" };
-const SECTION_LABEL = { fontSize: 11, fontWeight: 600, color: "#86868b", textTransform: "uppercase", letterSpacing: 0.4 };
+const SECTION_LABEL = CAPTION_TEXT;
 const ROW = { display: "flex", alignItems: "center", gap: 6, minWidth: 0 };
-const SMALL_BUTTON = { fontSize: 11, paddingVertical: 3, paddingHorizontal: 8, borderRadius: 5 };
-const ICON_BUTTON = { paddingVertical: 4, paddingHorizontal: 4, borderRadius: 4, content: { icon: { width: 11, height: 11 } } };
-const SELECT_STYLE = { fontSize: 11.5, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 5, gap: 4 };
+const SMALL_BUTTON = { fontSize: 11.5, paddingVertical: 3, paddingHorizontal: 8, borderRadius: 8 };
+const ICON_BUTTON = { paddingVertical: 4, paddingHorizontal: 4, borderRadius: 8, content: { icon: { width: 11, height: 11 } } };
+const SELECT_STYLE = { fontSize: 12, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 8, gap: 4 };
 
 const is_record = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 const has_own = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
-const problem_style = (isDark) => ({ fontSize: 10.5, lineHeight: 1.45, color: isDark ? PROBLEM_DARK : PROBLEM_LIGHT });
+const problem_style = (isDark) => ({ fontSize: 11.5, lineHeight: 1.45, color: isDark ? PROBLEM_DARK : PROBLEM_LIGHT });
 
 const ALLOWED_EXECUTION_KEYS = { if_else: ["inputs", "condition"], switch_case: ["inputs", "value", "cases"] };
 const JOINERS = [
@@ -87,7 +88,7 @@ function Stored({ value, testid, isDark, children }) {
   return (
     <div data-testid={testid} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
       <span style={CAPTION}>{children}</span>
-      <span style={{ ...MONO, fontSize: 10.5, lineHeight: 1.45, wordBreak: "break-all", color: isDark ? "#c9c9d1" : "#55555d" }}>
+      <span style={{ ...MONO, fontSize: 11.5, lineHeight: 1.45, wordBreak: "break-all", color: isDark ? "#c9c9d1" : "#55555d" }}>
         {summary_text(value)}
       </span>
     </div>
@@ -117,7 +118,7 @@ function NumberBox({ value, onChange, testid, disabled }) {
           else pending.release();
           if (parsed !== value) onChange(parsed);
         }}
-        style={{ width: "100%", fontSize: 11.5, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 5 }}
+        style={{ width: "100%", fontSize: 12, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 8 }}
       />
       {pending.text !== null && !NUMBER_TEXT.test(pending.text) && (
         <span style={CAPTION}>{t("agents.execution.branch.pending_number", { value: String(value) })}</span>
@@ -152,7 +153,7 @@ function LiteralEditor({ value, kinds, onChange, testid, disabled, isDark }) {
       {kind === "string" && (
         <span data-testid={`${testid}-text`} style={{ flex: 1, minWidth: 0 }}>
           <Input value={value} disabled={disabled} placeholder={t("agents.execution.branch.text_placeholder")} set_value={(next) => onChange(next)}
-            style={{ width: "100%", fontSize: 11.5, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 5 }} />
+            style={{ width: "100%", fontSize: 12, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 8 }} />
         </span>
       )}
       {kind === "number" && <NumberBox value={value} onChange={onChange} testid={testid} disabled={disabled} />}
@@ -253,8 +254,7 @@ function CompareRow({ condition, document, node, names, onChange, testid, disabl
   }
 
   return (
-    <div data-testid={testid} style={{ display: "flex", flexDirection: "column", gap: 6, padding: "8px 10px", borderRadius: 7,
-      background: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)" }}>
+    <div data-testid={testid} style={{ display: "flex", flexDirection: "column", gap: 6, padding: 0, background: "transparent" }}>
       <div style={{ ...ROW, alignItems: "flex-start" }}>
         <OperandEditor operand={condition.left} names={names} expected={null} allowKinds={condition.left.kind !== "input"}
           testid={`${testid}-left`} disabled={disabled} isDark={isDark}
@@ -474,8 +474,7 @@ function SwitchEditor({ document, node, execution, names, write, onChange, disab
             if (result.document !== document) onChange(result.document);
           };
           return (
-            <div key={keys[index]} data-testid={testid} style={{ display: "flex", flexDirection: "column", gap: 4, padding: "8px 10px", borderRadius: 7,
-              background: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)" }}>
+            <div key={keys[index]} data-testid={testid} style={{ display: "flex", flexDirection: "column", gap: 4, padding: 0, background: "transparent" }}>
               <div style={{ ...ROW, alignItems: "flex-start" }}>
                 {is_record(entry) && has_own(entry, "value") ? (
                   <LiteralEditor value={entry.value} kinds={["string", "number", "boolean", "null"]} testid={`${testid}-value`}
@@ -520,9 +519,9 @@ function SwitchEditor({ document, node, execution, names, write, onChange, disab
             onClick={() => write("cases", [...cases, { id: free_case_id(cases), value: LITERAL_SEED[seed_kind] }])}
             style={{ ...SMALL_BUTTON, alignSelf: "flex-start" }} />
         )}
-        <div data-testid="branch-case-default" style={{ display: "flex", flexDirection: "column", gap: 2, padding: "8px 10px", borderRadius: 7,
-          border: `1px dashed ${isDark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.12)"}` }}>
-          <span style={{ fontSize: 11.5, fontWeight: 600 }}>{t("agents.execution.branch.default")}</span>
+        <div data-testid="branch-case-default" style={{ display: "flex", flexDirection: "column", gap: 2, padding: "8px 10px", borderRadius: 8,
+          background: isDark ? "rgba(255,255,255,0.075)" : "rgba(0,0,0,0.045)" }}>
+          <span style={{ fontSize: 12.5 }}>{t("agents.execution.branch.default")}</span>
           <span style={CAPTION}>{t("agents.execution.branch.default_outlet_note")}</span>
           <span data-testid="branch-case-default-target" style={CAPTION}>{targets_text(document, node.id, "default", t)}</span>
         </div>

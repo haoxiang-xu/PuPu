@@ -12,11 +12,13 @@ const TAB_GEOM = {
   bottom: { size: 18, offset: -7, transform: "translateX(-50%)" },
 };
 
+/* `y` is where a left/right cutout centres: "50%" by default, or the
+   node's port anchor in px so the notch sits under the in port. */
 const CUTOUT_GEOM = {
-  left: "radial-gradient(circle 12px at 0%   50%,  transparent 98%, black 99%)",
-  right: "radial-gradient(circle 12px at 100% 50%,  transparent 98%, black 99%)",
-  top: "radial-gradient(circle 10px at 50% 0%,    transparent 98%, black 99%)",
-  bottom: "radial-gradient(circle 10px at 50% 100%,  transparent 98%, black 99%)",
+  left: (y) => `radial-gradient(circle 12px at 0%   ${y},  transparent 98%, black 99%)`,
+  right: (y) => `radial-gradient(circle 12px at 100% ${y},  transparent 98%, black 99%)`,
+  top: () => "radial-gradient(circle 10px at 50% 0%,    transparent 98%, black 99%)",
+  bottom: () => "radial-gradient(circle 10px at 50% 100%,  transparent 98%, black 99%)",
 };
 
 export default function PuzzleShape({
@@ -24,6 +26,10 @@ export default function PuzzleShape({
   cutouts = [],
   children,
   isDark: isDarkOverride,
+  /* Pixel distance from the node's top to its in/out ports. A node that
+     anchors its ports (FlowEditor `port.anchor`) passes the same value so the
+     left notch and right bump sit on the ports instead of the node's middle. */
+  anchor,
 }) {
   const cfg = useContext(ConfigContext);
   const isDark =
@@ -31,14 +37,15 @@ export default function PuzzleShape({
       ? isDarkOverride
       : cfg?.onThemeMode === "dark_mode";
 
-  const body_bg = isDark ? "#1f1f1f" : "#ffffff";
+  const body_bg = `var(--pupu-surface, ${isDark ? "#1f1f1f" : "#ffffff"})`;
   const shadow = isDark
     ? "drop-shadow(0 1px 1.5px rgba(0,0,0,0.5)) drop-shadow(0 4px 12px rgba(0,0,0,0.45))"
     : "drop-shadow(0 1px 1.5px rgba(15,18,38,0.08)) drop-shadow(0 4px 12px rgba(15,18,38,0.08))";
 
+  const side_y = Number.isFinite(anchor) ? `${anchor}px` : "50%";
   const cutouts_value = cutouts.length
     ? cutouts
-        .map((c) => CUTOUT_GEOM[c])
+        .map((c) => (CUTOUT_GEOM[c] ? CUTOUT_GEOM[c](side_y) : null))
         .filter(Boolean)
         .join(", ")
     : "none";
@@ -55,6 +62,7 @@ export default function PuzzleShape({
       >
         <div
           data-puzzle-body=""
+          data-side-y={side_y}
           style={{
             position: "absolute",
             inset: 0,
@@ -72,10 +80,10 @@ export default function PuzzleShape({
           const pos = {};
           if (side === "right") {
             pos.right = g.offset;
-            pos.top = "50%";
+            pos.top = side_y;
           } else if (side === "left") {
             pos.left = g.offset;
-            pos.top = "50%";
+            pos.top = side_y;
           } else if (side === "top") {
             pos.top = g.offset;
             pos.left = "50%";

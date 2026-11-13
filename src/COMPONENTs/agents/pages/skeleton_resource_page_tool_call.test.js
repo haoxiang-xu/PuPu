@@ -65,6 +65,33 @@ const deleteEdge = (id) => {
 /* jsdom reports the popover list as visibility:hidden, so the open list is
    found with `hidden: true`; the most recently opened one is the last. */
 const choose = (container, label, which = 0) => {
+  const row = container.getAttribute("data-testid") || "";
+  if (/-alt-\d+$/.test(row) && !within(container).queryByRole("combobox")) {
+    /* A first-of-several source drawn as a pill picks from its menu, where an
+       option is the node and the field side by side. */
+    const [node, name] = label.replace(/ — only if its branch ran$/, "").split(" · ");
+    fireEvent.click(within(container).getAllByRole("button")[0]);
+    const options = screen.getAllByText((_, el) => el?.tagName === "SPAN" && el.children.length === 2
+      && el.textContent === `${node}${name}`);
+    fireEvent.click(options[options.length - 1]);
+    return;
+  }
+  if (/^(binding|output)-row-\d+$/.test(row)) {
+    /* A row drawn as one filled pill picks from the menu under its value. */
+    if (which === 0 && !within(container).queryByRole("button", { name: / · More$/ })) {
+      fireEvent.click(within(container).getByRole("textbox", { name: /^(?!name$).+/ }));
+      fireEvent.click(screen.getByText(label, { exact: true }));
+      return;
+    }
+    if (which === 0) {
+      const more = within(container).getByRole("button", { name: / · More$/ });
+      if (more.getAttribute("aria-expanded") !== "true") fireEvent.click(more);
+      container = within(container).getByTestId(`${row}-settings`);
+    } else {
+      container = within(container).getByTestId(`${row}-source`);
+    }
+    which = 0;
+  }
   fireEvent.click(within(container).getAllByRole("combobox")[which]);
   const lists = screen.getAllByRole("listbox", { hidden: true });
   fireEvent.click(within(lists[lists.length - 1]).getByText(label, { exact: true }));
@@ -78,8 +105,8 @@ const save = async () => {
 const nodeOf = (document, id) => document.nodes.find((node) => node.id === id);
 const edgeSet = (document) => document.edges.map((edge) => `${edge.source_node_id}.${edge.source_port_id}>${edge.target_node_id}.${edge.target_port_id}`).sort();
 const addOutput = (row, root, name) => {
-  fireEvent.click(screen.getByText("+ Add output"));
-  choose(screen.getByTestId(`output-row-${row}`), "What this node produced", 0);
+  fireEvent.click(screen.getByRole("button", { name: "+ Add output", exact: true }));
+  choose(screen.getByTestId(`output-row-${row}`), "Result", 0);
   choose(screen.getByTestId(`output-row-${row}`), root, 1);
   fireEvent.change(within(screen.getByTestId(`output-row-${row}`)).getByPlaceholderText("name"), { target: { value: name } });
 };
@@ -117,7 +144,7 @@ test("Read: add, pick, bind one argument and fix another, choose Continue, map t
   await add("if_else");
   await screen.findByTestId("branch-section");
   drag("tool", "out", "if", "in");
-  fireEvent.click(screen.getByText("+ Add input"));
+  fireEvent.click(screen.getByRole("button", { name: "+ Add input", exact: true }));
   fireEvent.change(within(screen.getByTestId("binding-row-0")).getByPlaceholderText("name"), { target: { value: "ok" } });
   choose(screen.getByTestId("binding-row-0"), "tool · ok", 1);
   fireEvent.click(screen.getByRole("button", { name: "+ Add a condition" }));
@@ -128,9 +155,11 @@ test("Read: add, pick, bind one argument and fix another, choose Continue, map t
   drag("if", "false", "end", "in");
 
   pressCanvasNode("router");
-  fireEvent.click(screen.getByText("+ Add input"));
-  fireEvent.change(within(screen.getByTestId("binding-row-1")).getByPlaceholderText("name"), { target: { value: "page" } });
-  choose(screen.getByTestId("binding-row-1"), "tool · page", 1);
+  fireEvent.click(screen.getByRole("button", { name: "+ Add input", exact: true }));
+  const routerInput = within(screen.getByTestId("binding-row-1"));
+  fireEvent.change(routerInput.getByPlaceholderText("name"), { target: { value: "page" } });
+  fireEvent.click(routerInput.getByRole("textbox", { name: /^(?!name$).+/ }));
+  fireEvent.click(screen.getByText("page", { exact: true, selector: "span" }));
 
   /* When the read fails the router is skipped, so End answers with the
      router's reply if it ran and the path that was asked for otherwise. */
@@ -158,7 +187,7 @@ test("Read: add, pick, bind one argument and fix another, choose Continue, map t
     inputs: [{ name: "ok", value: ref("tool", ["ok"]), missing: "error" }],
     condition: { kind: "compare", operator: "eq", left: { kind: "input", path: ["ok"] }, right: { kind: "literal", value: true } },
   });
-  expect(nodeOf(document, "router").config.execution.inputs[1]).toStrictEqual({ name: "page", value: ref("tool", ["page"]), missing: "error" });
+  expect(nodeOf(document, "router").config.execution.inputs[1]).toStrictEqual({ name: "page", value: ref("tool", ["page"]), missing: "null" });
   expect(nodeOf(document, "end").config.execution.inputs[0].value).toStrictEqual({
     kind: "first_present", values: [ref("router", ["reply"]), ref("start", ["message"])],
   });

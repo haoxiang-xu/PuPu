@@ -72,6 +72,17 @@ const deleteEdge = (id) => {
   fireEvent.click(view.container.querySelector(`[data-edge-delete-btn="${id}"]`));
 };
 const choose = (container, label, which = 0) => {
+  const row = container.getAttribute("data-testid") || "";
+  if (/^(binding|output)-row-\d+$/.test(row)) {
+    if (which === 0) {
+      const more = within(container).getByRole("button", { name: / · More$/ });
+      if (more.getAttribute("aria-expanded") !== "true") fireEvent.click(more);
+      container = within(container).getByTestId(`${row}-settings`);
+    } else {
+      container = within(container).getByTestId(`${row}-source`);
+    }
+    which = 0;
+  }
   fireEvent.click(within(container).getAllByRole("combobox")[which]);
   const lists = screen.getAllByRole("listbox", { hidden: true });
   fireEvent.click(within(lists[lists.length - 1]).getByText(label, { exact: true }));
@@ -84,8 +95,8 @@ const save = async () => {
 const nodeOf = (document, id) => document.nodes.find((node) => node.id === id);
 const edgeSet = (document) => document.edges.map((edge) => `${edge.source_node_id}.${edge.source_port_id}>${edge.target_node_id}.${edge.target_port_id}`).sort();
 const addOutput = (row, root, name) => {
-  fireEvent.click(screen.getByText("+ Add output"));
-  choose(screen.getByTestId(`output-row-${row}`), "What this node produced", 0);
+  fireEvent.click(screen.getByRole("button", { name: "+ Add output", exact: true }));
+  choose(screen.getByTestId(`output-row-${row}`), "Result", 0);
   choose(screen.getByTestId(`output-row-${row}`), root, 1);
   fireEvent.change(within(screen.getByTestId(`output-row-${row}`)).getByPlaceholderText("name"), { target: { value: name } });
 };
@@ -95,9 +106,11 @@ const pickNotes = async () => {
 };
 const bindGuideIntoRouter = () => {
   pressCanvasNode("router");
-  fireEvent.click(screen.getByText("+ Add input"));
-  fireEvent.change(within(screen.getByTestId("binding-row-1")).getByPlaceholderText("name"), { target: { value: "guide" } });
-  choose(screen.getByTestId("binding-row-1"), "skill · guide", 1);
+  fireEvent.click(screen.getByRole("button", { name: "+ Add input", exact: true }));
+  const routerInput = within(screen.getByTestId("binding-row-1"));
+  fireEvent.change(routerInput.getByPlaceholderText("name"), { target: { value: "guide" } });
+  fireEvent.click(routerInput.getByRole("textbox", { name: /^(?!name$).+/ }));
+  fireEvent.click(screen.getByText("guide", { exact: true, selector: "span" }));
 };
 const SKILL_CONFIG = {
   execution: { inputs: [], outputs: [
@@ -143,7 +156,7 @@ test("Skill Read: add, pick, preview, map content and name, feed the router, sav
   expect(payload.expected_edit_token).toBe(baseRecord().edit_token);
   const document = payload.document;
   expect(nodeOf(document, "skill")).toStrictEqual({ id: "skill", type: "skill_read", config: SKILL_CONFIG });
-  expect(nodeOf(document, "router").config.execution.inputs[1]).toStrictEqual({ name: "guide", value: ref("skill", ["guide"]), missing: "error" });
+  expect(nodeOf(document, "router").config.execution.inputs[1]).toStrictEqual({ name: "guide", value: ref("skill", ["guide"]), missing: "null" });
   expect(edgeSet(document)).toEqual(["router.out>end.in", "skill.out>router.in", "start.out>skill.in"]);
   expect(JSON.stringify(document)).not.toContain(preview.body.split("\n")[0]);
   expect(document.nodes.every((node) => Object.keys(node).sort().join() === "config,id,type")).toBe(true);

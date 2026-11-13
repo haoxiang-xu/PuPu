@@ -1,18 +1,16 @@
 import { useContext, useEffect, useState } from "react";
 import { NavigationContext } from "../../CONTAINERs/config/context";
 import { TOP_BAR_HEIGHT } from "../../BUILTIN_COMPONENTs/electron/title_bar";
+import { TOP_STRIP_CENTER } from "./top_strip";
 import {
   readFeatureFlags,
   subscribeFeatureFlags,
 } from "../../SERVICEs/feature_flags";
 import { AgentsModalContent } from "./agents_modal_content";
 
-/* The app shell offsets its content box this far from the window top (see
-   ConfigContainer). The workspace starts below the title bar instead, because
-   the bar is a drag region drawn above the content and would swallow clicks
-   on the controls along the workspace's top strip. */
+/* Extend the graph behind the title bar while keeping its controls below
+   the window's drag region. ConfigContainer offsets the content box. */
 const SHELL_CONTENT_TOP = 18;
-const SIDE_MENU_WIDTH = 320;
 
 /**
  * The Agents builder as a full surface beside the chat rather than a modal
@@ -22,7 +20,10 @@ const SIDE_MENU_WIDTH = 320;
  */
 export default function AgentsWorkspace({ active }) {
   const nav = useContext(NavigationContext) || {};
-  const { onFragment, setAppMode, agentsSidebarSlot } = nav;
+  const {
+    setAppMode,
+    agentsSidebarSlot,
+  } = nav;
   const [featureFlags, setFeatureFlags] = useState(() => readFeatureFlags());
   useEffect(() => {
     setFeatureFlags(readFeatureFlags());
@@ -68,11 +69,14 @@ export default function AgentsWorkspace({ active }) {
       aria-hidden={active ? undefined : true}
       style={{
         position: "absolute",
-        top: TOP_BAR_HEIGHT - SHELL_CONTENT_TOP,
-        left: onFragment === "side_menu" ? SIDE_MENU_WIDTH : 0,
+        top: -SHELL_CONTENT_TOP,
+        /* The graph runs under both side menus, which are see-through:
+           the left one like the right-hand detail panel. Only the chrome
+           pinned to the top-left steps clear of the open menu; the bottom
+           controls stay put in the middle of the window. */
+        left: 0,
         right: 0,
         bottom: 0,
-        transition: "left 0.3s ease",
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
@@ -88,8 +92,12 @@ export default function AgentsWorkspace({ active }) {
         selectedNodeId={selectedNodeId}
         onSelectNode={setSelectedNodeId}
         fullscreen={false}
+        topStripCenter={TOP_BAR_HEIGHT + TOP_STRIP_CENTER}
         explorerSlot={agentsSidebarSlot || null}
         explorerDocked
+        /* One surface per side menu entry: Characters will get its own way
+           in rather than a switch on top of the graph. */
+        showSectionSwitch={false}
         onClose={backToChat}
       />
     </div>

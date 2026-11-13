@@ -37,7 +37,7 @@ export default function ToolPoolNode({ node, isDark, native = false, toolkits })
                   fontSize: 12.5,
                   fontWeight: 600,
                   ...(native ? { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } : {}),
-                  color: isDark ? "#f0f0f3" : "#1d1d22",
+                  color: "var(--pupu-text)",
                 }}
               >
                 {native ? node_display_title(node, t("agents.nodes.toolkit_pool")) : t("agents.nodes.toolkit_pool")}
@@ -45,7 +45,7 @@ export default function ToolPoolNode({ node, isDark, native = false, toolkits })
               <div
                 style={{
                   fontSize: 10.5,
-                  color: isDark ? "#a8a8b0" : "#6b6b73",
+                  color: "var(--pupu-text-muted)",
                   marginTop: 2,
                 }}
               >

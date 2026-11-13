@@ -1,4 +1,8 @@
 import React, { useState } from "react";
+
+/* This suite checks the guidance's contract and document writes. The real
+   disclosure interaction and compact surface are tested in panel_help.test.js. */
+jest.mock("./panel_help", () => function GuidanceText({ children }) { return <>{children}</>; });
 import { render, screen, fireEvent } from "@testing-library/react";
 import { ConfigContext } from "../../../../../CONTAINERs/config/context";
 import MissingPolicySelect from "./missing_policy_select";

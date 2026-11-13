@@ -92,10 +92,10 @@ describe("title_bar follows the presentation platform (#256)", () => {
     delete window.osInfo;
     window.windowStateAPI = originalWindowStateAPI;
   });
-  const mount = () =>
+  const mount = (appMode = "chat") =>
     render(
       <ConfigContext.Provider
-        value={{ theme: {}, onFragment: "main", setOnFragment: () => {}, onThemeMode: "dark_mode" }}
+        value={{ theme: {}, appMode, onFragment: "main", setOnFragment: () => {}, onThemeMode: "dark_mode" }}
       >
         <TitleBar />
       </ConfigContext.Provider>,
@@ -104,6 +104,14 @@ describe("title_bar follows the presentation platform (#256)", () => {
      side-menu toggle is always first, the Windows cluster adds three */
   const controls = (container) => container.querySelectorAll("button").length - 1;
   const toggleLeft = (container) => container.querySelector("button").style.left;
+
+  test("Builder keeps a transparent title-bar drag region over the full-height graph", () => {
+    const { container } = mount("agents");
+    expect(container.firstElementChild.style.background).toBe("transparent");
+    expect(container.firstElementChild.style.WebkitBackdropFilter).toBe("none");
+    expect(container.firstElementChild.style.WebkitAppRegion).toBe("drag");
+    expect(toggleLeft(container)).toBe("90px");
+  });
 
   test("AC-256-3: a darwin host presenting win32 draws the Windows cluster and Windows offsets; back to darwin, they go", () => {
     const bridge = installWindowStateAPI();
@@ -125,28 +133,25 @@ describe("title_bar follows the presentation platform (#256)", () => {
     expect(toggleLeft(container)).toBe("90px");
   });
 
-  test("moves only the sidebar toggle during native fullscreen and restores it after exit", () => {
+  test("moves the sidebar toggle during native fullscreen and restores it after exit", () => {
     const bridge = installWindowStateAPI({ isFullScreen: true });
     const { container } = mount();
     const toggle = container.querySelector("button");
-    const wordmark = () =>
-      Array.from(container.querySelectorAll("div")).find(
-        (node) => node.style.left === "125px",
-      );
 
     expect(bridge.actions).toEqual(["get-state"]);
     expect(toggle.style.left).toBe("14px");
-    expect(wordmark()).toBeTruthy();
-
     act(() => bridge.emit({ isMaximized: true, isFullScreen: false }));
     expect(toggle.style.left).toBe("90px");
-    expect(wordmark()).toBeTruthy();
     act(() => bridge.emit({ isFullScreen: true }));
     expect(toggle.style.left).toBe("14px");
-    expect(wordmark()).toBeTruthy();
     act(() => bridge.emit({ isFullScreen: false }));
     expect(toggle.style.left).toBe("90px");
-    expect(wordmark()).toBeTruthy();
+  });
+
+  test("draws no wordmark: the side menus are see-through, so a title would show under them", () => {
+    installWindowStateAPI();
+    const { container } = mount();
+    expect(container.textContent).not.toMatch(/pupu/i);
   });
 
   test("a win32 host presenting darwin hides its own cluster and takes the traffic-light offsets", () => {

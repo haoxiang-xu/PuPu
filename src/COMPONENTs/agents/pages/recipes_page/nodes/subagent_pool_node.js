@@ -64,8 +64,8 @@ export default function SubagentPoolNode({
     return undefined;
   };
 
-  const muted = isDark ? "#a8a8b0" : "#6b6b73";
-  const missingColor = isDark ? "rgba(255,120,120,0.92)" : "rgba(176,32,32,0.92)";
+  const muted = "var(--pupu-text-muted)";
+  const missingColor = "var(--pupu-danger)";
 
   return (
     <div style={{ width: 210 }}>
@@ -92,7 +92,7 @@ export default function SubagentPoolNode({
                   fontSize: 12.5,
                   fontWeight: 600,
                   ...(is_skeleton_node(node) ? { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } : {}),
-                  color: isDark ? "#f0f0f3" : "#1d1d22",
+                  color: "var(--pupu-text)",
                 }}
               >
                 {is_skeleton_node(node) ? node_display_title(node, t("agents.nodes.subagent_pool")) : t("agents.nodes.subagent_pool")}
@@ -145,11 +145,7 @@ export default function SubagentPoolNode({
                     <span
                       style={{
                         fontFamily: "ui-monospace, Menlo, monospace",
-                        color: present
-                          ? isDark
-                            ? "#e6e6ea"
-                            : "#2c2c32"
-                          : missingColor,
+                        color: present ? "var(--pupu-text)" : missingColor,
                         overflow: "hidden",
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap",

@@ -62,7 +62,7 @@ def test_first_save_returns_stored_aggregate_and_cold_reopen(store):
         frame['document'], ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
     reopened = SkeletonResourceStore(store.root).get_managed_resource(saved['resource']['id'])
     assert reopened == saved
-    assert schema(store) == 'pupu.skeleton_resource_store.v3'
+    assert schema(store) == 'pupu.skeleton_resource_store.v4'
 
 
 def test_old_graph_read_can_be_explicitly_upgraded_and_unrelated_resource_stays_v1(store):

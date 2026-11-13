@@ -804,10 +804,22 @@ class SkeletonResourceStoreTests(unittest.TestCase):
         self.assertTrue((subagents / "Explore.skeleton").is_file())
         with self.assertRaises(SkeletonResourceError) as unresolved_profile:
             self.store.preflight(recipe_explore["id"])
-        self.assertEqual(unresolved_profile.exception.code, "legacy_profile_required")
+        # Startup now produces native editable drafts. No ambient fallback
+        # Kernel is selected on a user's behalf; configure the native model.
+        self.assertEqual(unresolved_profile.exception.code, "invalid_shape")
         for selected in (recipe_explore, self.store.resolve(
                 legacy_name="Default", source_scope="user:agent_recipes")):
-            preflight = self.store.preflight(selected["id"], legacy_kernel=kernel_config())
+            document = deepcopy(selected["document"])
+            for node in document["nodes"]:
+                if node["type"] == "agent":
+                    draft = node["config"].pop("kernel_draft")
+                    configured = kernel_config()
+                    configured["prompt"] = draft["prompt"]
+                    if draft["max_iterations"] is not None:
+                        configured["max_iterations"] = draft["max_iterations"]
+                    node["config"]["kernel"] = configured
+            self.store.save_draft(document, expected_edit_token=selected["edit_token"])
+            preflight = self.store.preflight(selected["id"])
             plan = prepare_agent_graph(preflight["document"])
             journal = SQLiteContextV2Store(
                 database_path=Path(self.tmp.name) / f"{selected['id']}.sqlite3",
@@ -822,7 +834,7 @@ class SkeletonResourceStoreTests(unittest.TestCase):
                     "message": inputs.get("text", ""), "context": {"provider": "openai"},
                 }),
             })
-            runner.create({"text": "hello", "images": [], "files": []})
+            runner.create({"message": "hello", "images": [], "files": []})
             self.assertEqual(runner.run().outputs["message"], "hello")
 
         renamed = self.store.rename(

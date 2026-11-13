@@ -561,6 +561,9 @@ const TextField = ({
   const faintBorder = isDark
     ? "1px solid rgba(255,255,255,0.08)"
     : "1px solid rgba(0,0,0,0.12)";
+  /* Opt-in: a caller that fills the field itself can ask for no resting
+     outline. Kept off the wrapper, which takes the rest of `style`. */
+  const { restBorder, ...outerStyle } = style || {};
 
   const lineHeightPx = Math.round(fontSize * lineHeight);
 
@@ -665,7 +668,7 @@ const TextField = ({
         width: style?.width || "100%",
         opacity: disabled ? 0.5 : 1,
         cursor: disabled ? "not-allowed" : "text",
-        ...style,
+        ...outerStyle,
       }}
       onClick={() => {
         if (disabled) return;
@@ -680,7 +683,7 @@ const TextField = ({
           position: "relative",
           boxSizing: "border-box",
           backgroundColor: "transparent",
-          border: showBg ? "1px solid transparent" : faintBorder,
+          border: showBg ? "1px solid transparent" : (restBorder ?? faintBorder),
           borderRadius,
           transition:
             "border 0.2s ease, height 0.25s cubic-bezier(0.4, 0, 0.2, 1)",

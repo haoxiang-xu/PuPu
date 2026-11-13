@@ -20,7 +20,7 @@ const hasElectronWindowControls = () => {
   );
 };
 const TitleBar = () => {
-  const { theme, onFragment, setOnFragment } = useContext(ConfigContext);
+  const { theme, onFragment, setOnFragment, appMode } = useContext(ConfigContext);
   const isFullScreen = useWindowFullscreen();
 
   const isElectron = hasElectronWindowControls();
@@ -59,9 +59,9 @@ const TitleBar = () => {
         right: 0,
         height: TOP_BAR_HEIGHT,
         zIndex: Z.APP_CHROME,
-        background: gradientBackground,
+        background: appMode === "agents" ? "transparent" : gradientBackground,
 
-        WebkitBackdropFilter: "blur(20px)",
+        WebkitBackdropFilter: appMode === "agents" ? "none" : "blur(20px)",
         color: topBarForeground,
         WebkitAppRegion: "drag",
         userSelect: "none",
@@ -91,22 +91,6 @@ const TitleBar = () => {
           }
         }}
       />
-      <div
-        style={{
-          position: "absolute",
-          top: "50%",
-          left: isDarwin ? 125 : 54,
-          transform: "translateY(-50%)",
-          opacity: 0.84,
-          fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
-          fontSize: 12,
-          letterSpacing: "0.08em",
-          textTransform: "uppercase",
-          pointerEvents: "none",
-        }}
-      >
-        PuPu
-      </div>
 
       {!isDarwin ? (
         <WindowControls

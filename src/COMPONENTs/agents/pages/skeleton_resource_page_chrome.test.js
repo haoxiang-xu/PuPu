@@ -96,7 +96,7 @@ describe("what is on the page", () => {
     await open();
     pressCanvasNode("end");
     expect(screen.getByTestId("skeleton-detail-panel-shell").style.opacity).toBe("1");
-    expect(screen.getByText("+ Add input")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "+ Add input", exact: true })).toBeInTheDocument();
   });
 });
 
@@ -107,7 +107,7 @@ describe("Save, in the control center", () => {
     await open();
     expect(saveButton()).toBeDisabled();
     pressCanvasNode("end");
-    fireEvent.click(screen.getByText("+ Add input"));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add input", exact: true }));
     expect(screen.getByRole("status")).toHaveTextContent(/unsaved/i);
     expect(saveButton()).toBeEnabled();
     fireEvent.click(saveButton());
@@ -120,7 +120,7 @@ describe("Save, in the control center", () => {
     api.unchain.saveSkeletonResource = jest.fn().mockResolvedValue({ error: { code: "invalid_type", message: "document must be an object" } });
     await open();
     pressCanvasNode("end");
-    fireEvent.click(screen.getByText("+ Add input"));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add input", exact: true }));
     fireEvent.click(saveButton());
     expect(await screen.findByTestId("skeleton-save-error")).toHaveTextContent(/must be an object/i);
     expect(within(screen.getByTestId("skeleton-above-controls")).getByTestId("skeleton-save-error")).toBeInTheDocument();
@@ -130,7 +130,7 @@ describe("Save, in the control center", () => {
     api.unchain.saveSkeletonResource = jest.fn().mockResolvedValue({ error: EDIT_CONFLICT_ERROR });
     await open();
     pressCanvasNode("end");
-    fireEvent.click(screen.getByText("+ Add input"));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add input", exact: true }));
     fireEvent.click(saveButton());
     await screen.findByTestId("skeleton-save-conflict");
     const card = within(screen.getByTestId("skeleton-above-controls")).getByTestId("skeleton-save-conflict");
@@ -150,7 +150,7 @@ describe("undo and redo", () => {
     await open();
     expect(control(/^Undo/)).toBeDisabled();
     pressCanvasNode("end");
-    fireEvent.click(screen.getByText("+ Add input"));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add input", exact: true }));
     expect(control(/^Undo/)).toBeEnabled();
     fireEvent.click(control(/^Undo/));
     expect(control(/^Redo/)).toBeEnabled();
@@ -162,7 +162,7 @@ describe("undo and redo", () => {
   test("the keyboard does the same, but not while a field is being typed in", async () => {
     await open();
     pressCanvasNode("end");
-    fireEvent.click(screen.getByText("+ Add input"));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add input", exact: true }));
     keys({ key: "z", metaKey: true });
     expect(control(/^Redo/)).toBeEnabled();
     keys({ key: "Z", metaKey: true, shiftKey: true });
@@ -207,7 +207,7 @@ describe("finding a node by name, now that the row of nodes is gone", () => {
     fireEvent.click(screen.getByTestId("palette-node-end"));
     expect(screen.queryByRole("textbox", { name: "Find a node" })).toBeNull();
     expect(screen.getByTestId("skeleton-detail-panel-shell").style.opacity).toBe("1");
-    expect(screen.getByText("+ Add input")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "+ Add input", exact: true })).toBeInTheDocument();
     expect(editor.reset_token).toBe(before + 1);
     expect(editor.reset_focus_node_id).toBe("end");
     fireEvent.click(control("Center"));

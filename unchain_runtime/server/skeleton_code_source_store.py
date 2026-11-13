@@ -12,7 +12,7 @@ from skeleton_resource_store import (
 )
 
 
-_STORE_SCHEMA = 'pupu.skeleton_resource_store.v3'
+_STORE_SCHEMA = 'pupu.skeleton_resource_store.v4'
 _RESPONSE_SCHEMA = 'pupu.skeleton-resource.v2'
 _MANIFEST_SCHEMA = 'pupu.skeleton-code-sources.v1'
 _SNAPSHOT_SCHEMA = 'pupu.skeleton-code-snapshot.v1'
@@ -30,7 +30,7 @@ def validate_managed_store_schema(connection):
         _fail('managed_source_corrupt', ('store', 'schema'),
               'Managed source storage schema is incomplete.')
     version = connection.execute("SELECT value FROM store_meta WHERE key='schema'").fetchone()['value']
-    if version == _STORE_SCHEMA:
+    if version in {'pupu.skeleton_resource_store.v3', _STORE_SCHEMA}:
         published = {row['name'] for row in connection.execute('PRAGMA table_info(workflow_versions)')}
         if not {'code_sources_manifest', 'code_content_digest'} <= published:
             _fail('managed_source_corrupt', ('store', 'schema'), 'Published source schema is incomplete.')
@@ -43,7 +43,7 @@ def _upgrade_published_schema(connection):
         WHEN OLD.code_sources_manifest IS NOT NULL OR NEW.code_sources_manifest IS NOT NULL
         BEGIN SELECT RAISE(ABORT, 'immutable source version'); END""")
     connection.execute("""CREATE TRIGGER managed_version_delete BEFORE DELETE ON workflow_versions
-        WHEN OLD.code_sources_manifest IS NOT NULL
+        WHEN OLD.code_sources_manifest IS NOT NULL AND pupu_managed_write() != 1
         BEGIN SELECT RAISE(ABORT, 'retained source version'); END""")
     connection.execute("""CREATE TRIGGER managed_version_insert BEFORE INSERT ON workflow_versions
         WHEN EXISTS(SELECT 1 FROM workflow_versions WHERE workflow_id=NEW.workflow_id
@@ -57,6 +57,14 @@ def _ensure_schema(connection):
     version = connection.execute("SELECT value FROM store_meta WHERE key='schema'").fetchone()['value']
     if version == _STORE_SCHEMA:
         validate_managed_store_schema(connection)
+        return
+    if version == 'pupu.skeleton_resource_store.v3':
+        validate_managed_store_schema(connection)
+        connection.execute('DROP TRIGGER managed_version_delete')
+        connection.execute("""CREATE TRIGGER managed_version_delete BEFORE DELETE ON workflow_versions
+            WHEN OLD.code_sources_manifest IS NOT NULL AND pupu_managed_write() != 1
+            BEGIN SELECT RAISE(ABORT, 'retained source version'); END""")
+        connection.execute("UPDATE store_meta SET value=? WHERE key='schema'", (_STORE_SCHEMA,))
         return
     if version == 'pupu.skeleton_resource_store.v2':
         validate_managed_store_schema(connection)
@@ -212,6 +220,77 @@ def get_managed_resource(store, resource_id):
 
 def save_managed_draft(store, value):
     return write_prepared_draft(store, prepare_managed_code_edit(value))
+
+
+def _references_resource(document, identity):
+    pending = [document]
+    while pending:
+        body = pending.pop()
+        if type(body) is not dict or type(body.get('nodes')) is not list:
+            continue
+        for node in body['nodes']:
+            if type(node) is not dict or type(node.get('config')) is not dict:
+                continue
+            config = node['config']
+            references = []
+            if node.get('type') == 'workflow_call':
+                references.append(config.get('workflow'))
+            collection = {
+                'hooks_pool': ('hooks', 'workflow'),
+                'toolkit_pool': ('workflow_tools', 'workflow'),
+                'subagent_pool': ('subagents', 'source'),
+            }.get(node.get('type'))
+            if collection:
+                entries = config.get(collection[0])
+                if type(entries) is list:
+                    references.extend(entry.get(collection[1]) for entry in entries if type(entry) is dict)
+            for reference in references:
+                if type(reference) is not dict:
+                    continue
+                if (reference.get('agent_id') == identity or reference.get('workflow_id') == identity):
+                    return True
+                if reference.get('kind') == 'embedded':
+                    pending.append(reference.get('document'))
+    return False
+
+
+def delete_managed_resource(store, resource_id, *, expected_edit_token):
+    identity = _resource_id(resource_id, ('resource_id',))
+    if identity != resource_id:
+        _fail('invalid_value', ('resource_id',), 'Resource id must have canonical spelling.', status=400)
+    if type(expected_edit_token) is not str or not expected_edit_token:
+        _fail('missing_value', ('expected_edit_token',), 'Resource edit token is required.', status=400)
+    try:
+        with closing(store._connect()) as connection, connection:
+            connection.execute('BEGIN IMMEDIATE')
+            current = connection.execute('SELECT * FROM resources WHERE resource_id=?', (identity,)).fetchone()
+            if current is None:
+                _fail('resource_missing', ('resource_id',), 'Skeleton resource was not found.', status=404)
+            if current['edit_token'] != expected_edit_token:
+                _fail('edit_conflict', ('expected_edit_token',), 'Resource changed in another editor.')
+            for caller in connection.execute('SELECT resource_id,name,draft_json FROM resources WHERE resource_id != ?', (identity,)):
+                if _references_resource(_strict_json(caller['draft_json']), identity):
+                    _fail('resource_referenced', ('resource_id',),
+                          'Resource is used by “' + caller['name'] + '”. Remove that reference before deleting.')
+            dependency = connection.execute('''SELECT r.name FROM workflow_dependencies d
+                JOIN resources r ON r.resource_id=d.workflow_id
+                WHERE d.target_workflow_id=? AND d.workflow_id != ? LIMIT 1''', (identity, identity)).fetchone()
+            if dependency is not None:
+                _fail('resource_referenced', ('resource_id',),
+                      'Resource is used by a published version of “' + dependency['name'] + '”. Delete that Workflow first.')
+            _ensure_schema(connection)
+            connection.create_function('pupu_managed_write', 0, lambda: 1)
+            connection.execute('DELETE FROM workflow_dependencies WHERE workflow_id=?', (identity,))
+            connection.execute('DELETE FROM workflow_versions WHERE workflow_id=?', (identity,))
+            connection.execute('DELETE FROM resources WHERE resource_id=?', (identity,))
+            connection.execute('INSERT OR REPLACE INTO store_meta(key,value) VALUES(?,?)',
+                               ('deleted_resource:' + identity, 'true'))
+            # Aliases and migration receipts prevent startup or old chats
+            # from returning to a deleted legacy definition.
+            connection.commit()
+    except sqlite3.Error as error:
+        raise SkeletonResourceError('source_store_unavailable', ('store',),
+                                    'Resource deletion could not be committed.', status=503) from error
 
 
 def write_prepared_draft(store, prepared, *, importing=False):

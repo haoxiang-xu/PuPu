@@ -1,6 +1,6 @@
 import React from "react";
 import { install_legacy_store_bridge } from "./recipes_page/legacy_store_test_bridge";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import RecipesPage from "./recipes_page";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import { api } from "../../../SERVICEs/api";
@@ -77,7 +77,7 @@ const open = async () => {
 const rightClick = (label) => fireEvent.contextMenu(within(explorer()).getByText(label));
 const menuItem = (label) => within(screen.getByTestId("context-menu")).getByRole("button", { name: label });
 
-test("an open Agent with unsaved work cannot be renamed or archived from the explorer until it is saved", async () => {
+test("an open Agent with unsaved work can be deleted while Rename requires saving", async () => {
   show();
   await open();
   rightClick("Planner");
@@ -91,8 +91,30 @@ test("an open Agent with unsaved work cannot be renamed or archived from the exp
   rightClick("Planner");
   expect(menuItem("Rename")).toBeDisabled();
   expect(menuItem("Rename")).toHaveAttribute("data-trail", "save first");
-  expect(menuItem("Archive")).toBeDisabled();
+  expect(menuItem("Delete")).toBeEnabled();
   expect(api.unchain.renameSkeletonResource).not.toHaveBeenCalled();
+});
+
+test("a late Delete reply does not close another Agent selected while it was pending", async () => {
+  const other = new_agent_document({ id: "other-agent", name: "Other" }).document;
+  let deleted = false;
+  let finish;
+  api.unchain.listSkeletonResources = jest.fn(async () => ({ resources: [
+    ...(!deleted ? [{ id: ID, name: "Planner", kind: "agent", archived: false, edit_token: "edit-1" }] : []),
+    { id: other.id, name: other.name, kind: "agent", archived: false, edit_token: "other-token" },
+  ] }));
+  api.unchain.getSkeletonResource = jest.fn(async (id) =>
+    result(id === ID ? stored.document : other, id === ID ? stored.token : "other-token"));
+  api.unchain.deleteSkeletonResource = jest.fn(() => new Promise((resolve) => { finish = resolve; }));
+  show();
+  await open();
+  rightClick("Planner");
+  fireEvent.click(menuItem("Delete"));
+  fireEvent.click(screen.getByRole("button", { name: "Delete", exact: true }));
+  fireEvent.click(within(explorer()).getByText("Other", { exact: true }));
+  await waitFor(() => expect(api.unchain.getSkeletonResource).toHaveBeenLastCalledWith("other-agent"));
+  await act(async () => { deleted = true; finish({ ok: true }); });
+  expect(screen.getByTestId("skeleton-resource-page")).toBeInTheDocument();
 });
 
 test("renaming the open, clean Agent re-reads it, so the editor holds the new name and token", async () => {

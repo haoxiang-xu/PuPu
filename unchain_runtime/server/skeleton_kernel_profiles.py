@@ -26,10 +26,10 @@ those facts come from, and it invents none of them:
   string ``bind_profile`` compares against before it falls back to the host's
   configured API key. One character of difference and every run demands a
   dedicated credential binding instead;
-* a model with no declared output cap is **not** given one. It is reported as
-  unavailable with that reason. A cap is the ceiling a reply reservation is
-  checked against, and the request actually sent carries the reservation
-  itself, so a guessed ceiling would be sent to a provider as a real number.
+* a remote model with no declared output cap is reported as unavailable.
+  Installed Ollama models are discovered through the chat catalog's local
+  listing. They use the same explicit context-window budget, and when there
+  is no declared output cap, the host sets its own bounded reply budget.
 
 Every profile this module emits is passed through the runtime's own
 ``validate_kernel_config`` before it is offered, inside a probe kernel. A
@@ -56,6 +56,7 @@ from skeleton_production_bindings import _OFFICIAL
 _DERIVABLE = ("openai", "anthropic", "gemini", "ollama")
 
 _OLLAMA_DEFAULT_ENDPOINT = "http://localhost:11434"
+_OLLAMA_LOCAL_OUTPUT_BUDGET = 4096
 
 
 def _ollama_endpoint() -> str:
@@ -145,11 +146,18 @@ def kernel_profiles() -> dict[str, Any]:
     import unchain_adapter as adapter
 
     raw_catalog = adapter._load_raw_capability_catalog()
+    installed = set(adapter._fetch_ollama_models(chat_only=True))
+    entries = [(name, raw_catalog[name]) for name in sorted(raw_catalog)]
+    known_ollama = {
+        adapter._normalize_provider_model_name("ollama", name)
+        for name, raw in entries
+        if isinstance(raw, dict) and str(raw.get("provider", "")).strip().lower() == "ollama"
+    }
+    entries.extend((name, {"provider": "ollama"}) for name in sorted(installed - known_ollama))
     offered: list[dict[str, Any]] = []
     unavailable: list[dict[str, Any]] = []
 
-    for model_name in sorted(raw_catalog):
-        raw = raw_catalog[model_name]
+    for model_name, raw in entries:
         if not isinstance(raw, dict):
             continue
         provider = str(raw.get("provider", "")).strip().lower()
@@ -161,6 +169,8 @@ def kernel_profiles() -> dict[str, Any]:
             continue
         model = adapter._normalize_provider_model_name(provider, model_name)
         if not model:
+            continue
+        if provider == "ollama" and installed and model not in installed:
             continue
 
         # Both are answerable for every provider in ``_DERIVABLE`` — that is
@@ -175,10 +185,15 @@ def kernel_profiles() -> dict[str, Any]:
         # the catalog is a file a later wheel can change — unlike the
         # provider set above, which this module decides itself.
         context_window = _positive_int(raw.get("max_context_window_tokens"))
+        local_model = provider == "ollama" and model in installed
+        if local_model:
+            context_window = adapter._ollama_context_window_tokens(context_window or 0)
         if context_window is None:
             unavailable.append(_unavailable(provider, model, "context_window_unknown"))
             continue
         output_limit = _positive_int(raw.get("max_output_tokens"))
+        if output_limit is None and local_model:
+            output_limit = min(_OLLAMA_LOCAL_OUTPUT_BUDGET, context_window - 1)
         if output_limit is None:
             unavailable.append(_unavailable(provider, model, "output_limit_unknown"))
             continue

@@ -56,6 +56,17 @@ def get_managed_code_resource(resource_id):
     return _serve(lambda: SkeletonResourceStore().get_managed_resource(resource_id))
 
 
+@api_blueprint.delete('/skeleton_resources/v2/<resource_id>')
+def delete_managed_code_resource(resource_id):
+    def operation():
+        body = _body()
+        _closed(body, {'expected_edit_token'}, ('body',))
+        SkeletonResourceStore().delete_managed_resource(resource_id,
+            expected_edit_token=body.get('expected_edit_token'))
+        return {'ok': True}
+    return _serve(operation)
+
+
 @api_blueprint.post('/skeleton_resources/v2/<resource_id>/preflight')
 def preflight_managed_code_resource(resource_id):
     def operation():

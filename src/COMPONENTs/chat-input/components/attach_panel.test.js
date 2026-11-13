@@ -27,6 +27,7 @@ import {
 } from "../../../SERVICEs/attach_panel_layout";
 import { resetSettingsRepositoryForTests } from "../../../SERVICEs/settings_repository";
 import { Z } from "../../../BUILTIN_COMPONENTs/layer/z_layers";
+import { modelPickerTriggerStyle } from "../../../BUILTIN_COMPONENTs/select/model_picker";
 
 const {
   buildRunBundleV1,
@@ -83,7 +84,8 @@ const mockKeepOpenBySelector = {};
 
 const mockSelectStyleBySelector = {};
 
-jest.mock("../../../BUILTIN_COMPONENTs/select/select", () => ({
+jest.mock("../../../BUILTIN_COMPONENTs/select/select", () => {
+  const selectExports = {
   __esModule: true,
   Select: ({
     options = [],
@@ -166,7 +168,9 @@ jest.mock("../../../BUILTIN_COMPONENTs/select/select", () => ({
       </div>
     );
   },
-}));
+};
+  return { ...selectExports, default: selectExports.Select };
+});
 
 jest.mock("./attachment_chip_list", () => ({
   __esModule: true,
@@ -1132,7 +1136,9 @@ describe("attach panel semantic surface binding", () => {
     expect(src).not.toMatch(/rgba\(252,252,252/);
     expect(src).toMatch(/panelBg = isDark[\s\S]{0,140}var\(--pupu-surface-rgb\)/);
     // pill overlay follows the neutral-overlay policy (text tier + alpha)
-    expect(src).toMatch(/selectBg = isDark[\s\S]{0,140}var\(--pupu-text-rgb\)/);
+    expect(src).toContain("modelPickerTriggerStyle({ isDark, color, floating })");
+    expect(modelPickerTriggerStyle({ isDark: true }).backgroundColor).toBe("rgba(var(--pupu-text-rgb),0.07)");
+    expect(modelPickerTriggerStyle({ isDark: false }).backgroundColor).toBe("rgba(var(--pupu-text-rgb),0.05)");
     // floating pill hairline border binds the mid border-strength tier (input-family)
     expect(src).toMatch(/border: floating[\s\S]{0,80}var\(--pupu-border-mid\)/);
   });
@@ -2050,7 +2056,7 @@ describe("AttachPanel arrange mode: dragging into and out of the ⋯ menu (#217)
     expect(rowIds()).toEqual(["tools", "workspace"]);
     expect(readAttachPanelLayout()).toEqual({
       version: 1,
-      order: ["context_composition", "screenshot", "tools", "workspace", "attach", "link"],
+      order: ["agent", "context_composition", "screenshot", "tools", "workspace", "attach", "link"],
       hidden: ["screenshot", "link", "attach"],
     });
     // still arranging; opening the menu by hand shows the new order
@@ -2135,7 +2141,7 @@ describe("AttachPanel arrange mode: dragging into and out of the ⋯ menu (#217)
     pointerEv(window, "pointerup", { clientX: 90, clientY: 16, buttons: 0 });
     expect(rowIds()).toEqual(["screenshot", "tools", "attach", "workspace"]);
     expect(readAttachPanelLayout().order).toEqual([
-      "context_composition", "screenshot", "tools", "attach", "workspace", "link",
+      "agent", "context_composition", "screenshot", "tools", "attach", "workspace", "link",
     ]);
     expect(row().getAttribute("data-arranging")).toBe("true");
   });
@@ -2322,7 +2328,7 @@ describe("AttachPanel long press lifts straight into a drag (#217)", () => {
       pointerEv(window, "pointermove", { clientX: 90, clientY: 16, buttons: 1 });
       pointerEv(window, "pointerup", { clientX: 90, clientY: 16, buttons: 0 });
       expect(readAttachPanelLayout().order).toEqual([
-        "context_composition", "screenshot", "tools", "attach", "workspace", "link",
+        "agent", "context_composition", "screenshot", "tools", "attach", "workspace", "link",
       ]);
       expect(row().getAttribute("data-arranging")).toBe("true");
       expect(row().getAttribute("data-kb-active")).toBe("");
@@ -2475,5 +2481,89 @@ describe("AttachPanel ⋯ menu rides along while arranging (#217)", () => {
     } finally {
       spy.mockRestore();
     }
+  });
+});
+
+
+describe("compact movable Agent selector", () => {
+  beforeEach(() => {
+    window.localStorage.clear(); resetSettingsRepositoryForTests();
+    writeFeatureFlags({ enable_user_access_to_agents: true });
+    useChatInputToolkits.mockReturnValue({ toolkitOptions: [], toolkitLoading: false, refreshToolkits: jest.fn() });
+    useChatInputWorkspaces.mockReturnValue({ workspaceOptions: [] });
+  });
+  const props = () => ({
+    color: "#222", active: false, focused: false, isDark: false, attachments: [],
+    onAttachFile: jest.fn(), onAttachScreenshot: jest.fn(), onAttachLink: jest.fn(),
+    modelOptions: [{ value: "openai:model", label: "Model" }], selectedModelId: "openai:model", onSelectModel: jest.fn(),
+    selectedToolkits: [], onToolkitsChange: jest.fn(), selectedWorkspaceIds: [], onWorkspaceIdsChange: jest.fn(),
+    skeletonAgentOptions: [{ id: "research.agent:v2", name: "Research Agent" }], selectedSkeletonAgentId: "research.agent:v2",
+    onSelectSkeletonAgent: jest.fn(), onSelectRecipe: jest.fn(),
+  });
+  const visibleAgent = () => screen.getByTestId("attach-row").querySelector('[data-widget="agent"]');
+
+  test("the visible Agent is an icon-only circular widget, with the current identity accessible", () => {
+    render(<AttachPanel {...props()} />);
+    expect(visibleAgent()).not.toBeNull();
+    const trigger = within(visibleAgent()).getByTestId("attach-agent-trigger");
+    expect(trigger).toHaveAttribute("aria-label", "Agents · Research Agent");
+    expect(trigger).toHaveAttribute("data-height", "32");
+    expect(trigger).not.toHaveTextContent("Research Agent");
+  });
+
+  test("a hidden Agent opens its same selector from More and does not clear the selected identity", () => {
+    writeAttachPanelLayout({ version: 1, order: MOVABLE_ATTACH_WIDGETS, hidden: ["agent"] });
+    const current = props(); render(<AttachPanel {...current} />);
+    expect(visibleAgent()).toBeNull();
+    expect(current.onSelectSkeletonAgent).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("attach-more"));
+    const menu = screen.getByTestId("attach-more-menu");
+    const item = menu.querySelector('[data-widget="agent"]');
+    expect(item).not.toBeNull();
+    fireEvent.click(within(item).getByText("Agents"));
+    expect(within(menu).getByTestId("select-Agent: Default")).toHaveAttribute("data-open", "true");
+    fireEvent.click(within(menu).getByTestId("option-skeleton:research.agent:v2"));
+    expect(current.onSelectSkeletonAgent).toHaveBeenCalledTimes(1);
+    expect(current.onSelectSkeletonAgent).toHaveBeenCalledWith("research.agent:v2");
+    expect(current.onSelectRecipe).toHaveBeenCalledWith("Default");
+  });
+
+  test("Agent participates in keyboard arrange, tuck and restore without changing the chat selection", () => {
+    writeAttachPanelLayout({ version: 1, order: ["agent", ...MOVABLE_ATTACH_WIDGETS.filter(id => id !== "agent")], hidden: [] });
+    const current = props(); const ref = React.createRef(); render(<AttachPanel ref={ref} {...current} />);
+    expect(visibleAgent()).not.toBeNull();
+    act(() => { ref.current.enterKeyboard(); });
+    act(() => { ref.current.handleKeyboardKey("ArrowRight"); });
+    act(() => { ref.current.handleKeyboardKey("Enter", { shift: true }); });
+    expect(screen.getByTestId("attach-row")).toHaveAttribute("data-arranging", "true");
+    act(() => { ref.current.handleKeyboardKey("Enter"); });
+    expect(readAttachPanelLayout().hidden).toContain("agent");
+    act(() => { ref.current.handleKeyboardKey("Enter"); });
+    expect(readAttachPanelLayout().hidden).not.toContain("agent");
+    expect(current.onSelectSkeletonAgent).not.toHaveBeenCalled();
+    expect(current.onSelectRecipe).not.toHaveBeenCalled();
+  });
+
+  test("normal keyboard navigation can open the icon selector and refresh the library", () => {
+    const heard = []; const unsubscribe = subscribeSkeletonLibraryRefresh(detail => heard.push(detail));
+    const ref = React.createRef(); render(<AttachPanel ref={ref} {...props()} />);
+    act(() => { ref.current.enterKeyboard(); });
+    act(() => { ref.current.handleKeyboardKey("ArrowRight"); });
+    act(() => { ref.current.handleKeyboardKey("Enter"); });
+    expect(screen.getByTestId("select-Agent: Default")).toHaveAttribute("data-open", "true");
+    expect(heard).toEqual([{ reason: "agent_selector_opened" }]); unsubscribe();
+  });
+
+  test("remembered hidden state survives remount and is ignored in character chats", () => {
+    writeAttachPanelLayout({ version: 1, order: MOVABLE_ATTACH_WIDGETS, hidden: ["agent"] });
+    const current = props(); const view = render(<AttachPanel {...current} />);
+    expect(visibleAgent()).toBeNull(); view.unmount();
+    const reopened = render(<AttachPanel {...current} showModelSelector={false} />);
+    expect(screen.queryByTestId("attach-more")).toBeNull();
+    expect(screen.queryByTestId("attach-agent-row")).toBeNull();
+    reopened.rerender(<AttachPanel {...current} />);
+    expect(visibleAgent()).toBeNull();
+    expect(readAttachPanelLayout().hidden).toContain("agent");
+    expect(current.onSelectSkeletonAgent).not.toHaveBeenCalled();
   });
 });

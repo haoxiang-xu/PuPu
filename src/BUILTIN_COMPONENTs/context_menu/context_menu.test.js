@@ -81,6 +81,13 @@ describe("ContextMenu placement", () => {
     open(rows("a"), { x: window.innerWidth - 4, y: 10 });
     expect(parseFloat(panel().style.left)).toBeLessThan(window.innerWidth - 4);
   });
+
+  test("a scrollable menu keeps a long list within the viewport", () => {
+    const items = rows(...Array.from({ length: 60 }, (_, index) => `Field ${index}`));
+    render(<ContextMenu visible x={10} y={H - 20} items={items} onClose={() => {}} isDark={false} scrollable />);
+    expect(panel()).toHaveStyle({ overflowY: "auto", maxHeight: `${H - 16}px`, top: "8px" });
+    expect(screen.getByText("Field 59")).toBeInTheDocument();
+  });
 });
 
 describe("ContextMenu rows", () => {

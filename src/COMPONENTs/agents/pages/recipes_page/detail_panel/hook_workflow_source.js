@@ -10,6 +10,7 @@ import { safe_text } from "../document_values";
 import { embedded_supported, hook_embedded } from "../hooks_pool_config";
 import { new_workflow_document } from "../skeleton_graph_edits";
 import { save_draft } from "../skeleton_resources";
+import { CAPTION_TEXT } from "./panel_style";
 
 /* Which Workflow one hook runs (#357): a pinned published revision, or — only
  * where the host's Hook Workflow contract says the runtime reads it — a
@@ -25,13 +26,13 @@ import { save_draft } from "../skeleton_resources";
  *     new draft resource under an id the author names. It is not published
  *     and the hook keeps running its own copy; nothing is replaced. */
 
-const LABEL = { fontSize: 11, fontWeight: 600, color: "#86868b", textTransform: "uppercase", letterSpacing: 0.4 };
-const NOTE = { fontSize: 10.5, color: "#86868b", lineHeight: 1.45 };
+const LABEL = CAPTION_TEXT;
+const NOTE = { fontSize: 11.5, color: "#86868b", lineHeight: 1.45 };
 const MONO = { fontFamily: "ui-monospace, Menlo, monospace" };
 const ROW = { display: "flex", alignItems: "center", gap: 6 };
-const FIELD = { width: "100%", fontSize: 11.5, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 5 };
-const SMALL = { fontSize: 10.5, paddingVertical: 2, paddingHorizontal: 8, borderRadius: 5 };
-const problem_style = (isDark) => ({ fontSize: 10.5, lineHeight: 1.45, color: isDark ? "rgba(255,140,140,0.95)" : "rgba(176,32,32,0.95)" });
+const FIELD = { width: "100%", fontSize: 12, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 8 };
+const SMALL = { fontSize: 11.5, paddingVertical: 2, paddingHorizontal: 8, borderRadius: 8 };
+const problem_style = (isDark) => ({ fontSize: 11.5, lineHeight: 1.45, color: isDark ? "rgba(255,140,140,0.95)" : "rgba(176,32,32,0.95)" });
 const record = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 const RESOURCE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/;
 
@@ -181,7 +182,7 @@ export default function HookWorkflowSource({ entry, index, nodeId, parentId, pin
               ariaLabel={t("agents.hook_source.open_hook", { value1: safe_text(entry.id) })}
               disabled={!offered || !record(body) || typeof onOpen !== "function"}
               onClick={() => onOpen({ pool_node_id: nodeId, entry_id: entry.id, entry_index: index })}
-              style={{ ...SMALL, color: "#4a5bd8", flexShrink: 0 }}
+              style={{ ...SMALL, color: "var(--pupu-text-muted)", flexShrink: 0 }}
             />
             {!saveAs && (
               <Button

@@ -1,10 +1,10 @@
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
+import PanelHelp from "./panel_help";
 import React, { useState } from "react";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
-import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
-import Select from "../../../../../BUILTIN_COMPONENTs/select/select";
+import Input from "./panel_input";
+import Select from "./panel_select";
 import Switch from "../../../../../BUILTIN_COMPONENTs/input/switch";
-import { BUILDER_SWITCH_SIZE } from "../builder_switch_size";
 import TextField from "../../../../../BUILTIN_COMPONENTs/input/textfield";
 import {
   node_kernel,
@@ -30,6 +30,8 @@ import {
   schema_from_fields,
   why_fields_cannot_hold,
 } from "../output_schema_fields";
+/* The panel's switches are 38×20, a step quieter than the builder's. */
+const BUILDER_SWITCH_SIZE = Object.freeze({ width: 38, height: 20 });
 
 /* JSON Output: what an Agent produces besides its reply.
  *
@@ -245,8 +247,8 @@ export function FieldRow({ field, index, taken, revision, isDark, onChange, onRe
         flexDirection: "column",
         gap: 6,
         padding: "8px 10px",
-        borderRadius: 7,
-        background: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)",
+        borderRadius: 8,
+        background: isDark ? "rgba(255,255,255,0.035)" : "rgba(0,0,0,0.022)",
       }}
     >
       {/* The panel is resizable and there is no global border-box here, so a
@@ -363,6 +365,9 @@ export default function OutputSchemaSection({
   revision,
   isDark,
   onChange,
+  /* The Process panel heads its parts itself: here this is a setting inside
+     Output, so it reads as a line, not as another heading. */
+  quiet = false,
 }) {
   const { t } = useTranslation();
   const schema = node_output_schema(node);
@@ -437,16 +442,14 @@ export default function OutputSchemaSection({
         data-testid="skeleton-output-schema"
         style={{ display: "flex", flexDirection: "column", gap: 8 }}
       >
-        <span style={SECTION_LABEL}>{t("agents.schema.title")}</span>
-        {!has_kernel ? (
-          <span data-testid="schema-no-kernel" style={CAPTION}>
-            {t("agents.schema.no_kernel_caption")}
-          </span>
-        ) : (
-          <span data-testid="schema-no-structured-output" style={CAPTION}>
-            {t("agents.schema.no_structured_output_caption")}
-          </span>
-        )}
+        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <span style={quiet ? { fontSize: 12.5, lineHeight: "18px", color: isDark ? "#c9c9cf" : "#3a3a40" } : SECTION_LABEL}>{t("agents.schema.title")}</span>
+          <PanelHelp label={t("agents.schema.title")}>
+            <span data-testid={!has_kernel ? "schema-no-kernel" : "schema-no-structured-output"}>
+              {t(!has_kernel ? "agents.schema.no_kernel_caption" : "agents.schema.no_structured_output_caption")}
+            </span>
+          </PanelHelp>
+        </div>
       </div>
     );
   }
@@ -503,7 +506,12 @@ export default function OutputSchemaSection({
           alignItems: "center",
         }}
       >
-        <span style={SECTION_LABEL}>{t("agents.schema.title")}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <span style={quiet ? { fontSize: 12.5, lineHeight: "18px", color: isDark ? "#c9c9cf" : "#3a3a40" } : SECTION_LABEL}>{t("agents.schema.title")}</span>
+          {!on && <PanelHelp label={t("agents.schema.title")}>
+            <span data-testid="schema-off">{t("agents.schema.off_caption")}</span>
+          </PanelHelp>}
+        </div>
         <Switch
           on={on}
           set_on={(next) => {
@@ -512,15 +520,9 @@ export default function OutputSchemaSection({
                schema, which would declare an object with no fields. */
             store(next ? EMPTY_SCHEMA : null, null);
           }}
-          style={BUILDER_SWITCH_SIZE}
+          style={quiet ? { width: 38, height: 20 } : BUILDER_SWITCH_SIZE}
         />
       </div>
-
-      {!on && (
-        <span data-testid="schema-off" style={CAPTION}>
-          {t("agents.schema.off_caption")}
-        </span>
-      )}
 
       {on && !held && (
         <span data-testid="schema-not-field-shaped" style={CAPTION}>

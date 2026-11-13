@@ -35,7 +35,7 @@ export default function EndNode({ node, isDark }) {
                   fontSize: 12.5,
                   fontWeight: 600,
                   overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                  color: isDark ? "#f0f0f3" : "#1d1d22",
+                  color: "var(--pupu-text)",
                 }}
               >
                 {node_display_title(node, t("agents.nodes.end"))}
@@ -43,7 +43,7 @@ export default function EndNode({ node, isDark }) {
               <div
                 style={{
                   fontSize: 10.5,
-                  color: isDark ? "#a8a8b0" : "#6b6b73",
+                  color: "var(--pupu-text-muted)",
                   marginTop: 2,
                 }}
               >

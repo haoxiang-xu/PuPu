@@ -30,16 +30,24 @@ def test_saved_shipped_profile_preserves_authentication_through_the_real_main_co
     preset = next(row["provider"] for row in PRESETS if row["provider"]["id"] == slug)
     document = _agent("auth-" + slug)
     profile = _profile(document)
-    profile.update(id="profile." + slug, provider="custom." + slug,
-        credential_ref="custom." + slug, protocol=preset["protocol"],
-        endpoint=preset["base_url"], model=preset["models"][0]["id"], auth_mode=preset["auth"]["mode"])
+    node = shutil.which("node")
+    assert node is not None, "exact-pair acceptance needs the real Main JavaScript consumer"
+    catalog_script = """
+      const { withConfiguredKernelProfiles } = require(process.argv[1]);
+      const result = withConfiguredKernelProfiles({profiles: [], unavailable: []}, () => ({status: 'missing'}));
+      process.stdout.write(JSON.stringify(result.profiles.find(profile => profile.provider === process.argv[2])));
+    """
+    profile.clear()
+    profile.update(json.loads(subprocess.check_output([node, "-e", catalog_script,
+        str(REPO / "electron/main/services/unchain/skeleton_kernel_catalog.js"), f"custom.{slug}"], text=True, timeout=15)))
+    assert profile["endpoint"] == preset["base_url"]
+    assert profile["auth_mode"] == preset["auth"]["mode"]
+    assert profile["model"] == preset["default_model"]
     store, selection, workflows = _frozen(tmp_path, document)
     query = _query(document["id"])
     requirements = requirements_for_start(query, memory_provider="ollama", store=store)
     assert requirements["profiles"] == [{key: profile[key] for key in
         ["id", "credential_ref", "provider", "model", "protocol", "endpoint", "auth_mode"]}]
-    node = shutil.which("node")
-    assert node is not None, "exact-pair acceptance needs the real Main JavaScript consumer"
     javascript = """
       const fs = require('node:fs');
       const m = require(process.argv[1]);

@@ -74,12 +74,12 @@ function Viewer({ node, text, total, isDark, onEdit }) {
         borderRadius: 10,
         overflow: "hidden",
         background: "var(--pupu-surface)",
-        border: isDark ? "1px solid rgba(255,255,255,0.1)" : "1px solid rgba(0,0,0,0.08)",
+        border: "1px solid var(--pupu-border-subtle)",
         boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderBottom: isDark ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(0,0,0,0.08)" }}>
-        <span style={{ fontSize: 11, fontWeight: 600, color: isDark ? "#e6e6e6" : "#222", fontFamily: "ui-monospace, Menlo, monospace" }}>{node_display_title(node, safe_text(node.id))}</span>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderBottom: "1px solid var(--pupu-border-subtle)" }}>
+        <span style={{ fontSize: 11, fontWeight: 600, color: "var(--pupu-text)", fontFamily: "ui-monospace, Menlo, monospace" }}>{node_display_title(node, safe_text(node.id))}</span>
         <span style={{ fontSize: 10.5, color: "var(--pupu-text-muted)" }}>{total === 1
           ? t("agents.nodes.code.viewer_one", { count: total })
           : t("agents.nodes.code.viewer_other", { count: total })}</span>
@@ -104,8 +104,8 @@ export default function CodeNode({ node, isDark, lowZoom = false, onOpenNode, so
   const profile = code && typeof code.environment_profile_id === "string" && code.environment_profile_id ? code.environment_profile_id : null;
   const source = code_source_text(node, recordedSourceOnly ? null : sources, t);
   const preview = source.available ? code_preview(source.text) : null;
-  const muted = isDark ? "#a8a8b0" : "#6b6b73";
-  const text = isDark ? "#f0f0f3" : "#1d1d22";
+  const muted = "var(--pupu-text-muted)";
+  const text = "var(--pupu-text)";
   const [hovered, setHovered] = useState(false);
   /* Two reasons to show it: the pointer is on the button or the viewer, or a
      click pinned it there. */
@@ -181,7 +181,7 @@ export default function CodeNode({ node, isDark, lowZoom = false, onOpenNode, so
         close();
       }}
     >
-      <PuzzleShape tabs={["right"]} cutouts={["left"]} isDark={isDark}>
+      <PuzzleShape tabs={["right"]} cutouts={["left"]} anchor={CODE_PORT_ANCHOR} isDark={isDark}>
         <div style={{ padding: "13px 16px 12px" }}>
           {/* The header is CODE_PORT_ANCHOR tall to its centre line: 13px of
               padding above a 28px glyph. The ports anchor there. */}
@@ -220,7 +220,7 @@ export default function CodeNode({ node, isDark, lowZoom = false, onOpenNode, so
                 boxSizing: "border-box",
                 padding: "6px 8px",
                 borderRadius: 6,
-                background: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.035)",
+                background: "var(--pupu-overlay-ghost)",
                 fontFamily: "ui-monospace, Menlo, monospace",
                 fontSize: 10.5,
                 lineHeight: `${LINE_HEIGHT}px`,
@@ -299,7 +299,7 @@ export default function CodeNode({ node, isDark, lowZoom = false, onOpenNode, so
           {!showBlock && !lowZoom && (
             <div
               data-testid={`code-node-${node.id}-source`}
-              style={{ marginTop: 8, paddingTop: 6, borderTop: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}`, fontSize: 10.5, color: muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+              style={{ marginTop: 8, paddingTop: 6, borderTop: "1px solid var(--pupu-border-subtle)", fontSize: 10.5, color: muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
             >
               {recordedSourceOnly ? (
                 <span title={source.path || ""}>{t("agents.nodes.code.frozen_source", { path: source.path || t("agents.nodes.code.not_recorded") })}</span>

@@ -203,6 +203,9 @@ export default function SkeletonResourcePage({
     convertLegacyPools,
   } = useSkeletonResource();
   const [selectedNodeId, setSelectedNodeId] = useState(null);
+  /* The node the detail panel last showed, so its toggle can bring it back. */
+  const lastShownNodeRef = useRef(null);
+  if (selectedNodeId) lastShownNodeRef.current = selectedNodeId;
   /* The control center's: Home, the Run menu, and an edit the canvas refused. */
   const [homeToken, setHomeToken] = useState(0);
   const [runOpen, setRunOpen] = useState(false);
@@ -922,6 +925,11 @@ export default function SkeletonResourcePage({
     load(session.resource_id);
   };
 
+  const shownNodes = Array.isArray(document?.nodes) ? document.nodes : [];
+  const reopenTarget = shownNodes.some((node) => node?.id === lastShownNodeRef.current)
+    ? lastShownNodeRef.current
+    : shownNodes[0]?.id || null;
+
   return (
     <div ref={pageRef} style={PAGE(isDark)} data-testid="skeleton-resource-page">
       {/* The canvas takes its height by growing (`flex: 1`), so it needs a
@@ -1116,6 +1124,8 @@ export default function SkeletonResourcePage({
           minWidth={detail.minWidth}
           resizing={Boolean(detail.resizing)}
           testId="skeleton-detail-panel-shell"
+          onClose={() => setSelectedNodeId(null)}
+          onOpen={reopenTarget && !pinned && !runViewScope ? () => setSelectedNodeId(reopenTarget) : undefined}
           handle={
             typeof detail.onDragStart === "function"
               ? {

@@ -242,6 +242,26 @@ class KernelProfileDataRulesTest(unittest.TestCase):
 
 
 class OllamaEndpointTest(unittest.TestCase):
+    def test_installed_chat_models_use_local_request_budgets(self):
+        import unchain_adapter as adapter
+
+        catalog = {
+            "known:latest": {"provider": "ollama", "max_context_window_tokens": 2048,
+                             "input_modalities": ["text", "image"]},
+        }
+        with patch.object(adapter, "_load_raw_capability_catalog", return_value=catalog), \
+                patch.object(adapter, "_fetch_ollama_models", return_value=["known:latest", "local:latest"]) as discovered:
+            result = producer.kernel_profiles()
+        discovered.assert_called_once_with(chat_only=True)
+        profiles = {profile["model"]: profile for profile in result["profiles"]}
+        self.assertEqual(set(profiles), {"known:latest", "local:latest"})
+        self.assertEqual(profiles["known:latest"]["output_limit"], 2047)
+        self.assertEqual(profiles["local:latest"]["output_limit"], 4096)
+        self.assertTrue(profiles["known:latest"]["capabilities"]["images"])
+        self.assertFalse(profiles["local:latest"]["capabilities"]["images"])
+        for profile in profiles.values():
+            validate_kernel_config(_probe(profile))
+
     def test_the_configured_host_is_used(self):
         with patch.dict("os.environ", {"OLLAMA_HOST": "http://10.0.0.2:11434/"}):
             self.assertEqual(producer._ollama_endpoint(), "http://10.0.0.2:11434")

@@ -9,6 +9,9 @@ import { RESOURCE_RESULT_KEYS } from "./recipes_page/skeleton_resource_capture";
 import { openAddNode, pressCanvasNode } from "./recipes_page/skeleton_canvas_test_helpers";
 
 jest.mock("../../../SERVICEs/api", () => ({ api: { unchain: {} } }));
+jest.mock("../../../SERVICEs/provider_secret_status", () => ({
+  providerSecretConfigured: (provider) => provider === "openai",
+}));
 /* The editor speaks v2 only (#357 G1); these mocks are graph-only. */
 install_legacy_store_bridge(api.unchain);
 const draft = { id: "native-embedded-page", name: "Embedded authoring" };
@@ -30,7 +33,7 @@ async function chooseModel() {
   pressCanvasNode("agent");
   const models = await screen.findByTestId("kernel-model");
   fireEvent.click(within(models).getByRole("combobox"));
-  fireEvent.click(screen.getByText("openai · gpt-6-luna", { exact: true }));
+  fireEvent.click(within(screen.getByRole("listbox", { hidden: true })).getByText(kernel.profile.model, { exact: true }));
   await screen.findByPlaceholderText("what this Agent is for");
 }
 beforeEach(() => {
@@ -43,9 +46,15 @@ beforeEach(() => {
 });
 afterEach(() => jest.restoreAllMocks());
 
+/* The embedded Agent is the last choice under the pool's one "add" control. */
+function add_embedded() {
+  fireEvent.click(screen.getByRole("button", { name: "+ Add an Agent", exact: true }));
+  fireEvent.click(screen.getByRole("button", { name: "New embedded Agent", exact: true }));
+}
+
 test("create an embedded Agent, open and edit it, then save only the owning resource", async () => {
   await show();
-  fireEvent.click(screen.getByRole("button", { name: "New embedded Agent", exact: true }));
+  add_embedded();
   expect(api.unchain.saveSkeletonResource).not.toHaveBeenCalled();
   expect(screen.getByRole("button", { name: "Open New Agent", exact: true })).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Open New Agent", exact: true }));
@@ -67,8 +76,8 @@ test("create an embedded Agent, open and edit it, then save only the owning reso
 
 test("two locally-created children keep separate graphs and nested creation saves the same parent", async () => {
   await show();
-  fireEvent.click(screen.getByRole("button", { name: "New embedded Agent", exact: true }));
-  fireEvent.click(screen.getByRole("button", { name: "New embedded Agent", exact: true }));
+  add_embedded();
+  add_embedded();
   let payload = await save();
   const entries = payload.document.nodes.at(-1).config.subagents;
   expect(entries.map((e) => e.name)).toEqual(["New Agent", "New Agent 2"]);
@@ -76,7 +85,7 @@ test("two locally-created children keep separate graphs and nested creation save
   fireEvent.click(screen.getByRole("button", { name: "Open New Agent 2", exact: true }));
   openAddNode();
   fireEvent.click(screen.getByTestId("palette-entry-subagent_pool"));
-  fireEvent.click(screen.getByRole("button", { name: "New embedded Agent", exact: true }));
+  add_embedded();
   payload = await save();
   const after = payload.document.nodes.at(-1).config.subagents;
   expect(after[0]).toEqual(entries[0]);
@@ -97,7 +106,7 @@ test("a drilled child checks ancestor graph ids supplied by the owning page", as
   fireEvent.click(screen.getByRole("button", { name: "Open New Agent", exact: true }));
   openAddNode();
   fireEvent.click(screen.getByTestId("palette-entry-subagent_pool"));
-  fireEvent.click(screen.getByRole("button", { name: "New embedded Agent", exact: true }));
+  add_embedded();
   const payload = await save();
   const child = payload.document.nodes.at(-1).config.subagents[0].source.document;
   const grandchild = child.nodes.at(-1).config.subagents[0].source.document;
@@ -109,7 +118,7 @@ test("a drilled child checks ancestor graph ids supplied by the owning page", as
 test("identity creation failure keeps the current graph and does not add or save an entry", async () => {
   await show();
   jest.spyOn(window.crypto, "getRandomValues").mockImplementation(() => { throw new Error("entropy unavailable"); });
-  fireEvent.click(screen.getByRole("button", { name: "New embedded Agent", exact: true }));
+  add_embedded();
   expect(screen.getByRole("alert")).toHaveTextContent("No entry was added");
   expect(screen.queryByTestId("subagent-entry-0")).not.toBeInTheDocument();
   expect(api.unchain.saveSkeletonResource).not.toHaveBeenCalled();

@@ -24,8 +24,8 @@ export default function WorkflowCallNode({ node, isDark }) {
   const version = state && state.status === "ready" ? state.version : null;
   const shape = version ? callee_interface(version.document) : null;
   const name = (version && typeof version.document.name === "string" && version.document.name) || (pin && pin.workflow_id) || null;
-  const muted = isDark ? "#a8a8b0" : "#6b6b73";
-  const text = isDark ? "#f0f0f3" : "#1d1d22";
+  const muted = "var(--pupu-text-muted)";
+  const text = "var(--pupu-text)";
   const subtitle = !pin
     ? t("agents.nodes.workflow_pin")
     : version
@@ -69,7 +69,7 @@ export default function WorkflowCallNode({ node, isDark }) {
             </div>
           </div>
           {(shown.length > 0 || (shape && shape.readable)) && (
-            <div style={{ marginTop: 8, paddingTop: 6, borderTop: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}`, display: "flex", flexDirection: "column", gap: 2 }}>
+            <div style={{ marginTop: 8, paddingTop: 6, borderTop: "1px solid var(--pupu-border-subtle)", display: "flex", flexDirection: "column", gap: 2 }}>
               {shown.map((row) => (
                 <div
                   key={row.key}
@@ -77,7 +77,7 @@ export default function WorkflowCallNode({ node, isDark }) {
                   style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, fontFamily: "ui-monospace, Menlo, monospace", color: text }}
                 >
                   <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{safe_text(row.key)}</span>
-                  <span style={{ marginLeft: "auto", fontSize: 10.5, color: row.bound ? muted : "#d23f37" }}>{row.bound ? t("agents.nodes.set") : t("agents.nodes.missing")}</span>
+                  <span style={{ marginLeft: "auto", fontSize: 10.5, color: row.bound ? muted : "var(--pupu-danger)" }}>{row.bound ? t("agents.nodes.set") : t("agents.nodes.missing")}</span>
                 </div>
               ))}
               {overflow > 0 && <div style={{ fontSize: 10.5, color: muted }}>{t("agents.nodes.more", { count: overflow })}</div>}

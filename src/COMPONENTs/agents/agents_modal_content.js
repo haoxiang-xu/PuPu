@@ -81,6 +81,7 @@ export const AgentsModalContent = ({
   topStripCenter = TOP_STRIP_CENTER,
   explorerSlot = null,
   explorerDocked = false,
+  showSectionSwitch = true,
   onClose,
 }) => {
   const { t } = useTranslation();
@@ -117,6 +118,7 @@ export const AgentsModalContent = ({
           topStripCenter={topStripCenter}
           explorerSlot={explorerSlot}
           explorerDocked={explorerDocked}
+          /* Docked, the way back is the side menu's breadcrumb. */
         />
       ) : (
         <div
@@ -140,35 +142,37 @@ export const AgentsModalContent = ({
         </div>
       )}
 
-      <div
-        style={{
-          position: "absolute",
-          top: topStripCenter,
-          left: "50%",
-          transform: "translate(-50%, -50%)",
-          /* Behind the workflow list and the detail panel: widening either one
-             should cover the switch. */
-          zIndex: AGENTS_MODAL_Z.SECTION_SWITCH,
-          WebkitAppRegion: "no-drag",
-        }}
-      >
-        <SegmentedControl
-          sections={sections}
-          selected={selectedSection}
-          onChange={onSectionChange}
-          isDark={isDark}
-          trackStyle={{
-            background: isDark
-              ? "rgba(20, 20, 20, 0.55)"
-              : "rgba(255, 255, 255, 0.55)",
-            boxShadow: isDark
-              ? "inset 0 0 0 1px rgba(255,255,255,0.08)"
-              : "inset 0 0 0 1px rgba(0,0,0,0.08)",
-            backdropFilter: "blur(16px) saturate(1.4)",
-            WebkitBackdropFilter: "blur(16px) saturate(1.4)",
+      {showSectionSwitch && (
+        <div
+          style={{
+            position: "absolute",
+            top: topStripCenter,
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            /* Behind the workflow list and the detail panel: widening either one
+               should cover the switch. */
+            zIndex: AGENTS_MODAL_Z.SECTION_SWITCH,
+            WebkitAppRegion: "no-drag",
           }}
-        />
-      </div>
+        >
+          <SegmentedControl
+            sections={sections}
+            selected={selectedSection}
+            onChange={onSectionChange}
+            isDark={isDark}
+            trackStyle={{
+              background: isDark
+                ? "rgba(20, 20, 20, 0.55)"
+                : "rgba(255, 255, 255, 0.55)",
+              boxShadow: isDark
+                ? "inset 0 0 0 1px rgba(255,255,255,0.08)"
+                : "inset 0 0 0 1px rgba(0,0,0,0.08)",
+              backdropFilter: "blur(16px) saturate(1.4)",
+              WebkitBackdropFilter: "blur(16px) saturate(1.4)",
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 };

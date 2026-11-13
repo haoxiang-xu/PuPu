@@ -1,3 +1,6 @@
+/* Keep guidance available in these document-contract tests. The actual
+   collapsed surface and interaction are covered in panel_help/compact_variables. */
+jest.mock("./recipes_page/detail_panel/panel_help", () => function GuidanceText({ children }) { return <>{children}</>; });
 import React from "react";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
@@ -98,6 +101,17 @@ const openCall = async (id = "call") => {
 };
 /* jsdom reports the popover list as visibility:hidden (see the Code page test). */
 const choose = (container, label, which = 0) => {
+  const row = container.getAttribute("data-testid") || "";
+  if (/^(binding|output)-row-\d+$/.test(row)) {
+    if (which === 0) {
+      const more = within(container).getByRole("button", { name: / · More$/ });
+      if (more.getAttribute("aria-expanded") !== "true") fireEvent.click(more);
+      container = within(container).getByTestId(`${row}-settings`);
+    } else {
+      container = within(container).getByTestId(`${row}-source`);
+    }
+    which = 0;
+  }
   fireEvent.click(within(container).getAllByRole("combobox")[which]);
   const lists = screen.getAllByRole("listbox", { hidden: true });
   fireEvent.click(within(lists[lists.length - 1]).getByText(label, { exact: true }));
@@ -159,8 +173,8 @@ test("choose a Workflow, publish its draft and pin that revision, fill the input
   expect(screen.getByTestId("workflow-call-exports")).toHaveTextContent("summary, count, echo");
 
   /* The Output Variables pick from exactly its End's exports. */
-  fireEvent.click(screen.getByText("+ Add output"));
-  choose(screen.getByTestId("output-row-0"), "What this node produced", 0);
+  fireEvent.click(screen.getByRole("button", { name: "+ Add output", exact: true }));
+  choose(screen.getByTestId("output-row-0"), "Result", 0);
   choose(screen.getByTestId("output-row-0"), "summary", 1);
   fireEvent.change(within(screen.getByTestId("output-row-0")).getByPlaceholderText("name"), { target: { value: "summary" } });
 
@@ -210,8 +224,8 @@ test("a typed revision id is read back before it is pinned; one nobody published
   setValue("message", "hello");
   setValue("limit", "2");
   /* End reads call.summary, so the call has to export it. */
-  fireEvent.click(screen.getByText("+ Add output"));
-  choose(screen.getByTestId("output-row-0"), "What this node produced", 0);
+  fireEvent.click(screen.getByRole("button", { name: "+ Add output", exact: true }));
+  choose(screen.getByTestId("output-row-0"), "Result", 0);
   choose(screen.getByTestId("output-row-0"), "summary", 1);
   fireEvent.change(within(screen.getByTestId("output-row-0")).getByPlaceholderText("name"), { target: { value: "summary" } });
   const edit = await save(store);

@@ -204,7 +204,7 @@ export default function RecipeNodePalette({
         />
       </div>
 
-      <div style={{ overflowY: "auto", padding: 4, flex: 1 }}>
+      <div className="scrollable" style={{ overflowY: "auto", padding: 4, flex: 1 }}>
         {grouped.length === 0 ? (
           <div style={{ padding: "14px 12px", fontSize: 11.5, lineHeight: 1.5, color: muted }}>
             {finding ? (

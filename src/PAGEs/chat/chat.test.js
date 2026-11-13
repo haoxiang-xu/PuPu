@@ -1947,7 +1947,9 @@ describe("ChatInterface stop flow", () => {
       </ThemeContext.Provider>,
     );
 
-    expect(chatSurface.style.left).toBe("320px");
+    /* The offset is var(--pupu-side-menu-width, 320px) (sideMenuWidthCss,
+       tested in side_menu_width.test.js); jsdom rejects var() in a style
+       property, so only the transition is observable here. */
     expect(chatSurface.style.transition).toBe("left 0.3s ease");
   });
 

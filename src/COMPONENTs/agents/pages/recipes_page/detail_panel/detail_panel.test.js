@@ -43,7 +43,7 @@ describe("DetailPanel shell", () => {
     expect(body(container)).toHaveClass("scrollable");
     expect(body(container)).toHaveAttribute("data-sb-wall", "4");
     expect(body(container)).toHaveAttribute("data-sb-edge", "2");
-    expect(body(container)).toHaveAttribute("data-sb-edge-top", "36");
+    expect(body(container)).toHaveAttribute("data-sb-edge-top", "4");
     expect(body(container)).toHaveAttribute("data-sb-edge-bottom", "12");
 
     expect(shell(container)).not.toHaveClass("scrollable");

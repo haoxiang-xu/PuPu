@@ -37,6 +37,14 @@ const RailItem = ({
   onPick,
 }) => {
   const [hovered, setHovered] = useState(false);
+  const itemRef = useRef(null);
+  useEffect(() => {
+    const item = itemRef.current;
+    const rail = item?.parentElement;
+    if (active && rail?.scrollHeight > rail?.clientHeight) {
+      item.scrollIntoView?.({ block: "nearest" });
+    }
+  }, [active]);
   /* Anti-impersonation marker: a user-defined ("custom") provider carries a
      is_custom / badge flag. A built-in provider never does. Surfacing it here
      — the group's visual identity in rail mode — means a shared config named
@@ -50,6 +58,7 @@ const RailItem = ({
       : "";
   return (
     <div
+      ref={itemRef}
       title={badgeText ? `${group.group} (${badgeText})` : group.group}
       onMouseDown={(e) => e.preventDefault()}
       onClick={onPick}
@@ -59,6 +68,7 @@ const RailItem = ({
         position: "relative",
         width: 34,
         height: 34,
+        minHeight: 30,
         borderRadius: 12,
         display: "flex",
         alignItems: "center",
@@ -956,6 +966,7 @@ const Select = ({
   const [pressed, setPressed] = useState(false);
   const dropdownPanelRef = useRef(null);
   const dropdownListRef = useRef(null);
+  const providerRailRef = useRef(null);
 
   const hook = useSelect({
     options,
@@ -996,7 +1007,7 @@ const Select = ({
     handle_query_change,
   } = hook;
 
-  useDropdownWheelGuard(mergedOpen, dropdownPanelRef, dropdownListRef);
+  useDropdownWheelGuard(mergedOpen, dropdownPanelRef, dropdownListRef, providerRailRef);
 
   useEffect(() => {
     if (!disabled) return;
@@ -1236,7 +1247,7 @@ const Select = ({
   const rail_pick_group = (target) => {
     (options || []).forEach((item) => {
       if (!item || typeof item !== "object" || !item.group) return;
-      const shouldCollapse = item.group !== target;
+      const shouldCollapse = group_toggle_key(item) !== target;
       if (!!item.collapsed !== shouldCollapse) {
         on_group_toggle(group_toggle_key(item));
       }
@@ -1270,7 +1281,7 @@ const Select = ({
           Array.isArray(g.options) &&
           g.options.some((o) => o?.value === selectedValue),
       ) || groups[0];
-    rail_pick_group(holder.group);
+    rail_pick_group(group_toggle_key(holder));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isRail, mergedOpen, options, selectedValue]);
 
@@ -1314,7 +1325,7 @@ const Select = ({
       );
       const delta = e.key === "ArrowDown" ? 1 : -1;
       const next = (activeIdx + delta + groups.length) % groups.length;
-      rail_pick_group(groups[next].group);
+      rail_pick_group(group_toggle_key(groups[next]));
       return;
     }
     if (e.key === "ArrowRight" || e.key === "Enter" || e.key === "Escape") {
@@ -1424,12 +1435,17 @@ const Select = ({
           {/* provider rail — active gets the highlight + accent bar; the
               provider holding the current selection carries a green dot */}
           <div
+            ref={providerRailRef}
             style={{
               width: 40,
               flexShrink: 0,
               display: "flex",
               flexDirection: "column",
               gap: 4,
+              minHeight: 0,
+              overflowY: "auto",
+              overscrollBehaviorY: "contain",
+              scrollbarWidth: "none",
               paddingRight: 5,
               marginRight: 7,
               borderRight: "1px solid rgba(var(--pupu-text-rgb),0.06)",
@@ -1437,7 +1453,7 @@ const Select = ({
           >
             {filteredGroups.map((g) => (
               <RailItem
-                key={g.group}
+                key={group_toggle_key(g)}
                 group={g}
                 active={!railQueryActive && !g.collapsed}
                 dimmed={railQueryActive}
@@ -1450,7 +1466,7 @@ const Select = ({
                 baseColor={baseColor}
                 fontFamily={fontFamily}
                 isDark={isDark}
-                onPick={() => rail_pick_group(g.group)}
+                onPick={() => rail_pick_group(group_toggle_key(g))}
               />
             ))}
           </div>

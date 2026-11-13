@@ -1,12 +1,27 @@
 import ShadowSurface from "../../../../BUILTIN_COMPONENTs/material/shadow_surface";
 import { useSurfaceComposite } from "../../../../BUILTIN_COMPONENTs/material/surface_composite";
-import React from "react";
+import React, { useContext } from "react";
+import { createPortal } from "react-dom";
+import { NavigationContext } from "../../../../CONTAINERs/config/context";
+import { SURFACE_DITHER_STYLE } from "../../../../BUILTIN_COMPONENTs/material/surface_dither";
+import { SIDEBAR_GLASS_FILTER } from "../../../../CONTAINERs/config/theme_semantic";
 import Button from "../../../../BUILTIN_COMPONENTs/input/button";
 import usePresentationPlatform from "../../../../BUILTIN_COMPONENTs/mini_react/use_presentation_platform";
 import { AGENTS_MODAL_Z } from "../../top_strip";
 import PanelResizeHandle from "./panel_resize_handle";
 import { useTranslation } from "../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { renderAgentMessage } from "./agents_i18n";
+import { TOP_BAR_HEIGHT } from "../../../../BUILTIN_COMPONENTs/electron/title_bar";
+import WindowControls, { windowControlsInset } from "../../../../BUILTIN_COMPONENTs/electron/window_controls";
+import { windowStateBridge } from "../../../../SERVICEs/bridges/window_state_bridge";
+
+const hasWindowControls = () =>
+  typeof window !== "undefined" &&
+  window.runtime?.isElectron === true &&
+  windowStateBridge.isActionAvailable();
+
+/* Live width shared by the floating and docked detail panels. */
+export const DETAIL_WIDTH_VAR = "--pupu-agents-detail-drag-width";
 
 /* The builder's chrome, shared by both canvases.
  *
@@ -30,8 +45,10 @@ export const ABOVE_CONTROLS = 62;
 
 export function overlay_tokens(isDark) {
   return {
-    background: isDark ? "rgba(20, 20, 20, 0.72)" : "rgba(255, 255, 255, 0.78)",
-    border: isDark ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(0,0,0,0.08)",
+    background: isDark
+      ? "rgba(var(--pupu-surface-rgb, 20, 20, 20), 0.72)"
+      : "rgba(var(--pupu-surface-rgb, 255, 255, 255), 0.78)",
+    border: "1px solid var(--pupu-border-subtle, transparent)",
     backdrop: "blur(16px) saturate(1.4)",
     shadow: isDark ? "0 8px 32px rgba(0,0,0,0.5)" : "0 8px 32px rgba(0,0,0,0.1)",
     controlShadow: isDark ? "0 4px 24px rgba(0,0,0,0.4)" : "0 4px 24px rgba(0,0,0,0.08)",
@@ -61,7 +78,7 @@ const Divider = ({ isDark }) => (
       width: 1,
       height: 18,
       margin: "0 2px",
-      backgroundColor: isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)",
+      backgroundColor: "var(--pupu-border-subtle)",
     }}
   />
 );
@@ -103,6 +120,7 @@ export function CanvasControlCenter({
         borderRadius: 12,
         ...glass(tokens),
         boxShadow: tokens.controlShadow,
+        color: "var(--pupu-text)",
       }}
     >
       <span title={undoHint} style={{ display: "inline-flex" }}>
@@ -113,7 +131,7 @@ export function CanvasControlCenter({
       </span>
       <span title={t("agents.canvas.center")} style={{ display: "inline-flex" }}>
         <Button
-          prefix_icon="home"
+          prefix_icon="home_door"
           onClick={onHome}
           style={{
             fontSize: 12,
@@ -141,8 +159,8 @@ export function CanvasControlCenter({
           paddingVertical: 5,
           paddingHorizontal: 14,
           borderRadius: 7,
-          backgroundColor: saveActive ? "#4a5bd8" : "transparent",
-          color: saveActive ? "#fff" : isDark ? "#ddd" : "#333",
+          backgroundColor: saveActive ? "var(--pupu-accent)" : "transparent",
+          color: saveActive ? "#fff" : "var(--pupu-text)",
           opacity: saveActive ? 1 : 0.5,
         }}
       />
@@ -189,7 +207,7 @@ export function ControlPopover({ isDark, testId, children, width = 320 }) {
         borderRadius: 12,
         ...glass(tokens),
         boxShadow: tokens.shadow,
-        color: isDark ? "#e6e6ea" : "#222",
+        color: "var(--pupu-text)",
         display: "flex",
         flexDirection: "column",
         gap: 8,
@@ -289,14 +307,14 @@ export function FloatingBreadcrumb({
             paddingVertical: 2,
             paddingHorizontal: 6,
             borderRadius: 5,
-            color: isDark ? "#c9c9d1" : "#55555d",
+            color: "var(--pupu-text-muted)",
           }}
         />
       ) : (
         <span
           style={{
             padding: "2px 6px",
-            color: isDark ? "#f0f0f3" : "#1d1d22",
+            color: "var(--pupu-text)",
             opacity: index === list.length - 1 ? 1 : 0.55,
             overflow: "hidden",
             textOverflow: "ellipsis",
@@ -395,12 +413,237 @@ export function FloatingDetailShell({
   resizing,
   testId,
   handle,
+  onClose,
+  onOpen,
+  children,
+}) {
+  /* In the Agents workspace the panel is the window's right side menu: full
+     height, one flat colour like the left one, rendered into the anchor the
+     app shell keeps at the window's right edge. Anywhere else (no anchor) it
+     stays the floating glass card. */
+  const { agentsDetailSlot: dockSlot, appMode } = useContext(NavigationContext) || {};
+  if (dockSlot) {
+    // Popovers can portal outside the detail host, so remove the inspector
+    // while Chat is active. The Builder keeps the document and selection.
+    if (appMode === "chat") return null;
+    return createPortal(
+      <DockedDetailPanel
+        isDark={isDark}
+        open={open}
+        width={width}
+        minWidth={minWidth}
+        resizing={resizing}
+        testId={testId}
+        handle={handle}
+        onClose={onClose}
+        onOpen={onOpen}
+      >
+        {children}
+      </DockedDetailPanel>,
+      dockSlot,
+    );
+  }
+  return (
+    <FloatingDetailCard
+      isDark={isDark}
+      open={open}
+      width={width}
+      minWidth={minWidth}
+      resizing={resizing}
+      testId={testId}
+      handle={handle}
+    >
+      {children}
+    </FloatingDetailCard>
+  );
+}
+
+const SLIDE = "0.25s cubic-bezier(0.32,1,0.32,1)";
+
+function DockedDetailPanel({
+  isDark,
+  open,
+  width,
+  minWidth,
+  resizing,
+  testId,
+  handle,
+  onClose,
+  onOpen,
+  children,
+}) {
+  const { t } = useTranslation();
+  const platform = usePresentationPlatform();
+  const liveWidth = `var(${DETAIL_WIDTH_VAR}, ${width}px)`;
+  const sidebarFallback = isDark ? "#151515" : "rgb(245, 245, 245)";
+  const backgroundColor = resizing
+    ? `var(--pupu-sidebar, ${sidebarFallback})`
+    : `var(--pupu-sidebar-glass, ${sidebarFallback})`;
+  const backdropFilter = resizing ? "none" : SIDEBAR_GLASS_FILTER;
+  /* The left side menu's frost, through the same compositing pass. */
+  const surface = useSurfaceComposite({ backgroundColor, backdropFilter, enabled: !resizing });
+  /* On macOS the toggle is one element pinned to the window's right edge, in
+     the title bar band, outside the sliding panel, like the left side menu's
+     toggle: it never moves or remounts, only its glyph changes, solid while
+     the panel is open and hollow while it is closed. Elsewhere the window
+     buttons own that corner, so the close button rides in the band's inner
+     end and the panel reopens from the canvas. */
+  const pinnedRight = platform === "darwin";
+  const canClose = typeof onClose === "function";
+  const canOpen = typeof onOpen === "function";
+  const glyph = (icon, label, onClick, disabled, testid) => (
+    <div style={{ transform: "scaleX(-1)", display: "flex" }}>
+      <Button
+        prefix_icon={icon}
+        ariaLabel={label}
+        disabled={disabled}
+        onClick={onClick}
+        dom_props={{ "data-testid": testid }}
+        style={{ fontSize: 14, color: "var(--pupu-text)", WebkitAppRegion: "no-drag" }}
+      />
+    </div>
+  );
+  const pinnedShown = open ? canClose : canOpen;
+  const pinnedToggle = pinnedRight && (canClose || canOpen) && (
+    <div data-testid={`${testId}-toggle`} style={{
+      position: "absolute",
+      top: TOP_BAR_HEIGHT / 2,
+      right: TOP_BAR_HEIGHT / 2,
+      transform: "translate(50%, -50%)",
+      opacity: pinnedShown ? 1 : 0,
+      pointerEvents: pinnedShown ? "auto" : "none",
+      WebkitAppRegion: "no-drag",
+    }}>
+      {open
+        ? glyph("side_menu_close", t("common.close"), onClose, !canClose, `${testId}-close`)
+        : glyph("side_menu_left", t("agents.editor.show_details"), onOpen, !canOpen, `${testId}-open`)}
+    </div>
+  );
+  const closeButton = !pinnedRight && canClose && (
+    <div style={{
+      position: "absolute",
+      top: TOP_BAR_HEIGHT / 2,
+      left: TOP_BAR_HEIGHT / 2,
+      transform: "translate(-50%, -50%)",
+      opacity: open ? 1 : 0,
+      pointerEvents: open ? "auto" : "none",
+      transition: `opacity ${SLIDE}`,
+      WebkitAppRegion: "no-drag",
+    }}>
+      {glyph("side_menu_close", t("common.close"), onClose, !open, `${testId}-close`)}
+    </div>
+  );
+  return (
+    <>
+      {surface.definition}
+      <div
+        data-testid={testId}
+        data-docked="true"
+        /* Portalled out of the canvas, so the canvas's own inert boundary
+           (run view) no longer covers it: a closed panel shuts itself. */
+        inert={open ? undefined : true}
+        aria-hidden={open ? undefined : true}
+        style={{
+          position: "absolute",
+          /* The colour runs the full height, like the left side menu; the
+             content starts below the title bar band, which keeps this
+             panel's close button (and on Windows / Linux the window
+             buttons) on every platform alike. */
+          top: 0,
+          right: 0,
+          bottom: 0,
+          width: liveWidth,
+          minWidth,
+          /* The same see-through sidebar colour as the left side menu,
+             calibrated to land on the theme's sidebar colour. */
+          /* Portalled out of the workspace, it no longer inherits the
+             workspace's text colour: anything without its own colour fell
+             back to the page default, black even in dark mode. */
+          color: "var(--pupu-text)",
+          backgroundColor,
+          ...(!resizing && SURFACE_DITHER_STYLE),
+          backdropFilter,
+          WebkitBackdropFilter: backdropFilter,
+          ...surface.style,
+          overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
+          transform: open ? "translateX(0)" : "translateX(100%)",
+          transition: resizing ? "none" : `transform ${SLIDE}`,
+          pointerEvents: open ? "auto" : "none",
+          WebkitAppRegion: "no-drag",
+        }}
+      >
+        <div
+          data-testid={`${testId}-band`}
+          style={{
+            position: "relative",
+            height: TOP_BAR_HEIGHT,
+            flexShrink: 0,
+            /* Still the window's title bar: it drags the window. */
+            WebkitAppRegion: "drag",
+          }}
+        >
+          {closeButton}
+          {/* The panel's colour covers the title bar's window buttons, so
+              it carries its own while open. */}
+          {platform !== "darwin" && hasWindowControls() && (
+            <WindowControls
+              style={{
+                position: "absolute",
+                top: "50%",
+                right: windowControlsInset(platform === "linux"),
+                transform: "translateY(-50%)",
+              }}
+            />
+          )}
+        </div>
+        {children}
+      </div>
+      {pinnedToggle}
+      {handle && (
+        <PanelResizeHandle
+          testId={handle.testId}
+          isDark={isDark}
+          pillTestId={handle.pillTestId}
+          visible={Boolean(open)}
+          style={{
+            /* Like the left side menu's: inside the panel, against its
+               inner edge, and over the full height (title bar band
+               included), so the pill sits at the panel's true middle. */
+            top: 0,
+            bottom: 0,
+            right: `calc(${liveWidth} - 12px)`,
+            /* Rides with the panel: the same slide, so it travels in and
+               out with it instead of appearing at its place. */
+            transform: open ? "translateX(0)" : `translateX(${liveWidth})`,
+            transition: resizing ? "none" : `transform ${SLIDE}, opacity ${SLIDE}`,
+          }}
+          onDragStart={handle.onDragStart}
+          onDrag={handle.onDrag}
+          onDragEnd={handle.onDragEnd}
+        />
+      )}
+    </>
+  );
+}
+
+function FloatingDetailCard({
+  isDark,
+  open,
+  width,
+  minWidth,
+  resizing,
+  testId,
+  handle,
   children,
 }) {
   const tokens = overlay_tokens(isDark);
+  const liveWidth = resizing ? `var(${DETAIL_WIDTH_VAR}, ${width}px)` : width;
   const surface = useSurfaceComposite({
     backgroundColor: tokens.background,
     backdropFilter: tokens.backdrop,
+    enabled: open && !resizing,
   });
   return (
     <>
@@ -411,15 +654,20 @@ export function FloatingDetailShell({
           zIndex: AGENTS_MODAL_Z.PANEL,
           borderRadius: 10,
           ...glass(tokens),
+          ...(resizing && {
+            backgroundColor: "var(--pupu-surface)",
+            backdropFilter: "none",
+            WebkitBackdropFilter: "none",
+          }),
           ...surface.style,
-          boxShadow: tokens.shadow,
+          boxShadow: resizing ? "none" : tokens.shadow,
           overflow: "hidden",
           display: "flex",
           flexDirection: "column",
           top: PANEL_INSET,
           right: PANEL_INSET,
           bottom: PANEL_INSET,
-          width,
+          width: liveWidth,
           minWidth,
           opacity: open ? 1 : 0,
           transform: open ? "translateX(0)" : "translateX(12px)",
@@ -441,7 +689,9 @@ export function FloatingDetailShell({
           style={{
             top: PANEL_INSET,
             bottom: PANEL_INSET,
-            right: PANEL_INSET + width + HANDLE_GAP,
+            right: resizing
+              ? `calc(${liveWidth} + ${PANEL_INSET + HANDLE_GAP}px)`
+              : PANEL_INSET + width + HANDLE_GAP,
           }}
           onDragStart={handle.onDragStart}
           onDrag={handle.onDrag}

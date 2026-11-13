@@ -63,3 +63,21 @@ test("rail keyboard: ArrowLeft then ArrowDown switches provider", () => {
   expect(listbox().queryByText("qwen")).not.toBeInTheDocument();
   expect(listbox().getByText("gpt-5")).toBeInTheDocument();
 });
+
+test("providers with the same display name switch by provider identity", () => {
+  const DuplicateNames = () => {
+    const [collapsed, setCollapsed] = useState({ native: false, custom: true });
+    return <Select open variant="palette" palette_rail filterable filter_mode="panel"
+      options={[
+        { group: "Shared", group_key: "native", collapsed: collapsed.native, options: [{ value: "a", label: "Native model" }] },
+        { group: "Shared", group_key: "custom", collapsed: collapsed.custom, is_custom: true, options: [{ value: "b", label: "Custom model" }] },
+      ]}
+      value="a" set_value={() => {}} on_open_change={() => {}}
+      on_group_toggle={(key) => setCollapsed((previous) => ({ ...previous, [key]: !previous[key] }))} />;
+  };
+  render(<DuplicateNames />);
+  fireEvent.click(screen.getByTitle("Shared (Custom)"));
+  const listbox = within(screen.getByRole("listbox"));
+  expect(listbox.queryByText("Native model")).not.toBeInTheDocument();
+  expect(listbox.getByText("Custom model")).toBeInTheDocument();
+});

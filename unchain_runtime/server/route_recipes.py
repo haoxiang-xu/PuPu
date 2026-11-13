@@ -29,7 +29,15 @@ def list_agent_recipes():
         return root._json_error("unauthorized", "Unauthorized", 401)
     try:
         from recipe_loader import list_recipes
+        from skeleton_resource_store import SkeletonResourceStore
         recipes = list_recipes()
+        with SkeletonResourceStore()._connect() as connection:
+            deleted = {row['legacy_name'] for row in connection.execute("""
+                SELECT a.legacy_name FROM legacy_aliases a JOIN store_meta m
+                ON m.key='deleted_resource:' || a.target_id
+                WHERE a.source_scope='user:agent_recipes'
+            """)}
+        recipes = [recipe for recipe in recipes if recipe['name'] not in deleted]
         return jsonify({"recipes": recipes, "count": len(recipes)})
     except Exception:
         _logger.exception("[route_recipes] list failed")

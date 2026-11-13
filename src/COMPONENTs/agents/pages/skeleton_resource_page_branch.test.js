@@ -17,6 +17,9 @@ import { RESOURCE_RESULT_KEYS } from "./recipes_page/skeleton_resource_capture";
  * for the strict store + runtime consumer (qualify_branch_page.py). */
 
 jest.mock("../../../SERVICEs/api", () => ({ api: { unchain: {} } }));
+jest.mock("../../../SERVICEs/provider_secret_status", () => ({
+  providerSecretConfigured: (provider) => provider === "openai",
+}));
 /* The editor speaks v2 only (#357 G1); these mocks are graph-only. */
 install_legacy_store_bridge(api.unchain);
 
@@ -65,6 +68,33 @@ const deleteEdge = (id) => {
    so the open list is found with `hidden: true` — the most recently opened
    one is the last in the document. */
 const choose = (container, label, which = 0) => {
+  const row = container.getAttribute("data-testid") || "";
+  if (/-alt-\d+$/.test(row) && !within(container).queryByRole("combobox")) {
+    /* A first-of-several source drawn as a pill picks from its menu, where an
+       option is the node and the field side by side. */
+    const [node, name] = label.replace(/ — only if its branch ran$/, "").split(" · ");
+    fireEvent.click(within(container).getAllByRole("button")[0]);
+    const options = screen.getAllByText((_, el) => el?.tagName === "SPAN" && el.children.length === 2
+      && el.textContent === `${node}${name}`);
+    fireEvent.click(options[options.length - 1]);
+    return;
+  }
+  if (/^(binding|output)-row-\d+$/.test(row)) {
+    /* A row drawn as one filled pill picks from the menu under its value. */
+    if (which === 0 && !within(container).queryByRole("button", { name: / · More$/ })) {
+      fireEvent.click(within(container).getByRole("textbox", { name: /^(?!name$).+/ }));
+      fireEvent.click(screen.getByText(label, { exact: true }));
+      return;
+    }
+    if (which === 0) {
+      const more = within(container).getByRole("button", { name: / · More$/ });
+      if (more.getAttribute("aria-expanded") !== "true") fireEvent.click(more);
+      container = within(container).getByTestId(`${row}-settings`);
+    } else {
+      container = within(container).getByTestId(`${row}-source`);
+    }
+    which = 0;
+  }
   fireEvent.click(within(container).getAllByRole("combobox")[which]);
   const lists = screen.getAllByRole("listbox", { hidden: true });
   fireEvent.click(within(lists[lists.length - 1]).getByText(label, { exact: true }));
@@ -100,7 +130,7 @@ test("If / Else: add, bind, write the condition, wire both outlets and a rejoin,
   expect(port("if", "false")).not.toBeNull();
   drag("router", "out", "if", "in");
 
-  fireEvent.click(screen.getByText("+ Add input"));
+  fireEvent.click(screen.getByRole("button", { name: "+ Add input", exact: true }));
   fireEvent.change(within(screen.getByTestId("binding-row-0")).getByPlaceholderText("name"), { target: { value: "reply" } });
   fireEvent.click(screen.getByRole("button", { name: "+ Add a condition" }));
   fireEvent.change(within(screen.getByTestId("condition-root-right-literal-text")).getByPlaceholderText("text"), { target: { value: "yes" } });
@@ -109,12 +139,14 @@ test("If / Else: add, bind, write the condition, wire both outlets and a rejoin,
 
   await add("agent");
   fireEvent.click(within(await screen.findByTestId("kernel-model")).getByRole("combobox"));
-  fireEvent.click(screen.getByText("openai · gpt-6-luna", { exact: true }));
+  fireEvent.click(within(screen.getByRole("listbox", { hidden: true })).getByText(profile.model, { exact: true }));
   fireEvent.change(await screen.findByPlaceholderText("what this Agent is for"), { target: { value: "[yes-branch]" } });
-  fireEvent.click(screen.getByText("+ Add output"));
-  choose(screen.getByTestId("output-row-0"), "What this node produced", 0);
-  choose(screen.getByTestId("output-row-0"), "message", 1);
-  fireEvent.change(within(screen.getByTestId("output-row-0")).getByPlaceholderText("name"), { target: { value: "message" } });
+  fireEvent.click(screen.getByRole("button", { name: "Output Variables", exact: true }));
+  fireEvent.click(screen.getByRole("button", { name: "+ Add output", exact: true }));
+  const output = within(screen.getByTestId("output-row-0"));
+  fireEvent.click(output.getByRole("button", { name: "Inputs" }));
+  fireEvent.click(screen.getByText("message", { exact: true, selector: "span" }));
+  fireEvent.change(output.getByPlaceholderText("name"), { target: { value: "message" } });
 
   drag("if", "true", "agent", "in");
   drag("agent", "out", "end", "in");
@@ -159,7 +191,7 @@ test("Switch / Case: cases keep their outlets through rename and reorder; removi
   await add("switch_case");
   await screen.findByTestId("branch-section");
   drag("router", "out", "switch", "in");
-  fireEvent.click(screen.getByText("+ Add input"));
+  fireEvent.click(screen.getByRole("button", { name: "+ Add input", exact: true }));
   fireEvent.change(within(screen.getByTestId("binding-row-0")).getByPlaceholderText("name"), { target: { value: "reply" } });
   choose(screen.getByTestId("branch-switch-value-pick"), "reply");
   fireEvent.click(screen.getByRole("button", { name: "+ Add a case" }));

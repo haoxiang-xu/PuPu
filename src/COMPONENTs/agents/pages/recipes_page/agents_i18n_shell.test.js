@@ -11,15 +11,18 @@ const chineseTranslator = () => renderHook(() => useTranslation(), {
   wrapper: ({ children }) => <LocaleContext.Provider value={{ locale: "zh-CN" }}>{children}</LocaleContext.Provider>,
 }).result.current.t;
 
-test("translated resource menus keep dirty/default protections and exact callback identities", () => {
+test("translated resource menus allow Delete for Default and keep exact callback identities", () => {
   const node = Object.freeze({ kind: "resource", id: "resource-原样", name: "agents.save.saved",
     active: true, is_default: true });
-  const options = { node, activeDirty: true, onDuplicate: jest.fn(), onStartRename: jest.fn(), onArchive: jest.fn() };
+  const options = { node, activeDirty: true, onDuplicate: jest.fn(), onStartRename: jest.fn(), onDeleteResource: jest.fn() };
   const before = JSON.stringify(node);
   const items = buildAgentExplorerMenuItems(options, chineseTranslator());
-  expect(items.map((x) => x.label).filter(Boolean)).toEqual(["重命名", "复制", "归档"]);
+  expect(items.map((x) => x.label).filter(Boolean)).toEqual(["重命名", "复制", "删除"]);
   expect(items[0]).toMatchObject({ disabled: true, trail: "请先保存" });
-  expect(items[3]).toMatchObject({ disabled: true, trail: "聊天默认" });
+  expect(items[3]).toMatchObject({ danger: true });
+  expect(items[3].disabled).not.toBe(true);
+  items[3].onClick();
+  expect(options.onDeleteResource).toHaveBeenCalledWith(node);
   expect(options.onDuplicate).not.toHaveBeenCalled();
   items[1].onClick();
   expect(options.onDuplicate).toHaveBeenCalledTimes(1);

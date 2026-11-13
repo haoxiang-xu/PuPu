@@ -6,7 +6,7 @@ const { createSkeletonResourceReply } = require('../../shared/skeleton_resource_
 const fixture = require('../fixtures/managed_transfer_producer.json');
 const clone = value => JSON.parse(JSON.stringify(value));
 
-const ready = async () => {
+const ready = async (settingsStorageService) => {
   const proc = new EventEmitter(); proc.stdout = new EventEmitter(); proc.stderr = new EventEmitter(); proc.killed = false;
   proc.kill = jest.fn(() => { proc.killed = true; proc.emit('exit', 0, null); return true; });
   const net = { createServer: () => { const handlers = {}; return { once: (event, fn) => { handlers[event] = fn; }, listen: () => handlers.listening?.(), close: fn => fn?.() }; } };
@@ -15,7 +15,7 @@ const ready = async () => {
   }, session_guard_migration: { schema: 'pupu.session-guard-migration', version: 1, status: 'ready', protocol_version: 1 } }) }));
   const service = createUnchainService({ app: { isPackaged: false, getAppPath: () => '/app', getPath: () => '/tmp/pupu', getVersion: () => '0.1.12' },
     fs: { existsSync: () => true }, path, spawn: () => proc, spawnSync: () => ({ status: 0, stdout: JSON.stringify({ ok: true, major: 3, minor: 12, missing: [] }) }),
-    crypto: { randomBytes: () => ({ toString: () => 'qa-auth-token' }) }, net,
+    crypto: { randomBytes: () => ({ toString: () => 'qa-auth-token' }) }, net, settingsStorageService,
     runtimeService: { validateWorkspaceRootPath: () => ({ valid: true, resolvedPath: '/workspace' }) }, getAppIsQuitting: () => false });
   process.env.UNCHAIN_PYTHON_BIN = '/usr/bin/python3.12';
   await service.startMiso();
@@ -35,6 +35,32 @@ afterEach(() => { if (previousMode === undefined) delete process.env.PUPU_MEMORY
 test('fixed importer and exporter preserve the exact payload', () => {
   expect(buildSkeletonResourceRequest('code_import', fixture.request)).toEqual({ method: 'POST', path: '/skeleton_resources/v2/import', body: fixture.request });
   expect(buildSkeletonResourceRequest('code_export', { resource_id: fixture.snapshot.document.id })).toEqual({ method: 'GET', path: `/skeleton_resources/v2/${fixture.snapshot.document.id}/export` });
+});
+
+test('Delete crosses preload and Main once with a closed CAS body', async () => {
+  const service = await ready();
+  global.fetch = jest.fn(async (url) => new URL(url).pathname.endsWith('/capabilities')
+    ? response(fixture.code_capabilities) : response({ ok: true }));
+  try {
+    const bridge = createMisoBridge({ invoke: (_channel, command) => createSkeletonResourceReply(
+      () => service.runMisoSkeletonResourceCommand(command.action, command.payload)) }, {});
+    expect(await bridge.deleteSkeletonResource('delete-me', 'edit-current')).toEqual({ ok: true });
+    expect(global.fetch.mock.calls.map(([url, init]) => [new URL(url).pathname, init.method])).toEqual([
+      ['/skeleton_resources/v2/capabilities', 'GET'], ['/skeleton_resources/v2/delete-me', 'DELETE']]);
+    expect(JSON.parse(global.fetch.mock.calls[1][1].body)).toEqual({ expected_edit_token: 'edit-current' });
+    expect(global.fetch.mock.calls[1][1].headers['x-unchain-auth']).toBe('qa-auth-token');
+  } finally { service.stopMiso(); }
+});
+
+test.each([{ ok: false }, { ok: true, archived: true }, {}])('Delete refuses an ambiguous success reply %j', async reply => {
+  const service = await ready();
+  global.fetch = jest.fn(async (url) => new URL(url).pathname.endsWith('/capabilities')
+    ? response(fixture.code_capabilities) : response(reply));
+  try {
+    await expect(service.runMisoSkeletonResourceCommand('code_delete', {
+      resource_id: 'delete-me', expected_edit_token: 'edit-current',
+    })).rejects.toMatchObject({ code: 'managed_source_protocol_error' });
+  } finally { service.stopMiso(); }
 });
 
 test('preload -> real Main handshakes both contracts before the exact import body', async () => {
@@ -96,4 +122,33 @@ test('raw file text is never reserialized by the Main builder', () => {
   expect(request.source_json).toContain('9007199254740993');
   const result = buildSkeletonResourceRequest('code_import', request);
   expect(result.body.source_json).toBe(request.source_json);
+});
+
+
+test('Kernel catalog combines the sidecar catalog with trusted provider definitions over the real bridge', async () => {
+  const deepseek = require('../../../src/SERVICEs/custom_provider_presets.json').find((entry) => entry.provider.id === 'deepseek').provider;
+  const registry = { status: 'ready', providers: [
+    { ...deepseek, id: 'team', enabled: true, base_url: 'https://team.example/v1', api_key: 'NEVER_RETURN' },
+    { ...deepseek, id: 'incompatible', enabled: true, extra_headers: { 'X-Test': 'unsupported' } },
+  ] };
+  const service = await ready({ readModelProviderRegistry: () => registry });
+  const native = { profiles: [], unavailable: [] };
+  global.fetch = jest.fn(async () => response(native));
+  try {
+    const bridge = createMisoBridge({ invoke: (_channel, command) => createSkeletonResourceReply(() => service.runMisoSkeletonResourceCommand(command.action, command.payload)) }, {});
+    const result = await bridge.listSkeletonKernelProfiles();
+    expect(new Set(result.profiles.map(({ provider }) => provider))).toEqual(new Set(['custom.deepseek', 'custom.kimi', 'custom.kimi-cn', 'custom.team']));
+    const team = result.profiles.find(({ provider, model }) => provider === 'custom.team' && model === deepseek.default_model);
+    expect(team).toEqual({
+      id: `custom.team:${deepseek.default_model}`, provider: 'custom.team', model: deepseek.default_model,
+      protocol: deepseek.protocol, endpoint: 'https://team.example/v1', credential_ref: 'custom.team', auth_mode: deepseek.auth.mode,
+      context_window: deepseek.models.find(({ id }) => id === deepseek.default_model).capabilities.max_context_window_tokens,
+      output_limit: deepseek.models.find(({ id }) => id === deepseek.default_model).capabilities.max_tokens,
+      capabilities: { json_schema: false, images: false, files: false },
+    });
+    expect(result.unavailable.some(({ provider, reason }) => provider === 'custom.incompatible' && reason === 'profile_refused')).toBe(true);
+    expect(JSON.stringify(result)).not.toContain('NEVER_RETURN');
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(new URL(global.fetch.mock.calls[0][0]).pathname).toBe('/skeleton_kernel_profiles');
+  } finally { service.stopMiso(); }
 });

@@ -4,15 +4,15 @@ import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use
 import { agentEnglishText } from "../agents_i18n";
 
 const STYLES = {
-  pending: ["circle", "#86868b"],
-  running: ["loader", "#5273df"],
-  waiting: ["pause", "#ac791f"],
-  waiting_approval: ["hand", "#ac791f"],
-  suspended: ["pause", "#86868b"],
-  succeeded: ["check", "#32956d"],
-  failed: ["close", "#d44c59"],
-  cancelled: ["forbid", "#86868b"],
-  outcome_unknown: ["question_mark", "#a87626"],
+  pending: ["circle", "var(--pupu-text-muted)"],
+  running: ["loader", "var(--pupu-accent)"],
+  waiting: ["pause", "var(--pupu-warning)"],
+  waiting_approval: ["hand", "var(--pupu-warning)"],
+  suspended: ["pause", "var(--pupu-text-muted)"],
+  succeeded: ["check", "var(--pupu-success)"],
+  failed: ["close", "var(--pupu-danger)"],
+  cancelled: ["forbid", "var(--pupu-text-muted)"],
+  outcome_unknown: ["question_mark", "var(--pupu-warning)"],
 };
 
 export function run_status_caption(node, t = agentEnglishText) {
@@ -32,7 +32,7 @@ export function run_status_caption(node, t = agentEnglishText) {
 export default function RunNodeStatus({ projection, isDark, children }) {
   const { t } = useTranslation();
   if (!projection) return children;
-  const style = Object.prototype.hasOwnProperty.call(STYLES, projection.state) ? STYLES[projection.state] : ["question_mark", "#86868b"];
+  const style = Object.prototype.hasOwnProperty.call(STYLES, projection.state) ? STYLES[projection.state] : ["question_mark", "var(--pupu-text-muted)"];
   const [icon, color] = style;
   const label = run_status_caption(projection, t);
   return (
@@ -43,7 +43,7 @@ export default function RunNodeStatus({ projection, isDark, children }) {
         aria-label={label} title={`${label}${projection.reason ? ` · ${projection.reason}` : ""}`}
         style={{ position: "absolute", top: -18, right: 0, display: "flex", alignItems: "center", gap: 4,
           maxWidth: 240, padding: "2px 5px", borderRadius: 5, fontSize: 10, lineHeight: 1.2,
-          color: isDark ? "#f0f0f3" : "#24242a", background: "var(--pupu-surface)", pointerEvents: "none" }}>
+          color: `var(--pupu-text, ${isDark ? "#f0f0f3" : "#24242a"})`, background: "var(--pupu-surface)", pointerEvents: "none" }}>
         <Icon src={icon} color={color} style={{ width: 12, height: 12, flexShrink: 0 }} />
         <span>{label}</span>
       </span>

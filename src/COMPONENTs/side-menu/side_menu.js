@@ -1,5 +1,6 @@
 import { useSurfaceComposite } from "../../BUILTIN_COMPONENTs/material/surface_composite";
 import { SURFACE_DITHER_STYLE } from "../../BUILTIN_COMPONENTs/material/surface_dither";
+import { SIDEBAR_GLASS_FILTER } from "../../CONTAINERs/config/theme_semantic";
 import {
   lazy,
   Suspense,
@@ -46,6 +47,20 @@ import SuspenseFallback from "../../BUILTIN_COMPONENTs/suspense/suspense_fallbac
 import { SettingsModal } from "../settings/settings_modal";
 import { ToolkitModal } from "../toolkit/toolkit_modal";
 import { WorkspaceModal } from "../workspace/workspace_modal";
+import PanelResizeHandle from "../agents/pages/recipes_page/panel_resize_handle";
+import SideMenuBreadcrumb from "./side_menu_breadcrumb";
+import SideMenuDrillButton from "./side_menu_drill_button";
+import { useAgentsSidebarSearch } from "../../SERVICEs/agents_sidebar_search";
+import { HEADER_ICON_BUTTON } from "../agents/pages/recipes_page/recipe_list";
+import {
+  AGENTS_SIDEBAR_DRAG_WIDTH,
+  SIDE_MENU_WIDTH,
+  agentsSidebarWidthCss,
+  clampSideMenuWidth,
+  sideMenuWidthCss,
+  writeSideMenuWidthVar,
+} from "../../SERVICEs/side_menu_width";
+import { createLiveResizeWidth } from "../../SERVICEs/live_resize_width";
 
 /* eslint-disable import/first -- dynamic import() inside lazy() is not a static import */
 const MemoryInspectModal = lazy(() =>
@@ -219,7 +234,19 @@ const SideMenu = () => {
     appMode = "chat",
     setAppMode,
     setAgentsSidebarSlot,
+    sideMenuWidth = SIDE_MENU_WIDTH.DEFAULT,
+    setSideMenuWidth,
+    sideMenuResizing = false,
+    setSideMenuResizing,
   } = useContext(ConfigContext);
+  const resizeStartWidthRef = useRef(sideMenuWidth);
+  const resizeWidthRef = useRef(sideMenuWidth);
+  const resizeFrameRef = useRef(0);
+  const agentsResize = useRef(null);
+  useEffect(() => () => {
+    agentsResize.current?.dispose();
+    if (resizeFrameRef.current) cancelAnimationFrame(resizeFrameRef.current);
+  }, []);
   const inAgents = appMode === "agents";
   const switchMode = useCallback(
     (mode) => {
@@ -258,6 +285,11 @@ const SideMenu = () => {
   });
   const [renaming, setRenaming] = useState({ nodeId: null, value: "" });
   const [searchQuery, setSearchQuery] = useState("");
+  /* One search field for both panes: the chat list's query, or the agent
+     list's (which the docked list reads). */
+  const [agentsQuery, setAgentsQuery] = useAgentsSidebarSearch();
+  const activeQuery = inAgents ? agentsQuery : searchQuery;
+  const setActiveQuery = inAgents ? setAgentsQuery : setSearchQuery;
   const [memoryInspect, setMemoryInspect] = useState({
     open: false,
     sessionId: null,
@@ -274,10 +306,20 @@ const SideMenu = () => {
   const platform = usePresentationPlatform();
   const isDarwin = platform === "darwin";
   const reserveDarwinTrafficLights = isDarwin && !isFullScreen;
-  const sideMenuBackgroundColor = isDark
-    ? "var(--pupu-sidebar, #151515)"
-    : "var(--pupu-sidebar, rgb(245, 245, 245))";
-  const surface = useSurfaceComposite({ backgroundColor: sideMenuBackgroundColor });
+  /* Slightly see-through, yet over the shell background it lands on exactly
+     the theme's sidebar colour: --pupu-sidebar-glass is solved for that
+     (theme_semantic.calibratedGlass). */
+  const resizingAgentsSidebar = inAgents && sideMenuResizing;
+  const sidebarFallback = isDark ? "#151515" : "rgb(245, 245, 245)";
+  const sideMenuBackgroundColor = resizingAgentsSidebar
+    ? `var(--pupu-sidebar, ${sidebarFallback})`
+    : `var(--pupu-sidebar-glass, ${sidebarFallback})`;
+  const sidebarFilter = resizingAgentsSidebar ? "none" : SIDEBAR_GLASS_FILTER;
+  const surface = useSurfaceComposite({
+    backgroundColor: sideMenuBackgroundColor,
+    backdropFilter: sidebarFilter,
+    enabled: !resizingAgentsSidebar,
+  });
   const isAgentsEnabled = featureFlags.enable_user_access_to_agents === true;
   const isCharactersEnabled =
     featureFlags.enable_user_access_to_characters === true;
@@ -567,14 +609,18 @@ const SideMenu = () => {
   return (
     <div
       style={{
-        transition: "width 0.3s ease",
+        transition: sideMenuResizing ? "none" : "width 0.3s ease",
         position: "absolute",
         top: 0,
         left: 0,
         bottom: 0,
-        width: onFragment === "side_menu" ? 320 : 0,
+        width: onFragment === "side_menu"
+          ? (inAgents ? agentsSidebarWidthCss(sideMenuWidth) : sideMenuWidthCss(sideMenuWidth))
+          : 0,
         backgroundColor: sideMenuBackgroundColor,
-        ...SURFACE_DITHER_STYLE,
+        backdropFilter: sidebarFilter,
+        WebkitBackdropFilter: sidebarFilter,
+        ...(!resizingAgentsSidebar && SURFACE_DITHER_STYLE),
         ...surface.style,
         display: "flex",
         flexDirection: "column",
@@ -610,32 +656,88 @@ const SideMenu = () => {
         }}
       />
 
-      <Button
-        prefix_icon="edit_box"
-        ariaLabel="New chat"
-        style={{
-          position: "absolute",
-          top: 25,
-          transform: "translateY(-50%)",
-          left: reserveDarwinTrafficLights ? 120 : 44,
-          fontSize: 14,
-          WebkitAppRegion: "no-drag",
-        }}
-        onClick={(...args) => {
-          handleNewChat(...args);
-          /* A new chat is something to look at: leave the Agents pane. */
-          if (inAgents) switchMode("chat");
-        }}
-      />
 
       {/* Two panes side by side, slid as one: the chat list, and the Agents
           pane it drills into. Like a navigation stack in a sidebar column —
-          "Agents ›" pushes, "‹ Chats" pops — so the side menu never shows
+          "Agents ›" pushes, the breadcrumb's Home pops — so the side menu never shows
           both and the window's centre follows the pane. */}
+      {/* Always the first line, above the search field: where the side
+          menu is, and the way home. */}
+      {/* Centred between the top row's icons (14px, centred on y=25, so
+          ending at 32) and the search field (y=88): 15px of air each side. */}
+      <div style={{ position: "absolute", top: 47, left: 12, right: 12 }}>
+        <SideMenuBreadcrumb
+          isDark={isDark}
+          crumbs={
+            inAgents
+              ? [
+                  { key: "home", icon: "home_door", label: t("side_menu.home"), onClick: () => switchMode("chat") },
+                  { key: "agents", icon: "bot", label: t("side_menu.agents") },
+                ]
+              : [{ key: "home", icon: "home_door", label: t("side_menu.home") }]
+          }
+        />
+      </div>
+
+      {/* The search field stays put like the breadcrumb above it; only what
+          is under it slides. It searches whichever pane is showing, and
+          each pane keeps its own query. */}
+      <label
+        data-testid="side-menu-search"
+        style={{ position: "absolute", top: 88, left: 12, right: 12, display: "block" }}
+      >
+        <Input
+          prefix_icon="search"
+          no_separator
+          value={activeQuery}
+          set_value={setActiveQuery}
+          placeholder={t("side_menu.search")}
+          postfix_component={
+            activeQuery ? (
+              <div
+                style={{
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveQuery("");
+                }}
+              >
+                <Icon
+                  src="delete_input"
+                  style={{ width: 18, height: 18 }}
+                  color={theme?.color || (isDark ? "#CCC" : "#444")}
+                />
+              </div>
+            ) : undefined
+          }
+          style={{
+            fontSize: 12,
+            height: 32,
+            width: "100%",
+            boxSizing: "border-box",
+            borderRadius: 6,
+            WebkitAppRegion: "no-drag",
+            color: theme?.color || (isDark ? "#CCC" : "#222"),
+            outline: {
+              onFocus: isDark
+                ? "1px solid rgba(255,255,255,0.18)"
+                : "1px solid rgba(0,0,0,0.18)",
+              onBlur: isDark
+                ? "1px solid rgba(255,255,255,0.06)"
+                : "1px solid rgba(0,0,0,0.08)",
+            },
+            boxShadow: "none",
+          }}
+        />
+      </label>
+
       <div
         style={{
           position: "absolute",
-          top: 56,
+          top: 124,
           left: 0,
           right: 0,
           bottom: 58,
@@ -666,52 +768,6 @@ const SideMenu = () => {
               transition: "visibility 0.32s",
             }}
           >
-            <Input
-              prefix_icon="search"
-              no_separator
-              value={searchQuery}
-              set_value={setSearchQuery}
-              placeholder={t("side_menu.search")}
-              postfix_component={
-                searchQuery ? (
-                  <div
-                    style={{
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                    }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSearchQuery("");
-                    }}
-                  >
-                    <Icon
-                      src="delete_input"
-                      style={{ width: 18, height: 18 }}
-                      color={theme?.color || (isDark ? "#CCC" : "#444")}
-                    />
-                  </div>
-                ) : undefined
-              }
-              style={{
-                fontSize: 12,
-                height: 32,
-                flexShrink: 0,
-                marginBottom: 4,
-                borderRadius: 6,
-                WebkitAppRegion: "no-drag",
-                color: theme?.color || (isDark ? "#CCC" : "#222"),
-                outline: {
-                  onFocus: isDark
-                    ? "1px solid rgba(255,255,255,0.18)"
-                    : "1px solid rgba(0,0,0,0.18)",
-                  onBlur: isDark
-                    ? "1px solid rgba(255,255,255,0.06)"
-                    : "1px solid rgba(0,0,0,0.08)",
-                },
-                boxShadow: "none",
-              }}
-            />
             <Button
               prefix_icon="pentagon"
               label={t("side_menu.models")}
@@ -761,38 +817,47 @@ const SideMenu = () => {
               }}
             />
             {isAgentModalEnabled && (
-              <Button
-                prefix_icon="bot"
-                postfix_icon="arrow_right_s"
+              <SideMenuDrillButton
+                icon="bot"
                 label={t("side_menu.agents")}
                 onClick={() => switchMode("agents")}
-                style={{
-                  width: "100%",
-                  justifyContent: "flex-start",
-                  fontSize: 14,
-                  padding: "5px 8px",
-                  borderRadius: 6,
-                  marginBottom: 2,
-                  WebkitAppRegion: "no-drag",
-                  iconSize: 16,
-                }}
+                isDark={isDark}
+                testId="side-menu-agents-entry"
               />
             )}
+            {/* The section title with its action, like the Agents list's:
+                New chat lives here, not in the window's top bar. */}
             <div
+              data-testid="side-menu-chats-title"
               style={{
-                padding: "4px 4px 6px",
-                fontSize: 11,
-                fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
-                textTransform: "uppercase",
-                letterSpacing: "1.5px",
-                color: theme?.color || "rgba(255,255,255,0.9)",
-                opacity: 0.35,
-                userSelect: "none",
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+                padding: "4px 0 6px 4px",
                 flexShrink: 0,
               }}
               onContextMenu={handleBackgroundContextMenu}
             >
-              {t("side_menu.chats")}
+              <div
+                style={{
+                  flex: 1,
+                  fontSize: 11,
+                  fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
+                  textTransform: "uppercase",
+                  letterSpacing: "1.5px",
+                  color: theme?.color || "rgba(255,255,255,0.9)",
+                  opacity: 0.35,
+                  userSelect: "none",
+                }}
+              >
+                {t("side_menu.chats")}
+              </div>
+              <Button
+                prefix_icon="add"
+                ariaLabel="New chat"
+                style={HEADER_ICON_BUTTON}
+                onClick={(...args) => handleNewChat(...args)}
+              />
             </div>
             <div
               className="scrollable"
@@ -853,20 +918,8 @@ const SideMenu = () => {
               transition: "visibility 0.32s",
             }}
           >
-            <Button
-              prefix_icon="arrow_left"
-              label={t("side_menu.chats")}
-              onClick={() => switchMode("chat")}
-              style={{
-                alignSelf: "flex-start",
-                fontSize: 14,
-                padding: "5px 8px",
-                borderRadius: 6,
-                marginBottom: 4,
-                WebkitAppRegion: "no-drag",
-                iconSize: 14,
-              }}
-            />
+            {/* The agent list renders here (search, "‹ Chats", actions,
+                list), handed over by the Agents workspace. */}
             <div
               ref={setAgentsSidebarSlot}
               data-testid="side-menu-agents-slot"
@@ -881,6 +934,58 @@ const SideMenu = () => {
           </div>
         </div>
       </div>
+
+      {typeof setSideMenuWidth === "function" && (
+        <PanelResizeHandle
+          testId="side-menu-resize-handle"
+          pillTestId="side-menu-resize-pill"
+          isDark={isDark}
+          visible={onFragment === "side_menu"}
+          style={{ top: 0, bottom: 0, right: 0 }}
+          onDragStart={() => {
+            resizeStartWidthRef.current = sideMenuWidth;
+            resizeWidthRef.current = sideMenuWidth;
+            agentsResize.current?.dispose();
+            agentsResize.current = inAgents
+              ? createLiveResizeWidth(AGENTS_SIDEBAR_DRAG_WIDTH, sideMenuWidth)
+              : null;
+            if (typeof setSideMenuResizing === "function") {
+              setSideMenuResizing(true);
+            }
+          }}
+          onDrag={(dx) => {
+            /* No render per move: the CSS variable carries the width, at
+               most once a frame. */
+            resizeWidthRef.current = clampSideMenuWidth(
+              resizeStartWidthRef.current + dx,
+            );
+            if (agentsResize.current) {
+              agentsResize.current.update(resizeWidthRef.current);
+              return;
+            }
+            if (resizeFrameRef.current) return;
+            resizeFrameRef.current = requestAnimationFrame(() => {
+              resizeFrameRef.current = 0;
+              writeSideMenuWidthVar(resizeWidthRef.current);
+            });
+          }}
+          onDragEnd={() => {
+            if (resizeFrameRef.current) {
+              cancelAnimationFrame(resizeFrameRef.current);
+              resizeFrameRef.current = 0;
+            }
+            writeSideMenuWidthVar(resizeWidthRef.current);
+            agentsResize.current?.dispose();
+            agentsResize.current = null;
+            if (typeof setSideMenuWidth === "function") {
+              setSideMenuWidth(resizeWidthRef.current);
+            }
+            if (typeof setSideMenuResizing === "function") {
+              setSideMenuResizing(false);
+            }
+          }}
+        />
+      )}
 
       <Button
         prefix_icon="settings"

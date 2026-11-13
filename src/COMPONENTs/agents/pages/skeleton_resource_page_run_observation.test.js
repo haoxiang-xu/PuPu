@@ -46,7 +46,7 @@ test("a dirty draft B is preserved under frozen run A, including undo and explic
   show();
   await screen.findByText("Editable Start B");
   fireEvent.mouseDown(screen.getByTestId("skeleton-node-end"));
-  fireEvent.click(screen.getByText("+ Add input"));
+  fireEvent.click(screen.getByRole("button", { name: "+ Add input", exact: true }));
   const before = JSON.stringify(editor.nodes.map(({ config, ...node }) => ({ id: node.id, config })));
   await openView();
   await screen.findByTestId("skeleton-run-observation-view");

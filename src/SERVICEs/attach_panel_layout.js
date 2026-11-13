@@ -21,12 +21,12 @@ import {
 export const ATTACH_PANEL_LAYOUT_NAMESPACE = "attach_panel_layout";
 const LAYOUT_VERSION = 1;
 
-/* Default order is the row as it was before the layout became a preference.
-   A first launch (no record yet) shows the context ring, the plugin and the
-   workspace selectors on the row and tucks attach / screenshot / link into
+/* A first launch (no record yet) shows Agent, the context ring, plugins and
+   workspaces on the row and tucks attach / screenshot / link into
    the "…" menu — the project owner's call for the out-of-the-box row. A
    record that says otherwise is honoured as written. */
 export const MOVABLE_ATTACH_WIDGETS = Object.freeze([
+  "agent",
   "context_composition",
   "attach",
   "screenshot",

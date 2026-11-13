@@ -1,10 +1,18 @@
 import React from "react";
-import { render, screen, fireEvent, within, act } from "@testing-library/react";
+
+/* Contract text is asserted here; real help disclosure is covered separately. */
+jest.mock("./panel_help", () => function GuidanceText({ children }) { return <>{children}</>; });
+import { render, screen, fireEvent, within, act, waitFor } from "@testing-library/react";
 import { ConfigContext } from "../../../../../CONTAINERs/config/context";
 import DetailPanel from "./detail_panel";
+import OutputVariablesSection from "./output_variables_section";
 import { has_node_identity, node_identity } from "./node_identity";
 import { LOOKUP_ROWS } from "../skeleton_drill_replacement_capture";
 import { kernel_profiles, list_resources } from "../skeleton_resources";
+import { resetProcessPanelMemory } from "./process_timeline";
+
+/* Which parts are open is remembered for the session: start each test fresh. */
+beforeEach(() => resetProcessPanelMemory());
 
 /* An Agent node's Model section reads the Kernel profile catalog on mount, so
    the panel is shown one here. Without it the catalog read settles after the
@@ -360,6 +368,16 @@ describe("the Output Variables section in the panel", () => {
   });
 });
 
+/* Start and End now draw their rows as the Agent panel's pills, which show a
+   deeper address as stored rather than step by step. The step editor these
+   tests hold to account is still the one every other runnable node uses, so
+   it is driven here directly, on the same End rows. */
+function PathHost({ document, selectedNodeId, onDocumentChange, documentRevision }) {
+  const node = document.nodes.find((candidate) => candidate.id === selectedNodeId);
+  return <OutputVariablesSection document={document} node={node} revision={documentRevision}
+    isDark={false} onChange={onDocumentChange} />;
+}
+
 describe("UI-L1 — refused text belongs to one node, one row, one step", () => {
   /* A refused position stays on screen so it can be corrected. It stays in
      local state, because the document deliberately does not hold it — and
@@ -397,7 +415,7 @@ describe("UI-L1 — refused text belongs to one node, one row, one step", () => 
   test("selecting another node shows that node's stored position", () => {
     const view = render(
       <ConfigContext.Provider value={cfg}>
-        <DetailPanel
+        <PathHost
           recipe={legacy_recipe}
           document={two_ends}
           selectedNodeId="endA"
@@ -412,7 +430,7 @@ describe("UI-L1 — refused text belongs to one node, one row, one step", () => 
 
     view.rerender(
       <ConfigContext.Provider value={cfg}>
-        <DetailPanel
+        <PathHost
           recipe={legacy_recipe}
           document={two_ends}
           selectedNodeId="endB"
@@ -456,7 +474,7 @@ describe("UI-L1 — refused text belongs to one node, one row, one step", () => 
       const [doc, setDoc] = React.useState(start);
       return (
         <ConfigContext.Provider value={cfg}>
-          <DetailPanel
+          <PathHost
             recipe={legacy_recipe}
             document={doc}
             selectedNodeId="end"
@@ -512,7 +530,7 @@ describe("UI-L1 — refused text belongs to one node, one row, one step", () => 
       const [doc, setDoc] = React.useState(start);
       return (
         <ConfigContext.Provider value={cfg}>
-          <DetailPanel
+          <PathHost
             recipe={legacy_recipe}
             document={doc}
             selectedNodeId="end"
@@ -540,7 +558,7 @@ describe("UI-L1 — refused text belongs to one node, one row, one step", () => 
     };
     const panel = (selected) => (
       <ConfigContext.Provider value={cfg}>
-        <DetailPanel
+        <PathHost
           recipe={legacy_recipe}
           document={same}
           selectedNodeId={selected}
@@ -563,7 +581,7 @@ describe("UI-L1 — refused text belongs to one node, one row, one step", () => 
        the panel moved. */
     const view = render(
       <ConfigContext.Provider value={cfg}>
-        <DetailPanel
+        <PathHost
           recipe={legacy_recipe}
           document={two_ends}
           selectedNodeId="endA"
@@ -577,7 +595,7 @@ describe("UI-L1 — refused text belongs to one node, one row, one step", () => 
     fireEvent.change(position_box(0), { target: { value: "-1" } });
     view.rerender(
       <ConfigContext.Provider value={cfg}>
-        <DetailPanel
+        <PathHost
           recipe={legacy_recipe}
           document={two_ends}
           selectedNodeId="endA"
@@ -694,16 +712,20 @@ describe("R-SCHEMA — a schema's own fields, through the real controls", () => 
       ["extra"],
     );
     expect(row_text()).not.toMatch(/produces no result named/i);
-    expect(row_text()).toMatch(/does not close its own field list/i);
+    fireEvent.click(screen.getByRole("button", { name: "Output Variables", exact: true }));
+    expect(within(screen.getByTestId("output-row-0")).getByRole("button", { name: "Result · extra" })).toBeVisible();
   });
 
-  test("an open schema's unlisted field stays editable rather than frozen", () => {
+  test("a stored unlisted field stays visible and the source menu offers declared replacements", async () => {
     open_agent(
       { type: "object", properties: { answer: { type: "string" } } },
       ["extra"],
     );
+    fireEvent.click(screen.getByRole("button", { name: "Output Variables", exact: true }));
     const row = within(screen.getByTestId("output-row-0"));
-    expect(row.getByPlaceholderText("field").value).toBe("extra");
+    fireEvent.click(row.getByRole("button", { name: "Result · extra" }));
+    await waitFor(() => expect(screen.getByText("answer", { exact: true, selector: "span" })).toBeVisible());
+    expect(row.queryByPlaceholderText("field")).not.toBeInTheDocument();
   });
 
   test("a schema that does close its list still refuses a name it cannot hold", () => {
@@ -744,19 +766,19 @@ describe("the Model section in the panel", () => {
       selectedNodeId: "kernel",
     });
 
-  test("an Agent reads downwards: inputs, model, result, outputs", () => {
-    /* The model comes before JSON Output because the schema depends on it —
-       a model that cannot be asked for structured output makes that section
-       unavailable — and both stay between the two IO sections rule 2 pins to
-       the top and the bottom. */
+  test("an Agent reads downwards: model, prompt, then inputs, result, outputs", () => {
+    /* What the Agent is stays on top and in view; under it the wiring, in
+       the order values flow. JSON Output belongs to the Output disclosure:
+       its header precedes the schema, the mapping editor follows it. */
     open({ execution: { inputs: [], outputs: [] } });
     const text = screen.getByTestId("recipe-detail-panel").textContent;
-    expect(text.indexOf("Input Variables")).toBeGreaterThanOrEqual(0);
-    expect(text.indexOf("Model")).toBeGreaterThan(text.indexOf("Input Variables"));
-    expect(text.indexOf("JSON Output")).toBeGreaterThan(text.indexOf("Model"));
-    expect(text.indexOf("Output Variables")).toBeGreaterThan(
-      text.indexOf("JSON Output"),
-    );
+    expect(text.indexOf("Model")).toBeGreaterThanOrEqual(0);
+    expect(text.indexOf("Prompt")).toBeGreaterThan(text.indexOf("Model"));
+    expect(text.indexOf("Input Variables")).toBeGreaterThan(text.indexOf("Prompt"));
+    expect(text.indexOf("Output Variables")).toBeGreaterThan(text.indexOf("Input Variables"));
+    expect(text.indexOf("JSON Output")).toBeGreaterThan(text.indexOf("Output Variables"));
+    expect(screen.getByTestId("process-section-output")).toContainElement(screen.getByTestId("skeleton-output-schema"));
+    expect(screen.getByTestId("skeleton-output-schema").compareDocumentPosition(screen.getByTestId("skeleton-output-variables")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   test("an Agent with no model says the run will refuse it", () => {
@@ -827,7 +849,9 @@ describe("the JSON Output section, and the two halves it joins", () => {
     const text = screen.getByTestId("recipe-detail-panel").textContent;
     expect(text.indexOf("Input Variables")).toBeGreaterThanOrEqual(0);
     expect(text.indexOf("JSON Output")).toBeGreaterThan(text.indexOf("Input Variables"));
-    expect(text.indexOf("Output Variables")).toBeGreaterThan(text.indexOf("JSON Output"));
+    expect(text.indexOf("Output Variables")).toBeGreaterThan(text.indexOf("Input Variables"));
+    expect(screen.getByTestId("process-section-output")).toContainElement(screen.getByTestId("skeleton-output-schema"));
+    expect(screen.getByTestId("skeleton-output-schema").compareDocumentPosition(screen.getByTestId("skeleton-output-variables")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   test("only an Agent has one, because only an Agent has a kernel", () => {

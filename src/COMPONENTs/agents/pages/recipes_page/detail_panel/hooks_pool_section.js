@@ -1,9 +1,10 @@
+import PanelHelp from "./panel_help";
 import { agentMessage, renderAgentMessage } from "../agents_i18n";
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
-import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
-import Select from "../../../../../BUILTIN_COMPONENTs/select/select";
+import Input from "./panel_input";
+import Select from "./panel_select";
 import SegmentedControl from "../../../../toolkit/components/segmented_control";
 import { api } from "../../../../../SERVICEs/api";
 import { subscribeToolkitCatalogRefresh } from "../../../../../SERVICEs/toolkit_catalog_refresh";
@@ -43,6 +44,7 @@ import {
   with_hooks,
   without_pool_setting,
 } from "../hooks_pool_config";
+import { CAPTION_TEXT } from "./panel_style";
 
 /* A Hooks Pool (#357): the hooks one Agent runs around its tool calls. Every
  * rule is the fixed runtime's (see `hooks_pool_config`):
@@ -64,13 +66,13 @@ import {
  *     its id, and each control writes its own key. A stored value the runtime
  *     refuses is shown as stored, with what is wrong and how to fix it. */
 
-const LABEL = { fontSize: 11, fontWeight: 600, color: "var(--pupu-text-muted)", textTransform: "uppercase", letterSpacing: 0.4 };
-const NOTE = { fontSize: 10.5, color: "var(--pupu-text-muted)", lineHeight: 1.45 };
+const LABEL = CAPTION_TEXT;
+const NOTE = { fontSize: 11.5, color: "var(--pupu-text-muted)", lineHeight: 1.45 };
 const MONO = { fontFamily: "ui-monospace, Menlo, monospace" };
 const ROW = { display: "flex", alignItems: "center", gap: 6 };
-const FIELD = { width: "100%", fontSize: 11.5, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 5 };
-const SMALL = { fontSize: 10.5, paddingVertical: 2, paddingHorizontal: 8, borderRadius: 5 };
-const problem_style = (isDark) => ({ fontSize: 10.5, lineHeight: 1.45, color: isDark ? "rgba(255,140,140,0.95)" : "rgba(176,32,32,0.95)" });
+const FIELD = { width: "100%", fontSize: 12, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 8 };
+const SMALL = { fontSize: 11.5, paddingVertical: 2, paddingHorizontal: 8, borderRadius: 8 };
+const problem_style = (isDark) => ({ fontSize: 11.5, lineHeight: 1.45, color: isDark ? "rgba(255,140,140,0.95)" : "rgba(176,32,32,0.95)" });
 const record = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 const has = (value, key) => record(value) && Object.prototype.hasOwnProperty.call(value, key);
 const EVENT_LABEL = { before_tool_call: "Before the tool call", after_tool_call: "After the tool call" };
@@ -84,7 +86,7 @@ const raw = (value) => {
 };
 
 function Divider({ isDark }) {
-  return <div style={{ height: 1, margin: "2px 0", background: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)" }} />;
+  return <div aria-hidden="true" style={{ height: 6 }} />;
 }
 
 /* Tool names from the same library the Toolkit Pool and Tool Call read. */
@@ -264,7 +266,7 @@ function HookEditor({ entry, index, rowId, nodeId, parentId, siblings, scopeDupl
   const testid = `hook-${index}`;
 
   return (
-    <div data-testid={`${testid}-editor`} style={{ display: "flex", flexDirection: "column", gap: 10, padding: "8px 10px", borderRadius: 7, background: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)" }}>
+    <div data-testid={`${testid}-editor`} style={{ display: "flex", flexDirection: "column", gap: 10, padding: 0, background: "transparent" }}>
       <div style={ROW}>
         <span style={{ ...NOTE, width: 64, flexShrink: 0 }}>{t("agents.hooks.id")}</span>
         <IdInput entry={entry} editable={editable} isDark={isDark} testid={`${testid}-id`} about={`${rowId}:id`} onWrite={(value) => set("id", value)} />
@@ -272,7 +274,6 @@ function HookEditor({ entry, index, rowId, nodeId, parentId, siblings, scopeDupl
       <div style={ROW}>
         <span style={{ ...NOTE, width: 64, flexShrink: 0 }}>{t("agents.hooks.order")}</span>
         <OrderInput entry={entry} editable={editable} isDark={isDark} testid={`${testid}-order`} about={`${rowId}:order`} onWrite={(value) => set("order", value)} />
-        <span style={NOTE}>{t("agents.hooks.order_note")}</span>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         <span style={LABEL}>{t("agents.hooks.when")}</span>
@@ -400,7 +401,12 @@ function HookEditor({ entry, index, rowId, nodeId, parentId, siblings, scopeDupl
         </span>
       </div>
       <div data-testid={`${testid}-approval`} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <span style={LABEL}>{t("agents.hooks.approval")}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <span style={LABEL}>{t("agents.hooks.approval")}</span>
+          <PanelHelp label={t("agents.hooks.approval")}>
+            <span style={NOTE}>{t("agents.hooks.approval_note")}</span>
+          </PanelHelp>
+        </div>
         <span style={{ opacity: editable ? 1 : 0.5, pointerEvents: editable ? "auto" : "none" }}>
           <SegmentedControl
             size="compact"
@@ -414,7 +420,7 @@ function HookEditor({ entry, index, rowId, nodeId, parentId, siblings, scopeDupl
         {has(entry, "force_approval") && typeof entry.force_approval !== "boolean" && (
           <span style={problem_style(isDark)}>{t("agents.hooks.stored_approval", { value: "{value}" }).split(/(\{value\})/g).map((part, index) => ({ __proto__: null, "{value}": (<span key={index} style={MONO}>{safe_text(raw(entry.force_approval))}</span>) }[part] ?? part))}</span>
         )}
-        <span style={NOTE}>{t("agents.hooks.approval_note")}</span>
+
       </div>
       <HookWorkflowSource
         entry={entry}
@@ -430,8 +436,9 @@ function HookEditor({ entry, index, rowId, nodeId, parentId, siblings, scopeDupl
         onWrite={(workflow) => set("workflow", workflow)}
         onOpen={onOpenEmbedded}
       />
-      <div data-testid={`${testid}-contract`} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <div data-testid={`${testid}-contract`} style={{ display: "flex", alignItems: "center", gap: 5 }}>
         <span style={LABEL}>{t("agents.hooks.contract")}</span>
+        <PanelHelp label={t("agents.hooks.contract")}>
         {event_ok ? (
           <>
             <span style={NOTE}>{t("agents.hooks.start_given", { keys: "{keys}" }).split(/(\{keys\})/g).map((part, index) => ({ __proto__: null, "{keys}": (<span key={index} style={MONO}>{EVENT_INPUT_KEYS[entry.event].join(t("agents.schema.fields.list_separator"))}</span>) }[part] ?? part))}</span>
@@ -448,6 +455,7 @@ function HookEditor({ entry, index, rowId, nodeId, parentId, siblings, scopeDupl
         ) : (
           <span style={NOTE}>{t("agents.hooks.choose_event_contract")}</span>
         )}
+        </PanelHelp>
       </div>
       {extras.map((key) => (
         <div key={key} data-testid={`${testid}-extra-${key}`} style={{ ...ROW, justifyContent: "space-between" }}>
@@ -561,7 +569,7 @@ export default function HooksPoolSection({ document, node, isDark, onChange, man
                 commit(with_hooks(latest.current.document, node.id, [...entries, { id: free_hook_id(taken) }]));
                 setOpenLast(true);
               }}
-              style={{ fontSize: 11, paddingVertical: 3, paddingHorizontal: 8, borderRadius: 5, color: "var(--pupu-accent)" }}
+              style={{ fontSize: 11.5, paddingVertical: 3, paddingHorizontal: 8, borderRadius: 8, color: "var(--pupu-text-muted)" }}
             />
           )}
         </div>
@@ -573,7 +581,7 @@ export default function HooksPoolSection({ document, node, isDark, onChange, man
             <div key={rowId} data-testid={`hook-row-${index}`} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <div style={{ ...ROW, justifyContent: "space-between", flexWrap: "wrap" }}>
                 <span style={{ flex: "1 1 160px", minWidth: 0, overflowWrap: "anywhere" }}>
-                  <span style={{ ...MONO, fontSize: 11.5 }}>{safe_text(label.title)}</span>
+                  <span style={{ ...MONO, fontSize: 12 }}>{safe_text(label.title)}</span>
                   <span style={{ ...NOTE, marginLeft: 6 }}>{safe_text(label.detail)}</span>
                   {count > 0 && <span style={{ ...problem_style(isDark), marginLeft: 6 }}>{t("agents.hooks.to_fix", { count })}</span>}
                 </span>
@@ -641,7 +649,12 @@ export default function HooksPoolSection({ document, node, isDark, onChange, man
       <Divider isDark={isDark} />
 
       <div data-testid="hooks-pool-order" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <span style={LABEL}>{t("agents.hooks.run_order")}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <span style={LABEL}>{t("agents.hooks.run_order")}</span>
+          <PanelHelp label={t("agents.hooks.run_order")}>
+            <span style={NOTE}>{t("agents.hooks.order_explanation")}</span>
+          </PanelHelp>
+        </div>
         {agents.length === 0 && <span style={NOTE}>{t("agents.hooks.not_attached")}</span>}
         {agents.map((agent_id) => {
           const order = kernel_hook_order(document, agent_id);
@@ -684,7 +697,7 @@ export default function HooksPoolSection({ document, node, isDark, onChange, man
                         if (own && item.index === from) return;
                         move(from, landing(from, item));
                       } : undefined}
-                      style={{ ...ROW, justifyContent: "space-between", padding: "2px 6px", borderRadius: 5, cursor: can ? "grab" : "default", opacity: item.runs ? 1 : 0.55 }}
+                      style={{ ...ROW, justifyContent: "space-between", padding: "2px 6px", borderRadius: 8, cursor: can ? "grab" : "default", opacity: item.runs ? 1 : 0.55 }}
                     >
                       <span style={{ ...NOTE, minWidth: 0 }}>
                         {t("agents.hooks.row_order", { id: "{id}", order: "{order}", pool: "{pool}", enabled: "{enabled}" }).split(/(\{id\}|\{order\}|\{pool\}|\{enabled\})/g).map((part, index) => ({ __proto__: null, "{id}": (<span key={index} style={MONO}>{safe_text(item.id)}</span>), "{order}": item.order, "{pool}": own ? "" : ` · ${safe_text(item.pool_id)}`, "{enabled}": item.runs ? "" : t("agents.hooks.off_not_run") }[part] ?? part))}
@@ -718,7 +731,7 @@ export default function HooksPoolSection({ document, node, isDark, onChange, man
             </div>
           );
         })}
-        <span style={NOTE}>{t("agents.hooks.order_explanation")}</span>
+
       </div>
 
       {pool_extras.map((key) => (

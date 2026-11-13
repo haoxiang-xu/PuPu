@@ -1,9 +1,11 @@
+import VariableSettings, { VariableSettingRow } from "./variable_settings";
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
-import React from "react";
-import Select from "../../../../../BUILTIN_COMPONENTs/select/select";
-import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
+import React, { useId, useState } from "react";
+import Select from "./panel_select";
+import Input from "./panel_input";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import PathEditor from "./path_editor";
+import PanelHelp from "./panel_help";
 import { output_mapping_is_editable } from "../skeleton_io";
 
 /* One exported value: `[name] ← [this node's inputs | its result] [path]`.
@@ -40,7 +42,7 @@ import { output_mapping_is_editable } from "../skeleton_io";
  * only named fields, so a legal source could neither be understood nor
  * returned to once left. */
 
-const CAPTION = { fontSize: 10.5, color: "#86868b", lineHeight: 1.45 };
+const CAPTION = { fontSize: 11.5, color: "#86868b", lineHeight: 1.45 };
 const MONO = { fontFamily: "ui-monospace, Menlo, monospace" };
 
 const KIND_LABEL = {
@@ -102,20 +104,23 @@ export function root_is_typed(choice) {
    Where the list is not closed it gains one more entry, because a schema that
    does not close itself can carry a field it never named and the runtime
    publishes it. */
-function RootPicker({ roots, wholeLabel, open, choice, path, onPath }) {
+function RootPicker({ roots, wholeLabel, open, choice, path, onPath, prefix, summary }) {
   const { t } = useTranslation();
   const rest = Array.isArray(path) ? path.slice(1) : [];
   return (
     <Select
       options={[
-        { value: WHOLE, label: wholeLabel },
+        { value: WHOLE, label: wholeLabel, trigger_label: prefix },
         ...roots.map((name) => ({
           value: name,
           label: name === "" ? t("agents.io.the_field_with_no_name") : name,
+          trigger_label: choice === name ? summary : `${prefix}.${name}`,
         })),
-        ...(open ? [{ value: OTHER, label: t("agents.io.a_field_it_does_not_list") }] : []),
+        ...(open ? [{ value: OTHER, label: t("agents.io.a_field_it_does_not_list"), trigger_label: summary }] : []),
       ]}
       value={choice}
+      placeholder={summary}
+      trigger_wrapper_style={{ width: "100%", minWidth: 0 }}
       set_value={(next) => {
         if (next === WHOLE) return onPath([]);
         /* Nothing is guessed for it: an unlisted field starts empty and the
@@ -126,10 +131,12 @@ function RootPicker({ roots, wholeLabel, open, choice, path, onPath }) {
       filterable={roots.length > 8}
       style={{
         width: "100%",
-        fontSize: 11.5,
+        boxSizing: "border-box",
+        minWidth: 0,
+        fontSize: 12,
         paddingVertical: 4,
         paddingHorizontal: 6,
-        borderRadius: 5,
+        borderRadius: 8,
         gap: 4,
       }}
     />
@@ -154,6 +161,8 @@ export default function OutputRow({
   onRemove,
 }) {
   const { t } = useTranslation();
+  const [expanded, setExpanded] = useState(false);
+  const settingsId = useId();
   const source = (mapping && mapping.source) || {};
   const kind = source.kind;
   /* A source the controls cannot take apart is shown rather than edited, for
@@ -196,113 +205,69 @@ export default function OutputRow({
         : kinds[0] === "input" ? t("agents.io.read_from_the_inputs_above_after_they_resolve")
           : kinds[0] === "result" ? t("agents.io.read_from_the_node_s_own_result_once_it_has_run") : KIND_CAPTION[kinds[0]];
 
+  const prefix = kind === "input" ? t("agents.workflow.inputs") : t("agents.execution.code.result");
+  const sourceLabel = editable ? path.reduce((label, segment) => {
+    if (typeof segment === "number") return `${label}[${segment}]`;
+    return /^[\p{L}_$][\p{L}\p{N}_$]*$/u.test(segment)
+      ? `${label}.${segment}` : `${label}[${JSON.stringify(segment)}]`;
+  }, prefix) : "—";
+
   return (
-    <div
-      data-testid={`output-row-${index}`}
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 6,
-        padding: "8px 10px",
-        borderRadius: 7,
-        background: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)",
-      }}
-    >
-      {/* `[name] ← [kind] ×` is one line where it fits. At the panel's 300px
-          minimum it does not (the kind select keeps its own text width), so
-          the line may wrap: the name stays on the first line and `← kind ×`
-          moves whole to the next, where it still fills the width. Nothing is
-          shrunk or clipped at any width the panel allows (#341). */}
-      <div
-        data-testid={`output-row-${index}-header`}
-        style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}
-      >
-        <Input
-          value={(mapping && mapping.name) || ""}
+    <div data-testid={`output-row-${index}`} style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+      <div data-testid={`output-row-${index}-header`}
+        style={{ display: "grid", gridTemplateColumns: "minmax(48px, 0.85fr) 10px minmax(0, 1.4fr) 24px", alignItems: "center", gap: 4 }}>
+        <Input value={(mapping && mapping.name) || ""}
           set_value={(next) => onChange({ ...mapping, name: next })}
           placeholder={t("agents.io.name_placeholder")}
-          style={{
-            width: 120,
-            flexShrink: 0,
-            fontSize: 11.5,
-            ...MONO,
-            paddingVertical: 4,
-            paddingHorizontal: 6,
-            borderRadius: 5,
-          }}
-        />
-        <div
-          data-testid={`output-row-${index}-source`}
-          style={{ display: "flex", alignItems: "center", gap: 6, flex: "1 1 auto", minWidth: 0 }}
-        >
-          <span aria-hidden="true" style={{ ...CAPTION, flexShrink: 0 }}>
-            ←
-          </span>
-          {kinds.length > 1 ? (
-            <Select
-              options={kinds.map((value) => ({ value, label: value === "input" ? t("agents.io.what_this_node_was_given")
-                : value === "result" ? t("agents.io.what_this_node_produced") : KIND_LABEL[value] }))}
-              value={kind}
-              set_value={set_kind}
-              filterable={false}
-              style={{
-                flex: 1,
-                minWidth: 0,
-                fontSize: 11.5,
-                paddingVertical: 4,
-                paddingHorizontal: 6,
-                borderRadius: 5,
-                gap: 4,
-              }}
-            />
+          style={{ width: "100%", minWidth: 0, fontSize: 12, ...MONO, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 8 }} />
+        <span aria-hidden="true" style={CAPTION}>←</span>
+        <div data-testid={`output-row-${index}-source`} title={sourceLabel} style={{ display: "flex", alignItems: "center", gap: 4, minWidth: 0 }}>
+          {editable && roots !== null ? (
+            <RootPicker roots={roots} wholeLabel={kind === "input" ? t("agents.io.everything_it_was_given") : t("agents.io.the_whole_result")}
+              open={open} choice={choice} path={path} prefix={prefix} summary={sourceLabel}
+              onPath={(next) => set_source({ path: next })} />
           ) : (
-            <span
-              data-testid={`output-row-${index}-fixed-kind`}
-              style={{ ...CAPTION, flex: 1, minWidth: 0 }}
-            >
-              {single_kind_caption}
-            </span>
+            <Button label={sourceLabel} onClick={() => setExpanded(true)}
+              style={{ minWidth: 0, maxWidth: "100%", fontSize: 12, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 8 }} />
           )}
-          <Button
-            prefix_icon="close"
-            ariaLabel={mapping && mapping.name ? t("agents.io.remove_output", { name: mapping.name }) : t("agents.io.remove_output_unnamed")}
-            onClick={onRemove}
-            style={{
-              flexShrink: 0,
-              paddingVertical: 4,
-              paddingHorizontal: 4,
-              borderRadius: 4,
-              content: { icon: { width: 11, height: 11 } },
-            }}
-          />
+          {editable && roots !== null && open && resultRoots.reason && <PanelHelp label={t("agents.execution.code.result")}>
+            <span data-testid={`output-row-${index}-result-open`}>{resultRoots.reason}</span>
+          </PanelHelp>}
         </div>
+        <Button prefix_icon="more" ariaLabel={`${mapping?.name || t("agents.io.output_variables")} · ${t("chat.attach.more")}`}
+          dom_props={{ "aria-expanded": expanded, "aria-controls": settingsId }}
+          onClick={() => setExpanded(!expanded)}
+          style={{ width: 24, height: 24, iconOnlyPaddingVertical: 0, iconOnlyPaddingHorizontal: 0, borderRadius: 8, color: "#86868b", content: { icon: { width: 15, height: 15 } } }} />
       </div>
+      {/* Preserve path-editor identity and refused text while settings are closed. */}
+      <VariableSettings id={settingsId} testid={`output-row-${index}-settings`} expanded={expanded} isDark={isDark}
+        footer={(
+          <Button prefix_icon="delete" label={mapping?.name ? t("agents.io.remove_output", { name: mapping.name }) : t("agents.io.remove_output_unnamed")}
+          ariaLabel={mapping?.name ? t("agents.io.remove_output", { name: mapping.name }) : t("agents.io.remove_output_unnamed")}
+          onClick={onRemove} style={{ alignSelf: "flex-start", fontSize: 11.5, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 8 }} />
+        )}>
 
-      {editable && kinds.length > 1 && (
-        <span style={CAPTION}>{(kind === "input" ? t("agents.io.read_from_the_inputs_above_after_they_resolve")
-          : kind === "result" ? t("agents.io.read_from_the_node_s_own_result_once_it_has_run") : KIND_CAPTION[kind])}</span>
-      )}
-
-      {editable && roots !== null && (
-        <>
-          <RootPicker
-            roots={roots}
-            wholeLabel={kind === "input" ? t("agents.io.everything_it_was_given") : t("agents.io.the_whole_result")}
-            open={open}
-            choice={choice}
-            path={path}
-            onPath={(next) => set_source({ path: next })}
-          />
-          {open && resultRoots.reason && (
-            <span data-testid={`output-row-${index}-result-open`} style={CAPTION}>
-              {resultRoots.reason}
-            </span>
-          )}
+        <VariableSettingRow label={t("model_providers.custom.import_source")}>
+        {kinds.length > 1 ? (
+          <Select options={kinds.map((value) => ({ value, label: value === "input" ? t("agents.workflow.inputs")
+            : value === "result" ? t("agents.execution.code.result") : KIND_LABEL[value] }))}
+            value={kind} set_value={set_kind} filterable={false} trigger_wrapper_style={{ width: "100%", minWidth: 0 }}
+            style={{ width: "100%", boxSizing: "border-box", justifyContent: "flex-start", minWidth: 0, fontSize: 12, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 8, gap: 4 }} />
+        ) : (
+          <span data-testid={`output-row-${index}-fixed-kind`} title={single_kind_caption} style={CAPTION}>{prefix}</span>
+        )}
+        {editable && roots === null && resultRoots?.reason && <PanelHelp label={t("agents.execution.code.result")}>
+          <span data-testid={`output-row-${index}-result-unknown`}>{resultRoots.reason}</span>
+        </PanelHelp>}
+        </VariableSettingRow>
+        {editable && roots !== null && <>
           {/* The whole object has no inside to reach into, so there are no
               deeper steps to offer. A typed first step is rendered as a step
               rather than hidden behind the picker, which is the only way an
               unlisted field can be said at all. */}
           {path.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
+            <span style={CAPTION}>{t("memory_inspect.tree_field_path")}</span>
             <PathEditor
               path={path}
               testid={`output-row-${index}`}
@@ -311,35 +276,31 @@ export default function OutputRow({
               addLabel={t("agents.io.go_deeper")}
               leading={typed_root ? null : <span />}
             />
+            </div>
           )}
           {kind === "input" && inputNames.length === 0 && (
             <span data-testid={`output-row-${index}-no-inputs`} style={CAPTION}>
               {t("agents.io.no_inputs_to_export")}
             </span>
           )}
-        </>
-      )}
-
+        </>}
       {editable && roots === null && (
-        <>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
+          <span style={CAPTION}>{t("memory_inspect.tree_field_path")}</span>
           <PathEditor
             path={path}
             testid={`output-row-${index}`}
             identity={identity}
             onChange={(next) => set_source({ path: next })}
           />
-          {resultRoots && resultRoots.reason && (
-            <span data-testid={`output-row-${index}-result-unknown`} style={CAPTION}>
-              {resultRoots.reason}
-            </span>
-          )}
-        </>
+        </div>
       )}
 
+      </VariableSettings>
       {!editable && (
         <div
           data-testid={`output-row-${index}-unreadable`}
-          style={{ display: "flex", flexDirection: "column", gap: 4 }}
+          style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 6 }}
         >
           <span style={CAPTION}>
             {t("agents.io.unreadable_output")}
@@ -347,7 +308,7 @@ export default function OutputRow({
           <span
             style={{
               ...MONO,
-              fontSize: 10.5,
+              fontSize: 11.5,
               lineHeight: 1.45,
               wordBreak: "break-all",
               color: isDark ? "#c9c9d1" : "#55555d",
@@ -363,7 +324,8 @@ export default function OutputRow({
           key={i}
           data-testid={`output-row-${index}-problem-${i}`}
           style={{
-            fontSize: 10.5,
+            marginTop: 6,
+            fontSize: 11.5,
             lineHeight: 1.45,
             color: isDark ? "rgba(255,140,140,0.95)" : "rgba(176,32,32,0.95)",
           }}

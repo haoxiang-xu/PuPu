@@ -1,7 +1,7 @@
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import React from "react";
 import { compute_variable_scope } from "../variable_scope";
-import Select from "../../../../../BUILTIN_COMPONENTs/select/select";
+import Select from "./panel_select";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import { Input } from "../../../../../BUILTIN_COMPONENTs/input/input";
 

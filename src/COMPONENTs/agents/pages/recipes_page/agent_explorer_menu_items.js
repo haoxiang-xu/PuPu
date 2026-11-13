@@ -2,11 +2,8 @@ import { agentEnglishText } from "./agents_i18n";
 /* The Agents explorer's right-click menu, by target.
  *
  * Same shape as the legacy recipe list's menu (recipe_list_context_menu_items)
- * so the author sees the same groups, with the native store's verbs: an Agent
- * is archived, not deleted — the store keeps a migrated or referenced Agent
- * and refuses to delete it — and it comes back with Restore. An item that
- * cannot be used stays in place, disabled, with the reason in its trailing
- * slot, so the menu never changes shape. */
+ * so the author sees the same groups. Resources use permanent deletion,
+ * including items left archived by an earlier build. */
 
 export function buildAgentExplorerMenuItems({
   node,
@@ -17,8 +14,7 @@ export function buildAgentExplorerMenuItems({
   onImport,
   onStartRename,
   onDuplicate,
-  onArchive,
-  onRestore,
+  onDeleteResource,
   onDeleteFolder,
   onOpenLegacy,
 }, t = agentEnglishText) {
@@ -45,23 +41,21 @@ export function buildAgentExplorerMenuItems({
 
   if (node.kind === "resource") {
     const unsaved = Boolean(node.active && activeDirty);
-    const isDefault = node.is_default === true;
     return [
       { icon: "rename", label: t("agents.explorer.menu.rename"), disabled: unsaved, trail: unsaved ? t("agents.explorer.menu.save_first") : undefined, onClick: () => onStartRename(node) },
       { icon: "copy", label: t("agents.explorer.menu.duplicate"), onClick: () => onDuplicate(node) },
       { type: "separator" },
       {
-        label: t("agents.explorer.menu.archive"),
+        icon: "delete",
+        label: t("agents.explorer.menu.delete"),
         danger: true,
-        disabled: unsaved || isDefault,
-        trail: isDefault ? t("agents.explorer.menu.chat_default") : unsaved ? t("agents.explorer.menu.save_first") : undefined,
-        onClick: () => onArchive(node),
+        onClick: () => onDeleteResource(node),
       },
     ];
   }
 
   if (node.kind === "archived") {
-    return [{ icon: "undo", label: t("agents.explorer.menu.restore"), onClick: () => onRestore(node) }];
+    return [{ icon: "delete", label: t("agents.explorer.menu.delete"), danger: true, onClick: () => onDeleteResource(node) }];
   }
 
   if (node.kind === "legacy") {

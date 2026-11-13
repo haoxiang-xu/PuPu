@@ -393,18 +393,17 @@ describe("the right-click verbs", () => {
     expect(p.onActiveChanged).not.toHaveBeenCalled();
   });
 
-  test("an open Agent with unsaved work cannot be renamed or archived from here, and Default cannot be archived", async () => {
+  test("Delete is available for an unsaved Agent and Default while Rename still requires saving", async () => {
     api.unchain.listSkeletonResources = jest.fn().mockResolvedValue([agent("a", "Alpha"), agent("d", "Default")]);
     show({ activeId: "a", activeDirty: true });
     await screen.findByTestId("row-resource:a");
     openMenu("resource:a");
     expect(menuItem("Rename")).toBeDisabled();
     expect(menuItem("Rename")).toHaveAttribute("data-trail", "save first");
-    expect(menuItem("Archive")).toBeDisabled();
+    expect(menuItem("Delete")).not.toBeDisabled();
     expect(menuItem("Duplicate")).not.toBeDisabled();
     openMenu("resource:d");
-    expect(menuItem("Archive")).toBeDisabled();
-    expect(menuItem("Archive")).toHaveAttribute("data-trail", "chat default");
+    expect(menuItem("Delete")).not.toBeDisabled();
     expect(menuItem("Rename")).not.toBeDisabled();
   });
 
@@ -424,25 +423,49 @@ describe("the right-click verbs", () => {
     expect(getFolderState().resourceFolder[newId]).toBe("f");
   });
 
-  test("archive asks first, then leaves the list for Archived, where Restore brings it back", async () => {
-    let archived = false;
-    api.unchain.listSkeletonResources = jest.fn(async () => [agent("a", "Alpha", { archived, edit_token: archived ? "t2" : "t1" })]);
-    api.unchain.archiveSkeletonResource = jest.fn(async () => { archived = true; return {}; });
-    api.unchain.restoreSkeletonResource = jest.fn(async () => { archived = false; return {}; });
-    show();
+  test.each(["agent", "workflow"])("Delete confirms then removes a %s, clears the editor and never archives it", async (kind) => {
+    let deleted = false;
+    api.unchain.listSkeletonResources = jest.fn(async () => deleted ? [] : [agent("a", "Alpha", { kind, edit_token: "t1" })]);
+    api.unchain.deleteSkeletonResource = jest.fn(async () => { deleted = true; return { ok: true }; });
+    api.unchain.archiveSkeletonResource = jest.fn();
+    const { p } = show({ activeId: "a" });
     await screen.findByTestId("row-resource:a");
     openMenu("resource:a");
-    fireEvent.click(menuItem("Archive"));
+    fireEvent.click(menuItem("Delete"));
+    expect(api.unchain.deleteSkeletonResource).not.toHaveBeenCalled();
+    expect(screen.getByTestId("modal")).toHaveTextContent("cannot be undone");
+    fireEvent.click(within(screen.getByTestId("modal")).getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(screen.queryByTestId("row-resource:a")).not.toBeInTheDocument());
+    expect(api.unchain.deleteSkeletonResource).toHaveBeenCalledWith("a", "t1");
     expect(api.unchain.archiveSkeletonResource).not.toHaveBeenCalled();
-    expect(screen.getByTestId("modal")).toHaveTextContent("Restore it from Archived");
-    fireEvent.click(within(screen.getByTestId("modal")).getByRole("button", { name: "Archive" }));
-    expect(await screen.findByTestId("row-archived:a")).toBeInTheDocument();
-    expect(api.unchain.archiveSkeletonResource).toHaveBeenCalledWith("a", "t1");
-    expect(screen.queryByTestId("row-resource:a")).toBeNull();
+    expect(p.onActiveChanged).toHaveBeenCalledWith({ type: "deleted", id: "a" });
+    expect(screen.queryByTestId("row-archived:a")).not.toBeInTheDocument();
+  });
+
+  test("Cancel preserves the resource and delete failure keeps it visible", async () => {
+    api.unchain.listSkeletonResources = jest.fn(async () => [agent("a", "Alpha")]);
+    api.unchain.deleteSkeletonResource = jest.fn().mockRejectedValue(new Error("Used by Caller"));
+    const { p } = show({ activeId: "a" });
+    await screen.findByTestId("row-resource:a");
+    openMenu("resource:a");
+    fireEvent.click(menuItem("Delete"));
+    fireEvent.click(within(screen.getByTestId("modal")).getByRole("button", { name: "Cancel" }));
+    expect(api.unchain.deleteSkeletonResource).not.toHaveBeenCalled();
+    openMenu("resource:a");
+    fireEvent.click(menuItem("Delete"));
+    fireEvent.click(within(screen.getByTestId("modal")).getByRole("button", { name: "Delete" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Used by Caller");
+    expect(screen.getByTestId("row-resource:a")).toBeInTheDocument();
+    expect(p.onActiveChanged).not.toHaveBeenCalled();
+  });
+
+  test("historical archived resources offer Delete and have no Restore action", async () => {
+    api.unchain.listSkeletonResources = jest.fn(async () => [agent("a", "Alpha", { archived: true })]);
+    show();
+    await screen.findByTestId("row-archived:a");
     openMenu("archived:a");
-    fireEvent.click(menuItem("Restore"));
-    expect(await screen.findByTestId("row-resource:a")).toBeInTheDocument();
-    expect(api.unchain.restoreSkeletonResource).toHaveBeenCalledWith("a", "t2");
+    expect(menuItem("Delete")).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Restore", exact: true })).not.toBeInTheDocument();
   });
 });
 

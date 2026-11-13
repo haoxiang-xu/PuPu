@@ -255,4 +255,4 @@ const trustedCustomProviders = (snapshot) => {
   return [...shipped.filter((entry) => !authored.some((stored) => stored.id === entry.id)), ...authored];
 };
 
-module.exports = { buildSkeletonCredentialQuery, resolveSkeletonCredentials, trustedCustomProviders };
+module.exports = { buildSkeletonCredentialQuery, resolveSkeletonCredentials, trustedCustomProviders, authorizeSkeletonProfile: authorizeProfile };

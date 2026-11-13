@@ -2,7 +2,7 @@ import React from "react";
 import usePendingText from "./pending_text";
 import useListIdentities from "./list_identity";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
-import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
+import Input from "./panel_input";
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 
 /* Where inside a value to read.
@@ -22,7 +22,7 @@ import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use
  * wrong address that reads an existing element is worse than a refused one, so
  * what was typed stays on screen, unstored, with the reason. */
 
-const CAPTION = { fontSize: 10.5, color: "#86868b", lineHeight: 1.45 };
+const CAPTION = { fontSize: 11.5, color: "#86868b", lineHeight: 1.45 };
 const MONO = { fontFamily: "ui-monospace, Menlo, monospace" };
 
 export function path_segment_kind(segment) {
@@ -96,11 +96,11 @@ function Step({ segment, index, testid, onReplace, onRemove }) {
           onClick={flip}
           style={{
             flexShrink: 0,
-            fontSize: 10.5,
+            fontSize: 11.5,
             ...MONO,
             paddingVertical: 3,
             paddingHorizontal: 6,
-            borderRadius: 4,
+            borderRadius: 8,
           }}
         />
         <Input
@@ -110,11 +110,11 @@ function Step({ segment, index, testid, onReplace, onRemove }) {
           style={{
             flex: 1,
             minWidth: 0,
-            fontSize: 11.5,
+            fontSize: 12,
             ...MONO,
             paddingVertical: 4,
             paddingHorizontal: 6,
-            borderRadius: 5,
+            borderRadius: 8,
           }}
         />
         <Button
@@ -125,7 +125,7 @@ function Step({ segment, index, testid, onReplace, onRemove }) {
             flexShrink: 0,
             paddingVertical: 4,
             paddingHorizontal: 4,
-            borderRadius: 4,
+            borderRadius: 8,
             content: { icon: { width: 11, height: 11 } },
           }}
         />
@@ -202,11 +202,11 @@ export default function PathEditor({
         onClick={add}
         style={{
           alignSelf: "flex-start",
-          fontSize: 11,
+          fontSize: 11.5,
           paddingVertical: 3,
           paddingHorizontal: 8,
-          borderRadius: 5,
-          color: "#4a5bd8",
+          borderRadius: 8,
+          color: "var(--pupu-text-muted)",
         }}
       />
 

@@ -632,6 +632,17 @@ const Home = (props) => (
     <path d="M21 20C21 20.5523 20.5523 21 20 21H4C3.44772 21 3 20.5523 3 20V9.48907C3 9.18048 3.14247 8.88917 3.38606 8.69972L11.3861 2.47749C11.7472 2.19663 12.2528 2.19663 12.6139 2.47749L20.6139 8.69972C20.8575 8.88917 21 9.18048 21 9.48907V20ZM19 19V9.97815L12 4.53371L5 9.97815V19H19Z"></path>
   </svg>
 );
+/* Remix Icon home-5-line: the house with a door. Without the door the
+   outline reads as a pentagon, not as "home". */
+const HomeDoor = (props) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+  >
+    <path d="M13 19H19V9.97815L12 4.53371L5 9.97815V19H11V13H13V19ZM21 20C21 20.5523 20.5523 21 20 21H4C3.44772 21 3 20.5523 3 20V9.48907C3 9.18048 3.14247 8.88917 3.38606 8.69972L11.3861 2.47749C11.7472 2.19663 12.2528 2.19663 12.6139 2.47749L20.6139 8.69972C20.8575 8.88917 21 9.18048 21 9.48907V20Z"></path>
+  </svg>
+);
 const Information = (props) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -1106,7 +1117,7 @@ const SideMenuClose = (props) => (
     viewBox="0 0 24 24"
     fill="currentColor"
   >
-    <path d="M21 3C21.5523 3 22 3.44772 22 4V20C22 20.5523 21.5523 21 21 21H3C2.44772 21 2 20.5523 2 20V4C2 3.44772 2.44772 3 3 3H21ZM20 5H4V19H20V5ZM6 7H11V17H6V7Z"></path>
+    <path fillRule="evenodd" d="M6 3H18A4 4 0 0 1 22 7V17A4 4 0 0 1 18 21H6A4 4 0 0 1 2 17V7A4 4 0 0 1 6 3ZM6 5H18A2 2 0 0 1 20 7V17A2 2 0 0 1 18 19H6A2 2 0 0 1 4 17V7A2 2 0 0 1 6 5ZM6 5H11V19H6A2 2 0 0 1 4 17V7A2 2 0 0 1 6 5Z"></path>
   </svg>
 );
 const SideMenuLeft = (props) => (
@@ -1115,7 +1126,7 @@ const SideMenuLeft = (props) => (
     viewBox="0 0 24 24"
     fill="currentColor"
   >
-    <path d="M21 3C21.5523 3 22 3.44772 22 4V20C22 20.5523 21.5523 21 21 21H3C2.44772 21 2 20.5523 2 20V4C2 3.44772 2.44772 3 3 3H21ZM20 5H4V19H20V5ZM8 7V17H6V7H8Z"></path>
+    <path fillRule="evenodd" d="M6 3H18A4 4 0 0 1 22 7V17A4 4 0 0 1 18 21H6A4 4 0 0 1 2 17V7A4 4 0 0 1 6 3ZM6 5H18A2 2 0 0 1 20 7V17A2 2 0 0 1 18 19H6A2 2 0 0 1 4 17V7A2 2 0 0 1 6 5ZM9 5H11V19H9Z"></path>
   </svg>
 );
 const SideMenuRight = (props) => (
@@ -1124,7 +1135,7 @@ const SideMenuRight = (props) => (
     viewBox="0 0 24 24"
     fill="currentColor"
   >
-    <path d="M21 3C21.5523 3 22 3.44772 22 4V20C22 20.5523 21.5523 21 21 21H3C2.44772 21 2 20.5523 2 20V4C2 3.44772 2.44772 3 3 3H21ZM20 5H4V19H20V5ZM18 7V17H16V7H18Z"></path>
+    <path fillRule="evenodd" d="M6 3H18A4 4 0 0 1 22 7V17A4 4 0 0 1 18 21H6A4 4 0 0 1 2 17V7A4 4 0 0 1 6 3ZM6 5H18A2 2 0 0 1 20 7V17A2 2 0 0 1 18 19H6A2 2 0 0 1 4 17V7A2 2 0 0 1 6 5ZM13 5H15V19H13Z"></path>
   </svg>
 );
 const SideMenuTop = (props) => (
@@ -1780,6 +1791,7 @@ const UISVGs = {
   heart: Heart,
   heart_outline: HeartOutline,
   home: Home,
+  home_door: HomeDoor,
   information: Information,
   key: Key,
   link: Link,

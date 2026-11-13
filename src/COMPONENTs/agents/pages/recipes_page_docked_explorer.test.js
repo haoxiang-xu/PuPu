@@ -61,9 +61,9 @@ beforeEach(() => {
   });
 });
 
-const showDocked = (slot) => render(
+const showDocked = (slot, onBack) => render(
   <ConfigContext.Provider value={{ theme: {}, onThemeMode: "light_mode" }}>
-    <RecipesPage isDark={false} selectedNodeId={null} onSelectNode={() => {}} fullscreen={false} explorerSlot={slot} explorerDocked />
+    <RecipesPage isDark={false} selectedNodeId={null} onSelectNode={() => {}} fullscreen={false} explorerSlot={slot} explorerDocked onExplorerBack={onBack} />
   </ConfigContext.Provider>,
 );
 
@@ -96,4 +96,37 @@ test("undocked, the list still floats over the canvas as before", () => {
   );
   expect(screen.getByTestId("recipe-list-panel-shell")).toContainElement(screen.getByTestId("agent-explorer"));
   expect(screen.getByLabelText(/hide agents/i)).toBeInTheDocument();
+});
+
+test("docked, the pane reads the way back, then the Agents title and its actions, with no search field of its own", () => {
+  const slot = document.createElement("div");
+  document.body.appendChild(slot);
+  const onBack = jest.fn();
+  showDocked(slot, onBack);
+
+  /* the side menu's own field, which stays put above both panes, searches it */
+  expect(within(slot).queryByPlaceholderText("Search...")).toBeNull();
+  const back = within(slot).getByRole("button", { name: "Chats" });
+  const title = within(slot).getByTestId("agent-explorer-section-title");
+  const before = (a, b) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+  expect(before(back, title)).toBe(true);
+  expect(within(title).getByLabelText("New Agent")).toBeInTheDocument();
+
+  fireEvent.click(back);
+  expect(onBack).toHaveBeenCalledTimes(1);
+  slot.remove();
+});
+
+test("docked, the way back stays small, and the title carries its own colour", () => {
+  const slot = document.createElement("div");
+  document.body.appendChild(slot);
+  showDocked(slot, () => {});
+
+  const back = within(slot).getByRole("button", { name: "Chats" });
+  expect(back.style.width).not.toBe("100%");
+  expect(back.style.alignSelf).toBe("flex-start");
+
+  const label = within(slot).getByText("Agents", { selector: "[data-testid='agent-explorer-section-title'] > div" });
+  expect(label.style.color).toBe("rgba(0, 0, 0, 0.9)");
+  slot.remove();
 });

@@ -643,3 +643,52 @@ render assertion. Real-provider quality remains a release-level item; no claim
 of a real API run or rollout is made. CI/audit must pass before authorized merge
 and child closure; #208 remains open. No scope or field changes beyond factual
 Status are introduced.
+
+
+### Owner correction: automatic legacy migration (2026-11-09)
+
+The owner confirmed that legacy Agents were never public. All existing users
+therefore receive native editable graphs automatically; the prior explicit
+preview/review/apply UI is not a product requirement. Closed #473 and its frozen
+evidence remain historical and unchanged. Follow-up workspace is
+`pupu-legacy-auto-upgrade`, branch `codex/legacy-agent-auto-upgrade`, base
+`c1f24c52a66f2bb7a9ac0d46891fa8876894e3bd`. Root implements the unsettled
+projection/persistence/editor decisions; no worker is dispatched. Existing UI
+components/styles are reused, with no new confirmation or visual alternative.
+
+BC-AUTO-001 (CLOSED persistence): startup scanning -> native graph projection ->
+existing resources + source archive/receipt, in one SQLite transaction per
+resource dependency closure. Resource IDs, aliases, source bytes, source policy
+and authored native configuration survive. Unknown unsupported settings refuse
+without partial writes, rather than being silently discarded. Existing upgraded
+rows are never rewritten. The unchanged installed c1213803 wheel / c172bc02
+manifest is used for validation; no Core change or rebuilt wheel.
+
+BC-AUTO-002 (CLOSED draft/editor): an unconfigured migrated Agent stores only
+`execution` plus `kernel_draft={prompt,model,max_iterations}` until a real model
+is chosen. Model is a preserved legacy identity or null, iterations a positive
+integer or null. This is draft-only data, never a fabricated Kernel. The model
+control promotes the preserved prompt/iteration settings into the existing
+strict Kernel and removes kernel_draft. Existing complete native Kernels win.
+No new HTTP/IPC operation or runtime protocol is introduced.
+
+SEQ-AUTO-001 / AC-AUTO-001: seed -> first startup -> native Default/Explore +
+correct reference and tool allowlists -> second startup and cold Store read ->
+identical document/token; native edits must survive subsequent startup.
+SEQ-AUTO-002 / AC-AUTO-002: old first-hop draft (including managed-source row) ->
+automatic conversion/archive/receipt -> failed transaction rollback -> retry ->
+verified cold read. Old source files and launch/journal snapshots are unchanged.
+AC-AUTO-003: actual migrated producer document -> real editor -> model selection
+-> strict Core preflight; preserved prompt/inputs/outputs/tool policy must match.
+AC-AUTO-004: native documents with no legacy fields show no upgrade confirmation;
+a fresh user can open/edit both shipped Agents directly. An absent model stays
+unconfigured; malformed/ambiguous/cyclic sources do not become false successes.
+Running/interacting/resuming provider paths are unchanged: conversion writes
+resource drafts only, never launch or execution stores. Existing retained-run
+regressions cover their preservation; live provider quality remains #458.
+
+Pre-edit GitNexus bound to this clone at the base: startup scan LOW (main caller),
+_Projection LOW, with_node_kernel LOW (KernelSection store/pick flows).
+KernelSection is UNKNOWN due JSX; text imports/callers must corroborate it.
+No HIGH/CRITICAL impact is waived. Tests reproduce startup legacy markers and
+prompt loss before implementation. One bounded local heavy job at a time.

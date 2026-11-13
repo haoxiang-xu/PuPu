@@ -1,3 +1,6 @@
+/* Keep guidance available in these document-contract tests. The actual
+   collapsed surface and interaction are covered in panel_help/compact_variables. */
+jest.mock("./recipes_page/detail_panel/panel_help", () => function GuidanceText({ children }) { return <>{children}</>; });
 import React from "react";
 import { pressCanvasNode, openAddNode, openRunMenu } from "./recipes_page/skeleton_canvas_test_helpers";
 import { install_legacy_store_bridge } from "./recipes_page/legacy_store_test_bridge";
@@ -106,13 +109,13 @@ describe("edit and save at the token it was opened at", () => {
   test("adding an input marks it unsaved and enables Save", async () => {
     await open();
     expect(screen.getByTestId("skeleton-save-state").textContent).toMatch(/^Saved$/);
-    fireEvent.click(screen.getByText("+ Add input"));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add input", exact: true }));
     expect(screen.getByTestId("skeleton-save-state").textContent).toMatch(/unsaved/i);
   });
 
   test("Save sends the edited document at the token it was opened at", async () => {
     await open();
-    fireEvent.click(screen.getByText("+ Add input"));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add input", exact: true }));
     await act(async () => {
       fireEvent.click(screen.getByText("Save").closest("button"));
     });
@@ -138,7 +141,7 @@ describe("another editor got there first", () => {
     show();
     await waitFor(() => expect(screen.getByTestId("skeleton-node-end")).toBeInTheDocument());
     pressCanvasNode(screen.getByTestId("skeleton-node-end"));
-    fireEvent.click(screen.getByText("+ Add input"));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add input", exact: true }));
     await act(async () => {
       fireEvent.click(screen.getByText("Save").closest("button"));
     });
@@ -175,7 +178,7 @@ describe("the run check, in the page", () => {
     act(() => {
       openRunMenu();
     });
-    fireEvent.click(screen.getByText("+ Add input"));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add input", exact: true }));
 
     await act(async () => {
       release();
@@ -224,7 +227,7 @@ describe("typing after choosing to take theirs, in the page", () => {
     await waitFor(() => expect(screen.getByTestId("skeleton-node-end")).toBeInTheDocument());
     pressCanvasNode(screen.getByTestId("skeleton-node-end"));
     /* One row to start with, then a second, then save into a conflict. */
-    fireEvent.click(screen.getByText("+ Add input"));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add input", exact: true }));
     await act(async () => {
       fireEvent.click(screen.getByText("Save").closest("button"));
     });
@@ -234,7 +237,7 @@ describe("typing after choosing to take theirs, in the page", () => {
       fireEvent.click(screen.getByText("Look at theirs"));
     });
     /* Keeps adding while the re-read is in flight. */
-    fireEvent.click(screen.getByText("+ Add input"));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add input", exact: true }));
     const rowsBefore = screen.getAllByTestId(/^binding-row-\d+$/).length;
 
     await act(async () => {
@@ -259,14 +262,14 @@ describe("typing after choosing to take theirs, in the page", () => {
     show();
     await waitFor(() => expect(screen.getByTestId("skeleton-node-end")).toBeInTheDocument());
     pressCanvasNode(screen.getByTestId("skeleton-node-end"));
-    fireEvent.click(screen.getByText("+ Add input"));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add input", exact: true }));
     await act(async () => {
       fireEvent.click(screen.getByText("Save").closest("button"));
     });
     act(() => {
       fireEvent.click(screen.getByText("Look at theirs"));
     });
-    fireEvent.click(screen.getByText("+ Add input"));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add input", exact: true }));
     await act(async () => {
       release();
       await Promise.resolve();
@@ -304,7 +307,7 @@ describe("editing an output on the real page", () => {
 
   test("adding one marks the draft unsaved", async () => {
     await open_end();
-    fireEvent.click(screen.getByText("+ Add output"));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add output", exact: true }));
     expect(screen.getByTestId("output-row-0")).toBeInTheDocument();
     expect(screen.getByTestId("skeleton-save-state").textContent).toMatch(/unsaved/i);
   });
@@ -313,7 +316,7 @@ describe("editing an output on the real page", () => {
     /* The document's End declares one input, `payload`, and an End can only
        export what it was given. */
     await open_end();
-    fireEvent.click(screen.getByText("+ Add output"));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add output", exact: true }));
     /* Scoped to the row: an input row's name box carries the same placeholder,
        and both are on screen at once. */
     fireEvent.change(
@@ -331,7 +334,7 @@ describe("editing an output on the real page", () => {
 
   test("the saved document keeps the closed envelope and node shapes", async () => {
     await open_end();
-    fireEvent.click(screen.getByText("+ Add output"));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add output", exact: true }));
     await act(async () => {
       fireEvent.click(screen.getByText("Save").closest("button"));
     });
@@ -348,7 +351,7 @@ describe("editing an output on the real page", () => {
 
   test("editing an output does not disturb the node's inputs", async () => {
     await open_end();
-    fireEvent.click(screen.getByText("+ Add output"));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add output", exact: true }));
     await act(async () => {
       fireEvent.click(screen.getByText("Save").closest("button"));
     });
@@ -363,9 +366,10 @@ describe("editing an output on the real page", () => {
     await open_end();
     pressCanvasNode(screen.getByTestId("skeleton-node-start"));
     expect(screen.getByTestId("output-row-0")).toBeInTheDocument();
-    expect(screen.getByTestId("output-row-0-fixed-kind").textContent).toMatch(
-      /what the run was called with/i,
-    );
+    /* A Start's result is what the run was called with, so the row names it
+       as the caller's input, and the section says why behind its info. */
+    expect(screen.getByTestId("output-row-0-selected")).toHaveTextContent(/Caller input\s*text/);
+    expect(screen.getByTestId("process-header-start-output")).toBeInTheDocument();
   });
 
   test("an output the author removes is gone from what is sent", async () => {
@@ -412,7 +416,7 @@ describe("the whole-value and result-root choices on the real page", () => {
     pressCanvasNode(screen.getByTestId("skeleton-node-end"));
     expect(screen.getByTestId("output-row-0")).toBeInTheDocument();
     expect(screen.getByTestId("output-row-0").textContent).toMatch(
-      /Everything it was given/i,
+      /Inputs/i,
     );
     expect(screen.queryByTestId("output-row-0-problem-0")).not.toBeInTheDocument();
   });
@@ -449,9 +453,12 @@ describe("the whole-value and result-root choices on the real page", () => {
     pressCanvasNode(screen.getByTestId("skeleton-node-end"));
   };
 
-  test("a named first step offers deeper steps", async () => {
+  test("a named first step is shown on the row as the field it reads", async () => {
+    /* An End's row is a pick from its own inputs, as an Agent's is; a deeper
+       address it already holds is shown as stored rather than re-edited. */
     await open_with_output({ kind: "input", path: ["payload"] });
-    expect(screen.getByText(/Go deeper/)).toBeInTheDocument();
+    expect(screen.getByTestId("output-row-0-source")).toHaveTextContent(/payload/);
+    expect(screen.queryByText(/Go deeper/)).not.toBeInTheDocument();
   });
 
   test("the whole object has no deeper steps to offer", async () => {
@@ -464,8 +471,9 @@ describe("the whole-value and result-root choices on the real page", () => {
   test("a result naming a field the producer does not have is said on the row", async () => {
     await open_end();
     pressCanvasNode(screen.getByTestId("skeleton-node-start"));
-    /* A Start's result is the caller's, so nothing is claimed about it. */
-    expect(screen.getByTestId("output-row-0-result-unknown")).toBeInTheDocument();
+    /* A Start's result is the caller's, so nothing is claimed about it: the
+       field it reads is typed rather than picked from a list. */
+    expect(within(screen.getByTestId("output-row-0-source")).getByRole("textbox")).toBeInTheDocument();
     expect(screen.queryByTestId("output-row-0-problem-0")).not.toBeInTheDocument();
   });
 
@@ -929,7 +937,7 @@ describe("drilling into a subagent's own graph", () => {
     api.unchain.saveSkeletonResource = jest.fn();
     /* An edit to the parent, left unsaved. */
     pressCanvasNode(screen.getByTestId("skeleton-node-end"));
-    fireEvent.click(screen.getByText("+ Add input"));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add input", exact: true }));
     expect(screen.getByTestId("skeleton-save-state").textContent).toMatch(/unsaved/i);
 
     pressCanvasNode(screen.getByTestId("skeleton-node-pool"));
@@ -988,7 +996,7 @@ describe("drilling into a subagent's own graph", () => {
       fireEvent.click(screen.getByLabelText("Open Summarizer"));
     });
     pressCanvasNode(screen.getByTestId("skeleton-node-sum-end"));
-    fireEvent.click(screen.getByText("+ Add input"));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add input", exact: true }));
     await act(async () => {
       fireEvent.click(screen.getByText("Save").closest("button"));
     });
@@ -1021,7 +1029,7 @@ describe("drilling into a subagent's own graph", () => {
     expect(note).not.toMatch(/does not look inside/i);
 
     pressCanvasNode(screen.getByTestId("skeleton-node-inner-end"));
-    fireEvent.click(screen.getByText("+ Add input"));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add input", exact: true }));
     await act(async () => {
       fireEvent.click(screen.getByText("Save").closest("button"));
     });
@@ -1144,7 +1152,7 @@ describe("drilling into a subagent's own graph", () => {
       () => new Promise((resolve) => { land = resolve; }),
     );
     pressCanvasNode(screen.getByTestId("skeleton-node-end"));
-    fireEvent.click(screen.getByText("+ Add input"));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add input", exact: true }));
     fireEvent.click(screen.getByText("Save").closest("button"));
     pressCanvasNode(screen.getByTestId("skeleton-node-pool"));
     await act(async () => {
@@ -1184,7 +1192,7 @@ describe("drilling into a subagent's own graph", () => {
       .fn()
       .mockResolvedValue({ error: { code: "edit_conflict", message: "stale token" } });
     pressCanvasNode(screen.getByTestId("skeleton-node-inner-end"));
-    fireEvent.click(screen.getByText("+ Add input"));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add input", exact: true }));
     await act(async () => {
       fireEvent.click(screen.getByText("Save").closest("button"));
     });
@@ -1261,7 +1269,7 @@ describe("drilling into a subagent's own graph", () => {
     view.rerender(page("other"));
     await waitFor(() => expect(screen.getByTestId("skeleton-node-elsewhere")).toBeInTheDocument());
     pressCanvasNode(screen.getByTestId("skeleton-node-end"));
-    fireEvent.click(screen.getByText("+ Add input"));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add input", exact: true }));
     expect(screen.getByTestId("skeleton-save-state").textContent).toMatch(/unsaved/i);
 
     await act(async () => {
@@ -1287,7 +1295,7 @@ describe("drilling into a subagent's own graph", () => {
       () => new Promise((resolve) => { land_save = resolve; }),
     );
     pressCanvasNode(screen.getByTestId("skeleton-node-end"));
-    fireEvent.click(screen.getByText("+ Add input"));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add input", exact: true }));
     pressCanvasNode(screen.getByTestId("skeleton-node-pool"));
     /* Open, then Save before the read lands: the limit on the button cannot
        see this one, because nothing was being written when it was clicked. */

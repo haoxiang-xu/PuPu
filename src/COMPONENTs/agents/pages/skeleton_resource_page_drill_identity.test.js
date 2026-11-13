@@ -1592,18 +1592,15 @@ describe("an answer about a draft that has changed", () => {
     expect(screen.getByTestId("skeleton-save-state").textContent).toBe("Saved");
   });
 
-  test("and it says the draft has not been checked, rather than showing nothing", async () => {
+  test("an unchecked draft shows no stale problems and no notice; the breadcrumb says when it is checked", async () => {
     await open_sibling_isolation();
     await remove_first_entry();
     open_row(0);
     await act(async () => {});
     fireEvent.click(screen.getByTestId("skeleton-node-agent"));
     await act(async () => {});
-    const stale = screen.getByTestId("skeleton-diagnostics-stale").textContent;
-    expect(stale).toMatch(/not checked/i);
-    expect(stale).toMatch(/saved version/i);
-    expect(stale).toMatch(/saving checks this draft/i);
-    /* The breadcrumb agrees about when a check happens. */
+    expect(screen.queryByTestId("skeleton-diagnostics-stale")).toBeNull();
+    expect(screen.queryByTestId("skeleton-diagnostics-notice")).toBeNull();
     expect(screen.getByTestId("skeleton-drill-unchecked").textContent).toMatch(
       /checked when you save/i,
     );
@@ -1617,7 +1614,7 @@ describe("an answer about a draft that has changed", () => {
     await act(async () => {});
     expect(diagnostics[0].path[0]).toBe("document");
     await remove_first_entry();
-    expect(screen.getByTestId("skeleton-diagnostics-stale")).toBeInTheDocument();
+    expect(screen.queryByTestId("skeleton-diagnostics-stale")).toBeNull();
     expect(screen.queryByTestId("skeleton-elsewhere-notice")).toBeNull();
   });
 
@@ -1655,7 +1652,7 @@ describe("an answer about a draft that has changed", () => {
     /* No entry rows are left, so a path naming `subagents.0` has nowhere
        honest to go — and it is not shown. */
     expect(screen.queryAllByTestId(/^subagent-entry-\d+$/)).toHaveLength(0);
-    expect(screen.getByTestId("skeleton-diagnostics-stale")).toBeInTheDocument();
+    expect(screen.queryByTestId("skeleton-diagnostics-stale")).toBeNull();
     expect(screen.queryByTestId("skeleton-elsewhere-notice")).toBeNull();
     expect(screen.getByTestId("skeleton-save-state").textContent).toBe(
       "Unsaved changes",

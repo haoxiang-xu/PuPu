@@ -1,3 +1,6 @@
+/* Keep guidance available in these document-contract tests. The actual
+   collapsed surface and interaction are covered in panel_help/compact_variables. */
+jest.mock("./recipes_page/detail_panel/panel_help", () => function GuidanceText({ children }) { return <>{children}</>; });
 import React from "react";
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";

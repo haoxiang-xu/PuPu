@@ -47,8 +47,8 @@ export default function ToolCallNode({ node, isDark }) {
   const rows = execution && Array.isArray(execution.inputs) ? execution.inputs : [];
   const shown = rows.slice(0, MAX_ROWS);
   const overflow = rows.length - shown.length;
-  const muted = isDark ? "#a8a8b0" : "#6b6b73";
-  const text = isDark ? "#f0f0f3" : "#1d1d22";
+  const muted = "var(--pupu-text-muted)";
+  const text = "var(--pupu-text)";
 
   return (
     <div data-testid={`tool-call-node-${node.id}`} style={{ width: 210 }}>
@@ -79,7 +79,7 @@ export default function ToolCallNode({ node, isDark }) {
             </div>
           </div>
           {shown.length > 0 && (
-            <div style={{ marginTop: 8, paddingTop: 6, borderTop: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}`, display: "flex", flexDirection: "column", gap: 2 }}>
+            <div style={{ marginTop: 8, paddingTop: 6, borderTop: "1px solid var(--pupu-border-subtle)", display: "flex", flexDirection: "column", gap: 2 }}>
               {shown.map((binding, index) => {
                 const label = value_label(binding, t);
                 return (
@@ -90,7 +90,7 @@ export default function ToolCallNode({ node, isDark }) {
                   >
                     <span style={{ flexShrink: 0 }}>{safe_text(binding && binding.name)}</span>
                     <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 5, minWidth: 0, fontSize: 10.5, color: muted }}>
-                      {label.bound && <span aria-hidden="true" style={{ width: 5, height: 5, borderRadius: "50%", background: "#9a9aa3", flexShrink: 0 }} />}
+                      {label.bound && <span aria-hidden="true" style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--pupu-text-muted)", flexShrink: 0 }} />}
                       <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{safe_text(label.text)}</span>
                     </span>
                   </div>

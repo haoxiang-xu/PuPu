@@ -34,11 +34,12 @@ test("docks the agent list into the side menu's slot", () => {
   expect(lastProps.fullscreen).toBe(false);
 });
 
-test("sits beside the open side menu and below the title bar", () => {
+test("extends to the window top while keeping controls below the title-bar drag region", () => {
   show();
   const root = screen.getByTestId("agents-workspace");
-  expect(root.style.left).toBe("320px");
-  expect(root.style.top).toBe("32px");
+  expect(root.style.left).toBe("0px");
+  expect(root.style.top).toBe("-18px");
+  expect(lastProps.topStripCenter).toBeGreaterThan(50);
 });
 
 test("fills the window when the side menu is closed", () => {

@@ -35,8 +35,8 @@ export default function HooksPoolNode({ node, isDark }) {
       return ia < ib ? -1 : ia > ib ? 1 : a.index - b.index;
     });
   const shown = sorted.slice(0, MAX_ROWS);
-  const muted = isDark ? "#a8a8b0" : "#6b6b73";
-  const text = isDark ? "#f0f0f3" : "#1d1d22";
+  const muted = "var(--pupu-text-muted)";
+  const text = "var(--pupu-text)";
   const subtitle = !Array.isArray(list) ? t("agents.nodes.hook_settings_unreadable") : entries.length === 0 ? t("agents.nodes.no_hooks") : entries.length === 1
     ? t("agents.nodes.hook_count_one", { count: entries.length })
     : t("agents.nodes.hook_count_other", { count: entries.length });
@@ -55,10 +55,10 @@ export default function HooksPoolNode({ node, isDark }) {
             </div>
           </div>
           {shown.length > 0 && (
-            <div style={{ marginTop: 8, paddingTop: 6, borderTop: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}`, display: "flex", flexDirection: "column", gap: 2 }}>
+            <div style={{ marginTop: 8, paddingTop: 6, borderTop: "1px solid var(--pupu-border-subtle)", display: "flex", flexDirection: "column", gap: 2 }}>
               {shown.map(({ entry, index }) => {
                 if (!record(entry)) {
-                  return <div key={index} data-testid={`hooks-pool-node-${node.id}-row-${index}`} style={{ fontSize: 10.5, color: "#d23f37" }}>{t("agents.nodes.unreadable_entry")}</div>;
+                  return <div key={index} data-testid={`hooks-pool-node-${node.id}-row-${index}`} style={{ fontSize: 10.5, color: "var(--pupu-danger)" }}>{t("agents.nodes.unreadable_entry")}</div>;
                 }
                 const pin = hook_pin(entry);
                 const version = pin ? cached_workflow_version(pin.workflow_id, pin.revision_id) : null;
@@ -66,7 +66,7 @@ export default function HooksPoolNode({ node, isDark }) {
                 const tool = entry.tool_name === null ? t("agents.nodes.every_tool") : typeof entry.tool_name === "string" && entry.tool_name ? entry.tool_name : "?";
                 return (
                   <div key={index} data-testid={`hooks-pool-node-${node.id}-row-${index}`} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: text, minWidth: 0 }}>
-                    <span style={{ fontSize: 9.5, padding: "0 4px", borderRadius: 4, background: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)", color: muted, flexShrink: 0 }}>{when}</span>
+                    <span style={{ fontSize: 9.5, padding: "0 4px", borderRadius: 4, background: "var(--pupu-overlay-hover)", color: muted, flexShrink: 0 }}>{when}</span>
                     <span style={{ fontFamily: "ui-monospace, Menlo, monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{safe_text(tool)}</span>
                     <span style={{ marginLeft: "auto", fontSize: 10.5, color: muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {version ? t("agents.nodes.hook_workflow_revision", { name: safe_text(version.document.name || pin.workflow_id), revision: version.ordinal }) : pin ? safe_text(pin.workflow_id) : t("agents.nodes.no_workflow")}

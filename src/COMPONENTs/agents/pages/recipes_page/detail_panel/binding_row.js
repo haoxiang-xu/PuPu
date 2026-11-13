@@ -1,8 +1,9 @@
+import VariableSettings, { VariableSettingRow } from "./variable_settings";
 import { agentEnglishText } from "../agents_i18n";
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
-import React from "react";
-import Select from "../../../../../BUILTIN_COMPONENTs/select/select";
-import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
+import React, { useId, useState } from "react";
+import Select from "./panel_select";
+import Input from "./panel_input";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import MissingPolicySelect from "./missing_policy_select";
 import {
@@ -25,7 +26,7 @@ import {
  * output mappings. Offering anything else would let an author bind to a value
  * no node ever produces. */
 
-const CAPTION = { fontSize: 10.5, color: "#86868b", lineHeight: 1.45 };
+const CAPTION = { fontSize: 11.5, color: "#86868b", lineHeight: 1.45 };
 const MONO = { fontFamily: "ui-monospace, Menlo, monospace" };
 
 const SOURCE_KINDS = [
@@ -59,7 +60,7 @@ function ref_from_key(key) {
 
 /* Exported so the Tool Call panel's argument rows pick a source exactly the
    way an input row does (#352). */
-export function RefPicker({ value, sources, onChange, testid }) {
+export function RefPicker({ value, sources, onChange, testid, compact = false }) {
   const { t } = useTranslation();
   if (sources.length === 0) {
     return (
@@ -74,13 +75,15 @@ export function RefPicker({ value, sources, onChange, testid }) {
       value={ref_key(value)}
       set_value={(key) => onChange(ref_from_key(key))}
       filterable={sources.length > 8}
+      trigger_wrapper_style={compact ? { width: "100%", minWidth: 0 } : undefined}
       style={{
+        ...(compact ? { width: "100%", boxSizing: "border-box" } : {}),
         flex: 1,
         minWidth: 0,
-        fontSize: 11.5,
+        fontSize: 12,
         paddingVertical: 4,
         paddingHorizontal: 6,
-        borderRadius: 5,
+        borderRadius: 8,
         gap: 4,
       }}
     />
@@ -95,8 +98,11 @@ export default function BindingRow({
   isDark,
   onChange,
   onRemove,
+  hideMissingPolicy = false,
 }) {
   const { t } = useTranslation();
+  const [expanded, setExpanded] = useState(false);
+  const settingsId = useId();
   const value = binding && binding.value;
   const kind = value && value.kind;
   /* A shape the controls cannot take apart is shown rather than edited: every
@@ -128,109 +134,52 @@ export default function BindingRow({
   const rowProblems = problems || [];
 
   return (
-    <div
-      data-testid={`binding-row-${index}`}
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 6,
-        padding: "8px 10px",
-        borderRadius: 7,
-        background: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)",
-      }}
-    >
-      {/* `[name] ← [source] ×` reads as one line, but the panel's 300px minimum
-          leaves 248px for it and the line needs about 326px. So the row may
-          wrap: the name keeps the first line, and `← source ×` moves whole to
-          the next one. Nothing shrinks and nothing is clipped — every control
-          stays its full size at any width the panel allows. */}
-      <div
-        data-testid={`binding-row-${index}-header`}
-        style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}
-      >
-        <Input
-          value={(binding && binding.name) || ""}
+    <div data-testid={`binding-row-${index}`} style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+      <div data-testid={`binding-row-${index}-header`}
+        style={{ display: "grid", gridTemplateColumns: "minmax(48px, 0.85fr) 10px minmax(0, 1.4fr) 24px", alignItems: "center", gap: 4 }}>
+        <Input value={(binding && binding.name) || ""}
           set_value={(next) => onChange({ ...binding, name: next })}
           placeholder={t("agents.io.name_placeholder")}
-          style={{
-            width: 120,
-            flexShrink: 0,
-            fontSize: 11.5,
-            ...MONO,
-            paddingVertical: 4,
-            paddingHorizontal: 6,
-            borderRadius: 5,
-          }}
-        />
-        <div
-          data-testid={`binding-row-${index}-source`}
-          style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}
-        >
-          <span aria-hidden="true" style={{ ...CAPTION, flexShrink: 0 }}>
-            ←
-          </span>
-          <Select
-            options={SOURCE_KINDS.map((source) => ({ ...source, label: source.value === "ref"
-              ? t("agents.io.source.ref")
-              : source.value === "literal" ? t("agents.io.source.literal") : t("agents.io.source.first_present") }))}
-            value={kind}
-            set_value={set_kind}
-            filterable={false}
-            style={{
-              width: 132,
-              flexShrink: 0,
-              fontSize: 11.5,
-              paddingVertical: 4,
-              paddingHorizontal: 6,
-              borderRadius: 5,
-              gap: 4,
-            }}
-          />
-          <Button
-            prefix_icon="close"
-            ariaLabel={binding && binding.name ? t("agents.io.remove_input", { name: binding.name }) : t("agents.io.remove_input_unnamed")}
-            onClick={onRemove}
-            style={{
-              paddingVertical: 4,
-              paddingHorizontal: 4,
-              borderRadius: 4,
-              content: { icon: { width: 11, height: 11 } },
-            }}
-          />
+          style={{ width: "100%", minWidth: 0, fontSize: 12, ...MONO, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 8 }} />
+        <span aria-hidden="true" style={CAPTION}>←</span>
+        <div data-testid={`binding-row-${index}-source`} style={{ display: "flex", minWidth: 0 }}>
+          {editable && kind === "ref" ? (
+            <RefPicker value={value} sources={sources} onChange={set_value} testid={`binding-row-${index}`} compact />
+          ) : editable && kind === "literal" ? (
+            <Input value={typeof value.value === "string" ? value.value : JSON.stringify(value.value)}
+              set_value={(next) => set_value(literal_expression(next))}
+              placeholder={t("agents.io.a_value_written_here_not_read_from_the_graph")}
+              style={{ width: "100%", minWidth: 0, fontSize: 12, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 8 }} />
+          ) : (
+            <Button label={editable ? t("agents.io.source.first_present") : "—"}
+              onClick={() => setExpanded(true)}
+              style={{ minWidth: 0, maxWidth: "100%", fontSize: 12, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 8 }} />
+          )}
         </div>
+        <Button prefix_icon="more" ariaLabel={`${binding?.name || t("agents.io.input_variables")} · ${t("chat.attach.more")}`}
+          dom_props={{ "aria-expanded": expanded, "aria-controls": settingsId }}
+          onClick={() => setExpanded(!expanded)}
+          style={{ width: 24, height: 24, iconOnlyPaddingVertical: 0, iconOnlyPaddingHorizontal: 0, borderRadius: 8, color: "#86868b", content: { icon: { width: 15, height: 15 } } }} />
       </div>
+      {/* Keep editors mounted: closing settings must not discard unfinished text. */}
+      <VariableSettings id={settingsId} testid={`binding-row-${index}-settings`} expanded={expanded} isDark={isDark}
+        footer={(
+          <Button prefix_icon="delete" label={binding?.name ? t("agents.io.remove_input", { name: binding.name }) : t("agents.io.remove_input_unnamed")}
+          ariaLabel={binding?.name ? t("agents.io.remove_input", { name: binding.name }) : t("agents.io.remove_input_unnamed")}
+          onClick={onRemove} style={{ alignSelf: "flex-start", fontSize: 11.5, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 8 }} />
+        )}>
 
-      {editable && kind === "ref" && (
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <RefPicker
-            value={value}
-            sources={sources}
-            onChange={set_value}
-            testid={`binding-row-${index}`}
-          />
-        </div>
-      )}
-
-      {editable && kind === "literal" && (
-        <Input
-          value={value && typeof value.value === "string" ? value.value : String(value?.value ?? "")}
-          set_value={(next) => set_value(literal_expression(next))}
-          placeholder={t("agents.io.a_value_written_here_not_read_from_the_graph")}
-          style={{
-            width: "100%",
-            fontSize: 11.5,
-            paddingVertical: 4,
-            paddingHorizontal: 6,
-            borderRadius: 5,
-          }}
-        />
-      )}
-
+        <VariableSettingRow label={t("model_providers.custom.import_source")}>
+          <Select options={SOURCE_KINDS.map((source) => ({ ...source, label: source.value === "ref"
+          ? t("agents.io.source.ref") : source.value === "literal" ? t("agents.io.source.literal") : t("agents.io.source.first_present") }))}
+          value={kind} set_value={set_kind} filterable={false} trigger_wrapper_style={{ width: "100%", minWidth: 0 }}
+          style={{ width: "100%", boxSizing: "border-box", justifyContent: "flex-start", minWidth: 0, fontSize: 12, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 8, gap: 4 }} />
+        </VariableSettingRow>
       {editable && kind === "first_present" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <span style={CAPTION}>
+          {!hideMissingPolicy && <span style={CAPTION}>
             {t("agents.io.first_present_caption")}
-          </span>
+          </span>}
           {(value.values || []).map((entry, i) => (
             <div
               key={i}
@@ -261,7 +210,7 @@ export default function BindingRow({
                 style={{
                   paddingVertical: 4,
                   paddingHorizontal: 4,
-                  borderRadius: 4,
+                  borderRadius: 8,
                   content: { icon: { width: 11, height: 11 } },
                 }}
               />
@@ -281,20 +230,22 @@ export default function BindingRow({
             }
             style={{
               alignSelf: "flex-start",
-              fontSize: 11,
+              fontSize: 11.5,
               paddingVertical: 3,
               paddingHorizontal: 8,
-              borderRadius: 5,
-              color: "#4a5bd8",
+              borderRadius: 8,
+              color: "var(--pupu-text-muted)",
             }}
           />
         </div>
       )}
 
+        {!hideMissingPolicy && <MissingPolicySelect binding={binding} onChange={onChange} isDark={isDark} labelWidth={64} />}
+      </VariableSettings>
       {!editable && (
         <div
           data-testid={`binding-row-${index}-unreadable`}
-          style={{ display: "flex", flexDirection: "column", gap: 4 }}
+          style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 6 }}
         >
           <span style={CAPTION}>
             {t("agents.io.unreadable_binding")}
@@ -302,7 +253,7 @@ export default function BindingRow({
           <span
             style={{
               ...MONO,
-              fontSize: 10.5,
+              fontSize: 11.5,
               lineHeight: 1.45,
               wordBreak: "break-all",
               color: isDark ? "#c9c9d1" : "#55555d",
@@ -313,14 +264,13 @@ export default function BindingRow({
         </div>
       )}
 
-      <MissingPolicySelect binding={binding} onChange={onChange} isDark={isDark} />
-
       {rowProblems.map((problem, i) => (
         <span
           key={i}
           data-testid={`binding-row-${index}-problem-${i}`}
           style={{
-            fontSize: 10.5,
+            marginTop: 6,
+            fontSize: 11.5,
             lineHeight: 1.45,
             color: isDark ? "rgba(255,140,140,0.95)" : "rgba(176,32,32,0.95)",
           }}

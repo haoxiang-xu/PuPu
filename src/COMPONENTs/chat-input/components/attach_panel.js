@@ -23,6 +23,7 @@ import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
 import Slider from "../../../BUILTIN_COMPONENTs/input/slider";
 import Tooltip from "../../../BUILTIN_COMPONENTs/tooltip/tooltip";
 import { Select } from "../../../BUILTIN_COMPONENTs/select/select";
+import ModelPicker, { modelPickerTriggerStyle } from "../../../BUILTIN_COMPONENTs/select/model_picker";
 import AttachmentChipList from "./attachment_chip_list";
 import { QueueAttachSection } from "./queue_pile";
 import { WorkspaceModal } from "../../workspace/workspace_modal";
@@ -789,6 +790,14 @@ const AttachPanel = forwardRef(({
         { value: agentSelectValue, label: t("chat.attach.agent_unavailable") },
       ]
     : agentOptions;
+  const agentChoiceLabel = agentSelectOptions.find((option) => option.value === agentSelectValue)?.label
+    || t("chat.attach.agent_default");
+  const agentTriggerLabel = `${t("side_menu.agents")} · ${agentChoiceLabel}`;
+  const agentSelectionNotice = agentSelectionUnavailable
+    ? SKELETON_AGENT_MISSING_REASON
+    : selectedSkeletonAgentId
+      ? SKELETON_AGENT_RUNS_SAVED_DEFINITION
+      : undefined;
   /* Whether the row is there at all.
      It used to need something besides Default to show, which read as tidy and
      was a trap: with no Agents saved yet and no legacy Recipes, the row was
@@ -969,6 +978,7 @@ const AttachPanel = forwardRef(({
      queue segment are not movable. */
   const layout = useAttachPanelLayout();
   const widgetAvailable = {
+    agent: showAgentSelector,
     context_composition: hasContextComposition,
     attach: Boolean(onAttachFile && attachmentsEnabled),
     screenshot: Boolean(onAttachFile && onAttachScreenshot && attachmentsEnabled),
@@ -1436,7 +1446,6 @@ const AttachPanel = forwardRef(({
   } else {
     if (showModelSelector && modelSelectOptions.length > 0)
       kbControls.push("model");
-    if (showAgentSelector) kbControls.push("agent");
     visibleWidgets.forEach((id) => kbControls.push(id));
     if (hasMore) kbControls.push("more");
     if (queueItems.length > 0) kbControls.push("queue");
@@ -1493,6 +1502,9 @@ const AttachPanel = forwardRef(({
     if (id === "model") {
       kbOpenedSelectorRef.current = "model";
       handleModelSelectorOpenChange(true);
+    } else if (id === "agent") {
+      kbOpenedSelectorRef.current = "agent";
+      handleAgentSelectorOpenChange(true);
     } else if (id === "tools") {
       kbOpenedSelectorRef.current = "tools";
       handleToolsOpenChange(true);
@@ -1533,6 +1545,8 @@ const AttachPanel = forwardRef(({
     } else if (id === "link") {
       handleMoreOpenChange(false);
       if (onAttachLink) onAttachLink();
+    } else if (id === "agent") {
+      handleAgentSelectorOpenChange(true);
     } else if (id === "tools") {
       handleToolsOpenChange(true);
     } else if (id === "workspace") {
@@ -1719,10 +1733,6 @@ const AttachPanel = forwardRef(({
       ? "rgba(var(--pupu-surface-rgb),0.6)"
       : "rgba(var(--pupu-surface-rgb),0.72)";
 
-  const selectBg = isDark
-    ? "rgba(var(--pupu-text-rgb),0.07)"
-    : "rgba(var(--pupu-text-rgb),0.05)";
-
   /* ── Hover / press, aligned across the whole row ──────────────────────
      One gesture must not read as three different things. Before this, the
      model pill stacked the theme's hover wash on its own fill and landed at
@@ -1744,21 +1754,9 @@ const AttachPanel = forwardRef(({
   const hoverWash = textWash(HOVER_ALPHA);
   const pressWash = textWash(PRESS_ALPHA);
   const hoverWashOverFill = washOver(HOVER_ALPHA, SELECT_FILL_ALPHA);
-  const pressWashOverFill = washOver(PRESS_ALPHA, SELECT_FILL_ALPHA);
 
   /* shared pill style (model selector) */
-  const pillStyle = {
-    height: PILL_HEIGHT,
-    fontSize: 12,
-    color,
-    backgroundColor: selectBg,
-    borderRadius: floating ? 999 : 16,
-    outline: "none",
-    padding: "0 10px",
-    /* this control is filled, so its wash is solved against that fill */
-    hoverBackgroundColor: hoverWashOverFill,
-    activeBackgroundColor: pressWashOverFill,
-  };
+  const pillStyle = modelPickerTriggerStyle({ isDark, color, floating });
 
   /* icon-only buttons: every box is exactly PILL_HEIGHT square so the row's
      inner ring is a uniform 4px — hover circles (r16) + 4px inset = 20, the
@@ -1929,6 +1927,30 @@ const AttachPanel = forwardRef(({
   /* in the menu the Select's trigger wrapper has to stretch, or the plugin
      and workspace rows come out narrower than their neighbours */
   const MENU_TRIGGER_WRAP = { width: "100%", display: "flex" };
+  const agentSelect = (trigger, extra = {}) => (
+    <span
+      data-testid="attach-agent-row"
+      title={agentSelectionNotice}
+      style={{ display: "flex", alignItems: "center", ...(extra.trigger_wrapper_style ? { width: "100%" } : {}) }}
+    >
+      <Select
+        {...extra}
+        options={agentSelectOptions}
+        value={agentSelectValue}
+        set_value={handleAgentSelect}
+        placeholder={t("chat.attach.agent_default")}
+        disabled={modelSelectDisabled}
+        show_trigger_icon={false}
+        open={openSelector === "agent"}
+        on_open_change={handleAgentSelectorOpenChange}
+        dropdown_position="top"
+        variant="palette"
+        palette_chip="agent"
+        palette_rail
+        custom_trigger={trigger}
+      />
+    </span>
+  );
   const toolsSelect = (trigger, extra = {}) => (
                 <Select
                   {...extra}
@@ -2052,6 +2074,32 @@ const AttachPanel = forwardRef(({
 
   const renderRowWidget = (id) => {
     switch (id) {
+      case "agent":
+        return (
+          <div style={{ position: "relative", display: "flex", borderRadius: 999 }}>
+            {kbGlow("agent")}
+            {agentSelect(
+              <Button
+                prefix_icon="bot"
+                ariaLabel={agentTriggerLabel}
+                title={agentSelectionNotice ? `${agentTriggerLabel}\n${agentSelectionNotice}` : agentTriggerLabel}
+                disabled={modelSelectDisabled}
+                dom_props={{
+                  "data-testid": "attach-agent-trigger",
+                  "aria-haspopup": "listbox",
+                  "aria-expanded": openSelector === "agent",
+                }}
+                style={{
+                  ...iconBtnStyle,
+                  width: PILL_HEIGHT,
+                  height: PILL_HEIGHT,
+                  borderRadius: 999,
+                  color: agentSelectValue !== AGENT_DEFAULT ? highlight : color,
+                }}
+              />,
+            )}
+          </div>
+        );
       case "context_composition":
         return (
           <div
@@ -2149,6 +2197,19 @@ const AttachPanel = forwardRef(({
 
   const renderMenuWidget = (id, index, { inert = false } = {}) => {
     switch (id) {
+      case "agent": {
+        const picture = menuRow(id, index, {
+          icon: "bot",
+          label: t("side_menu.agents"),
+          tinted: agentSelectValue !== AGENT_DEFAULT,
+          inert,
+        });
+        return inert ? picture : (
+          <div key={id} title={agentTriggerLabel} style={{ display: "flex" }}>
+            {agentSelect(picture, { trigger_wrapper_style: MENU_TRIGGER_WRAP })}
+          </div>
+        );
+      }
       case "context_composition":
         return (
           <div
@@ -2663,29 +2724,20 @@ const AttachPanel = forwardRef(({
           modelSelectOptions &&
           modelSelectOptions.length > 0 &&
           selectWrap(
-            <Select
+            <ModelPicker
               options={modelSelectOptions}
               value={modelSelectValue}
               set_value={handleSelectValueChange}
               placeholder={t("chat.attach.select_model")}
-              filterable={true}
-              filter_mode="panel"
-              search_placeholder={t("model_providers.search_models")}
               disabled={modelSelectDisabled}
-              show_trigger_icon={true}
               on_group_toggle={onGroupToggle}
               open={openSelector === "model"}
               on_open_change={handleModelSelectorOpenChange}
-              dropdown_position="top"
               style={{ ...pillStyle, maxWidth: 180 }}
-              variant="palette"
-              palette_chip="model"
-              palette_rail
               /* Picking a model never closes the palette: the effort row
                  below is the natural next choice, and switching between
                  models to compare them is a normal thing to do. The trigger
                  and an outside click remain the ways out. */
-              keep_open_on_select
               /* null, not an element that renders null: the footer slot draws
                  its own separator and padding, so an always-present child
                  would leave a rule and a band of empty height under every
@@ -2693,48 +2745,6 @@ const AttachPanel = forwardRef(({
               palette_footer={paletteFooter}
             />,
             "model",
-            arranging,
-          )}
-
-        {/* ── Agent selector (not movable, like the model pill beside it) ──
-            The entry the Builder's saved Agents are actually run from. What
-            runs is the SAVED definition, including the model saved inside it,
-            which is why this sits beside the model pill rather than inside
-            it. */}
-        {showAgentSelector &&
-          selectWrap(
-            /* The row says which definition runs, and says it plainly when
-               the chat names one that is not on offer any more — an Agent the
-               user cannot see is still what every message would run. */
-            <span
-              data-testid="attach-agent-row"
-              title={
-                agentSelectionUnavailable
-                  ? SKELETON_AGENT_MISSING_REASON
-                  : selectedSkeletonAgentId
-                    ? SKELETON_AGENT_RUNS_SAVED_DEFINITION
-                    : undefined
-              }
-              style={{ display: "flex", alignItems: "center" }}
-            >
-            <Select
-              options={agentSelectOptions}
-              value={agentSelectValue}
-              set_value={handleAgentSelect}
-              placeholder={t("chat.attach.agent_default")}
-              disabled={modelSelectDisabled}
-              show_trigger_icon={true}
-              open={openSelector === "agent"}
-              on_open_change={handleAgentSelectorOpenChange}
-              dropdown_position="top"
-              style={{ ...pillStyle, maxWidth: 180 }}
-              variant="palette"
-              palette_chip="agent"
-              palette_rail
-              data-testid="attach-agent-select"
-            />
-            </span>,
-            "agent",
             arranging,
           )}
 

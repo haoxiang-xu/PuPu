@@ -1,13 +1,14 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
-import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
-import Select from "../../../../../BUILTIN_COMPONENTs/select/select";
+import Input from "./panel_input";
+import Select from "./panel_select";
 import { subscribeSkeletonLibraryRefresh } from "../../../../../SERVICEs/skeleton_library_refresh";
 import { safe_text } from "../document_values";
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { agentError, agentMessage, renderAgentMessage } from "../agents_i18n";
 import { is_unavailable, list_resources, load_resource, publish_workflow } from "../skeleton_resources";
 import { remember_workflow_version, request_workflow_version, useWorkflowVersions, workflow_version_state } from "../workflow_versions";
+import { CAPTION_TEXT } from "./panel_style";
 
 /* Choosing and pinning one published Workflow revision (#357 Hooks Pool).
  *
@@ -29,13 +30,13 @@ import { remember_workflow_version, request_workflow_version, useWorkflowVersion
  * There is no "latest": the host lists how many revisions a Workflow has, not
  * which, and the run resolves exactly the pinned one. */
 
-const LABEL = { fontSize: 11, fontWeight: 600, color: "#86868b", textTransform: "uppercase", letterSpacing: 0.4 };
-const NOTE = { fontSize: 10.5, color: "#86868b", lineHeight: 1.45 };
+const LABEL = CAPTION_TEXT;
+const NOTE = { fontSize: 11.5, color: "#86868b", lineHeight: 1.45 };
 const MONO = { fontFamily: "ui-monospace, Menlo, monospace" };
 const ROW = { display: "flex", alignItems: "center", gap: 6 };
-const FIELD = { width: "100%", fontSize: 11.5, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 5 };
-const SMALL = { fontSize: 10.5, paddingVertical: 2, paddingHorizontal: 8, borderRadius: 5 };
-const problem_style = (isDark) => ({ fontSize: 10.5, lineHeight: 1.45, color: isDark ? "rgba(255,140,140,0.95)" : "rgba(176,32,32,0.95)" });
+const FIELD = { width: "100%", fontSize: 12, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 8 };
+const SMALL = { fontSize: 11.5, paddingVertical: 2, paddingHorizontal: 8, borderRadius: 8 };
+const problem_style = (isDark) => ({ fontSize: 11.5, lineHeight: 1.45, color: isDark ? "rgba(255,140,140,0.95)" : "rgba(176,32,32,0.95)" });
 const PUBLISHING = agentMessage("agents.workflow.publishing");
 const record = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 
@@ -172,7 +173,7 @@ export default function WorkflowPinControl({ pin, stored, editable, onPin, isDar
       {library.status === "error" && (
         <span style={problem_style(isDark)}>
           {t("agents.workflow.library_failed", { message: renderAgentMessage(refusal_text(library.error, agentMessage("agents.workflow.store_refused")), t) })}{" "}
-          <Button label={t("agents.explorer.try_again")} onClick={reloadLibrary} style={{ fontSize: 10.5, paddingVertical: 1, paddingHorizontal: 6 }} />
+          <Button label={t("agents.explorer.try_again")} onClick={reloadLibrary} style={{ fontSize: 11.5, paddingVertical: 1, paddingHorizontal: 6 }} />
         </span>
       )}
       {record(stored) && !pin && (
@@ -211,7 +212,7 @@ export default function WorkflowPinControl({ pin, stored, editable, onPin, isDar
               label={working && pinState.message === PUBLISHING ? t("agents.workflow.publishing") : pin_here ? t("agents.workflow.publish_again") : t("agents.workflow.publish")}
               disabled={working}
               onClick={publishAndPin}
-              style={{ ...SMALL, color: "#4a5bd8" }}
+              style={{ ...SMALL, color: "var(--pupu-text-muted)" }}
             />
           </div>
           <span style={NOTE}>{t("agents.workflow.publish_contract", { name: safe_text(listed ? listed.name || chosen : chosen) })}</span>

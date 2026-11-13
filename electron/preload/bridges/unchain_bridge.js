@@ -290,7 +290,7 @@ const createMisoBridge = (ipcRenderer, streamClient) => ({
     }),
   deleteSkeletonResource: (resourceId, expectedEditToken) =>
     invokeSkeletonResource(ipcRenderer, {
-      action: "delete",
+      action: "code_delete",
       payload: { resource_id: resourceId, expected_edit_token: expectedEditToken },
     }),
   migrateSkeletonResource: (payload = {}) =>
