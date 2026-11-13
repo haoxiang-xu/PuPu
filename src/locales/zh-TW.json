@@ -2469,7 +2469,8 @@
       "node_missing_target": "目標節點「{value2}」不存在",
       "node_ambiguous_generic": "節點 id「{value2}」符合 {value3} 個節點",
       "node_ambiguous_source": "來源節點 id「{value2}」符合 {value3} 個節點",
-      "node_ambiguous_target": "目標節點 id「{value2}」符合 {value3} 個節點"
+      "node_ambiguous_target": "目標節點 id「{value2}」符合 {value3} 個節點",
+      "move_shape": "移動節點需要為每個節點提供數字座標。"
     },
     "runtime": {
       "rename_loading": "正在檢查能否重新命名步驟…",
@@ -2512,7 +2513,9 @@
       "source_size": "此程式碼超過 4 MiB，超出單個 Code 節點的儲存上限。",
       "string_required": "{label} 必須為字串",
       "nonempty_required": "{label} 不得為空",
-      "presentation_value": "{label} 的格式不符合要求"
+      "presentation_value": "{label} 的格式不符合要求",
+      "layout_node_missing": "版面配置引用了文件中不存在的節點",
+      "layout_coordinate": "{label} 必須是 -1000000 到 1000000 之間的數字"
     },
     "managed": {
       "resource_aggregate": "資源回應不是 v2 聚合。",

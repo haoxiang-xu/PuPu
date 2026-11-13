@@ -2469,7 +2469,8 @@
       "node_missing_target": "Der Zielknoten „{value2}“ existiert nicht",
       "node_ambiguous_generic": "Die Knoten-id „{value2}“ stimmt mit {value3} Knoten überein",
       "node_ambiguous_source": "Die Quellknoten-id „{value2}“ stimmt mit {value3} Knoten überein",
-      "node_ambiguous_target": "Die Zielknoten-id „{value2}“ stimmt mit {value3} Knoten überein"
+      "node_ambiguous_target": "Die Zielknoten-id „{value2}“ stimmt mit {value3} Knoten überein",
+      "move_shape": "Zum Verschieben braucht jeder Knoten eine Position aus Zahlen."
     },
     "runtime": {
       "rename_loading": "Es wird geprüft, ob Schritte umbenannt werden können…",
@@ -2512,7 +2513,9 @@
       "source_size": "Dieser Code überschreitet 4 MiB, die Speichergrenze eines einzelnen Code-Knotens.",
       "string_required": "{label} muss eine Zeichenfolge sein",
       "nonempty_required": "{label} darf nicht leer sein",
-      "presentation_value": "{label} hat nicht das zulässige Format"
+      "presentation_value": "{label} hat nicht das zulässige Format",
+      "layout_node_missing": "Das Layout nennt einen Knoten, der nicht im Dokument ist",
+      "layout_coordinate": "{label} muss eine Zahl zwischen -1000000 und 1000000 sein"
     },
     "managed": {
       "resource_aggregate": "Die Ressourcen-Antwort ist kein v2-Aggregat.",

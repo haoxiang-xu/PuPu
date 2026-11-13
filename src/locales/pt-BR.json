@@ -2469,7 +2469,8 @@
       "node_missing_target": "O nó de destino \"{value2}\" não existe",
       "node_ambiguous_generic": "O id de nó \"{value2}\" corresponde a {value3} nós",
       "node_ambiguous_source": "O id do nó de origem \"{value2}\" corresponde a {value3} nós",
-      "node_ambiguous_target": "O id do nó de destino \"{value2}\" corresponde a {value3} nós"
+      "node_ambiguous_target": "O id do nó de destino \"{value2}\" corresponde a {value3} nós",
+      "move_shape": "Mover exige uma posição numérica para cada nó."
     },
     "runtime": {
       "rename_loading": "Verificando se é possível renomear etapas…",
@@ -2512,7 +2513,9 @@
       "source_size": "Este código excede 4 MiB, o máximo que um nó Code pode armazenar.",
       "string_required": "{label} deve ser uma string",
       "nonempty_required": "{label} não pode estar vazio",
-      "presentation_value": "{label} não tem o formato permitido"
+      "presentation_value": "{label} não tem o formato permitido",
+      "layout_node_missing": "o layout cita um nó que não está no documento",
+      "layout_coordinate": "{label} deve ser um número entre -1000000 e 1000000"
     },
     "managed": {
       "resource_aggregate": "A resposta do recurso não é um agregado v2.",

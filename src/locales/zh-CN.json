@@ -2262,7 +2262,9 @@
       "source_size": "此代码超过 4 MiB，超出单个 Code 节点的存储上限。",
       "string_required": "{label} 必须为字符串",
       "nonempty_required": "{label} 不能为空",
-      "presentation_value": "{label} 的格式不符合要求"
+      "presentation_value": "{label} 的格式不符合要求",
+      "layout_node_missing": "布局里引用了文档中不存在的节点",
+      "layout_coordinate": "{label} 必须是 -1000000 到 1000000 之间的数字"
     },
     "hook_source": {
       "checking_contract": "正在检查此运行时是否接受 hook 自有的工作流…",
@@ -2681,7 +2683,8 @@
       "node_missing_target": "目标节点“{value2}”不存在",
       "node_ambiguous_generic": "节点 id“{value2}”匹配 {value3} 个节点",
       "node_ambiguous_source": "源节点 id“{value2}”匹配 {value3} 个节点",
-      "node_ambiguous_target": "目标节点 id“{value2}”匹配 {value3} 个节点"
+      "node_ambiguous_target": "目标节点 id“{value2}”匹配 {value3} 个节点",
+      "move_shape": "移动节点需要为每个节点提供数字坐标。"
     },
     "managed": {
       "resource_aggregate": "资源回包不是 v2 聚合。",

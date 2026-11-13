@@ -2469,7 +2469,8 @@
       "node_missing_target": "Il nodo di destinazione \"{value2}\" non esiste",
       "node_ambiguous_generic": "L’id del nodo \"{value2}\" corrisponde a {value3} nodi",
       "node_ambiguous_source": "L’id del nodo di origine \"{value2}\" corrisponde a {value3} nodi",
-      "node_ambiguous_target": "L’id del nodo di destinazione \"{value2}\" corrisponde a {value3} nodi"
+      "node_ambiguous_target": "L’id del nodo di destinazione \"{value2}\" corrisponde a {value3} nodi",
+      "move_shape": "Uno spostamento richiede una posizione numerica per ogni nodo."
     },
     "runtime": {
       "rename_loading": "Verifica della possibilità di rinominare i passaggi…",
@@ -2512,7 +2513,9 @@
       "source_size": "Questo codice supera 4 MiB, il limite di archiviazione di un singolo nodo Code.",
       "string_required": "{label} deve essere una stringa",
       "nonempty_required": "{label} non può essere vuoto",
-      "presentation_value": "{label} non ha il formato consentito"
+      "presentation_value": "{label} non ha il formato consentito",
+      "layout_node_missing": "il layout indica un nodo che non è nel documento",
+      "layout_coordinate": "{label} deve essere un numero tra -1000000 e 1000000"
     },
     "managed": {
       "resource_aggregate": "La risposta della risorsa non è un aggregato v2.",

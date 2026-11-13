@@ -2469,7 +2469,8 @@
       "node_missing_target": "대상 노드 \"{value2}\"이(가) 없습니다",
       "node_ambiguous_generic": "노드 id \"{value2}\"에 해당하는 노드가 {value3}개 있습니다",
       "node_ambiguous_source": "시작 노드 id \"{value2}\"에 해당하는 노드가 {value3}개 있습니다",
-      "node_ambiguous_target": "대상 노드 id \"{value2}\"에 해당하는 노드가 {value3}개 있습니다"
+      "node_ambiguous_target": "대상 노드 id \"{value2}\"에 해당하는 노드가 {value3}개 있습니다",
+      "move_shape": "이동하려면 각 노드의 위치를 숫자로 지정해야 합니다."
     },
     "runtime": {
       "rename_loading": "단계 이름을 바꿀 수 있는지 확인하는 중…",
@@ -2512,7 +2513,9 @@
       "source_size": "이 코드는 Code 노드 하나가 저장할 수 있는 최대 크기인 4 MiB를 초과합니다.",
       "string_required": "{label}은(는) 문자열이어야 합니다",
       "nonempty_required": "{label}은(는) 비어 있을 수 없습니다",
-      "presentation_value": "{label}의 형식이 올바르지 않습니다"
+      "presentation_value": "{label}의 형식이 올바르지 않습니다",
+      "layout_node_missing": "레이아웃이 문서에 없는 노드를 가리킵니다",
+      "layout_coordinate": "{label}은(는) -1000000에서 1000000 사이의 숫자여야 합니다"
     },
     "managed": {
       "resource_aggregate": "리소스 응답이 v2 집계가 아닙니다.",

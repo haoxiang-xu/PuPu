@@ -2469,7 +2469,8 @@
       "node_missing_target": "Целевой узел «{value2}» не существует",
       "node_ambiguous_generic": "id узла «{value2}» соответствует {value3} узлам",
       "node_ambiguous_source": "id исходного узла «{value2}» соответствует {value3} узлам",
-      "node_ambiguous_target": "id целевого узла «{value2}» соответствует {value3} узлам"
+      "node_ambiguous_target": "id целевого узла «{value2}» соответствует {value3} узлам",
+      "move_shape": "Для перемещения нужна числовая позиция каждого узла."
     },
     "runtime": {
       "rename_loading": "Проверяем, можно ли переименовывать шаги…",
@@ -2512,7 +2513,9 @@
       "source_size": "Этот код превышает 4 MiB — предельный объём одного узла Code.",
       "string_required": "{label} должен быть строкой",
       "nonempty_required": "{label} не должен быть пустым",
-      "presentation_value": "{label} имеет недопустимый формат"
+      "presentation_value": "{label} имеет недопустимый формат",
+      "layout_node_missing": "в раскладке указан узел, которого нет в документе",
+      "layout_coordinate": "{label} должно быть числом от -1000000 до 1000000"
     },
     "managed": {
       "resource_aggregate": "Ответ ресурса не является агрегатом v2.",
