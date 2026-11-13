@@ -25,7 +25,7 @@ export const DOCUMENT_REQUIRED_KEYS = Object.freeze([
   "nodes",
   "edges",
 ]);
-export const DOCUMENT_OPTIONAL_KEYS = Object.freeze(["description", "presentation", "layout"]);
+export const DOCUMENT_OPTIONAL_KEYS = Object.freeze(["description", "presentation", "layout", "input_schema"]);
 /* Display-only `layout` (`schema.py` `_validate_layout`, skeleton_execution
    1.10 `document_layout_v1`): `{nodes: {<node id>: {x, y}}}`, closed at every
    level. A coordinate is a finite number within ±1e6 and every key names a
@@ -558,6 +558,9 @@ function nonempty_string(value, where, label, problems, t = agentEnglishText) {
  * `output_schema`. */
 export function document_problems(document, t = agentEnglishText) {
   const problems = [];
+  if (document && Object.prototype.hasOwnProperty.call(document, "input_schema") && document.kind !== "workflow") {
+    problems.push(problem("invalid_value", "document.input_schema", t("agents.parameters.workflow_only")));
+  }
   if (
     !closed_object(
       document,

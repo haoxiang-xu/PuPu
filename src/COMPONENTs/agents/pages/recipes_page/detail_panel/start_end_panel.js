@@ -7,6 +7,7 @@ import { Block } from "./process_timeline";
 import { Region } from "./panel_style";
 import { visible_input_rows } from "./system_context_visibility";
 import { start_context_for_view } from "../start_context";
+import WorkflowParametersSection from "./workflow_parameters_section";
 
 /* The two ends of a graph, in the Agent panel's language: one column, the
    same quiet caption over each part, the same regions of rows. Each holds only
@@ -59,6 +60,9 @@ export default function StartEndPanel({ document, node, revision, isDark, onChan
   const inputProblems = Object.values(rowDiagnostics?.inputs || {}).flat();
   const outputProblems = Object.values(rowDiagnostics?.outputs || {}).flat();
   const context = start ? startContext || start_context_for_view([], [], document, t) : null;
+  if (start && document.kind === "workflow" && context.caller !== "hook") return <div data-testid="start-detail">
+    <WorkflowParametersSection document={document} isDark={isDark} onChange={onChange} />
+  </div>;
 
   const input = start ? (
     <div data-testid="skeleton-input-variables" style={{ display: "contents" }}>

@@ -937,6 +937,31 @@
     "usage_partial": "{total} 次呼叫中有 {excluded} 次無用量資料"
   },
   "agents": {
+    "parameters": {
+      "title": "參數",
+      "name": "參數名稱",
+      "required": "必填",
+      "default": "預設值",
+      "add": "新增參數",
+      "remove": "移除 {name}",
+      "unsupported": "目前執行環境不支援編輯 Workflow 參數。",
+      "name_invalid": "請使用非空且不重複的名稱。",
+      "invalid": "請檢查 {path}。",
+      "unknown_argument": "未宣告的參數 {name}{value}。",
+      "workflow_only": "只有 Workflow 可以宣告參數。",
+      "required_value": "請填寫必填參數「{key}」。",
+      "none": "無參數。",
+      "types": {
+        "any": "任意",
+        "string": "文字",
+        "number": "數字",
+        "integer": "整數",
+        "boolean": "布林值",
+        "object": "物件",
+        "array": "清單",
+        "null": "Null"
+      }
+    },
     "missing": {
       "if_missing": "值缺失時",
       "default": "預設值",

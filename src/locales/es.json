@@ -937,6 +937,31 @@
     "usage_partial": "{excluded} de {total} llamadas sin datos de uso"
   },
   "agents": {
+    "parameters": {
+      "title": "Parámetros",
+      "name": "Nombre del parámetro",
+      "required": "Obligatorio",
+      "default": "Valor predeterminado",
+      "add": "Añadir parámetro",
+      "remove": "Quitar {name}",
+      "unsupported": "Este entorno no permite editar parámetros de Workflow.",
+      "name_invalid": "Usa un nombre único que no esté vacío.",
+      "invalid": "Revisa {path}.",
+      "unknown_argument": "Parámetro no declarado {name}{value}.",
+      "workflow_only": "Solo los Workflows pueden declarar parámetros.",
+      "required_value": "El parámetro obligatorio «{key}» necesita un valor.",
+      "none": "Sin parámetros.",
+      "types": {
+        "any": "Cualquiera",
+        "string": "Texto",
+        "number": "Número",
+        "integer": "Entero",
+        "boolean": "Booleano",
+        "object": "Objeto",
+        "array": "Lista",
+        "null": "Null"
+      }
+    },
     "missing": {
       "if_missing": "Si falta el valor",
       "default": "Valor predeterminado",

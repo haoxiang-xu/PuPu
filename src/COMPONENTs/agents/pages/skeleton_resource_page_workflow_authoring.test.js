@@ -164,7 +164,8 @@ test("a new Workflow is created, edited on the canvas, saved, reopened and still
   fireEvent.keyDown(document, { key: "Escape" });
   const first = await save(store);
   expect(first.expected_edit_token).toBeNull();
-  expect(canonical(first.document)).toEqual(canonical(row("wf_seed_save").reply.resource.document));
+  expect(canonical(first.document)).toEqual(canonical({ ...row("wf_seed_save").reply.resource.document,
+    input_schema: { type: "object", properties: {}, required: [], additionalProperties: false } }));
   exportPayload("01-seed", first);
 
   /* Edit: put a Code step between Start and End. */
@@ -194,6 +195,29 @@ test("a new Workflow is created, edited on the canvas, saved, reopened and still
   pressCanvasNode("code");
   await screen.findByTestId("code-section");
   expect(screen.queryByText("These stored settings are read-only here.")).toBeNull();
+});
+
+test("Workflow parameters are edited on Start, saved explicitly and retained after reopen", async () => {
+  const capabilities = copy(require("../../../SERVICEs/agent_resource_presentation_producer.json").capabilities);
+  const protocol = capabilities.runtime_manifest.protocols.find((item) => item.id === "skeleton_execution");
+  protocol.minor = 11; protocol.features.push("workflow_parameters_v1");
+  api.unchain.getManagedCodeCapabilities = jest.fn().mockResolvedValue(capabilities);
+  const store = makeStore();
+  view = render(page({ resourceId: "wf-new", newDraft: { id: "wf-new", name: "New Workflow", kind: "workflow" } }));
+  await screen.findByTestId("skeleton-node-start");
+  pressCanvasNode("start");
+  await waitFor(() => expect(screen.getByRole("button", { name: "Add parameter" })).toBeEnabled());
+  fireEvent.click(screen.getByRole("button", { name: "Add parameter" }));
+  fireEvent.change(screen.getByDisplayValue("parameter"), { target: { value: "city" } });
+  expect(store.save).not.toHaveBeenCalled();
+  const edit = await save(store);
+  expect(edit.document.input_schema).toEqual({ type: "object", properties: { city: { type: "string" } }, required: ["city"], additionalProperties: false });
+  expect(edit.document.nodes[0].config.execution.outputs).toEqual([{ name: "city", source: { kind: "result", path: ["city"] } }]);
+  exportPayload("parameters", edit);
+  view.unmount(); view = render(page({ resourceId: "wf-new" }));
+  await screen.findByTestId("skeleton-node-start"); pressCanvasNode("start");
+  expect(await screen.findByDisplayValue("city")).toBeInTheDocument();
+  expect(store.save).toHaveBeenCalledTimes(1);
 });
 
 test("a Workflow draws no attachment port, so nothing can be attached; the core refuses it anyway", async () => {

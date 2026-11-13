@@ -363,7 +363,7 @@ export default function WorkflowCallSection({ document, node, rowDiagnostics, is
           <span style={problemOf(isDark)}>{t("agents.workflow.unreadable_interface")}</span>
         )}
         {shape && shape.readable && shape.inputs.length === 0 && !shape.whole && (
-          <span style={NOTE}>{t("agents.workflow.reads_nothing", { name: safe_text(workflow_name) })}</span>
+          <span style={NOTE}>{t(shape.declared ? "agents.parameters.none" : "agents.workflow.reads_nothing", { name: safe_text(workflow_name) })}</span>
         )}
         {shape && shape.whole && (
           <span data-testid="workflow-call-whole-input" style={NOTE}>
@@ -371,10 +371,14 @@ export default function WorkflowCallSection({ document, node, rowDiagnostics, is
           </span>
         )}
         <Region isDark={isDark}>
-        {shape && layout.rows.map((row) => (
+        {shape && layout.rows.map((row) => {
+          const parameter = shape.inputs.find((entry) => entry.key === row.name);
+          return (
           <div key={row.name} style={{ display: "flex", flexDirection: "column", gap: 2, padding: ROW_PAD, minWidth: 0 }}>
             <ArgumentRow
-              row={{ name: row.name, required: true, type: null, description: t("agents.workflow.read_as", { names: row.read_as.map((name) => safe_text(name)).join(t("agents.schema.fields.list_separator")) }), binding: row.binding }}
+              row={{ name: row.name, required: parameter.required !== false, type: parameter.type || null,
+                has_default: Object.prototype.hasOwnProperty.call(parameter, "default"), default: parameter.default,
+                description: parameter.description || (shape.declared ? "" : t("agents.workflow.read_as", { names: row.read_as.map((name) => safe_text(name)).join(t("agents.schema.fields.list_separator")) })), binding: row.binding }}
               sources={sources}
               toolName={workflow_name}
               editable={editable}
@@ -383,7 +387,7 @@ export default function WorkflowCallSection({ document, node, rowDiagnostics, is
             />
             <Diagnostics index={row.binding ? row.index : -1} testid={`workflow-call-input-${row.name}`} />
           </div>
-        ))}
+        ); })}
         {/* One list, one key per input name: a key added here and then
             written for the first time stays the same row — the same text box,
             focus and caret — when it moves from "added" to "stored"
@@ -422,7 +426,7 @@ export default function WorkflowCallSection({ document, node, rowDiagnostics, is
               <div style={{ ...ROW, justifyContent: "space-between", flexWrap: "wrap" }}>
                 <span style={{ ...(shape || duplicate ? problemOf(isDark) : NOTE), flex: "1 1 160px", minWidth: 0, overflowWrap: "anywhere" }}>
                   {(duplicate ? t("agents.workflow.duplicate_input", { name: "\uE000", value: "\uE001" })
-                    : shape ? t("agents.workflow.ignored_input", { name: "\uE000", value: "\uE001" })
+                    : shape ? t(shape.declared ? "agents.parameters.unknown_argument" : "agents.workflow.ignored_input", { name: "\uE000", value: "\uE001" })
                       : t("agents.workflow.stored_input", { name: "\uE000", value: "\uE001" }))
                     .split(/(\uE000|\uE001)/).map((part, at) => part === "\uE000"
                       ? <span key={at} style={MONO}>{safe_text(name) || t("agents.workflow.unnamed")}</span>

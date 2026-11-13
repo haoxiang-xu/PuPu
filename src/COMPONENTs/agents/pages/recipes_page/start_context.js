@@ -27,7 +27,9 @@ export function start_context_for_view(steps, frames, document, t = agentEnglish
   // Every current RESOURCE frame is created by open_subagent. Embedded hooks
   // take precedence when a referenced Agent contains a hook Workflow.
   const referencedSubagent = path.length === 0 && stack[stack.length - 1]?.kind === "resource";
-  if (!embeddedSubagent && !referencedSubagent) return unknown(last?.member === "hooks", t);
+  if (!embeddedSubagent && !referencedSubagent) {
+    return last?.member === "hooks" ? { ...unknown(true, t), caller: "hook" } : unknown(false, t);
+  }
   if (!object(document) || !Array.isArray(document.nodes)) return invalid(t);
   const starts = document.nodes.filter((node) => object(node) && node.type === "start");
   if (starts.length !== 1) return invalid(t);

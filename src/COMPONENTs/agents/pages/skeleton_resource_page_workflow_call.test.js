@@ -312,3 +312,26 @@ test("a host without the v2 revision read says the pin cannot be read; nothing f
   expect(screen.getByTestId("workflow-call-problems")).toHaveTextContent("The pinned revision could not be read");
   expect(api.unchain.getSkeletonWorkflowVersion).not.toHaveBeenCalled();
 });
+
+test("a declared signature supplies caller rows, types and defaults without making optional parameters required", async () => {
+  const store = makeStore(["caller_complete_get"]);
+  const original = store.version.getMockImplementation();
+  store.version.mockImplementation(async (...args) => {
+    const reply = await original(...args);
+    reply.version.document.input_schema = { type: "object", properties: {
+      message: { type: "string" }, limit: { type: "integer", default: 5 } }, required: ["message"], additionalProperties: false };
+    return reply;
+  });
+  const call = callOf(store.held["caller-complete"].resource.document);
+  call.config.execution.inputs = call.config.execution.inputs.filter((binding) => binding.name !== "limit");
+  await open("caller-complete"); await openCall();
+  const optional = await screen.findByTestId("tool-call-argument-limit");
+  expect(within(optional).queryByLabelText("Required")).toBeNull();
+  expect(optional).toHaveTextContent("integer"); expect(optional).toHaveTextContent("5");
+  expect(screen.queryByText(/reads “limit”/)).toBeNull();
+  expect(screen.queryByRole("button", { name: "Add input" })).toBeNull();
+  expect(store.save).not.toHaveBeenCalled();
+  setValue("limit", "3");
+  const edit = await save(store);
+  expect(callOf(edit.document).config.execution.inputs.find((binding) => binding.name === "limit").value).toEqual({ kind: "literal", value: 3 });
+});

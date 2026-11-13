@@ -2,6 +2,7 @@ import { node_bindings, with_node_bindings } from "./skeleton_document";
 import { safe_text } from "./document_values";
 import { cached_workflow_version, workflow_version_state } from "./workflow_versions";
 import { agentEnglishText } from "./agents_i18n";
+import { workflow_signature_problems } from "./workflow_parameters";
 
 /* The Workflow Call node's configuration (#357).
  *
@@ -104,6 +105,16 @@ export function callee_interface(document) {
   outputs_of(ends[0]).forEach((output) => {
     if (record(output) && typeof output.name === "string" && output.name && !outputs.includes(output.name)) outputs.push(output.name);
   });
+  if (own(document, "input_schema")) {
+    if (workflow_signature_problems(document.input_schema).length) return { readable: false, inputs: [], whole: false, outputs: [] };
+    const schema = document.input_schema;
+    return { readable: true, declared: true, whole: false, outputs, inputs: Object.entries(schema.properties).map(([key, field]) => ({
+      key, read_as: inputs.find((entry) => entry.key === key)?.read_as || [],
+      ...(own(field, "type") ? { type: field.type } : {}), required: schema.required.includes(key),
+      ...(own(field, "description") ? { description: field.description } : {}),
+      ...(own(field, "default") ? { default: field.default } : {}),
+    })) };
+  }
   return { readable: true, inputs, whole, outputs };
 }
 
@@ -225,8 +236,9 @@ export function workflow_call_problems(node, t = agentEnglishText) {
   if (!shape.readable) return problems;
   const bindings = node_bindings(node);
   shape.inputs.forEach(({ key }) => {
-    if (!bindings.some((binding) => record(binding) && binding.name === key)) {
-      problems.push({ code: "input_missing", setting: key, message: t("agents.workflow.missing_input", { key: safe_text(key) }) });
+    const parameter = shape.inputs.find((entry) => entry.key === key);
+    if (parameter.required !== false && !bindings.some((binding) => record(binding) && binding.name === key)) {
+      problems.push({ code: "input_missing", setting: key, message: t(shape.declared ? "agents.parameters.required_value" : "agents.workflow.missing_input", { key: safe_text(key) }) });
     }
   });
   const outputs = record(config) && record(config.execution) && Array.isArray(config.execution.outputs) ? config.execution.outputs : [];

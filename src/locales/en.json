@@ -937,6 +937,31 @@
     "usage_partial": "{excluded} of {total} calls without usage"
   },
   "agents": {
+    "parameters": {
+      "title": "Parameters",
+      "name": "Parameter name",
+      "required": "Required",
+      "default": "Default value",
+      "add": "Add parameter",
+      "remove": "Remove {name}",
+      "unsupported": "This runtime cannot edit Workflow parameters.",
+      "name_invalid": "Use a unique, nonblank name.",
+      "invalid": "Check {path}.",
+      "unknown_argument": "Undeclared argument {name}{value}.",
+      "workflow_only": "Only Workflows can declare parameters.",
+      "required_value": "Required parameter “{key}” needs a value.",
+      "none": "No parameters.",
+      "types": {
+        "any": "Any",
+        "string": "Text",
+        "number": "Number",
+        "integer": "Integer",
+        "boolean": "Boolean",
+        "object": "Object",
+        "array": "List",
+        "null": "Null"
+      }
+    },
     "missing": {
       "if_missing": "If missing",
       "default": "Default",

@@ -59,7 +59,11 @@ export function seed_hook_workflow(entry, parent_id) {
   const base = `${typeof entry.id === "string" ? entry.id : "hook"}-workflow`.replace(/[^A-Za-z0-9._:-]/g, "-").replace(/^[^A-Za-z0-9]+/, "");
   const id = RESOURCE_ID.test(base) && base !== parent_id ? base : parent_id === "hook-workflow" ? "hook-workflow-1" : "hook-workflow";
   const made = new_workflow_document({ id, name: `${typeof entry.id === "string" && entry.id ? entry.id : "Hook"} Workflow` });
-  return made.ok ? made.document : null;
+  if (!made.ok) return null;
+  // Hook callers own event/call/tool/arguments/result. The ordinary function
+  // factory's empty, closed signature would reject that fixed event payload.
+  const { input_schema: _signature, ...document } = made.document;
+  return document;
 }
 
 export default function HookWorkflowSource({ entry, index, nodeId, parentId, pin, editable, isDark, testid, capability, managedSources, onWrite, onOpen }) {

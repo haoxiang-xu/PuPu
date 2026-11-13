@@ -165,7 +165,13 @@ def resolve_workflow_tool(pool_id, value, resolver):
 
 
 def _input_schema(plan):
-    start = next(node for node in plan.snapshot()["nodes"] if node["type"] == "start")
+    document = plan.snapshot()
+    if "input_schema" in document:
+        from skeleton_workflow_parameters import require_workflow_parameters
+        require_workflow_parameters(document)
+        from unchain.skeleton.workflow_inputs import workflow_input_schema
+        return workflow_input_schema(document)
+    start = next(node for node in document["nodes"] if node["type"] == "start")
     names = []
     whole = False
     for output in start["config"]["execution"]["outputs"]:
