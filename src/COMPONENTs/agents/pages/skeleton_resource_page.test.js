@@ -7,6 +7,7 @@ import { install_legacy_store_bridge } from "./recipes_page/legacy_store_test_br
 import { render, screen, fireEvent, waitFor, act, within } from "@testing-library/react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import SkeletonResourcePage from "./skeleton_resource_page";
+import parameterCapture from "./recipes_page/workflow_parameters_producer.json";
 import { api } from "../../../SERVICEs/api";
 import {
   EDIT_CONFLICT_ERROR,
@@ -59,6 +60,7 @@ const show = () =>
 
 beforeEach(() => {
   Object.keys(api.unchain).forEach((key) => delete api.unchain[key]);
+  api.unchain.getManagedCodeCapabilities = jest.fn().mockResolvedValue(parameterCapture.capabilities);
 });
 
 describe("opening a resource through the real facade", () => {
@@ -362,25 +364,27 @@ describe("editing an output on the real page", () => {
     expect(sent.nodes[0]).toEqual(doc().nodes[0]);
   });
 
-  test("a Start's output is editable too, on its result side", async () => {
+  test("a Workflow Start presents its legacy caller field as a parameter without writing", async () => {
     await open_end();
     pressCanvasNode(screen.getByTestId("skeleton-node-start"));
-    expect(screen.getByTestId("output-row-0")).toBeInTheDocument();
-    /* A Start's result is what the run was called with, so the row names it
-       as the caller's input, and the section says why behind its info. */
-    expect(screen.getByTestId("output-row-0-selected")).toHaveTextContent(/Caller input\s*text/);
-    expect(screen.getByTestId("process-header-start-output")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByLabelText("Parameter name")).toBeEnabled());
+    expect(screen.getByLabelText("Parameter name")).toHaveValue("text");
+    expect(screen.queryByTestId("skeleton-output-variables")).not.toBeInTheDocument();
+    expect(api.unchain.saveSkeletonResource).not.toHaveBeenCalled();
+    expect(screen.getByTestId("skeleton-save-state")).toHaveTextContent(/^Saved$/);
   });
 
   test("an output the author removes is gone from what is sent", async () => {
     await open_end();
     pressCanvasNode(screen.getByTestId("skeleton-node-start"));
+    await waitFor(() => expect(screen.getByLabelText("Remove text")).toBeEnabled());
     fireEvent.click(screen.getByLabelText("Remove text"));
     await act(async () => {
       fireEvent.click(screen.getByText("Save").closest("button"));
     });
     const sent = api.unchain.saveSkeletonResource.mock.calls[0][0].document;
     expect(sent.nodes[0].config.execution.outputs).toEqual([]);
+    expect(sent.input_schema).toEqual({ type: "object", properties: {}, required: [], additionalProperties: false });
   });
 });
 
@@ -468,13 +472,16 @@ describe("the whole-value and result-root choices on the real page", () => {
     expect(screen.queryByText(/Go deeper/)).not.toBeInTheDocument();
   });
 
-  test("a result naming a field the producer does not have is said on the row", async () => {
+  test("a legacy caller field is inferred without declaring a schema or rewriting its source", async () => {
     await open_end();
     pressCanvasNode(screen.getByTestId("skeleton-node-start"));
-    /* A Start's result is the caller's, so nothing is claimed about it: the
-       field it reads is typed rather than picked from a list. */
-    expect(within(screen.getByTestId("output-row-0-source")).getByRole("textbox")).toBeInTheDocument();
-    expect(screen.queryByTestId("output-row-0-problem-0")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByLabelText("Parameter name")).toBeEnabled());
+    expect(screen.getByLabelText("Parameter name")).toHaveValue("text");
+    const loaded = await api.unchain.getSkeletonResource.mock.results[0].value;
+    expect(loaded.document).toEqual(doc());
+    expect(loaded.document).not.toHaveProperty("input_schema");
+    expect(api.unchain.saveSkeletonResource).not.toHaveBeenCalled();
+    expect(screen.getByTestId("skeleton-save-state")).toHaveTextContent(/^Saved$/);
   });
 
   test("a saved output keeps the whole-object path exactly as it was", async () => {

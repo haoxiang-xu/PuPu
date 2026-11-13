@@ -12,8 +12,8 @@ from test_skeleton_legacy_upgrade_save import migrate, recipe, tables
 
 REQUEST = "pupu.skeleton-legacy-upgrade.request.v1"
 CAP = "/skeleton_resources/legacy_upgrade/capabilities"
-# Captured from the pinned 4cd77204 release wheel (skeleton_execution 1.10).
-MANIFEST = "sha256:6ea8156f69924ac2301e4f51f9fc71a01e28fed846de25ca59a02aacf3529337"
+# Captured from the retained Workflow parameters wheel (skeleton_execution 1.11).
+MANIFEST = "sha256:8bb1c7d474eed7bd82f906ac6cd88a6b7e073a23f46319cf500ebbd6b50ff17b"
 
 
 @pytest.fixture

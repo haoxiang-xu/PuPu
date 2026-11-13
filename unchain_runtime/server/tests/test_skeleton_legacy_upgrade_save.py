@@ -67,7 +67,7 @@ def test_flat_recipe_preview_is_read_only_and_apply_keeps_identity_policy_and_na
     preview = store.preview_legacy_upgrade(resource["id"], expected_edit_token=resource["edit_token"], choices=request)
     assert tables(store) == before
     assert preview["schema"] == "pupu.skeleton-legacy-upgrade.preview.v1"
-    assert preview["runtime_manifest"]["manifest_digest"] == "sha256:6ea8156f69924ac2301e4f51f9fc71a01e28fed846de25ca59a02aacf3529337"
+    assert preview["runtime_manifest"]["manifest_digest"] == "sha256:8bb1c7d474eed7bd82f906ac6cd88a6b7e073a23f46319cf500ebbd6b50ff17b"
     saved, again = apply(store, resource, request)
     assert again == preview
     assert saved["id"] == resource["id"] and saved["source_identity"] == resource["source_identity"]

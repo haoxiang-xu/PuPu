@@ -333,11 +333,12 @@ describe("the Output Variables section in the panel", () => {
     );
   });
 
-  test("a Start shows outputs and locked caller input, never editable bindings", () => {
+  test("a Hook Start shows outputs and locked caller input, never editable bindings", () => {
     /* The description is editor memory. Start still has no execution.inputs
        key, and no control may compose one. */
     const change = jest.fn();
-    show({ document: skeleton_document, onDocumentChange: change, selectedNodeId: "start" });
+    show({ document: skeleton_document, onDocumentChange: change, selectedNodeId: "start",
+      startContext: { kind: "unknown", fields: [], message: "Hook event", caller: "hook" } });
     expect(screen.getByTestId("skeleton-output-variables")).toBeInTheDocument();
     const caller = screen.getByTestId("skeleton-input-variables");
     expect(caller).toHaveTextContent("Caller input");
@@ -348,18 +349,19 @@ describe("the Output Variables section in the panel", () => {
     expect(skeleton_document.nodes.find((node) => node.type === "start").config.execution).not.toHaveProperty("inputs");
   });
 
-  test("a Skeleton page draws one outputs section, not two", () => {
-    /* The legacy Start panel's section carries `node.outputs` from the old
-       recipe format, which is a different shape entirely. They never render
-       together because a Skeleton page has no recipe — this is what says so. */
+  test("a standalone Workflow draws one parameter section without the legacy outputs editor", () => {
+    const change = jest.fn();
     show({
       recipe: undefined,
       document: skeleton_document,
-      onDocumentChange: () => {},
+      onDocumentChange: change,
       selectedNodeId: "start",
     });
-    expect(screen.getAllByText("Output Variables")).toHaveLength(1);
-    expect(screen.getByTestId("skeleton-output-variables")).toBeInTheDocument();
+    expect(screen.getAllByText("Parameters")).toHaveLength(1);
+    expect(screen.getByTestId("workflow-parameters")).toBeInTheDocument();
+    expect(screen.queryByTestId("skeleton-output-variables")).not.toBeInTheDocument();
+    expect(skeleton_document).not.toHaveProperty("input_schema");
+    expect(change).not.toHaveBeenCalled();
   });
 
   test("a legacy recipe page draws the legacy section and none of mine", () => {
