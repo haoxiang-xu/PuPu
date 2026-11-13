@@ -172,3 +172,62 @@ test("every crumb marks its icon, which is what its tooltip points at", () => {
     expect(crumb.querySelectorAll("[data-crumb-icon]")).toHaveLength(1);
   });
 });
+
+describe("the Agents editor's drill path, after Agents", () => {
+  const home = { key: "home", icon: "home_door", label: "Home", onClick: () => {} };
+  const agents = { key: "agents", icon: "bot", label: "Agents" };
+
+  test("each graph is its icon and its name; a graph left behind leads back, where you are does not", () => {
+    const back = jest.fn();
+    render(
+      <SideMenuBreadcrumb
+        crumbs={[
+          home,
+          agents,
+          { key: "drill-0", label: "Reviewer", presentation: null, showLabel: true, ariaLabel: "Back to Reviewer", onClick: back },
+          { key: "drill-1", label: "A very long subagent name that will not fit", icon: "bot", showLabel: true, hint: "Esc to go up" },
+        ]}
+      />,
+    );
+    expect(screen.getByTestId("side-menu-crumb-drill-0-avatar")).toHaveAttribute("data-agent-variant", "glyph");
+    expect(screen.getByTestId("side-menu-crumb-drill-0-label")).toHaveTextContent("Reviewer");
+    const label = screen.getByTestId("side-menu-crumb-drill-1-label");
+    expect(label).toHaveTextContent("A very long subagent name that will not fit");
+    /* A long name ends in an ellipsis rather than pushing the trail out. */
+    expect(label.style.textOverflow).toBe("ellipsis");
+    expect(label.style.maxWidth).toBe("140px");
+    fireEvent.click(screen.getByRole("button", { name: "Back to Reviewer" }));
+    expect(back).toHaveBeenCalledTimes(1);
+    const here = screen.getByTestId("side-menu-crumb-drill-1");
+    expect(here).toHaveAttribute("aria-current", "page");
+    expect(here).toHaveAttribute("aria-disabled", "true");
+  });
+
+  test("the trail scrolls sideways, with no scrollbar, when it is wider than the menu", () => {
+    render(<SideMenuBreadcrumb crumbs={[home, agents]} />);
+    const nav = screen.getByTestId("side-menu-breadcrumb");
+    expect(nav.style.overflowX).toBe("auto");
+    expect(nav.style.scrollbarWidth).toBe("none");
+  });
+});
+
+describe("a crumb that leaves and comes back under the same key", () => {
+  test("never leaves an invisible copy in the trail", () => {
+    jest.useFakeTimers();
+    const home = { key: "home", icon: "home_door", label: "Home", onClick: () => {} };
+    const at = (label) => [home, { key: "drill-0", icon: "bot", label, showLabel: true }];
+    const agents = [home, { key: "agents", icon: "bot", label: "Agents" }];
+    const { rerender, container } = render(<SideMenuBreadcrumb crumbs={at("Default")} isDark />);
+    /* Switching Agents quickly passes through the page label each time. */
+    ["Other", "Default", "Other", "Default"].forEach((label) => {
+      act(() => { rerender(<SideMenuBreadcrumb crumbs={agents} isDark />); });
+      act(() => { rerender(<SideMenuBreadcrumb crumbs={at(label)} isDark />); });
+    });
+    act(() => { jest.runAllTimers(); });
+    const slots = container.querySelectorAll('[data-testid="side-menu-crumb-drill-0-slot"]');
+    expect(slots).toHaveLength(1);
+    expect(container.querySelectorAll('[data-phase="exit"]')).toHaveLength(0);
+    expect(screen.getByTestId("side-menu-crumb-drill-0-label")).toHaveTextContent("Default");
+    jest.useRealTimers();
+  });
+});

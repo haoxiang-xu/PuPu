@@ -221,6 +221,9 @@ export default function SkillReadSection({ document, node, isDark, onChange }) {
             <Region isDark={isDark}>
             <pre
               data-testid="skill-read-preview-body"
+              /* The app's own overlay scrollbar, as every other scroll area. */
+              className="scrollable"
+              data-sb-edge="6"
               style={{
                 ...MONO,
                 margin: 0,

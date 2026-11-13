@@ -4,6 +4,7 @@ import { node_display_title } from "../node_display_labels";
 import React from "react";
 import { agentEnglishText, agentMessage, renderAgentMessage } from "../agents_i18n";
 import PuzzleShape from "./puzzle_shape";
+import { node_caption } from "./node_caption";
 import NodeHeader, { NodeBody } from "./node_header";
 import { entry_reference } from "../subagent_eligibility";
 import {
@@ -50,8 +51,10 @@ export default function SubagentPoolNode({
   onDrillIn,
   rows,
   onOpenRow,
+  rename,
 }) {
   const { t } = useTranslation();
+  const title = is_skeleton_node(node) ? node_display_title(node, t("agents.nodes.subagent_pool")) : t("agents.nodes.subagent_pool");
   const entries = node.subagents || [];
   const all = Array.isArray(rows) ? rows : legacy_rows(entries, recipes, t);
   const shown = all.slice(0, MAX_ROWS);
@@ -74,10 +77,11 @@ export default function SubagentPoolNode({
           <NodeHeader
             src="subagent_pool"
             tile={{ background: "#5a5dd6" }}
-            title={is_skeleton_node(node) ? node_display_title(node, t("agents.nodes.subagent_pool")) : t("agents.nodes.subagent_pool")}
-            subtitle={all.length === 1
+            title={title}
+            subtitle={node_caption({ type: "subagent_pool", title, summary: all.length === 1
               ? t("agents.nodes.subagent_count_one", { count: all.length })
-              : t("agents.nodes.subagent_count_other", { count: all.length })}
+              : t("agents.nodes.subagent_count_other", { count: all.length }) }, t)}
+            rename={rename}
           />
 
           {shown.length > 0 && (

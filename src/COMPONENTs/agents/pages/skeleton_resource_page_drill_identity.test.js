@@ -1,6 +1,7 @@
 import React from "react";
 import { install_legacy_store_bridge } from "./recipes_page/legacy_store_test_bridge";
-import { render, screen, fireEvent, waitFor, act, within } from "@testing-library/react";
+import { screen, fireEvent, waitFor, act, within } from "@testing-library/react";
+import { drillTrailLinks, render } from "./drill_trail_test_helpers";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import SkeletonResourcePage from "./skeleton_resource_page";
 import { api } from "../../../SERVICEs/api";
@@ -115,11 +116,12 @@ const open_page = async (document, { resources = [], pool = "pool-a" } = {}) => 
 const pool_rows = () => screen.getByTestId("flow-node-pool-a");
 const open_row = (index) =>
   fireEvent.doubleClick(within(pool_rows()).getByTestId(`pool-node-row-${index}`));
+/* The names on the drill path, one per graph (a crumb on its way out is
+   not on it). */
 const crumbs = () =>
-  screen
-    .getByTestId("skeleton-drill-crumbs")
-    .textContent.split("›")
-    .map((part) => part.trim());
+  Array.from(
+    screen.getByTestId("side-menu-breadcrumb").querySelectorAll('[data-phase]:not([data-phase="exit"]) [data-testid$="-label"]'),
+  ).map((node) => node.textContent.trim());
 
 beforeEach(() => {
   window.localStorage.clear();
@@ -146,7 +148,6 @@ describe("two entries the document cannot tell apart, on the page", () => {
     await act(async () => {});
     expect(crumbs()).toEqual([
       "Probe duplicate-entry-ids",
-      "Subagent Pool",
       "Child Second",
     ]);
     await act(async () => {
@@ -154,7 +155,7 @@ describe("two entries the document cannot tell apart, on the page", () => {
     });
     open_row(0);
     await act(async () => {});
-    expect(crumbs()[2]).toBe("Child First");
+    expect(crumbs()[1]).toBe("Child First");
   });
 
   test("and the graph that is written when it is saved", async () => {
@@ -238,7 +239,7 @@ describe("an embedded graph the canvas cannot draw, on the page", () => {
     expect(screen.getByTestId("skeleton-drill-notice").textContent).toMatch(
       /list of nodes/i,
     );
-    expect(screen.queryByTestId("skeleton-drill-breadcrumb")).toBeNull();
+    expect(drillTrailLinks()).toHaveLength(0);
     /* Still the parent's graph, and the parent's own nodes. */
     expect(screen.getByTestId("skeleton-node-pool-a")).toBeInTheDocument();
   });
@@ -261,7 +262,7 @@ describe("an embedded graph the canvas cannot draw, on the page", () => {
     await open_page(parent_with_entry(row));
     open_row(0);
     await act(async () => {});
-    expect(screen.getByTestId("skeleton-drill-breadcrumb")).toBeInTheDocument();
+    expect(drillTrailLinks().length).toBeGreaterThan(0);
     expect(screen.queryByTestId("skeleton-drill-notice")).toBeNull();
   });
 });
@@ -394,7 +395,7 @@ describe("the parent replaced from outside while a duplicate is open", () => {
     );
     open_row(1);
     await act(async () => {});
-    expect(crumbs()[2]).toBe("Child Second");
+    expect(crumbs()[1]).toBe("Child Second");
     fireEvent.click(screen.getByTestId("skeleton-node-agent"));
     const prompt = await screen.findByPlaceholderText("what this Agent is for");
     fireEvent.change(prompt, { target: { value: "Edited in the SECOND child" } });
@@ -418,7 +419,7 @@ describe("the parent replaced from outside while a duplicate is open", () => {
     expect(entries_of(after.document).map((entry) => entry.source.document.name)).toEqual([
       "Child First",
     ]);
-    expect(screen.queryByTestId("skeleton-drill-breadcrumb")).toBeNull();
+    expect(drillTrailLinks()).toHaveLength(0);
     expect(screen.getByTestId("skeleton-node-pool-a")).toBeInTheDocument();
     expect(screen.getByTestId("skeleton-drill-notice").textContent).toMatch(
       /share one id/i,
@@ -437,7 +438,7 @@ describe("the parent replaced from outside while a duplicate is open", () => {
       "Child Second",
       "Child First",
     ]);
-    expect(crumbs()[2]).toBe("Child Second");
+    expect(crumbs()[1]).toBe("Child Second");
     /* Theirs is what is on screen — the author's own edit was discarded by
        the choice they made — and typing again saves into THAT child. */
     fireEvent.click(screen.getByTestId("skeleton-node-agent"));
@@ -466,7 +467,7 @@ describe("the parent replaced from outside while a duplicate is open", () => {
     expect(entries_of(after.document).map((entry) => entry.source.document.name)).toEqual([
       "Child Second",
     ]);
-    expect(crumbs()[2]).toBe("Child Second");
+    expect(crumbs()[1]).toBe("Child Second");
     expect(screen.queryByTestId("skeleton-drill-notice")).toBeNull();
     expect(
       (await screen.findByPlaceholderText("what this Agent is for")).value,
@@ -495,7 +496,7 @@ describe("a stored node carrying a field a node does not have", () => {
     await open_page(document);
     open_row(0);
     await act(async () => {});
-    expect(screen.getByTestId("skeleton-drill-breadcrumb")).toBeInTheDocument();
+    expect(drillTrailLinks().length).toBeGreaterThan(0);
     expect(screen.queryByTestId("skeleton-drill-notice")).toBeNull();
     /* The child's own nodes are on screen, drawn by their ids. */
     expect(screen.getByTestId("skeleton-node-agent")).toBeInTheDocument();
@@ -567,7 +568,7 @@ describe("two entries sharing a graph id as well as an id", () => {
     /* Both rows name the same graph, and the author opens the second. */
     open_row(1);
     await act(async () => {});
-    expect(crumbs()[2]).toBe("Child Second");
+    expect(crumbs()[1]).toBe("Child Second");
     fireEvent.click(screen.getByTestId("skeleton-node-agent"));
     const prompt = await screen.findByPlaceholderText("what this Agent is for");
     fireEvent.change(prompt, { target: { value: "Edited in the SECOND child" } });
@@ -581,7 +582,7 @@ describe("two entries sharing a graph id as well as an id", () => {
     await waitFor(() =>
       expect(screen.queryByTestId("skeleton-save-conflict")).toBeNull(),
     );
-    expect(screen.queryByTestId("skeleton-drill-breadcrumb")).toBeNull();
+    expect(drillTrailLinks()).toHaveLength(0);
     expect(screen.getByTestId("skeleton-node-pool-a")).toBeInTheDocument();
     expect(screen.getByTestId("skeleton-drill-notice").textContent).toMatch(
       /share one id/i,
@@ -611,7 +612,7 @@ describe("a node type that names a member of every object", () => {
     await open_page(document);
     open_row(0);
     await act(async () => {});
-    expect(screen.getByTestId("skeleton-drill-breadcrumb")).toBeInTheDocument();
+    expect(drillTrailLinks().length).toBeGreaterThan(0);
     /* The node is drawn, by its own type, with no ports invented for it. */
     expect(screen.getByTestId("flow-node-agent").textContent).toMatch(/__proto__/);
     expect(editor.nodes.find((node) => node.id === "agent").ports).toEqual([]);
@@ -672,7 +673,7 @@ describe("a reference read issued from a graph that is then closed", () => {
     );
     open_row(1);
     await act(async () => {});
-    expect(crumbs()[2]).toBe("Child Second");
+    expect(crumbs()[1]).toBe("Child Second");
     /* Dirty, so the save is refusable, and then the read from this child's
        own pool is started and held. */
     fireEvent.click(screen.getByTestId("skeleton-node-agent"));
@@ -703,7 +704,7 @@ describe("a reference read issued from a graph that is then closed", () => {
       expect(screen.queryByTestId("skeleton-save-conflict")).toBeNull(),
     );
     /* The page is back at the parent and says why. */
-    expect(screen.queryByTestId("skeleton-drill-breadcrumb")).toBeNull();
+    expect(drillTrailLinks()).toHaveLength(0);
     expect(screen.getByTestId("skeleton-drill-notice").textContent).toMatch(
       /share one id/i,
     );
@@ -711,7 +712,7 @@ describe("a reference read issued from a graph that is then closed", () => {
     await act(async () => {
       deliver(copy(reference));
     });
-    expect(screen.queryByTestId("skeleton-drill-breadcrumb")).toBeNull();
+    expect(drillTrailLinks()).toHaveLength(0);
     expect(screen.getByTestId("skeleton-node-pool-a")).toBeInTheDocument();
     /* Still this resource, still its own graph. */
     expect(screen.getByTestId("skeleton-canvas").textContent).not.toMatch(
@@ -799,7 +800,7 @@ describe("one resource at two depths, saved deeper", () => {
     /* Down into the peer, and from the peer back into this resource. */
     open_row(0);
     await waitFor(() =>
-      expect(screen.getByTestId("skeleton-drill-breadcrumb").textContent).toContain(
+      expect(screen.getByTestId("side-menu-breadcrumb").textContent).toContain(
         peer.name,
       ),
     );
@@ -873,7 +874,7 @@ describe("one resource at two depths, saved deeper", () => {
     );
     open_row(0);
     await waitFor(() =>
-      expect(screen.getByTestId("skeleton-drill-breadcrumb").textContent).toContain(
+      expect(screen.getByTestId("side-menu-breadcrumb").textContent).toContain(
         peer.name,
       ),
     );
@@ -929,13 +930,13 @@ describe("giving a duplicated entry an id of its own, on the page", () => {
     /* The row that was repaired, and the one that was not. */
     open_row(1);
     await act(async () => {});
-    expect(crumbs()[2]).toBe("Child Second");
+    expect(crumbs()[1]).toBe("Child Second");
     await act(async () => {
       fireEvent.keyDown(window.document, { key: "Escape" });
     });
     open_row(0);
     await act(async () => {});
-    expect(crumbs()[2]).toBe("Child First");
+    expect(crumbs()[1]).toBe("Child First");
   });
 
   test("what the save carries is the repair and the author's own edits", async () => {
@@ -1041,7 +1042,7 @@ describe("the repair stays in the graph the button is in", () => {
       within(pool_rows("pool")).getByTestId("pool-node-row-0"),
     );
     await act(async () => {});
-    expect(crumbs()[2]).toBe("Selected outer child");
+    expect(crumbs()[1]).toBe("Selected outer child");
     /* Its inner pool, and the repair. */
     fireEvent.click(screen.getByTestId("skeleton-node-pool"));
     await act(async () => {});
@@ -1049,8 +1050,8 @@ describe("the repair stays in the graph the button is in", () => {
       fireEvent.click(screen.getByLabelText("Give Inner first an id of its own"));
     });
     /* Still the graph the author was in. */
-    expect(crumbs()[2]).toBe("Selected outer child");
-    expect(screen.getByTestId("skeleton-drill-breadcrumb").textContent).not.toContain(
+    expect(crumbs()[1]).toBe("Selected outer child");
+    expect(screen.getByTestId("side-menu-breadcrumb").textContent).not.toContain(
       "Other outer child",
     );
     /* And the save carries the repair, in the inner pool, with both outer
@@ -1376,7 +1377,7 @@ describe("a child graph's own problems, in the child's own view", () => {
     ]);
     open_row(0);
     await act(async () => {});
-    expect(screen.getByTestId("skeleton-drill-breadcrumb")).toBeInTheDocument();
+    expect(drillTrailLinks().length).toBeGreaterThan(0);
     /* Select the child's own Agent node, which is where its own problem is. */
     fireEvent.click(screen.getByTestId("skeleton-node-agent"));
     await act(async () => {});

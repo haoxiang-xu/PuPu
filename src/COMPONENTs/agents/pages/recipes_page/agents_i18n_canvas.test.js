@@ -5,7 +5,7 @@ import SkeletonCanvas from "./skeleton_canvas";
 import RecipeCanvas from "./recipe_canvas";
 import { new_agent_document } from "./skeleton_graph_edits";
 import { migrate_recipe } from "./recipe_migration";
-import { CanvasControlCenter, CanvasMessageStrip, FloatingBreadcrumb } from "./canvas_chrome";
+import { CanvasControlCenter, CanvasMessageStrip, EscapeBackHint } from "./canvas_chrome";
 import { agentMessage } from "./agents_i18n";
 
 jest.mock("../../../../BUILTIN_COMPONENTs/context_menu/context_menu", () => function MockMenu({ visible, items }) {
@@ -99,15 +99,18 @@ test("shared canvas controls localize their default label but preserve an explic
   expect(onSave).toHaveBeenCalledTimes(1);
 });
 
-test("the breadcrumb's own escape hint translates and its supplied labels retain their navigation identities", () => {
-  const raw = "agents.canvas.center {name}";
-  const crumbs = [{ label: raw, depth: 0, navigable: true }, { label: "Subagent Pool", depth: null, navigable: false }];
-  const before = JSON.stringify(crumbs);
-  const onNavigate = jest.fn();
-  render(localized("zh-CN", <FloatingBreadcrumb crumbs={crumbs} onNavigate={onNavigate} testId="crumbs" />));
-  expect(screen.getByText("按 Esc 返回上一级")).toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: raw }));
-  expect(onNavigate).toHaveBeenCalledWith(0);
-  expect(screen.getByTestId("crumbs")).toHaveTextContent("Subagent Pool");
-  expect(JSON.stringify(crumbs)).toBe(before);
+test("the Esc hint keeps the key literal and puts it where the locale's sentence does", () => {
+  const view = render(localized("zh-CN", <EscapeBackHint visible top={20} left={14} />));
+  const hint = screen.getByTestId("canvas-escape-hint");
+  expect(hint).toHaveTextContent("按Esc返回");
+  expect(hint.firstChild).toHaveTextContent("按");
+  expect(screen.getByTestId("canvas-escape-hint-key")).toHaveTextContent("Esc");
+  view.rerender(localized("en", <EscapeBackHint visible top={20} left={14} />));
+  expect(hint.firstChild).toBe(screen.getByTestId("canvas-escape-hint-key"));
+  expect(hint).toHaveTextContent("Escto go back");
+  /* A reminder only: it takes no pointer, so the drag region keeps it. */
+  expect(hint.style.pointerEvents).toBe("none");
+  view.rerender(localized("en", <EscapeBackHint visible={false} top={20} left={14} />));
+  expect(hint).toHaveAttribute("aria-hidden", "true");
+  expect(hint.style.opacity).toBe("0");
 });

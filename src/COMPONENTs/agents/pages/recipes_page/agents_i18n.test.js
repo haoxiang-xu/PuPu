@@ -154,12 +154,12 @@ test("local error provenance preserves normal Error behavior and never rebrands 
 test("owned local problem metadata preserves the original error bytes and stays absent from serialization", () => {
   const { agentProblem, agentProblemMessage, copyAgentProblem } = require("./agents_i18n");
   const details = { code: "raw_code", path: ["raw", 1] };
-  const problem = agentProblem("agents.rename.non_blank", undefined, details);
+  const problem = agentProblem("agents.graph.rename_label_blank", undefined, details);
   expect(JSON.stringify(problem)).toBe(JSON.stringify({ ...details, message: "Node label must be non-blank." }));
   expect(Object.keys(problem)).toEqual(["code", "path", "message"]);
-  expect(agentProblemMessage(problem, (key) => `T:${key}`)).toBe("T:agents.rename.non_blank");
+  expect(agentProblemMessage(problem, (key) => `T:${key}`)).toBe("T:agents.graph.rename_label_blank");
   const forwarded = copyAgentProblem(problem, { ...problem });
-  expect(agentProblemMessage(forwarded, (key) => `T:${key}`)).toBe("T:agents.rename.non_blank");
+  expect(agentProblemMessage(forwarded, (key) => `T:${key}`)).toBe("T:agents.graph.rename_label_blank");
   const opaque = { ...problem };
   expect(agentProblemMessage(opaque, (key) => `T:${key}`)).toBe(problem.message);
   problem.message = "an opaque replacement";
@@ -169,21 +169,21 @@ test("owned local problem metadata preserves the original error bytes and stays 
 
 test("a changed Error cannot regain stale ownership through a diagnostic wrapper", () => {
   const { agentProblemFromMessage, copyAgentProblem, agentProblemMessage } = require("./agents_i18n");
-  const error = agentError("agents.rename.non_blank"); error.message = "raw replacement";
+  const error = agentError("agents.graph.rename_label_blank"); error.message = "raw replacement";
   const wrapped = agentProblemFromMessage(error, { code: "raw" });
   expect(agentProblemMessage(wrapped, (key) => `T:${key}`)).toBe(error);
-  const source = agentMessage("agents.rename.non_blank");
+  const source = agentMessage("agents.graph.rename_label_blank");
   const copied = copyAgentProblem(source, { message: undefined });
   expect(agentProblemMessage(copied, (key) => `T:${key}`)).toBeUndefined();
 });
 
 test("owned callback reasons keep their public English string and opaque payloads cannot forge ownership", () => {
   const { agentReasonPayload, agentPayloadReason } = require("./agents_i18n");
-  const notice = agentMessage("agents.rename.non_blank");
+  const notice = agentMessage("agents.graph.rename_label_blank");
   const payload = agentReasonPayload({ id: "raw", reason: notice });
   expect(payload).toEqual({ id: "raw", reason: "Node label must be non-blank." });
   expect(JSON.stringify(payload)).toBe('{"id":"raw","reason":"Node label must be non-blank."}');
-  expect(agentPayloadReason(payload, (key) => `T:${key}`)).toBe("T:agents.rename.non_blank");
+  expect(agentPayloadReason(payload, (key) => `T:${key}`)).toBe("T:agents.graph.rename_label_blank");
   expect(agentPayloadReason(JSON.parse(JSON.stringify(payload)), (key) => `T:${key}`)).toBe(payload.reason);
   payload.reason = "raw replacement";
   expect(agentPayloadReason(payload, (key) => `T:${key}`)).toBe("raw replacement");

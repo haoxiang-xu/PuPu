@@ -1046,9 +1046,7 @@
     },
     "icon_picker": {
       "title": "エージェントのアイコン",
-      "change": "アイコンを変更",
       "icon": "アイコン",
-      "color": "色",
       "reset": "デフォルトに戻す",
       "groups": {
         "robots": "ロボット",
@@ -1135,7 +1133,6 @@
         "insert_here": "ここにノードを挿入…",
         "delete_connection": "接続を削除",
         "open_details": "詳細を開く",
-        "rename_unavailable": "名前変更を利用できません · {reason}",
         "disconnect_node": "ノードの接続を切断",
         "delete_node": "ノードを削除",
         "required_node": "必須ノード",
@@ -1147,14 +1144,7 @@
       "redo": "やり直す（{shortcut}）",
       "center": "中央に表示",
       "go_to_start": "開始ノードへ移動",
-      "escape_up": "Esc で上の階層へ"
-    },
-    "rename": {
-      "title": "ノード名を変更",
-      "close": "名前変更を閉じる",
-      "name": "ノード名",
-      "non_blank": "ノードのラベルを空白にはできません。",
-      "refused": "この名前変更は拒否されました。"
+      "escape_back": "{key} で親に戻る"
     },
     "palette": {
       "find": "ノードを探す",
@@ -1172,7 +1162,6 @@
         "steps": "ステップ",
         "attachments": "付属設定"
       },
-      "toolkit_pool": "ツールキットプール",
       "graph_agent": "エージェント",
       "graph_workflow": "ワークフロー",
       "description": {
@@ -1194,22 +1183,22 @@
       "entry": "入口",
       "end": "終了",
       "exit": "出口",
+      "caption_join": "{first} · {second}",
       "if_else": "If / Else",
       "switch_case": "Switch / Case",
       "outlet_undeclared": "この出口はもう宣言されていません。この接続があると実行が停止します。接続を削除するか、ケースを戻してください。",
       "tool_call": "ツール呼び出し",
-      "tool_call_pick": "ツール呼び出し · ツールを選択",
+      "pick_tool": "ツールを選択",
       "more": "ほか {count} 件",
       "unreadable_source": "読み取れない参照元",
       "first_of": "{count} 個のうち最初の利用可能値",
       "skill_read": "スキル読み取り",
-      "skill_read_source": "スキル読み取り · {source}",
-      "skill_read_pick": "スキル読み取り · スキルを選択",
+      "pick_skill": "スキルを選択",
       "workflow_call": "ワークフロー呼び出し",
-      "workflow_pin": "ワークフロー呼び出し · リビジョンを固定",
-      "workflow_revision": "ワークフロー呼び出し · リビジョン {revision}",
-      "workflow_unreadable": "ワークフロー呼び出し · リビジョンを読み取れません",
-      "workflow_reading": "ワークフロー呼び出し · リビジョンを読み取り中…",
+      "pin_revision": "リビジョンを固定",
+      "revision": "リビジョン {revision}",
+      "revision_unreadable": "リビジョンを読み取れません",
+      "revision_reading": "リビジョンを読み取り中…",
       "set": "設定済み",
       "missing": "未設定",
       "nothing_exported": "→ エクスポートなし",
@@ -1235,6 +1224,7 @@
       "subagent_missing": "{name} はエージェントライブラリに存在しません",
       "subagent_unopenable": "{name} を開けません",
       "code": {
+        "type": "コード",
         "python": "Python"
       }
     },
@@ -1352,7 +1342,27 @@
       "remove_source": "参照元 {position} を削除",
       "not_produced_named": "{name} — ここでは生成されません",
       "not_produced_unnamed": "（名前なし）— ここでは生成されません",
-      "caller_input": "呼び出し元の入力"
+      "caller_input": "呼び出し元の入力",
+      "ask": {
+        "add_ask": "+ Agent に生成させる…",
+        "add_input": "+ 入力をそのまま渡す",
+        "add_reply": "+ Agent の返信",
+        "type_label": "値の種類",
+        "type_text": "テキスト",
+        "type_number": "数値",
+        "type_whole_number": "整数",
+        "type_yes_no": "はい / いいえ",
+        "type_list": "テキストのリスト",
+        "description_placeholder": "Agent がここで何を出力するかを説明",
+        "description_label": "Agent が出力するもの",
+        "name_taken": "{name} という出力はすでにあります。この名前は保存されていません。",
+        "remove": "{name} を削除",
+        "json_note": "Agent に何かを生成させている間、返信はそれらの答えを含む JSON オブジェクトになります。文章の返信も残したい場合は、\"reply\" などのテキスト出力を追加してください。",
+        "model_cannot": "このモデルは決まった構造で答えられないため、出力を生成させられません。JSON 出力に対応したモデルを選んでください。",
+        "schema_is_json": "この Agent の JSON Output は行では表せない形で書かれています。「詳細」で編集してください。",
+        "no_kernel": "この Agent には使えるモデル設定がありません。",
+        "advanced": "詳細：JSON で編集"
+      }
     },
     "schema": {
       "required": "必須",
@@ -2178,12 +2188,9 @@
       "caption": "読み取り専用：{name} のリビジョン {ordinal} · {id}。実行はこのリビジョンそのものを使います。ここでは何も編集・保存しません。",
       "store_unreachable": "ストアに接続できませんでした",
       "open_failed": "固定済みリビジョンを読み取れませんでした：{message}。何も開きませんでした。",
-      "changed": "リビジョンを読み取っている間に固定先が変わったため、何も開きませんでした。現在の固定先を見るには開き直してください。",
-      "via_label": "ワークフロー呼び出し"
+      "changed": "リビジョンを読み取っている間に固定先が変わったため、何も開きませんでした。現在の固定先を見るには開き直してください。"
     },
     "drill": {
-      "subagent_pool": "サブエージェントプール",
-      "hooks_pool": "Hooks プール",
       "that_subagent": "そのサブエージェント",
       "that_hook": "その Hook",
       "embedded_checked": "このグラフは保存時にチェックされ、問題はここに表示されます。親 Agent の実行時にはさらにチェックされます。プールが参照する Agent は、その時点で初めて読み込まれます。",
@@ -2477,8 +2484,7 @@
       "observation_failed": "記録済みの実行を読み込めませんでした。",
       "observation_rejected": "実行の詳細を更新できませんでした。",
       "edit_refused": "この編集は拒否されました。",
-      "rename_missing": "選択したノードが存在しないか、その id が別のノードと重複しています。",
-      "rename_view_closed": "このグラフは名前変更のために開かれた状態ではなくなりました。"
+      "rename_missing": "選択したノードが存在しないか、その id が別のノードと重複しています。"
     },
     "local_validation": {
       "object_required": "オブジェクトが必要です",

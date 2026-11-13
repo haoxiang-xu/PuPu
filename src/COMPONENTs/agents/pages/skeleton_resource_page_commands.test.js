@@ -1,7 +1,8 @@
 import React from "react";
 import { pressCanvasNode, openAddNode, openRunMenu } from "./recipes_page/skeleton_canvas_test_helpers";
 import { install_legacy_store_bridge } from "./recipes_page/legacy_store_test_bridge";
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { drillTrailLinks, render } from "./drill_trail_test_helpers";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import SkeletonResourcePage from "./skeleton_resource_page";
 import { api } from "../../../SERVICEs/api";
@@ -78,14 +79,14 @@ test("embedded commands write only the chosen child into its owning resource", a
   const document = parent();
   await show(document);
   openChild();
-  await screen.findByTestId("skeleton-drill-crumbs");
+  await screen.findByTestId("side-menu-breadcrumb");
   add();
   const payload = await save();
   expect(payload.document.id).toBe(document.id);
   expect(child(payload.document).nodes).toHaveLength(child(document).nodes.length + 1);
   expect(child(payload.document, 0)).toEqual(child(document, 0));
   expect(payload.document.nodes.filter((n) => n.id !== "pool-a")).toEqual(document.nodes.filter((n) => n.id !== "pool-a"));
-  expect(screen.getByTestId("skeleton-drill-crumbs")).toHaveTextContent("Child Second");
+  expect(screen.getByTestId("side-menu-breadcrumb")).toHaveTextContent("Child Second");
   if (process.env.NATIVE_CANVAS_CAPTURE_PATH) require("fs").writeFileSync(process.env.NATIVE_CANVAS_CAPTURE_PATH, JSON.stringify(payload, null, 2) + "\n");
 });
 
@@ -95,7 +96,7 @@ test("an old child callback cannot mutate the parent after going back", async ()
   openChild();
   const late = editor.on_delete;
   fireEvent.keyDown(documentForKeys(), { key: "Escape" });
-  await waitFor(() => expect(screen.queryByTestId("skeleton-drill-crumbs")).not.toBeInTheDocument());
+  await waitFor(() => expect(drillTrailLinks()).toHaveLength(0));
   act(() => late({ node_ids: ["agent"], edge_ids: [] }));
   expect(screen.getByTestId("skeleton-save-state")).toHaveTextContent(/^Saved$/);
   add();
@@ -128,13 +129,13 @@ test("referenced graph commands save that resource, then returning keeps the unt
   await show(document);
   api.unchain.getSkeletonResource.mockResolvedValue(result(peer));
   openChild();
-  await waitFor(() => expect(screen.getByTestId("skeleton-drill-crumbs")).toHaveTextContent(peer.name));
+  await waitFor(() => expect(screen.getByTestId("side-menu-breadcrumb")).toHaveTextContent(peer.name));
   add("subagent_pool");
   const payload = await save();
   expect(payload.document.id).toBe(peer.id);
   expect(payload.document.nodes.at(-1).type).toBe("subagent_pool");
   fireEvent.keyDown(window.document, { key: "Escape" });
-  await waitFor(() => expect(screen.queryByTestId("skeleton-drill-crumbs")).not.toBeInTheDocument());
+  await waitFor(() => expect(drillTrailLinks()).toHaveLength(0));
   expect(screen.getByTestId("skeleton-save-state")).toHaveTextContent(/^Saved$/);
   expect(screen.getByTestId("skeleton-node-pool-a")).toBeInTheDocument();
 });

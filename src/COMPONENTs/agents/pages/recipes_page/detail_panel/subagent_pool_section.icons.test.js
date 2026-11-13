@@ -1,14 +1,14 @@
 import React from "react";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import SubagentPoolSection from "./subagent_pool_section";
-import { node_subagents } from "../skeleton_document";
 import { list_resources } from "../skeleton_resources";
 
-/* A subagent wears its Agent's icon and colour: a referenced Agent's from its
-   stored summary, an embedded one's from its own document — and an embedded
-   one's is changed in its settings, written like its name. These fixtures put
-   `presentation` only where it is read; the local document validator is not
-   what is asserted here. */
+/* A subagent row is an Agent resource, so it wears that Agent's icon: a
+   referenced Agent's from its stored summary, an embedded one's from its own
+   document — always in the row's text colour, a legacy stored colour is never
+   drawn. The icon is changed only from the Agents explorer: there is no
+   control here. These fixtures put `presentation` only where it is read; the
+   local document validator is not what is asserted here. */
 
 jest.mock("../../../use_presentation_capability", () => ({
   ...jest.requireActual("../../../use_presentation_capability"),
@@ -61,13 +61,14 @@ test("a referenced Agent's strip and the library rows draw the stored presentati
   ]));
   const first = screen.getByTestId("subagent-entry-0-icon");
   expect(first.getAttribute("data-agent-icon")).toBe("robot_bust");
-  expect(first.getAttribute("data-agent-color")).toBe("#b94a74");
+  expect(first.getAttribute("data-agent-tint")).toBe("currentColor");
+  expect(first.style.background).toBe("");
   expect(screen.getByTestId("subagent-entry-1-icon").getAttribute("data-agent-icon")).toBe("bot");
   /* A referenced Agent's icon is that resource's: no control here. */
   expect(screen.queryByTestId("subagent-entry-0-icon-button")).toBeNull();
 });
 
-test("an Agent with no chosen colour is drawn in the row's text colour, never a default blue", async () => {
+test("an Agent with no presentation is drawn in the row's text colour, never a default blue", async () => {
   await show(node([
     { ...base, id: "s2", name: "Checker", source: { kind: "agent_ref", agent_id: "res-2" } },
   ]));
@@ -90,29 +91,25 @@ test("a referenced Agent's icon follows the library when it is re-read", async (
   await act(async () => { emitSkeletonLibraryRefresh(); });
   const icon = screen.getByTestId("subagent-entry-0-icon");
   expect(icon.getAttribute("data-agent-icon")).toBe("run");
-  expect(icon.getAttribute("data-agent-color")).toBe("#2e8f5a");
+  expect(icon.getAttribute("data-agent-tint")).toBe("currentColor");
 });
 
-test("an embedded Agent reads its own document's presentation and writes a choice into it", async () => {
-  const embedded = { ...base, id: "s1", name: "Inline", source: { kind: "embedded", document: child({ presentation: { icon: "gemini" } }) } };
+test("an embedded Agent reads its own document's icon, and offers no control to change it", async () => {
+  const embedded = { ...base, id: "s1", name: "Inline", source: { kind: "embedded", document: child({ presentation: { icon: "gemini", color: "#2e8f5a" } }) } };
   const onChange = await show(node([embedded]));
-  expect(screen.getByTestId("subagent-entry-0-icon").getAttribute("data-agent-icon")).toBe("gemini");
-  fireEvent.click(screen.getByTestId("subagent-entry-0-icon-button"));
-  fireEvent.click(screen.getByTestId("subagent-entry-0-icon-button-picker-color-2e8f5a"));
+  const icon = screen.getByTestId("subagent-entry-0-icon");
+  expect(icon.getAttribute("data-agent-icon")).toBe("gemini");
+  expect(icon.getAttribute("data-agent-tint")).toBe("currentColor");
+  expect(screen.queryByTestId("subagent-entry-0-icon-button")).toBeNull();
+  expect(screen.queryByTestId("subagent-entry-0-icon-row")).toBeNull();
+  expect(screen.queryByRole("dialog", { name: "Agent icon" })).toBeNull();
   expect(onChange).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole("button", { name: "Save" }));
-  const written = node_subagents(onChange.mock.calls[onChange.mock.calls.length - 1][0].nodes[1]);
-  expect(written[0].source.document.presentation).toEqual({ icon: "gemini", color: "#2e8f5a" });
-  expect(written[0].source.document.nodes).toEqual(embedded.source.document.nodes);
-  expect(written[0].name).toBe("Inline");
 });
 
-test("Reset to default removes an embedded Agent's presentation", async () => {
-  const embedded = { ...base, id: "s1", name: "Inline", source: { kind: "embedded", document: child({ presentation: { icon: "gemini" } }) } };
-  const onChange = await show(node([embedded]));
-  fireEvent.click(screen.getByTestId("subagent-entry-0-icon-button"));
-  fireEvent.click(screen.getByRole("button", { name: "Reset to default" }));
-  fireEvent.click(screen.getByRole("button", { name: "Save" }));
-  const written = node_subagents(onChange.mock.calls[onChange.mock.calls.length - 1][0].nodes[1]);
-  expect(written[0].source.document).not.toHaveProperty("presentation");
+test("the library rows draw each Agent's icon in the row's colour", async () => {
+  await show(node([]));
+  // eslint-disable-next-line testing-library/no-node-access
+  const marks = Array.from(screen.getByTestId("subagent-picker").querySelectorAll('[data-agent-variant="glyph"]'));
+  expect(marks.map((el) => el.getAttribute("data-agent-icon"))).toEqual(["robot_bust", "bot"]);
+  marks.forEach((el) => expect(el.getAttribute("data-agent-tint")).toBe("currentColor"));
 });

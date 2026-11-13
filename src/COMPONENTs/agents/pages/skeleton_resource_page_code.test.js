@@ -117,7 +117,14 @@ const addField = (index, name, type) => {
   fireEvent.change(within(row).getByPlaceholderText("field name"), { target: { value: name } });
   if (type) choose(row, type, 0);
 };
-const limits = () => screen.getByTestId("code-limits");
+const document_open_folds = () => window.document
+  .querySelectorAll('[data-testid^="process-toggle-"][aria-expanded="false"]').forEach((toggle) => fireEvent.click(toggle));
+/* Limits starts folded; reading it opens it first, as an author would. */
+const limits = () => {
+  const toggle = screen.queryByTestId("process-toggle-code-limits");
+  if (toggle && toggle.getAttribute("aria-expanded") === "false") fireEvent.click(toggle);
+  return screen.getByTestId("code-limits");
+};
 /* Every problem the Code panel says, in whichever section says it. */
 const said = () => [...screen.getByTestId("code-section").querySelectorAll('[data-testid^="code-problems"]')].map((node) => node.textContent).join(" ");
 
@@ -144,6 +151,8 @@ test("Code: add, wire, name the file, set the limits, declare the Result, bind a
   expect(screen.queryByTestId("code-runtime-picker")).toBeNull();
   drag("start", "out", "code", "in");
   drag("code", "out", "router", "in");
+  /* Output Variables, Limits, Result, On Error start folded: open them all. */
+  document_open_folds();
 
   /* Connected after Start, it inherits Start's outputs: the input, a Result
      that passes it on, and the matching output — still nothing to fix. */

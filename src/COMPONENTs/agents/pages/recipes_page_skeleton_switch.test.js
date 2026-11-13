@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
+import { screen, fireEvent, waitFor, within } from "@testing-library/react";
+import { drillTrailLinks, render } from "./drill_trail_test_helpers";
 import RecipesPage from "./recipes_page";
 import { pressCanvasNode } from "./recipes_page/skeleton_canvas_test_helpers";
 import { install_legacy_store_bridge } from "./recipes_page/legacy_store_test_bridge";
@@ -137,12 +138,12 @@ describe("drilling into a subagent of a Skeleton Agent", () => {
     pressCanvasNode("pool");
     await waitFor(() => expect(screen.getByLabelText("Open Shortener")).toBeInTheDocument());
     fireEvent.click(screen.getByLabelText("Open Shortener"));
-    await waitFor(() => expect(screen.getByTestId("skeleton-drill-crumbs")).toBeInTheDocument());
+    await waitFor(() => expect(drillTrailLinks().length).toBeGreaterThan(0));
     expect(shell.style.opacity).toBe("0");
     expect(shell.style.pointerEvents).toBe("none");
 
     fireEvent.keyDown(document, { key: "Escape" });
-    await waitFor(() => expect(screen.queryByTestId("skeleton-drill-crumbs")).toBeNull());
+    await waitFor(() => expect(drillTrailLinks()).toHaveLength(0));
     expect(shell.style.opacity).toBe("1");
   });
 });

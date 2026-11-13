@@ -2,8 +2,6 @@ import React from "react";
 import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { avatar_glyph_color } from "../../../agent_avatar";
-import { render_agent_icon } from "../../../agent_icons";
-import { normalize_presentation, resolve_presentation } from "../../../../../SERVICEs/agent_resource_icons";
 import { node_identity } from "./node_identity";
 import { fillStrong, muted, text } from "./panel_style";
 
@@ -12,9 +10,9 @@ import { fillStrong, muted, text } from "./panel_style";
    wears — with its icon and name in the one ink that reads on that fill
    (white on a dark or saturated colour, near-black on a light one).
  *
- * Give it the `node` (its identity is read from node_identity, and an Agent
- * node of an Agent document may bring that Agent's `presentation`), or the
- * three parts directly: `{ icon, color, name }` (a `name` beside a `node`
+ * Give it the `node` (its identity is read from node_identity — an Agent node
+ * always wears the fixed Agent node identity, never an Agent resource's own
+ * icon), or the three parts directly: `{ icon, color, name }` (a `name` beside a `node`
  * keeps the caller's words). Without a colour it is a neutral tag. */
 
 export const NODE_TAG_ICON = 13;
@@ -32,20 +30,16 @@ export function tint_of(hex, alpha) {
 }
 export const nodeRefTint = (isDark) => (isDark ? 0.22 : 0.18);
 
-/* Who a tag names: its glyph, its fill, its words, and whether the glyph is
-   an Agent's own. */
-export function node_tag_parts({ node, icon, color, name, presentation }, t) {
+/* Who a tag names: its glyph, its fill and its words. */
+export function node_tag_parts({ node, icon, color, name }, t) {
   const identity = node ? node_identity(node, t) : null;
-  const agent = Boolean(node && node.type === "agent" && normalize_presentation(presentation));
-  const resolved = agent ? resolve_presentation(presentation) : null;
-  const fill = agent ? resolved.color : identity ? identity.gradient : color;
+  const fill = identity ? identity.gradient : color;
   return {
-    glyph: agent ? resolved.icon : identity ? identity.icon : icon,
+    glyph: identity ? identity.icon : icon,
     fill: typeof fill === "string" && HEX.test(fill) ? fill.toLowerCase() : null,
     /* A caller that already names the step (the words its own list uses)
        keeps them; otherwise the step is named as the canvas names it. */
     label: name !== undefined ? name : identity ? identity.title : undefined,
-    agent,
   };
 }
 
@@ -58,18 +52,7 @@ export const nodeTagStyle = (isDark, fill) => ({
   whiteSpace: "nowrap", userSelect: "none", WebkitUserSelect: "none",
 });
 
-function TagGlyph({ parts, ink, testid, presentation }) {
-  if (parts.agent) {
-    const stored = normalize_presentation(presentation);
-    return (
-      <span data-testid={testid ? `${testid}-avatar` : undefined} aria-hidden="true"
-        data-agent-icon={parts.glyph} data-agent-color={stored && stored.color ? stored.color : ""}
-        style={{ width: NODE_TAG_ICON, height: NODE_TAG_ICON, flexShrink: 0, color: ink,
-          display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-        {render_agent_icon(parts.glyph, NODE_TAG_ICON)}
-      </span>
-    );
-  }
+function TagGlyph({ parts, ink, testid }) {
   if (!parts.glyph) return null;
   return (
     <span data-testid={testid ? `${testid}-icon` : undefined} aria-hidden="true"
@@ -80,14 +63,14 @@ function TagGlyph({ parts, ink, testid, presentation }) {
   );
 }
 
-export default function NodeTag({ node, icon, color, name, presentation, isDark, testid, title, style }) {
+export default function NodeTag({ node, icon, color, name, isDark, testid, title, style }) {
   const { t } = useTranslation();
-  const parts = node_tag_parts({ node, icon, color, name, presentation }, t);
+  const parts = node_tag_parts({ node, icon, color, name }, t);
   const look = nodeTagStyle(isDark, parts.fill);
   return (
     <span data-testid={testid} data-node-fill={parts.fill || ""} title={title || parts.label || undefined}
       style={{ ...look, ...style }}>
-      <TagGlyph parts={parts} ink={look.color} testid={testid} presentation={presentation} />
+      <TagGlyph parts={parts} ink={look.color} testid={testid} />
       <span style={{ ...ELLIPSIS, maxWidth: NODE_TAG_NAME_MAX }}>{parts.label}</span>
     </span>
   );
@@ -97,9 +80,9 @@ export default function NodeTag({ node, icon, color, name, presentation, isDark,
    step's own tag, then the field it reads on a light wash of the same colour,
    in the panel's text colour. One rounded outline holds both. With no step
    (it was removed, or the value is not a step's) both halves are neutral. */
-export function NodeRefTag({ node, icon, color, name, presentation, detail, isDark, testid, title, style }) {
+export function NodeRefTag({ node, icon, color, name, detail, isDark, testid, title, style }) {
   const { t } = useTranslation();
-  const parts = node_tag_parts({ node, icon, color, name, presentation }, t);
+  const parts = node_tag_parts({ node, icon, color, name }, t);
   const edge = parts.fill ? tint_of(parts.fill, isDark ? 0.5 : 0.4) : fillStrong(isDark);
   const label = parts.label;
   return (
@@ -112,7 +95,7 @@ export function NodeRefTag({ node, icon, color, name, presentation, detail, isDa
         boxShadow: `inset 0 0 0 1px ${edge}`,
         ...style,
       }}>
-      <NodeTag node={node} icon={icon} color={color} name={name} presentation={presentation} isDark={isDark}
+      <NodeTag node={node} icon={icon} color={color} name={name} isDark={isDark}
         testid={testid ? `${testid}-node` : undefined} title={label}
         style={{ borderRadius: 0, maxWidth: "62%", flexShrink: 1, height: "100%" }} />
       <span data-testid={testid ? `${testid}-field` : undefined}

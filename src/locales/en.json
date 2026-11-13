@@ -1046,9 +1046,7 @@
     },
     "icon_picker": {
       "title": "Agent icon",
-      "change": "Change icon",
       "icon": "Icon",
-      "color": "Colour",
       "reset": "Reset to default",
       "groups": {
         "robots": "Robots",
@@ -1135,7 +1133,6 @@
         "insert_here": "Insert node here…",
         "delete_connection": "Delete connection",
         "open_details": "Open details",
-        "rename_unavailable": "Rename unavailable · {reason}",
         "disconnect_node": "Disconnect node",
         "delete_node": "Delete node",
         "required_node": "Required node",
@@ -1147,14 +1144,7 @@
       "redo": "Redo ({shortcut})",
       "center": "Center",
       "go_to_start": "Go to Start",
-      "escape_up": "Esc to go up"
-    },
-    "rename": {
-      "title": "Rename node",
-      "close": "Close Rename",
-      "name": "Node name",
-      "non_blank": "Node label must be non-blank.",
-      "refused": "This rename was refused."
+      "escape_back": "{key} to go back to the parent"
     },
     "palette": {
       "find": "Find a node",
@@ -1172,7 +1162,6 @@
         "steps": "Steps",
         "attachments": "Attachments"
       },
-      "toolkit_pool": "Toolkit Pool",
       "graph_agent": "agent",
       "graph_workflow": "workflow",
       "description": {
@@ -1194,22 +1183,22 @@
       "entry": "entry",
       "end": "End",
       "exit": "exit",
+      "caption_join": "{first} · {second}",
       "if_else": "If / Else",
       "switch_case": "Switch / Case",
       "outlet_undeclared": "This outlet is not declared any more. Its connection stops the run; delete it or add the case back.",
       "tool_call": "Tool call",
-      "tool_call_pick": "Tool call · pick a tool",
+      "pick_tool": "pick a tool",
       "more": "+{count} more",
       "unreadable_source": "an unreadable source",
       "first_of": "first of {count}",
       "skill_read": "Skill read",
-      "skill_read_source": "Skill read · {source}",
-      "skill_read_pick": "Skill read · pick a skill",
+      "pick_skill": "pick a skill",
       "workflow_call": "Workflow call",
-      "workflow_pin": "Workflow call · pin a revision",
-      "workflow_revision": "Workflow call · revision {revision}",
-      "workflow_unreadable": "Workflow call · revision unreadable",
-      "workflow_reading": "Workflow call · reading the revision…",
+      "pin_revision": "pin a revision",
+      "revision": "revision {revision}",
+      "revision_unreadable": "revision unreadable",
+      "revision_reading": "reading the revision…",
       "set": "set",
       "missing": "missing",
       "nothing_exported": "→ nothing exported",
@@ -1224,7 +1213,7 @@
       "every_tool": "every tool",
       "hook_workflow_revision": "{name} · rev {revision}",
       "no_workflow": "no Workflow",
-      "toolkit_pool": "ToolkitPool",
+      "toolkit_pool": "Toolkit Pool",
       "tool_settings_incomplete": "Tool settings incomplete",
       "toolkit_count_one": "{count} toolkit",
       "toolkit_count_other": "{count} toolkits",
@@ -1235,6 +1224,7 @@
       "subagent_missing": "{name} is no longer in the Agent library",
       "subagent_unopenable": "{name} cannot be opened",
       "code": {
+        "type": "Code",
         "python": "Python"
       }
     },
@@ -1352,7 +1342,27 @@
       "remove_source": "Remove source {position}",
       "not_produced_named": "{name} — not produced here",
       "not_produced_unnamed": "(unnamed) — not produced here",
-      "caller_input": "Caller input"
+      "caller_input": "Caller input",
+      "ask": {
+        "add_ask": "+ Ask the agent for…",
+        "add_input": "+ Pass on an input",
+        "add_reply": "+ Agent's reply",
+        "type_label": "Kind of value",
+        "type_text": "Text",
+        "type_number": "Number",
+        "type_whole_number": "Whole number",
+        "type_yes_no": "Yes / No",
+        "type_list": "List of text",
+        "description_placeholder": "Describe what the agent should produce here",
+        "description_label": "What the agent should produce",
+        "name_taken": "Another output is already called {name}; this name is not saved.",
+        "remove": "Remove {name}",
+        "json_note": "While the agent is asked for anything, its reply is a JSON object holding those answers. To keep a written reply too, ask for a Text output such as \"reply\".",
+        "model_cannot": "This model cannot answer in a fixed structure, so it cannot be asked for outputs. Pick a model that supports JSON output.",
+        "schema_is_json": "This Agent's JSON Output is written in a form the rows cannot hold. Edit it under Advanced.",
+        "no_kernel": "This Agent has no model settings to ask with.",
+        "advanced": "Advanced: Edit as JSON"
+      }
     },
     "schema": {
       "required": "required",
@@ -2178,12 +2188,9 @@
       "caption": "Read-only: revision {ordinal} of {name} · {id}. The run uses exactly this revision; nothing here is edited or saved.",
       "store_unreachable": "the store could not be reached",
       "open_failed": "The pinned revision could not be read: {message}. Nothing was opened.",
-      "changed": "The pin changed while its revision was being read, so nothing was opened. Open it again to see the revision it holds now.",
-      "via_label": "Workflow Call"
+      "changed": "The pin changed while its revision was being read, so nothing was opened. Open it again to see the revision it holds now."
     },
     "drill": {
-      "subagent_pool": "Subagent Pool",
-      "hooks_pool": "Hooks Pool",
       "legacy_embedded": "An embedded Agent graph is not connected yet — it needs the definition format from #356.",
       "legacy_entry": "A legacy entry carries a prompt, not a graph. Convert it to an Agent first.",
       "no_target": "This entry does not point at an Agent that can be opened.",
@@ -2586,8 +2593,7 @@
       "observation_failed": "The recorded run could not be read.",
       "observation_rejected": "Run details could not be updated.",
       "edit_refused": "This edit was refused.",
-      "rename_missing": "The selected node is missing or its id is shared by another node.",
-      "rename_view_closed": "This graph is no longer open for Rename."
+      "rename_missing": "The selected node is missing or its id is shared by another node."
     },
     "graph": {
       "document_object": "document must be an object",

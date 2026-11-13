@@ -5,10 +5,11 @@ import Button from "../../BUILTIN_COMPONENTs/input/button";
 import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { AGENT_ICON_GROUPS, agent_icons_in, render_agent_icon } from "./agent_icons";
 import { avatar_glyph_color } from "./agent_avatar";
-import { AGENT_PRESET_COLORS, normalize_presentation, resolve_presentation } from "../../SERVICEs/agent_resource_icons";
+import { presentation_to_store, resolve_presentation } from "../../SERVICEs/agent_resource_icons";
 import { PRESENTATION_SUPPORTED, usePresentationCapability } from "./use_presentation_capability";
 
-/* Choose an Agent's icon and colour.
+/* Choose an Agent resource's icon — icons only, there is no colour. It is
+ * opened only from the Agents explorer's "Change icon…".
  *
  * A small anchored popover rather than the shared ContextMenu (rows of items
  * only) or Tooltip (needs a trigger element, and the Explorer opens this from
@@ -18,12 +19,12 @@ import { PRESENTATION_SUPPORTED, usePresentationCapability } from "./use_present
  *
  * Choosing is a preview: the picker holds a pending selection (and reports it
  * through `onPreview`, so a trigger can show it), and nothing is committed
- * until Save, which hands the pending value to `onChange` — null meaning
- * "remove it, use the default" — and closes. "Reset to default" only changes
+ * until Save, which hands the pending value to `onChange` — `{ icon }`, or
+ * null meaning "remove it, use the default" (also what choosing the default
+ * icon is) — and closes. A colour stored by an older build is not carried:
+ * Save writes the icon alone. "Reset to default" only changes
  * the pending selection. Closing without Save (Escape, a press outside)
  * discards it. Enter inside the picker is Save. */
-
-export { AGENT_PRESET_COLORS };
 
 const WIDTH = 284;
 const CELL = 28;
@@ -39,46 +40,17 @@ const CAPTION = {
   margin: "2px 2px 6px",
 };
 
-/* Colours come only from the preset swatches: there is no custom colour. */
-
-function Swatch({ color, selected, label, onClick, isDark, testid, disabled }) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      aria-pressed={selected}
-      data-testid={testid}
-      disabled={disabled}
-      onClick={onClick}
-      style={{
-        width: 20,
-        height: 20,
-        padding: 0,
-        border: "none",
-        borderRadius: 10,
-        background: color,
-        cursor: disabled ? "default" : "pointer",
-        opacity: disabled && !selected ? 0.5 : 1,
-        flexShrink: 0,
-        boxShadow: selected
-          ? `0 0 0 2px ${isDark ? "rgba(30,30,30,1)" : "rgba(255,255,255,1)"}, 0 0 0 3.5px ${color}`
-          : "inset 0 0 0 0.5px rgba(0,0,0,0.18)",
-      }}
-    />
-  );
-}
-
-const same = (a, b) => JSON.stringify(normalize_presentation(a)) === JSON.stringify(normalize_presentation(b));
+const same = (a, b) => JSON.stringify(presentation_to_store(a)) === JSON.stringify(presentation_to_store(b));
 
 export default function AgentIconPicker({ open, anchor, value, onChange, onPreview, onClose, isDark, testid = "agent-icon-picker" }) {
   const { t } = useTranslation();
   const ref = useRef(null);
   const [position, setPosition] = useState(null);
-  /* The selection being tried, as a stored value (null = default). Taken from
-     `value` each time the picker opens. */
-  const [pending, setPending] = useState(() => normalize_presentation(value));
+  /* The selection being tried, as the value Save would store (`{ icon }`, or
+     null = default). Taken from `value` each time the picker opens. */
+  const [pending, setPending] = useState(() => presentation_to_store(value));
   useEffect(() => {
-    if (open) setPending(normalize_presentation(value));
+    if (open) setPending(presentation_to_store(value));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
   const shown = resolve_presentation(pending);
@@ -146,10 +118,10 @@ export default function AgentIconPicker({ open, anchor, value, onChange, onPrevi
     };
   }, [open, onClose, save]);
 
-  const choose = useCallback((patch) => {
+  const choose = useCallback((icon) => {
     if (locked) return;
-    preview(normalize_presentation({ ...(pending || {}), ...patch }));
-  }, [preview, pending, locked]);
+    preview(presentation_to_store({ icon }));
+  }, [preview, locked]);
 
   if (!open || typeof document === "undefined") return null;
 
@@ -210,7 +182,7 @@ export default function AgentIconPicker({ open, anchor, value, onChange, onPrevi
                     aria-pressed={selected}
                     data-testid={`${testid}-icon-${entry.id}`}
                     disabled={locked}
-                    onClick={() => choose({ icon: entry.id })}
+                    onClick={() => choose(entry.id)}
                     style={{
                       width: CELL,
                       height: CELL,
@@ -233,24 +205,6 @@ export default function AgentIconPicker({ open, anchor, value, onChange, onPrevi
             </div>
           </div>
         ))}
-      </div>
-
-      <div role="group" aria-label={t("agents.icon_picker.color")}>
-        <div style={CAPTION}>{t("agents.icon_picker.color")}</div>
-        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, padding: "2px 2px 0" }}>
-          {AGENT_PRESET_COLORS.map((color) => (
-            <Swatch
-              key={color}
-              color={color}
-              label={color}
-              selected={color === shown.color}
-              isDark={isDark}
-              testid={`${testid}-color-${color.slice(1)}`}
-              disabled={locked}
-              onClick={() => choose({ color })}
-            />
-          ))}
-        </div>
       </div>
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>

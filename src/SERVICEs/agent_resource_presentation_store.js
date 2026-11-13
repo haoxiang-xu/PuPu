@@ -1,9 +1,11 @@
-/* Persist an Agent resource's display-only presentation (icon + colour).
+/* Persist an Agent resource's display-only presentation (its icon).
  *
  * `presentation` is an optional CLOSED top-level key of the Skeleton document
  * (see docs/implementation/agent-presentation-contract.md, BC-AP-001/002):
  *   absent | { icon?: /^[a-z0-9_]{1,40}$/, color?: /^#[0-9a-f]{6}$/ }
- * The runtime validates only that shape; PuPu owns the icon catalogue.
+ * The runtime validates only that shape; PuPu owns the icon catalogue. PuPu
+ * is icon-only: it writes `{ icon }` or removes the key, never `color` — a
+ * colour stored by an older build is dropped by the next write.
  *
  * The write goes through the same v2 aggregate the editor and the Agents
  * explorer's rename/duplicate use (load_resource → save_draft): the Code text
@@ -19,7 +21,6 @@
  * Never throws: every failure is `{ ok: false, code, error? }`. */
 import { api } from "./api";
 import { checkManagedCodeResponse } from "./managed_code_api";
-import { AGENT_PRESET_COLORS } from "./agent_resource_icons";
 import {
   load_resource,
   save_draft,
@@ -33,8 +34,9 @@ const COLOR = /^#[0-9a-f]{6}$/;
 const record = (value) =>
   value !== null && typeof value === "object" && !Array.isArray(value);
 
-/* The exact value written: null (remove the key) or a fresh closed object
- * holding only the admitted fields. Anything else is refused locally. */
+/* The exact value written: null (remove the key) or a fresh `{ icon }`.
+ * Any key outside the stored shape, or a malformed value, is refused
+ * locally; a well-formed `color` is admitted as input and not written. */
 export function normalize_presentation(value) {
   if (value === null || value === undefined) return { ok: true, value: null };
   if (!record(value)) return { ok: false };
@@ -46,11 +48,7 @@ export function normalize_presentation(value) {
     next.icon = value.icon;
   }
   if (Object.prototype.hasOwnProperty.call(value, "color")) {
-    /* PuPu writes only its own palette; the runtime itself stays
-       format-only (#rrggbb). */
-    if (typeof value.color !== "string" || !COLOR.test(value.color) ||
-      !AGENT_PRESET_COLORS.includes(value.color)) return { ok: false };
-    next.color = value.color;
+    if (typeof value.color !== "string" || !COLOR.test(value.color)) return { ok: false };
   }
   /* An empty object is admitted by the runtime and means "default"; the
      writer stores the default as an absent key instead, so there is one

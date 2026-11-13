@@ -25,11 +25,11 @@ export const variablePillField = {
 };
 
 /* What a row is given. A value read from somewhere is one tag: the step it
-   comes from (`node`, with an Agent document's `presentation`) in the step's
+   comes from (`node`) in the step's
    colour, joined to the field it reads. A source that is not a step — or a
    step that is gone — is the same tag in neutral. Without a field it is the
    plain muted label. */
-export function VariablePillValue({ label, detail, node, presentation, isDark, testid, style }) {
+export function VariablePillValue({ label, detail, node, isDark, testid, style }) {
   if (detail === undefined) {
     return (
       <span data-testid={testid} style={{ display: "flex", alignItems: "center", minWidth: 0, ...style }}>
@@ -41,7 +41,7 @@ export function VariablePillValue({ label, detail, node, presentation, isDark, t
   return (
     <span style={{ display: "flex", alignItems: "center", minWidth: 0, ...style }}>
       <NodeRefTag testid={testid} isDark={isDark} detail={detail}
-        name={label} {...(known ? { node, presentation } : {})} />
+        name={label} {...(known ? { node } : {})} />
     </span>
   );
 }

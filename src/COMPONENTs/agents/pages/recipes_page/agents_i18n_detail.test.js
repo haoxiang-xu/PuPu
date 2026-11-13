@@ -16,7 +16,7 @@ test("node identity localizes only its owned captions and keeps authored labels,
   const english = node_identity(node);
   const translated = node_identity(node, t);
   expect(english).toMatchObject({ title: "Toolkit Pool", subtitle: "No toolkits" });
-  expect(translated).toMatchObject({ title: "T:agents.palette.toolkit_pool", subtitle: "T:agents.identity.no_toolkits" });
+  expect(translated).toMatchObject({ title: "T:agents.nodes.toolkit_pool", subtitle: "T:agents.identity.no_toolkits" });
   expect(translated.icon).toBe(english.icon);
   expect(translated.gradient).toBe(english.gradient);
   const raw = "agents.nodes.agent {value} · raw";

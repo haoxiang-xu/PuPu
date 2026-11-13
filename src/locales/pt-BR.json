@@ -1019,9 +1019,7 @@
     },
     "icon_picker": {
       "title": "Ícone do agente",
-      "change": "Alterar ícone",
       "icon": "Ícone",
-      "color": "Cor",
       "reset": "Redefinir para o padrão",
       "groups": {
         "robots": "Robôs",
@@ -1135,7 +1133,6 @@
         "insert_here": "Inserir nó aqui…",
         "delete_connection": "Excluir conexão",
         "open_details": "Abrir detalhes",
-        "rename_unavailable": "Renomeação indisponível · {reason}",
         "disconnect_node": "Desconectar nó",
         "delete_node": "Excluir nó",
         "required_node": "Nó obrigatório",
@@ -1147,14 +1144,7 @@
       "redo": "Refazer ({shortcut})",
       "center": "Centralizar",
       "go_to_start": "Ir para o início",
-      "escape_up": "Esc para subir um nível"
-    },
-    "rename": {
-      "title": "Renomear nó",
-      "close": "Fechar renomeação",
-      "name": "Nome do nó",
-      "non_blank": "O rótulo do nó não pode ficar em branco.",
-      "refused": "Esta renomeação foi recusada."
+      "escape_back": "{key} para voltar ao nível superior"
     },
     "palette": {
       "find": "Encontrar um nó",
@@ -1172,7 +1162,6 @@
         "steps": "Etapas",
         "attachments": "Configurações anexas"
       },
-      "toolkit_pool": "Pool de kits de ferramentas",
       "graph_agent": "agente",
       "graph_workflow": "fluxo de trabalho",
       "description": {
@@ -1194,22 +1183,22 @@
       "entry": "entrada",
       "end": "Fim",
       "exit": "saída",
+      "caption_join": "{first} · {second}",
       "if_else": "Se / Senão",
       "switch_case": "Seleção / Caso",
       "outlet_undeclared": "Esta saída não está mais declarada. Sua conexão interrompe a execução; exclua-a ou adicione o caso novamente.",
       "tool_call": "Chamada de ferramenta",
-      "tool_call_pick": "Chamada de ferramenta · escolha uma ferramenta",
+      "pick_tool": "escolha uma ferramenta",
       "more": "+{count} mais",
       "unreadable_source": "uma origem ilegível",
       "first_of": "primeiro valor disponível entre {count} fontes",
       "skill_read": "Leitura de habilidade",
-      "skill_read_source": "Leitura de habilidade · {source}",
-      "skill_read_pick": "Leitura de habilidade · escolha uma habilidade",
+      "pick_skill": "escolha uma habilidade",
       "workflow_call": "Chamada de fluxo de trabalho",
-      "workflow_pin": "Chamada de fluxo de trabalho · fixe uma revisão",
-      "workflow_revision": "Chamada de fluxo de trabalho · revisão {revision}",
-      "workflow_unreadable": "Chamada de fluxo de trabalho · revisão ilegível",
-      "workflow_reading": "Chamada de fluxo de trabalho · lendo revisão…",
+      "pin_revision": "fixe uma revisão",
+      "revision": "revisão {revision}",
+      "revision_unreadable": "revisão ilegível",
+      "revision_reading": "lendo revisão…",
       "set": "definido",
       "missing": "ausente",
       "nothing_exported": "→ nada exportado",
@@ -1235,6 +1224,7 @@
       "subagent_missing": "{name} não está mais na biblioteca de agentes",
       "subagent_unopenable": "Não é possível abrir {name}",
       "code": {
+        "type": "Código",
         "python": "Python"
       }
     },
@@ -1352,7 +1342,27 @@
       "remove_source": "Remover origem {position}",
       "not_produced_named": "{name} — não produzido aqui",
       "not_produced_unnamed": "(sem nome) — não produzido aqui",
-      "caller_input": "Entrada do chamador"
+      "caller_input": "Entrada do chamador",
+      "ask": {
+        "add_ask": "+ Pedir ao agente…",
+        "add_input": "+ Repassar uma entrada",
+        "add_reply": "+ Resposta do agente",
+        "type_label": "Tipo de valor",
+        "type_text": "Texto",
+        "type_number": "Número",
+        "type_whole_number": "Número inteiro",
+        "type_yes_no": "Sim / Não",
+        "type_list": "Lista de textos",
+        "description_placeholder": "Descreva o que o agente deve produzir aqui",
+        "description_label": "O que o agente deve produzir",
+        "name_taken": "Outra saída já se chama {name}; este nome não foi salvo.",
+        "remove": "Remover {name}",
+        "json_note": "Enquanto algo for pedido ao agente, a resposta dele é um objeto JSON com esses valores. Para manter também uma resposta escrita, adicione uma saída de Texto como \"reply\".",
+        "model_cannot": "Este modelo não consegue responder em uma estrutura fixa, então não pode produzir saídas. Escolha um modelo com saída JSON.",
+        "schema_is_json": "O JSON Output deste agente está escrito de uma forma que as linhas não conseguem representar. Edite em Avançado.",
+        "no_kernel": "Este agente não tem configurações de modelo.",
+        "advanced": "Avançado: editar como JSON"
+      }
     },
     "schema": {
       "required": "obrigatório",
@@ -2178,12 +2188,9 @@
       "caption": "Somente leitura: revisão {ordinal} de {name} · {id}. A execução usa exatamente esta revisão; nada é editado ou salvo aqui.",
       "store_unreachable": "não foi possível acessar o armazenamento",
       "open_failed": "Não foi possível ler a revisão fixada: {message}. Nada foi aberto.",
-      "changed": "A referência fixada mudou enquanto sua revisão era lida, portanto nada foi aberto. Abra novamente para ver a revisão que ela contém agora.",
-      "via_label": "Chamada de Workflow"
+      "changed": "A referência fixada mudou enquanto sua revisão era lida, portanto nada foi aberto. Abra novamente para ver a revisão que ela contém agora."
     },
     "drill": {
-      "subagent_pool": "Pool de subagentes",
-      "hooks_pool": "Pool de Hooks",
       "that_subagent": "Esse subagente",
       "that_hook": "Esse Hook",
       "embedded_checked": "Este grafo é verificado ao ser salvo, e seus problemas são informados aqui. Executar o Agent pai faz mais verificações: os Agents referenciados por seus pools só são lidos nesse momento.",
@@ -2477,8 +2484,7 @@
       "observation_failed": "Não foi possível ler a execução registrada.",
       "observation_rejected": "Não foi possível atualizar os detalhes da execução.",
       "edit_refused": "Esta edição foi recusada.",
-      "rename_missing": "O nó selecionado está ausente ou seu id também é usado por outro nó.",
-      "rename_view_closed": "Este grafo não está mais aberto para renomeação."
+      "rename_missing": "O nó selecionado está ausente ou seu id também é usado por outro nó."
     },
     "local_validation": {
       "object_required": "era esperado um objeto",

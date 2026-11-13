@@ -9,9 +9,11 @@ import { RESOURCE_RESULT_KEYS } from "./recipes_page/skeleton_resource_capture";
 import capture from "../../../../electron/tests/fixtures/managed_code_producer.json";
 import { resetPresentationCapabilityForTests } from "../use_presentation_capability";
 
-/* The Agent icon on the real page: the Agents explorer, the open editor and
-   its detail panel. Only the canvas drawing and the right-click menu are
-   probes. */
+/* The Agent icon on the real page. It belongs to the Agent resource: the
+   Agents explorer shows it and is the only place it is changed ("Change
+   icon…"). The open editor's Agent node — canvas and detail panel — keeps the
+   fixed Agent node identity. Only the canvas drawing and the right-click menu
+   are probes. */
 
 jest.mock("../../../SERVICEs/api", () => ({ api: { unchain: {} } }));
 /* A failed side-menu action is a toast; only what it says is read here.
@@ -89,76 +91,25 @@ const open = async () => {
 const agentNodeId = () => stored.document.nodes.find((node) => node.type === "agent").id;
 
 describe("in the editor", () => {
-  const openPicker = async () => {
-    await open();
-    fireEvent.mouseDown(screen.getByTestId(`pick-${agentNodeId()}`));
-    /* A plain avatar until the runtime has said it stores icons. */
-    await waitFor(() => expect(screen.getByTestId("recipe-detail-panel-agent-icon").tagName).toBe("BUTTON"));
-    fireEvent.click(screen.getByTestId("recipe-detail-panel-agent-icon"));
-    const picker = screen.getByTestId("recipe-detail-panel-agent-icon-picker");
-    await waitFor(() => expect(within(picker).getByTestId("recipe-detail-panel-agent-icon-picker-icon-robot_face")).toBeEnabled());
-    return picker;
-  };
-  const headerAvatar = () => screen.getByTestId("recipe-detail-panel-agent-icon-avatar");
-  const canvasAvatar = () => within(screen.getByTestId(`pick-${agentNodeId()}`)).queryByTestId("agent-node-avatar");
-  /* The page's own Save, not the picker's. */
-  const pageSave = () => screen.getAllByRole("button", { name: "Save", exact: true })
-    .find((button) => !screen.queryByTestId("recipe-detail-panel-agent-icon-picker")?.contains(button));
-
-  test("choosing previews only; the picker's Save commits into the draft and closes", async () => {
+  test.each([
+    ["an icon", { icon: "kimi" }],
+    ["a legacy icon and colour", { icon: "kimi", color: "#2e8f5a" }],
+  ])("an Agent with %s: the explorer row shows it, the Agent node does not, and nothing in the editor changes it", async (_label, presentation) => {
     api.unchain.getManagedCodeCapabilities = jest.fn().mockResolvedValue(SUPPORTED());
-    show();
-    const picker = await openPicker();
-    const save = within(picker).getByRole("button", { name: "Save" });
-    expect(save).toBeDisabled();
-    fireEvent.click(within(picker).getByTestId("recipe-detail-panel-agent-icon-picker-icon-robot_face"));
-    fireEvent.click(within(picker).getByTestId("recipe-detail-panel-agent-icon-picker-color-2e8f5a"));
-    /* A preview: the trigger shows it, nothing else does, nothing is dirty. */
-    expect(headerAvatar().getAttribute("data-agent-icon")).toBe("robot_face");
-    expect(within(picker).getByTestId("recipe-detail-panel-agent-icon-picker-icon-robot_face")).toHaveAttribute("aria-pressed", "true");
-    expect(canvasAvatar()).toBeNull();
-    expect(screen.getByTestId("skeleton-save-state")).not.toHaveTextContent("Unsaved changes");
-    expect(save).toBeEnabled();
-    fireEvent.click(save);
-    expect(screen.queryByTestId("recipe-detail-panel-agent-icon-picker")).toBeNull();
-    expect(headerAvatar().getAttribute("data-agent-icon")).toBe("robot_face");
-    expect(headerAvatar().getAttribute("data-agent-color")).toBe("#2e8f5a");
-    expect(canvasAvatar().getAttribute("data-agent-icon")).toBe("robot_face");
-    expect(screen.getByTestId("skeleton-save-state")).toHaveTextContent("Unsaved changes");
-    expect(pageSave()).toBeEnabled();
-    /* The draft holds it; nothing was written to the store behind the editor. */
-    expect(api.unchain.saveSkeletonResource).not.toHaveBeenCalled();
-  });
-
-  test("closing without Save discards the preview and leaves the draft clean", async () => {
-    api.unchain.getManagedCodeCapabilities = jest.fn().mockResolvedValue(SUPPORTED());
-    show();
-    const picker = await openPicker();
-    fireEvent.click(within(picker).getByTestId("recipe-detail-panel-agent-icon-picker-icon-robot_face"));
-    expect(headerAvatar().getAttribute("data-agent-icon")).toBe("robot_face");
-    fireEvent.keyDown(document, { key: "Escape" });
-    expect(screen.queryByTestId("recipe-detail-panel-agent-icon-picker")).toBeNull();
-    expect(headerAvatar().getAttribute("data-agent-icon")).toBe("bot");
-    expect(screen.getByTestId("skeleton-save-state")).not.toHaveTextContent("Unsaved changes");
-  });
-
-  test("an old runtime: the icon is a plain avatar — no button, no picker, no message, no draft", async () => {
-    api.unchain.getManagedCodeCapabilities = jest.fn().mockResolvedValue(OLD());
-    const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+    stored.document = { ...stored.document, presentation };
     show();
     await open();
+    expect(screen.getByTestId(`agent-explorer-avatar-${ID}`).getAttribute("data-agent-icon")).toBe("kimi");
     fireEvent.mouseDown(screen.getByTestId(`pick-${agentNodeId()}`));
     await waitFor(() => expect(api.unchain.getManagedCodeCapabilities).toHaveBeenCalled());
-    /* The cause goes to the developer console only. */
-    await waitFor(() => expect(warn).toHaveBeenCalledWith(expect.stringContaining("document_presentation_v1")));
-    const avatar = screen.getByTestId("recipe-detail-panel-agent-icon");
-    expect(avatar.tagName).toBe("SPAN");
-    expect(avatar.getAttribute("data-agent-icon")).toBe("bot");
-    fireEvent.click(avatar);
-    expect(screen.queryByTestId("recipe-detail-panel-agent-icon-picker")).toBeNull();
-    expect(screen.queryByText(/runtime|restart|reopen/i)).toBeNull();
+    const canvasNode = screen.getByTestId(`pick-${agentNodeId()}`);
+    expect(within(canvasNode).queryByTestId("agent-node-avatar")).toBeNull();
+    // eslint-disable-next-line testing-library/no-node-access
+    expect(canvasNode.querySelector("[data-agent-icon]")).toBeNull();
+    expect(screen.queryByTestId("recipe-detail-panel-agent-icon")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Change icon" })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Agent icon" })).toBeNull();
     expect(screen.getByTestId("skeleton-save-state")).not.toHaveTextContent("Unsaved changes");
-    warn.mockRestore();
   });
 });
 
@@ -208,14 +159,27 @@ describe("from the explorer", () => {
     await waitFor(() => expect(rowAvatar().getAttribute("data-agent-icon")).toBe("bot"));
   });
 
-  test("a stored colour outside the palette draws the default", async () => {
+  test("a legacy stored colour is never drawn, and saving an icon writes { icon } alone", async () => {
     api.unchain.getManagedCodeCapabilities = jest.fn().mockResolvedValue(SUPPORTED());
-    stored.document = { ...stored.document, presentation: { icon: "kimi", color: "#123456" } };
+    api.unchain.saveSkeletonResource = jest.fn(async ({ document }) => {
+      stored = { document, token: "edit-2" };
+      return result(document, "edit-2");
+    });
+    stored.document = { ...stored.document, presentation: { icon: "kimi", color: "#d23f37" } };
     show();
     await within(explorer()).findByText("Planner");
     expect(rowAvatar().getAttribute("data-agent-icon")).toBe("kimi");
-    /* The row draws the glyph alone: no chosen colour, so the default tint. */
-    expect(rowAvatar().getAttribute("data-agent-color")).toBe("");
+    /* The glyph alone, in the row's own text colour. */
+    expect(rowAvatar().getAttribute("data-agent-tint")).toBe("currentColor");
+    expect(rowAvatar().hasAttribute("data-agent-color")).toBe(false);
+    const picker = await changeIcon();
+    // eslint-disable-next-line testing-library/no-node-access
+    expect(picker.querySelectorAll('[data-testid^="agent-explorer-icon-picker-color-"]')).toHaveLength(0);
+    await waitFor(() => expect(within(picker).getByTestId("agent-explorer-icon-picker-icon-star")).toBeEnabled());
+    fireEvent.click(within(picker).getByTestId("agent-explorer-icon-picker-icon-star"));
+    fireEvent.click(within(picker).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(stored.document.presentation).toStrictEqual({ icon: "star" }));
+    await waitFor(() => expect(rowAvatar().getAttribute("data-agent-icon")).toBe("star"));
   });
 
   test("an old runtime: no \"Change icon…\", no picker, no message and no write", async () => {

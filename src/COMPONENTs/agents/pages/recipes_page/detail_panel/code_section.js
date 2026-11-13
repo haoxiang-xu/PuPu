@@ -1,4 +1,4 @@
-import { Block } from "./process_timeline";
+import { Block, FoldBlock } from "./process_timeline";
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
@@ -380,7 +380,7 @@ export default function CodeSection({ document, node, revision, sources, isDark,
       </div>
 
       <div data-testid="code-limits">
-        <Block section="code-limits" title={t("agents.execution.code.limits")} isDark={isDark}
+        <FoldBlock section="code-limits" title={t("agents.execution.code.limits")} isDark={isDark}
           problems={problems_of(SECTION_PROBLEMS.limits)}
           help={<span style={NOTE}>{t("agents.execution.code.limits_note")}</span>}>
           <Region isDark={isDark}>
@@ -398,11 +398,11 @@ export default function CodeSection({ document, node, revision, sources, isDark,
               onWrite={(value) => write("max_log_bytes", value)} onClear={() => clear("max_log_bytes")} />
           </Region>
           <ProblemList items={problems_of(SECTION_PROBLEMS.limits)} testid="code-problems-limits" isDark={isDark} />
-        </Block>
+        </FoldBlock>
       </div>
 
       <div data-testid="code-result">
-        <Block section="code-result" title={t("agents.execution.code.result")} isDark={isDark}
+        <FoldBlock section="code-result" title={t("agents.execution.code.result")} isDark={isDark}
           problems={problems_of(SECTION_PROBLEMS.result)} help={
           <span style={NOTE}>
             {t("agents.execution.code.result_contract", { declare: "{declare}" }).split(/(\{declare\})/g).map((part, index) => ({ __proto__: null, "{declare}": (<b key={index}>{t("agents.execution.code.declare")}</b>) }[part] || part))}
@@ -489,7 +489,7 @@ export default function CodeSection({ document, node, revision, sources, isDark,
           />
         )}
         <ProblemList items={problems_of(SECTION_PROBLEMS.result)} testid="code-problems-result" isDark={isDark} />
-        </Block>
+        </FoldBlock>
       </div>
 
       <div data-testid="code-on-error">
@@ -501,7 +501,7 @@ export default function CodeSection({ document, node, revision, sources, isDark,
             publication, so nothing of this node reaches End or a downstream
             node. There is no policy to choose, so there is no control: two
             plain rows say what happens. */}
-        <Block section="code-on-error" title={t("agents.execution.code.on_error")} isDark={isDark}
+        <FoldBlock section="code-on-error" title={t("agents.execution.code.on_error")} isDark={isDark}
           help={<span style={NOTE}>{t("agents.execution.code.on_error_note")}</span>}>
           <Region isDark={isDark}>
             <div style={REGION_ROW}>
@@ -515,12 +515,13 @@ export default function CodeSection({ document, node, revision, sources, isDark,
               </SettingRow>
             </div>
           </Region>
-        </Block>
+        </FoldBlock>
       </div>
 
       {artifacts_present && (artifacts === null || artifacts.length > 0) && (
         <div data-testid="code-artifacts">
-          <Block section="code-artifacts" title={t("agents.execution.code.stored_artifacts")} isDark={isDark}>
+          <FoldBlock section="code-artifacts" title={t("agents.execution.code.stored_artifacts")} isDark={isDark}
+            aside={artifacts ? String(artifacts.length) : undefined}>
           <Region isDark={isDark}>
           {artifacts === null && (
             <div style={{ ...REGION_ROW, ...ROW, justifyContent: "space-between" }}>
@@ -554,7 +555,7 @@ export default function CodeSection({ document, node, revision, sources, isDark,
               ? t("agents.execution.code.unreadable_artifacts")
               : t("agents.execution.code.artifacts_note")}
           </span>
-          </Block>
+          </FoldBlock>
         </div>
       )}
 

@@ -24,7 +24,6 @@ jest.mock("./api", () => ({
    document it carries are compared as exact key sets. */
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
-const PALETTE_COLOR = "#1d8798";
 const EDIT_KEYS = ["document", "expected_edit_token", "managed_sources", "schema"];
 const sorted_keys = (value) => Object.keys(value).sort();
 const store_error = (answer) =>
@@ -58,15 +57,14 @@ test("the producer capture is what it claims", () => {
   expect(producer.invalid.body.error.code).toBe("invalid_value");
 });
 
-test("writes through the v2 aggregate with the exact edit payload the store accepted", async () => {
-  /* The capture was recorded with "#1a2b3c", which the runtime admits (it is
-     format-only) but PuPu no longer writes: the palette is a frontend rule.
-     The write uses a palette colour, and the comparison below swaps only
-     that one value in the recorded request. */
-  const answer = await writeResourcePresentation("managed-code", { icon: "robot", color: PALETTE_COLOR });
+test("writes { icon } alone through the v2 aggregate with the exact edit payload the store accepted", async () => {
+  /* The capture was recorded with { icon, color: "#1a2b3c" }, which the
+     runtime admits, but PuPu is icon-only: a colour handed in is not written.
+     The comparison below swaps only `presentation` in the recorded request. */
+  const answer = await writeResourcePresentation("managed-code", { icon: "robot", color: "#1a2b3c" });
 
   expect(answer.ok).toBe(true);
-  expect(answer.presentation).toEqual({ icon: "robot", color: PALETTE_COLOR });
+  expect(answer.presentation).toStrictEqual({ icon: "robot" });
   expect(api.unchain.getManagedSkeletonResource).toHaveBeenCalledWith("managed-code");
   expect(api.unchain.saveManagedSkeletonResource).toHaveBeenCalledTimes(1);
   const [payload] = api.unchain.saveManagedSkeletonResource.mock.calls[0];
@@ -74,13 +72,12 @@ test("writes through the v2 aggregate with the exact edit payload the store acce
   expect(sorted_keys(payload.document)).toEqual(
     [...Object.keys(producer.loaded.resource.document), "presentation"].sort(),
   );
-  expect(payload.document.presentation).toEqual({ icon: "robot", color: PALETTE_COLOR });
-  expect(sorted_keys(payload.document.presentation)).toEqual(["color", "icon"]);
+  expect(sorted_keys(payload.document.presentation)).toEqual(["icon"]);
   expect(payload.expected_edit_token).toBe(producer.loaded.resource.edit_token);
   /* Exactly the request the real store accepted, Code text included. */
   expect(payload).toEqual({
     ...producer.save_request,
-    document: { ...producer.save_request.document, presentation: { icon: "robot", color: PALETTE_COLOR } },
+    document: { ...producer.save_request.document, presentation: { icon: "robot" } },
   });
   expect(refreshes).toHaveLength(1);
   expect(refreshes[0].resource_id).toBe("managed-code");
@@ -100,6 +97,23 @@ test("null removes the key and leaves every other key as it was", async () => {
   expect(sorted_keys(payload.document)).toEqual(sorted_keys(producer.loaded.resource.document));
   expect(payload.expected_edit_token).toBe(producer.saved.resource.edit_token);
   expect(payload.managed_sources).toEqual(producer.save_request.managed_sources);
+});
+
+test("saving an icon over a stored icon and colour drops the colour", async () => {
+  api.unchain.getManagedSkeletonResource.mockResolvedValue(clone(producer.saved));
+  expect(producer.saved.resource.document.presentation).toHaveProperty("color");
+  const answer = await writeResourcePresentation("managed-code", { icon: "robot_face" });
+  expect(answer.ok).toBe(true);
+  const [payload] = api.unchain.saveManagedSkeletonResource.mock.calls[0];
+  expect(payload.document.presentation).toStrictEqual({ icon: "robot_face" });
+  expect(sorted_keys(payload.document)).toEqual(sorted_keys(producer.saved.resource.document));
+});
+
+test("a colour alone writes the default (key removed)", async () => {
+  api.unchain.getManagedSkeletonResource.mockResolvedValue(clone(producer.saved));
+  await writeResourcePresentation("managed-code", { color: "#1a2b3c" });
+  const [payload] = api.unchain.saveManagedSkeletonResource.mock.calls[0];
+  expect("presentation" in payload.document).toBe(false);
 });
 
 test("an empty object is written as the default (key removed)", async () => {
@@ -143,8 +157,7 @@ test("an older runtime without document_presentation_v1 is refused before anythi
 test.each([
   [{ icon: "Robot" }],
   [{ color: "#ABCDEF" }],
-  /* Well formed, and admitted by the runtime, but not in PuPu's palette. */
-  [{ color: "#1a2b3c" }],
+  [{ icon: "robot", color: "blue" }],
   [{ icon: "robot", extra: 1 }],
   ["robot"],
   [[]],
@@ -161,7 +174,8 @@ test("pure helpers keep key order and copy values", () => {
     ["schema_version", "kind", "id", "name", "nodes", "edges", "presentation"],
   );
   expect(with_presentation(document, null)).not.toHaveProperty("presentation");
-  expect(normalize_presentation({ icon: "a", color: "#2e8f5a" })).toEqual({ ok: true, value: { icon: "a", color: "#2e8f5a" } });
-  expect(normalize_presentation({ icon: "a", color: "#00ff00" })).toEqual({ ok: false });
+  expect(normalize_presentation({ icon: "a", color: "#2e8f5a" })).toEqual({ ok: true, value: { icon: "a" } });
+  expect(normalize_presentation({ icon: "a", color: "#00ff00" })).toEqual({ ok: true, value: { icon: "a" } });
+  expect(normalize_presentation({ icon: "a", color: "#00FF00" })).toEqual({ ok: false });
   expect(normalize_presentation(undefined)).toEqual({ ok: true, value: null });
 });

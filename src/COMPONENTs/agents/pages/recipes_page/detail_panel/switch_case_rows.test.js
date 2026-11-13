@@ -104,8 +104,10 @@ describe("a case row reads like a variable row", () => {
     const fallback = screen.getByTestId("branch-case-default");
     expect(within(fallback).queryAllByRole("button")).toHaveLength(0);
     expect(screen.getByTestId("branch-case-default-label").style.color).toBe(hexToRgb(muted(false)));
-    /* The Agent node of an Agent document wears the Agent's own icon. */
-    expect(screen.getByTestId("branch-case-default-target-tag-0-avatar")).toHaveAttribute("data-agent-color", "#7c4dd8");
+    /* An Agent node wears the fixed node identity, not the document's presentation. */
+    expect(screen.queryByTestId("branch-case-default-target-tag-0-avatar")).toBeNull();
+    expect(screen.getByTestId("branch-case-default-target-tag-0-icon")).toBeInTheDocument();
+    expect(screen.getByTestId("branch-case-default-target-tag-0")).not.toHaveAttribute("data-node-fill", "#7c4dd8");
     const unwired = screen.getByTestId("branch-case-0-target");
     expect(unwired).toHaveTextContent(/^Not connected$/);
     expect(unwired.style.color).toBe(hexToRgb(errorColor(false)));

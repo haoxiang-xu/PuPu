@@ -1019,9 +1019,7 @@
     },
     "icon_picker": {
       "title": "에이전트 아이콘",
-      "change": "아이콘 변경",
       "icon": "아이콘",
-      "color": "색상",
       "reset": "기본값으로 재설정",
       "groups": {
         "robots": "로봇",
@@ -1135,7 +1133,6 @@
         "insert_here": "여기에 노드 삽입…",
         "delete_connection": "연결 삭제",
         "open_details": "세부 정보 열기",
-        "rename_unavailable": "이름 변경 불가 · {reason}",
         "disconnect_node": "노드 연결 끊기",
         "delete_node": "노드 삭제",
         "required_node": "필수 노드",
@@ -1147,14 +1144,7 @@
       "redo": "다시 실행({shortcut})",
       "center": "가운데 맞춤",
       "go_to_start": "시작 노드로 이동",
-      "escape_up": "Esc로 상위로 이동"
-    },
-    "rename": {
-      "title": "노드 이름 변경",
-      "close": "이름 변경 닫기",
-      "name": "노드 이름",
-      "non_blank": "노드 레이블은 공백일 수 없습니다.",
-      "refused": "이름 변경이 거부되었습니다."
+      "escape_back": "{key}로 상위 단계로 돌아가기"
     },
     "palette": {
       "find": "노드 찾기",
@@ -1172,7 +1162,6 @@
         "steps": "단계",
         "attachments": "부속 설정"
       },
-      "toolkit_pool": "도구 모음 풀",
       "graph_agent": "에이전트",
       "graph_workflow": "워크플로",
       "description": {
@@ -1194,22 +1183,22 @@
       "entry": "진입점",
       "end": "종료",
       "exit": "출구",
+      "caption_join": "{first} · {second}",
       "if_else": "If / Else",
       "switch_case": "Switch / Case",
       "outlet_undeclared": "이 출구는 더 이상 선언되어 있지 않습니다. 연결 때문에 실행이 중지됩니다. 연결을 삭제하거나 케이스를 다시 추가하세요.",
       "tool_call": "도구 호출",
-      "tool_call_pick": "도구 호출 · 도구 선택",
+      "pick_tool": "도구 선택",
       "more": "외 {count}개",
       "unreadable_source": "읽을 수 없는 소스",
       "first_of": "{count}개 중 첫 번째 사용 가능한 값",
       "skill_read": "스킬 읽기",
-      "skill_read_source": "스킬 읽기 · {source}",
-      "skill_read_pick": "스킬 읽기 · 스킬 선택",
+      "pick_skill": "스킬 선택",
       "workflow_call": "워크플로 호출",
-      "workflow_pin": "워크플로 호출 · 리비전 고정",
-      "workflow_revision": "워크플로 호출 · 리비전 {revision}",
-      "workflow_unreadable": "워크플로 호출 · 리비전을 읽을 수 없음",
-      "workflow_reading": "워크플로 호출 · 리비전 읽는 중…",
+      "pin_revision": "리비전 고정",
+      "revision": "리비전 {revision}",
+      "revision_unreadable": "리비전을 읽을 수 없음",
+      "revision_reading": "리비전 읽는 중…",
       "set": "설정됨",
       "missing": "누락",
       "nothing_exported": "→ 내보내는 값 없음",
@@ -1235,6 +1224,7 @@
       "subagent_missing": "{name}이(가) 더 이상 에이전트 라이브러리에 없음",
       "subagent_unopenable": "{name}을(를) 열 수 없음",
       "code": {
+        "type": "코드",
         "python": "Python"
       }
     },
@@ -1352,7 +1342,27 @@
       "remove_source": "소스 {position} 제거",
       "not_produced_named": "{name} — 여기서 생성되지 않음",
       "not_produced_unnamed": "(이름 없음) — 여기서 생성되지 않음",
-      "caller_input": "호출자 입력"
+      "caller_input": "호출자 입력",
+      "ask": {
+        "add_ask": "+ Agent에게 생성 요청…",
+        "add_input": "+ 입력 그대로 전달",
+        "add_reply": "+ Agent의 답변",
+        "type_label": "값의 종류",
+        "type_text": "텍스트",
+        "type_number": "숫자",
+        "type_whole_number": "정수",
+        "type_yes_no": "예 / 아니오",
+        "type_list": "텍스트 목록",
+        "description_placeholder": "Agent가 여기서 무엇을 만들어야 하는지 설명",
+        "description_label": "Agent가 만들어야 할 것",
+        "name_taken": "{name}이라는 출력이 이미 있어 이 이름은 저장되지 않았습니다.",
+        "remove": "{name} 제거",
+        "json_note": "Agent에게 무언가를 생성하도록 요청하는 동안 답변은 그 답들을 담은 JSON 객체가 됩니다. 글로 된 답변도 남기려면 \"reply\" 같은 텍스트 출력을 추가하세요.",
+        "model_cannot": "이 모델은 정해진 구조로 답할 수 없어 출력을 요청할 수 없습니다. JSON 출력을 지원하는 모델을 선택하세요.",
+        "schema_is_json": "이 Agent의 JSON Output은 행으로 표현할 수 없는 형태입니다. 고급에서 편집하세요.",
+        "no_kernel": "이 Agent에는 사용할 모델 설정이 없습니다.",
+        "advanced": "고급: JSON으로 편집"
+      }
     },
     "schema": {
       "required": "필수",
@@ -2178,12 +2188,9 @@
       "caption": "읽기 전용: {name}의 리비전 {ordinal} · {id}. 실행은 정확히 이 리비전을 사용하며 여기서는 아무것도 편집하거나 저장하지 않습니다.",
       "store_unreachable": "저장소에 연결하지 못했습니다",
       "open_failed": "고정된 리비전을 읽지 못했습니다: {message}. 아무것도 열지 않았습니다.",
-      "changed": "리비전을 읽는 동안 고정 참조가 바뀌어 아무것도 열지 않았습니다. 현재 고정된 리비전을 보려면 다시 여세요.",
-      "via_label": "워크플로 호출"
+      "changed": "리비전을 읽는 동안 고정 참조가 바뀌어 아무것도 열지 않았습니다. 현재 고정된 리비전을 보려면 다시 여세요."
     },
     "drill": {
-      "subagent_pool": "하위 에이전트 풀",
-      "hooks_pool": "Hooks 풀",
       "that_subagent": "해당 하위 에이전트",
       "that_hook": "해당 Hook",
       "embedded_checked": "이 그래프는 저장할 때 검사되며 문제는 여기에 표시됩니다. 상위 에이전트를 실행하면 추가 검사가 이루어집니다. 풀에서 참조하는 에이전트는 그때에만 읽습니다.",
@@ -2477,8 +2484,7 @@
       "observation_failed": "기록된 실행을 읽을 수 없습니다.",
       "observation_rejected": "실행 세부 정보를 업데이트하지 못했습니다.",
       "edit_refused": "이 편집이 거부되었습니다.",
-      "rename_missing": "선택한 노드가 없거나 해당 id를 다른 노드도 사용합니다.",
-      "rename_view_closed": "이 그래프는 더 이상 이름을 바꿀 수 있도록 열려 있지 않습니다."
+      "rename_missing": "선택한 노드가 없거나 해당 id를 다른 노드도 사용합니다."
     },
     "local_validation": {
       "object_required": "객체가 필요합니다",

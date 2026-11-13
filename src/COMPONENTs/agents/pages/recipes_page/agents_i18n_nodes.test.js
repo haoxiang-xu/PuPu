@@ -3,7 +3,7 @@ import { fireEvent, render, renderHook, screen, within } from "@testing-library/
 import { ConfigContext, LocaleContext } from "../../../../CONTAINERs/config/context";
 import { useTranslation } from "../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { buildRecipeCanvasContextMenuItems } from "./recipe_canvas_context_menu_items";
-import RenameNodeModal from "./rename_node_modal";
+import StartNode from "./nodes/start_node";
 import ToolCallNode from "./nodes/tool_call_node";
 import CodeNode from "./nodes/code_node";
 import HooksPoolNode from "./nodes/hooks_pool_node";
@@ -70,33 +70,29 @@ test("the hook empty-state caption translates without changing its stored list o
   expect(JSON.stringify(node)).toBe(before);
 });
 
-test("rename editing and a locally generated error survive locale changes without confirming or closing", () => {
-  const onConfirm = jest.fn();
-  const onClose = jest.fn();
-  const nodeName = "agents.rename.title {name}";
-  const tree = (locale) => localized(locale, <RenameNodeModal initialValue={nodeName} onConfirm={onConfirm} onClose={onClose} />);
+test("an in-place rename survives a locale change without committing or closing", () => {
+  const rename = { enabled: true, editing: true, problem: null, begin: jest.fn(), commit: jest.fn(), cancel: jest.fn() };
+  const node = { id: "start", type: "start", label: "agents.nodes.start {name}", config: {} };
+  const tree = (locale) => localized(locale, <StartNode node={node} isDark={false} rename={rename} />);
   const view = render(tree("en"));
   const input = screen.getByRole("textbox");
+  expect(input).toHaveValue(node.label);
   fireEvent.change(input, { target: { value: "   " } });
-  fireEvent.click(screen.getByRole("button", { name: "Rename" }));
-  input.focus();
   view.rerender(tree("zh-CN"));
-  expect(screen.getByRole("dialog", { name: "重命名节点" })).toBeInTheDocument();
   expect(screen.getByRole("textbox")).toBe(input);
   expect(input).toHaveFocus();
   expect(input).toHaveValue("   ");
-  expect(screen.getByRole("alert")).toHaveTextContent("节点名称不能为空。");
-  expect(onConfirm).not.toHaveBeenCalled();
-  expect(onClose).not.toHaveBeenCalled();
+  expect(rename.commit).not.toHaveBeenCalled();
+  expect(rename.cancel).not.toHaveBeenCalled();
 });
 
-test("a supplied rename refusal remains raw, including strings that look like a catalog key", () => {
-  const raw = "agents.rename.non_blank {name} · BACKEND_REFUSAL";
-  const onConfirm = jest.fn().mockReturnValue({ ok: false, problem: { message: raw } });
-  render(localized("zh-CN", <RenameNodeModal initialValue="Authored name" onConfirm={onConfirm} onClose={jest.fn()} />));
+test("a supplied rename refusal is shown raw under the field, including strings that look like a catalog key", () => {
+  const raw = "agents.graph.rename_label_blank {name} · BACKEND_REFUSAL";
+  const rename = { enabled: true, editing: true, problem: raw, begin: jest.fn(), commit: jest.fn().mockReturnValue({ ok: false }), cancel: jest.fn() };
+  render(localized("zh-CN", <StartNode node={{ id: "start", type: "start", label: "Authored name", config: {} }} isDark={false} rename={rename} />));
   fireEvent.keyDown(screen.getByRole("textbox"), { key: "Enter" });
   expect(screen.getByRole("alert")).toHaveTextContent(raw);
-  expect(onConfirm).toHaveBeenCalledWith("Authored name");
+  expect(rename.commit).toHaveBeenCalledWith("Authored name", "Authored name", { refocus: true });
 });
 
 test("node search captions translate while a user's query and empty-result identity stay raw", () => {

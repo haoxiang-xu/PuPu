@@ -142,7 +142,8 @@ test("If / Else: add, bind, write the condition, wire both outlets and a rejoin,
   fireEvent.click(within(screen.getByRole("listbox", { hidden: true })).getByText(profile.model, { exact: true }));
   fireEvent.change(await screen.findByPlaceholderText("what this Agent is for"), { target: { value: "[yes-branch]" } });
   fireEvent.click(screen.getByRole("button", { name: "Output Variables", exact: true }));
-  fireEvent.click(screen.getByRole("button", { name: "+ Add output", exact: true }));
+  /* An Agent offers three ways to add an output; this one reads a value. */
+  fireEvent.click(screen.getByRole("button", { name: "+ Pass on an input", exact: true }));
   const output = within(screen.getByTestId("output-row-0"));
   fireEvent.click(output.getByRole("button", { name: "Inputs" }));
   fireEvent.click(screen.getByText("message", { exact: true, selector: "span" }));

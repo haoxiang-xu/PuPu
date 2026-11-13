@@ -100,6 +100,23 @@ export function apply_graph_command(graph, command, t = agentEnglishText) {
     if (own(target, "label") && target.label === command.label) return accept(graph);
     return accept({ ...graph, nodes: graph.nodes.map((node) => node === target ? { ...node, label: command.label } : node) });
   }
+  /* Back to unnamed: the optional label goes, nothing else changes, and a
+     node that has none is left as it is (no edit, so no undo step). */
+  if (command.type === "reset_node_label") {
+    if (!shape(command, ["type", "node_id"]) || !text(command.node_id)) {
+      return refuse(graph, t("agents.graph.command_unsupported"));
+    }
+    const matches = graph.nodes.filter((node) => record(node) && node.id === command.node_id);
+    if (matches.length === 0) return refuse(graph, t("agents.graph.selected_missing"), "missing_node");
+    if (matches.length !== 1) return refuse(graph, t("agents.graph.selected_ambiguous"), "ambiguous_node");
+    const target = matches[0];
+    if (!own(target, "label")) return accept(graph);
+    return accept({ ...graph, nodes: graph.nodes.map((node) => {
+      if (node !== target) return node;
+      const { label: _label, ...rest } = node;
+      return rest;
+    }) });
+  }
   if (command.type === "delete" && shape(command, ["type", "node_ids", "edge_ids"]) &&
       Array.isArray(command.node_ids) && Array.isArray(command.edge_ids) &&
       command.node_ids.every(text) && command.edge_ids.every(text)) {

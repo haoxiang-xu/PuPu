@@ -39,26 +39,22 @@ describe("AgentAvatar", () => {
 });
 
 describe("the glyph variant (list rows)", () => {
-  const { legible_glyph_color } = require("./agent_avatar");
-  test("draws no tile and tints the glyph with the chosen colour", () => {
+  test("draws no tile and keeps the row's text colour, whatever colour is stored", () => {
     render(<AgentAvatar variant="glyph" testid="g" presentation={{ icon: "run", color: "#1d8798" }} />);
     const el = screen.getByTestId("g");
     expect(el.style.background).toBe("");
-    expect(el.getAttribute("data-agent-tint")).toBe("#1d8798");
+    expect(el.getAttribute("data-agent-icon")).toBe("run");
+    expect(el.getAttribute("data-agent-tint")).toBe("currentColor");
+    expect(el.style.color.toLowerCase()).toBe("currentcolor");
   });
-  test("an un-customised Agent uses the given default tint", () => {
-    render(<AgentAvatar variant="glyph" testid="g" defaultTint="#4a5bd8" presentation={null} />);
-    expect(screen.getByTestId("g").getAttribute("data-agent-tint")).toBe("#4a5bd8");
+  test("an icon-only document draws its icon in the row's colour", () => {
+    render(<AgentAvatar variant="glyph" testid="g" presentation={{ icon: "star" }} />);
+    expect(screen.getByTestId("g").getAttribute("data-agent-icon")).toBe("star");
+    expect(screen.getByTestId("g").getAttribute("data-agent-tint")).toBe("currentColor");
   });
-  test("the tile variant keeps its coloured square", () => {
-    render(<AgentAvatar testid="t" presentation={{ color: "#1d8798" }} />);
-    expect(screen.getByTestId("t").style.background).toBe("rgb(29, 135, 152)");
-  });
-  test("too-dark colours are lightened on dark, too-light darkened on light, to about 3:1; legible ones stay", () => {
-    expect(legible_glyph_color("#ea7547", true)).toBe("#ea7547");
-    /* orange on the light list is under 3:1, so it is darkened for drawing */
-    expect(legible_glyph_color("#ea7547", false)).not.toBe("#ea7547");
-    expect(legible_glyph_color("#3a3a3c", true)).not.toBe("#3a3a3c");
-    expect(legible_glyph_color("#f0f0f0", false)).not.toBe("#f0f0f0");
+  test("the tile variant ignores a stored colour: always the Agent blue", () => {
+    render(<AgentAvatar testid="t" presentation={{ icon: "star", color: "#1d8798" }} />);
+    expect(screen.getByTestId("t").style.background).toBe("rgb(74, 91, 216)");
+    expect(screen.getByTestId("t").getAttribute("data-agent-icon")).toBe("star");
   });
 });

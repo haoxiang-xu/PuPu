@@ -51,8 +51,6 @@ import { Block, ProblemCount } from "./process_timeline";
 import { subscribeSkeletonLibraryRefresh } from "../../../../../SERVICEs/skeleton_library_refresh";
 import PanelHelp from "./panel_help";
 import AgentAvatar from "../../../agent_avatar";
-import AgentIconButton from "../../../agent_icon_button";
-import { with_document_presentation } from "../../../../../SERVICEs/agent_resource_icons";
 import PanelInput from "./panel_input";
 import { fieldFill, fillStrong, hairline, muted as mutedOf, note as noteStyle, PANEL_SWITCH, problem as problemOf, Region, removeButtonStyle, SettingRow, text, textFieldFill } from "./panel_style";
 
@@ -99,11 +97,10 @@ const ROW_COLUMN = Object.freeze({ ...ROW_PADDING, display: "flex", flexDirectio
 /* The right-hand column of a setting row, one width for every control so they
    start and end on the same two edges. */
 const CONTROL = Object.freeze({ width: "62%", flexShrink: 0, minWidth: 0, display: "flex", justifyContent: "flex-end" });
-/* A subagent's mark in the list: the Agent's own icon with no tile, the
-   glyph in the Agent's chosen colour. */
+/* A subagent's mark in the list: the Agent's own icon with no tile, in the
+   row's own text colour, exactly as in the Agents explorer. The icon is
+   changed only from the Explorer. */
 function SubagentAvatar({ size, testid, presentation }) {
-  /* No colour chosen: the row's own text colour, exactly as in the Agents
-     explorer — only a chosen colour tints the glyph. */
   return <AgentAvatar variant="glyph" presentation={presentation} size={size} glyphScale={0.75} testid={testid} />;
 }
 
@@ -490,10 +487,6 @@ function EntryRow({
       : null;
   const missing = library.status === "ready" && agent_id !== null && referenced === null;
   const presentation = entry_presentation(entry, referenced);
-  /* An embedded Agent's icon is part of its own document, written like its
-     name; a referenced Agent's belongs to that resource and is changed there. */
-  const embedded_document_editable = is_object(entry.source) && entry.source.kind === "embedded" &&
-    is_object(entry.source.document);
   /* The gate, asked of a reference that is already stored. It was asked only
      of one being added, so an entry written by hand, converted from a legacy
      definition or saved by another build pointed at a Workflow and the row
@@ -696,24 +689,6 @@ function EntryRow({
                 </div>
               </SettingRow>
             </div>
-
-            {embedded_document_editable && (
-              <div key="icon" style={ROW_PADDING}>
-                <SettingRow isDark={isDark} label={t("agents.icon_picker.title")} testid={`subagent-entry-${index}-icon-row`}>
-                  <AgentIconButton
-                    presentation={presentation}
-                    variant="glyph"
-                    glyphScale={0.75}
-                    size={22}
-                    isDark={isDark}
-                    testid={`subagent-entry-${index}-icon-button`}
-                    onChange={(next) => set({
-                      source: { ...entry.source, document: with_document_presentation(entry.source.document, next) },
-                    })}
-                  />
-                </SettingRow>
-              </div>
-            )}
 
             {/* The description is what the calling Agent reads to decide when
                 to use this one, so it comes first and has room. */}
@@ -1029,20 +1004,15 @@ export default function SubagentPoolSection({
   const offered = subagent_candidates(library.items, { owner_id });
   const reducedMotion = useReducedMotion();
   const [search, setSearch] = useState("");
-  /* Which row is open: one at a time, so the pool reads as a roster. A pool
-     of one has no roster to scan and starts open; so does the first row that
-     has something wrong with it. Named by the row's minted identity, so it
-     follows the row through this editor's own edits and lets go when the list
-     arrives from somewhere else. */
-  const [openRow, setOpenRow] = useState(() => {
-    if (legacy) return null;
-    const troubled = entries.findIndex((entry, index) =>
-      is_object(entry) &&
-      (shared_ids.includes(index) || problems_at(problems, `config.subagents[${index}]`).length > 0));
-    const first = troubled >= 0 ? troubled : entries.length === 1 ? 0 : -1;
-    return first >= 0 ? rows.ids[first] : null;
-  });
-  /* The row that was just added opens, with the caret in its description. Its
+  /* Which row is open: one at a time, so the pool reads as a roster. Every
+     row starts folded — a pool of one and a row with something wrong with it
+     too, whose folded strip already counts what is wrong — and only the
+     author opens one. Named by the row's minted identity, so it follows the
+     row through this editor's own edits and lets go when the list arrives
+     from somewhere else. */
+  const [openRow, setOpenRow] = useState(null);
+  /* The one exception: the row the author has just added opens, once, with
+     the caret in its description, because it is there to be filled in. Its
      identity does not exist until the list has rendered with it. */
   const [focusRow, setFocusRow] = useState(null);
   const opening_added = useRef(false);

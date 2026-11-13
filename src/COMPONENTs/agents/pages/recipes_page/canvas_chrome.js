@@ -12,6 +12,7 @@ import { AGENTS_MODAL_Z } from "../../top_strip";
 import PanelResizeHandle from "./panel_resize_handle";
 import { useTranslation } from "../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { renderAgentMessage } from "./agents_i18n";
+import useReducedMotion from "../../../../BUILTIN_COMPONENTs/mini_react/use_reduced_motion";
 import { TOP_BAR_HEIGHT } from "../../../../BUILTIN_COMPONENTs/electron/title_bar";
 import WindowControls, { windowControlsInset } from "../../../../BUILTIN_COMPONENTs/electron/window_controls";
 import { windowStateBridge } from "../../../../SERVICEs/bridges/window_state_bridge";
@@ -28,8 +29,9 @@ export const DETAIL_WIDTH_VAR = "--pupu-agents-detail-drag-width";
  *
  * The unified design has exactly these pieces floating over a full-bleed
  * canvas: the library on the left, the detail panel on the right, one small
- * control center at the bottom middle (undo / redo / home · Run · Save), and a
- * breadcrumb at the top left while a subagent's graph is open. They were drawn
+ * control center at the bottom middle (undo / redo / home · Run · Save). The
+ * drill path is not here: the canvas's top edge is the window's drag region,
+ * so it is shown in the side menu's breadcrumb instead. They were drawn
  * once for the legacy Recipe canvas; the native Skeleton page grew its own bar
  * and buttons instead. Both canvases now take them from here, so the two stay
  * the same picture and neither can grow a third. */
@@ -338,108 +340,61 @@ export function CanvasMessageStrip({ isDark, items, testId, role, standalone = f
   );
 }
 
-/* `Reviewer › Subagent Pool › Summarizer`, at the top left.
- *
- * Only the graphs left behind are navigable: the pool crumb names where the
- * step happened rather than a place to go, and the last crumb is the graph on
- * screen. `testId` names the crumbs themselves; the hint beside them is not a
- * crumb. */
-export function FloatingBreadcrumb({
-  isDark,
-  crumbs,
-  onNavigate,
-  top,
-  left,
-  testId,
-  crumbsTestId,
-  crumbAriaLabel,
-  hint,
-}) {
+/* "Esc to go back", at the top left while there is a level to go back to.
+   Only a reminder: the way back by pointer is the side menu's breadcrumb, so
+   this takes no pointer and may sit in the window's drag region. Mounted all
+   along and faded, so it eases in and out as the author goes in and out. */
+const ESCAPE_KEY = "Esc";
+export function EscapeBackHint({ isDark, visible, top, left, testId = "canvas-escape-hint" }) {
   const { t } = useTranslation();
-  const hintCaption = hint === undefined ? t("agents.canvas.escape_up") : hint;
-  const list = Array.isArray(crumbs) ? crumbs : [];
-  if (list.length === 0) return null;
-  const tokens = overlay_tokens(isDark);
-  const items = list.map((crumb, index) => (
-    <span key={index} style={{ display: "flex", alignItems: "center", gap: 4, minWidth: 0 }}>
-      {index > 0 && (
-        <span aria-hidden="true" style={{ opacity: 0.4, fontSize: 10 }}>
-          ›
-        </span>
-      )}
-      {crumb.navigable ? (
-        <Button
-          label={crumb.label}
-          ariaLabel={crumbAriaLabel ? crumbAriaLabel(crumb) : undefined}
-          onClick={() => onNavigate(crumb.depth)}
-          style={{
-            fontSize: 11.5,
-            paddingVertical: 2,
-            paddingHorizontal: 6,
-            borderRadius: 5,
-            color: "var(--pupu-text-muted)",
-          }}
-        />
-      ) : (
-        <span
-          style={{
-            padding: "2px 6px",
-            color: "var(--pupu-text)",
-            opacity: index === list.length - 1 ? 1 : 0.55,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {crumb.label}
-        </span>
-      )}
-    </span>
-  ));
+  const reducedMotion = useReducedMotion();
+  /* The sentence around the key, in the locale's own word order. */
+  const marker = "\u0000";
+  const sentence = String(t("agents.canvas.escape_back", { key: marker }));
+  const at = sentence.indexOf(marker);
+  const before = at >= 0 ? sentence.slice(0, at) : "";
+  const after = at >= 0 ? sentence.slice(at + marker.length) : ` ${sentence}`;
+  const muted = { color: "var(--pupu-text-muted, #86868b)", whiteSpace: "nowrap" };
   return (
-    <ShadowSurface
+    <div
+      data-testid={testId}
+      data-visible={visible ? "true" : "false"}
+      aria-hidden={visible ? undefined : true}
       style={{
         position: "absolute",
         top,
         left,
-        transform: "translateY(-50%)",
+        transform: `translateY(-50%) translateX(${visible || reducedMotion ? 0 : -4}px)`,
         zIndex: AGENTS_MODAL_Z.PANEL_CONTROL,
         display: "flex",
         alignItems: "center",
-        gap: 4,
-        maxWidth: "min(620px, 70%)",
-        padding: "5px 10px",
-        borderRadius: 8,
-        ...glass(tokens),
-        boxShadow: tokens.shadow,
+        gap: 6,
         fontSize: 11.5,
-        WebkitAppRegion: "no-drag",
+        lineHeight: 1,
+        pointerEvents: "none",
+        userSelect: "none",
+        opacity: visible ? 1 : 0,
+        transition: reducedMotion ? "none" : "opacity 180ms ease, transform 180ms ease",
       }}
     >
-      <div data-testid={testId} style={{ display: "flex", alignItems: "center", gap: 4, minWidth: 0 }}>
-        {crumbsTestId ? (
-          <div data-testid={crumbsTestId} style={{ display: "flex", alignItems: "center", gap: 4, minWidth: 0 }}>
-            {items}
-          </div>
-        ) : (
-          items
-        )}
-      </div>
-      {hintCaption && (
-        <span
-          style={{
-            marginLeft: 6,
-            paddingLeft: 10,
-            borderLeft: tokens.border,
-            fontSize: 11,
-            color: "#86868b",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {hintCaption}
-        </span>
-      )}
-    </ShadowSurface>
+      {before && <span style={muted}>{before.trim()}</span>}
+      <kbd
+        data-testid={`${testId}-key`}
+        style={{
+          fontFamily: "inherit",
+          fontSize: 10.5,
+          fontWeight: 500,
+          padding: "3px 6px",
+          borderRadius: 6,
+          color: "var(--pupu-text)",
+          backgroundColor: `rgba(var(--pupu-text-rgb, ${isDark ? "255,255,255" : "0,0,0"}), ${isDark ? 0.12 : 0.07})`,
+          boxShadow: `inset 0 0 0 1px rgba(var(--pupu-text-rgb, ${isDark ? "255,255,255" : "0,0,0"}), ${isDark ? 0.1 : 0.08})`,
+        }}
+      >
+        {ESCAPE_KEY}
+      </kbd>
+      {after.trim() && <span style={muted}>{after.trim()}</span>}
+    </div>
   );
 }
 

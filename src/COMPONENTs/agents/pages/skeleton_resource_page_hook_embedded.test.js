@@ -1,5 +1,6 @@
 import React from "react";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { render } from "./drill_trail_test_helpers";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import SkeletonResourcePage from "./skeleton_resource_page";
 import Modal from "../../../BUILTIN_COMPONENTs/modal/modal";
@@ -151,7 +152,8 @@ test("open a hook's own Workflow on the canvas, edit its Code, go back, Save: on
   await waitFor(() => expect(source().getByRole("button", { name: "Open the Workflow of hook policy" })).not.toBeDisabled());
   fireEvent.click(source().getByRole("button", { name: "Open the Workflow of hook policy" }));
   await screen.findByTestId("skeleton-node-step");
-  expect(screen.getByTestId("skeleton-drill-crumbs")).toHaveTextContent("Hooks Pool");
+  expect(screen.getByTestId("side-menu-breadcrumb")).not.toHaveTextContent("Hooks Pool");
+  expect(screen.getAllByRole("button", { name: /^Back to / }).length).toBeGreaterThan(0);
   expect(screen.getByTestId("skeleton-drill-save-target")).toHaveTextContent("Save writes");
   saved();
 
@@ -353,7 +355,8 @@ describe("Escape never closes the Builder over an edit", () => {
     box.focus();
     escapeOn(box);
     expect(onClose).not.toHaveBeenCalled();
-    expect(screen.getByTestId("skeleton-drill-crumbs")).toHaveTextContent("Hooks Pool");
+    expect(screen.getByTestId("side-menu-breadcrumb")).not.toHaveTextContent("Hooks Pool");
+  expect(screen.getAllByRole("button", { name: /^Back to / }).length).toBeGreaterThan(0);
     expect(screen.getByRole("textbox", { name: "Code of step" })).toHaveValue(draft);
     expect(screen.getByTestId("skeleton-save-state")).toHaveTextContent("Unsaved changes");
     expect(store.save).not.toHaveBeenCalled();

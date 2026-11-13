@@ -4,10 +4,22 @@ import React, { useState } from "react";
 /* This suite checks the guidance's contract and document writes. The real
    disclosure interaction and compact surface are tested in panel_help.test.js. */
 jest.mock("./panel_help", () => function GuidanceText({ children }) { return <>{children}</>; });
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render as rtlRender, screen, within } from "@testing-library/react";
 import CodeSection from "./code_section";
+import { resetProcessPanelMemory } from "./process_timeline";
 import { python_profiles } from "../skeleton_resources";
 import capture from "../code_capture.json";
+
+/* The Code node's parts fold (Limits, Result, On Error, Stored Artifacts,
+   Output Variables start folded). These tests are about what is inside them,
+   so every render opens whatever is folded first. */
+const render = (...args) => {
+  const result = rtlRender(...args);
+  act(() => {
+    window.document.querySelectorAll('[data-testid^="process-toggle-"][aria-expanded="false"]').forEach((toggle) => toggle.click());
+  });
+  return result;
+};
 
 /* The Code panel (#357), fed the store's own answers: the Python profile
  * list, the save and the probe were captured from the real store on the fixed
@@ -448,5 +460,21 @@ describe("the code editor", () => {
     const box = screen.getByRole("textbox", { name: "Code of score" });
     expect(box).toHaveValue("");
     expect(screen.getByTestId("code-text-editor-highlight")).toHaveTextContent("def main(input, context):");
+  });
+});
+
+describe("a Code node's parts fold", () => {
+  test("Code starts open; Limits starts folded, says nothing inside it, and opens from its words", () => {
+    resetProcessPanelMemory();
+    rtlRender(<Harness initial={graph(codeNode({}))} />);
+    expect(screen.getByTestId("process-toggle-code-source")).toHaveAttribute("aria-expanded", "true");
+    const toggle = screen.getByTestId("process-toggle-code-limits");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("textbox", { name: /Run time/ })).toBeNull();
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("textbox", { name: /Run time/ })).toBeInTheDocument();
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
   });
 });

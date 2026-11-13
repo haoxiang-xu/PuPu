@@ -2,6 +2,7 @@ import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use
 import { node_display_title } from "../node_display_labels";
 import React from "react";
 import PuzzleShape from "./puzzle_shape";
+import { node_caption } from "./node_caption";
 import NodeHeader from "./node_header";
 import { BRANCH_ROW_HEIGHT, NODE_PADDING_X, NODE_PADDING_Y, NODE_PORT_ANCHOR, branch_layout } from "./node_metrics";
 import { safe_text } from "../document_values";
@@ -26,12 +27,13 @@ const IDENTITY = {
   switch_case: { icon: "switch_node", title: "Switch / Case" },
 };
 
-export default function BranchNode({ node, rows, summary, isDark }) {
+export default function BranchNode({ node, rows, summary, isDark, rename }) {
   const { t } = useTranslation();
   const identity = IDENTITY[node.type] || IDENTITY.if_else;
   const list = Array.isArray(rows) ? rows : [];
   const layout = branch_layout(list.length);
   const height = layout.height;
+  const title = node_display_title(node, node.type === "switch_case" ? t("agents.nodes.switch_case") : t("agents.nodes.if_else"));
   /* No height on the outer box: the rows give the node its height, and
      PuzzleShape springs it when a case is added or removed. */
   return (
@@ -44,8 +46,9 @@ export default function BranchNode({ node, rows, summary, isDark }) {
             <NodeHeader
               src={identity.icon}
               tile={{ background: "#1d8798" }}
-              title={node_display_title(node, node.type === "switch_case" ? t("agents.nodes.switch_case") : t("agents.nodes.if_else"))}
-              subtitle={safe_text(summary || "")}
+              title={title}
+              subtitle={node_caption({ type: node.type === "switch_case" ? "switch_case" : "if_else", title, summary: safe_text(summary || "") }, t)}
+              rename={rename}
               subtitleProps={{ "data-testid": `branch-node-${node.id}-summary` }}
             />
           </div>

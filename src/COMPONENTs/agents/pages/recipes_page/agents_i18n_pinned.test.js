@@ -12,7 +12,7 @@ test("fixed-version captions translate wrappers while preserving immutable versi
   const original = [{ label: raw, depth: null, navigable: false }];
   const result = pinned_view_crumbs(original, 2, raw, raw, translate);
   expect(result[0]).toEqual({ label: raw, depth: 2, navigable: true });
-  expect(result[1].label).toContain("T:agents.pinned.via_label"); expect(result[2].label).toBe(raw);
+  expect(result[1].label).toContain("T:agents.nodes.workflow_call"); expect(result[2].label).toBe(raw);
   expect(JSON.stringify(version)).toBe(before); expect(original[0].depth).toBeNull();
 });
 test("a retained open failure rerenders only owned provenance and keeps backend detail literal", () => {

@@ -1,10 +1,23 @@
-# Agent presentation (icon + colour) — cross-boundary contract
+# Agent presentation (icon; legacy colour) — cross-boundary contract
 
 Status: **INCOMPLETE** — code and tests are green in both repositories, but the
 running sidecar has not been restarted onto the changed runtime, and the cold
 restart / live app cells below are `NOT_RUN`.
 
 Gate: `.claude/rules/cross-boundary-contract-gate.md`.
+
+**Frontend is icon-only (2026-11-12).** The stored shape below is unchanged
+and `color` stays a valid runtime field, but PuPu no longer offers, writes or
+draws a colour: the picker has icons only; every PuPu write is `{ icon }` or
+removes the key (choosing the default `bot` icon removes it), so saving drops
+a colour an older build stored; readers still accept `color` so such
+documents load, and every surface draws in the fixed default colours. Node
+identity is independent of resource presentation: an Agent **node** (canvas
+tile, detail header, NodeTag chips, add-node menu, finder) always wears the
+fixed Agent node identity; only Agent **resource** surfaces (Agents explorer
+rows, Subagent Pool rows and library rows) show the chosen icon, and the
+Explorer's "Change icon…" is the only place it is changed. No runtime,
+sidecar or capture change. Details: `agent-icons.md`.
 
 ## Shape (the one rule every boundary below enforces)
 
@@ -32,17 +45,16 @@ Decisions:
   a string not matching its pattern → `invalid_value` at the same path.
 - The runtime knows no icon catalogue. PuPu owns it; an unknown icon id is a
   valid value that PuPu's reader falls back from (`agent_resource_icons.js`).
-- **The palette is a frontend rule; the backend stays format-only.** PuPu
-  offers and writes only the eleven colours in `AGENT_PRESET_COLORS`
-  (`src/SERVICEs/agent_resource_icons.js`). `writeResourcePresentation` and the
-  editor's document write refuse any other colour locally
-  (`invalid_presentation`, nothing sent); on read, a well-formed colour outside
-  the palette is drawn as the default and the stored value is never
-  rewritten. The runtime schema above is unchanged (any `#rrggbb`). The
-  recorded producer capture still carries `#1a2b3c` (admitted by the runtime);
-  the consumer test writes a palette colour and swaps only that value in the
-  recorded request — re-recording the capture with a palette colour would
-  restore exact producer equality.
+- **Colour is a stored field PuPu no longer uses; the backend stays
+  format-only.** `writeResourcePresentation` writes `{ icon }` only: a
+  well-formed `color` handed to it is admitted and not written, a malformed
+  one (or any other key) is refused locally (`invalid_presentation`, nothing
+  sent). On read, a stored colour (any `#rrggbb`) is kept by the reader and
+  never drawn; stored data is never rewritten on read. The palette
+  (`AGENT_PRESET_COLORS`) is removed. The recorded producer capture still
+  carries `{ icon, color: "#1a2b3c" }` (admitted by the runtime); the consumer
+  test hands the writer that same value and asserts the payload equals the
+  recorded request with only `presentation` swapped to `{ icon }`.
 - **Display-only.** `prepare_workflow` / `prepare_agent_graph` drop the
   top-level `presentation` from the execution snapshot, so it never reaches a
   plan, a definition digest, a run observation, a compiler, a prompt or a
@@ -219,12 +231,14 @@ PuPu sidecar `unchain_runtime/server/tests/test_skeleton_resource_presentation.p
 
 PuPu renderer:
 
-- AC-AP-01 exact edit payload key set + document key set, equal to the request the real store accepted — `src/SERVICEs/agent_resource_presentation_store.test.js` "writes through the v2 aggregate…"
+- AC-AP-01 exact edit payload key set + document key set (`presentation` keys exactly `["icon"]`), equal to the request the real store accepted with only `presentation` swapped to `{ icon }` — `src/SERVICEs/agent_resource_presentation_store.test.js` "writes { icon } alone through the v2 aggregate…"; saving over a stored `{icon,color}` drops the colour — "saving an icon over a stored icon and colour drops the colour"
 - AC-AP-02 Code text round-trips (managed resource) — same test (`payload == producer.save_request`)
 - AC-AP-03 `null` / `{}` removes the key — "null removes the key…", "an empty object…"
 - AC-AP-04 local shape refusal sends nothing — `test.each` invalid presentations
 - AC-AP-05 conflict / store refusal → `{ok:false, code}` — "an edit conflict…", "the store's own refusal…", "a resource that cannot be read…"
 - AC-AP-06 older runtime manifest → `presentation_unsupported`, nothing sent — "an older runtime…"
+- AC-AP-23 (icon-only frontend) picker has no colour controls and Save hands `{ icon }` (legacy colour dropped) — `agent_icon_picker.test.js`; Explorer writes `{ icon }` over a legacy colour and draws rows in `currentColor` — `agent_explorer.icons.test.js`, `recipes_page_agent_icon.test.js`; a stored colour is never drawn — `agent_avatar.test.js`, `SERVICEs/agent_resource_icons.test.js`
+- AC-AP-24 (node identity) an Agent node with a resource presentation draws the fixed node icon and tile — `detail_panel/detail_panel.agent_icon.test.js` (canvas node + detail header), `detail_panel/node_tag.test.js`, `detail_panel/switch_case_rows.test.js`, `recipes_page_agent_icon.test.js` "in the editor"
 - AC-AP-22 mirror ≡ producer capture, both directions, envelope + embedded — `recipes_page/skeleton_document_presentation.test.js` (125 tests)
 
 Producer captures (generated, not hand written):

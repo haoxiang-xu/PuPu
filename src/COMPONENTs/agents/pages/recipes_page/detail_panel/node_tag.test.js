@@ -67,12 +67,13 @@ describe("NodeTag", () => {
     });
   });
 
-  test("an Agent node of an Agent document wears the Agent's own colour", () => {
-    render(wrap(<NodeTag node={{ id: "a", type: "agent", config: {} }} presentation={{ icon: "bot", color: "#7c4dd8" }}
+  test("an Agent node wears the fixed Agent node identity, never a resource's presentation", () => {
+    const agentFill = node_identity({ id: "a", type: "agent", config: {} }).gradient;
+    render(wrap(<NodeTag node={{ id: "a", type: "agent", config: {} }} presentation={{ icon: "kimi", color: "#7c4dd8" }}
       isDark={false} testid="t" />));
-    expect(screen.getByTestId("t").style.background).toBe(rgb("#7c4dd8"));
-    expect(screen.getByTestId("t-avatar")).toHaveAttribute("data-agent-color", "#7c4dd8");
-    expect(screen.getByTestId("t-avatar").style.color).toBe(rgb(AVATAR_LIGHT_GLYPH));
+    expect(screen.getByTestId("t").style.background).toBe(rgb(agentFill));
+    expect(screen.getByTestId("t-icon")).toBeInTheDocument();
+    expect(screen.queryByTestId("t-avatar")).toBeNull();
   });
 
   test("a long name ellipsises within its cap and keeps the whole name as its title", () => {
@@ -109,14 +110,15 @@ describe("a value read from a step is one tag", () => {
     expect(screen.getByTestId("v-node").style.background).toBe("rgba(0, 0, 0, 0.07)");
   });
 
-  test("an End row's value is one tag: the Agent's colour, its name, and the field", () => {
+  test("an End row's value is one tag: the Agent node's fixed colour, its name, and the field", () => {
     const document = graph([{ name: "answer", value: { kind: "ref", node_id: "agent", path: ["reply"] }, missing: "null" }],
-      { presentation: { icon: "bot", color: "#7c4dd8" } });
+      { presentation: { icon: "kimi", color: "#7c4dd8" } });
     showEnd(document);
     const tag = screen.getByTestId("binding-row-0-tag");
     expect(tag).toHaveTextContent(/^agentreply$/);
-    expect(tag).toHaveAttribute("data-node-fill", "#7c4dd8");
-    expect(screen.getByTestId("binding-row-0-tag-node-avatar")).toHaveAttribute("data-agent-color", "#7c4dd8");
+    expect(tag).toHaveAttribute("data-node-fill", node_identity({ id: "agent", type: "agent", config: {} }).gradient.toLowerCase());
+    expect(screen.queryByTestId("binding-row-0-tag-node-avatar")).toBeNull();
+    expect(screen.getByTestId("binding-row-0-tag-node-icon")).toBeInTheDocument();
     /* Still one click target: the overlay ignores the pointer, the field under it opens the picker. */
     expect(screen.getByTestId("binding-row-0-selected").style.pointerEvents).toBe("none");
     fireEvent.click(within(screen.getByTestId("binding-row-0")).getByRole("textbox", { name: /^(?!name$).+/ }));

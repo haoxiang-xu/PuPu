@@ -3,8 +3,6 @@ import React, { useContext } from "react";
 import { ConfigContext } from "../../../../../CONTAINERs/config/context";
 import { DetailChromeContext } from "../canvas_chrome";
 import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
-import AgentIconButton from "../../../agent_icon_button";
-import { with_document_presentation } from "../../../../../SERVICEs/agent_resource_icons";
 import StartPanel from "./start_panel";
 import EndPanel from "./end_panel";
 import AgentPanel from "./agent_panel";
@@ -12,7 +10,7 @@ import ToolPoolPanel from "./toolpool_panel";
 import SubagentPoolPanel from "./subagent_pool_panel";
 import { node_identity } from "./node_identity";
 import InputVariablesSection from "./input_variables_section";
-import ProcessTimeline, { Block } from "./process_timeline";
+import ProcessTimeline, { Block, FoldBlock } from "./process_timeline";
 import StartEndPanel from "./start_end_panel";
 import SkeletonDiagnostics from "./skeleton_diagnostics_notice";
 import SubagentPoolSection from "./subagent_pool_section";
@@ -45,6 +43,11 @@ import { safe_text } from "../document_values";
 /* The shell: a fixed identity header above a hairline, and a body that is the
  * only thing that scrolls. Every node type sits inside it, so the header no
  * longer scrolls away with whatever the panel happens to be showing. */
+
+/* Input / Output Variables: always open, except where the node's parts fold. */
+function WiringBlock({ fold, defaultOpen = false, ...props }) {
+  return fold ? <FoldBlock defaultOpen={defaultOpen} {...props} /> : <Block {...props} />;
+}
 
 export default function DetailPanel({
   recipe,
@@ -159,16 +162,6 @@ export default function DetailPanel({
             })()
           : identity?.subtitle;
 
-  /* The Agent node of an Agent document is that Agent, so its header is where
-     the Agent's icon and colour are shown and changed. They are the
-     document's own `presentation` (an embedded Agent's too: its document is
-     the one on screen), written through the ordinary document edit — the
-     draft goes dirty and Save stores it. */
-  const presentation_editable = Boolean(skeleton_node && !legacy_node && skeleton_node.type === "agent" &&
-    document && document.kind === "agent" && typeof onDocumentChange === "function");
-  const presentation = presentation_editable && Object.prototype.hasOwnProperty.call(document, "presentation")
-    ? document.presentation : null;
-
   const shell_style = {
     flex: 1,
     minHeight: 0,
@@ -279,17 +272,9 @@ export default function DetailPanel({
             }`,
           }}
         >
-          {presentation_editable ? (
-            <AgentIconButton
-              presentation={presentation}
-              size={26}
-              radius={7}
-              glyphScale={14 / 26}
-              isDark={isDark}
-              testid="recipe-detail-panel-agent-icon"
-              onChange={(next) => onDocumentChange(with_document_presentation(document, next))}
-            />
-          ) : (
+          {/* A node's fixed identity — for an Agent node too: an Agent
+              resource's own icon is changed in the Explorer and never shown
+              on its nodes. */}
           <div
             style={{
               width: 26,
@@ -308,7 +293,6 @@ export default function DetailPanel({
               style={{ width: 14, height: 14 }}
             />
           </div>
-          )}
           <div style={{ minWidth: 0 }}>
             <div
               style={{
@@ -422,7 +406,8 @@ export default function DetailPanel({
               /* The same caption and the same variable rows as an Agent's,
                  Start's and End's. Only the look is shared: this node keeps
                  the missing policy it stores (and the control for it). */
-              <Block section={`${skeleton_node.type}-input`} title={t("agents.io.input_variables")} isDark={isDark}
+              /* A Code node's parts fold as the Agent's Input and Output do. */
+              <WiringBlock fold={skeleton_node.type === "code"} defaultOpen section={`${skeleton_node.type}-input`} title={t("agents.io.input_variables")} isDark={isDark}
                 problems={Object.values(routed.rows.inputs || {}).flat()} aside={String(node_bindings(skeleton_node).filter(Boolean).length)}>
                 <InputVariablesSection
                   document={document}
@@ -435,7 +420,7 @@ export default function DetailPanel({
                   addAtEnd
                   look="pill"
                 />
-              </Block>
+              </WiringBlock>
             ) : null}
             {/* A branch decides where the flow goes from what it was given, so
                 its condition or switch sits right under the inputs it reads.
@@ -455,7 +440,7 @@ export default function DetailPanel({
                 downwards, and the order is the same in every panel so the two
                 halves of a wire are always found in the same place. */}
             {node_declares_outputs(skeleton_node.type) && (
-              <Block section={`${skeleton_node.type}-output`} title={t("agents.io.output_variables")} isDark={isDark}
+              <WiringBlock fold={skeleton_node.type === "code"} section={`${skeleton_node.type}-output`} title={t("agents.io.output_variables")} isDark={isDark}
                 problems={Object.values(routed.rows.outputs || {}).flat()} aside={String(node_output_mappings(skeleton_node).filter(Boolean).length)}>
                 <OutputVariablesSection
                   document={document}
@@ -468,7 +453,7 @@ export default function DetailPanel({
                   addAtEnd
                   look="pill"
                 />
-              </Block>
+              </WiringBlock>
             )}
             </>}
           </>

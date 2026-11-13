@@ -8,6 +8,7 @@ import OutputSchemaSection from "./output_schema_section";
 import KernelSection from "./kernel_section";
 import PanelHelp from "./panel_help";
 import { node_bindings } from "../skeleton_document";
+import { ask_unavailable } from "../agent_asks";
 
 /* One column, one kind of heading. What an Agent is comes first and stays in
    view: its model and its prompt, never folded. Under them, what it is wired
@@ -19,8 +20,11 @@ import { node_bindings } from "../skeleton_document";
    from node to node does not fold them back each time. */
 const DEFAULT_OPEN = ["input"];
 let rememberedOpen = new Set(DEFAULT_OPEN);
+/* The same memory for a FoldBlock, by its own section key. */
+const rememberedFolds = new Map();
 export const resetProcessPanelMemory = () => {
   rememberedOpen = new Set(DEFAULT_OPEN);
+  rememberedFolds.clear();
 };
 
 const MUTED = (isDark) => (isDark ? "#a1a1aa" : "#68686f");
@@ -51,30 +55,39 @@ export function ProblemCount({ count, section, isDark }) {
   );
 }
 
-/* A part that is always open: a quiet caption, then the control. */
-export function Block({ section, title, help, problems = [], aside, isDark, children }) {
+/* Every part folds (the project owner's rule: every section can be opened
+   and closed), from its words and arrow, remembered for the session by
+   section, and opened once by itself when a problem turns up inside it.
+   A Block starts open unless `defaultOpen` is false. `aside` (a count, a
+   length) stays beside the caption whether the part is open or folded. */
+export function Block({ section, title, help, problems = [], aside, defaultOpen = true, isDark, children }) {
+  const id = useId();
+  const reducedMotion = useReducedMotion();
+  const [expanded, setExpanded] = useState(() => (rememberedFolds.has(section) ? rememberedFolds.get(section) : defaultOpen));
+  const toggle = () => setExpanded((old) => {
+    rememberedFolds.set(section, !old);
+    return !old;
+  });
+  const flagged = useRef(false);
+  useEffect(() => {
+    const now = problems.length > 0;
+    if (now && !flagged.current) setExpanded(true);
+    flagged.current = now;
+  }, [problems.length]);
   return (
-    <div role="region" aria-label={title} data-testid={`process-section-${section}`}
-      style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
-      <div data-testid={`process-header-${section}`}
-        style={{ display: "flex", alignItems: "center", gap: 6, minHeight: 22, minWidth: 0 }}>
-        <span style={captionStyle(isDark)}>{title}</span>
-        <ProblemCount count={problems.length} section={section} isDark={isDark} />
-        {help && <span style={{ display: "inline-flex", flexShrink: 0, marginLeft: -2 }}>
-          <PanelHelp label={title}>{help}</PanelHelp>
-        </span>}
-        {/* The same place a folded part keeps its row count. */}
-        {aside !== undefined && <span data-testid={`process-aside-${section}`}
-          style={{ marginLeft: "auto", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-            fontSize: 11.5, fontVariantNumeric: "tabular-nums", color: MUTED(isDark),
-            userSelect: "none", WebkitUserSelect: "none" }}>{aside}</span>}
-      </div>
+    <Disclosure id={id} section={section} title={title} help={help} aside={aside} problems={problems}
+      expanded={expanded} onToggle={toggle} isDark={isDark} reducedMotion={reducedMotion}>
       {children}
-    </div>
+    </Disclosure>
   );
 }
 
-function Disclosure({ id, section, title, summary, problems, expanded, onToggle, isDark, reducedMotion, children }) {
+/* A part that starts folded. */
+export function FoldBlock({ defaultOpen = false, ...props }) {
+  return <Block defaultOpen={defaultOpen} {...props} />;
+}
+
+function Disclosure({ id, section, title, help, summary, aside, problems, expanded, onToggle, isDark, reducedMotion, children }) {
   return (
     // No hover surface and no card.
     <div data-testid={`process-disclosure-${section}`} style={{ minWidth: 0, backgroundColor: "transparent" }}>
@@ -95,13 +108,21 @@ function Disclosure({ id, section, title, summary, problems, expanded, onToggle,
             transition: reducedMotion ? "none" : "transform 200ms cubic-bezier(0.32,0.72,0,1)" }} />
         </button>
         <ProblemCount count={problems.length} section={section} isDark={isDark} />
+        {help && <span style={{ display: "inline-flex", flexShrink: 0, marginLeft: 4 }}>
+          <PanelHelp label={title}>{help}</PanelHelp>
+        </span>}
+        {/* Open or folded, the same place keeps a Block's count. */}
+        {aside !== undefined && <span data-testid={`process-aside-${section}`}
+          style={{ marginLeft: "auto", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+            fontSize: 11.5, fontVariantNumeric: "tabular-nums", color: MUTED(isDark),
+            userSelect: "none", WebkitUserSelect: "none" }}>{aside}</span>}
         {/* Folded, the row still says what is inside. */}
-        <span data-testid={`process-summary-${section}`} aria-hidden={expanded ? true : undefined}
+        {summary !== undefined && <span data-testid={`process-summary-${section}`} aria-hidden={expanded ? true : undefined}
           style={{ marginLeft: "auto", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
             fontSize: 11.5, fontVariantNumeric: "tabular-nums", color: MUTED(isDark), pointerEvents: "none",
             opacity: expanded ? 0 : 1, transition: reducedMotion ? "none" : "opacity 160ms ease" }}>
           {summary}
-        </span>
+        </span>}
       </div>
       <div id={id} role="region" aria-label={title} aria-hidden={!expanded} inert={!expanded}
         data-testid={`process-section-${section}`}
@@ -114,6 +135,24 @@ function Disclosure({ id, section, title, summary, problems, expanded, onToggle,
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/* "Advanced: Edit as JSON": the Agent's JSON Output editor, kept mounted
+   (it holds unstored text) and shown on request. */
+function AdvancedSchema({ open, onToggle, isDark, children }) {
+  const { t } = useTranslation();
+  return (
+    <div data-testid="agent-output-advanced" style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }}>
+      <button type="button" aria-expanded={open} onClick={onToggle} data-testid="agent-output-advanced-toggle"
+        style={{ display: "inline-flex", alignItems: "center", gap: 4, alignSelf: "flex-start", padding: "2px 0",
+          border: 0, background: "transparent", cursor: "pointer", font: "inherit", fontSize: 11,
+          color: MUTED(isDark) }}>
+        <Icon src="arrow_down" color="#86868b" style={{ width: 10, height: 10, transform: open ? "rotate(180deg)" : "none" }} />
+        {t("agents.io.ask.advanced")}
+      </button>
+      <div style={{ display: open ? "flex" : "none", flexDirection: "column", minWidth: 0 }}>{children}</div>
     </div>
   );
 }
@@ -135,6 +174,7 @@ export default function ProcessTimeline({ document, node, revision, isDark, onCh
     rememberedOpen = new Set(next);
     return next;
   });
+  const [advancedSchema, setAdvancedSchema] = useState(false);
   const inputProblems = Object.values(rowDiagnostics?.inputs || {}).flat();
   const outputProblems = Object.values(rowDiagnostics?.outputs || {}).flat();
 
@@ -150,10 +190,16 @@ export default function ProcessTimeline({ document, node, revision, isDark, onCh
 
   const input = <InputVariablesSection document={document} node={node} rowDiagnostics={rowDiagnostics?.inputs}
     isDark={isDark} onChange={onChange} hideHeading addAtEnd breadcrumb />;
+  /* The outputs an author adds and asks for come first; the schema itself,
+     as JSON Output's rows or JSON, waits under Advanced. A schema those rows
+     cannot hold opens it, since that is then the only place to edit it. */
+  const schemaIsJson = ask_unavailable(node) === "agents.io.ask.schema_is_json";
   const output = <>
-    <OutputSchemaSection document={document} node={node} revision={revision} isDark={isDark} onChange={onChange} quiet />
     <OutputVariablesSection document={document} node={node} revision={revision} rowDiagnostics={rowDiagnostics?.outputs}
       isDark={isDark} onChange={onChange} hideHeading addAtEnd breadcrumb />
+    <AdvancedSchema open={advancedSchema || schemaIsJson} onToggle={() => setAdvancedSchema((old) => !old)} isDark={isDark}>
+      <OutputSchemaSection document={document} node={node} revision={revision} isDark={isDark} onChange={onChange} quiet />
+    </AdvancedSchema>
   </>;
   return <KernelSection document={document} node={node} revision={revision} isDark={isDark} onChange={onChange}
     renderSections={({ modelPicker, advanced, prompt, promptHelp, promptSummary, modelProblems, promptProblems }) => {
@@ -165,8 +211,14 @@ export default function ProcessTimeline({ document, node, revision, isDark, onCh
       ];
       return (
         <div data-testid="process-detail-timeline" style={{ display: "flex", flexDirection: "column", gap: 20, minWidth: 0 }}>
-          {/* One Kernel editor, laid out in three places. */}
+          {/* One Kernel editor, laid out in three places. Inputs come first
+              and outputs last, on every node's page. */}
           <div data-testid="skeleton-kernel" style={{ display: "contents" }}>
+            <div data-testid="process-wiring" style={{ display: "contents" }}>
+            <Disclosure key={wiring[0].key} id={`${id}-${wiring[0].key}`} section={wiring[0].key} title={wiring[0].title}
+              summary={wiring[0].summary} problems={wiring[0].problems}
+              expanded={open.has(wiring[0].key)} onToggle={() => toggle(wiring[0].key)}
+              isDark={isDark} reducedMotion={reducedMotion}>{wiring[0].content}</Disclosure>
             <Block section="model" title={t("agents.inspector.model")} problems={modelProblems} isDark={isDark}>
               {modelPicker}
             </Block>
@@ -177,16 +229,13 @@ export default function ProcessTimeline({ document, node, revision, isDark, onCh
               aside={t("agents.execution.kernel.prompt_characters", { count: Array.from(typeof promptSummary === "string" ? promptSummary : "").length })}>
               {prompt}
             </Block>
-            <div data-testid="process-wiring" style={{ display: "flex", flexDirection: "column", gap: 20, minWidth: 0 }}>
-              {wiring.map((section) => (
-                <Disclosure key={section.key} id={`${id}-${section.key}`} section={section.key} title={section.title}
-                  summary={section.summary} problems={section.problems}
-                  expanded={open.has(section.key)} onToggle={() => toggle(section.key)}
-                  isDark={isDark} reducedMotion={reducedMotion}>{section.content}</Disclosure>
-              ))}
-            </div>
             <div data-testid="process-advanced" style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
               {advanced}
+            </div>
+            <Disclosure key={wiring[1].key} id={`${id}-${wiring[1].key}`} section={wiring[1].key} title={wiring[1].title}
+              summary={wiring[1].summary} problems={wiring[1].problems}
+              expanded={open.has(wiring[1].key)} onToggle={() => toggle(wiring[1].key)}
+              isDark={isDark} reducedMotion={reducedMotion}>{wiring[1].content}</Disclosure>
             </div>
           </div>
         </div>

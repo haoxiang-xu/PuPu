@@ -61,23 +61,24 @@ beforeEach(() => {
   kernel_profiles.mockResolvedValue({ ok: true, data: { profiles: [profile, otherProfile], unavailable: [] } });
 });
 
-test.each([false, true])("Model and Prompt are always in view; Input and Output fold on the rail (dark=%s)", async (dark) => {
+test.each([false, true])("every part folds; Input comes first and Output last (dark=%s)", async (dark) => {
   const { changed } = await show({ dark });
   const panel = screen.getByTestId("process-detail-timeline");
-  /* what the Agent is: there without a click, and with nothing to fold */
+  /* what the Agent is: open without a click, and it folds like every part */
   expect(screen.getByRole("region", { name: "Model", exact: true })).toBeVisible();
   const prompt = screen.getByRole("region", { name: "Prompt", exact: true });
   expect(within(prompt).getByRole("textbox")).toHaveValue("Read {{#input.question#}}.");
-  expect(within(panel).queryByRole("button", { name: "Model", exact: true })).toBeNull();
-  expect(within(panel).queryByRole("button", { name: "Prompt", exact: true })).toBeNull();
+  expect(within(panel).getByRole("button", { name: "Model", exact: true })).toHaveAttribute("aria-expanded", "true");
+  expect(within(panel).getByRole("button", { name: "Prompt", exact: true })).toHaveAttribute("aria-expanded", "true");
   /* what it is wired to: two disclosures, in the order values flow */
   const wiring = screen.getByTestId("process-wiring");
   const titles = ["Input Variables", "Output Variables"];
   const buttons = within(wiring).getAllByRole("button").filter((button) => titles.includes(button.getAttribute("aria-label")));
   expect(buttons.map((button) => button.getAttribute("aria-label"))).toEqual(titles);
   expect(buttons.map((button) => button.getAttribute("aria-expanded"))).toEqual(["true", "false"]);
-  /* Model, then Prompt, then the wiring, then the rarely touched limits */
-  const order = [screen.getByTestId("process-section-model"), prompt, wiring, screen.getByTestId("process-advanced")];
+  /* Input first, then Model, Prompt, the rarely touched limits, and Output last */
+  const order = [screen.getByTestId("process-section-input"), screen.getByTestId("process-section-model"), prompt,
+    screen.getByTestId("process-advanced"), screen.getByTestId("process-section-output")];
   order.slice(1).forEach((element, index) =>
     expect(order[index].compareDocumentPosition(element) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy());
   expect(within(panel).queryByText(/^Step [12]$|^Start$|^End$/)).not.toBeInTheDocument();
@@ -232,8 +233,9 @@ test("list add actions follow the rows and still preserve the rest of the docume
   fireEvent.click(addInput);
   fireEvent.click(screen.getByRole("button", { name: "Output Variables", exact: true }));
   const output = screen.getByRole("region", { name: "Output Variables", exact: true });
-  const addOutput = within(output).getByRole("button", { name: "+ Add output", exact: true });
-  expect(addOutput).toHaveTextContent("+ Add output");
+  /* An Agent's outputs are added three ways; passing a value on is the plain one. */
+  const addOutput = within(output).getByRole("button", { name: "+ Pass on an input", exact: true });
+  expect(addOutput).toHaveTextContent("+ Pass on an input");
   expect(within(output).getByDisplayValue("answer").compareDocumentPosition(addOutput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   fireEvent.click(addOutput);
   const saved = changed.mock.calls.at(-1)[0];
@@ -351,4 +353,43 @@ test("the Prompt caption says how long the prompt is, and keeps up with typing",
   const box = within(screen.getByRole("region", { name: "Prompt", exact: true })).getByRole("textbox");
   fireEvent.change(box, { target: { value: "你好🙂" } });
   expect(aside).toHaveTextContent("3 characters");
+});
+
+test("Ask the agent for…: a named, typed, described output the agent produces", async () => {
+  const { changed } = await show();
+  fireEvent.click(screen.getByRole("button", { name: "Output Variables", exact: true }));
+  const output = screen.getByRole("region", { name: "Output Variables", exact: true });
+  expect(screen.queryByTestId("agent-ask-json-note")).toBeNull();
+  fireEvent.click(within(output).getByRole("button", { name: "+ Ask the agent for…", exact: true }));
+  const row = within(screen.getByTestId("ask-output-1"));
+  fireEvent.change(row.getByLabelText("name"), { target: { value: "summary" } });
+  fireEvent.change(row.getByLabelText("What the agent should produce"), { target: { value: "One sentence about the question" } });
+  fireEvent.change(row.getByLabelText("Choose value"), { target: { value: "list" } });
+  const saved = changed.mock.calls.at(-1)[0].nodes[1].config;
+  expect(saved.kernel.json_schema).toEqual({
+    type: "object",
+    properties: { summary: { type: "array", description: "One sentence about the question", items: { type: "string" } } },
+    required: ["summary"],
+    additionalProperties: false,
+  });
+  expect(saved.execution.outputs).toEqual([
+    { name: "answer", source: { kind: "result", path: ["message"] } },
+    { name: "summary", source: { kind: "result", path: ["summary"] } },
+  ]);
+  expect(screen.getByTestId("agent-ask-json-note")).toHaveTextContent("JSON object");
+  /* The schema itself waits under Advanced. */
+  expect(screen.getByTestId("agent-output-advanced-toggle")).toHaveAttribute("aria-expanded", "false");
+  fireEvent.click(row.getByRole("button", { name: "Remove summary" }));
+  const after = changed.mock.calls.at(-1)[0].nodes[1].config;
+  expect(after.kernel.json_schema).toBeNull();
+  expect(after.execution.outputs).toEqual([{ name: "answer", source: { kind: "result", path: ["message"] } }]);
+});
+
+test("a model that cannot answer in a structure cannot be asked, and says why", async () => {
+  const noJson = JSON.parse(JSON.stringify(seed));
+  noJson.nodes[1].config.kernel.profile.capabilities.json_schema = false;
+  await show({ document: noJson });
+  fireEvent.click(screen.getByRole("button", { name: "Output Variables", exact: true }));
+  expect(screen.getByRole("button", { name: "+ Ask the agent for…", exact: true })).toBeDisabled();
+  expect(screen.getByTestId("agent-ask-unavailable")).toHaveTextContent("cannot answer in a fixed structure");
 });

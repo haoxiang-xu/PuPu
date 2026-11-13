@@ -5,9 +5,11 @@ import { api } from "../../../../SERVICEs/api";
 import { writeResourcePresentation } from "../../../../SERVICEs/agent_resource_presentation_store";
 import { resetAgentFolderStorageForTests } from "../../../../SERVICEs/agent_folder_storage";
 
-/* An Agent row in the side menu wears the Agent's own icon and colour, read
-   from the stored summary's `presentation`; "Change icon…" writes through the
-   resource store for an Agent that may not be open. */
+/* An Agent row in the side menu wears the Agent's own icon, read from the
+   stored summary's `presentation`, always in the row's text colour (a legacy
+   stored colour is never drawn); "Change icon…" — the only place the icon is
+   changed — writes `{ icon }` through the resource store for an Agent that
+   may not be open. */
 
 jest.mock("../../use_presentation_capability", () => ({
   ...jest.requireActual("../../use_presentation_capability"),
@@ -66,7 +68,7 @@ beforeEach(() => {
   writeResourcePresentation.mockReset();
 });
 
-test("rows draw each Agent's stored icon and colour, and the default for none or an unknown one", async () => {
+test("rows draw each Agent's stored icon, never its colour, and the default for none or an unknown one", async () => {
   api.unchain.listSkeletonResources = jest.fn().mockResolvedValue([
     agent("constructor", { presentation: { icon: "robot_face", color: "#2E8F5A" } }),
     agent("plain"),
@@ -76,15 +78,15 @@ test("rows draw each Agent's stored icon and colour, and the default for none or
   render(<AgentExplorer {...props()} />);
   await screen.findByTestId("row-resource:constructor");
   expect(avatar("constructor").getAttribute("data-agent-icon")).toBe("robot_face");
-  expect(avatar("constructor").getAttribute("data-agent-color")).toBe("#2e8f5a");
+  expect(avatar("constructor").getAttribute("data-agent-tint")).toBe("currentColor");
+  expect(avatar("constructor").style.background).toBe("");
   expect(avatar("plain").getAttribute("data-agent-icon")).toBe("bot");
   /* list rows: no tile; an un-customised Agent keeps the row's own colour */
   expect(avatar("plain").getAttribute("data-agent-variant")).toBe("glyph");
-  expect(avatar("plain").getAttribute("data-agent-color")).toBe("");
   expect(avatar("plain").getAttribute("data-agent-tint")).toBe("currentColor");
   expect(avatar("plain").style.background).toBe("");
   expect(avatar("odd").getAttribute("data-agent-icon")).toBe("bot");
-  expect(avatar("odd").getAttribute("data-agent-color")).toBe("");
+  expect(avatar("odd").getAttribute("data-agent-tint")).toBe("currentColor");
   /* A Workflow keeps its flow glyph. */
   expect(screen.queryByTestId("agent-explorer-avatar-wf")).toBeNull();
   expect(screen.getByTestId("row-resource:wf").getAttribute("data-prefix-icon")).toBe("workflow");
@@ -105,6 +107,21 @@ test("Change icon… writes through the resource store and re-reads the library"
   /* Shown on the row at once, then read back from the store. */
   expect(avatar("a1").getAttribute("data-agent-icon")).toBe("deepseek");
   await waitFor(() => expect(api.unchain.listSkeletonResources).toHaveBeenCalledTimes(2));
+});
+
+test("saving an icon over a legacy icon and colour writes { icon } alone", async () => {
+  api.unchain.listSkeletonResources = jest.fn().mockResolvedValue([agent("a1", { presentation: { icon: "kimi", color: "#d23f37" } })]);
+  writeResourcePresentation.mockResolvedValue({ ok: true });
+  render(<AgentExplorer {...props()} />);
+  await screen.findByTestId("row-resource:a1");
+  fireEvent.click(screen.getByTestId("menu-resource:a1"));
+  fireEvent.click(within(screen.getByTestId("context-menu")).getByRole("button", { name: "Change icon…" }));
+  const picker = screen.getByTestId("agent-explorer-icon-picker");
+  expect(within(picker).getByTestId("agent-explorer-icon-picker-icon-kimi")).toHaveAttribute("aria-pressed", "true");
+  fireEvent.click(within(picker).getByTestId("agent-explorer-icon-picker-icon-deepseek"));
+  fireEvent.click(within(picker).getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(writeResourcePresentation).toHaveBeenCalledTimes(1));
+  expect(writeResourcePresentation.mock.calls[0][1]).toStrictEqual({ icon: "deepseek" });
 });
 
 test("Reset to default, then Save, removes the stored presentation", async () => {
@@ -130,7 +147,7 @@ test.each(["source_api_required", "presentation_unsupported", "edit_conflict"])(
   await screen.findByTestId("row-resource:a1");
   fireEvent.click(screen.getByTestId("menu-resource:a1"));
   fireEvent.click(within(screen.getByTestId("context-menu")).getByRole("button", { name: "Change icon…" }));
-  fireEvent.click(screen.getByTestId("agent-explorer-icon-picker-color-d23f37"));
+  fireEvent.click(screen.getByTestId("agent-explorer-icon-picker-icon-kimi"));
   fireEvent.click(within(screen.getByTestId("agent-explorer-icon-picker")).getByRole("button", { name: "Save" }));
   await waitFor(() => expect(mockToastErrors).toHaveLength(1));
   render(<div data-testid="toast">{mockToastErrors[0]}</div>);

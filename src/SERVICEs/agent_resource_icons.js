@@ -1,58 +1,43 @@
-// An Agent's icon and colour: the one place that knows their shape.
+// An Agent resource's icon: the one place that knows its shape.
 //
-// They are stored IN the Agent's Skeleton document, as the optional top-level
-// key `presentation` = { icon?: <catalogue id>, color?: "#rrggbb" lowercase }.
-// Absent means the default (the bot on the Agent blue). This module never
-// stores anything itself: it reads the `presentation` a view already has (a
-// resource summary from listSkeletonResources, the open editor's document,
-// or an embedded subagent's `source.document`) and writes through a writer the
-// caller injects — the editor's document-change path, the pool panel's entry
-// write, or the resource store for an Agent that is not open.
+// It is stored IN the Agent's Skeleton document, as the optional top-level
+// key `presentation` = { icon?: <catalogue id>, color?: "#rrggbb" }. Absent
+// means the default (the bot). PuPu is icon-only: it writes `{ icon }` and
+// nothing else, and never draws a stored `color` — a document written by an
+// older build that chose one still loads, and draws in the default colours.
+// The icon belongs to the Agent RESOURCE (the Explorer, the Subagent Pool's
+// roster and library); an Agent NODE always wears the fixed node identity.
 //
-// The shape is CLOSED. Reading drops any other key, an icon id that is not in
-// the catalogue and a colour that is not in the palette below, and never
-// throws: a resource written by a newer or older build still draws (with the
-// default for what it does not know), and stored data is never rewritten on
-// read. Writing sends only what reading would keep, so a value written here
-// reads back the same everywhere.
+// This module never stores anything itself: it reads the `presentation` a
+// view already has (a resource summary from listSkeletonResources or an
+// embedded subagent's `source.document`) and writes through a writer the
+// caller injects (the resource store, from the Explorer).
 //
-// The palette is a PuPu decision, narrower than the stored format: the
-// runtime admits any "#rrggbb", PuPu offers and writes only these.
+// Reading drops any other key and an icon id that is not in the catalogue,
+// and never throws: a resource written by a newer or older build still draws
+// (with the default for what it does not know), and stored data is never
+// rewritten on read.
 
 import { DEFAULT_AGENT_ICON, is_agent_icon_id } from "../COMPONENTs/agents/agent_icons";
 
+/* The colour every Agent tile wears — the Agent node blue. Not a choice. */
 export const DEFAULT_AGENT_COLOR = "#4a5bd8";
-/* Every colour meets 3:1 against the dark (#1e1e1e) and light (#f5f5f5) list
-   backgrounds and against a white glyph (agent_resource_icons.test.js). The
-   default is first. */
-export const AGENT_PRESET_COLORS = Object.freeze([
-  "#4a5bd8", "#7c4dd8", "#3a7bd5", "#1d8798", "#2e8f5a", "#b3820b",
-  "#d9622b", "#d23f37", "#c0398f", "#b94a74", "#6e6e73",
-]);
 export const DEFAULT_AGENT_PRESENTATION = Object.freeze({ icon: DEFAULT_AGENT_ICON, color: DEFAULT_AGENT_COLOR });
-export const PRESENTATION_KEYS = Object.freeze(["icon", "color"]);
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
 const isRecord = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 const own = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
 
-/* A palette colour, lowercased; anything else (including well-formed hex
-   outside the palette) is null. */
-export const normalize_color = (value) => {
-  if (typeof value !== "string" || !HEX.test(value)) return null;
-  const color = value.toLowerCase();
-  return AGENT_PRESET_COLORS.includes(color) ? color : null;
-};
-
-/* {icon?, color?} with only valid keys, or null when nothing valid is left. */
+/* {icon?, color?} with only valid keys, or null when nothing valid is left.
+   A legacy `color` in the stored format is kept so the value reads back as
+   stored; nothing draws it. */
 export function normalize_presentation(raw) {
   if (!isRecord(raw)) return null;
   const out = {};
   try {
     if (own(raw, "icon") && is_agent_icon_id(raw.icon)) out.icon = raw.icon;
-    if (own(raw, "color")) {
-      const color = normalize_color(raw.color);
-      if (color) out.color = color;
+    if (own(raw, "color") && typeof raw.color === "string" && HEX.test(raw.color)) {
+      out.color = raw.color.toLowerCase();
     }
   } catch (_error) {
     return null; // a getter that throws reads as no presentation
@@ -60,36 +45,23 @@ export function normalize_presentation(raw) {
   return Object.keys(out).length > 0 ? out : null;
 }
 
-/* What to draw: every key present, defaults filled in. */
+/* What to draw: the stored icon (or the default), always on the default
+   colour — a stored colour is never drawn. */
 export function resolve_presentation(raw) {
   const stored = normalize_presentation(raw);
   return {
     icon: stored && stored.icon ? stored.icon : DEFAULT_AGENT_PRESENTATION.icon,
-    color: stored && stored.color ? stored.color : DEFAULT_AGENT_PRESENTATION.color,
+    color: DEFAULT_AGENT_PRESENTATION.color,
   };
 }
 
-/* The value a writer should store: null means "remove the key". A value equal
-   to the default is still stored as chosen — the user picked it. */
-export const presentation_to_store = (raw) => normalize_presentation(raw);
-
-/* A document with `presentation` set (or removed for null). Returns the same
-   document when nothing would change, so an editor sees no edit. */
-export function with_document_presentation(document, presentation) {
-  if (!isRecord(document)) return document;
-  const next = presentation_to_store(presentation);
-  const current = own(document, "presentation") ? document.presentation : undefined;
-  if (next === null) {
-    if (current === undefined) return document;
-    const { presentation: _dropped, ...rest } = document;
-    return rest;
-  }
-  if (isRecord(current) && Object.keys(current).length === Object.keys(next).length &&
-    Object.keys(next).every((key) => current[key] === next[key])) {
-    return document;
-  }
-  return { ...document, presentation: next };
-}
+/* The value a writer should store: `{ icon }` for a chosen icon other than
+   the default, or null — remove the key, use the default. A stored colour is
+   never written back, so saving drops a legacy one. */
+export const presentation_to_store = (raw) => {
+  const stored = normalize_presentation(raw);
+  return stored && stored.icon && stored.icon !== DEFAULT_AGENT_ICON ? { icon: stored.icon } : null;
+};
 
 /* ── change notification ─────────────────────────────────────────────── */
 const listeners = new Set();

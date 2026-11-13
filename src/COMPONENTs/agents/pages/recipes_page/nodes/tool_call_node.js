@@ -3,6 +3,7 @@ import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use
 import { node_display_title } from "../node_display_labels";
 import React from "react";
 import PuzzleShape from "./puzzle_shape";
+import { node_caption } from "./node_caption";
 import NodeHeader, { NodeBody } from "./node_header";
 import { NODE_PORT_ANCHOR } from "./node_metrics";
 import { safe_text } from "../document_values";
@@ -40,7 +41,7 @@ function value_label(binding, t = agentEnglishText) {
   return { bound: false, text: "?" };
 }
 
-export default function ToolCallNode({ node, isDark }) {
+export default function ToolCallNode({ node, isDark, rename }) {
   const { t } = useTranslation();
   const tool = tool_settings(node);
   const name = tool && typeof tool.name === "string" && tool.name ? tool.name : null;
@@ -50,6 +51,10 @@ export default function ToolCallNode({ node, isDark }) {
   const overflow = rows.length - shown.length;
   const muted = "var(--pupu-text-muted)";
   const text = "var(--pupu-text)";
+  /* Unnamed, the node is titled by its tool in the code typeface; once the
+     author names it, the tool moves to the line below. */
+  const named = node_display_title(node, "") !== "";
+  const title = node_display_title(node, name ? safe_text(name) : t("agents.nodes.tool_call"));
 
   return (
     <div data-testid={`tool-call-node-${node.id}`} style={{ width: 210 }}>
@@ -58,9 +63,10 @@ export default function ToolCallNode({ node, isDark }) {
           <NodeHeader
             src="tool"
             tile={{ background: "#ea7547" }}
-            title={node_display_title(node, name ? safe_text(name) : t("agents.nodes.tool_call"))}
-            titleStyle={name ? { fontFamily: "ui-monospace, Menlo, monospace" } : undefined}
-            subtitle={name ? t("agents.nodes.tool_call") : t("agents.nodes.tool_call_pick")}
+            title={title}
+            titleStyle={name && !named ? { fontFamily: "ui-monospace, Menlo, monospace" } : undefined}
+            subtitle={node_caption({ type: "tool_call", title, summary: name ? safe_text(name) : t("agents.nodes.pick_tool") }, t)}
+            rename={rename}
           />
           {shown.length > 0 && (
             <div style={{ marginTop: 8, paddingTop: 6, borderTop: "1px solid var(--pupu-border-subtle)", display: "flex", flexDirection: "column", gap: 2 }}>

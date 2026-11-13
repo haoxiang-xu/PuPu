@@ -1046,9 +1046,7 @@
     },
     "icon_picker": {
       "title": "Agent 圖示",
-      "change": "更換圖示",
       "icon": "圖示",
-      "color": "顏色",
       "reset": "恢復預設",
       "groups": {
         "robots": "機器人",
@@ -1135,7 +1133,6 @@
         "insert_here": "在此處插入節點…",
         "delete_connection": "刪除連線",
         "open_details": "開啟詳細資料",
-        "rename_unavailable": "無法重新命名 · {reason}",
         "disconnect_node": "中斷節點連線",
         "delete_node": "刪除節點",
         "required_node": "必要節點",
@@ -1147,14 +1144,7 @@
       "redo": "重做（{shortcut}）",
       "center": "置中",
       "go_to_start": "回到開始節點",
-      "escape_up": "按 Esc 返回上一層"
-    },
-    "rename": {
-      "title": "重新命名節點",
-      "close": "關閉重新命名視窗",
-      "name": "節點名稱",
-      "non_blank": "節點標籤不能空白。",
-      "refused": "此次重新命名遭到拒絕。"
+      "escape_back": "按 {key} 返回上一層"
     },
     "palette": {
       "find": "尋找節點",
@@ -1172,7 +1162,6 @@
         "steps": "步驟",
         "attachments": "附加設定"
       },
-      "toolkit_pool": "工具箱集區",
       "graph_agent": "智慧體",
       "graph_workflow": "工作流程",
       "description": {
@@ -1194,22 +1183,22 @@
       "entry": "入口",
       "end": "結束",
       "exit": "出口",
+      "caption_join": "{first} · {second}",
       "if_else": "條件 / 否則",
       "switch_case": "分支 / 比對項目",
       "outlet_undeclared": "此出口已不再宣告。它的連線會阻止執行；請刪除連線或還原該比對項目。",
       "tool_call": "工具呼叫",
-      "tool_call_pick": "工具呼叫 · 請選擇工具",
+      "pick_tool": "請選擇工具",
       "more": "另有 {count} 項",
       "unreadable_source": "無法讀取的來源",
       "first_of": "{count} 個來源中的首個可用值",
       "skill_read": "技能讀取",
-      "skill_read_source": "技能讀取 · {source}",
-      "skill_read_pick": "技能讀取 · 請選擇技能",
+      "pick_skill": "請選擇技能",
       "workflow_call": "工作流程呼叫",
-      "workflow_pin": "工作流程呼叫 · 請釘選修訂版本",
-      "workflow_revision": "工作流程呼叫 · 修訂 {revision}",
-      "workflow_unreadable": "工作流程呼叫 · 無法讀取修訂版本",
-      "workflow_reading": "工作流程呼叫 · 正在讀取修訂版本…",
+      "pin_revision": "請釘選修訂版本",
+      "revision": "修訂 {revision}",
+      "revision_unreadable": "無法讀取修訂版本",
+      "revision_reading": "正在讀取修訂版本…",
       "set": "已設定",
       "missing": "缺失",
       "nothing_exported": "→ 無匯出值",
@@ -1224,7 +1213,7 @@
       "every_tool": "所有工具",
       "hook_workflow_revision": "{name} · 修訂 {revision}",
       "no_workflow": "無工作流程",
-      "toolkit_pool": "工具包集區",
+      "toolkit_pool": "工具箱集區",
       "tool_settings_incomplete": "工具設定不完整",
       "toolkit_count_one": "{count} 個工具包",
       "toolkit_count_other": "{count} 個工具包",
@@ -1235,6 +1224,7 @@
       "subagent_missing": "{name} 已不在智慧體庫中",
       "subagent_unopenable": "無法開啟 {name}",
       "code": {
+        "type": "程式碼",
         "python": "Python"
       }
     },
@@ -1352,7 +1342,27 @@
       "remove_source": "移除來源 {position}",
       "not_produced_named": "{name} — 此處不產生該值",
       "not_produced_unnamed": "（未命名）— 此處不產生該值",
-      "caller_input": "呼叫端輸入"
+      "caller_input": "呼叫端輸入",
+      "ask": {
+        "add_ask": "+ 讓 Agent 產生…",
+        "add_input": "+ 傳出某個輸入",
+        "add_reply": "+ Agent 的回覆",
+        "type_label": "值的類型",
+        "type_text": "文字",
+        "type_number": "數字",
+        "type_whole_number": "整數",
+        "type_yes_no": "是 / 否",
+        "type_list": "文字清單",
+        "description_placeholder": "描述 Agent 應在這裡產出什麼",
+        "description_label": "Agent 應產出什麼",
+        "name_taken": "已有輸出叫 {name}，這個名稱沒有儲存。",
+        "remove": "移除 {name}",
+        "json_note": "只要讓 Agent 產生了任何輸出，它的回覆就會變成包含這些答案的 JSON 物件。如果還想要一段文字回覆，可以再加一個文字輸出，例如 \"reply\"。",
+        "model_cannot": "這個模型無法按固定結構回答，所以不能讓它產生輸出。請選擇支援 JSON 輸出的模型。",
+        "schema_is_json": "這個 Agent 的 JSON Output 寫法超出逐列編輯能表達的範圍，請在「進階」裡編輯。",
+        "no_kernel": "這個 Agent 沒有可用的模型設定。",
+        "advanced": "進階：以 JSON 編輯"
+      }
     },
     "schema": {
       "required": "必要",
@@ -2178,12 +2188,9 @@
       "caption": "唯讀：{name} 的修訂版 {ordinal} · {id}。執行使用的正是此修訂版；此處不編輯或儲存任何內容。",
       "store_unreachable": "無法連接儲存服務",
       "open_failed": "無法讀取已固定修訂版：{message}。未開啟任何內容。",
-      "changed": "讀取修訂版時，固定參照已變更，因此未開啟任何內容。請重新開啟以查看目前固定的修訂版。",
-      "via_label": "工作流程呼叫"
+      "changed": "讀取修訂版時，固定參照已變更，因此未開啟任何內容。請重新開啟以查看目前固定的修訂版。"
     },
     "drill": {
-      "subagent_pool": "子智慧體池",
-      "hooks_pool": "Hooks 池",
       "that_subagent": "該子智慧體",
       "that_hook": "該 Hook",
       "embedded_checked": "儲存此圖時會進行檢查，問題會在此處顯示。執行父智慧體時會檢查更多內容：屆時才會讀取其池中參照的智慧體。",
@@ -2477,8 +2484,7 @@
       "observation_failed": "無法讀取已記錄的執行。",
       "observation_rejected": "無法更新執行詳情。",
       "edit_refused": "此次編輯遭到拒絕。",
-      "rename_missing": "選取的節點已不存在，或其 id 與其他節點重複。",
-      "rename_view_closed": "此圖已不處於可重新命名的開啟狀態。"
+      "rename_missing": "選取的節點已不存在，或其 id 與其他節點重複。"
     },
     "local_validation": {
       "object_required": "應為物件",

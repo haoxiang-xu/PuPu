@@ -445,7 +445,7 @@ function target_titles(targets, t) {
 
 /* The step an outlet goes to, as a tag; a removed step in plain muted words;
    a red Not connected when there is none — a run needs every outlet wired. */
-function Target({ targets, presentation, testid, isDark, t }) {
+function Target({ targets, testid, isDark, t }) {
   if (targets.length === 0) {
     return (
       <span data-testid={testid} style={{ minWidth: 0, fontSize: 11.5, lineHeight: "18px", overflow: "hidden",
@@ -458,7 +458,7 @@ function Target({ targets, presentation, testid, isDark, t }) {
     <span data-testid={testid} title={target_titles(targets, t).join(t("agents.schema.fields.list_separator"))}
       style={{ display: "flex", alignItems: "center", gap: 4, minWidth: 0, overflow: "hidden" }}>
       {targets.map((target, at) => (target && node_identity(target, t) ? (
-        <NodeTag key={at} node={target} presentation={presentation} isDark={isDark} testid={`${testid}-tag-${at}`}
+        <NodeTag key={at} node={target} isDark={isDark} testid={`${testid}-tag-${at}`}
           style={{ flexShrink: at === 0 ? 1 : 0 }} />
       ) : (
         <span key={at} data-testid={`${testid}-removed-${at}`} style={{ minWidth: 0, fontSize: 11.5, lineHeight: "18px",
@@ -665,10 +665,6 @@ function SwitchEditor({ document, node, execution, names, write, onChange, disab
   const case_targets = readable_cases ? cases.map((entry) => (is_record(entry) && typeof entry.id === "string" && entry.id
     ? outlet_targets(document, node.id, entry.id) : null)) : [];
   const default_targets = outlet_targets(document, node.id, "default");
-  /* The Agent node of an Agent document is that Agent: its tag wears the
-     Agent's own icon and colour, as the canvas draws it. */
-  const presentation = is_record(document) && document.kind === "agent" && has_own(document, "presentation")
-    ? document.presentation : null;
   /* Everything a run would stop on: each case's own refusals, each case and
      the Default with nowhere to go, and a missing case list. */
   const case_block_problems = [
@@ -732,7 +728,7 @@ function SwitchEditor({ document, node, execution, names, write, onChange, disab
                       </div>
                       <CaseArrow isDark={isDark} />
                       <div style={CASE_TARGET_CELL}>
-                        {readable && <Target targets={targets} presentation={presentation} testid={`${testid}-target`} isDark={isDark} t={t} />}
+                        {readable && <Target targets={targets} testid={`${testid}-target`} isDark={isDark} t={t} />}
                       </div>
                     </div>
                     <Button prefix_icon="close" ariaLabel={t("agents.execution.branch.remove_case", { value1: index + 1 })} disabled={disabled}
@@ -774,7 +770,7 @@ function SwitchEditor({ document, node, execution, names, write, onChange, disab
                   </div>
                   <CaseArrow isDark={isDark} />
                   <div style={CASE_TARGET_CELL}>
-                    <Target targets={default_targets} presentation={presentation} testid="branch-case-default-target" isDark={isDark} t={t} />
+                    <Target targets={default_targets} testid="branch-case-default-target" isDark={isDark} t={t} />
                   </div>
                 </div>
               </div>

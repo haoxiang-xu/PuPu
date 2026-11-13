@@ -1046,9 +1046,7 @@
     },
     "icon_picker": {
       "title": "Agent 图标",
-      "change": "更换图标",
       "icon": "图标",
-      "color": "颜色",
       "reset": "恢复默认",
       "groups": {
         "robots": "机器人",
@@ -1135,7 +1133,6 @@
         "insert_here": "在此处插入节点…",
         "delete_connection": "删除连接",
         "open_details": "打开详情",
-        "rename_unavailable": "无法重命名 · {reason}",
         "disconnect_node": "断开节点连线",
         "delete_node": "删除节点",
         "required_node": "必需节点",
@@ -1147,14 +1144,7 @@
       "redo": "重做（{shortcut}）",
       "center": "居中",
       "go_to_start": "回到开始节点",
-      "escape_up": "按 Esc 返回上一级"
-    },
-    "rename": {
-      "title": "重命名节点",
-      "close": "关闭重命名窗口",
-      "name": "节点名称",
-      "non_blank": "节点名称不能为空。",
-      "refused": "此次重命名被拒绝。"
+      "escape_back": "按 {key} 返回上一级"
     },
     "palette": {
       "find": "查找节点",
@@ -1172,7 +1162,6 @@
         "steps": "步骤",
         "attachments": "附加配置"
       },
-      "toolkit_pool": "工具箱池",
       "graph_agent": "智能体",
       "graph_workflow": "工作流",
       "description": {
@@ -1194,22 +1183,22 @@
       "entry": "入口",
       "end": "结束",
       "exit": "出口",
+      "caption_join": "{first} · {second}",
       "if_else": "条件 / 否则",
       "switch_case": "分支 / 匹配项",
       "outlet_undeclared": "此出口已不再声明。它的连接会阻止运行；请删除连接或恢复该匹配项。",
       "tool_call": "工具调用",
-      "tool_call_pick": "工具调用 · 请选择工具",
+      "pick_tool": "请选择工具",
       "more": "另有 {count} 项",
       "unreadable_source": "无法读取的来源",
       "first_of": "依次取 {count} 个来源中的首个可用值",
       "skill_read": "技能读取",
-      "skill_read_source": "技能读取 · {source}",
-      "skill_read_pick": "技能读取 · 请选择技能",
+      "pick_skill": "请选择技能",
       "workflow_call": "工作流调用",
-      "workflow_pin": "工作流调用 · 请固定修订版本",
-      "workflow_revision": "工作流调用 · 修订 {revision}",
-      "workflow_unreadable": "工作流调用 · 无法读取修订版本",
-      "workflow_reading": "工作流调用 · 正在读取修订版本…",
+      "pin_revision": "请固定修订版本",
+      "revision": "修订 {revision}",
+      "revision_unreadable": "无法读取修订版本",
+      "revision_reading": "正在读取修订版本…",
       "set": "已设置",
       "missing": "缺失",
       "nothing_exported": "→ 无导出值",
@@ -1224,7 +1213,7 @@
       "every_tool": "所有工具",
       "hook_workflow_revision": "{name} · 修订 {revision}",
       "no_workflow": "无工作流",
-      "toolkit_pool": "工具包池",
+      "toolkit_pool": "工具箱池",
       "tool_settings_incomplete": "工具设置不完整",
       "toolkit_count_one": "{count} 个工具包",
       "toolkit_count_other": "{count} 个工具包",
@@ -1235,6 +1224,7 @@
       "subagent_missing": "{name} 已不在智能体库中",
       "subagent_unopenable": "无法打开 {name}",
       "code": {
+        "type": "代码",
         "python": "Python"
       }
     },
@@ -1352,7 +1342,27 @@
       "remove_source": "移除来源 {position}",
       "not_produced_named": "{name} — 此处不产生该值",
       "not_produced_unnamed": "（未命名）— 此处不产生该值",
-      "caller_input": "调用方输入"
+      "caller_input": "调用方输入",
+      "ask": {
+        "add_ask": "+ 让 Agent 生成…",
+        "add_input": "+ 传出某个输入",
+        "add_reply": "+ Agent 的回复",
+        "type_label": "值的类型",
+        "type_text": "文本",
+        "type_number": "数字",
+        "type_whole_number": "整数",
+        "type_yes_no": "是 / 否",
+        "type_list": "文本列表",
+        "description_placeholder": "描述 Agent 应在这里产出什么",
+        "description_label": "Agent 应产出什么",
+        "name_taken": "已有输出叫 {name}，这个名字没有保存。",
+        "remove": "移除 {name}",
+        "json_note": "只要让 Agent 生成了任何输出，它的回复就会变成包含这些答案的 JSON 对象。如果还想要一段文字回复，可以再加一个文本输出，比如 \"reply\"。",
+        "model_cannot": "这个模型不能按固定结构回答，所以不能让它生成输出。请选择支持 JSON 输出的模型。",
+        "schema_is_json": "这个 Agent 的 JSON Output 写法超出了逐行编辑能表达的范围，请在“高级”里编辑。",
+        "no_kernel": "这个 Agent 没有可用的模型设置。",
+        "advanced": "高级：以 JSON 编辑"
+      }
     },
     "schema": {
       "required": "必需",
@@ -2178,12 +2188,9 @@
       "caption": "只读：{name} 的版本 {ordinal} · {id}。运行使用的正是此版本；此处不会编辑或保存任何内容。",
       "store_unreachable": "无法连接存储服务",
       "open_failed": "无法读取已固定版本：{message}。未打开任何内容。",
-      "changed": "读取版本期间固定引用已更改，因此未打开任何内容。请重新打开以查看当前固定的版本。",
-      "via_label": "工作流调用"
+      "changed": "读取版本期间固定引用已更改，因此未打开任何内容。请重新打开以查看当前固定的版本。"
     },
     "drill": {
-      "subagent_pool": "子智能体池",
-      "hooks_pool": "Hooks 池",
       "legacy_embedded": "内嵌智能体图尚未接通，需要 #356 的定义格式。",
       "legacy_entry": "旧版条目包含提示词，没有图。请先将其转换为智能体。",
       "no_target": "此条目未指向可打开的智能体。",
@@ -2586,8 +2593,7 @@
       "observation_failed": "无法读取已记录的运行。",
       "observation_rejected": "无法更新运行详情。",
       "edit_refused": "此次编辑被拒绝。",
-      "rename_missing": "选中的节点已不存在，或其 id 与其他节点重复。",
-      "rename_view_closed": "此图已不处于可重命名状态。"
+      "rename_missing": "选中的节点已不存在，或其 id 与其他节点重复。"
     },
     "graph": {
       "document_object": "文档必须为对象",

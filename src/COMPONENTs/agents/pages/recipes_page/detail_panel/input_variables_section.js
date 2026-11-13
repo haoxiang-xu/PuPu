@@ -128,14 +128,11 @@ export default function InputVariablesSection({
   const bindings = node_bindings(node);
   const visibleRows = visible_input_rows(document, node, rowDiagnostics);
   const sources = binding_sources(document, node && node.id);
-  /* The step a source names, so its tag wears that step's colour; an Agent
-     node of an Agent document wears the Agent's own presentation. */
+  /* The step a source names, so its tag wears that step's colour. */
   const nodes_by_id = new Map(((document && document.nodes) || []).map((entry) => [entry && entry.id, entry]));
-  const agent_presentation = document && document.kind === "agent" &&
-    Object.prototype.hasOwnProperty.call(document, "presentation") ? document.presentation : null;
   const source_tag = (node_id) => {
     const source_node = nodes_by_id.get(node_id);
-    return source_node ? { node: source_node, presentation: agent_presentation } : null;
+    return source_node ? { node: source_node } : null;
   };
   /* The builder's own check, so a row says what is wrong with it before any
      round trip. It mirrors `resolve_inputs`; it never decides admission. */

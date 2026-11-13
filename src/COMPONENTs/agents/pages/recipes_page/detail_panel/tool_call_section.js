@@ -320,41 +320,6 @@ export default function ToolCallSection({ document, node, isDark, onChange }) {
         </div>
       )}
 
-      <Block section="tool-call-tool" title={t("agents.execution.tool.tool")} isDark={isDark}>
-        <span data-testid="tool-call-picker">
-          <Select
-            options={options}
-            value={selected}
-            set_value={(value) => {
-              const picked = String(value).split(KEY)[1];
-              if (picked && picked !== name) setTool({ ...(tool || {}), name: picked });
-            }}
-            filterable
-            placeholder={library.status === "loading" ? t("agents.execution.tool.reading_library") : t("agents.execution.tool.pick_tool")}
-            disabled={!editable}
-            dropdown_style={{ maxHeight: "min(280px, 40vh)" }}
-            style={FIELD}
-          />
-        </span>
-        {library.status === "error" && (
-          <span data-testid="tool-call-library-error" style={problemOf(isDark)}>{t("agents.execution.tool.library_failed")}<Button label={t("agents.explorer.try_again")} onClick={reloadLibrary} style={{ fontSize: 11.5, paddingVertical: 1, paddingHorizontal: 6 }} />
-          </span>
-        )}
-        {listed && listed.description && <span style={note(isDark)}>{listed.description}</span>}
-        {listed && (
-          <span data-testid="tool-call-confirmation" style={note(isDark)}>
-            {listed.requiresConfirmation
-              ? t("agents.execution.tool.approval_required_note")
-              : t("agents.execution.tool.no_approval_note")}
-          </span>
-        )}
-        {home && tool_availability(document, name, home.toolkitId) === "chat_only" && (
-          <span data-testid="tool-call-availability" style={note(isDark)}>
-            {t("agents.execution.tool.chat_only", { toolkit: home.toolkitName || home.toolkitId })}
-          </span>
-        )}
-      </Block>
-
       <div data-testid="tool-call-arguments" style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
       <Block section="tool-call-arguments" title={t("agents.execution.tool.arguments")} isDark={isDark}>
         {!name && <span style={note(isDark)}>{t("agents.execution.tool.pick_before_arguments")}</span>}
@@ -409,6 +374,41 @@ export default function ToolCallSection({ document, node, isDark, onChange }) {
         </Region>
       </Block>
       </div>
+
+      <Block section="tool-call-tool" title={t("agents.execution.tool.tool")} isDark={isDark}>
+        <span data-testid="tool-call-picker">
+          <Select
+            options={options}
+            value={selected}
+            set_value={(value) => {
+              const picked = String(value).split(KEY)[1];
+              if (picked && picked !== name) setTool({ ...(tool || {}), name: picked });
+            }}
+            filterable
+            placeholder={library.status === "loading" ? t("agents.execution.tool.reading_library") : t("agents.execution.tool.pick_tool")}
+            disabled={!editable}
+            dropdown_style={{ maxHeight: "min(280px, 40vh)" }}
+            style={FIELD}
+          />
+        </span>
+        {library.status === "error" && (
+          <span data-testid="tool-call-library-error" style={problemOf(isDark)}>{t("agents.execution.tool.library_failed")}<Button label={t("agents.explorer.try_again")} onClick={reloadLibrary} style={{ fontSize: 11.5, paddingVertical: 1, paddingHorizontal: 6 }} />
+          </span>
+        )}
+        {listed && listed.description && <span style={note(isDark)}>{listed.description}</span>}
+        {listed && (
+          <span data-testid="tool-call-confirmation" style={note(isDark)}>
+            {listed.requiresConfirmation
+              ? t("agents.execution.tool.approval_required_note")
+              : t("agents.execution.tool.no_approval_note")}
+          </span>
+        )}
+        {home && tool_availability(document, name, home.toolkitId) === "chat_only" && (
+          <span data-testid="tool-call-availability" style={note(isDark)}>
+            {t("agents.execution.tool.chat_only", { toolkit: home.toolkitName || home.toolkitId })}
+          </span>
+        )}
+      </Block>
 
       <div data-testid="tool-call-on-error" style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
       <Block section="tool-call-on-error" title={t("agents.execution.tool.on_error")} isDark={isDark} help={

@@ -342,7 +342,8 @@ describe("the Output Variables section in the panel", () => {
     const caller = screen.getByTestId("skeleton-input-variables");
     expect(caller).toHaveTextContent("Caller input");
     expect(within(caller).getByLabelText("Read-only caller input")).toBeInTheDocument();
-    expect(within(caller).queryByRole("button")).not.toBeInTheDocument();
+    /* Only the part's own fold toggle; no control to edit the caller input. */
+    expect(within(caller).queryAllByRole("button").filter((button) => !String(button.dataset.testid || "").startsWith("process-toggle-"))).toHaveLength(0);
     expect(within(caller).queryByRole("textbox")).not.toBeInTheDocument();
     expect(change).not.toHaveBeenCalled();
     expect(skeleton_document.nodes.find((node) => node.type === "start").config.execution).not.toHaveProperty("inputs");
@@ -767,19 +768,21 @@ describe("the Model section in the panel", () => {
       selectedNodeId: "kernel",
     });
 
-  test("an Agent reads downwards: model, prompt, then inputs, result, outputs", () => {
-    /* What the Agent is stays on top and in view; under it the wiring, in
-       the order values flow. JSON Output belongs to the Output disclosure:
-       its header precedes the schema, the mapping editor follows it. */
+  test("an Agent reads downwards: inputs first, then model, prompt, and outputs last", () => {
+    /* Input Variables come first and Output Variables last on every node's
+       page. JSON Output belongs to the Output disclosure: its header
+       precedes the schema, the mapping editor follows it. */
     open({ execution: { inputs: [], outputs: [] } });
     const text = screen.getByTestId("recipe-detail-panel").textContent;
-    expect(text.indexOf("Model")).toBeGreaterThanOrEqual(0);
+    expect(text.indexOf("Input Variables")).toBeGreaterThanOrEqual(0);
+    expect(text.indexOf("Model")).toBeGreaterThan(text.indexOf("Input Variables"));
     expect(text.indexOf("Prompt")).toBeGreaterThan(text.indexOf("Model"));
-    expect(text.indexOf("Input Variables")).toBeGreaterThan(text.indexOf("Prompt"));
-    expect(text.indexOf("Output Variables")).toBeGreaterThan(text.indexOf("Input Variables"));
+    expect(text.indexOf("Output Variables")).toBeGreaterThan(text.indexOf("Prompt"));
     expect(text.indexOf("JSON Output")).toBeGreaterThan(text.indexOf("Output Variables"));
     expect(screen.getByTestId("process-section-output")).toContainElement(screen.getByTestId("skeleton-output-schema"));
-    expect(screen.getByTestId("skeleton-output-schema").compareDocumentPosition(screen.getByTestId("skeleton-output-variables")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    /* The rows come first; the schema waits under Advanced: Edit as JSON. */
+    expect(screen.getByTestId("skeleton-output-variables").compareDocumentPosition(screen.getByTestId("agent-output-advanced")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByTestId("agent-output-advanced")).toContainElement(screen.getByTestId("skeleton-output-schema"));
   });
 
   test("an Agent with no model says the run will refuse it", () => {
@@ -852,7 +855,9 @@ describe("the JSON Output section, and the two halves it joins", () => {
     expect(text.indexOf("JSON Output")).toBeGreaterThan(text.indexOf("Input Variables"));
     expect(text.indexOf("Output Variables")).toBeGreaterThan(text.indexOf("Input Variables"));
     expect(screen.getByTestId("process-section-output")).toContainElement(screen.getByTestId("skeleton-output-schema"));
-    expect(screen.getByTestId("skeleton-output-schema").compareDocumentPosition(screen.getByTestId("skeleton-output-variables")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    /* The rows come first; the schema waits under Advanced: Edit as JSON. */
+    expect(screen.getByTestId("skeleton-output-variables").compareDocumentPosition(screen.getByTestId("agent-output-advanced")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByTestId("agent-output-advanced")).toContainElement(screen.getByTestId("skeleton-output-schema"));
   });
 
   test("only an Agent has one, because only an Agent has a kernel", () => {

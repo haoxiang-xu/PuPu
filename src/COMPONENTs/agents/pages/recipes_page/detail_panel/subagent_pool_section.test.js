@@ -363,6 +363,7 @@ describe("a row manages the entry, never the subagent's contents", () => {
 
   test("the child's memory policy is stored as its own token", async () => {
     const { onChange } = await show(pool({ subagents: [entry()] }));
+    fireEvent.click(screen.getByTestId("subagent-entry-0-toggle"));
     const memory = screen.getByTestId("subagent-entry-0-memory");
     expect(memory).toHaveAttribute("role", "switch");
     expect(memory).toHaveAttribute("aria-label", "Own memory");
@@ -374,6 +375,7 @@ describe("a row manages the entry, never the subagent's contents", () => {
 
   test("own memory switches back to no memory, by click and by keyboard", async () => {
     const { onChange } = await show(pool({ subagents: [entry({ memory_policy: "scoped_persistent" })] }));
+    fireEvent.click(screen.getByTestId("subagent-entry-0-toggle"));
     const memory = screen.getByTestId("subagent-entry-0-memory");
     expect(memory).toHaveAttribute("aria-checked", "true");
     fireEvent.click(within(memory).getByRole("switch"));
@@ -397,6 +399,7 @@ describe("a row manages the entry, never the subagent's contents", () => {
 
   test("parallel safety is a boolean, on the same switch row as Own memory", async () => {
     const { onChange } = await show(pool({ subagents: [entry()] }));
+    fireEvent.click(screen.getByTestId("subagent-entry-0-toggle"));
     const row = screen.getByTestId("subagent-entry-0-parallel");
     /* the row itself is the switch, like Own memory: checked, labelled,
        reachable by keyboard */
@@ -2129,12 +2132,13 @@ describe("the pool reads as a roster", () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
-  test("a pool of one starts open", async () => {
+  test("a pool of one starts folded too", async () => {
     await show(pool({ subagents: [entry()] }));
-    expect(open(0)).toBe("true");
+    expect(open(0)).toBe("false");
+    expect(screen.getByTestId("subagent-entry-0-body")).toHaveAttribute("aria-hidden", "true");
   });
 
-  test("a folded row with something wrong counts it, and the first such row starts open", async () => {
+  test("a folded row with something wrong counts it, and still starts folded", async () => {
     await show(
       pool({
         subagents: [
@@ -2145,7 +2149,8 @@ describe("the pool reads as a roster", () => {
       }),
     );
     expect(open(0)).toBe("false");
-    expect(open(1)).toBe("true");
+    expect(open(1)).toBe("false");
+    expect(open(2)).toBe("false");
     /* The strip counts it; what it is is said in the body. */
     expect(screen.getByTestId("process-problems-subagent-entry-2").textContent).toBe("1");
     expect(screen.queryByTestId("process-problems-subagent-entry-0")).toBeNull();

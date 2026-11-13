@@ -1019,9 +1019,7 @@
     },
     "icon_picker": {
       "title": "Agent-Symbol",
-      "change": "Symbol ändern",
       "icon": "Symbol",
-      "color": "Farbe",
       "reset": "Auf Standard zurücksetzen",
       "groups": {
         "robots": "Roboter",
@@ -1135,7 +1133,6 @@
         "insert_here": "Knoten hier einfügen…",
         "delete_connection": "Verbindung löschen",
         "open_details": "Details öffnen",
-        "rename_unavailable": "Umbenennen nicht verfügbar · {reason}",
         "disconnect_node": "Knotenverbindungen trennen",
         "delete_node": "Knoten löschen",
         "required_node": "Erforderlicher Knoten",
@@ -1147,14 +1144,7 @@
       "redo": "Wiederholen ({shortcut})",
       "center": "Zentrieren",
       "go_to_start": "Zum Start",
-      "escape_up": "Esc: eine Ebene nach oben"
-    },
-    "rename": {
-      "title": "Knoten umbenennen",
-      "close": "Umbenennen schließen",
-      "name": "Knotenname",
-      "non_blank": "Die Knotenbezeichnung darf nicht leer sein.",
-      "refused": "Diese Umbenennung wurde abgelehnt."
+      "escape_back": "{key} zurück zur übergeordneten Ebene"
     },
     "palette": {
       "find": "Knoten finden",
@@ -1172,7 +1162,6 @@
         "steps": "Schritte",
         "attachments": "Angehängte Konfiguration"
       },
-      "toolkit_pool": "Toolkit-Pool",
       "graph_agent": "Agent",
       "graph_workflow": "Workflow",
       "description": {
@@ -1194,22 +1183,22 @@
       "entry": "Einstieg",
       "end": "Ende",
       "exit": "Ausstieg",
+      "caption_join": "{first} · {second}",
       "if_else": "Wenn / Sonst",
       "switch_case": "Auswahl / Fall",
       "outlet_undeclared": "Dieser Ausgang ist nicht mehr deklariert. Seine Verbindung verhindert die Ausführung; löschen Sie sie oder fügen Sie den Fall wieder hinzu.",
       "tool_call": "Werkzeugaufruf",
-      "tool_call_pick": "Werkzeugaufruf · Werkzeug auswählen",
+      "pick_tool": "Werkzeug auswählen",
       "more": "+{count} weitere",
       "unreadable_source": "eine unlesbare Quelle",
       "first_of": "erster verfügbarer Wert aus {count} Quellen",
       "skill_read": "Skill lesen",
-      "skill_read_source": "Skill lesen · {source}",
-      "skill_read_pick": "Skill lesen · Skill auswählen",
+      "pick_skill": "Skill auswählen",
       "workflow_call": "Workflow-Aufruf",
-      "workflow_pin": "Workflow-Aufruf · Revision festlegen",
-      "workflow_revision": "Workflow-Aufruf · Revision {revision}",
-      "workflow_unreadable": "Workflow-Aufruf · Revision unlesbar",
-      "workflow_reading": "Workflow-Aufruf · Revision wird gelesen…",
+      "pin_revision": "Revision festlegen",
+      "revision": "Revision {revision}",
+      "revision_unreadable": "Revision unlesbar",
+      "revision_reading": "Revision wird gelesen…",
       "set": "gesetzt",
       "missing": "fehlt",
       "nothing_exported": "→ keine Exporte",
@@ -1235,6 +1224,7 @@
       "subagent_missing": "{name} ist nicht mehr in der Agentenbibliothek",
       "subagent_unopenable": "{name} kann nicht geöffnet werden",
       "code": {
+        "type": "Code",
         "python": "Python"
       }
     },
@@ -1352,7 +1342,27 @@
       "remove_source": "Quelle {position} entfernen",
       "not_produced_named": "{name} — hier nicht erzeugt",
       "not_produced_unnamed": "(unbenannt) — hier nicht erzeugt",
-      "caller_input": "Aufrufereingabe"
+      "caller_input": "Aufrufereingabe",
+      "ask": {
+        "add_ask": "+ Vom Agenten erzeugen lassen…",
+        "add_input": "+ Eine Eingabe weitergeben",
+        "add_reply": "+ Antwort des Agenten",
+        "type_label": "Art des Werts",
+        "type_text": "Text",
+        "type_number": "Zahl",
+        "type_whole_number": "Ganze Zahl",
+        "type_yes_no": "Ja / Nein",
+        "type_list": "Liste von Texten",
+        "description_placeholder": "Beschreiben, was der Agent hier liefern soll",
+        "description_label": "Was der Agent liefern soll",
+        "name_taken": "Eine andere Ausgabe heißt bereits {name}; dieser Name ist nicht gespeichert.",
+        "remove": "{name} entfernen",
+        "json_note": "Solange der Agent etwas erzeugen soll, ist seine Antwort ein JSON-Objekt mit diesen Werten. Für eine zusätzliche Textantwort eine Text-Ausgabe wie \"reply\" anlegen.",
+        "model_cannot": "Dieses Modell kann nicht in einer festen Struktur antworten und daher keine Ausgaben erzeugen. Wähle ein Modell mit JSON-Ausgabe.",
+        "schema_is_json": "Der JSON Output dieses Agenten ist in einer Form geschrieben, die die Zeilen nicht abbilden. Unter Erweitert bearbeiten.",
+        "no_kernel": "Dieser Agent hat keine Modelleinstellungen.",
+        "advanced": "Erweitert: als JSON bearbeiten"
+      }
     },
     "schema": {
       "required": "erforderlich",
@@ -2178,12 +2188,9 @@
       "caption": "Schreibgeschützt: Revision {ordinal} von {name} · {id}. Der Lauf verwendet exakt diese Revision; hier wird nichts bearbeitet oder gespeichert.",
       "store_unreachable": "der Speicher konnte nicht erreicht werden",
       "open_failed": "Die fixierte Revision konnte nicht gelesen werden: {message}. Nichts wurde geöffnet.",
-      "changed": "Die Fixierung hat sich während des Lesens ihrer Revision geändert, daher wurde nichts geöffnet. Öffnen Sie erneut, um die jetzt fixierte Revision zu sehen.",
-      "via_label": "Workflow-Aufruf"
+      "changed": "Die Fixierung hat sich während des Lesens ihrer Revision geändert, daher wurde nichts geöffnet. Öffnen Sie erneut, um die jetzt fixierte Revision zu sehen."
     },
     "drill": {
-      "subagent_pool": "Subagent Pool",
-      "hooks_pool": "Hooks Pool",
       "that_subagent": "Dieser Subagent",
       "that_hook": "Dieser Hook",
       "embedded_checked": "Dieser Graph wird beim Speichern geprüft; seine Probleme werden hier angezeigt. Beim Ausführen des übergeordneten Agents wird mehr geprüft: Die Agents, auf die seine Pools verweisen, werden erst dann gelesen.",
@@ -2477,8 +2484,7 @@
       "observation_failed": "Der aufgezeichnete Lauf konnte nicht gelesen werden.",
       "observation_rejected": "Ausführungsdetails konnten nicht aktualisiert werden.",
       "edit_refused": "Diese Bearbeitung wurde abgelehnt.",
-      "rename_missing": "Der ausgewählte Knoten fehlt oder seine id wird von einem anderen Knoten verwendet.",
-      "rename_view_closed": "Dieser Graph ist nicht mehr zum Umbenennen geöffnet."
+      "rename_missing": "Der ausgewählte Knoten fehlt oder seine id wird von einem anderen Knoten verwendet."
     },
     "local_validation": {
       "object_required": "ein Objekt erwartet",

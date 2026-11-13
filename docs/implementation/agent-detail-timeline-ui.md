@@ -103,11 +103,21 @@
 - Workflows as tools：说明收进 info，不可用时标题旁出红色徽标；每个 Workflow tool 是一块填充底，删除是行内的叉，`+ Add Workflow tool` 在列表末尾。
 - Subagent Pool：一份可折叠的名册，标题行右侧显示条目数。
   - 收起时每个条目是一条 46px 的填充行：图标、名字、允许的调用方式，第二行是描述（没有描述时淡色提示，条目有问题时这一行变红并写明原因）；右侧是 Open 和折叠箭头，位置在收起和展开时不变。
-  - 同时只展开一个。只有一个条目的池默认展开，否则默认展开第一个有问题的条目；刚添加的条目自动展开，光标落在描述框。折叠只隐藏内容，编辑器保持挂载，未存入的名字不会丢。
+  - 同时只展开一个。打开文档时所有条目一律收起（只有一个条目、条目有问题也收起，问题数在收起行上），只由作者点开；唯一例外是刚添加的条目自动展开一次，光标落在描述框。面板不卸载期间保留作者自己的展开/收起。折叠只隐藏内容，编辑器保持挂载，未存入的名字不会丢。（2026-11-12）
   - 展开后在同一块底里自上而下：名字（标题行内直接编辑）→ 描述（三行输入框，说明写明「调用方 Agent 会读这段话」）→ 调用方式（三行，每行勾选框、名称、一句解释，选中用 accent 色）→ Reads / Memory（Mini UI `SegmentedButton`）与 Parallel（glass 开关），标签一列、控件一列，控件左右边缘对齐 → 来源与 Remove。
   - Tools 只在不是默认的「every tool」时出现，只读。
   - 开关一律用 `<Switch material="glass">`，保持它自己的 60:38 比例（38×24），状态改动写在 `set_on` 里：glass 开关会拦住点击冒泡，不能靠外层元素接点击。
   - 添加只有一个入口 `+ Add an Agent`：展开后是细边框搜索框加候选 Agent 的填充行，最后一项是 `New embedded Agent`。
+
+## 当前位置与下钻路径（2026-11-12）
+
+画布左上角的浮动面包屑已删除（它在窗口拖拽区里点不到）。当前打开的图与下钻路径改由侧栏搜索框上方的面包屑 `side-menu/side_menu_breadcrumb.js` 显示，编辑器经 `SERVICEs/agents_drill_trail.js` 发布（段由 `recipes_page/drill_trail.js` 从原有 crumbs 生成，导航仍走原来的 `drill_to` / `handleDrillTo`）：
+
+- 没有打开任何东西：`Home › Agents`（Agents 灰、不可点）。
+- 选中一个 Agent / Workflow：它替换 Agents 那一段，`Home › Default`，一段灰色的图标 + 名字，不可点。
+- 下钻：`Home › Default › Summarizer`（再深一层再加一段）。之前的层级可点、回到那一层；当前层灰、不可点，tooltip 附「Esc 返回上一级」。Subagent Pool / Hooks Pool / Workflow Call 这类说明性 crumb 不再出现。
+- 图标：资源 Agent 用它自己的 `AgentAvatar` glyph，嵌入的 Agent 用默认 bot，Workflow 用 workflow 图标，颜色中性。不可点的段没有 hover 底、默认光标、图标和文字都淡。
+- 名字超过 140px 省略号；整条超出侧栏宽度时横向滚动（无滚动条），保持末端可见。整条 `WebkitAppRegion: no-drag`。Escape 逐级返回不变。
 
 ## 所有节点面板的统一标准（以 Start、End、Agent、Toolkit Pool 为定稿）
 
@@ -189,3 +199,26 @@
 ## Agent 图标与颜色
 
 Agent 节点详情头部的头像即该 Agent 的图标与颜色，可点击修改；目录、存储与显示位置见 [agent-icons.md](agent-icons.md)。
+
+## 节点命名（2026-11-12）
+
+- 画布节点的大标题是作者给节点起的名字（节点信封里可选的 `label`）；没起名时显示该类型原来的默认标题（Agent、Start、工具名、Code 节点的 id……）。
+- 标题下的灰字先写我们对这个类型的叫法（Agent、Switch / Case、Tool call、Code……，取自 `agents.nodes.*`），再接该类型原有的摘要（模型、工具名、`Python`、计数、分支条件、修订号），用 `agents.nodes.caption_join`（`{first} · {second}`）连接，单行省略号截断。与标题相同的部分不重复：未命名节点的标题本身就是类型名时只显示摘要，没有摘要就空着。实现在 `nodes/node_caption.js`，所有节点经共用的 `NodeHeader` 绘制，高度仍是 63px 的共用最小值。
+- 重命名就地进行：双击标题、右键菜单 Rename 或 F2，标题原位变成同字体、同字号、无边框的输入框，文字全选。Enter 或失焦提交，Escape 取消；空白名字恢复为未命名（`reset_node_label` 去掉 `label`）；名字不变不写。一次提交是一个命令，即一步撤销。被拒绝时留在输入框里，原因以问题样式显示在框下（位于节点下内边距中，不改变节点高度，因此不会触发尺寸动画）。
+- 输入时画布快捷键（Delete/Backspace、空格平移、撤销、F2、Home、⌘F）、页面的 Escape、节点拖动和画布双击都不会收到事件。
+- 运行时不支持节点名（能力检查 `node_display_label_v1` 未通过）时，双击无反应，右键菜单不出现 Rename，也不提示。
+- 名字没有唯一性要求和长度上限，规则只有「不能全是空白」；节点 id 不变，引用不需要改写。Start 与 End 也可以命名。
+
+## Ask 输出的跨边界记录（PR #482）
+
+状态：active rollout **INCOMPLETE**。以下记录区分 UI 回归与真实 provider 验收；不以 CI 全绿代替未运行的验收。
+
+- **BC-004**：producer 是 `agent_asks.js` 经既有文档更新、资源保存路径产生的 Agent 草稿；consumer 是 sidecar Store、实际导入的 Unchain 严格文档验证器，以及既有 JSON Output provider 投影。没有新增文档或协议字段。一个 Ask 同时写 `config.kernel.json_schema` 的 required 属性及 `config.execution.outputs` 的 `{name, source: {kind: "result", path: [name]}}`；schema 的 `additionalProperties` 为 false。文档、映射和握手沿用 CLOSED 合同，schema 内保留已有 JSON Schema 表达能力。资源 id、节点 id、edit token 和 runtime manifest 沿用现有保存入口；冲突或拒绝不降级为另一种保存。模型 profile 未声明 `json_schema: true` 或 schema 无法表示为行时 UI 禁止添加，原有 JSON 编辑器仍处理复杂 schema。CI 必须绑定本 PuPu candidate 与同一次构建并复用的 Unchain wheel SHA-256 / manifest，不能用可变 sibling checkout 作为配对证据。
+- **SEQ-004**：同一资源、节点和草稿中，添加 Ask → 改名 → 改类型/描述 → 再添加 → 删除 → 保存/重开。每次编辑同步 schema 属性和对应 output，其他 output 保留；删除最后一项恢复普通回复。保存/重开、冷 sidecar 后重开，以及 provider 实际执行需另行验证。重复运行、第二条消息、interaction、retry/resume/replay 不由这个 UI 创建新的身份或恢复机制；是否保持既有执行语义仍需在真实 Agent 路径验收，不能标成已通过。
+
+| AC | 证据与状态 |
+| --- | --- |
+| AC-004a | `agent_asks.test.js` 精确比较 closed schema 与 output，覆盖添加、改名/类型/描述、连续添加、删除和普通回复；本地/CI 结果记录在 PR。 |
+| AC-004b | 同文件覆盖不支持 JSON Output 的 profile、复杂 schema 的拒绝；`process_timeline.test.js` 覆盖 UI 与 Advanced 编辑器。 |
+| AC-004c | 真实 UI 产物 → 固定 wheel 严格 validator → Store 保存/重开，含未知字段、错 identity/version 和拒绝零写入：NOT_RUN。既有通用契约测试不等于这条新 producer 路径的完整证据。 |
+| AC-004d | 实际 provider 的 schema 投影、第一次/第二次消息、interaction、retry/resume、冷 sidecar 及受影响 Agent/subagent 路径：NOT_RUN；绑定与 AC-004c 相同的 artifact identity 后验收。 |

@@ -1,10 +1,21 @@
 import React, { useState } from "react";
 
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render as rtlRender, screen, within } from "@testing-library/react";
 import { ConfigContext } from "../../../../../CONTAINERs/config/context";
 import DetailPanel from "./detail_panel";
 import { parse_typed_path } from "./output_value_pill";
 import { python_profiles } from "../skeleton_resources";
+
+/* The Code node's parts fold (Limits, Result, On Error, Stored Artifacts,
+   Output Variables start folded). These tests are about what is inside them,
+   so every render opens whatever is folded first. */
+const render = (...args) => {
+  const result = rtlRender(...args);
+  act(() => {
+    window.document.querySelectorAll('[data-testid^="process-toggle-"][aria-expanded="false"]').forEach((toggle) => toggle.click());
+  });
+  return result;
+};
 
 jest.mock("./panel_help", () => function GuidanceText({ children }) { return <>{children}</>; });
 

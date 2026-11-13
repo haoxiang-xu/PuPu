@@ -1019,9 +1019,7 @@
     },
     "icon_picker": {
       "title": "Icona dell’agente",
-      "change": "Cambia icona",
       "icon": "Icona",
-      "color": "Colore",
       "reset": "Ripristina predefinito",
       "groups": {
         "robots": "Robot",
@@ -1135,7 +1133,6 @@
         "insert_here": "Inserisci nodo qui…",
         "delete_connection": "Elimina connessione",
         "open_details": "Apri dettagli",
-        "rename_unavailable": "Rinomina non disponibile · {reason}",
         "disconnect_node": "Disconnetti nodo",
         "delete_node": "Elimina nodo",
         "required_node": "Nodo obbligatorio",
@@ -1147,14 +1144,7 @@
       "redo": "Ripeti ({shortcut})",
       "center": "Centra",
       "go_to_start": "Vai all'inizio",
-      "escape_up": "Esc per salire di un livello"
-    },
-    "rename": {
-      "title": "Rinomina nodo",
-      "close": "Chiudi rinomina",
-      "name": "Nome del nodo",
-      "non_blank": "L’etichetta del nodo non può essere vuota.",
-      "refused": "Questa rinomina è stata rifiutata."
+      "escape_back": "{key} per tornare al livello superiore"
     },
     "palette": {
       "find": "Trova un nodo",
@@ -1172,7 +1162,6 @@
         "steps": "Passaggi",
         "attachments": "Configurazioni collegate"
       },
-      "toolkit_pool": "Pool di toolkit",
       "graph_agent": "agente",
       "graph_workflow": "workflow",
       "description": {
@@ -1194,22 +1183,22 @@
       "entry": "ingresso",
       "end": "Fine",
       "exit": "uscita",
+      "caption_join": "{first} · {second}",
       "if_else": "Se / Altrimenti",
       "switch_case": "Selezione / Caso",
       "outlet_undeclared": "Questa uscita non è più dichiarata. La sua connessione blocca l’esecuzione; eliminala o aggiungi di nuovo il caso.",
       "tool_call": "Chiamata a strumento",
-      "tool_call_pick": "Chiamata a strumento · scegli uno strumento",
+      "pick_tool": "scegli uno strumento",
       "more": "+{count} altri",
       "unreadable_source": "una sorgente illeggibile",
       "first_of": "primo valore disponibile fra {count} origini",
       "skill_read": "Lettura competenza",
-      "skill_read_source": "Lettura competenza · {source}",
-      "skill_read_pick": "Lettura competenza · scegli una competenza",
+      "pick_skill": "scegli una competenza",
       "workflow_call": "Chiamata a workflow",
-      "workflow_pin": "Chiamata a workflow · fissa una revisione",
-      "workflow_revision": "Chiamata a workflow · revisione {revision}",
-      "workflow_unreadable": "Chiamata a workflow · revisione illeggibile",
-      "workflow_reading": "Chiamata a workflow · lettura della revisione…",
+      "pin_revision": "fissa una revisione",
+      "revision": "revisione {revision}",
+      "revision_unreadable": "revisione illeggibile",
+      "revision_reading": "lettura della revisione…",
       "set": "impostato",
       "missing": "mancante",
       "nothing_exported": "→ nessun valore esportato",
@@ -1235,6 +1224,7 @@
       "subagent_missing": "{name} non è più nella libreria degli agenti",
       "subagent_unopenable": "Impossibile aprire {name}",
       "code": {
+        "type": "Codice",
         "python": "Python"
       }
     },
@@ -1352,7 +1342,27 @@
       "remove_source": "Rimuovi sorgente {position}",
       "not_produced_named": "{name} — non prodotto qui",
       "not_produced_unnamed": "(senza nome) — non prodotto qui",
-      "caller_input": "Input del chiamante"
+      "caller_input": "Input del chiamante",
+      "ask": {
+        "add_ask": "+ Chiedi all'agente…",
+        "add_input": "+ Passa un input",
+        "add_reply": "+ Risposta dell'agente",
+        "type_label": "Tipo di valore",
+        "type_text": "Testo",
+        "type_number": "Numero",
+        "type_whole_number": "Numero intero",
+        "type_yes_no": "Sì / No",
+        "type_list": "Elenco di testi",
+        "description_placeholder": "Descrivi cosa deve produrre l'agente qui",
+        "description_label": "Cosa deve produrre l'agente",
+        "name_taken": "Un altro output si chiama già {name}; questo nome non è salvato.",
+        "remove": "Rimuovi {name}",
+        "json_note": "Finché all'agente si chiede qualcosa, la sua risposta è un oggetto JSON con quei valori. Per mantenere anche una risposta scritta, aggiungi un output di Testo come \"reply\".",
+        "model_cannot": "Questo modello non può rispondere con una struttura fissa, quindi non può produrre output. Scegli un modello con output JSON.",
+        "schema_is_json": "Il JSON Output di questo agente è scritto in una forma che le righe non possono rappresentare. Modificalo in Avanzate.",
+        "no_kernel": "Questo agente non ha impostazioni del modello.",
+        "advanced": "Avanzate: modifica come JSON"
+      }
     },
     "schema": {
       "required": "obbligatorio",
@@ -2178,12 +2188,9 @@
       "caption": "Sola lettura: revisione {ordinal} di {name} · {id}. L’esecuzione usa esattamente questa revisione; qui nulla viene modificato o salvato.",
       "store_unreachable": "impossibile contattare l’archivio",
       "open_failed": "Impossibile leggere la revisione fissata: {message}. Non è stato aperto nulla.",
-      "changed": "Il riferimento fissato è cambiato durante la lettura della revisione, quindi non è stato aperto nulla. Aprilo di nuovo per vedere la revisione attuale.",
-      "via_label": "Chiamata Workflow"
+      "changed": "Il riferimento fissato è cambiato durante la lettura della revisione, quindi non è stato aperto nulla. Aprilo di nuovo per vedere la revisione attuale."
     },
     "drill": {
-      "subagent_pool": "Pool di sottoagenti",
-      "hooks_pool": "Pool di Hooks",
       "that_subagent": "Quel sottoagente",
       "that_hook": "Quel Hook",
       "embedded_checked": "Questo grafo viene controllato al salvataggio e i suoi problemi vengono segnalati qui. L’esecuzione dell’Agent padre effettua ulteriori controlli: gli Agent a cui fanno riferimento i suoi pool vengono letti solo allora.",
@@ -2477,8 +2484,7 @@
       "observation_failed": "Impossibile leggere l’esecuzione registrata.",
       "observation_rejected": "Impossibile aggiornare i dettagli dell’esecuzione.",
       "edit_refused": "Questa modifica è stata rifiutata.",
-      "rename_missing": "Il nodo selezionato manca oppure il suo id è condiviso da un altro nodo.",
-      "rename_view_closed": "Questo grafo non è più aperto per la ridenominazione."
+      "rename_missing": "Il nodo selezionato manca oppure il suo id è condiviso da un altro nodo."
     },
     "local_validation": {
       "object_required": "è richiesto un oggetto",

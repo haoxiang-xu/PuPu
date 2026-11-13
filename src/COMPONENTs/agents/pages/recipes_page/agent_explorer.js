@@ -26,7 +26,7 @@ import ImportResourceModal from "./import_resource_modal";
 import AgentAvatar from "../../agent_avatar";
 import AgentIconPicker from "../../agent_icon_picker";
 import { PRESENTATION_SUPPORTED, usePresentationCapability } from "../../use_presentation_capability";
-import { normalize_presentation, set_presentation } from "../../../../SERVICEs/agent_resource_icons";
+import { normalize_presentation, presentation_to_store, set_presentation } from "../../../../SERVICEs/agent_resource_icons";
 import { writeResourcePresentation } from "../../../../SERVICEs/agent_resource_presentation_store";
 import { load_resource, save_draft } from "./skeleton_resources";
 import { toast } from "../../../../SERVICEs/toast";
@@ -73,9 +73,9 @@ function readItems(answer) {
 
 const ICON_BUTTON = HEADER_ICON_BUTTON;
 
-/* An Agent row's mark: its own icon and colour from the stored summary, or
-   the default bot when the summary has none (an older resource, a draft).
-   Workflows keep the flow glyph. */
+/* An Agent row's mark: its own icon from the stored summary, or the default
+   bot when the summary has none (an older resource, a draft), always in the
+   row's text colour. Workflows keep the flow glyph. */
 function avatarFor(item, overrides) {
   if (!item || item.kind === "workflow") return undefined;
   const id = typeof item.id === "string" ? item.id : "";
@@ -85,7 +85,7 @@ function avatarFor(item, overrides) {
     ? overrides[id]
     : isRecord(item.presentation) ? item.presentation : null;
   return (size) => (
-    /* No tile in the list: the row's own icon, in the Agent's colour. */
+    /* No tile in the list: the row's own icon, in the row's colour. */
     <AgentAvatar variant="glyph" presentation={presentation} size={size} glyphScale={1}
       testid={`agent-explorer-avatar-${id}`} />
   );
@@ -444,7 +444,7 @@ export default function AgentExplorer({
     if (!id) return;
     const item = library.items.find((entry) => entry.id === id);
     const stored = item && isRecord(item.presentation) ? item.presentation : null;
-    const value = normalize_presentation(next);
+    const value = presentation_to_store(next);
     const ticket = (presentationWrites.current[id] || 0) + 1;
     presentationWrites.current[id] = ticket;
     setIconPicker((current) => (current.resourceId === id ? { ...current, value } : current));

@@ -147,7 +147,7 @@ test("Skill Read: add, pick, preview, map content and name, feed the router, sav
   deleteEdge("a");
   await add("skill_read");
   await screen.findByTestId("skill-read-section");
-  expect(screen.getByTestId("skill-read-node-skill")).toHaveTextContent("Skill read · pick a skill");
+  expect(screen.getByTestId("skill-read-node-skill")).toHaveTextContent(/^Skill read\s*pick a skill$/);
   drag("start", "out", "skill", "in");
   drag("skill", "out", "router", "in");
   await pickNotes();

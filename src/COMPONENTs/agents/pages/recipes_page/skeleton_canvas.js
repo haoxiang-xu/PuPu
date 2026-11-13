@@ -25,9 +25,7 @@ import { ports_for_type } from "./recipe_node_catalog";
 import { own } from "./document_values";
 import { NODE_TYPES, document_layout_positions, drawn_node } from "./skeleton_document";
 import { is_valid_node_label, node_display_title } from "./node_display_labels";
-import { node_identity } from "./detail_panel/node_identity";
 import { useNodeLabelCapability } from "./node_label_capability";
-import RenameNodeModal from "./rename_node_modal";
 import RunNodeStatus from "./nodes/run_node_status";
 import { agentMessage, renderAgentMessage, agentProblemMessage, agentReasonPayload } from "./agents_i18n";
 import { pool_entry_rows } from "./skeleton_drill";
@@ -68,14 +66,18 @@ import {
    of its own, and nothing can be read out of `Object.prototype` instead. */
 const node_table = (from) => Object.assign(Object.create(null), from || undefined);
 
+/* `view.rename` is this node's in-place rename (see `renameFor` below), or
+   nothing where the node cannot be renamed. */
 function renderNode(node, isDark, onOpenSubagent, view = {}) {
-  if (node.type === "agent") return <AgentNode node={node} isDark={isDark} presentation={view.agentPresentation} />;
-  if (node.type === "toolkit_pool") return <ToolPoolNode node={node} isDark={isDark} native toolkits={node_toolkit_refs(node)} />;
+  const rename = view.rename;
+  if (node.type === "agent") return <AgentNode node={node} isDark={isDark} rename={rename} />;
+  if (node.type === "toolkit_pool") return <ToolPoolNode node={node} isDark={isDark} native toolkits={node_toolkit_refs(node)} rename={rename} />;
   if (node.type === "subagent_pool") {
     return (
       <SubagentPoolNode
         node={node}
         isDark={isDark}
+        rename={rename}
         /* A Skeleton pool carries its entries in `config`, and a legacy one in
            `config.legacy_fields`; the legacy recipe canvas passes a node whose
            entries sit on `node.subagents`. The rows are resolved here rather
@@ -100,16 +102,16 @@ function renderNode(node, isDark, onOpenSubagent, view = {}) {
     );
   }
   if (is_branch_type(node.type) && node.branch) {
-    return <BranchNode node={node} rows={node.branch.rows} summary={node.branch.summary} isDark={isDark} />;
+    return <BranchNode node={node} rows={node.branch.rows} summary={node.branch.summary} isDark={isDark} rename={rename} />;
   }
-  if (node.type === "tool_call") return <ToolCallNode node={node} isDark={isDark} />;
-  if (node.type === "workflow_call") return <WorkflowCallNode node={node} isDark={isDark} />;
-  if (node.type === "hooks_pool") return <HooksPoolNode node={node} isDark={isDark} />;
-  if (node.type === "skill_read") return <SkillReadNode node={node} isDark={isDark} />;
+  if (node.type === "tool_call") return <ToolCallNode node={node} isDark={isDark} rename={rename} />;
+  if (node.type === "workflow_call") return <WorkflowCallNode node={node} isDark={isDark} rename={rename} />;
+  if (node.type === "hooks_pool") return <HooksPoolNode node={node} isDark={isDark} rename={rename} />;
+  if (node.type === "skill_read") return <SkillReadNode node={node} isDark={isDark} rename={rename} />;
   /* A Code node (#357) is a plain header node; its code is read in the panel. */
-  if (node.type === "code") return <CodeNode node={node} isDark={isDark} />;
-  if (node.type === "start") return <StartNode node={node} isDark={isDark} />;
-  if (node.type === "end") return <EndNode node={node} isDark={isDark} />;
+  if (node.type === "code") return <CodeNode node={node} isDark={isDark} rename={rename} />;
+  if (node.type === "start") return <StartNode node={node} isDark={isDark} rename={rename} />;
+  if (node.type === "end") return <EndNode node={node} isDark={isDark} rename={rename} />;
   /* A type this build has no drawing for still has to appear: a graph that
      silently omitted a node would read as a graph that does not have it. */
   return (
@@ -202,15 +204,13 @@ function GraphDrawing({
   useEffect(() => { setRename(null); }, [renameScope, canEdit]);
   /* A Workflow is offered only what it can hold (#357 G7). */
   const addableTypes = useMemo(() => addable_node_types(graph?.kind), [graph?.kind]);
-  /* In an Agent document the Agent node is the Agent itself, so it wears the
-     document's own icon and colour. A Workflow has no such node. */
-  const agentPresentation = graph && graph.kind === "agent" && Object.prototype.hasOwnProperty.call(graph, "presentation")
-    ? graph.presentation : null;
   const paletteEntries = useMemo(() => NATIVE_PALETTE_ENTRIES.map((entry) => palette_entry_caption(entry, t)), [t]);
   const containerRef = useRef(null);
-  const closeRename = useCallback(() => {
+  /* Back to the canvas after Enter or Escape, so its keys work again; a
+     commit by leaving the field leaves focus wherever it went. */
+  const closeRename = useCallback((options) => {
     setRename(null);
-    containerRef.current?.focus({ preventScroll: true });
+    if (!options || options.refocus !== false) containerRef.current?.focus({ preventScroll: true });
   }, []);
   const [palette, setPalette] = useState(null);
   /* Finding a node by name: the palette in its find mode, which is also the
@@ -347,25 +347,55 @@ function GraphDrawing({
     const matches = (graph.nodes || []).filter((node) => node && node.id === id);
     return matches.length === 1 && NODE_TYPES.includes(matches[0].type) ? matches[0] : null;
   }, [graph]);
+  /* Rename happens on the node itself: its title becomes a field (NodeHeader).
+     Where the runtime cannot keep a name the canvas offers no Rename at all —
+     no menu entry, no double-click — and says nothing about it. */
   const openRename = useCallback((id) => {
-    if (!canEdit || !labelCapability.allowed) { say(labelCapability.reason); return; }
+    if (!canEdit || !labelCapability.allowed) return;
     const target = renameTarget(id);
     if (!target) { say(agentMessage("agents.runtime.rename_missing")); return; }
-    const initialValue = node_display_title(target, node_identity(drawn_node(target))?.title || target.id);
     setMenu(null); setPalette(null); setFinder(null);
-    setRename({ node_id: id, scope: renameScope, initialValue,
+    setRename({ node_id: id, scope: renameScope, problem: null,
       unchangedIsNoop: !Object.prototype.hasOwnProperty.call(target, "label") || is_valid_node_label(target.label) });
   }, [canEdit, labelCapability, renameScope, renameTarget, say]);
-  const confirmRename = useCallback((value) => {
-    if (!canEdit || !labelCapability.allowed || rename?.scope !== renameScope) {
-      return { ok: false, problem: { message: labelCapability.reason || agentMessage("agents.runtime.rename_view_closed") } };
-    }
-    if (!renameTarget(rename.node_id)) return { ok: false, problem: { message: agentMessage("agents.runtime.rename_missing") } };
-    if (rename.unchangedIsNoop && value === rename.initialValue) { closeRename(); return { ok: true }; }
-    const result = perform({ type: "rename_node", node_id: rename.node_id, label: value });
-    if (result.ok) closeRename();
+  /* One commit is one command, so one undo step. A blank name is the node's
+     own default again (its label goes); an unchanged name writes nothing. A
+     refused name stays in the field with the reason under it. */
+  const refuseRename = useCallback((result) => {
+    const message = agentProblemMessage(result.problem, agentMessage) || agentMessage("agents.runtime.edit_refused");
+    setRename((open) => (open ? { ...open, problem: message } : open));
     return result;
-  }, [canEdit, labelCapability, rename, renameScope, renameTarget, perform, closeRename]);
+  }, []);
+  const confirmRename = useCallback((value, initialValue, options) => {
+    if (!canEdit || !labelCapability.allowed || rename?.scope !== renameScope) {
+      closeRename(options);
+      return { ok: true };
+    }
+    const target = renameTarget(rename.node_id);
+    if (!target) return refuseRename({ ok: false, problem: { message: agentMessage("agents.runtime.rename_missing") } });
+    const command = is_valid_node_label(value)
+      ? (rename.unchangedIsNoop && value === initialValue ? null : { type: "rename_node", node_id: rename.node_id, label: value })
+      : (Object.prototype.hasOwnProperty.call(target, "label") ? { type: "reset_node_label", node_id: rename.node_id } : null);
+    if (!command) { closeRename(options); return { ok: true }; }
+    const result = onGraphCommand(command);
+    if (!result.ok) return refuseRename(result);
+    say(null);
+    closeRename(options);
+    return result;
+  }, [canEdit, labelCapability, rename, renameScope, renameTarget, onGraphCommand, say, refuseRename, closeRename]);
+  /* The node's side of it, handed to its header. */
+  const renameFor = (node) => {
+    if (!canEdit || !labelCapability.allowed || !node || !NODE_TYPES.includes(node.type)) return undefined;
+    const editing = !!rename && rename.scope === renameScope && rename.node_id === node.id;
+    return {
+      enabled: true,
+      editing,
+      problem: editing && rename.problem ? renderAgentMessage(rename.problem, t) : null,
+      begin: () => openRename(node.id),
+      commit: confirmRename,
+      cancel: closeRename,
+    };
+  };
 
   const openPalette = useCallback((point) => {
     const rect = containerRef.current?.getBoundingClientRect();
@@ -418,9 +448,9 @@ function GraphDrawing({
       const attached = edges.some((edge) => edge.source_node_id === target.id || edge.target_node_id === target.id);
       return [
         { id: "open", label: t("agents.canvas.menu.open_details"), onClick: () => onSelectNode?.(target.id) },
-        { id: "rename", label: labelCapability.allowed ? t("agents.explorer.menu.rename") : t("agents.canvas.menu.rename_unavailable", { reason: renderAgentMessage(labelCapability.reason, t) }),
-          disabled: !labelCapability.allowed || !renameTarget(target.id) || selection.node_ids.length !== 1 || selection.edge_id !== null,
-          trail: "F2", onClick: () => openRename(target.id) },
+        ...(labelCapability.allowed ? [{ id: "rename", label: t("agents.explorer.menu.rename"),
+          disabled: !renameTarget(target.id) || selection.node_ids.length !== 1 || selection.edge_id !== null,
+          trail: "F2", onClick: () => openRename(target.id) }] : []),
         { id: "disconnect", label: t("agents.canvas.menu.disconnect_node"), disabled: !attached, onClick: () => perform({ type: "disconnect", node_id: target.id }) },
         { type: "separator" },
         { id: "delete", label: node?.deletable ? t("agents.canvas.menu.delete_node") : t("agents.canvas.menu.required_node"), disabled: !node?.deletable, danger: true,
@@ -545,7 +575,7 @@ function GraphDrawing({
         render_node={(node) => (
           <div data-testid={`skeleton-node-${node.id}`} style={{ display: "contents" }}>
             <RunNodeStatus projection={["toolkit_pool", "subagent_pool", "hooks_pool"].includes(node.type) ? null : runNodes.get(node.id)} isDark={isDark}>
-              {renderNode(node, isDark, onOpenSubagent, { agentPresentation })}
+              {renderNode(node, isDark, onOpenSubagent, { rename: renameFor(node) })}
             </RunNodeStatus>
           </div>
         )}
@@ -566,8 +596,6 @@ function GraphDrawing({
         items={contextItems} onClose={() => setMenu(null)} isDark={isDark} />
       <RecipeNodePalette visible={!!finder} x={finder?.x || 0} y={finder?.y || 0} mode="find"
         entries={finder ? finder_entries(graph, t) : undefined} onPick={findNode} onClose={() => setFinder(null)} isDark={isDark} />
-      {rename && rename.scope === renameScope && canEdit && <RenameNodeModal initialValue={rename.initialValue}
-        onConfirm={confirmRename} onClose={closeRename} disabledReason={labelCapability.allowed ? null : labelCapability.reason} isDark={isDark} />}
     </div>
   );
 }
