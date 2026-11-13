@@ -2,6 +2,7 @@ import { agentEnglishText, agentProblemFromMessage } from "./agents_i18n";
 import { add_node, connect_nodes, delete_edge, delete_node } from "./skeleton_graph_edits";
 import { is_valid_node_label } from "./node_display_labels";
 import { with_inherited_variables } from "./variable_inheritance";
+import { is_layout_coordinate, with_layout_positions, with_pruned_layout } from "./skeleton_document";
 
 /* The canvas reports intent, never a replacement drawing array. Each command
  * is atomic against the latest graph; a refusal returns the original object,
@@ -42,7 +43,20 @@ function remove(graph, nodeIds, edgeIds, t = agentEnglishText) {
     if (!result.ok) return { ...result, document: graph };
     next = result.document;
   }
-  return accept(next);
+  /* A layout may not name a node the graph no longer holds. */
+  return accept(with_pruned_layout(next));
+}
+
+/* `{<node id>: {x, y}}` with finite coordinates, or null. */
+function positions_of(value) {
+  if (!record(value)) return null;
+  const ids = Object.keys(value);
+  if (ids.length === 0) return null;
+  for (const id of ids) {
+    const point = value[id];
+    if (!text(id) || !shape(point, ["x", "y"]) || !is_layout_coordinate(point.x) || !is_layout_coordinate(point.y)) return null;
+  }
+  return value;
 }
 
 /* A user's connect: the edge, and the variables the connected step inherits
@@ -60,6 +74,14 @@ export function apply_graph_command(graph, command, t = agentEnglishText) {
   }
   if (command.type === "add_node" && shape(command, ["type", "node_type"])) {
     return add_node(graph, { type: command.node_type }, t);
+  }
+  /* Where nodes are drawn: display-only, written to `document.layout`, which
+     every prepared plan drops. A move is an edit like any other, so it marks
+     the draft unsaved and is one undo step. */
+  if (command.type === "move_nodes") {
+    const positions = shape(command, ["type", "positions"]) ? positions_of(command.positions) : null;
+    if (!positions) return refuse(graph, t("agents.graph.move_shape"));
+    return accept(with_layout_positions(graph, positions));
   }
   if (command.type === "rename_node") {
     if (!shape(command, ["type", "node_id", "label"]) || !text(command.node_id)) {

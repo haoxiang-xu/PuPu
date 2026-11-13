@@ -41,6 +41,26 @@ export function node_label_capability(response, t = agentEnglishText) {
   return { allowed: true, reason: null };
 }
 
+/* Whether the imported runtime stores a graph's drawing in the document.
+ *
+ * `document.layout` is admitted from skeleton_execution 1.10 with
+ * `document_layout_v1`. An older runtime refuses the whole document with
+ * `unknown_field`, so until the actual imported runtime advertises the
+ * feature the canvas keeps positions on this machine only, as before, and
+ * never writes a layout a save would be refused for. Read from the same
+ * validated manifest as labels (1.8), which 1.10 includes. */
+export const LAYOUT_FEATURE = "document_layout_v1";
+export const LAYOUT_MIN_MINOR = 10;
+
+export function node_layout_capability(response) {
+  if (!node_label_capability(response).allowed) return false;
+  const skeleton = response.runtime_manifest.protocols.find((protocol) => protocol.id === "skeleton_execution");
+  return Boolean(skeleton && skeleton.major === 1 && skeleton.minor >= LAYOUT_MIN_MINOR &&
+    skeleton.features.includes(LAYOUT_FEATURE));
+}
+
+/* One capability read answers both questions: `allowed`/`reason` for Rename
+   and `layout` for whether a drop is written into the document. */
 export function useNodeLabelCapability(enabled, scope) {
   const [state, setState] = useState({ scope: null, ...unavailable(LOADING_NOTICE) });
   useEffect(() => {
@@ -59,7 +79,7 @@ export function useNodeLabelCapability(enabled, scope) {
           console.warn("[rename] node labels unavailable; runtime protocols:",
             JSON.stringify(response && response.runtime_manifest ? response.runtime_manifest.protocols : null));
         }
-        if (current) setState({ scope, ...verdict });
+        if (current) setState({ scope, ...verdict, layout: node_layout_capability(response) });
       },
       (error) => {
         console.warn("[rename] runtime capability check failed:", error && error.code);
