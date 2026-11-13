@@ -4,508 +4,212 @@
   "repo": "haoxiang-xu/PuPu",
   "status": "active",
   "policy_corrected_at": "2026-09-22T21:27:30Z",
-  "authorization": "The owner replaced retention-first topic optimisation on 2026-10-20 with a retrieval-first strategy: 20 topics are narrow, shipped-capability hypotheses for developer/AI-agent searches; broad positioning belongs in README/description. The owner explicitly authorized a full immediate replacement and instructed that a due cohort be rotated again when it has no repeated non-bot retrieval signal.",
+  "authorization": "Owner clarified that A and B are two simultaneous groups within the 20 live topics, each held/reviewed for two weeks with a one-week offset. Optimize only part of the due group; retain good topics. This corrects the assistant's earlier whole-set alternation interpretation.",
   "required_total_topics": 20,
   "required_topics_per_group": 10,
   "group_review_interval_days": 14,
   "between_group_review_offset_days": 7,
-  "max_swaps_per_review": 10,
+  "max_swaps_per_review": 5,
   "preferred_swaps_per_review": [
-    10,
-    10
+    1,
+    3
   ],
   "allow_zero_swaps": true,
-  "long_tail_retrieval_strategy": {
-    "effective_at": "2026-10-21T04:26:51Z",
-    "evidence_record": "2026-10-20-long-tail-topics-reset.md",
-    "selection_rule": "Use only existing, low-competition GitHub topics that name a narrow shipped user need. Do not use broad ecosystem, framework, provider or positioning topics. A small topic is a retrieval hypothesis, not proof of demand.",
-    "retention_rule": "At every staggered weekly cohort review, replace the complete due cohort by default if no narrow topic has a repeated non-bot retrieval signal. A specific topic may stay only with that signal; it has no automatic preservation right."
-  },
   "groups": {
     "A": {
-      "revision": 4,
+      "revision": 1,
       "topics": [
-        "mcp-config",
-        "mcp-installer",
-        "mcp-server-manager",
-        "agent-skill-management",
-        "chat-memory",
-        "model-switching",
-        "workspace-context",
-        "file-chat",
-        "context-inspection",
-        "skill-packs"
+        "agent-workspace",
+        "ai-client",
+        "ai-harness",
+        "desktop-agent",
+        "desktop-app",
+        "electron",
+        "llm",
+        "llm-ui",
+        "local-llm",
+        "mcp"
       ],
       "cohort_registered_at": "2026-09-22T21:27:30Z",
-      "latest_member_added_at": "2026-11-10T00:18:25.366Z",
-      "first_complete_observation_day_utc": "2026-11-11",
-      "next_review_due_utc": "2026-11-24T00:00:00Z",
-      "last_review_at": "2026-11-10T00:18:27.567Z",
-      "completed_reviews": 4,
+      "latest_member_added_at": "2026-09-22T21:09:08Z",
+      "first_complete_observation_day_utc": "2026-09-23",
+      "next_review_due_utc": "2026-10-07T00:00:00Z",
+      "last_review_at": null,
+      "completed_reviews": 0,
       "member_exposure": {
-        "mcp-config": {
-          "added_at": "2026-10-27T00:13:38.682Z",
-          "first_verified_at": "2026-10-27T00:13:39.213Z",
-          "evidence": "2026-10-27-topics-change-verified.json"
+        "agent-workspace": {
+          "added_at": "2026-09-22T21:09:08Z",
+          "evidence": "2026-09-22-topics-change.md"
         },
-        "mcp-installer": {
-          "added_at": "2026-10-27T00:13:38.682Z",
-          "first_verified_at": "2026-10-27T00:13:39.213Z",
-          "evidence": "2026-10-27-topics-change-verified.json"
+        "ai-client": {
+          "added_at": "2026-09-22T21:09:08Z",
+          "evidence": "2026-09-22-topics-change.md"
         },
-        "mcp-server-manager": {
-          "added_at": "2026-11-10T00:18:25.366Z",
-          "first_verified_at": "2026-11-10T00:18:27.567Z",
-          "evidence": "2026-11-10-topics-change-verified.json",
-          "timestamp_basis": "Client PUT start; membership independently confirmed by first_verified_at."
+        "ai-harness": {
+          "added_at": "2026-09-22T21:09:08Z",
+          "evidence": "2026-09-22-topics-change.md"
         },
-        "agent-skill-management": {
-          "added_at": "2026-11-10T00:18:25.366Z",
-          "first_verified_at": "2026-11-10T00:18:27.567Z",
-          "evidence": "2026-11-10-topics-change-verified.json",
-          "timestamp_basis": "Client PUT start; membership independently confirmed by first_verified_at."
+        "desktop-agent": {
+          "added_at": "2026-09-22T21:09:08Z",
+          "evidence": "2026-09-22-topics-change.md"
         },
-        "chat-memory": {
-          "added_at": "2026-11-10T00:18:25.366Z",
-          "first_verified_at": "2026-11-10T00:18:27.567Z",
-          "evidence": "2026-11-10-topics-change-verified.json",
-          "timestamp_basis": "Client PUT start; membership independently confirmed by first_verified_at."
+        "desktop-app": {
+          "known_present_by_date": "2026-09-08",
+          "exact_added_at": null,
+          "evidence": "2026-09-08-topics-change.md; subsequent membership snapshots"
         },
-        "model-switching": {
-          "added_at": "2026-11-10T00:18:25.366Z",
-          "first_verified_at": "2026-11-10T00:18:27.567Z",
-          "evidence": "2026-11-10-topics-change-verified.json",
-          "timestamp_basis": "Client PUT start; membership independently confirmed by first_verified_at."
+        "electron": {
+          "known_present_by_date": "2026-09-08",
+          "exact_added_at": null,
+          "evidence": "2026-09-08-topics-change.md; subsequent membership snapshots"
         },
-        "workspace-context": {
-          "added_at": "2026-11-10T00:18:25.366Z",
-          "first_verified_at": "2026-11-10T00:18:27.567Z",
-          "evidence": "2026-11-10-topics-change-verified.json",
-          "timestamp_basis": "Client PUT start; membership independently confirmed by first_verified_at."
+        "llm": {
+          "known_present_by_date": "2026-09-08",
+          "exact_added_at": null,
+          "evidence": "2026-09-08-topics-change.md; subsequent membership snapshots"
         },
-        "file-chat": {
-          "added_at": "2026-11-10T00:18:25.366Z",
-          "first_verified_at": "2026-11-10T00:18:27.567Z",
-          "evidence": "2026-11-10-topics-change-verified.json",
-          "timestamp_basis": "Client PUT start; membership independently confirmed by first_verified_at."
+        "llm-ui": {
+          "added_at": "2026-09-22T21:09:08Z",
+          "evidence": "2026-09-22-topics-change.md"
         },
-        "context-inspection": {
-          "added_at": "2026-11-10T00:18:25.366Z",
-          "first_verified_at": "2026-11-10T00:18:27.567Z",
-          "evidence": "2026-11-10-topics-change-verified.json",
-          "timestamp_basis": "Client PUT start; membership independently confirmed by first_verified_at."
+        "local-llm": {
+          "known_present_by_date": "2026-09-08",
+          "exact_added_at": null,
+          "evidence": "2026-09-08-topics-change.md; subsequent membership snapshots"
         },
-        "skill-packs": {
-          "added_at": "2026-11-10T00:18:25.366Z",
-          "first_verified_at": "2026-11-10T00:18:27.567Z",
-          "evidence": "2026-11-10-topics-change-verified.json",
-          "timestamp_basis": "Client PUT start; membership independently confirmed by first_verified_at."
+        "mcp": {
+          "known_present_by_date": "2026-09-08",
+          "exact_added_at": null,
+          "evidence": "2026-09-08-topics-change.md; subsequent membership snapshots"
         }
-      },
-      "retired_member_exposure": [
-        {
-          "topics": [
-            "agent-workspace",
-            "ai-client",
-            "ai-harness",
-            "desktop-agent",
-            "desktop-app",
-            "electron",
-            "llm",
-            "llm-ui",
-            "local-llm",
-            "mcp"
-          ],
-          "removed_at": "2026-10-21T04:26:51Z",
-          "revision_last_live": 1,
-          "evidence": "2026-10-20-long-tail-topics-reset.md"
-        },
-        {
-          "topic": "mcp-host",
-          "added_at": "2026-10-21T04:26:51Z",
-          "evidence": "2026-10-27-topics-change-verified.json",
-          "removed_at": "2026-10-27T00:13:38.682Z",
-          "revision_last_live": 2
-        },
-        {
-          "topic": "mcp-registry",
-          "added_at": "2026-10-21T04:26:51Z",
-          "evidence": "2026-10-27-topics-change-verified.json",
-          "removed_at": "2026-10-27T00:13:38.682Z",
-          "revision_last_live": 2
-        },
-        {
-          "topic": "mcp-directory",
-          "added_at": "2026-10-21T04:26:51Z",
-          "evidence": "2026-10-27-topics-change-verified.json",
-          "removed_at": "2026-10-27T00:13:38.682Z",
-          "revision_last_live": 2
-        },
-        {
-          "topic": "mcp-toolkit",
-          "added_at": "2026-10-21T04:26:51Z",
-          "evidence": "2026-10-27-topics-change-verified.json",
-          "removed_at": "2026-10-27T00:13:38.682Z",
-          "revision_last_live": 2
-        },
-        {
-          "topic": "mcp-hub",
-          "added_at": "2026-10-21T04:26:51Z",
-          "evidence": "2026-10-27-topics-change-verified.json",
-          "removed_at": "2026-10-27T00:13:38.682Z",
-          "revision_last_live": 2
-        },
-        {
-          "topic": "mcp-integration",
-          "added_at": "2026-10-21T04:26:51Z",
-          "evidence": "2026-10-27-topics-change-verified.json",
-          "removed_at": "2026-10-27T00:13:38.682Z",
-          "revision_last_live": 2
-        },
-        {
-          "topic": "mcp-management",
-          "added_at": "2026-10-27T00:13:38.682Z",
-          "first_verified_at": "2026-10-27T00:13:39.213Z",
-          "evidence": "2026-10-27-topics-change-verified.json",
-          "removed_at": "2026-11-10T00:18:25.366Z",
-          "revision_last_live": 3,
-          "removal_evidence": "2026-11-10-topics-change-verified.json"
-        },
-        {
-          "topic": "agent-skills-manager",
-          "added_at": "2026-10-27T00:13:38.682Z",
-          "first_verified_at": "2026-10-27T00:13:39.213Z",
-          "evidence": "2026-10-27-topics-change-verified.json",
-          "removed_at": "2026-11-10T00:18:25.366Z",
-          "revision_last_live": 3,
-          "removal_evidence": "2026-11-10-topics-change-verified.json"
-        },
-        {
-          "topic": "conversation-memory",
-          "added_at": "2026-10-27T00:13:38.682Z",
-          "first_verified_at": "2026-10-27T00:13:39.213Z",
-          "evidence": "2026-10-27-topics-change-verified.json",
-          "removed_at": "2026-11-10T00:18:25.366Z",
-          "revision_last_live": 3,
-          "removal_evidence": "2026-11-10-topics-change-verified.json"
-        },
-        {
-          "topic": "multi-model-chat",
-          "added_at": "2026-10-27T00:13:38.682Z",
-          "first_verified_at": "2026-10-27T00:13:39.213Z",
-          "evidence": "2026-10-27-topics-change-verified.json",
-          "removed_at": "2026-11-10T00:18:25.366Z",
-          "revision_last_live": 3,
-          "removal_evidence": "2026-11-10-topics-change-verified.json"
-        },
-        {
-          "topic": "workspace-chat",
-          "added_at": "2026-10-21T04:26:51Z",
-          "evidence": "2026-10-20-long-tail-topics-reset.md",
-          "removed_at": "2026-11-10T00:18:25.366Z",
-          "revision_last_live": 3,
-          "removal_evidence": "2026-11-10-topics-change-verified.json"
-        },
-        {
-          "topic": "file-context",
-          "added_at": "2026-10-21T04:26:51Z",
-          "evidence": "2026-10-20-long-tail-topics-reset.md",
-          "removed_at": "2026-11-10T00:18:25.366Z",
-          "revision_last_live": 3,
-          "removal_evidence": "2026-11-10-topics-change-verified.json"
-        },
-        {
-          "topic": "context-aware-chat",
-          "added_at": "2026-10-21T04:26:51Z",
-          "evidence": "2026-10-20-long-tail-topics-reset.md",
-          "removed_at": "2026-11-10T00:18:25.366Z",
-          "revision_last_live": 3,
-          "removal_evidence": "2026-11-10-topics-change-verified.json"
-        },
-        {
-          "topic": "mcp-marketplace",
-          "added_at": "2026-10-21T04:26:51Z",
-          "evidence": "2026-10-20-long-tail-topics-reset.md",
-          "removed_at": "2026-11-10T00:18:25.366Z",
-          "revision_last_live": 3,
-          "removal_evidence": "2026-11-10-topics-change-verified.json"
-        }
-      ],
-      "last_review_record": "2026-11-10-topics-change.md",
-      "last_verified_change_record": "2026-11-10-topics-change-verified.json",
-      "last_review_retention_note": "Retained the exact shipped MCP configuration/runtime-installer needs after researching existing alternatives. Eight other hypotheses replaced; no per-topic demand or conversion claim, no automatic preservation right or forced ten-swap quota."
+      }
     },
     "B": {
-      "revision": 5,
+      "revision": 1,
       "topics": [
-        "bring-your-own-key",
-        "skill-organizer",
-        "skill-inventory",
-        "chat-folders",
-        "context-visualization",
-        "token-tracking",
-        "memory-curation",
-        "tool-approval",
-        "ollama-gui",
-        "local-ai-chat"
+        "agent-orchestration",
+        "anthropic",
+        "deepseek",
+        "llm-client",
+        "mcp-client",
+        "multi-agent",
+        "ollama",
+        "ollama-client",
+        "openai",
+        "self-hosted"
       ],
       "cohort_registered_at": "2026-09-22T21:27:30Z",
-      "historical_exposure_note": "The owner directed a complete long-tail retrieval reset on 2026-10-20; former membership and its introduction evidence are preserved in the historical record and change report.",
-      "next_review_due_utc": "2026-11-17T00:00:00Z",
-      "last_review_at": "2026-11-03T00:35:25.075Z",
-      "completed_reviews": 5,
+      "historical_exposure_note": "All ten tags were already in the recorded September 8 applied set and subsequent snapshots; first review September 30 does not reduce their historical exposure to seven days. Group membership is bookkeeping introduced today, not a new GitHub application.",
+      "next_review_due_utc": "2026-09-30T00:00:00Z",
+      "last_review_at": null,
+      "completed_reviews": 0,
       "member_exposure": {
-        "bring-your-own-key": {
-          "added_at": "2026-11-03T00:35:22.223Z",
-          "first_verified_at": "2026-11-03T00:35:25.075Z",
-          "evidence": "2026-11-03-topics-change-verified.json",
-          "timestamp_basis": "Client PUT request start; membership independently confirmed by first_verified_at."
+        "agent-orchestration": {
+          "known_present_by_date": "2026-09-08",
+          "exact_added_at": null,
+          "evidence": "2026-09-08-topics-change.md; topics-history.ndjson"
         },
-        "skill-organizer": {
-          "added_at": "2026-11-03T00:35:22.223Z",
-          "first_verified_at": "2026-11-03T00:35:25.075Z",
-          "evidence": "2026-11-03-topics-change-verified.json",
-          "timestamp_basis": "Client PUT request start; membership independently confirmed by first_verified_at."
+        "anthropic": {
+          "known_present_by_date": "2026-09-08",
+          "exact_added_at": null,
+          "evidence": "2026-09-08-topics-change.md; topics-history.ndjson"
         },
-        "skill-inventory": {
-          "added_at": "2026-11-03T00:35:22.223Z",
-          "first_verified_at": "2026-11-03T00:35:25.075Z",
-          "evidence": "2026-11-03-topics-change-verified.json",
-          "timestamp_basis": "Client PUT request start; membership independently confirmed by first_verified_at."
+        "deepseek": {
+          "known_present_by_date": "2026-09-08",
+          "exact_added_at": null,
+          "evidence": "2026-09-08-topics-change.md; topics-history.ndjson"
         },
-        "chat-folders": {
-          "added_at": "2026-11-03T00:35:22.223Z",
-          "first_verified_at": "2026-11-03T00:35:25.075Z",
-          "evidence": "2026-11-03-topics-change-verified.json",
-          "timestamp_basis": "Client PUT request start; membership independently confirmed by first_verified_at."
+        "llm-client": {
+          "known_present_by_date": "2026-09-08",
+          "exact_added_at": null,
+          "evidence": "2026-09-08-topics-change.md; topics-history.ndjson"
         },
-        "context-visualization": {
-          "added_at": "2026-11-03T00:35:22.223Z",
-          "first_verified_at": "2026-11-03T00:35:25.075Z",
-          "evidence": "2026-11-03-topics-change-verified.json",
-          "timestamp_basis": "Client PUT request start; membership independently confirmed by first_verified_at."
+        "mcp-client": {
+          "known_present_by_date": "2026-09-08",
+          "exact_added_at": null,
+          "evidence": "2026-09-08-topics-change.md; topics-history.ndjson"
         },
-        "token-tracking": {
-          "added_at": "2026-11-03T00:35:22.223Z",
-          "first_verified_at": "2026-11-03T00:35:25.075Z",
-          "evidence": "2026-11-03-topics-change-verified.json",
-          "timestamp_basis": "Client PUT request start; membership independently confirmed by first_verified_at."
+        "multi-agent": {
+          "known_present_by_date": "2026-09-08",
+          "exact_added_at": null,
+          "evidence": "2026-09-08-topics-change.md; topics-history.ndjson"
         },
-        "memory-curation": {
-          "added_at": "2026-11-03T00:35:22.223Z",
-          "first_verified_at": "2026-11-03T00:35:25.075Z",
-          "evidence": "2026-11-03-topics-change-verified.json",
-          "timestamp_basis": "Client PUT request start; membership independently confirmed by first_verified_at."
+        "ollama": {
+          "known_present_by_date": "2026-09-08",
+          "exact_added_at": null,
+          "evidence": "2026-09-08-topics-change.md; topics-history.ndjson"
         },
-        "tool-approval": {
-          "added_at": "2026-11-03T00:35:22.223Z",
-          "first_verified_at": "2026-11-03T00:35:25.075Z",
-          "evidence": "2026-11-03-topics-change-verified.json",
-          "timestamp_basis": "Client PUT request start; membership independently confirmed by first_verified_at."
+        "ollama-client": {
+          "known_present_by_date": "2026-09-08",
+          "exact_added_at": null,
+          "evidence": "2026-09-08-topics-change.md; topics-history.ndjson"
         },
-        "ollama-gui": {
-          "added_at": "2026-10-21T04:26:51Z",
-          "evidence": "2026-10-20-long-tail-topics-reset.md"
+        "openai": {
+          "known_present_by_date": "2026-09-08",
+          "exact_added_at": null,
+          "evidence": "2026-09-08-topics-change.md; topics-history.ndjson"
         },
-        "local-ai-chat": {
-          "added_at": "2026-10-21T04:26:51Z",
-          "evidence": "2026-10-20-long-tail-topics-reset.md"
+        "self-hosted": {
+          "known_present_by_date": "2026-09-08",
+          "exact_added_at": null,
+          "evidence": "2026-09-08-topics-change.md; topics-history.ndjson"
         }
-      },
-      "latest_member_added_at": "2026-11-03T00:35:22.223Z",
-      "retired_member_exposure": [
-        {
-          "topic": "agent-orchestration",
-          "known_present_by_date": "2026-09-08",
-          "exact_added_at": null,
-          "evidence": "2026-10-01-topics-recovery.json",
-          "removed_at": "2026-09-30T01:34:19.753Z",
-          "revision_last_live": 1
-        },
-        {
-          "topic": "anthropic",
-          "known_present_by_date": "2026-09-08",
-          "exact_added_at": null,
-          "evidence": "2026-10-19-topics-change.md",
-          "removed_at": "2026-10-19T01:22:03Z",
-          "revision_last_live": 2
-        },
-        {
-          "topic": "deepseek",
-          "known_present_by_date": "2026-09-08",
-          "exact_added_at": null,
-          "evidence": "2026-10-19-topics-change.md",
-          "removed_at": "2026-10-19T01:22:03Z",
-          "revision_last_live": 2
-        },
-        {
-          "topic": "openai",
-          "known_present_by_date": "2026-09-08",
-          "exact_added_at": null,
-          "evidence": "2026-10-19-topics-change.md",
-          "removed_at": "2026-10-19T01:22:03Z",
-          "revision_last_live": 2
-        },
-        {
-          "topics": [
-            "ai-workspace",
-            "desktop-assistant",
-            "llm-client",
-            "mcp-client",
-            "mcp-store",
-            "multi-agent",
-            "ollama",
-            "ollama-client",
-            "ollama-ui",
-            "self-hosted"
-          ],
-          "removed_at": "2026-10-21T04:26:51Z",
-          "revision_last_live": 3,
-          "evidence": "2026-10-20-long-tail-topics-reset.md"
-        },
-        {
-          "topic": "ollama-webui",
-          "added_at": "2026-10-21T04:26:51Z",
-          "evidence": "2026-10-20-long-tail-topics-reset.md",
-          "removed_at": "2026-11-03T00:35:22.223Z",
-          "revision_last_live": 4,
-          "removal_evidence": "2026-11-03-topics-change-verified.json"
-        },
-        {
-          "topic": "llm-interface",
-          "added_at": "2026-10-21T04:26:51Z",
-          "evidence": "2026-10-20-long-tail-topics-reset.md",
-          "removed_at": "2026-11-03T00:35:22.223Z",
-          "revision_last_live": 4,
-          "removal_evidence": "2026-11-03-topics-change-verified.json"
-        },
-        {
-          "topic": "llm-gui",
-          "added_at": "2026-10-21T04:26:51Z",
-          "evidence": "2026-10-20-long-tail-topics-reset.md",
-          "removed_at": "2026-11-03T00:35:22.223Z",
-          "revision_last_live": 4,
-          "removal_evidence": "2026-11-03-topics-change-verified.json"
-        },
-        {
-          "topic": "llm-desktop",
-          "added_at": "2026-10-21T04:26:51Z",
-          "evidence": "2026-10-20-long-tail-topics-reset.md",
-          "removed_at": "2026-11-03T00:35:22.223Z",
-          "revision_last_live": 4,
-          "removal_evidence": "2026-11-03-topics-change-verified.json"
-        },
-        {
-          "topic": "desktop-chat",
-          "added_at": "2026-10-21T04:26:51Z",
-          "evidence": "2026-10-20-long-tail-topics-reset.md",
-          "removed_at": "2026-11-03T00:35:22.223Z",
-          "revision_last_live": 4,
-          "removal_evidence": "2026-11-03-topics-change-verified.json"
-        },
-        {
-          "topic": "ai-desktop",
-          "added_at": "2026-10-21T04:26:51Z",
-          "evidence": "2026-10-20-long-tail-topics-reset.md",
-          "removed_at": "2026-11-03T00:35:22.223Z",
-          "revision_last_live": 4,
-          "removal_evidence": "2026-11-03-topics-change-verified.json"
-        },
-        {
-          "topic": "ai-desktop-app",
-          "added_at": "2026-10-21T04:26:51Z",
-          "evidence": "2026-10-20-long-tail-topics-reset.md",
-          "removed_at": "2026-11-03T00:35:22.223Z",
-          "revision_last_live": 4,
-          "removal_evidence": "2026-11-03-topics-change-verified.json"
-        },
-        {
-          "topic": "local-ai-assistant",
-          "added_at": "2026-10-21T04:26:51Z",
-          "evidence": "2026-10-20-long-tail-topics-reset.md",
-          "removed_at": "2026-11-03T00:35:22.223Z",
-          "revision_last_live": 4,
-          "removal_evidence": "2026-11-03-topics-change-verified.json"
-        }
-      ],
-      "minimum_exposure_note": "The owner's retrieval-first override replaces automatic fourteen-day preservation with weekly cohort decisions. A narrow topic may remain only when a repeated non-bot retrieval signal supports it.",
-      "first_complete_observation_day_utc": "2026-11-04",
-      "last_review_record": "2026-11-03-topics-change.md",
-      "last_verified_change_record": "2026-11-03-topics-change-verified.json",
-      "last_review_retention_note": "Retained two concrete shipped-fit hypotheses under latest owner direction; no automatic retention right or invented ten-swap quota. Missing topic attribution is not zero traffic. Eight generic/misaligned hypotheses replaced."
+      }
     }
   },
   "live_topics": [
-    "agent-skill-management",
-    "bring-your-own-key",
-    "chat-folders",
-    "chat-memory",
-    "context-inspection",
-    "context-visualization",
-    "file-chat",
-    "local-ai-chat",
-    "mcp-config",
-    "mcp-installer",
-    "mcp-server-manager",
-    "memory-curation",
-    "model-switching",
-    "ollama-gui",
-    "skill-inventory",
-    "skill-organizer",
-    "skill-packs",
-    "token-tracking",
-    "tool-approval",
-    "workspace-context"
+    "agent-orchestration",
+    "agent-workspace",
+    "ai-client",
+    "ai-harness",
+    "anthropic",
+    "deepseek",
+    "desktop-agent",
+    "desktop-app",
+    "electron",
+    "llm",
+    "llm-client",
+    "llm-ui",
+    "local-llm",
+    "mcp",
+    "mcp-client",
+    "multi-agent",
+    "ollama",
+    "ollama-client",
+    "openai",
+    "self-hosted"
   ],
-  "live_topics_last_applied_at": "2026-11-10T00:18:25.366Z",
+  "live_topics_last_applied_at": "2026-09-22T21:09:08Z",
   "next_review_group": "B",
-  "next_review_due_utc": "2026-11-17T00:00:00Z",
-  "completed_reviews": 9,
-  "completed_topic_updates": 7,
+  "next_review_due_utc": "2026-09-30T00:00:00Z",
+  "completed_reviews": 0,
+  "completed_topic_updates": 0,
   "scheduler": {
     "automation_id": "pupu-topics-cleanup-checkpoints",
     "timezone": "America/Vancouver",
     "daily_snapshot_local_time": "17:00",
-    "notes": "Daily17:00 America/Vancouver is00:00Z under the verified B.C.2026 year-round Pacific Time (PCT, UTC-7) rule. There is no November1 clock fallback. Keep persisted UTC review due dates, fourteen-day cohort intervals and seven-day stagger; preserve actual execution timestamps and delays.",
-    "timezone_verification": {
-      "checked_at": "2026-11-01T17:03:18.086Z",
-      "timezone": "America/Vancouver",
-      "utc_offset": "-07:00",
-      "source_urls": [
-        "https://news.gov.bc.ca/releases/2026AG0013-000209",
-        "https://news.gov.bc.ca/releases/2026CITZ0009-001073"
-      ],
-      "correction_record": "2026-11-01-pacific-time-correction.json"
-    }
+    "notes": "Daily 17:00 local corresponds to UTC midnight during daylight time. Scheduled reviews use the stored UTC due dates; preserve actual times, protect two-week topic exposure, and record delay or daylight-saving effects."
   },
   "planned_reviews": [
     {
       "group": "B",
-      "utc": "2026-11-17T00:00:00Z",
-      "vancouver_local": "2026-11-16 17:00",
-      "next_daily_execution_local": "2026-11-16 17:00",
-      "next_daily_execution_utc": "2026-11-17T00:00:00Z"
+      "utc": "2026-09-30T00:00:00Z",
+      "vancouver_local": "2026-09-29 17:00"
     },
     {
       "group": "A",
-      "utc": "2026-11-24T00:00:00Z",
-      "vancouver_local": "2026-11-23 17:00",
-      "next_daily_execution_local": "2026-11-23 17:00",
-      "next_daily_execution_utc": "2026-11-24T00:00:00Z"
+      "utc": "2026-10-07T00:00:00Z",
+      "vancouver_local": "2026-10-06 17:00"
     },
     {
       "group": "B",
-      "utc": "2026-12-01T00:00:00Z",
-      "vancouver_local": "2026-11-30 17:00",
-      "next_daily_execution_local": "2026-11-30 17:00",
-      "next_daily_execution_utc": "2026-12-01T00:00:00Z"
+      "utc": "2026-10-14T00:00:00Z",
+      "vancouver_local": "2026-10-13 17:00"
     },
     {
       "group": "A",
-      "utc": "2026-12-08T00:00:00Z",
-      "vancouver_local": "2026-12-07 17:00",
-      "next_daily_execution_local": "2026-12-07 17:00",
-      "next_daily_execution_utc": "2026-12-08T00:00:00Z"
+      "utc": "2026-10-21T00:00:00Z",
+      "vancouver_local": "2026-10-20 17:00"
     }
   ],
   "baseline_snapshot": "2026-09-22-topics-baseline.json",
@@ -530,56 +234,5 @@
     },
     "usage": "Research candidates only, not a predefined future B set. Remeasure and validate fit at a due review; select only justified replacements for that group."
   },
-  "measurement_note": "Both groups are always live. The other cohort changes halfway through a group's 14-day exposure. Label results with both group revisions; do not claim isolated per-topic or per-group traffic from GitHub aggregate metrics. Planned staggered changes are the experiment design, while unexpected edits or releases/promotions need separate annotations.",
-  "last_completed_review": {
-    "groups": [
-      "A"
-    ],
-    "completed_at": "2026-11-10T00:18:27.567Z",
-    "review_id": "2026-11-10-A-long-tail-review",
-    "old_revisions": {
-      "A": 3,
-      "B": 5
-    },
-    "new_revisions": {
-      "A": 4,
-      "B": 5
-    },
-    "replacements": 8,
-    "decision": "evidence-informed-long-tail-partial-replacement",
-    "review_record": "2026-11-10-topics-change.md",
-    "research_record": "2026-11-10-topics-review-A-research.json",
-    "verification_record": "2026-11-10-topics-change-verified.json",
-    "removed": [
-      "mcp-management",
-      "agent-skills-manager",
-      "conversation-memory",
-      "multi-model-chat",
-      "workspace-chat",
-      "file-context",
-      "context-aware-chat",
-      "mcp-marketplace"
-    ],
-    "added": [
-      "mcp-server-manager",
-      "agent-skill-management",
-      "chat-memory",
-      "model-switching",
-      "workspace-context",
-      "file-chat",
-      "context-inspection",
-      "skill-packs"
-    ],
-    "retained": [
-      "mcp-config",
-      "mcp-installer"
-    ],
-    "retention_note": "Retained the exact shipped MCP configuration/runtime-installer needs after researching existing alternatives. Eight other hypotheses replaced; no per-topic demand or conversion claim, no automatic preservation right or forced ten-swap quota."
-  },
-  "live_topics_last_verified_at": "2026-11-10T00:18:27.567Z",
-  "policy_interpretation_note": {
-    "recorded_at": "2026-10-27T00:13:39.213Z",
-    "source": "2026-10-27 heartbeat and due review record",
-    "note": "Interpret older default-complete/attributed-nonbot retention wording using latest owner instruction: actively replace weak hypotheses within due group, up to ten, but preserve well-supported fit; unavailable topic attribution is not proof of zero traffic. This clarification does not restore broad topics or a permanent core."
-  }
+  "measurement_note": "Both groups are always live. The other cohort changes halfway through a group's 14-day exposure. Label results with both group revisions; do not claim isolated per-topic or per-group traffic from GitHub aggregate metrics. Planned staggered changes are the experiment design, while unexpected edits or releases/promotions need separate annotations."
 }
