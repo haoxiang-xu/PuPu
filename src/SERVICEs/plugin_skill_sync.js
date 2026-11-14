@@ -33,7 +33,7 @@ import {
   registerCommand,
   unregisterBySource,
 } from "./command_registry";
-import { normalizeToolkitIdAlias } from "./toolkit_id_aliases";
+import { SKILL_INVENTORY_ICON, skillSourceAttribution } from "./skill_source_attribution";
 import { subscribeToolkitCatalogRefresh } from "./toolkit_catalog_refresh";
 import { applySkillInventory } from "./skill_inventory_store";
 import { readWorkspaceRoot } from "../COMPONENTs/settings/runtime";
@@ -112,10 +112,6 @@ export const syncPluginSkills = (toolkits) => {
 };
 
 const SKILL_INVENTORY_SOURCE = "skill-inventory";
-// "command" is the same builtin icon category_chip.js and
-// skill_pack_detail_page.js already use for the "skill" category — no
-// per-entry icon field exists on a `pupu.skill_inventory.v1` row.
-const SKILL_INVENTORY_ICON = "command";
 
 /**
  * True when `name` is already registered by a source OTHER than
@@ -185,12 +181,7 @@ export const syncSkillInventory = (payload) => {
     // pack. Both are toolkit-identified, so both derive sourceToolkitId from
     // source_id the same way. Any other source (workspace/user skill
     // directories) carries no toolkit identity.
-    const isToolkitSourced = entry.source === "toolkit" || entry.source === "skillpack";
-    const sourceId = typeof entry.source_id === "string" ? entry.source_id : "";
-    const sourceLabel = isToolkitSourced ? sourceId : typeof entry.source === "string" ? entry.source : "";
-    const sourceToolkitId = isToolkitSourced
-      ? normalizeToolkitIdAlias(sourceId) || sourceId
-      : "";
+    const { sourceLabel, sourceToolkitId } = skillSourceAttribution(entry);
 
     registerOne(`/${name}`, entry, sourceLabel, sourceToolkitId);
 

@@ -1,10 +1,13 @@
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { agentEnglishText } from "../agents_i18n";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import Select from "./panel_select";
 import { api } from "../../../../../SERVICEs/api";
 import { readSkillsIncludeUserDirsSetting } from "../../../../../SERVICEs/plugin_skill_sync";
+import { SKILL_INVENTORY_ICON, skillSourceAttribution } from "../../../../../SERVICEs/skill_source_attribution";
+import { buildSkillPickerTree } from "../../../../../SERVICEs/skill_picker_tree";
+import CommandTree from "../../../../chat-input/components/command_tree";
 import { safe_text } from "../document_values";
 import { node_bindings } from "../skeleton_document";
 import {
@@ -127,11 +130,48 @@ export default function SkillReadSection({ document, node, isDark, onChange }) {
     ...(identity && at === -1 && list.status === "ready"
       ? [{
         value: STORED,
+        pinned: true,
         label: exact ? t("agents.execution.skill.unlisted_option", { name: safe_text(identity.name) || t("agents.execution.skill.unnamed") }) : t("agents.execution.skill.unreadable_option", { name: safe_text(identity.name) || t("agents.execution.skill.unnamed") }),
       }]
       : []),
-    ...rows.map((row, index) => ({ value: String(index), label: `${row.identity.name} · ${source_label(row.identity.source, t)}` })),
+    ...rows.map((row, index) => ({
+      value: String(index),
+      label: `${row.identity.name} · ${source_label(row.identity.source, t)}`,
+      /* the skill as the slash palette lists it: its icon, and the command
+         shape that files it in the palette's folders */
+      icon: SKILL_INVENTORY_ICON,
+      command: { name: `/${row.identity.name}`, ...skillSourceAttribution(row.identity) },
+    })),
   ];
+  /* Browsing is the slash palette's tree (see skill_picker_tree); typing a
+     query searches every skill, flat. The folders are re-read with the list. */
+  const optionsKey = options.map((option) => option.value + "\u0001" + option.label).join("\u0000");
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const skillTree = useMemo(() => buildSkillPickerTree({ choices: options }), [optionsKey]);
+  const [skillTreeVisible, setSkillTreeVisible] = useState(null);
+  const skillTreeValues = useMemo(() => {
+    if (!skillTreeVisible) return skillTree.values;
+    const known = new Set(skillTree.values);
+    return skillTreeVisible.filter((id) => known.has(id));
+  }, [skillTree, skillTreeVisible]);
+  const renderSkillTree = ({ highlighted_value, render_option }) => (
+    <CommandTree
+      data={skillTree.data}
+      root={skillTree.root}
+      activeNodeId={highlighted_value ?? null}
+      onVisibleChange={setSkillTreeVisible}
+      isDark={isDark}
+      bare
+      width="100%"
+      renderRow={({ node: row, depth }) =>
+        render_option(
+          row.inOwnPackFolder ? { ...row.option, label: row.option.command.name.slice(1) } : row.option,
+          { depth },
+        )
+      }
+    />
+  );
+
   const selected = !identity ? null : at === -1 ? STORED : String(at);
   const listed = at === -1 ? null : rows[at];
   const problems = skill_read_problems(node, list.status === "ready" ? list.rows : null, t);
@@ -181,6 +221,8 @@ export default function SkillReadSection({ document, node, isDark, onChange }) {
               if (row && (!exact || !same_identity(row.identity, identity))) commit(with_skill(document, node.id, row.identity));
             }}
             filterable
+            palette_tree={renderSkillTree}
+            palette_tree_values={skillTreeValues}
             placeholder={list.status === "loading" ? t("agents.execution.skill.reading_list") : t("agents.execution.skill.pick_skill")}
             disabled={!editable}
             dropdown_style={{ maxHeight: "min(280px, 40vh)" }}
