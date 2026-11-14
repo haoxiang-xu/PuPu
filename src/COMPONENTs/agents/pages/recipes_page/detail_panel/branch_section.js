@@ -125,7 +125,9 @@ function NumberBox({ value, onChange, testid, disabled, isDark, style = FIELD_TE
 
 /* The If / Else selects are drawn at the canvas tags' corners and read left
    to right, so a row reads as a sentence: `flag  is  true`. */
-const IF_SELECT = { fontSize: 12, paddingVertical: 3, paddingHorizontal: 7, gap: 4, width: "auto" };
+/* One height for every control on a comparison line: a monospace input name
+   otherwise sets its select 4px shorter than the operator beside it. */
+const IF_SELECT = { fontSize: 12, paddingVertical: 3, paddingHorizontal: 7, gap: 4, width: "auto", height: 26, boxSizing: "border-box" };
 const IF_FIELD_TEXT = { width: "100%", fontSize: 12, paddingVertical: 3, paddingHorizontal: 7 };
 const IfSelect = (props) => <Select radius={NODE_TAG_RADIUS} align="left" {...props} style={{ ...IF_SELECT, ...props.style }} />;
 /* One cell of a row: as wide as what it shows, never wider than the row. */

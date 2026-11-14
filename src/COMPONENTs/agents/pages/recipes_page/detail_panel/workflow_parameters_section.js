@@ -27,7 +27,8 @@ const seed_default = (type) => own({ string: "", number: 0, integer: 0, boolean:
 /* The row's controls take the If / Else rows' measure: tag corners, text read
    from the left, one size of type. A parameter is an identifier, so it is set
    in the panel's monospace like every other variable name. */
-const FIELD_TEXT = { width: "100%", minWidth: 0, fontSize: 12, paddingVertical: 3, paddingHorizontal: 7 };
+const FIELD_HEIGHT = 26;
+const FIELD_TEXT = { width: "100%", minWidth: 0, height: FIELD_HEIGHT, boxSizing: "border-box", fontSize: 12, paddingVertical: 3, paddingHorizontal: 7 };
 const MONO = { fontFamily: "ui-monospace, Menlo, monospace" };
 const TYPE_WIDTH = 84;
 const SWITCH_WIDTH = 48;
