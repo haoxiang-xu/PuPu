@@ -82,15 +82,17 @@ test("New Workflow from the explorer opens an unsaved Workflow draft: Start and 
   expect(screen.getByTestId("skeleton-save-state")).not.toHaveTextContent(/^Saved$/);
 });
 
-test("the header button creates a Workflow too, and New Agent still creates an Agent", async () => {
+test("the header + creates a Workflow too, and New Agent still creates an Agent", async () => {
   show();
   await within(explorer()).findByText("Planner");
-  fireEvent.click(within(explorer()).getByRole("button", { name: "New Workflow" }));
+  fireEvent.click(within(explorer()).getByRole("button", { name: "New" }));
+  fireEvent.click(menuItem("New Workflow"));
   name("Flow two");
   await screen.findByTestId("skeleton-node-start");
   expect(screen.queryByTestId("skeleton-node-agent")).toBeNull();
 
-  fireEvent.click(within(explorer()).getByRole("button", { name: "New Agent" }));
+  fireEvent.click(within(explorer()).getByRole("button", { name: "New" }));
+  fireEvent.click(menuItem("New Agent"));
   name("Agent two");
   await screen.findByTestId("skeleton-node-agent");
 });

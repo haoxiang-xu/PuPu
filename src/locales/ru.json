@@ -548,7 +548,8 @@
     "chats": "Чаты",
     "home": "Главная",
     "no_chats_found": "Чаты не найдены",
-    "models": "Модели"
+    "models": "Модели",
+    "new": "Создать"
   },
   "context_menu": {
     "new_chat": "Новый чат",

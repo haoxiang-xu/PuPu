@@ -8,6 +8,7 @@ import { agentEnglishText } from "./agents_i18n";
 export function buildAgentExplorerMenuItems({
   node,
   activeDirty,
+  canCreate = true,
   onNewAgent,
   onNewWorkflow,
   onNewFolder,
@@ -20,8 +21,8 @@ export function buildAgentExplorerMenuItems({
 }, t = agentEnglishText) {
   if (!node) {
     return [
-      { icon: "add", label: t("agents.explorer.menu.new_agent"), onClick: () => onNewAgent(null) },
-      ...(onNewWorkflow ? [{ icon: "workflow", label: t("agents.explorer.menu.new_workflow"), onClick: () => onNewWorkflow(null) }] : []),
+      { icon: "add", label: t("agents.explorer.menu.new_agent"), disabled: !canCreate, onClick: () => onNewAgent(null) },
+      ...(onNewWorkflow ? [{ icon: "workflow", label: t("agents.explorer.menu.new_workflow"), disabled: !canCreate, onClick: () => onNewWorkflow(null) }] : []),
       { icon: "folder_new", label: t("agents.explorer.menu.new_folder"), onClick: () => onNewFolder(null) },
       ...(onImport ? [{ type: "separator" }, { icon: "upload", label: t("agents.explorer.menu.import"), onClick: () => onImport() }] : []),
     ];
@@ -29,8 +30,8 @@ export function buildAgentExplorerMenuItems({
 
   if (node.kind === "folder") {
     return [
-      { icon: "add", label: t("agents.explorer.menu.new_agent"), onClick: () => onNewAgent(node.folder_id) },
-      ...(onNewWorkflow ? [{ icon: "workflow", label: t("agents.explorer.menu.new_workflow"), onClick: () => onNewWorkflow(node.folder_id) }] : []),
+      { icon: "add", label: t("agents.explorer.menu.new_agent"), disabled: !canCreate, onClick: () => onNewAgent(node.folder_id) },
+      ...(onNewWorkflow ? [{ icon: "workflow", label: t("agents.explorer.menu.new_workflow"), disabled: !canCreate, onClick: () => onNewWorkflow(node.folder_id) }] : []),
       { icon: "folder_new", label: t("agents.explorer.menu.new_folder"), onClick: () => onNewFolder(node.folder_id) },
       { type: "separator" },
       { icon: "rename", label: t("agents.explorer.menu.rename"), onClick: () => onStartRename(node) },

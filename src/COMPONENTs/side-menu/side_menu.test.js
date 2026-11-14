@@ -356,10 +356,14 @@ describe("SideMenu", () => {
     expect(setAppMode).toHaveBeenCalledWith("agents");
   });
 
-  test("New chat is the Chats title's action, not a top-bar button", () => {
+  test("the Chats title has one + whose menu makes a chat or a folder", () => {
     renderSideMenu({ appMode: "chat", setAppMode: jest.fn() });
     const title = screen.getByTestId("side-menu-chats-title");
-    expect(title).toContainElement(screen.getByLabelText("New chat"));
+    const plus = within(title).getByLabelText("New");
+    expect(within(title).getAllByRole("button")).toHaveLength(1);
+    fireEvent.click(plus);
+    expect(screen.getByText("New Chat")).toBeInTheDocument();
+    expect(screen.getByText("New Folder")).toBeInTheDocument();
   });
 
   test("the breadcrumb's blocks nest: Home is pointed, Agents is notched and squared off", () => {

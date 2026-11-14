@@ -468,13 +468,22 @@ const SideMenu = () => {
     });
   }, []);
 
+  const handleNewMenu = useCallback((event) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    setContextMenu({
+      visible: true,
+      x: rect.left,
+      y: rect.bottom + 4,
+      node: null,
+    });
+  }, []);
+
   const {
     handleSelectNode,
     handleReorder,
     handleStartRename,
     handleConfirmRename,
     handleCancelRename,
-    handleNewChat,
     handleDelete,
   } = useSideMenuActions({
     chatStore,
@@ -859,11 +868,13 @@ const SideMenu = () => {
               >
                 {t("side_menu.chats")}
               </div>
+              {/* One + for everything this list can make: it opens the
+                  same menu as a right-click on the list's background. */}
               <Button
                 prefix_icon="add"
-                ariaLabel="New chat"
+                ariaLabel={t("side_menu.new")}
                 style={HEADER_ICON_BUTTON}
-                onClick={(...args) => handleNewChat(...args)}
+                onClick={handleNewMenu}
               />
             </div>
             <div

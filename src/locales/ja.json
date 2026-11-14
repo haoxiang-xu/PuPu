@@ -548,7 +548,8 @@
     "chats": "チャット",
     "home": "ホーム",
     "no_chats_found": "チャットが見つかりません",
-    "models": "モデル"
+    "models": "モデル",
+    "new": "新規作成"
   },
   "context_menu": {
     "new_chat": "新規チャット",

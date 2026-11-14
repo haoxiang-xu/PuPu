@@ -548,7 +548,8 @@
     "chats": "채팅",
     "home": "홈",
     "no_chats_found": "채팅을 찾을 수 없습니다",
-    "models": "모델"
+    "models": "모델",
+    "new": "새로 만들기"
   },
   "context_menu": {
     "new_chat": "새 채팅",

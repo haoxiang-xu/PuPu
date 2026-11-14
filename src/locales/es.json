@@ -548,7 +548,8 @@
     "chats": "Chats",
     "home": "Inicio",
     "no_chats_found": "No se encontraron chats",
-    "models": "Modelos"
+    "models": "Modelos",
+    "new": "Nuevo"
   },
   "context_menu": {
     "new_chat": "Nuevo chat",
