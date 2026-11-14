@@ -25,6 +25,8 @@ import Tooltip from "../../../BUILTIN_COMPONENTs/tooltip/tooltip";
 import { Select } from "../../../BUILTIN_COMPONENTs/select/select";
 import ModelPicker, { modelPickerTriggerStyle } from "../../../BUILTIN_COMPONENTs/select/model_picker";
 import AttachmentChipList from "./attachment_chip_list";
+import CommandTree from "./command_tree";
+import { buildAgentPickerTree } from "../../../SERVICEs/agent_picker_tree";
 import { QueueAttachSection } from "./queue_pile";
 import { WorkspaceModal } from "../../workspace/workspace_modal";
 import useChatInputToolkits from "../hooks/use_chat_input_toolkits";
@@ -614,7 +616,7 @@ const AttachPanel = forwardRef(({
   onRequestInputFocus = () => {},
   onSelectorOpenChange = () => {},
 }, ref) => {
-  const { theme } = useContext(ConfigContext);
+  const { theme, setAppMode } = useContext(ConfigContext);
   const { t } = useTranslation();
   const highlight = themeHighlightColor(theme);
   const [workspaceModalOpen, setWorkspaceModalOpen] = useState(false);
@@ -734,10 +736,12 @@ const AttachPanel = forwardRef(({
      a Map built from the same list, so a name that happens to look like an
      encoded id decides nothing. */
   const agentOptions = useMemo(() => [
-    { value: AGENT_DEFAULT, label: t("chat.attach.agent_default") },
+    { value: AGENT_DEFAULT, label: t("chat.attach.agent_default"), pinned: true },
     ...skeletonAgentOptions.map((option) => ({
       value: `skeleton:${option.id}`,
       label: option.name,
+      /* places it in its folder on the Agents page — see agent_picker_tree */
+      resourceId: option.id,
     })),
     ...(recipeOptions || [])
       .filter((option) => option && option.value && option.value !== "Default")
@@ -784,12 +788,34 @@ const AttachPanel = forwardRef(({
   const agentSelectionUnavailable =
     Boolean(selectedSkeletonAgentId || (selectedRecipeName && selectedRecipeName !== "Default")) &&
     !agentChoiceByValue.has(agentSelectValue);
-  const agentSelectOptions = agentSelectionUnavailable
-    ? [
-        ...agentOptions,
-        { value: agentSelectValue, label: t("chat.attach.agent_unavailable") },
-      ]
-    : agentOptions;
+  const agentSelectOptions = useMemo(
+    () =>
+      agentSelectionUnavailable
+        ? [
+            ...agentOptions,
+            { value: agentSelectValue, label: t("chat.attach.agent_unavailable") },
+          ]
+        : agentOptions,
+    [agentOptions, agentSelectionUnavailable, agentSelectValue, t],
+  );
+  /* The list as the Agents page arranges it: its folders, its order. Read
+     when the picker opens — the folders are the Agents page's to change, and
+     this chat may have sat open while they were. With no folders it is the
+     flat list it always was. */
+  const agentPickerOpen = openSelector === "agent";
+  const agentTree = useMemo(
+    () => buildAgentPickerTree({ choices: agentSelectOptions }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [agentSelectOptions, agentPickerOpen],
+  );
+  /* The rows the tree shows right now (a folder can be folded), reported by
+     the tree itself; the picker's ↑↓ walk exactly these Agents. */
+  const [agentTreeVisibleIds, setAgentTreeVisibleIds] = useState(null);
+  const agentTreeValues = useMemo(() => {
+    if (!agentTreeVisibleIds) return agentTree.values;
+    const known = new Set(agentTree.values);
+    return agentTreeVisibleIds.filter((id) => known.has(id));
+  }, [agentTree, agentTreeVisibleIds]);
   const agentChoiceLabel = agentSelectOptions.find((option) => option.value === agentSelectValue)?.label
     || t("chat.attach.agent_default");
   const agentTriggerLabel = `${t("side_menu.agents")} · ${agentChoiceLabel}`;
@@ -909,6 +935,25 @@ const AttachPanel = forwardRef(({
       setKbIndex(kbReturnIndexRef.current); // back where the user was
     }
   }, [onRequestInputFocus]);
+
+  const handleAgentOrganize = () => {
+    kbOpenedSelectorRef.current = null;
+    setOpenSelector(null);
+    setAppMode("agents");
+  };
+
+  const renderAgentTree = ({ highlighted_value, render_option }) => (
+    <CommandTree
+      data={agentTree.data}
+      root={agentTree.root}
+      activeNodeId={highlighted_value ?? null}
+      onVisibleChange={setAgentTreeVisibleIds}
+      isDark={isDark}
+      bare
+      width="100%"
+      renderRow={({ node, depth }) => render_option(node.option, { depth })}
+    />
+  );
 
   const handleAgentSelectorOpenChange = useCallback(
     (next) => {
@@ -1947,6 +1992,17 @@ const AttachPanel = forwardRef(({
         variant="palette"
         palette_chip="agent"
         palette_rail
+        palette_tree={renderAgentTree}
+        palette_tree_values={agentTreeValues}
+        /* Arranging Agents is the Agents page's job; the picker only picks.
+           Same word as the slash palette's own Organize. */
+        palette_actions={
+          typeof setAppMode === "function" ? (
+            <HeaderAction onAct={handleAgentOrganize} isDark={isDark} theme={theme}>
+              {t("commands.organize_action")}
+            </HeaderAction>
+          ) : null
+        }
         custom_trigger={trigger}
       />
     </span>

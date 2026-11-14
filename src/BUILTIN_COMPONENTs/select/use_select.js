@@ -262,6 +262,10 @@ const useSelect = ({
   on_open_change = () => {},
   on_group_toggle = () => {},
   keep_open_on_select,
+  /* With no query typed, the options the keyboard walks, by value and in
+     order — a tree's visible rows, so ↑↓ never lands in a collapsed folder.
+     A query searches every option again. Absent: all options, as always. */
+  browse_values,
 }) => {
   /* ── controlled / uncontrolled value ── */
   const is_value_controlled = value !== undefined;
@@ -309,10 +313,17 @@ const useSelect = ({
     filteredUngrouped,
     flatSelectable,
     totalSelectable,
-  } = useMemo(
-    () => build_filtered(options, filterable, normalizedQuery),
-    [options, filterable, normalizedQuery],
-  );
+  } = useMemo(() => {
+    let pool = options;
+    if (!normalizedQuery && Array.isArray(browse_values) && Array.isArray(options)) {
+      const byValue = new Map();
+      options.forEach((item) => {
+        if (item && !Array.isArray(item.options)) byValue.set(item.value, item);
+      });
+      pool = browse_values.map((v) => byValue.get(v)).filter(Boolean);
+    }
+    return build_filtered(pool, filterable, normalizedQuery);
+  }, [options, filterable, normalizedQuery, browse_values]);
 
   /* ── find all flat options (incl. groups) for selectedOption lookup ── */
   const allFlatOptions = useMemo(() => {

@@ -904,6 +904,15 @@ const Select = ({
   palette_actions,
   palette_footer,
   palette_rail = false,
+  /* palette variant only: the list drawn as a tree. A function handed
+     { render_option, highlighted_value } that returns the tree; it places
+     each option with render_option(option, { depth }) so the rows are this
+     palette's own rows, and draws its own hover pill. Keyboard stays here:
+     ↑↓/⏎ walk `options`, so the caller passes them in the tree's VISIBLE
+     order (folders between them are the tree's, not the keyboard's). */
+  palette_tree = null,
+  /* the tree's visible option values, in order (see palette_tree) */
+  palette_tree_values,
   keep_open_on_select,
 }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
@@ -985,6 +994,7 @@ const Select = ({
     on_open_change,
     on_group_toggle,
     keep_open_on_select,
+    browse_values: isPalette && palette_tree ? palette_tree_values : undefined,
   });
 
   const {
@@ -1575,6 +1585,49 @@ const Select = ({
           padding: isPalette ? 0 : 2,
         }}
       >
+        {/* a query searches every option, flat — the tree is for browsing */}
+        {isPalette && palette_tree && !query.trim() ? (
+          palette_tree({
+            highlighted_value:
+              highlightedIndex >= 0
+                ? flatSelectable[highlightedIndex]?.value
+                : undefined,
+            render_option: (option, { depth = 0 } = {}) => {
+              const fi = flatSelectable.findIndex(
+                (entry) => entry?.value === option?.value,
+              );
+              return (
+                <OptionItem
+                  key={`${option?.value ?? fi}`}
+                  option={option}
+                  flatIndex={fi}
+                  isSelected={option?.value === selectedValue}
+                  isHighlighted={fi >= 0 && fi === highlightedIndex}
+                  multi={false}
+                  isDark={isDark}
+                  onMouseEnter={() => {
+                    if (fi >= 0 && !option?.disabled)
+                      setHighlightedIndexFromHover(fi);
+                  }}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => select_option(option)}
+                  /* no refCallback: the tree keeps the highlighted row in
+                     view itself, by its own row refs */
+                  fontSize={13}
+                  fontFamily={fontFamily}
+                  baseColor={baseColor}
+                  placeholderColor={placeholderColor}
+                  option_theme={option_theme}
+                  option_style={option_style}
+                  /* the tree's indent, the way CommandRow carries it: the
+                     row stays full width, its content steps in */
+                  extra_style={depth > 0 ? { padding: `0 8px 0 ${8 + depth * 16}px` } : undefined}
+                />
+              );
+            },
+          })
+        ) : (
+        <>
         {isPalette ? (
           <SlidingHighlight
             refs={optionRefs}
@@ -1607,6 +1660,8 @@ const Select = ({
           option_style={option_style}
           isDark={isDark}
         />
+        </>
+        )}
       </div>
       )}
       {/* palette variant: bottom header — chip + search + actions, the
