@@ -1967,7 +1967,14 @@
         "unreadable_condition_part": "この条件部分はエディターで分解できる構造ではないため、保存内容をそのまま保持します。",
         "unreadable_operand": "この側はエディターで分解できる構造ではないため、保存内容をそのまま保持します。",
         "unreadable_settings": "この分岐の設定はエディターが読み取れる構造ではないため、保存内容をそのまま保持します。",
-        "use_an_input": "代わりに入力を使う"
+        "use_an_input": "代わりに入力を使う",
+        "branches": "分岐",
+        "when": "条件",
+        "otherwise": "それ以外",
+        "value_text": "テキスト",
+        "value_number": "数値",
+        "value_input": "入力 {name}",
+        "read_inside_option": "内部を読む…"
       },
       "code": {
         "a_named_python": "名前を付けた Python",

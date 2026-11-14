@@ -1887,7 +1887,14 @@
         "unreadable_condition_part": "This part of the condition is not a shape the editor can take apart, so it is kept exactly as stored.",
         "unreadable_operand": "This side is not a shape the editor can take apart, so it is kept exactly as stored.",
         "unreadable_settings": "This branch's settings are not a shape the editor can read, so they are kept exactly as stored.",
-        "use_an_input": "Use an input instead"
+        "use_an_input": "Use an input instead",
+        "branches": "Branches",
+        "when": "when",
+        "otherwise": "otherwise",
+        "value_text": "Text",
+        "value_number": "Number",
+        "value_input": "Input {name}",
+        "read_inside_option": "Read inside…"
       },
       "code": {
         "a_named_python": "a named Python",

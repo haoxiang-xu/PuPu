@@ -1967,7 +1967,14 @@
         "unreadable_condition_part": "Cette partie de la condition n’a pas une forme décomposable par l’éditeur ; elle est conservée exactement telle que stockée.",
         "unreadable_operand": "Ce côté n’a pas une forme décomposable par l’éditeur ; il est conservé exactement tel que stocké.",
         "unreadable_settings": "Les réglages de cette branche n’ont pas une forme lisible par l’éditeur ; ils sont conservés exactement tels que stockés.",
-        "use_an_input": "Utiliser une entrée à la place"
+        "use_an_input": "Utiliser une entrée à la place",
+        "branches": "Branches",
+        "when": "quand",
+        "otherwise": "sinon",
+        "value_text": "Texte",
+        "value_number": "Nombre",
+        "value_input": "Entrée {name}",
+        "read_inside_option": "Lire à l’intérieur…"
       },
       "code": {
         "a_named_python": "un Python nommé",

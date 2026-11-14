@@ -6,12 +6,12 @@ import { FIELD_RADIUS, fieldFill } from "./panel_style";
 /* The detail panel's text box: the same white field, outline and corners as
    every other control in it, with no hover highlight. A call site may still
    choose its own fill or border; the corners are the panel's. */
-export default function PanelInput({ style, ...props }) {
+export default function PanelInput({ style, radius = FIELD_RADIUS, ...props }) {
   const { onThemeMode } = useContext(ConfigContext) || {};
   const isDark = onThemeMode === "dark_mode";
   return <Input {...props} style={{
     ...fieldFill(isDark),
     ...style,
-    borderRadius: FIELD_RADIUS,
+    borderRadius: radius,
   }} />;
 }

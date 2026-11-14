@@ -1967,7 +1967,14 @@
         "unreadable_condition_part": "Dieser Bedingungsteil hat keine Form, die der Editor zerlegen kann. Er bleibt exakt wie gespeichert erhalten.",
         "unreadable_operand": "Diese Seite hat keine Form, die der Editor zerlegen kann. Sie bleibt exakt wie gespeichert erhalten.",
         "unreadable_settings": "Die Einstellungen dieser Verzweigung haben keine für den Editor lesbare Form. Sie bleiben exakt wie gespeichert erhalten.",
-        "use_an_input": "Stattdessen eine Eingabe verwenden"
+        "use_an_input": "Stattdessen eine Eingabe verwenden",
+        "branches": "Zweige",
+        "when": "wenn",
+        "otherwise": "sonst",
+        "value_text": "Text",
+        "value_number": "Zahl",
+        "value_input": "Eingabe {name}",
+        "read_inside_option": "Darin lesen…"
       },
       "code": {
         "a_named_python": "ein benanntes Python",

@@ -1967,7 +1967,14 @@
         "unreadable_condition_part": "Esta parte de la condición no tiene una estructura que pueda descomponer el editor, por lo que se conserva exactamente como está almacenada.",
         "unreadable_operand": "Este lado no tiene una estructura que pueda descomponer el editor, por lo que se conserva exactamente como está almacenado.",
         "unreadable_settings": "Los ajustes de esta rama no tienen una estructura que pueda leer el editor, por lo que se conservan exactamente como están almacenados.",
-        "use_an_input": "Usar una entrada"
+        "use_an_input": "Usar una entrada",
+        "branches": "Ramas",
+        "when": "cuando",
+        "otherwise": "si no",
+        "value_text": "Texto",
+        "value_number": "Número",
+        "value_input": "Entrada {name}",
+        "read_inside_option": "Leer dentro…"
       },
       "code": {
         "a_named_python": "un Python con nombre",

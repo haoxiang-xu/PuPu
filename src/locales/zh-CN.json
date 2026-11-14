@@ -1724,7 +1724,14 @@
         "unreadable_condition_part": "编辑器无法拆解此部分条件，因此会完整保留已存储的内容。",
         "unreadable_operand": "编辑器无法拆解此侧的结构，因此会完整保留已存储的内容。",
         "unreadable_settings": "编辑器无法读取此分支设置的结构，因此会完整保留已存储的内容。",
-        "use_an_input": "改用输入"
+        "use_an_input": "改用输入",
+        "branches": "分支",
+        "when": "条件",
+        "otherwise": "否则",
+        "value_text": "文本",
+        "value_number": "数字",
+        "value_input": "输入 {name}",
+        "read_inside_option": "读取内部…"
       },
       "code": {
         "a_named_python": "指定的 Python",

@@ -1967,7 +1967,14 @@
         "unreadable_condition_part": "이 조건 부분은 편집기가 분해할 수 있는 구조가 아니므로 저장된 그대로 정확히 유지됩니다.",
         "unreadable_operand": "이쪽은 편집기가 분해할 수 있는 구조가 아니므로 저장된 그대로 정확히 유지됩니다.",
         "unreadable_settings": "이 분기 설정은 편집기가 읽을 수 있는 구조가 아니므로 저장된 그대로 정확히 유지됩니다.",
-        "use_an_input": "대신 입력 사용"
+        "use_an_input": "대신 입력 사용",
+        "branches": "분기",
+        "when": "조건",
+        "otherwise": "그 외",
+        "value_text": "텍스트",
+        "value_number": "숫자",
+        "value_input": "입력 {name}",
+        "read_inside_option": "내부 읽기…"
       },
       "code": {
         "a_named_python": "이름을 지정한 Python",

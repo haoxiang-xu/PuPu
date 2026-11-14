@@ -102,20 +102,60 @@ describe("If / Else", () => {
 
   test("And / Or are explicit groups that nest, and a group never empties itself", () => {
     show(graph(ifNode({ inputs: withInputs("reply"), condition: compare("eq", input(["reply"]), literal("a")) })), "if");
-    click("+ Or");
-    expect(execution().condition.kind).toBe("any");
-    expect(execution().condition.conditions).toHaveLength(2);
-    click("+ All-of group");
-    const nested = execution().condition.conditions[2];
-    expect(nested).toStrictEqual({ kind: "all", conditions: [compare("eq", input(["reply"]), literal(""))] });
-    pick("condition-root-joiner", "all");
+    click("+ Comparison");
     expect(execution().condition.kind).toBe("all");
+    expect(execution().condition.conditions).toHaveLength(2);
+    click("+ Any-of group");
+    const nested = execution().condition.conditions[2];
+    expect(nested).toStrictEqual({ kind: "any", conditions: [compare("eq", input(["reply"]), literal(""))] });
+    // The root's joiner sits on the True row: "when all / any".
+    pick("condition-root-joiner", "any");
+    expect(execution().condition.kind).toBe("any");
     // The nested group can be removed as a whole; its only child cannot be removed on its own.
     expect(within(screen.getByTestId("condition-2")).getAllByRole("button", { name: "Remove this part" }).map((button) => button.disabled))
       .toEqual([false, true]);
     fireEvent.click(screen.getAllByRole("button", { name: "Remove this part" })[0]);
     expect(execution().condition.conditions).toHaveLength(2);
     expect(execution().condition.conditions[1]).toStrictEqual(nested);
+  });
+
+  test("the branches are drawn by where they go: True holds the condition, False is everything else", () => {
+    const edges = [
+      { id: "t", kind: "flow", source_node_id: "if", source_port_id: "true", target_node_id: "yes", target_port_id: "in" },
+    ];
+    show(graph(ifNode({ inputs: withInputs("reply"), condition: compare("eq", input(["reply"]), literal("a")) }), edges), "if");
+    expect(screen.getByTestId("branch-if-true-outlet")).toHaveTextContent("True");
+    expect(screen.getByTestId("branch-if-true-outlet-target-tag-0")).toBeInTheDocument();
+    expect(within(screen.getByTestId("branch-if-true")).getByTestId("condition-root")).toBeInTheDocument();
+    expect(screen.getByTestId("branch-if-false-outlet")).toHaveTextContent("otherwise");
+    expect(screen.getByTestId("branch-if-false-outlet-target")).toHaveTextContent("Not connected");
+  });
+
+  test("a fixed value is picked in one list: true / false, text or a number beside it, or another input", () => {
+    const loose = [binding("flag", ref("start", "message"))];
+    show(graph(ifNode({ inputs: loose, condition: compare("eq", input(["flag"]), literal("a")) })), "if");
+    expect(screen.queryByText("A fixed value")).toBeNull();
+    pick("condition-root-right-value", "bool:false");
+    expect(execution().condition.right).toStrictEqual(literal(false));
+    pick("condition-root-right-value", "kind:number");
+    expect(execution().condition.right).toStrictEqual(literal(0));
+    pick("condition-root-right-value", "input:flag");
+    expect(execution().condition.right).toStrictEqual(input(["flag"]));
+  });
+
+  test("reading inside an input is a choice in the input's own list, and its steps show under the row", () => {
+    show(graph(ifNode({ inputs: withInputs("reply"), condition: compare("eq", input(["reply"]), literal("a")) })), "if");
+    expect(screen.queryByText("+ Read inside it")).toBeNull();
+    pick("condition-root-left-input", "\u0000inside");
+    expect(execution().condition.left).toStrictEqual(input(["reply", ""]));
+    expect(screen.getByText("+ Read inside it")).toBeInTheDocument();
+  });
+
+  test("an input of unknown type is explained once, not on every comparison", () => {
+    const loose = [binding("flag", ref("start", "message"))];
+    show(graph(ifNode({ inputs: loose, condition: { kind: "all", conditions: [
+      compare("is_not_null", input(["flag"])), compare("eq", input(["flag"]), literal(true))] } })), "if");
+    expect(screen.getAllByText(/is not declared upstream/)).toHaveLength(1);
   });
 
   test("a part the editor cannot read is shown as stored and survives edits to its siblings untouched", () => {

@@ -1967,7 +1967,14 @@
         "unreadable_condition_part": "Questa parte della condizione non ha una struttura che l’editor possa scomporre, quindi viene mantenuta esattamente come salvata.",
         "unreadable_operand": "Questo lato non ha una struttura che l’editor possa scomporre, quindi viene mantenuto esattamente come salvato.",
         "unreadable_settings": "Le impostazioni di questo ramo non hanno una struttura leggibile dall’editor, quindi vengono mantenute esattamente come salvate.",
-        "use_an_input": "Usa invece un input"
+        "use_an_input": "Usa invece un input",
+        "branches": "Rami",
+        "when": "quando",
+        "otherwise": "altrimenti",
+        "value_text": "Testo",
+        "value_number": "Numero",
+        "value_input": "Input {name}",
+        "read_inside_option": "Leggi all’interno…"
       },
       "code": {
         "a_named_python": "un Python con nome",

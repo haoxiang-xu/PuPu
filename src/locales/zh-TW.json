@@ -1823,7 +1823,14 @@
         "unreadable_condition_part": "編輯器無法拆解此部分條件，因此會完整保留已儲存的內容。",
         "unreadable_operand": "編輯器無法拆解此側的結構，因此會完整保留已儲存的內容。",
         "unreadable_settings": "編輯器無法讀取此分支設定的結構，因此會完整保留已儲存的內容。",
-        "use_an_input": "改用輸入"
+        "use_an_input": "改用輸入",
+        "branches": "分支",
+        "when": "條件",
+        "otherwise": "否則",
+        "value_text": "文字",
+        "value_number": "數字",
+        "value_input": "輸入 {name}",
+        "read_inside_option": "讀取內部…"
       },
       "code": {
         "a_named_python": "指定的 Python",
