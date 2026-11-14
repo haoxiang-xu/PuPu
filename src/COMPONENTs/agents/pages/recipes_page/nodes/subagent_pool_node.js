@@ -1,6 +1,6 @@
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { is_skeleton_node } from "../skeleton_document";
-import { node_display_title } from "../node_display_labels";
+import { node_title } from "../node_title";
 import React from "react";
 import { agentEnglishText, agentMessage, renderAgentMessage } from "../agents_i18n";
 import PuzzleShape from "./puzzle_shape";
@@ -54,7 +54,7 @@ export default function SubagentPoolNode({
   rename,
 }) {
   const { t } = useTranslation();
-  const title = is_skeleton_node(node) ? node_display_title(node, t("agents.nodes.subagent_pool")) : t("agents.nodes.subagent_pool");
+  const title = is_skeleton_node(node) ? node_title(node, t).title : t("agents.nodes.subagent_pool");
   const entries = node.subagents || [];
   const all = Array.isArray(rows) ? rows : legacy_rows(entries, recipes, t);
   const shown = all.slice(0, MAX_ROWS);

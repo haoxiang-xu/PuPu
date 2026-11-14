@@ -133,7 +133,8 @@ test("NodeTag takes a node or its parts", () => {
     <NodeTag node={{ id: "c", type: "code", config: {} }} isDark={false} testid="one" />
     <NodeTag icon="tool" color="#ea7547" name="Fetch" isDark={false} testid="two" />
   </>));
-  expect(screen.getByTestId("one")).toHaveTextContent(/^Code$/);
+  /* Unlabelled, a Code node goes by its id, as on its canvas card. */
+  expect(screen.getByTestId("one")).toHaveTextContent(/^c$/);
   /* No icon tile: the whole tag wears Code's graphite. */
   expect(screen.getByTestId("one").style.background).toBe("rgb(91, 100, 117)");
   expect(screen.getByTestId("one-icon").style.background).toBe("");

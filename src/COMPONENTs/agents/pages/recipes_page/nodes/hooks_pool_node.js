@@ -1,5 +1,5 @@
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
-import { node_display_title } from "../node_display_labels";
+import { node_title } from "../node_title";
 import React from "react";
 import PuzzleShape from "./puzzle_shape";
 import { node_caption } from "./node_caption";
@@ -38,7 +38,7 @@ export default function HooksPoolNode({ node, isDark, rename }) {
   const shown = sorted.slice(0, MAX_ROWS);
   const muted = "var(--pupu-text-muted)";
   const text = "var(--pupu-text)";
-  const title = node_display_title(node, t("agents.nodes.hooks_pool"));
+  const title = node_title(node, t).title;
   const summary = !Array.isArray(list) ? t("agents.nodes.hook_settings_unreadable") : entries.length === 0 ? t("agents.nodes.no_hooks") : entries.length === 1
     ? t("agents.nodes.hook_count_one", { count: entries.length })
     : t("agents.nodes.hook_count_other", { count: entries.length });

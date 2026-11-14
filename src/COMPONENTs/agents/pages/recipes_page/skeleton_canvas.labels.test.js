@@ -28,3 +28,31 @@ test("legacy Agent labels and Start fallback retain their existing titles", () =
   expect(screen.getByText("Legacy author name")).toBeInTheDocument(); expect(screen.getByText("Start")).toBeInTheDocument();
   expect(node_identity({ id: "legacy", type: "agent", label: "Legacy author name" }).title).toBe("Legacy author name");
 });
+
+/* #484: unlabelled nodes — every graph until someone renames a node, and
+ * what the save API writes — read the same on the card and in the panel.
+ * The shapes are the ones stored in "template agent 1". */
+test("an unlabelled node's card and panel header give the same name", () => {
+  const nodes = [
+    { id: "find-docs", type: "tool_call", config: { tool: { name: "glob" } } },
+    { id: "skill-read", type: "skill_read", config: { skill: { name: "workflow-test-notes", source: "user" } } },
+    { id: "count-words", type: "code", config: {} },
+    { id: "summarize", type: "workflow_call", config: { workflow: { workflow_id: "test-workflow-2", revision_id: "rev-1" } } },
+    { id: "route", type: "switch_case", config: {} },
+    { id: "is-question", type: "if_else", config: {} },
+  ];
+  const { rerender } = render(wrap(<SkeletonCanvas resourceId="unlabelled" document={{ schema_version: 1, kind: "agent", id: "unlabelled", nodes, edges: [] }} />));
+  const expected = { "find-docs": "glob", "skill-read": "workflow-test-notes", "count-words": "count-words", summarize: "test-workflow-2", route: "Switch / Case", "is-question": "If / Else" };
+  nodes.forEach((node) => {
+    const title = node_identity(node).title;
+    expect(title).toBe(expected[node.id]);
+    expect(within(screen.getByTestId(`skeleton-node-${node.id}`)).getAllByText(title).length).toBeGreaterThan(0);
+  });
+  /* Renamed, both move to the author's name together. */
+  const renamed = nodes.map((node) => ({ ...node, label: `Renamed ${node.id}` }));
+  rerender(wrap(<SkeletonCanvas resourceId="unlabelled" document={{ schema_version: 1, kind: "agent", id: "unlabelled", nodes: renamed, edges: [] }} />));
+  renamed.forEach((node) => {
+    expect(node_identity(node).title).toBe(node.label);
+    expect(within(screen.getByTestId(`skeleton-node-${node.id}`)).getByText(node.label)).toBeInTheDocument();
+  });
+});

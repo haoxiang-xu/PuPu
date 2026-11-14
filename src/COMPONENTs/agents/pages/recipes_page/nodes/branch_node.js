@@ -1,5 +1,5 @@
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
-import { node_display_title } from "../node_display_labels";
+import { node_title } from "../node_title";
 import React from "react";
 import PuzzleShape from "./puzzle_shape";
 import { node_caption } from "./node_caption";
@@ -33,7 +33,7 @@ export default function BranchNode({ node, rows, summary, isDark, rename }) {
   const list = Array.isArray(rows) ? rows : [];
   const layout = branch_layout(list.length);
   const height = layout.height;
-  const title = node_display_title(node, node.type === "switch_case" ? t("agents.nodes.switch_case") : t("agents.nodes.if_else"));
+  const title = node_title(node, t).title;
   /* No height on the outer box: the rows give the node its height, and
      PuzzleShape springs it when a case is added or removed. */
   return (

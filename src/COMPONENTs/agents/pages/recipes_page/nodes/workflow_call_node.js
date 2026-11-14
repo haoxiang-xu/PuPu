@@ -1,5 +1,5 @@
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
-import { node_display_title } from "../node_display_labels";
+import { node_title } from "../node_title";
 import React from "react";
 import PuzzleShape from "./puzzle_shape";
 import { node_caption } from "./node_caption";
@@ -28,7 +28,7 @@ export default function WorkflowCallNode({ node, isDark, rename }) {
   const name = (version && typeof version.document.name === "string" && version.document.name) || (pin && pin.workflow_id) || null;
   const muted = "var(--pupu-text-muted)";
   const text = "var(--pupu-text)";
-  const title = node_display_title(node, name ? safe_text(name) : t("agents.nodes.workflow_call"));
+  const title = node_title(node, t).title;
   /* Which Workflow (left out while it is the title) and which revision. */
   const revision = !pin
     ? t("agents.nodes.pin_revision")

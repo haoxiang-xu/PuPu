@@ -1,5 +1,5 @@
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
-import { node_display_title } from "../node_display_labels";
+import { node_title } from "../node_title";
 import React from "react";
 import PuzzleShape from "./puzzle_shape";
 import { node_caption } from "./node_caption";
@@ -13,7 +13,7 @@ export default function ToolPoolNode({ node, isDark, native = false, toolkits, r
      in `config` — so it draws none. */
   const list = native ? toolkits : node.toolkits || node.tools;
   const count = Array.isArray(list) ? list.length : 0;
-  const title = native ? node_display_title(node, t("agents.nodes.toolkit_pool")) : t("agents.nodes.toolkit_pool");
+  const title = native ? node_title(node, t).title : t("agents.nodes.toolkit_pool");
   return (
     <div style={{ width: 180 }}>
       <PuzzleShape tabs={[]} cutouts={["top", "bottom"]} isDark={isDark}>

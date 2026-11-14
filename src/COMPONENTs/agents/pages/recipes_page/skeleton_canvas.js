@@ -24,7 +24,8 @@ import ToolPoolNode from "./nodes/tool_pool_node";
 import { ports_for_type } from "./recipe_node_catalog";
 import { own } from "./document_values";
 import { NODE_TYPES, document_layout_positions, drawn_node } from "./skeleton_document";
-import { is_valid_node_label, node_display_title } from "./node_display_labels";
+import { is_valid_node_label } from "./node_display_labels";
+import { node_title } from "./node_title";
 import { useNodeLabelCapability } from "./node_label_capability";
 import RunNodeStatus from "./nodes/run_node_status";
 import { agentMessage, renderAgentMessage, agentProblemMessage, agentReasonPayload } from "./agents_i18n";
@@ -170,7 +171,8 @@ function finder_entries(graph, t = agentEnglishText) {
       return {
         key: node.id,
         type: typeof node.type === "string" ? node.type : "",
-        label: node_display_title(node, node.id),
+        /* The name the node's card and panel header show (#484). */
+        label: node_title(node, t).title,
         description: `${node.id} · ${known ? palette_entry_caption({ ...known, type: node.type }, t).label : typeof node.type === "string" ? node.type : t("agents.canvas.unknown_node")}`,
         icon: known ? known.icon : "circle",
       };
