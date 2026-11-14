@@ -20,6 +20,7 @@ import ChatMessages from "../../COMPONENTs/chat-messages/chat_messages";
 import ChatInput from "../../COMPONENTs/chat-input/chat_input";
 import { CONTEXT_WINDOW_PRESETS } from "../../COMPONENTs/chat-input/constants";
 import SecretCaptureModal from "./secret_capture_modal";
+import ModelChipRow from "./model_chip_row";
 import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import {
   bootstrapChatsStore,
@@ -1308,17 +1309,17 @@ const ChatInterface = () => {
               ];
               if (chips.length === 0) return null;
               return (
-                <RiseIn
-                  delay="145ms"
-                  style={{
-                    display: "flex",
-                    gap: 8,
-                    flexWrap: "wrap",
-                    justifyContent: "center",
-                    maxWidth: 720,
-                  }}
-                >
-                  {chips.map((chip) => {
+                <RiseIn delay="145ms" style={{ width: "100%", maxWidth: 720 }}>
+                  <ModelChipRow
+                    chips={chips}
+                    selectedModelId={session.selectedModelId}
+                    style={{
+                      display: "flex",
+                      gap: 8,
+                      flexWrap: "wrap",
+                      justifyContent: "center",
+                    }}
+                    renderChip={(chip) => {
                     const active = session.selectedModelId === chip.id;
                     const IconComp = resolveProviderIcon(chip.provider);
                     return (
@@ -1413,7 +1414,8 @@ const ChatInterface = () => {
                         {chip.label}
                       </ShadowSurface>
                     );
-                  })}
+                    }}
+                  />
                 </RiseIn>
               );
             })()}
