@@ -101,4 +101,24 @@ describe("AttachPanel Agent picker as a tree", () => {
     fireEvent.mouseDown(screen.getByText("Organize"));
     expect(setAppMode).toHaveBeenCalledWith("agents");
   });
+
+  test("the stored Default Agent and 'no Agent' are one Default row, with the Agents' icons", async () => {
+    const { onSelectSkeletonAgent } = renderPanel({
+      skeletonAgentOptions: [
+        { id: "d", name: "Default", presentation: { icon: "bot" } },
+        { id: "a", name: "Alpha", presentation: { icon: "search" } },
+        { id: "b", name: "Beta" },
+      ],
+      selectedSkeletonAgentId: "d",
+    });
+    const list = await openPicker();
+    const options = within(list).getAllByRole("option", { hidden: true });
+    expect(options.map((el) => el.textContent)).toEqual(["Default", "Beta", "Alpha"]);
+    /* a chat holding the Default resource shows the Default row as chosen */
+    expect(options[0]).toHaveAttribute("aria-selected", "true");
+    expect(options[2].querySelector('[data-agent-icon="search"]')).not.toBeNull();
+    expect(options[1].querySelector("[data-agent-icon]")).not.toBeNull();
+    fireEvent.click(within(list).getByText("Alpha"));
+    expect(onSelectSkeletonAgent).toHaveBeenCalledWith("a");
+  });
 });

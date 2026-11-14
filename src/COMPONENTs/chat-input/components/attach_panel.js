@@ -26,6 +26,7 @@ import { Select } from "../../../BUILTIN_COMPONENTs/select/select";
 import ModelPicker, { modelPickerTriggerStyle } from "../../../BUILTIN_COMPONENTs/select/model_picker";
 import AttachmentChipList from "./attachment_chip_list";
 import CommandTree from "./command_tree";
+import AgentAvatar from "../../agents/agent_avatar";
 import { buildAgentPickerTree } from "../../../SERVICEs/agent_picker_tree";
 import { QueueAttachSection } from "./queue_pile";
 import { WorkspaceModal } from "../../workspace/workspace_modal";
@@ -55,6 +56,11 @@ import ContextCompositionProgress from "./context_composition_progress";
 /* The Agent row's own value for "no Agent". A resource id can never be empty
    and a legacy Recipe name can never be this, so it collides with neither. */
 const AGENT_DEFAULT = "__pupu_agent_default__";
+/* An Agent row's icon: its own glyph in the row's colour, as the Agents page
+   lists it. No presentation draws the default bot. */
+const agentRowIcon = (presentation) => (
+  <AgentAvatar variant="glyph" presentation={presentation || null} size={14} glyphScale={1} />
+);
 
 const MOVABLE_ATTACH_WIDGET_SET = new Set(MOVABLE_ATTACH_WIDGETS);
 
@@ -735,21 +741,43 @@ const AttachPanel = forwardRef(({
      its own (`skeleton:<id>`) — and the option that was picked is looked up in
      a Map built from the same list, so a name that happens to look like an
      encoded id decides nothing. */
+  /* The stored Agent the store itself runs for a chat with no Agent chosen:
+     the one active Agent named "Default" (SkeletonResourceStore.resolve,
+     default_if_unselected). It and "no Agent" are one choice to the person
+     choosing — two rows both saying Default was a list contradicting itself
+     — so it is not listed again; the default row carries its name and icon.
+     Picking that row stays what it always was (no Agent chosen); a chat that
+     already holds this resource keeps it and shows it as that row. */
+  const defaultAgentResource = useMemo(() => {
+    const named = (skeletonAgentOptions || []).filter(
+      (option) => option && option.name === "Default",
+    );
+    return named.length === 1 ? named[0] : null;
+  }, [skeletonAgentOptions]);
   const agentOptions = useMemo(() => [
-    { value: AGENT_DEFAULT, label: t("chat.attach.agent_default"), pinned: true },
-    ...skeletonAgentOptions.map((option) => ({
-      value: `skeleton:${option.id}`,
-      label: option.name,
-      /* places it in its folder on the Agents page — see agent_picker_tree */
-      resourceId: option.id,
-    })),
+    {
+      value: AGENT_DEFAULT,
+      label: defaultAgentResource ? defaultAgentResource.name : t("chat.attach.agent_default"),
+      icon: agentRowIcon(defaultAgentResource?.presentation),
+      pinned: true,
+    },
+    ...skeletonAgentOptions
+      .filter((option) => option !== defaultAgentResource)
+      .map((option) => ({
+        value: `skeleton:${option.id}`,
+        label: option.name,
+        icon: agentRowIcon(option.presentation),
+        /* places it in its folder on the Agents page — see agent_picker_tree */
+        resourceId: option.id,
+      })),
     ...(recipeOptions || [])
       .filter((option) => option && option.value && option.value !== "Default")
       .map((option) => ({
         value: `legacy:${option.value}`,
         label: option.label || option.value,
+        icon: agentRowIcon(null),
       })),
-  ], [recipeOptions, skeletonAgentOptions, t]);
+  ], [defaultAgentResource, recipeOptions, skeletonAgentOptions, t]);
   /* A Map, not an object: both key spaces are document-chosen text — a
      resource id may be `constructor` and a Recipe may be named `__proto__` —
      and a plain object would answer for keys nobody put in it. */
@@ -774,7 +802,10 @@ const AttachPanel = forwardRef(({
   );
   const upgradedAliasOption = (skeletonAgentOptions || []).find(option =>
     selectedRecipeName !== "Default" && Array.isArray(option.legacyNames) && option.legacyNames.includes(selectedRecipeName));
-  const agentSelectValue = selectedSkeletonAgentId
+  const agentSelectValue =
+    selectedSkeletonAgentId && defaultAgentResource && selectedSkeletonAgentId === defaultAgentResource.id
+      ? AGENT_DEFAULT
+      : selectedSkeletonAgentId
     ? `skeleton:${selectedSkeletonAgentId}`
     : upgradedAliasOption
       ? `skeleton:${upgradedAliasOption.id}`
