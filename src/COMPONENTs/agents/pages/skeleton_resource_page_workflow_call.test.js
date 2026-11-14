@@ -131,15 +131,19 @@ const save = async (store) => {
   return store.save.mock.calls.at(-1)[0];
 };
 const callOf = (document) => document.nodes.find((node) => node.type === "workflow_call");
+/* An input's value is one cell, as on an Input Variables row: typed in, or
+   picked from the sources the cell offers when it is focused. */
+const valueBox = (name) => within(screen.getByTestId(`workflow-call-input-${name}-value`)).getByRole("textbox");
 const setVariable = (name, label) => {
-  const argument = screen.getByTestId(`tool-call-argument-${name}`);
-  fireEvent.click(within(argument).getByText("Variable"));
-  choose(screen.getByTestId(`tool-call-argument-${name}`), label);
+  fireEvent.focus(valueBox(name));
+  const options = screen.getAllByTitle(label);
+  fireEvent.click(options[options.length - 1]);
 };
 const setValue = (name, text) => {
-  const argument = screen.getByTestId(`tool-call-argument-${name}`);
-  fireEvent.click(within(argument).getByText("Value"));
-  fireEvent.change(within(screen.getByTestId(`tool-call-argument-${name}`)).getByPlaceholderText("a value written here"), { target: { value: text } });
+  const box = valueBox(name);
+  fireEvent.focus(box);
+  fireEvent.change(box, { target: { value: text } });
+  fireEvent.blur(box);
 };
 
 beforeEach(() => {
@@ -172,8 +176,8 @@ test("choose a Workflow, publish its draft and pin that revision, fill the input
 
   /* Its Start reads `message` and `limit`; both are required, nothing else is offered. */
   expect(screen.getByTestId("workflow-call-problems")).toHaveTextContent("reads “message”");
-  expect(screen.getByTestId("tool-call-argument-message")).toHaveTextContent("its Start reads it as text");
-  expect(screen.getByTestId("tool-call-argument-limit")).toHaveTextContent("its Start reads it as n");
+  expect(within(screen.getByTestId("workflow-call-input-message")).getByTitle(/its Start reads it as text/)).toBeInTheDocument();
+  expect(within(screen.getByTestId("workflow-call-input-limit")).getByTitle(/its Start reads it as n/)).toBeInTheDocument();
   setVariable("message", "start · message");
   setValue("limit", "3");
   expect(screen.queryByTestId("workflow-call-problems")).toBeNull();
@@ -325,9 +329,10 @@ test("a declared signature supplies caller rows, types and defaults without maki
   const call = callOf(store.held["caller-complete"].resource.document);
   call.config.execution.inputs = call.config.execution.inputs.filter((binding) => binding.name !== "limit");
   await open("caller-complete"); await openCall();
-  const optional = await screen.findByTestId("tool-call-argument-limit");
-  expect(within(optional).queryByLabelText("Required")).toBeNull();
-  expect(optional).toHaveTextContent("integer"); expect(optional).toHaveTextContent("5");
+  const optional = await screen.findByTestId("workflow-call-input-limit");
+  expect(within(optional).queryByLabelText("required")).toBeNull();
+  expect(within(screen.getByTestId("workflow-call-input-message")).getByLabelText("required")).toBeInTheDocument();
+  expect(optional).toHaveTextContent("Integer"); expect(within(optional).getByPlaceholderText("5")).toBeInTheDocument();
   expect(screen.queryByText(/reads “limit”/)).toBeNull();
   expect(screen.queryByRole("button", { name: "Add input" })).toBeNull();
   expect(store.save).not.toHaveBeenCalled();

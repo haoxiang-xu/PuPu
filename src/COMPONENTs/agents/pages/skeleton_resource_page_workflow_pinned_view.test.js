@@ -118,10 +118,12 @@ const openCall = async (id = "call") => {
   pressCanvasNode(id);
   await screen.findByTestId("workflow-call-section");
 };
+const valueBox = (name) => within(screen.getByTestId(`workflow-call-input-${name}-value`)).getByRole("textbox");
 const setValue = (name, text) => {
-  const argument = screen.getByTestId(`tool-call-argument-${name}`);
-  fireEvent.click(within(argument).getByText("Value"));
-  fireEvent.change(within(screen.getByTestId(`tool-call-argument-${name}`)).getByPlaceholderText("a value written here"), { target: { value: text } });
+  const box = valueBox(name);
+  fireEvent.focus(box);
+  fireEvent.change(box, { target: { value: text } });
+  fireEvent.blur(box);
 };
 const OPEN = { name: "Open the pinned graph (read-only)" };
 const openPinned = () => fireEvent.click(screen.getByRole("button", OPEN));
@@ -189,7 +191,7 @@ test("going back keeps the unsaved edit, the open panel, the selection and the v
   await waitFor(() => expect(pinnedView()).toBeNull());
   expect(screen.getByTestId("skeleton-detail-panel-shell")).toHaveStyle({ pointerEvents: "auto" });
   expect(screen.getByTestId("workflow-call-section")).toBeInTheDocument();
-  expect(within(screen.getByTestId("tool-call-argument-limit")).getByPlaceholderText("a value written here")).toHaveValue("7");
+  expect(valueBox("limit")).toHaveValue("7");
   expect(screen.getByTestId("skeleton-save-state")).toHaveTextContent("Unsaved changes");
   expect(readSkeletonLayout("caller-complete-rev2", { nodes: [] }).viewport).toEqual({ x: 37, y: -12, zoom: 0.8 });
   /* The view's drawing is kept under its own key, never the editor's. */
@@ -322,14 +324,14 @@ test.each([["nothing focused", false], ["the value box still focused", true]])(
     await openCall();
     await screen.findByText(`revision 2`, { exact: false });
     setValue("limit", "7");
-    const box = within(screen.getByTestId("tool-call-argument-limit")).getByPlaceholderText("a value written here");
+    const box = valueBox("limit");
     if (focusBox) box.focus();
     openPinned();
     await waitFor(() => expect(pinnedView()).not.toBeNull());
     fireEvent.keyDown(document.activeElement || document.body, { key: "Escape" });
     await waitFor(() => expect(pinnedView()).toBeNull());
     expect(onClose).not.toHaveBeenCalled();
-    expect(within(screen.getByTestId("tool-call-argument-limit")).getByPlaceholderText("a value written here")).toHaveValue("7");
+    expect(valueBox("limit")).toHaveValue("7");
     expect(screen.getByTestId("skeleton-save-state")).toHaveTextContent("Unsaved changes");
     expect(store.save).not.toHaveBeenCalled();
   },

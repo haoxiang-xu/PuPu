@@ -68,6 +68,17 @@ beforeEach(() => {
   api.unchain.publishManagedSkeletonWorkflow = jest.fn().mockResolvedValue(row("whole_publish").reply);
 });
 
+const box = (name) => within(screen.getByTestId(`workflow-call-input-${name}-value`)).getByRole("textbox");
+const enter = (name, text) => {
+  fireEvent.focus(box(name));
+  fireEvent.change(box(name), { target: { value: text } });
+  fireEvent.keyDown(box(name), { key: "Enter" });
+};
+const unset = (name) => {
+  fireEvent.focus(box(name));
+  fireEvent.click(screen.getByText("Unset", { exact: true }));
+};
+
 describe("R-WFC-01: readers of one revision share one read", () => {
   test("two concurrent requests both settle with the admitted revision, from one read", async () => {
     const late = deferred();
@@ -125,17 +136,14 @@ describe("R-WFC-03: a Start that reads the whole input reads every key", () => {
     render(<Harness initial={row("caller_whole_get").reply.resource.document} />);
     const area = screen.getByTestId("workflow-call-inputs");
     expect(area).not.toHaveTextContent(/ignores it/i);
-    const unlisted = screen.getByTestId("tool-call-argument-unlisted");
-    expect(unlisted).toHaveTextContent(/whole input/i);
-    fireEvent.click(within(unlisted).getByText("Value"));
-    fireEvent.change(within(screen.getByTestId("tool-call-argument-unlisted")).getByPlaceholderText("a value written here"), { target: { value: "24" } });
+    const unlisted = screen.getByTestId("workflow-call-input-unlisted");
+    expect(within(unlisted).getByTitle(/whole input/i)).toBeInTheDocument();
+    enter("unlisted", "24");
     expect(call(latest).config.execution.inputs.find((item) => item.name === "unlisted").value).toEqual({ kind: "literal", value: "24" });
 
     fireEvent.change(screen.getByPlaceholderText("another input name"), { target: { value: "extra" } });
     fireEvent.click(screen.getByRole("button", { name: "Add input" }));
-    const added = screen.getByTestId("tool-call-argument-extra");
-    fireEvent.click(within(added).getByText("Value"));
-    fireEvent.change(within(screen.getByTestId("tool-call-argument-extra")).getByPlaceholderText("a value written here"), { target: { value: "x" } });
+    enter("extra", "x");
     expect(call(latest).config.execution.inputs.map((item) => item.name)).toEqual(["message", "unlisted", "extra"]);
     expect(screen.queryByTestId("workflow-call-problems")).toBeNull();
   });
@@ -149,11 +157,14 @@ describe("R-WFC-03: a Start that reads the whole input reads every key", () => {
 });
 
 describe("R-WFC-03a: a new input keeps its editor across its first write", () => {
-  const typeFirst = async (row_testid) => {
-    fireEvent.click(within(screen.getByTestId(row_testid)).getByText("Value"));
-    const before = within(screen.getByTestId(row_testid)).getByPlaceholderText("a value written here");
+  /* A value is written when it is entered (Enter, or leaving the cell), not
+     on each keystroke, so typing to look for a source writes nothing; the
+     cell that took it keeps its focus through that first write. */
+  const typeFirst = async (name) => {
+    const before = box(name);
     await act(async () => { before.focus(); });
     fireEvent.change(before, { target: { value: "h" } });
+    fireEvent.keyDown(before, { key: "Enter" });
     return before;
   };
 
@@ -163,21 +174,22 @@ describe("R-WFC-03a: a new input keeps its editor across its first write", () =>
     fireEvent.change(screen.getByPlaceholderText("another input name"), { target: { value: "extra" } });
     fireEvent.click(screen.getByRole("button", { name: "Add input" }));
     expect(writes).toHaveLength(0);
-    const before = await typeFirst("tool-call-argument-extra");
-    const after = within(screen.getByTestId("tool-call-argument-extra")).getByPlaceholderText("a value written here");
+    const before = await typeFirst("extra");
+    const after = box("extra");
     expect(after).toBe(before);
     expect(before.isConnected).toBe(true);
     expect(after).toHaveFocus();
     expect(call(latest).config.execution.inputs.find((item) => item.name === "extra").value).toEqual({ kind: "literal", value: "h" });
     fireEvent.change(after, { target: { value: "he" } });
     fireEvent.change(after, { target: { value: "hello" } });
-    expect(within(screen.getByTestId("tool-call-argument-extra")).getByPlaceholderText("a value written here")).toBe(before);
+    fireEvent.keyDown(after, { key: "Enter" });
+    expect(box("extra")).toBe(before);
     expect(after).toHaveFocus();
     expect(after.value).toBe("hello");
     expect(after.selectionStart).toBe(5);
     expect(call(latest).config.execution.inputs.find((item) => item.name === "extra").value).toEqual({ kind: "literal", value: "hello" });
     /* Unset still removes it; the stored row and its diagnostics path are unchanged. */
-    fireEvent.click(screen.getByRole("button", { name: "Unset extra" }));
+    unset("extra");
     expect(call(latest).config.execution.inputs.map((item) => item.name)).toEqual(["message", "unlisted"]);
   });
 
@@ -194,8 +206,8 @@ describe("R-WFC-03a: a new input keeps its editor across its first write", () =>
     await screen.findByPlaceholderText("another input name");
     fireEvent.change(screen.getByPlaceholderText("another input name"), { target: { value: "extra" } });
     fireEvent.click(screen.getByRole("button", { name: "Add input" }));
-    const before = await typeFirst("tool-call-argument-extra");
-    const after = within(screen.getByTestId("tool-call-argument-extra")).getByPlaceholderText("a value written here");
+    const before = await typeFirst("extra");
+    const after = box("extra");
     expect(after).toBe(before);
     expect(after).toHaveFocus();
     fireEvent.change(after, { target: { value: "hi" } });

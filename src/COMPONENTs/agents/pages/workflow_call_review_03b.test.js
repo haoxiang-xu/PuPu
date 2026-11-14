@@ -50,15 +50,17 @@ const add = (name) => {
   fireEvent.change(screen.getByPlaceholderText("another input name"), { target: { value: name } });
   fireEvent.click(screen.getByRole("button", { name: "Add input" }));
 };
+/* A value is written when it is entered; the cell keeps its focus. */
+const box = (name) => within(screen.getByTestId(`workflow-call-input-${name}-value`)).getByRole("textbox");
 const type = async (name, text) => {
-  const row = screen.getByTestId(`tool-call-argument-${name}`);
-  if (within(row).queryByPlaceholderText("a value written here") === null) fireEvent.click(within(row).getByText("Value"));
-  const box = within(screen.getByTestId(`tool-call-argument-${name}`)).getByPlaceholderText("a value written here");
-  await act(async () => { box.focus(); });
-  fireEvent.change(box, { target: { value: text } });
-  return box;
+  const cell = box(name);
+  await act(async () => { cell.focus(); });
+  fireEvent.change(cell, { target: { value: text } });
+  fireEvent.keyDown(cell, { key: "Enter" });
+  return cell;
 };
-const editors = (name) => screen.queryAllByTestId(`tool-call-argument-${name}`);
+const editors = (name) => screen.queryAllByTestId(`workflow-call-input-${name}`);
+const valueOf = (name) => within(editors(name)[0]).getByRole("textbox");
 
 beforeEach(() => {
   writes = [];
@@ -82,13 +84,13 @@ test("added and written, then pinned to a revision that names it: one editor, sh
   render(<Harness initial={of(review, "caller_whole_get").reply.resource.document} />);
   await ready();
   add("extra");
-  const box = await type("extra", "hello");
-  expect(within(screen.getByTestId("tool-call-argument-extra")).getByPlaceholderText("a value written here")).toBe(box);
-  expect(box).toHaveFocus();
+  const cell = await type("extra", "hello");
+  expect(box("extra")).toBe(cell);
+  expect(cell).toHaveFocus();
   const stored = copy(inputs(latest));
   await pin("Whole and extra · 1 published", WHOLE_EXTRA);
   expect(editors("extra")).toHaveLength(1);
-  expect(within(editors("extra")[0]).getByPlaceholderText("a value written here")).toHaveValue("hello");
+  expect(valueOf("extra")).toHaveValue("hello");
   expect(screen.queryByTestId("workflow-call-added-extra")).toBeNull();
   /* The stored rows are exactly what they were: the pin changed, nothing else. */
   expect(inputs(latest)).toEqual(stored);
@@ -97,7 +99,7 @@ test("added and written, then pinned to a revision that names it: one editor, sh
   /* And back: one editor again, still the stored value. */
   await pin("Whole · 1 published", WHOLE);
   expect(editors("extra")).toHaveLength(1);
-  expect(within(editors("extra")[0]).getByPlaceholderText("a value written here")).toHaveValue("hello");
+  expect(valueOf("extra")).toHaveValue("hello");
   expect(inputs(latest)).toEqual(stored);
 });
 
@@ -119,19 +121,20 @@ test("Unset removes the stored row and forgets it; a later pin does not bring an
   await ready();
   add("extra");
   await type("extra", "hello");
-  fireEvent.click(screen.getByRole("button", { name: "Unset extra" }));
+  fireEvent.focus(box("extra"));
+  fireEvent.click(screen.getByText("Unset", { exact: true }));
   expect(inputs(latest).map((item) => item.name)).toEqual(["message", "unlisted"]);
   expect(editors("extra")).toHaveLength(0);
   await pin("Whole and extra · 1 published", WHOLE_EXTRA);
   expect(editors("extra")).toHaveLength(1);
-  expect(within(editors("extra")[0]).queryByPlaceholderText("a value written here")).toBeNull();
+  expect(valueOf("extra")).toHaveValue("");
   await pin("Whole · 1 published", WHOLE);
   expect(editors("extra")).toHaveLength(0);
   add("extra");
-  const box = await type("extra", "again");
-  fireEvent.change(box, { target: { value: "again!" } });
-  expect(within(screen.getByTestId("tool-call-argument-extra")).getByPlaceholderText("a value written here")).toBe(box);
-  expect(box).toHaveFocus();
+  const cell = await type("extra", "again");
+  fireEvent.change(cell, { target: { value: "again!" } });
+  expect(box("extra")).toBe(cell);
+  expect(cell).toHaveFocus();
   expect(editors("extra")).toHaveLength(1);
 });
 

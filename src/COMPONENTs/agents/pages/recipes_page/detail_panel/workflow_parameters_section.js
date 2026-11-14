@@ -8,6 +8,7 @@ import PanelSelect from "./panel_select";
 import { Block } from "./process_timeline";
 import { PANEL_SWITCH, Region, errorColor, muted, note, problem as problemStyle, removeButtonStyle, text as textColor } from "./panel_style";
 import AddButton from "./add_button";
+import { TABLE_CONTROL_INSET, TABLE_ROW_PAD, TableHeads } from "./parameter_table";
 import { SemiSwitch } from "../../../../../BUILTIN_COMPONENTs/input/switch";
 import useListIdentities from "./list_identity";
 import usePendingText from "./pending_text";
@@ -101,18 +102,14 @@ function DefaultEditor({ field, identity, allowed, isDark, testid, onValue }) {
 }
 
 /* The columns named once, over the rows, so a row stays on one line in the
-   panel's default width instead of repeating "Required" beside every switch. */
+   panel's default width instead of repeating "Required" beside every switch.
+   The table's measure is shared with a Workflow Call's Inputs. */
 function ColumnHeads({ isDark }) {
   const { t } = useTranslation();
-  const head = { fontSize: 11, lineHeight: "16px", color: muted(isDark), flexShrink: 0 };
-  return (
-    <div aria-hidden="true" data-testid="workflow-parameters-heads"
-      style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 6px 5px 10px", minWidth: 0 }}>
-      <span style={{ ...head, flex: "1 1 72px", minWidth: 72, paddingLeft: 7 }}>{t("agents.parameters.name_short")}</span>
-      <span style={{ ...head, width: TYPE_WIDTH, paddingLeft: 7, boxSizing: "border-box" }}>{t("agents.parameters.type")}</span>
-      <span style={{ ...head, width: SWITCH_WIDTH + 6 + REMOVE_WIDTH, textAlign: "left" }}>{t("agents.parameters.required")}</span>
-    </div>
-  );
+  return <TableHeads testid="workflow-parameters-heads" isDark={isDark}
+    template={`minmax(72px, 1fr) ${TYPE_WIDTH}px ${SWITCH_WIDTH + 6 + REMOVE_WIDTH}px`}
+    columns={[{ label: t("agents.parameters.name_short"), inset: TABLE_CONTROL_INSET },
+      { label: t("agents.parameters.type"), inset: TABLE_CONTROL_INSET }, { label: t("agents.parameters.required") }]} />;
 }
 
 function Parameter({ row, index, identity, allowed, isDark, onChange, onRemove, error }) {
@@ -131,7 +128,7 @@ function Parameter({ row, index, identity, allowed, isDark, onChange, onRemove, 
     else if (!Object.prototype.hasOwnProperty.call(next, "default")) next.default = seed_default(field.type);
     onChange({ ...row, required, field: next });
   }
-  return <div data-testid={testid} style={{ display: "flex", flexDirection: "column", gap: 6, padding: "6px 6px 6px 10px", minWidth: 0 }}>
+  return <div data-testid={testid} style={{ display: "flex", flexDirection: "column", gap: 6, padding: TABLE_ROW_PAD, minWidth: 0 }}>
     {/* Name and type keep the line; in a narrow panel Required and the way
         out move under them rather than squeezing the name to nothing. */}
     <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6, minWidth: 0, minHeight: 26 }}>
