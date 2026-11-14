@@ -14,7 +14,7 @@ import {
 import { identity_of } from "../document_values";
 import { make_output_mapping, output_mapping_problems } from "../skeleton_io";
 import { result_roots_for } from "../skeleton_result_roots";
-import { CAPTION_TEXT, Region, note } from "./panel_style";
+import { CAPTION_TEXT, CONTROL_RADIUS, Region, note } from "./panel_style";
 import AskOutputRow from "./ask_output_row";
 import { add_ask, add_reply, ask_rows, ask_unavailable, remove_ask, taken_ask_names, update_ask } from "../agent_asks";
 import { is_system_context_input, is_system_context_output } from "./system_context_visibility";
@@ -241,12 +241,12 @@ export default function OutputVariablesSection({
     title={t("agents.io.add_output")}
     onClick={add_mapping}
     style={{ fontSize: 11, paddingVertical: addAtEnd ? 5 : 3, paddingHorizontal: addAtEnd ? 6 : 4,
-      iconOnlyPaddingVertical: 3, iconOnlyPaddingHorizontal: 4, borderRadius: 5,
+      iconOnlyPaddingVertical: 3, iconOnlyPaddingHorizontal: 4, borderRadius: CONTROL_RADIUS,
       alignSelf: addAtEnd ? "flex-start" : undefined,
       content: { icon: { width: 14, height: 14 } }, color: addAtEnd ? (isDark ? "#a1a1aa" : "#68686f") : "var(--pupu-text-muted)" }} />;
 
   const agentAddStyle = {
-    fontSize: 11, paddingVertical: 5, paddingHorizontal: 6, borderRadius: 5,
+    fontSize: 11, paddingVertical: 5, paddingHorizontal: 6, borderRadius: CONTROL_RADIUS,
     color: isDark ? "#a1a1aa" : "#68686f",
   };
   const agent_add = (

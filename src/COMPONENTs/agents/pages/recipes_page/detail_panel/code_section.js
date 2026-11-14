@@ -34,7 +34,7 @@ import {
   with_code_settings,
 } from "../code_config";
 import { managed_path, sha256_text } from "../managed_code_sources";
-import { PANEL_SWITCH, Region, SettingRow, addButtonStyle, muted, note, problem, removeButtonStyle, text as textColor, textFieldFill } from "./panel_style";
+import { CONTROL_RADIUS, PANEL_SWITCH, Region, SettingRow, addButtonStyle, muted, note, problem, removeButtonStyle, text as textColor, textFieldFill } from "./panel_style";
 
 /* A Code node (#357): the Python file that holds `main(input, context)`, how
  * long it may run and how much it may hand back, the Result it declares, and
@@ -306,7 +306,7 @@ export default function CodeSection({ document, node, revision, sources, isDark,
                 pendingPath.release();
                 setMode(mode === "here" ? "file" : "here");
               }}
-              style={{ fontSize: 11.5, paddingVertical: 1, paddingHorizontal: 6, color: "var(--pupu-text-muted)" }}
+              style={{ fontSize: 11.5, paddingVertical: 1, paddingHorizontal: 6, borderRadius: CONTROL_RADIUS, color: "var(--pupu-text-muted)" }}
             />
           ) : undefined}>
         {mode === "here" && (

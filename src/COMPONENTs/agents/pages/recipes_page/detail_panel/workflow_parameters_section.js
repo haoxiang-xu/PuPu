@@ -8,7 +8,6 @@ import PanelSelect from "./panel_select";
 import { Block } from "./process_timeline";
 import { PANEL_SWITCH, Region, errorColor, muted, note, problem as problemStyle, removeButtonStyle, text as textColor } from "./panel_style";
 import AddButton from "./add_button";
-import { NODE_TAG_RADIUS } from "./node_tag";
 import { SemiSwitch } from "../../../../../BUILTIN_COMPONENTs/input/switch";
 import useListIdentities from "./list_identity";
 import usePendingText from "./pending_text";
@@ -27,8 +26,7 @@ const seed_default = (type) => own({ string: "", number: 0, integer: 0, boolean:
 /* The row's controls take the If / Else rows' measure: tag corners, text read
    from the left, one size of type. A parameter is an identifier, so it is set
    in the panel's monospace like every other variable name. */
-const FIELD_HEIGHT = 26;
-const FIELD_TEXT = { width: "100%", minWidth: 0, height: FIELD_HEIGHT, boxSizing: "border-box", fontSize: 12, paddingVertical: 3, paddingHorizontal: 7 };
+const FIELD_TEXT = { width: "100%", minWidth: 0, fontSize: 12, paddingVertical: 3, paddingHorizontal: 7 };
 const MONO = { fontFamily: "ui-monospace, Menlo, monospace" };
 const TYPE_WIDTH = 84;
 const SWITCH_WIDTH = 48;
@@ -88,7 +86,7 @@ function DefaultEditor({ field, identity, allowed, isDark, testid, onValue }) {
   const refused = pending.text === null ? null : read_default(type, pending.text).problem;
   return (
     <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
-      <PanelInput aria_label={t("agents.parameters.default")} disabled={!allowed} value={text} radius={NODE_TAG_RADIUS}
+      <PanelInput aria_label={t("agents.parameters.default")} disabled={!allowed} value={text}
         set_value={(next) => {
           const read = read_default(type, next);
           if (read.problem) { pending.hold(next); return; }
@@ -138,12 +136,12 @@ function Parameter({ row, index, identity, allowed, isDark, onChange, onRemove, 
         out move under them rather than squeezing the name to nothing. */}
     <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6, minWidth: 0, minHeight: 26 }}>
       <span style={{ flex: "1 1 72px", minWidth: 72, display: "block" }}>
-        <PanelInput aria_label={t("agents.parameters.name")} value={name} disabled={!allowed} radius={NODE_TAG_RADIUS}
+        <PanelInput aria_label={t("agents.parameters.name")} value={name} disabled={!allowed}
           set_value={(next) => { setName(next); setNameError(!onChange({ ...row, name: next }, { from: row.name, to: next })); }}
           style={{ ...FIELD_TEXT, ...MONO, boxSizing: "border-box", ...(nameError ? { border: `1px solid ${errorColor(isDark)}` } : {}) }} />
       </span>
       <span style={{ flex: `0 0 ${TYPE_WIDTH}px`, minWidth: 0, display: "flex" }}>
-        <PanelSelect value={selectedType} disabled={!allowed} filterable={false} radius={NODE_TAG_RADIUS} align="left"
+        <PanelSelect value={selectedType} disabled={!allowed} filterable={false} align="left"
           options={[...(invalidType ? [{ value: "stored", label: t("agents.execution.tool.stored_value", { value: JSON.stringify(field.type) }), disabled: true }] : []),
             { value: "any", label: t("agents.parameters.types.any") }, ...PARAMETER_TYPES.map((type) => ({ value: type, label: t(`agents.parameters.types.${type}`) }))]}
           set_value={(type) => {

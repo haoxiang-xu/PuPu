@@ -1,7 +1,7 @@
 import React, { useContext } from "react";
 import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
 import { ConfigContext } from "../../../../../CONTAINERs/config/context";
-import { FIELD_RADIUS, fieldFill } from "./panel_style";
+import { CONTROL_HEIGHT, FIELD_RADIUS, fieldFill } from "./panel_style";
 
 /* The detail panel's text box: the same white field, outline and corners as
    every other control in it, with no hover highlight. A call site may still
@@ -11,6 +11,8 @@ export default function PanelInput({ style, radius = FIELD_RADIUS, ...props }) {
   const isDark = onThemeMode === "dark_mode";
   return <Input {...props} style={{
     ...fieldFill(isDark),
+    height: CONTROL_HEIGHT,
+    boxSizing: "border-box",
     ...style,
     borderRadius: radius,
   }} />;

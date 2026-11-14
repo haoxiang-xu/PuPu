@@ -28,7 +28,7 @@ import {
   with_argument,
   with_tool_settings,
 } from "../tool_call_config";
-import { addButtonStyle, note, problem as problemOf, Region } from "./panel_style";
+import { addButtonStyle, CONTROL_RADIUS, note, problem as problemOf, Region } from "./panel_style";
 import { Block } from "./process_timeline";
 
 /* A Tool Call node: one tool, the arguments you fix, and what happens when it
@@ -150,7 +150,7 @@ export function ArgumentRow({ row, sources, toolName, editable, onSet, isDark })
             value={mode}
             on_change={setMode}
             disabled={!editable}
-            style={{ fontSize: 12, padding: 2 }}
+            style={{ fontSize: 12, padding: 2, borderRadius: CONTROL_RADIUS }}
             button_style={{ height: 22, padding: "0 9px", fontWeight: 500 }}
           />
         </span>
@@ -422,7 +422,7 @@ export default function ToolCallSection({ document, node, isDark, onChange }) {
             value={tool?.on_error ?? null}
             on_change={(value) => setTool({ ...(tool || {}), on_error: value })}
             disabled={!editable || !name}
-            style={{ fontSize: 12, padding: 2 }}
+            style={{ fontSize: 12, padding: 2, borderRadius: CONTROL_RADIUS }}
             button_style={{ height: 22, padding: "0 9px", fontWeight: 500 }}
           />
         </span>

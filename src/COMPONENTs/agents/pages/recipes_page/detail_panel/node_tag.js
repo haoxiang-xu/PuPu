@@ -3,7 +3,7 @@ import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { avatar_glyph_color } from "../../../agent_avatar";
 import { node_identity } from "./node_identity";
-import { fillStrong, muted, text } from "./panel_style";
+import { CONTROL_RADIUS, fillStrong, muted, text } from "./panel_style";
 
 /* A step of the graph, named where a panel points at it: a small rounded
    rectangle filled with the step's flat colour — the colour the canvas node
@@ -16,7 +16,7 @@ import { fillStrong, muted, text } from "./panel_style";
  * keeps the caller's words). Without a colour it is a neutral tag. */
 
 export const NODE_TAG_ICON = 13;
-export const NODE_TAG_RADIUS = 6;
+export const NODE_TAG_RADIUS = CONTROL_RADIUS;
 export const NODE_TAG_HEIGHT = 22;
 export const NODE_TAG_NAME_MAX = 180;
 const HEX = /^#[0-9a-fA-F]{6}$/;

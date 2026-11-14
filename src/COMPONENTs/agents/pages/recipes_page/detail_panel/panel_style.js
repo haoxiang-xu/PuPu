@@ -28,10 +28,18 @@ export const errorColor = (isDark) => (isDark ? "#ff8c8c" : "#b02020");
    because the switch derives its geometry from them. */
 export const PANEL_SWITCH = Object.freeze({ width: 48, height: 24 });
 
-/* A region's corners, and every control's: the same, so a field reads as one
-   more surface beside the Input / Output regions. */
+/* The panel's corners, in named steps — use these, not a number.
+   - CONTROL_RADIUS: anything you type into, pick from or press inside a
+     region (inputs, selects, small buttons, tags). The same corner as the
+     canvas tags, so a select beside a node tag reads as one family.
+   - REGION_RADIUS: a soft surface that groups rows, and a multi-line box.
+   A pill (a help dot, a chip) is fully round, 999. */
+export const CONTROL_RADIUS = 6;
 export const REGION_RADIUS = 10;
-export const FIELD_RADIUS = REGION_RADIUS;
+export const FIELD_RADIUS = CONTROL_RADIUS;
+/* One height for every single-line control, so a select and the box beside
+   it share a row line. */
+export const CONTROL_HEIGHT = 26;
 /* Inside a control: white in the light (the theme's surface), a faint lift in
    the dark — only a step above a region's 3.5%, so it does not glare. */
 export const fieldBackground = (isDark) => (isDark ? "rgba(255,255,255,0.045)" : "var(--pupu-surface, #ffffff)");
@@ -51,10 +59,11 @@ export const fieldFill = (isDark) => ({
   "--pupu-overlay-hover": "transparent",
   "--pupu-overlay-active": "transparent",
 });
-/* The same field for the multi-line TextField, which takes its fill and
-   outline through its own opt-in keys. */
+/* The same field for the multi-line TextField (a prompt, the code, JSON),
+   which takes its fill and outline through its own opt-in keys. A box that
+   tall is a surface the size of a region, so it wears a region's corners. */
 export const textFieldFill = (isDark) => ({
-  borderRadius: FIELD_RADIUS,
+  borderRadius: REGION_RADIUS,
   restFill: fieldBackground(isDark),
   restBorder: "1px solid transparent",
 });
@@ -80,12 +89,12 @@ export const problem = (isDark) => ({ fontSize: 11.5, lineHeight: 1.45, color: e
 
 /* A secondary action that sits at the end of a list, left aligned. */
 export const addButtonStyle = (isDark) => ({
-  alignSelf: "flex-start", fontSize: 11, paddingVertical: 5, paddingHorizontal: 6, borderRadius: 5, color: muted(isDark),
+  alignSelf: "flex-start", fontSize: 11, paddingVertical: 5, paddingHorizontal: 6, borderRadius: CONTROL_RADIUS, color: muted(isDark),
 });
 
 /* The in-row way out, the same as a variable row's. */
 export const removeButtonStyle = (isDark) => ({
-  flexShrink: 0, width: 22, height: 22, borderRadius: 6, backgroundColor: "transparent", color: muted(isDark), opacity: 0.75,
+  flexShrink: 0, width: 22, height: 22, borderRadius: CONTROL_RADIUS, backgroundColor: "transparent", color: muted(isDark), opacity: 0.75,
   iconOnlyPaddingVertical: 0, iconOnlyPaddingHorizontal: 0, content: { icon: { width: 13, height: 13 } },
 });
 

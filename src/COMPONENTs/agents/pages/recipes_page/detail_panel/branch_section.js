@@ -88,7 +88,7 @@ const NUMBER_TEXT = /^-?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/;
 /* `bare` is a variable row's own field: no box, no fill, nothing on hover or
    focus — the caret marks it. It is a text box either way (no spinner), and
    only a complete number is written; half-typed text waits under it. */
-function NumberBox({ value, onChange, testid, disabled, isDark, style = FIELD_TEXT, inputRef, bare = false, ariaLabel, radius }) {
+function NumberBox({ value, onChange, testid, disabled, isDark, style = FIELD_TEXT, inputRef, bare = false, ariaLabel }) {
   const { t } = useTranslation();
   const pending = usePendingText(value, testid);
   const Field = bare ? BareInput : Input;
@@ -101,7 +101,6 @@ function NumberBox({ value, onChange, testid, disabled, isDark, style = FIELD_TE
         disabled={disabled}
         placeholder={t("agents.execution.branch.a_number")}
         input_ref={inputRef}
-        {...(bare || radius === undefined ? {} : { radius })}
         set_value={(text) => {
           const parsed = NUMBER_TEXT.test(text) ? Number(text) : NaN;
           if (!Number.isFinite(parsed)) {
@@ -123,13 +122,11 @@ function NumberBox({ value, onChange, testid, disabled, isDark, style = FIELD_TE
 
 /* ── one side of a comparison ───────────────────────────────────────── */
 
-/* The If / Else selects are drawn at the canvas tags' corners and read left
-   to right, so a row reads as a sentence: `flag  is  true`. */
-/* One height for every control on a comparison line: a monospace input name
-   otherwise sets its select 4px shorter than the operator beside it. */
-const IF_SELECT = { fontSize: 12, paddingVertical: 3, paddingHorizontal: 7, gap: 4, width: "auto", height: 26, boxSizing: "border-box" };
+/* The If / Else selects read left to right, so a row reads as a sentence:
+   `flag  is  true`. Corners and height are every panel control's. */
+const IF_SELECT = { fontSize: 12, paddingVertical: 3, paddingHorizontal: 7, gap: 4, width: "auto" };
 const IF_FIELD_TEXT = { width: "100%", fontSize: 12, paddingVertical: 3, paddingHorizontal: 7 };
-const IfSelect = (props) => <Select radius={NODE_TAG_RADIUS} align="left" {...props} style={{ ...IF_SELECT, ...props.style }} />;
+const IfSelect = (props) => <Select align="left" {...props} style={{ ...IF_SELECT, ...props.style }} />;
 /* One cell of a row: as wide as what it shows, never wider than the row. */
 const CELL = { flexShrink: 0, minWidth: 0, maxWidth: "100%" };
 const READ_INSIDE = "\u0000inside";
@@ -231,14 +228,14 @@ function ValuePick({ operand, names, expected, onChange, testid, disabled, isDar
       </span>
       {kind === "string" && (
         <span data-testid={`${testid}-literal-text`} style={{ flex: 1, minWidth: 64 }}>
-          <Input value={operand.value} disabled={disabled} placeholder={t("agents.execution.branch.text_placeholder")} radius={NODE_TAG_RADIUS}
+          <Input value={operand.value} disabled={disabled} placeholder={t("agents.execution.branch.text_placeholder")}
             set_value={(next) => onChange({ kind: "literal", value: next })} style={IF_FIELD_TEXT} />
         </span>
       )}
       {kind === "number" && (
         <span style={{ flex: 1, minWidth: 56, display: "flex" }}>
           <NumberBox value={operand.value} onChange={(value) => onChange({ kind: "literal", value })} testid={`${testid}-literal`}
-            disabled={disabled} isDark={isDark} style={{ ...IF_FIELD_TEXT, borderRadius: NODE_TAG_RADIUS }} radius={NODE_TAG_RADIUS} />
+            disabled={disabled} isDark={isDark} style={IF_FIELD_TEXT} />
         </span>
       )}
     </>

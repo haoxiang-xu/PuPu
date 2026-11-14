@@ -183,7 +183,7 @@ function CountRow({ label, stored, ceiling, caption, onStore, about, isDark, tes
           <span style={lineLabel(isDark)}>{line.label}</span>
           {line.hint && <span style={{ ...CAPTION, ...MONO, fontSize: 11, flexShrink: 0 }}>{line.hint}</span>}
           <Input value={shown} set_value={type} placeholder="—" aria_label={line.label}
-            style={{ width: 84, fontSize: 12, ...MONO, paddingVertical: 5, paddingHorizontal: 8, borderRadius: 8, outline: "none", ...fieldFill(isDark) }} />
+            style={{ width: 84, fontSize: 12, ...MONO, paddingVertical: 5, paddingHorizontal: 8, outline: "none", ...fieldFill(isDark) }} />
         </div>
         {refused && (
           <span data-testid={`${testId}-refused`} style={refused_style(isDark)}>
@@ -413,7 +413,7 @@ export default function KernelSection({
                 ? { display: "inline-flex", width: 200, minWidth: 0, maxWidth: "100%" }
                 : { display: "inline-flex", width: 220, minWidth: 0, maxWidth: "100%" }}
               style={{ width: "100%", maxWidth: "100%", boxSizing: "border-box",
-                ...(renderSections ? { borderRadius: 8, height: 34, fontSize: 12.5, padding: "0 12px", justifyContent: "space-between", textAlign: "left", ...fieldFill(isDark) } : null) }}
+                ...(renderSections ? { height: 34, fontSize: 12.5, padding: "0 12px", justifyContent: "space-between", textAlign: "left", ...fieldFill(isDark) } : null) }}
             />
             {model_help && <PanelHelp label={t("agents.inspector.model")}>{model_help}</PanelHelp>}
           </div>
@@ -460,7 +460,7 @@ export default function KernelSection({
           placeholder={t("agents.execution.kernel.prompt_placeholder")}
           min_rows={3}
           max_display_rows={12}
-          style={{ fontSize: 12.5, lineHeight: 1.55, borderRadius: 8, ...(renderSections ? textFieldFill(isDark) : null) }}
+          style={{ fontSize: 12.5, lineHeight: 1.55, ...(renderSections ? textFieldFill(isDark) : { borderRadius: 8 }) }}
         />
         {kernel && unbound.length > 0 && (
           <span data-testid="kernel-prompt-unbound" style={refused_style(isDark)}>
@@ -573,7 +573,7 @@ export default function KernelSection({
                   value={own(kernel, "history")}
                   set_value={(next) => store({ ...kernel, history: next })}
                   filterable={false}
-                  style={renderSections ? { ...select_style, fontSize: 12, paddingVertical: 5, paddingHorizontal: 8, borderRadius: 8, width: 172, flexShrink: 0, ...fieldFill(isDark) } : { ...select_style, width: 168, flexShrink: 0 }}
+                  style={renderSections ? { ...select_style, fontSize: 12, paddingVertical: 5, paddingHorizontal: 8, width: 172, flexShrink: 0, ...fieldFill(isDark) } : { ...select_style, width: 168, flexShrink: 0 }}
                 />
                 </span>
                 </div>
@@ -588,7 +588,7 @@ export default function KernelSection({
                   value={own(kernel, "overflow")}
                   set_value={(next) => store({ ...kernel, overflow: next })}
                   filterable={false}
-                  style={renderSections ? { ...select_style, fontSize: 12, paddingVertical: 5, paddingHorizontal: 8, borderRadius: 8, width: 172, flexShrink: 0, ...fieldFill(isDark) } : { ...select_style, width: 168, flexShrink: 0 }}
+                  style={renderSections ? { ...select_style, fontSize: 12, paddingVertical: 5, paddingHorizontal: 8, width: 172, flexShrink: 0, ...fieldFill(isDark) } : { ...select_style, width: 168, flexShrink: 0 }}
                 />
                 </span>
                 </div>
@@ -603,7 +603,7 @@ export default function KernelSection({
                   value={own(kernel, "history")}
                   set_value={(next) => store({ ...kernel, history: next })}
                   filterable={false}
-                  style={renderSections ? { ...select_style, fontSize: 12, paddingVertical: 5, paddingHorizontal: 8, borderRadius: 8, width: 172, flexShrink: 0, ...fieldFill(isDark) } : { ...select_style, width: 168, flexShrink: 0 }}
+                  style={renderSections ? { ...select_style, fontSize: 12, paddingVertical: 5, paddingHorizontal: 8, width: 172, flexShrink: 0, ...fieldFill(isDark) } : { ...select_style, width: 168, flexShrink: 0 }}
                 />
                 </span>
                 <span style={{ ...CAPTION, flexShrink: 0 }}>{t("agents.execution.kernel.and_when_the_window_fills")}</span>
@@ -616,7 +616,7 @@ export default function KernelSection({
                   value={own(kernel, "overflow")}
                   set_value={(next) => store({ ...kernel, overflow: next })}
                   filterable={false}
-                  style={renderSections ? { ...select_style, fontSize: 12, paddingVertical: 5, paddingHorizontal: 8, borderRadius: 8, width: 172, flexShrink: 0, ...fieldFill(isDark) } : { ...select_style, width: 168, flexShrink: 0 }}
+                  style={renderSections ? { ...select_style, fontSize: 12, paddingVertical: 5, paddingHorizontal: 8, width: 172, flexShrink: 0, ...fieldFill(isDark) } : { ...select_style, width: 168, flexShrink: 0 }}
                 />
                 </span>
               </div>}
