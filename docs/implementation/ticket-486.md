@@ -108,7 +108,7 @@ Maps to AC-005/006/007/008/010; SEQ-001/003/004/005.
 Evidence: `/Users/red/.codex/artifacts/ticket-486-implementation-20261114/`.
 One reused wheel from Core `2458c3c6e142b6996b33bc34a14487f554f8eb87`:
 `0a8f3690db6dbefb16dbb71bd5c2298f485b9eb56d1571cc3e45e1eca5dfee18`.
-Actual manifest `sha256:1962d559109aef3fbb41227551ced6c6bc84194ffc237badd52ec4593cc31105`.
+Actual manifest `sha256:8bb1c7d474eed7bd82f906ac6cd88a6b7e073a23f46319cf500ebbd6b50ff17b`.
 Producer capture checks 332 imported Python modules against that wheel, rather than
 a mutable sibling checkout. Sidecars were restarted after Python changes.
 

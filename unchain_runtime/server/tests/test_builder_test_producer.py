@@ -74,7 +74,17 @@ def test_real_test_run_producer_capture(production,monkeypatch,tmp_path):
     assert 'SENTINEL_TEST' not in json.dumps(packets)
     imported=[]
     installed=Path(os.environ['UNCHAIN_SOURCE_PATH']).resolve()
-    wheel=installed.parent/'wheel'/'unchain-0.2.0-py3-none-any.whl'
+    configured_wheel=os.environ.get('UNCHAIN_ARTIFACT_PATH')
+    if configured_wheel:
+        wheel=Path(configured_wheel).resolve(strict=True)
+    else:
+        # CI installs into site-packages; the local isolated capture uses an
+        # adjacent installed/ and wheel/. Neither layout is a runtime contract.
+        candidates=[Path(__file__).resolve().parents[3]/'.release-qa'/'unchain-artifact'/'unchain-0.2.0-py3-none-any.whl',
+                    installed.parent/'wheel'/'unchain-0.2.0-py3-none-any.whl']
+        available=[candidate for candidate in candidates if candidate.is_file()]
+        assert len(available)==1, 'Set UNCHAIN_ARTIFACT_PATH to the exact installed wheel'
+        wheel=available[0]
     with zipfile.ZipFile(wheel) as archive:
         for name,module in sorted(sys.modules.items()):
             if not name.startswith('unchain.') or not getattr(module,'__file__',None):continue

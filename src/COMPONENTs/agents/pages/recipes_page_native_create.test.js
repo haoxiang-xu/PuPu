@@ -64,7 +64,8 @@ test("an empty reachable library creates a real three-node canvas without readin
   expect(screen.getByTestId("skeleton-save-state")).toHaveTextContent("Unsaved changes");
   openRunMenu();
   expect(screen.getByRole("button", { name: "Check it can run" })).toBeDisabled();
-  expect(screen.getByTestId("skeleton-run-save-first")).toBeInTheDocument();
+  expect(screen.getByTestId("builder-test-panel")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Save and test" })).toBeDisabled();
   expect(screen.queryByTestId("skeleton-diagnostics-stale")).toBeNull();
   expect(screen.queryByText("Inherits the chat's model")).toBeNull();
   expect(screen.getByText("No model configured")).toBeInTheDocument();
