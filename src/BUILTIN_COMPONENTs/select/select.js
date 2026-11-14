@@ -425,6 +425,8 @@ const SinkingSelect = ({
           dropdown_style?.boxShadow ??
           dropdown_theme?.boxShadow ??
           "0 12px 20px rgba(0, 0, 0, 0.12)",
+        /* shrinks into the window (Tooltip fit_viewport); the list scrolls */
+        minHeight: 0,
         ...dropdown_style,
       }}
       onKeyDown={filter_mode === "panel" ? handle_key_down : undefined}
@@ -497,6 +499,7 @@ const SinkingSelect = ({
       offset={8}
       align="start"
       show_arrow={false}
+      fit_viewport
       tooltip_component={dropdownContent}
       style={{
         padding: 0,
@@ -780,6 +783,7 @@ const FloatingSelect = ({
           dropdown_style?.boxShadow ??
           dropdown_theme?.boxShadow ??
           "0 12px 20px rgba(0,0,0,0.12)",
+        minHeight: 0,
         ...dropdown_style,
       }}
       onKeyDown={filter_mode === "panel" ? handle_key_down : undefined}
@@ -852,6 +856,7 @@ const FloatingSelect = ({
       offset={8}
       align="start"
       show_arrow={false}
+      fit_viewport
       tooltip_component={dropdownContent}
       style={{ padding: 0, backgroundColor: "transparent", boxShadow: "none" }}
       open={mergedOpen}
@@ -1346,6 +1351,8 @@ const Select = ({
               boxSizing: "border-box",
               display: "flex",
               flexDirection: "column",
+              /* shrinks into the window (Tooltip fit_viewport); the list scrolls */
+              minHeight: 0,
               gap: 1,
               width: isRail ? 300 : 280,
               maxWidth: "calc(100vw - 40px)",
@@ -1376,6 +1383,7 @@ const Select = ({
           : {
               display: "flex",
               flexDirection: "column",
+              minHeight: 0,
               gap: 6,
               minWidth: dropdownMinWidth ? dropdownMinWidth - 12 : undefined,
               padding: dropdown_theme?.padding ?? 6,
@@ -1714,6 +1722,7 @@ const Select = ({
       offset={8}
       align="start"
       show_arrow={false}
+      fit_viewport
       tooltip_component={dropdownContent}
       style={{
         padding: 0,
