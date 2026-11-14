@@ -194,7 +194,18 @@ export function schema_fields(schema) {
   const properties = is_object(schema) && is_object(schema.properties) ? schema.properties : {};
   const required =
     is_object(schema) && Array.isArray(schema.required) ? schema.required : [];
-  const fields = Object.keys(properties).map((name) => {
+  /* Rows follow `required` first, then the remaining properties. The order of
+     an object's keys means nothing (`same_json` says so, and the store writes
+     every document with its keys sorted), so it cannot be what decides whether
+     a `required` list "matches the fields". Its own order does mean something,
+     so the rows take it from there and the composer writes it back unchanged:
+     a schema saved as summary, length comes back with its rows, not as JSON. */
+  const names = Object.keys(properties);
+  const required_first = required.filter(
+    (name, index) => typeof name === "string" && names.includes(name) && required.indexOf(name) === index,
+  );
+  const ordered = [...required_first, ...names.filter((name) => !required_first.includes(name))];
+  const fields = ordered.map((name) => {
     const property = is_object(properties[name]) ? properties[name] : {};
     const type = typeof property.type === "string" ? property.type : "string";
     const bounds = {};
