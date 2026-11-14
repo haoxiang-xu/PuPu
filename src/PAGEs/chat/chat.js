@@ -1341,8 +1341,9 @@ const ChatInterface = () => {
                     onTogglePin={onTogglePinnedModelChip}
                     renderChip={(chip, { pinned, hovered, onTogglePin }) => {
                     /* Badge pill: provider logo in a round badge, no borders.
-                       Selected = solid inverted pill. Pinned or selected = the
-                       badge fills with the theme highlight (accent) colour. */
+                       Selected = solid inverted pill. Pinned = the badge fills
+                       with the theme highlight (accent) colour; a selected,
+                       unpinned chip's badge is plain black / white. */
                     const active = session.selectedModelId === chip.id;
                     const hover = hovered && !active && !isModelSelectionDisabled;
                     const IconComp = resolveProviderIcon(chip.provider);
@@ -1390,17 +1391,21 @@ const ChatInterface = () => {
                             justifyContent: "center",
                             flexShrink: 0,
                             transition: "background 0.18s, color 0.18s, box-shadow 0.18s",
-                            background: pinned || active
+                            background: pinned
                               ? "var(--pupu-accent)"
-                              : isDark
+                              : active
+                                ? "var(--pupu-background)"
+                                : isDark
                                 ? "color-mix(in srgb, var(--pupu-surface, rgb(30, 30, 30)) 90%, white)"
                                 : "var(--pupu-surface, rgb(255, 255, 255))",
-                            color: pinned || active
+                            color: pinned
                               ? "rgb(255, 255, 255)"
-                              : `rgba(${fg}, 0.7)`,
-                            boxShadow: pinned || active
+                              : `rgba(${fg}, ${active ? 0.9 : 0.7})`,
+                            boxShadow: pinned
                               ? "0 2px 6px rgba(var(--pupu-accent-rgb), 0.45)"
-                              : "0 1px 3px rgba(0, 0, 0, 0.14)",
+                              : active
+                                ? "none"
+                                : "0 1px 3px rgba(0, 0, 0, 0.14)",
                           }}
                         >
                           {IconComp && (
