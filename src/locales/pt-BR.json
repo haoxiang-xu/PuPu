@@ -575,6 +575,8 @@
     "no_results": "Nenhum resultado"
   },
   "chat": {
+    "pin_model": "Fixar modelo",
+    "unpin_model": "Desafixar modelo",
     "placeholder": "Mensagem para PuPu...",
     "settlement": {
       "waiting": "Aguardando a execução anterior terminar…",

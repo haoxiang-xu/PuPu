@@ -575,6 +575,8 @@
     "no_results": "結果なし"
   },
   "chat": {
+    "pin_model": "モデルをピン留め",
+    "unpin_model": "ピン留めを解除",
     "placeholder": "PuPu にメッセージを送信...",
     "settlement": {
       "waiting": "前の処理が終了するのを待っています…",

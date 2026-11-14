@@ -21,6 +21,11 @@ import ChatInput from "../../COMPONENTs/chat-input/chat_input";
 import { CONTEXT_WINDOW_PRESETS } from "../../COMPONENTs/chat-input/constants";
 import SecretCaptureModal from "./secret_capture_modal";
 import ModelChipRow from "./model_chip_row";
+import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
+import {
+  readPinnedModelChips,
+  togglePinnedModelChip,
+} from "../../SERVICEs/model_chip_pins";
 import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import {
   bootstrapChatsStore,
@@ -251,6 +256,10 @@ const HeroHeadline = ({ isDark }) => {
 
 const ChatInterface = () => {
   const { t } = useTranslation();
+  const [pinnedModelChips, setPinnedModelChips] = useState(readPinnedModelChips);
+  const onTogglePinnedModelChip = useCallback((modelId) => {
+    setPinnedModelChips(togglePinnedModelChip(modelId));
+  }, []);
   const { theme, onThemeMode } = useContext(ThemeContext) || {};
   const {
     onFragment,
@@ -1313,7 +1322,9 @@ const ChatInterface = () => {
                   <ModelChipRow
                     chips={chips}
                     selectedModelId={session.selectedModelId}
-                    renderChip={(chip) => {
+                    pinnedIds={pinnedModelChips}
+                    onTogglePin={onTogglePinnedModelChip}
+                    renderChip={(chip, { pinned, hovered, onTogglePin }) => {
                     const active = session.selectedModelId === chip.id;
                     const IconComp = resolveProviderIcon(chip.provider);
                     return (
@@ -1406,6 +1417,46 @@ const ChatInterface = () => {
                           </span>
                         )}
                         {chip.label}
+                        {/* pin: always takes its space (so revealing it on hover
+                            never re-lays out the row); visible when pinned or
+                            hovered. Not a <button> — it sits inside one. */}
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          aria-pressed={pinned}
+                          aria-label={t(pinned ? "chat.unpin_model" : "chat.pin_model")}
+                          title={t(pinned ? "chat.unpin_model" : "chat.pin_model")}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onTogglePin();
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key !== "Enter" && event.key !== " ") return;
+                            event.preventDefault();
+                            event.stopPropagation();
+                            onTogglePin();
+                          }}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            width: 16,
+                            height: 16,
+                            marginLeft: 1,
+                            marginRight: -6,
+                            borderRadius: 8,
+                            flexShrink: 0,
+                            cursor: "pointer",
+                            opacity: pinned ? 0.85 : hovered ? 0.5 : 0,
+                            transition: "opacity 0.18s",
+                          }}
+                        >
+                          <Icon
+                            src="pin"
+                            color="currentColor"
+                            style={{ width: 11, height: 11 }}
+                          />
+                        </span>
                       </ShadowSurface>
                     );
                     }}

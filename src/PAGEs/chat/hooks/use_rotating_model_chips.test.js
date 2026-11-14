@@ -129,3 +129,12 @@ test("never swaps out the held (hovered) chip, but keeps rotating the rest", () 
     expect(next.filter((id, i) => id !== slots[i])).toHaveLength(3);
   }
 });
+
+test("keeps extra ids (e.g. a just-unpinned chip under the pointer) on screen", () => {
+  const chips = makeChips(30);
+  const previous = chips.slice(0, 16).map((c) => c.id);
+  const next = reconcileModelChipSlots(previous, chips, { limit: 16, pinnedId: "m0", keepIds: ["m20"] });
+  expect(next).toContain("m20");
+  expect(next[0]).toBe("m0");
+  expect(new Set(next).size).toBe(16);
+});

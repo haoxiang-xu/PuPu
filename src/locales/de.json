@@ -575,6 +575,8 @@
     "no_results": "Keine Ergebnisse"
   },
   "chat": {
+    "pin_model": "Modell anheften",
+    "unpin_model": "Modell lösen",
     "placeholder": "Nachricht an PuPu...",
     "settlement": {
       "waiting": "Warten, bis der vorherige Durchlauf abgeschlossen ist…",

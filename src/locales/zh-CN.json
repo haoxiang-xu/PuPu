@@ -575,6 +575,8 @@
     "no_results": "无结果"
   },
   "chat": {
+    "pin_model": "固定模型",
+    "unpin_model": "取消固定",
     "placeholder": "向 PuPu 发送消息...",
     "settlement": {
       "waiting": "正在等待上一条任务收尾…",

@@ -1,6 +1,9 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import useReducedMotion from "../../BUILTIN_COMPONENTs/mini_react/use_reduced_motion";
-import { useRotatingModelChips } from "./hooks/use_rotating_model_chips";
+import {
+  MODEL_CHIP_LIMIT,
+  useRotatingModelChips,
+} from "./hooks/use_rotating_model_chips";
 
 const FADE_MS = 500;
 const MOVE_MS = 600;
@@ -45,22 +48,29 @@ export const layoutChipRows = (sizes, containerWidth, gap = GAP) => {
 };
 
 /**
- * One fixed slot in the row. When it is handed a different chip it fades the
- * old one out, swaps the content while invisible (the row then re-lays out and
- * every chip glides to its new place), then fades the new chip in.
+ * One chip position in the row. When it is handed a different chip it fades
+ * the old one out, swaps the content while invisible (the row then re-lays out
+ * and every chip glides to its new place), then fades the new chip in.
+ * A slot that mounts with a `from` position (a chip that just moved between
+ * the pinned group and the rotating group) starts there and glides over.
  */
 const ChipSlot = ({
-  slot,
+  slotKey,
   chip,
   position,
+  from,
+  pinned,
   renderChip,
   reducedMotion,
   onHoverChange,
+  onTogglePin,
   onSize,
 }) => {
   const [shown, setShown] = useState(chip);
   const [visible, setVisible] = useState(true);
-  /* The first placement must not animate in from the container's corner. */
+  const [hovered, setHovered] = useState(false);
+  /* Until placed, sit at `from` (or the target) without a transition, so the
+     first placement never animates in from the container's corner. */
   const [placed, setPlaced] = useState(false);
   const contentRef = useRef(null);
   const pendingRef = useRef([]);
@@ -69,13 +79,13 @@ const ChipSlot = ({
     const node = contentRef.current;
     if (!node) return undefined;
     /* offsetWidth/Height ignore the fade's scale transform */
-    const report = () => onSize(slot, node.offsetWidth, node.offsetHeight);
+    const report = () => onSize(slotKey, node.offsetWidth, node.offsetHeight);
     report();
     if (typeof ResizeObserver === "undefined") return undefined;
     const observer = new ResizeObserver(report);
     observer.observe(node);
     return () => observer.disconnect();
-  }, [slot, shown, onSize]);
+  }, [slotKey, shown, onSize]);
 
   useLayoutEffect(() => {
     if (!position || placed) return undefined;
@@ -111,13 +121,20 @@ const ChipSlot = ({
   }, []);
 
   const animate = placed && !reducedMotion;
-  const x = position?.x ?? 0;
-  const y = position?.y ?? 0;
+  const at = !placed && from ? from : position;
+  const x = at?.x ?? 0;
+  const y = at?.y ?? 0;
 
   return (
     <span
-      onMouseEnter={() => onHoverChange(shown.id)}
-      onMouseLeave={() => onHoverChange(null)}
+      onMouseEnter={() => {
+        setHovered(true);
+        onHoverChange(shown.id);
+      }}
+      onMouseLeave={() => {
+        setHovered(false);
+        onHoverChange(null);
+      }}
       style={{
         position: "absolute",
         left: 0,
@@ -134,22 +151,57 @@ const ChipSlot = ({
       }}
     >
       <span ref={contentRef} style={{ display: "inline-flex", whiteSpace: "nowrap" }}>
-        {renderChip(shown)}
+        {renderChip(shown, {
+          pinned,
+          hovered,
+          onTogglePin: () => onTogglePin(shown.id),
+        })}
       </span>
     </span>
   );
 };
 
 /**
- * The model chips under the new-chat composer: at most 16 on screen, with a
- * few swapped for others at random every so often.
+ * The model chips under the new-chat composer. Pinned chips come first, in
+ * pin order, and never rotate. The remaining room (up to 16 chips in all) is
+ * filled by models that rotate a few at a time.
+ *
+ * `renderChip(chip, { pinned, hovered, onTogglePin })` draws one chip.
  */
-const ModelChipRow = ({ chips, selectedModelId, renderChip }) => {
+const ModelChipRow = ({
+  chips,
+  selectedModelId,
+  pinnedIds = [],
+  onTogglePin,
+  renderChip,
+}) => {
   const reducedMotion = useReducedMotion();
   /* Only the chip under the pointer is held still; everything else keeps
      rotating. */
   const [heldId, setHeldId] = useState(null);
-  const slots = useRotatingModelChips(chips, { selectedModelId, heldId });
+
+  const pinnedChips = useMemo(() => {
+    const byId = new Map(chips.map((chip) => [chip.id, chip]));
+    return pinnedIds.map((id) => byId.get(id)).filter(Boolean);
+  }, [chips, pinnedIds]);
+  const rotatingChips = useMemo(() => {
+    const pinnedSet = new Set(pinnedIds);
+    return chips.filter((chip) => !pinnedSet.has(chip.id));
+  }, [chips, pinnedIds]);
+
+  const rotating = useRotatingModelChips(rotatingChips, {
+    limit: Math.max(0, MODEL_CHIP_LIMIT - pinnedChips.length),
+    selectedModelId,
+    heldId,
+  });
+
+  const entries = useMemo(
+    () => [
+      ...pinnedChips.map((chip) => ({ key: `pin:${chip.id}`, chip, pinned: true })),
+      ...rotating.map(({ slot, chip }) => ({ key: `slot:${slot}`, chip, pinned: false })),
+    ],
+    [pinnedChips, rotating],
+  );
 
   const containerRef = useRef(null);
   const [containerWidth, setContainerWidth] = useState(0);
@@ -165,18 +217,29 @@ const ModelChipRow = ({ chips, selectedModelId, renderChip }) => {
   }, []);
 
   const [sizes, setSizes] = useState({});
-  const onSize = useCallback((slot, w, h) => {
+  const onSize = useCallback((key, w, h) => {
     setSizes((previous) =>
-      previous[slot]?.w === w && previous[slot]?.h === h
+      previous[key]?.w === w && previous[key]?.h === h
         ? previous
-        : { ...previous, [slot]: { w, h } },
+        : { ...previous, [key]: { w, h } },
     );
   }, []);
 
   const layout = useMemo(
-    () => layoutChipRows(slots.map(({ slot }) => sizes[slot]), containerWidth),
-    [slots, sizes, containerWidth],
+    () => layoutChipRows(entries.map(({ key }) => sizes[key]), containerWidth),
+    [entries, sizes, containerWidth],
   );
+
+  /* Where each model was last drawn, so a chip that changes group (pin /
+     unpin) starts from its old spot instead of popping in. */
+  const lastPositionByIdRef = useRef(new Map());
+  const previousPositions = lastPositionByIdRef.current;
+  useLayoutEffect(() => {
+    if (!layout) return;
+    const next = new Map();
+    entries.forEach(({ chip }, index) => next.set(chip.id, layout.positions[index]));
+    lastPositionByIdRef.current = next;
+  }, [entries, layout]);
 
   /* like the chips, the row's height only animates after its first layout */
   const [settled, setSettled] = useState(false);
@@ -198,15 +261,18 @@ const ModelChipRow = ({ chips, selectedModelId, renderChip }) => {
           settled && !reducedMotion ? `height ${MOVE_MS}ms ${EASE}` : "none",
       }}
     >
-      {slots.map(({ slot, chip }, index) => (
+      {entries.map(({ key, chip, pinned }, index) => (
         <ChipSlot
-          key={slot}
-          slot={slot}
+          key={key}
+          slotKey={key}
           chip={chip}
+          pinned={pinned}
           position={layout ? layout.positions[index] : null}
+          from={previousPositions.get(chip.id) || null}
           renderChip={renderChip}
           reducedMotion={reducedMotion}
           onHoverChange={setHeldId}
+          onTogglePin={onTogglePin}
           onSize={onSize}
         />
       ))}

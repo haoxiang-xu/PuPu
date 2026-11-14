@@ -575,6 +575,8 @@
     "no_results": "無結果"
   },
   "chat": {
+    "pin_model": "釘選模型",
+    "unpin_model": "取消釘選",
     "placeholder": "傳送訊息給 PuPu...",
     "settlement": {
       "waiting": "正在等待上一個任務完成收尾…",

@@ -23,7 +23,7 @@ const pickRandom = (items, count, random) => {
 export const reconcileModelChipSlots = (
   previous,
   chips,
-  { limit, pinnedId = null, random = Math.random },
+  { limit, pinnedId = null, keepIds = [], random = Math.random },
 ) => {
   const ids = chips.map((chip) => chip.id);
   if (ids.length <= limit) return ids;
@@ -37,13 +37,25 @@ export const reconcileModelChipSlots = (
     if (slots[i] !== null) seen.add(slots[i]);
   }
 
-  if (pinnedId && known.has(pinnedId) && !seen.has(pinnedId)) {
+  /* ids that must be on screen: the selected model, plus e.g. a chip the
+     pointer is on that just left the pinned group */
+  const keep = [pinnedId, ...keepIds].filter((id) => id && known.has(id));
+  keep.forEach((id) => {
+    if (seen.has(id)) return;
     let target = slots.indexOf(null);
-    if (target < 0) target = slots.length - 1;
+    if (target < 0) {
+      for (let i = slots.length - 1; i >= 0; i -= 1) {
+        if (!keep.includes(slots[i])) {
+          target = i;
+          break;
+        }
+      }
+    }
+    if (target < 0) return;
     if (slots[target] !== null) seen.delete(slots[target]);
-    slots[target] = pinnedId;
-    seen.add(pinnedId);
-  }
+    slots[target] = id;
+    seen.add(id);
+  });
 
   const empty = slots.reduce((acc, id, i) => (id === null ? [...acc, i] : acc), []);
   const fill = pickRandom(
@@ -115,14 +127,15 @@ export function useRotatingModelChips(
 
   /* Reconcile when models come and go or the selection moves. Done during
      render (not in an effect) so the first paint already has the right set. */
-  const reconcileKeyRef = useRef(`${chipKey}|${selectedModelId}|${limit}`);
-  const reconcileKey = `${chipKey}|${selectedModelId}|${limit}`;
+  const reconcileKey = `${chipKey}|${selectedModelId}|${heldId}|${limit}`;
+  const reconcileKeyRef = useRef(reconcileKey);
   let currentSlots = slots;
   if (reconcileKeyRef.current !== reconcileKey) {
     reconcileKeyRef.current = reconcileKey;
     currentSlots = reconcileModelChipSlots(slots, chips, {
       limit,
       pinnedId: selectedModelId,
+      keepIds: heldId ? [heldId] : [],
     });
     if (currentSlots.join("\u0000") !== slots.join("\u0000")) {
       setSlots(currentSlots);

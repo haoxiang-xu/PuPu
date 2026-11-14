@@ -575,6 +575,8 @@
     "no_results": "No results"
   },
   "chat": {
+    "pin_model": "Pin model",
+    "unpin_model": "Unpin model",
     "placeholder": "Message PuPu...",
     "settlement": {
       "waiting": "Waiting for the previous run to finish…",
