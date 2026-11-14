@@ -1313,12 +1313,6 @@ const ChatInterface = () => {
                   <ModelChipRow
                     chips={chips}
                     selectedModelId={session.selectedModelId}
-                    style={{
-                      display: "flex",
-                      gap: 8,
-                      flexWrap: "wrap",
-                      justifyContent: "center",
-                    }}
                     renderChip={(chip) => {
                     const active = session.selectedModelId === chip.id;
                     const IconComp = resolveProviderIcon(chip.provider);
