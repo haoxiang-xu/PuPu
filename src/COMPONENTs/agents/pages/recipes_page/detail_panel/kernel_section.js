@@ -383,7 +383,7 @@ export default function KernelSection({
   const reasons_up_front = reasons !== null && options.length === 0;
 
   const profile_facts = is_object(stored_profile) ? (
-    <span data-testid="kernel-profile-facts" style={{ ...CAPTION, ...MONO }}>
+    <span data-testid="kernel-profile-facts" style={renderSections ? MONO : { ...CAPTION, ...MONO }}>
       {t("agents.execution.kernel.profile_facts", { protocol: safe_text(own(stored_profile, "protocol")), endpoint: safe_text(own(stored_profile, "endpoint")), window: safe_text(own(stored_profile, "context_window")) })}
     </span>
   ) : null;
@@ -391,7 +391,7 @@ export default function KernelSection({
     <span data-testid="kernel-absent"><span data-testid="kernel-model-help">{t("agents.execution.kernel.no_model")}</span></span>
   ) : renderSections ? profile_facts : null;
   const prompt_help = kernel ? (
-    <span data-testid="kernel-prompt-references" style={CAPTION}>
+    <span data-testid="kernel-prompt-references" style={renderSections ? undefined : CAPTION}>
       {bindings.length === 0 ? t("agents.execution.kernel.no_inputs", { token: "{{#input.name#}}" }) : t("agents.execution.kernel.input_references", { tokens: bindings.map((binding) => `{{#input.${safe_text(own(binding, "name"))}#}}`).slice(0, 4).join(" "), more: bindings.length > 4 ? " …" : "" })}
     </span>
   ) : null;

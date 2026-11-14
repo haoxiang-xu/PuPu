@@ -165,7 +165,7 @@ export default function SkillReadSection({ document, node, isDark, onChange }) {
       </div>
 
       <Block section="skill-read-skill" title={t("agents.execution.skill.skill")} isDark={isDark} help={
-            <span style={note(isDark)}>
+            <span>
               {includeUserDirs
               ? t("agents.execution.skill.all_sources_note")
               : t("agents.execution.skill.packs_only_note")}
@@ -207,7 +207,7 @@ export default function SkillReadSection({ document, node, isDark, onChange }) {
       {complete && (
         <div data-testid="skill-read-preview" style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
           <Block section="skill-read-preview" title={t("agents.execution.skill.preview")} isDark={isDark}
-            help={<span style={note(isDark)}>{t("agents.execution.skill.preview_note")}</span>}
+            help={<span>{t("agents.execution.skill.preview_note")}</span>}
             aside={preview.status === "ready" ? (
               <span data-testid="skill-read-preview-size">{size_text(preview.preview.bytes, t)}</span>
             ) : undefined}>

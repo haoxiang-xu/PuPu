@@ -399,7 +399,7 @@ function HookEditor({ entry, index, rowId, nodeId, parentId, siblings, scopeDupl
       </div>
       <div data-testid={`${testid}-approval`}>
       <Block section={`${testid}-approval`} title={t("agents.hooks.approval")} isDark={isDark}
-        help={<span style={NOTE}>{t("agents.hooks.approval_note")}</span>}>
+        help={<span>{t("agents.hooks.approval_note")}</span>}>
         <span style={{ opacity: editable ? 1 : 0.5, pointerEvents: editable ? "auto" : "none" }}>
           <SegmentedControl
             size="compact"
@@ -432,19 +432,19 @@ function HookEditor({ entry, index, rowId, nodeId, parentId, siblings, scopeDupl
       <div data-testid={`${testid}-contract`}>
       <Block section={`${testid}-contract`} title={t("agents.hooks.contract")} isDark={isDark} help={event_ok ? (
           <>
-            <span style={NOTE}>{t("agents.hooks.start_given", { keys: "{keys}" }).split(/(\{keys\})/g).map((part, index) => ({ __proto__: null, "{keys}": (<span key={index} style={MONO}>{EVENT_INPUT_KEYS[entry.event].join(t("agents.schema.fields.list_separator"))}</span>) }[part] ?? part))}</span>
-            <span style={NOTE}>
+            <span>{t("agents.hooks.start_given", { keys: "{keys}" }).split(/(\{keys\})/g).map((part, index) => ({ __proto__: null, "{keys}": (<span key={index} style={MONO}>{EVENT_INPUT_KEYS[entry.event].join(t("agents.schema.fields.list_separator"))}</span>) }[part] ?? part))}</span>
+            <span>
               {t("agents.hooks.end_decisions", { decisions: DECISION_SHAPES[entry.event].map((item, index) => `${t(({ __proto__: null, before_tool_call: ["agents.hooks.decision_continue", "agents.hooks.decision_arguments", "agents.hooks.decision_block"], after_tool_call: ["agents.hooks.decision_continue", "agents.hooks.decision_replace"] })[entry.event][index])} — ${item.keys.join(t("agents.schema.fields.list_separator"))}`).join(t("agents.execution.kernel.list_separator")) })}
               {entry.event === "before_tool_call"
                 ? t("agents.hooks.before_bad_decision")
                 : t("agents.hooks.after_bad_decision")}
             </span>
             {shape && shape.readable && (
-              <span data-testid={`${testid}-exports`} style={NOTE}>{record(own) ? t("agents.hooks.exports_own", { exports: "{exports}" }).split(/(\{exports\})/g).map((part, index) => ({ __proto__: null, "{exports}": (<span key={index} style={MONO}>{shape.exports.join(t("agents.schema.fields.list_separator")) || t("agents.hooks.nothing")}</span>) }[part] ?? part)) : t("agents.hooks.exports_pinned", { exports: "{exports}" }).split(/(\{exports\})/g).map((part, index) => ({ __proto__: null, "{exports}": (<span key={index} style={MONO}>{shape.exports.join(t("agents.schema.fields.list_separator")) || t("agents.hooks.nothing")}</span>) }[part] ?? part))}</span>
+              <span data-testid={`${testid}-exports`}>{record(own) ? t("agents.hooks.exports_own", { exports: "{exports}" }).split(/(\{exports\})/g).map((part, index) => ({ __proto__: null, "{exports}": (<span key={index} style={MONO}>{shape.exports.join(t("agents.schema.fields.list_separator")) || t("agents.hooks.nothing")}</span>) }[part] ?? part)) : t("agents.hooks.exports_pinned", { exports: "{exports}" }).split(/(\{exports\})/g).map((part, index) => ({ __proto__: null, "{exports}": (<span key={index} style={MONO}>{shape.exports.join(t("agents.schema.fields.list_separator")) || t("agents.hooks.nothing")}</span>) }[part] ?? part))}</span>
             )}
           </>
         ) : (
-          <span style={NOTE}>{t("agents.hooks.choose_event_contract")}</span>
+          <span>{t("agents.hooks.choose_event_contract")}</span>
         )} />
       </div>
       {extras.map((key) => (
@@ -638,7 +638,7 @@ export default function HooksPoolSection({ document, node, isDark, onChange, man
 
       <div data-testid="hooks-pool-order">
       <Block section="hooks-run-order" title={t("agents.hooks.run_order")} isDark={isDark}
-        help={<span style={NOTE}>{t("agents.hooks.order_explanation")}</span>}>
+        help={<span>{t("agents.hooks.order_explanation")}</span>}>
         {agents.length === 0 && <span style={NOTE}>{t("agents.hooks.not_attached")}</span>}
         {agents.map((agent_id) => {
           const order = kernel_hook_order(document, agent_id);

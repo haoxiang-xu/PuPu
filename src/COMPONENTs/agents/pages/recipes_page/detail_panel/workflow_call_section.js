@@ -371,7 +371,7 @@ export default function WorkflowCallSection({ document, node, rowDiagnostics, is
 
       <div data-testid="workflow-call-target">
       <Block section="workflow-call-workflow" title={t("agents.workflow.workflow")} isDark={isDark}
-        help={<span data-testid="workflow-call-failure" style={NOTE}>
+        help={<span data-testid="workflow-call-failure">
           {t("agents.workflow.failure")} {t("agents.workflow.pinned_contract")}
         </span>}>
         <span data-testid="workflow-call-picker">

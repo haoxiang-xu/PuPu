@@ -291,7 +291,7 @@ export default function CodeSection({ document, node, revision, sources, isDark,
         <Block section="code-source" title={mode === "here" ? t("agents.execution.code.code") : t("agents.execution.code.source_file")} isDark={isDark}
           problems={problems_of(SECTION_PROBLEMS.source)}
           help={
-            <span data-testid="code-source-note" style={NOTE}>
+            <span data-testid="code-source-note">
               {mode === "here"
               ? t("agents.execution.code.stored_text")
               : source.managed ? t("agents.execution.code.read_named_file") : source.reason}{" "}
@@ -382,7 +382,7 @@ export default function CodeSection({ document, node, revision, sources, isDark,
       <div data-testid="code-limits">
         <FoldBlock section="code-limits" title={t("agents.execution.code.limits")} isDark={isDark}
           problems={problems_of(SECTION_PROBLEMS.limits)}
-          help={<span style={NOTE}>{t("agents.execution.code.limits_note")}</span>}>
+          help={<span>{t("agents.execution.code.limits_note")}</span>}>
           <Region isDark={isDark}>
             <LimitRow label={t("agents.execution.code.limit_time")} unit={t("agents.execution.code.seconds")}
               stored={code ? code.timeout_ms : undefined} fallback={CODE_DEFAULTS.timeout_ms} limit={SECONDS} scale={1000} editable={editable}
@@ -404,7 +404,7 @@ export default function CodeSection({ document, node, revision, sources, isDark,
       <div data-testid="code-result">
         <FoldBlock section="code-result" title={t("agents.execution.code.result")} isDark={isDark}
           problems={problems_of(SECTION_PROBLEMS.result)} help={
-          <span style={NOTE}>
+          <span>
             {t("agents.execution.code.result_contract", { declare: "{declare}" }).split(/(\{declare\})/g).map((part, index) => ({ __proto__: null, "{declare}": (<b key={index}>{t("agents.execution.code.declare")}</b>) }[part] || part))}
           </span>
         }>
@@ -502,7 +502,7 @@ export default function CodeSection({ document, node, revision, sources, isDark,
             node. There is no policy to choose, so there is no control: two
             plain rows say what happens. */}
         <FoldBlock section="code-on-error" title={t("agents.execution.code.on_error")} isDark={isDark}
-          help={<span style={NOTE}>{t("agents.execution.code.on_error_note")}</span>}>
+          help={<span>{t("agents.execution.code.on_error_note")}</span>}>
           <Region isDark={isDark}>
             <div style={REGION_ROW}>
               <SettingRow label={t("agents.execution.code.on_error_raises")} isDark={isDark} testid="code-on-error-raises">

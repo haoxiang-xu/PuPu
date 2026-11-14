@@ -412,7 +412,7 @@ export default function ToolCallSection({ document, node, isDark, onChange }) {
 
       <div data-testid="tool-call-on-error" style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
       <Block section="tool-call-on-error" title={t("agents.execution.tool.on_error")} isDark={isDark} help={
-            <span data-testid="tool-call-on-error-note" style={note(isDark)}>
+            <span data-testid="tool-call-on-error-note">
               {t("agents.execution.tool.error_contract", { ok: "{ok}", error: "{error}", denied: "{denied}", tool_error: "{tool_error}", result: "{result}", tool_failed: "{tool_failed}" }).split(/(\{ok\}|\{error\}|\{denied\}|\{tool_error\}|\{result\}|\{tool_failed\})/g).map((part, index) => ({ __proto__: null, "{ok}": (<span key={index} style={MONO}>ok</span>), "{error}": (<span key={index} style={MONO}>error</span>), "{denied}": (<span key={index} style={MONO}>denied</span>), "{tool_error}": (<span key={index} style={MONO}>tool_error</span>), "{result}": (<span key={index} style={MONO}>result</span>), "{tool_failed}": (<span key={index} style={MONO}>tool_failed</span>) }[part] || part))}
             </span>
       }>
@@ -434,7 +434,7 @@ export default function ToolCallSection({ document, node, isDark, onChange }) {
 
       <div data-testid="tool-call-approval" style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
       <Block section="tool-call-approval" title={t("agents.execution.tool.approval_wait")} isDark={isDark}
-        help={<span style={note(isDark)}>{t("agents.execution.tool.approval_limit_note")}</span>}>
+        help={<span>{t("agents.execution.tool.approval_limit_note")}</span>}>
         <div style={ROW}>
           <Input
             value={pendingSeconds.text !== null ? pendingSeconds.text : seconds === null ? "" : String(seconds)}
