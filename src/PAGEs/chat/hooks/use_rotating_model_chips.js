@@ -61,13 +61,13 @@ export const reconcileModelChipSlots = (
 export const swapModelChipSlots = (
   slots,
   chips,
-  { count, pinnedId = null, random = Math.random },
+  { count, pinnedId = null, heldId = null, random = Math.random },
 ) => {
   const visible = new Set(slots);
   const hidden = chips.map((chip) => chip.id).filter((id) => !visible.has(id));
   const candidates = slots
     .map((id, index) => ({ id, index }))
-    .filter(({ id }) => id !== pinnedId);
+    .filter(({ id }) => id !== pinnedId && id !== heldId);
   const n = Math.min(count, hidden.length, candidates.length);
   if (n <= 0) return slots;
   const outgoing = pickRandom(candidates, n, random);
@@ -90,7 +90,9 @@ export const swapModelChipSlots = (
  * and nothing rotates.
  *
  * The selected model is always visible and never swapped out. Rotation pauses
- * while `paused` is true (e.g. the pointer is over the chips) and while the
+ * `heldId` (the chip under the pointer) is likewise never swapped out, so a
+ * chip can't change while it is being clicked; the rest keep rotating.
+ * Rotation pauses while `paused` is true and while the
  * window is hidden.
  *
  * @returns {Array<{slot:number, chip:object}>}
@@ -102,6 +104,7 @@ export function useRotatingModelChips(
     swapCount = MODEL_CHIP_SWAP_COUNT,
     intervalMs = MODEL_CHIP_INTERVAL_MS,
     selectedModelId = null,
+    heldId = null,
     paused = false,
   } = {},
 ) {
@@ -127,8 +130,8 @@ export function useRotatingModelChips(
   }
 
   const needsRotation = chips.length > limit;
-  const latestRef = useRef({ chips, selectedModelId, swapCount });
-  latestRef.current = { chips, selectedModelId, swapCount };
+  const latestRef = useRef({ chips, selectedModelId, heldId, swapCount });
+  latestRef.current = { chips, selectedModelId, heldId, swapCount };
 
   useEffect(() => {
     if (!needsRotation || paused) return undefined;
@@ -139,6 +142,7 @@ export function useRotatingModelChips(
         swapModelChipSlots(previous, latest.chips, {
           count: latest.swapCount,
           pinnedId: latest.selectedModelId,
+          heldId: latest.heldId,
         }),
       );
     }, intervalMs);

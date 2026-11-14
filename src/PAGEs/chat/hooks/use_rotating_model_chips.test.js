@@ -118,3 +118,14 @@ describe("useRotatingModelChips", () => {
     expect(result.current.map((s) => s.chip.id)).toEqual(after);
   });
 });
+
+test("never swaps out the held (hovered) chip, but keeps rotating the rest", () => {
+  const chips = makeChips(30);
+  const slots = chips.slice(0, 16).map((c) => c.id);
+  for (let run = 0; run < 50; run += 1) {
+    const next = swapModelChipSlots(slots, chips, { count: 3, pinnedId: "m0", heldId: "m5" });
+    expect(next[0]).toBe("m0");
+    expect(next[5]).toBe("m5");
+    expect(next.filter((id, i) => id !== slots[i])).toHaveLength(3);
+  }
+});
