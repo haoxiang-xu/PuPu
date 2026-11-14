@@ -1,0 +1,73 @@
+F..F..F.....                                                             [100%]
+=================================== FAILURES ===================================
+_ test_new_claude_never_inherits_legacy_computer_protocol[-claude-sonnet-5-5] __
+
+model = 'claude-sonnet-5-5', suffix = ''
+
+    @pytest.mark.parametrize("model", list(MODELS)[2:])
+    @pytest.mark.parametrize("suffix", ["", "-20261109", "@20261109"])
+    def test_new_claude_never_inherits_legacy_computer_protocol(model, suffix):
+>       assert resolve_computer_use_capability("anthropic", model + suffix) == {
+            "supported": False, "mode": "unsupported", "protocol": "",
+            "stability": "stable", "reason": "unsupported_model",
+        }
+E       AssertionError: assert {'supported':...'stable', ...} == {'supported':...'stable', ...}
+E
+E         Omitting 1 identical items, use -vv to show
+E         Differing items:
+E         {'reason': ''} != {'reason': 'unsupported_model'}
+E         {'mode': 'native'} != {'mode': 'unsupported'}
+E         {'supported': True} != {'supported': False}
+E         {'protocol': 'anthropic.computer_20251124'} != {'protocol': ''}
+E         Use -v to get more diff
+
+unchain_runtime/server/tests/test_ticket_387_catalog.py:30: AssertionError
+_ test_new_claude_never_inherits_legacy_computer_protocol[-20261109-claude-sonnet-5-5] _
+
+model = 'claude-sonnet-5-5', suffix = '-20261109'
+
+    @pytest.mark.parametrize("model", list(MODELS)[2:])
+    @pytest.mark.parametrize("suffix", ["", "-20261109", "@20261109"])
+    def test_new_claude_never_inherits_legacy_computer_protocol(model, suffix):
+>       assert resolve_computer_use_capability("anthropic", model + suffix) == {
+            "supported": False, "mode": "unsupported", "protocol": "",
+            "stability": "stable", "reason": "unsupported_model",
+        }
+E       AssertionError: assert {'supported':...'stable', ...} == {'supported':...'stable', ...}
+E
+E         Omitting 1 identical items, use -vv to show
+E         Differing items:
+E         {'reason': ''} != {'reason': 'unsupported_model'}
+E         {'mode': 'native'} != {'mode': 'unsupported'}
+E         {'supported': True} != {'supported': False}
+E         {'protocol': 'anthropic.computer_20251124'} != {'protocol': ''}
+E         Use -v to get more diff
+
+unchain_runtime/server/tests/test_ticket_387_catalog.py:30: AssertionError
+_ test_new_claude_never_inherits_legacy_computer_protocol[@20261109-claude-sonnet-5-5] _
+
+model = 'claude-sonnet-5-5', suffix = '@20261109'
+
+    @pytest.mark.parametrize("model", list(MODELS)[2:])
+    @pytest.mark.parametrize("suffix", ["", "-20261109", "@20261109"])
+    def test_new_claude_never_inherits_legacy_computer_protocol(model, suffix):
+>       assert resolve_computer_use_capability("anthropic", model + suffix) == {
+            "supported": False, "mode": "unsupported", "protocol": "",
+            "stability": "stable", "reason": "unsupported_model",
+        }
+E       AssertionError: assert {'supported':...'stable', ...} == {'supported':...'stable', ...}
+E
+E         Omitting 1 identical items, use -vv to show
+E         Differing items:
+E         {'reason': ''} != {'reason': 'unsupported_model'}
+E         {'mode': 'native'} != {'mode': 'unsupported'}
+E         {'supported': True} != {'supported': False}
+E         {'protocol': 'anthropic.computer_20251124'} != {'protocol': ''}
+E         Use -v to get more diff
+
+unchain_runtime/server/tests/test_ticket_387_catalog.py:30: AssertionError
+=========================== short test summary info ============================
+FAILED unchain_runtime/server/tests/test_ticket_387_catalog.py::test_new_claude_never_inherits_legacy_computer_protocol[-claude-sonnet-5-5]
+FAILED unchain_runtime/server/tests/test_ticket_387_catalog.py::test_new_claude_never_inherits_legacy_computer_protocol[-20261109-claude-sonnet-5-5]
+FAILED unchain_runtime/server/tests/test_ticket_387_catalog.py::test_new_claude_never_inherits_legacy_computer_protocol[@20261109-claude-sonnet-5-5]
+3 failed, 9 passed, 2 deselected in 2.88s

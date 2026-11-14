@@ -1,0 +1,47 @@
+{
+  "model": "openai:gpt-4.1",
+  "probe_chat_id": "chat-1794631527000-1324e9bf0ec8b0d2f4761d5d662e343e",
+  "user_manual_test": "User reported testing complete and authorized PR",
+  "started_at": 1794631590.582138,
+  "reply": {
+    "message_id": "assistant-1794631590617-6df9f83f9c744b0c45531639d5284ecf",
+    "role": "assistant",
+    "content": "PUPU387_AUDIT_OK",
+    "tool_calls": null,
+    "finish_reason": "stop",
+    "latency_ms": 6716,
+    "chat_id": "chat-1794631527000-1324e9bf0ec8b0d2f4761d5d662e343e",
+    "execution_id": "chat-1794631527000-1324e9bf0ec8b0d2f4761d5d662e343e",
+    "attempt_id": "unchain-1794631590624-d825dddf5f79a8"
+  },
+  "state": {
+    "active_chat_id": "chat-1794631527000-1324e9bf0ec8b0d2f4761d5d662e343e",
+    "current_model": "openai:gpt-4.1",
+    "toolkits_active": [],
+    "is_streaming": false,
+    "catalog_loaded": {
+      "models": 40,
+      "toolkits": 7,
+      "characters": 2
+    }
+  },
+  "persisted_probe_messages": [
+    {
+      "id": "user-1794631590617",
+      "role": "user",
+      "content": "Reply exactly PUPU387_AUDIT_OK and nothing else.",
+      "createdAt": 1794631590617
+    },
+    {
+      "id": "assistant-1794631590617-6df9f83f9c744b0c45531639d5284ecf",
+      "role": "assistant",
+      "content": "PUPU387_AUDIT_OK",
+      "createdAt": 1794631590617,
+      "status": "done"
+    }
+  ],
+  "result": "PASS",
+  "probe_deleted": true,
+  "previous_chat_restored": true,
+  "full_probe_evidence_preserved_at": "/Users/red/Desktop/GITRepo/ticket-387-artifacts/ac4065ae1cb3/audit/live-app-probe-full.json"
+}
