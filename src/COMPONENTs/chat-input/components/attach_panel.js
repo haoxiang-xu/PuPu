@@ -2202,7 +2202,10 @@ const AttachPanel = forwardRef(({
                   width: PILL_HEIGHT,
                   height: PILL_HEIGHT,
                   borderRadius: 999,
-                  color: agentSelectValue !== AGENT_DEFAULT ? highlight : color,
+                  /* One colour whatever is chosen, like the other icons in
+                     the row: which Agent runs is the picker's to show (each
+                     row its own icon), not the trigger's. */
+                  color,
                 }}
               />,
             )}
@@ -2309,7 +2312,7 @@ const AttachPanel = forwardRef(({
         const picture = menuRow(id, index, {
           icon: "bot",
           label: t("side_menu.agents"),
-          tinted: agentSelectValue !== AGENT_DEFAULT,
+          /* never tinted: same as the trigger in the row */
           inert,
         });
         return inert ? picture : (
