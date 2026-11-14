@@ -1208,7 +1208,7 @@
         "tool_call": "用指定参数运行一个工具，不调用模型",
         "skill_read": "运行到此处时读取一个技能的说明",
         "code": "在独立进程中运行一个 Python 函数，不调用模型",
-        "workflow_call": "将已发布的固定工作流版本作为一个步骤运行",
+        "workflow_call": "调用另一个工作流作为一个步骤",
         "hooks_pool": "在智能体调用工具之前或之后运行的工作流"
       }
     },
@@ -1230,10 +1230,10 @@
       "skill_read": "技能读取",
       "pick_skill": "请选择技能",
       "workflow_call": "工作流调用",
-      "pin_revision": "请固定修订版本",
-      "revision": "修订 {revision}",
-      "revision_unreadable": "无法读取修订版本",
-      "revision_reading": "正在读取修订版本…",
+      "pin_revision": "选择工作流",
+      "revision": "第 {revision} 版",
+      "revision_unreadable": "无法读取版本",
+      "revision_reading": "正在读取版本…",
       "set": "已设置",
       "missing": "缺失",
       "nothing_exported": "→ 无导出值",
@@ -1536,7 +1536,7 @@
       "skill_step": "运行到此处时读取一个技能",
       "python_process": "在独立进程中运行 Python",
       "hooks_around": "围绕此智能体工具调用运行的工作流",
-      "workflow_step": "运行已发布的固定工作流版本",
+      "workflow_step": "调用另一个工作流",
       "no_toolkits": "没有工具箱",
       "no_subagents": "没有子智能体"
     },
@@ -2223,7 +2223,16 @@
       "revision_failed": "无法读取已固定的修订版：{message}。",
       "missing_input": "被调用工作流的 Start 读取“{key}”。缺少它会使调用在运行到达此节点时失败。",
       "unknown_output": "“{name}”不是已固定修订版的 End 导出的内容；运行到达此节点时，该输出会缺失。",
-      "reads_nothing": "{name} 不会读取其运行输入。"
+      "reads_nothing": "{name} 不会读取其运行输入。",
+      "not_a_workflow": "这不是一个工作流。",
+      "locking": "正在锁定当前版本…",
+      "uses_version": "使用第 {ordinal} 版",
+      "changed_since": "{name} 在第 {ordinal} 版之后有新改动",
+      "update": "更新",
+      "update_label": "改用 {name} 的当前版本",
+      "edit": "编辑",
+      "edit_label": "打开 {name} 进行编辑",
+      "lock_failed": "无法锁定当前版本：{message}"
     },
     "pinned": {
       "label": "{name} · 版本 {ordinal}",

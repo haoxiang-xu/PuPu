@@ -68,7 +68,7 @@ const CASES = [
     (label) => <SkillReadNode node={named({ id: "sr", type: "skill_read", ...config() }, label)} />],
   ["code", <CodeNode node={{ id: "code_1", type: "code", ...config() }} />, ["code_1", "Code · Python"], "Code · Python",
     (label) => <CodeNode node={named({ id: "code_1", type: "code", ...config() }, label)} />],
-  ["workflow_call (unpinned)", <WorkflowCallNode node={{ id: "wf", type: "workflow_call", ...config() }} />, ["Workflow call", "pin a revision"], "Workflow call · pin a revision",
+  ["workflow_call (unpinned)", <WorkflowCallNode node={{ id: "wf", type: "workflow_call", ...config() }} />, ["Workflow call", "pick a Workflow"], "Workflow call · pick a Workflow",
     (label) => <WorkflowCallNode node={named({ id: "wf", type: "workflow_call", ...config() }, label)} />],
   ["hooks_pool", <HooksPoolNode node={{ id: "hp", type: "hooks_pool", ...config({ hooks: [] }) }} />, ["Hooks Pool", "No hooks yet"], "Hooks Pool · No hooks yet",
     (label) => <HooksPoolNode node={named({ id: "hp", type: "hooks_pool", ...config({ hooks: [] }) }, label)} />],

@@ -1777,7 +1777,16 @@
       "revision_failed": "고정된 리비전을 읽지 못했습니다: {message}.",
       "missing_input": "호출한 워크플로의 Start는 “{key}”을(를) 읽습니다. 이 값이 없으면 실행이 여기에 도달할 때 호출이 실패합니다.",
       "unknown_output": "“{name}”은(는) 고정된 리비전의 End가 내보내는 항목이 아닙니다. 실행이 여기에 도달하면 해당 출력이 없습니다.",
-      "reads_nothing": "{name}은(는) 자체 실행 입력에서 아무것도 읽지 않습니다."
+      "reads_nothing": "{name}은(는) 자체 실행 입력에서 아무것도 읽지 않습니다.",
+      "not_a_workflow": "워크플로가 아닙니다.",
+      "locking": "현재 버전을 고정하는 중…",
+      "uses_version": "버전 {ordinal} 사용",
+      "changed_since": "{name}이(가) 버전 {ordinal} 이후 변경되었습니다",
+      "update": "업데이트",
+      "update_label": "{name}의 현재 버전 사용",
+      "edit": "편집",
+      "edit_label": "{name}을(를) 열어 편집",
+      "lock_failed": "현재 버전을 고정할 수 없습니다: {message}"
     },
     "toolkit": {
       "remove": "제거",

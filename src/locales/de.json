@@ -1777,7 +1777,16 @@
       "revision_failed": "Die fixierte Revision konnte nicht gelesen werden: {message}.",
       "missing_input": "Start des aufgerufenen Workflows liest „{key}“. Ohne diesen Wert scheitert der Aufruf, sobald der Lauf hier ankommt.",
       "unknown_output": "„{name}“ wird von End der fixierten Revision nicht exportiert. Diese Ausgabe würde fehlen, sobald der Lauf hier ankommt.",
-      "reads_nothing": "{name} liest nichts aus seiner Laufeingabe."
+      "reads_nothing": "{name} liest nichts aus seiner Laufeingabe.",
+      "not_a_workflow": "Das ist kein Workflow.",
+      "locking": "Aktuelle Version wird übernommen…",
+      "uses_version": "Verwendet Version {ordinal}",
+      "changed_since": "{name} wurde seit Version {ordinal} geändert",
+      "update": "Aktualisieren",
+      "update_label": "Aktuelle Version von {name} verwenden",
+      "edit": "Bearbeiten",
+      "edit_label": "{name} zum Bearbeiten öffnen",
+      "lock_failed": "Die aktuelle Version konnte nicht übernommen werden: {message}"
     },
     "toolkit": {
       "remove": "Entfernen",

@@ -1777,7 +1777,16 @@
       "revision_failed": "Impossibile leggere la revisione fissata: {message}.",
       "missing_input": "Lo Start del Workflow chiamato legge «{key}». Senza questo valore la chiamata fallisce quando l’esecuzione arriva qui.",
       "unknown_output": "«{name}» non è esportato dall’End della revisione fissata; quell’output sarebbe assente quando l’esecuzione arriva qui.",
-      "reads_nothing": "{name} non legge nulla dal proprio input di esecuzione."
+      "reads_nothing": "{name} non legge nulla dal proprio input di esecuzione.",
+      "not_a_workflow": "Questo non è un workflow.",
+      "locking": "Acquisizione della versione attuale…",
+      "uses_version": "Usa la versione {ordinal}",
+      "changed_since": "{name} è cambiato dalla versione {ordinal}",
+      "update": "Aggiorna",
+      "update_label": "Usa la versione attuale di {name}",
+      "edit": "Modifica",
+      "edit_label": "Apri {name} per modificarlo",
+      "lock_failed": "Impossibile acquisire la versione attuale: {message}"
     },
     "toolkit": {
       "remove": "Rimuovi",

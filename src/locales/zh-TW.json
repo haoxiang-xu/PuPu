@@ -1208,7 +1208,7 @@
         "tool_call": "以指定參數執行一個工具，不呼叫模型",
         "skill_read": "執行到此處時讀取一項技能的說明",
         "code": "在獨立行程中執行一個 Python 函式，不呼叫模型",
-        "workflow_call": "將一個已發佈的工作流程修訂版本作為步驟執行",
+        "workflow_call": "呼叫另一個工作流程作為一個步驟",
         "hooks_pool": "在智慧體呼叫工具之前或之後執行的工作流程"
       }
     },
@@ -1230,10 +1230,10 @@
       "skill_read": "技能讀取",
       "pick_skill": "請選擇技能",
       "workflow_call": "工作流程呼叫",
-      "pin_revision": "請釘選修訂版本",
-      "revision": "修訂 {revision}",
-      "revision_unreadable": "無法讀取修訂版本",
-      "revision_reading": "正在讀取修訂版本…",
+      "pin_revision": "選擇工作流程",
+      "revision": "第 {revision} 版",
+      "revision_unreadable": "無法讀取版本",
+      "revision_reading": "正在讀取版本…",
       "set": "已設定",
       "missing": "缺失",
       "nothing_exported": "→ 無匯出值",
@@ -1536,7 +1536,7 @@
       "skill_step": "執行到此處時讀取一項技能",
       "python_process": "在獨立行程中執行 Python",
       "hooks_around": "在此智慧體呼叫工具前後執行的工作流程",
-      "workflow_step": "執行一個已發佈的工作流程修訂版本",
+      "workflow_step": "呼叫另一個工作流程",
       "no_toolkits": "沒有工具箱",
       "no_subagents": "沒有子智慧體"
     },
@@ -2148,7 +2148,16 @@
       "revision_failed": "無法讀取已固定的修訂版：{message}。",
       "missing_input": "被呼叫工作流程的 Start 讀取「{key}」。缺少它會使呼叫在執行到達此節點時失敗。",
       "unknown_output": "「{name}」不是已固定修訂版的 End 匯出的內容；執行到達此節點時，該輸出會缺失。",
-      "reads_nothing": "{name} 不會讀取其執行輸入。"
+      "reads_nothing": "{name} 不會讀取其執行輸入。",
+      "not_a_workflow": "這不是一個工作流程。",
+      "locking": "正在鎖定目前版本…",
+      "uses_version": "使用第 {ordinal} 版",
+      "changed_since": "{name} 在第 {ordinal} 版之後有新改動",
+      "update": "更新",
+      "update_label": "改用 {name} 的目前版本",
+      "edit": "編輯",
+      "edit_label": "開啟 {name} 進行編輯",
+      "lock_failed": "無法鎖定目前版本：{message}"
     },
     "toolkit": {
       "remove": "移除",

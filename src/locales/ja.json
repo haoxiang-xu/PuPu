@@ -1777,7 +1777,16 @@
       "revision_failed": "固定済みリビジョンを読み取れませんでした：{message}。",
       "missing_input": "呼び出したワークフローの Start は「{key}」を読み取ります。これがないと、実行がここに到達した時点で呼び出しが失敗します。",
       "unknown_output": "「{name}」は固定済みリビジョンの End のエクスポートではありません。実行がここに到達した時点で、その出力は存在しません。",
-      "reads_nothing": "{name} は自身の実行入力から何も読み取りません。"
+      "reads_nothing": "{name} は自身の実行入力から何も読み取りません。",
+      "not_a_workflow": "これはワークフローではありません。",
+      "locking": "現在のバージョンを固定しています…",
+      "uses_version": "バージョン {ordinal} を使用",
+      "changed_since": "{name} はバージョン {ordinal} 以降に変更されています",
+      "update": "更新",
+      "update_label": "{name} の現在のバージョンを使う",
+      "edit": "編集",
+      "edit_label": "{name} を開いて編集",
+      "lock_failed": "現在のバージョンを固定できませんでした: {message}"
     },
     "toolkit": {
       "remove": "削除",

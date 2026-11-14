@@ -47,7 +47,7 @@ const chooseWhole = async () => {
   await waitFor(() => expect(within(picker).getByRole("combobox")).not.toBeDisabled());
   fireEvent.click(within(picker).getByRole("combobox"));
   const lists = screen.getAllByRole("listbox", { hidden: true });
-  fireEvent.click(within(lists.at(-1)).getByText("Whole · 1 published", { exact: true }));
+  fireEvent.click(within(lists.at(-1)).getByText("Whole", { exact: true }));
 };
 const unpinned = () => {
   const document = row("caller_whole_get").reply.resource.document;
@@ -91,22 +91,15 @@ describe("R-WFC-01: readers of one revision share one read", () => {
     expect(api.unchain.getManagedSkeletonWorkflowVersion).toHaveBeenCalledTimes(1);
   });
 
-  test("Pin waits for the read another reader already started, then pins", async () => {
-    const late = deferred();
-    api.unchain.getManagedSkeletonWorkflowVersion.mockImplementation(() => late.promise);
-    const canvas = request_workflow_version("wf-whole", REV);
+  /* Picking a Workflow takes its current version: the publication's own
+     answer is the revision, kept for every reader, so nothing reads it again. */
+  test("picking pins the published answer and shares it with the other readers", async () => {
     render(<Harness initial={unpinned()} />);
     await chooseWhole();
-    fireEvent.change(screen.getByPlaceholderText("or a revision id, e.g. rev-2-…"), { target: { value: REV } });
-    fireEvent.click(screen.getByRole("button", { name: "Pin this revision" }));
-    await act(async () => {
-      late.resolve(row("whole_publish").reply);
-      await canvas;
-    });
     await waitFor(() => expect(writes).toHaveLength(1));
     expect(call(writes[0]).config.workflow).toEqual({ workflow_id: "wf-whole", revision_id: REV });
-    expect(screen.getByTestId("workflow-call-pin-state")).toHaveTextContent("Pinned revision 1.");
     expect(workflow_version_state("wf-whole", REV).status).toBe("ready");
+    expect(api.unchain.getManagedSkeletonWorkflowVersion).not.toHaveBeenCalled();
   });
 });
 
@@ -252,8 +245,7 @@ describe("R-WFC-05: a revision answer must be about what was asked", () => {
     api.unchain.publishManagedSkeletonWorkflow.mockResolvedValue(row("other_publish").reply);
     render(<Harness initial={unpinned()} />);
     await chooseWhole();
-    fireEvent.click(screen.getByRole("button", { name: "Publish its current draft and pin it" }));
-    await screen.findByText(/Nothing was pinned/);
+    await screen.findByText(/current version could not be taken/);
     expect(writes).toHaveLength(0);
     expect(workflow_version_state("wf-other", row("other_publish").reply.version.revision_id)).toBeNull();
   });
@@ -261,7 +253,6 @@ describe("R-WFC-05: a revision answer must be about what was asked", () => {
   test("control: the same-identity publication pins exactly that reference", async () => {
     render(<Harness initial={unpinned()} />);
     await chooseWhole();
-    fireEvent.click(screen.getByRole("button", { name: "Publish its current draft and pin it" }));
     await waitFor(() => expect(writes).toHaveLength(1));
     expect(call(writes[0]).config.workflow).toEqual({ workflow_id: "wf-whole", revision_id: REV });
   });

@@ -248,9 +248,9 @@ test("a published draft of the new Workflow is pinned by an Agent's Workflow Cal
   pressCanvasNode("call");
   await screen.findByTestId("workflow-call-section");
   await waitFor(() => expect(within(screen.getByTestId("workflow-call-picker")).getByRole("combobox")).not.toBeDisabled());
-  choose(screen.getByTestId("workflow-call-picker"), "New Workflow · 1 published");
-  fireEvent.click(screen.getByRole("button", { name: "Publish its current draft and pin it" }));
-  await screen.findByText(/Pinned revision 1\./);
+  /* Picking it takes its current version. */
+  choose(screen.getByTestId("workflow-call-picker"), "New Workflow");
+  await waitFor(() => expect(screen.getByTestId("workflow-call-pinned")).toHaveTextContent("Uses version 1"));
   expect(store.publish).toHaveBeenCalledTimes(1);
   const edit = await save(store);
   expect(edit.document.nodes.find((node) => node.id === "call").config.workflow).toEqual({ workflow_id: "wf-new", revision_id: REVISION });

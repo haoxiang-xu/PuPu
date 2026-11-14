@@ -1777,7 +1777,16 @@
       "revision_failed": "Não foi possível ler a revisão fixada: {message}.",
       "missing_input": "O Start do Workflow chamado lê “{key}”. Sem esse valor, a chamada falha quando a execução chega aqui.",
       "unknown_output": "“{name}” não é algo que o End da revisão fixada exporte; essa saída estaria ausente quando a execução chegasse aqui.",
-      "reads_nothing": "{name} não lê nada de sua entrada de execução."
+      "reads_nothing": "{name} não lê nada de sua entrada de execução.",
+      "not_a_workflow": "Isso não é um fluxo de trabalho.",
+      "locking": "Fixando a versão atual…",
+      "uses_version": "Usa a versão {ordinal}",
+      "changed_since": "{name} mudou desde a versão {ordinal}",
+      "update": "Atualizar",
+      "update_label": "Usar a versão atual de {name}",
+      "edit": "Editar",
+      "edit_label": "Abrir {name} para editar",
+      "lock_failed": "Não foi possível fixar a versão atual: {message}"
     },
     "toolkit": {
       "remove": "Remover",

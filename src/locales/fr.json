@@ -1777,7 +1777,16 @@
       "revision_failed": "La révision fixée n’a pas pu être lue : {message}.",
       "missing_input": "Le Start du Workflow appelé lit « {key} ». Sans cette valeur, l’appel échoue lorsque l’exécution arrive ici.",
       "unknown_output": "« {name} » ne fait pas partie des exports du End de la révision fixée ; cette sortie serait absente lorsque l’exécution arrive ici.",
-      "reads_nothing": "{name} ne lit rien depuis son entrée d’exécution."
+      "reads_nothing": "{name} ne lit rien depuis son entrée d’exécution.",
+      "not_a_workflow": "Ce n’est pas un workflow.",
+      "locking": "Prise de sa version actuelle…",
+      "uses_version": "Utilise la version {ordinal}",
+      "changed_since": "{name} a changé depuis la version {ordinal}",
+      "update": "Mettre à jour",
+      "update_label": "Utiliser la version actuelle de {name}",
+      "edit": "Modifier",
+      "edit_label": "Ouvrir {name} pour le modifier",
+      "lock_failed": "Impossible de prendre sa version actuelle : {message}"
     },
     "toolkit": {
       "remove": "Supprimer",

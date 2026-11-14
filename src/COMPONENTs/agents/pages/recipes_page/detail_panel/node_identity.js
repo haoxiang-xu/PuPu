@@ -95,7 +95,7 @@ const IDENTITY = {
     icon: "workflow",
     gradient: "#4f5fd6",
     title: () => "Workflow call",
-    subtitle: () => "Run one published Workflow revision",
+    subtitle: () => "Run another Workflow",
   },
 };
 

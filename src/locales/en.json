@@ -1208,7 +1208,7 @@
         "tool_call": "Run one tool with arguments you fix, no model",
         "skill_read": "Read one skill's instructions when the run gets here",
         "code": "Run one Python function in its own process, no model",
-        "workflow_call": "Run one published Workflow revision as a step",
+        "workflow_call": "Run another Workflow as a step",
         "hooks_pool": "Workflows that run before or after an agent's tool calls"
       }
     },
@@ -1230,10 +1230,10 @@
       "skill_read": "Skill read",
       "pick_skill": "pick a skill",
       "workflow_call": "Workflow call",
-      "pin_revision": "pin a revision",
-      "revision": "revision {revision}",
-      "revision_unreadable": "revision unreadable",
-      "revision_reading": "reading the revision…",
+      "pin_revision": "pick a Workflow",
+      "revision": "version {revision}",
+      "revision_unreadable": "version unreadable",
+      "revision_reading": "reading the version…",
       "set": "set",
       "missing": "missing",
       "nothing_exported": "→ nothing exported",
@@ -1536,7 +1536,7 @@
       "skill_step": "Read one skill when the run gets here",
       "python_process": "Python in its own process",
       "hooks_around": "Workflows around this Agent's tool calls",
-      "workflow_step": "Run one published Workflow revision",
+      "workflow_step": "Run another Workflow",
       "no_toolkits": "No toolkits",
       "no_subagents": "No subagents"
     },
@@ -1772,7 +1772,16 @@
       "revision_failed": "The pinned revision could not be read: {message}.",
       "missing_input": "The called Workflow's Start reads “{key}”. Without it the call fails when the run gets here.",
       "unknown_output": "“{name}” is not something the pinned revision's End exports; that output would be missing when the run gets here.",
-      "reads_nothing": "{name} reads nothing from its run input."
+      "reads_nothing": "{name} reads nothing from its run input.",
+      "not_a_workflow": "That is not a Workflow.",
+      "locking": "Taking its current version…",
+      "uses_version": "Uses version {ordinal}",
+      "changed_since": "{name} has changed since version {ordinal}",
+      "update": "Update",
+      "update_label": "Use the current version of {name}",
+      "edit": "Edit",
+      "edit_label": "Open {name} to edit it",
+      "lock_failed": "Its current version could not be taken: {message}"
     },
     "execution": {
       "agent": {

@@ -62,7 +62,7 @@ const STEP_ENTRIES = [
   {
     type: "workflow_call",
     label: "Workflow call",
-    description: "Run one published Workflow revision as a step",
+    description: "Run another Workflow as a step",
     group: "steps",
     icon: "workflow",
     graph_kinds: ["agent", "workflow"],

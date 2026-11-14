@@ -106,7 +106,7 @@ function renderNode(node, isDark, onOpenSubagent, view = {}) {
     return <BranchNode node={node} rows={node.branch.rows} summary={node.branch.summary} isDark={isDark} rename={rename} />;
   }
   if (node.type === "tool_call") return <ToolCallNode node={node} isDark={isDark} rename={rename} />;
-  if (node.type === "workflow_call") return <WorkflowCallNode node={node} isDark={isDark} rename={rename} />;
+  if (node.type === "workflow_call") return <WorkflowCallNode node={node} isDark={isDark} rename={rename} onOpen={view.onOpenWorkflow} />;
   if (node.type === "hooks_pool") return <HooksPoolNode node={node} isDark={isDark} rename={rename} />;
   if (node.type === "skill_read") return <SkillReadNode node={node} isDark={isDark} rename={rename} />;
   /* A Code node (#357) is a plain header node; its code is read in the panel. */
@@ -187,6 +187,7 @@ function GraphDrawing({
   observation = null,
   onSelectNode,
   onOpenSubagent,
+  onOpenWorkflow,
   onGraphCommand,
   /* Bumped by the page's Home control; Home centers this graph's own Start. */
   homeToken,
@@ -577,7 +578,7 @@ function GraphDrawing({
         render_node={(node) => (
           <div data-testid={`skeleton-node-${node.id}`} style={{ display: "contents" }}>
             <RunNodeStatus projection={["toolkit_pool", "subagent_pool", "hooks_pool"].includes(node.type) ? null : runNodes.get(node.id)} isDark={isDark}>
-              {renderNode(node, isDark, onOpenSubagent, { rename: renameFor(node) })}
+              {renderNode(node, isDark, onOpenSubagent, { rename: renameFor(node), onOpenWorkflow })}
             </RunNodeStatus>
           </div>
         )}

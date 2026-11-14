@@ -7,7 +7,7 @@ import NodeHeader, { NodeBody } from "./node_header";
 import { NODE_PORT_ANCHOR } from "./node_metrics";
 import { safe_text } from "../document_values";
 import { node_bindings } from "../skeleton_document";
-import { callee_interface, pinned_reference } from "../workflow_call_config";
+import { callee_interface, pinned_reference, workflow_reference } from "../workflow_call_config";
 import { useWorkflowVersions, workflow_version_state } from "../workflow_versions";
 
 /* A Workflow Call on the canvas (#357): which Workflow, which pinned revision,
@@ -18,7 +18,7 @@ import { useWorkflowVersions, workflow_version_state } from "../workflow_version
 
 const MAX_ROWS = 4;
 
-export default function WorkflowCallNode({ node, isDark, rename }) {
+export default function WorkflowCallNode({ node, isDark, rename, onOpen }) {
   const { t } = useTranslation();
   const pin = pinned_reference(node);
   useWorkflowVersions(pin ? [pin] : []);
@@ -44,9 +44,20 @@ export default function WorkflowCallNode({ node, isDark, rename }) {
     : [];
   const shown = rows.slice(0, MAX_ROWS);
   const overflow = rows.length - shown.length;
+  /* Double-clicking the card opens the called Workflow to edit it, as a
+     subagent row opens its Agent; the title keeps its own double-click for
+     renaming. */
+  const stored = workflow_reference(node);
+  const target = (pin && pin.workflow_id) || (stored && typeof stored.workflow_id === "string" ? stored.workflow_id : "");
+  const openable = Boolean(target) && typeof onOpen === "function";
 
   return (
-    <div data-testid={`workflow-call-node-${node.id}`} style={{ width: 220 }}>
+    <div data-testid={`workflow-call-node-${node.id}`} style={{ width: 220 }}
+      title={openable ? t("agents.workflow.edit_label", { name: safe_text(name || target) }) : undefined}
+      onDoubleClick={openable ? (event) => {
+        event.stopPropagation();
+        onOpen({ node_id: node.id, workflow_id: target });
+      } : undefined}>
       <PuzzleShape tabs={["right"]} cutouts={["left"]} anchor={NODE_PORT_ANCHOR} isDark={isDark}>
         <NodeBody>
           <NodeHeader
