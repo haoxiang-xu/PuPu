@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 /* Defaults for the new-chat model chips. Tune here. */
 export const MODEL_CHIP_LIMIT = 16;
 export const MODEL_CHIP_SWAP_COUNT = 3;
-export const MODEL_CHIP_INTERVAL_MS = 7000;
+export const MODEL_CHIP_INTERVAL_MS = 1000;
 
 const pickRandom = (items, count, random) => {
   const pool = items.slice();
