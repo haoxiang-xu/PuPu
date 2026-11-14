@@ -1326,6 +1326,7 @@ const ChatInterface = () => {
                     onTogglePin={onTogglePinnedModelChip}
                     renderChip={(chip, { pinned, hovered, onTogglePin }) => {
                     const active = session.selectedModelId === chip.id;
+                    const hover = hovered && !active && !isModelSelectionDisabled;
                     const IconComp = resolveProviderIcon(chip.provider);
                     return (
                       <ShadowSurface as="button"
@@ -1348,27 +1349,46 @@ const ChatInterface = () => {
                           whiteSpace: "nowrap",
                           transition:
                             "background 0.18s, border-color 0.18s, color 0.18s, transform 0.22s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.18s",
-                          color: active
-                            ? isDark
-                              ? "rgba(255,255,255,0.88)"
-                              : "rgba(0,0,0,0.80)"
-                            : isDark
-                              ? "rgba(255,255,255,0.45)"
-                              : "rgba(0,0,0,0.42)",
-                          background: active
-                            ? isDark
-                              ? "rgba(255,255,255,0.09)"
-                              : "rgba(255,255,255,0.92)"
-                            : isDark
-                              ? "rgba(255,255,255,0.04)"
-                              : "rgba(0,0,0,0.03)",
-                          border: active
-                            ? isDark
-                              ? "1px solid rgba(255,255,255,0.16)"
-                              : "1px solid rgba(0,0,0,0.13)"
-                            : isDark
-                              ? "1px solid rgba(255,255,255,0.08)"
-                              : "1px solid rgba(0,0,0,0.09)",
+                          /* pinned chips wear the theme's highlight (accent) colour */
+                          color: pinned
+                            ? `rgba(var(--pupu-accent-rgb), ${active || hover ? 1 : 0.9})`
+                            : active
+                              ? isDark
+                                ? "rgba(255,255,255,0.88)"
+                                : "rgba(0,0,0,0.80)"
+                              : hover
+                                ? isDark
+                                  ? "rgba(255,255,255,0.75)"
+                                  : "rgba(0,0,0,0.70)"
+                                : isDark
+                                  ? "rgba(255,255,255,0.45)"
+                                  : "rgba(0,0,0,0.42)",
+                          background: pinned
+                            ? `rgba(var(--pupu-accent-rgb), ${active ? 0.18 : hover ? 0.16 : 0.1})`
+                            : active
+                              ? isDark
+                                ? "rgba(255,255,255,0.09)"
+                                : "rgba(255,255,255,0.92)"
+                              : hover
+                                ? isDark
+                                  ? "rgba(255,255,255,0.08)"
+                                  : "rgba(0,0,0,0.06)"
+                                : isDark
+                                  ? "rgba(255,255,255,0.04)"
+                                  : "rgba(0,0,0,0.03)",
+                          border: pinned
+                            ? `1px solid rgba(var(--pupu-accent-rgb), ${active || hover ? 0.7 : 0.45})`
+                            : active
+                              ? isDark
+                                ? "1px solid rgba(255,255,255,0.16)"
+                                : "1px solid rgba(0,0,0,0.13)"
+                              : hover
+                                ? isDark
+                                  ? "1px solid rgba(255,255,255,0.15)"
+                                  : "1px solid rgba(0,0,0,0.14)"
+                                : isDark
+                                  ? "1px solid rgba(255,255,255,0.08)"
+                                  : "1px solid rgba(0,0,0,0.09)",
                           transform: active ? "translateY(-3px)" : "translateY(0)",
                           boxShadow: active
                             ? isDark
@@ -1376,30 +1396,6 @@ const ChatInterface = () => {
                               : "0 6px 16px rgba(0,0,0,0.10), 0 2px 4px rgba(0,0,0,0.07)"
                             : "none",
                           opacity: isModelSelectionDisabled ? 0.45 : 1,
-                        }}
-                        onMouseEnter={(event) => {
-                          if (active || isModelSelectionDisabled) return;
-                          event.currentTarget.style.background = isDark
-                            ? "rgba(255,255,255,0.08)"
-                            : "rgba(0,0,0,0.06)";
-                          event.currentTarget.style.borderColor = isDark
-                            ? "rgba(255,255,255,0.15)"
-                            : "rgba(0,0,0,0.14)";
-                          event.currentTarget.style.color = isDark
-                            ? "rgba(255,255,255,0.75)"
-                            : "rgba(0,0,0,0.70)";
-                        }}
-                        onMouseLeave={(event) => {
-                          if (active || isModelSelectionDisabled) return;
-                          event.currentTarget.style.background = isDark
-                            ? "rgba(255,255,255,0.04)"
-                            : "rgba(0,0,0,0.03)";
-                          event.currentTarget.style.borderColor = isDark
-                            ? "rgba(255,255,255,0.08)"
-                            : "rgba(0,0,0,0.09)";
-                          event.currentTarget.style.color = isDark
-                            ? "rgba(255,255,255,0.45)"
-                            : "rgba(0,0,0,0.42)";
                         }}
                       >
                         {IconComp && (
@@ -1447,7 +1443,8 @@ const ChatInterface = () => {
                             borderRadius: 8,
                             flexShrink: 0,
                             cursor: "pointer",
-                            opacity: pinned ? 0.85 : hovered ? 0.5 : 0,
+                            color: pinned ? "var(--pupu-accent)" : "inherit",
+                            opacity: pinned ? 1 : hovered ? 0.5 : 0,
                             transition: "opacity 0.18s",
                           }}
                         >
