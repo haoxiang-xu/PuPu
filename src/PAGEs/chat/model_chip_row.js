@@ -2,8 +2,8 @@ import { useLayoutEffect, useRef, useState } from "react";
 import useReducedMotion from "../../BUILTIN_COMPONENTs/mini_react/use_reduced_motion";
 import { useRotatingModelChips } from "./hooks/use_rotating_model_chips";
 
-const FADE_MS = 200;
-const RESIZE_MS = 280;
+const FADE_MS = 500;
+const RESIZE_MS = 600;
 const EASE = "cubic-bezier(0.4, 0, 0.2, 1)";
 
 /**
