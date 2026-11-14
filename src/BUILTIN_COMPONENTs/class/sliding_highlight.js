@@ -70,18 +70,43 @@ const SlidingHighlight = ({ refs, index, color, borderRadius, measureKey }) => {
     if (!target || !target.isConnected) {
       setBox(null);
       hadBoxRef.current = false;
-      return;
+      return undefined;
     }
     const host = spanRef.current ? spanRef.current.offsetParent : null;
-    const { top, left } = measureWithinHost(target, host);
-    setBox({
-      top,
-      left,
-      width: target.offsetWidth,
-      height: target.offsetHeight,
-      animate: hadBoxRef.current,
-    });
+    const measure = (animate) => {
+      if (!target.isConnected) return;
+      const { top, left } = measureWithinHost(target, host);
+      const next = {
+        top,
+        left,
+        width: target.offsetWidth,
+        height: target.offsetHeight,
+      };
+      setBox((prev) =>
+        prev &&
+        prev.top === next.top &&
+        prev.left === next.left &&
+        prev.width === next.width &&
+        prev.height === next.height
+          ? prev
+          : { ...next, animate },
+      );
+    };
+    measure(hadBoxRef.current);
     hadBoxRef.current = true;
+    /* The rows can move with neither the index nor measureKey changing: a
+       folder above folds or unfolds over its own 280ms height animation, so
+       one measurement taken when the toggle commits is a position the row
+       leaves a frame later — the pill then sat a row away from the pointer
+       until the index happened to change. Anything that moves the row
+       resizes the host it is measured in (or the row itself), so follow
+       those resizes, snapping rather than sliding: it is the row moving, not
+       the highlight choosing a new one. */
+    if (typeof ResizeObserver !== "function") return undefined;
+    const observer = new ResizeObserver(() => measure(false));
+    if (host) observer.observe(host);
+    observer.observe(target);
+    return () => observer.disconnect();
   }, [refs, index, measureKey]);
 
   return (

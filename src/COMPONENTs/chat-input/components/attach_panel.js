@@ -942,11 +942,32 @@ const AttachPanel = forwardRef(({
     setAppMode("agents");
   };
 
+  /* The pointer on a folder row. The Select's highlight only ever names an
+     Agent, so without this the pill stayed on the last Agent hovered while
+     the pointer sat on the folder below it. Remembered with the Agent that
+     was highlighted then: once the highlight moves (an arrow key, another
+     row) the folder lets go of the pill. */
+  const [agentHoverFolder, setAgentHoverFolder] = useState(null);
+  useEffect(() => {
+    if (!agentPickerOpen) setAgentHoverFolder(null);
+  }, [agentPickerOpen]);
+
   const renderAgentTree = ({ highlighted_value, render_option }) => (
     <CommandTree
       data={agentTree.data}
       root={agentTree.root}
-      activeNodeId={highlighted_value ?? null}
+      activeNodeId={
+        agentHoverFolder && agentHoverFolder.over === highlighted_value
+          ? agentHoverFolder.id
+          : highlighted_value ?? null
+      }
+      onHover={(nodeId) =>
+        setAgentHoverFolder(
+          agentTree.data[nodeId]?.kind === "folder"
+            ? { id: nodeId, over: highlighted_value }
+            : null,
+        )
+      }
       onVisibleChange={setAgentTreeVisibleIds}
       isDark={isDark}
       bare
