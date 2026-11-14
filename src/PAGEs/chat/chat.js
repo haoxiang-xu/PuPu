@@ -1449,8 +1449,8 @@ const ChatInterface = () => {
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
-                            width: 14,
-                            height: 14,
+                            width: 16,
+                            height: 16,
                             marginLeft: -2,
                             flexShrink: 0,
                             cursor: "pointer",
@@ -1460,9 +1460,9 @@ const ChatInterface = () => {
                           }}
                         >
                           <Icon
-                            src="pin"
+                            src={pinned ? "pin_fill" : "pin"}
                             color="currentColor"
-                            style={{ width: 11, height: 11 }}
+                            style={{ width: 14, height: 14 }}
                           />
                         </span>
                       </ShadowSurface>
