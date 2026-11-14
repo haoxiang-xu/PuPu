@@ -1343,7 +1343,8 @@ const ChatInterface = () => {
                     /* Badge pill: provider logo in a round badge, no borders.
                        Selected = solid inverted pill. Pinned = the badge fills
                        with the theme highlight (accent) colour; a selected,
-                       unpinned chip's badge is plain black / white. */
+                       unpinned chip's badge melts into the pill (same colour inside
+                       and out). */
                     const active = session.selectedModelId === chip.id;
                     const hover = hovered && !active && !isModelSelectionDisabled;
                     const IconComp = resolveProviderIcon(chip.provider);
@@ -1394,13 +1395,15 @@ const ChatInterface = () => {
                             background: pinned
                               ? "var(--pupu-accent)"
                               : active
-                                ? "var(--pupu-background)"
+                                ? "transparent"
                                 : isDark
                                 ? "color-mix(in srgb, var(--pupu-surface, rgb(30, 30, 30)) 90%, white)"
                                 : "var(--pupu-surface, rgb(255, 255, 255))",
                             color: pinned
                               ? "rgb(255, 255, 255)"
-                              : `rgba(${fg}, ${active ? 0.9 : 0.7})`,
+                              : active
+                                ? "var(--pupu-background)"
+                                : `rgba(${fg}, 0.7)`,
                             boxShadow: pinned
                               ? "0 2px 6px rgba(var(--pupu-accent-rgb), 0.45)"
                               : active
