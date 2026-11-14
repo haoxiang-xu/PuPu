@@ -5,6 +5,8 @@ import {
 } from "../../SERVICEs/side_menu_width";
 import ShadowSurface from "../../BUILTIN_COMPONENTs/material/shadow_surface";
 import {
+  cloneElement,
+  isValidElement,
   useCallback,
   useContext,
   useEffect,
@@ -104,6 +106,19 @@ const PROVIDER_ICON = {
  */
 const resolveProviderIcon = (provider) =>
   PROVIDER_ICON[provider] || _CustomProviderSVG;
+
+/* The manifest's logo components ignore their props (some draw at 1em, some
+   at the full container size), so a `style` passed to them is lost. Render
+   the bare <svg> they return and size that element directly. */
+const renderSizedProviderIcon = (IconComp, size) => {
+  const svg = IconComp({});
+  const sizing = { width: size, height: size, display: "block", flexShrink: 0 };
+  return isValidElement(svg) ? (
+    cloneElement(svg, { width: size, height: size, style: { ...svg.props.style, ...sizing } })
+  ) : (
+    <IconComp style={sizing} />
+  );
+};
 
 const HERO_PHRASES = [
   "How can I help you today?",
@@ -1392,7 +1407,17 @@ const ChatInterface = () => {
                           }}
                         >
                           {IconComp && (
-                            <IconComp style={{ width: 12, height: 12 }} />
+                                                        <span
+                              style={{
+                                width: 12,
+                                height: 12,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                              }}
+                            >
+                              {renderSizedProviderIcon(IconComp, 12)}
+                            </span>
                           )}
                         </span>
                         {chip.label}
