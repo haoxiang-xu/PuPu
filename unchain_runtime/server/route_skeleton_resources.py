@@ -15,6 +15,74 @@ from skeleton_resource_store import SkeletonResourceError, SkeletonResourceStore
 _logger = logging.getLogger(__name__)
 
 
+@api_blueprint.post('/skeleton_tests/command')
+def builder_test_command():
+    """Authenticated Test Run transport; execution still uses the real host."""
+    denied = _authorized()
+    if denied is not None:
+        return denied
+    def operation():
+        from skeleton_builder_tests import BuilderTestSessions, SCHEMA
+        from durable_interaction_host import DurableInteractionHostError
+        from unchain.skeleton.errors import SkeletonValidationError
+        fields={
+            'capabilities': set(),
+            'open': {'resource_id','kind'}, 'new': {'resource_id','kind'},
+            'read': {'session_id','resource_id'},
+            'prepare': {'session_id','resource_id','expected_edit_token','inputs','request_id'},
+            'execute': {'session_id','resource_id','run_id','options'},
+            'resume_requirements': {'session_id','resource_id','run_id','interaction_id'},
+            'respond': {'session_id','resource_id','run_id','interaction_id','approved','answer','options'},
+            'resume': {'session_id','resource_id','run_id','interaction_id','options'},
+            'cancel': {'session_id','resource_id','run_id'},
+        }
+        body=_payload('schema','op','resource_id','kind','session_id','expected_edit_token','inputs','request_id',
+            'run_id','options','interaction_id','approved','answer','memory_agent_config','context')
+        op=body.get('op')
+        if op=='prepare' and 'memory_agent_config' in body:
+            fields['prepare']=fields['prepare']|{'memory_agent_config'}
+        if op=='prepare':
+            fields['prepare']=fields['prepare']|{'context'}
+        if type(op) is not str or op not in fields or set(body)!={'schema','op'}|fields[op] or body.get('schema')!=SCHEMA:
+            raise SkeletonResourceError('invalid_shape',('body',),'Unknown or incomplete Test Run command.')
+        import re
+        for name in ('resource_id','session_id','run_id','interaction_id','request_id'):
+            if name in body and (type(body[name]) is not str or re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._:-]{0,199}',body[name]) is None):
+                raise SkeletonResourceError('invalid_value',('body',name),'An exact test identity is required.')
+        if 'options' in body:
+            from skeleton_builder_tests import CONTEXT_FIELDS, TRANSIENT_FIELDS
+            allowed=CONTEXT_FIELDS|TRANSIENT_FIELDS
+            options=body['options']
+            if type(options) is not dict or set(options)-allowed:
+                raise SkeletonResourceError('invalid_shape',('options',),'Only Main-injected test capabilities are accepted.')
+        if op=='prepare':
+            from skeleton_builder_tests import CONTEXT_FIELDS
+            if type(body['context']) is not dict or set(body['context'])!=CONTEXT_FIELDS:
+                raise SkeletonResourceError('invalid_shape',('context',),'An exact Main-resolved test context is required.')
+        if op=='respond' and (type(body['approved']) is not bool or body['answer'] is not None and type(body['answer']) is not dict):
+            raise SkeletonResourceError('invalid_type',('approved',),'An explicit interaction response is required.')
+        if op=='capabilities':
+            from skeleton_runtime_capability import require_skeleton_runtime
+            return {'schema':SCHEMA,'contract':'agent-workflow-test-v1','kinds':['agent','workflow'],
+                'input_bytes':2*1024*1024,'trace_bytes':2*1024*1024,'runtime_manifest':require_skeleton_runtime()}
+        tests=BuilderTestSessions()
+        resource=body['resource_id']; session=body.get('session_id'); run=body.get('run_id')
+        try:
+            if op in ('open','new'): return tests.open(resource,body['kind'],new=op=='new')
+            if op=='read': return tests.read(session,resource)
+            if op=='prepare': return tests.prepare(session,resource,body['expected_edit_token'],body['inputs'],body['request_id'],
+                memory_agent_config=body.get('memory_agent_config'),context=body['context'])
+            if op=='execute': return tests.execute(session,resource,run,body['options'])
+            if op=='resume_requirements': return tests.resume_requirements(session,resource,run,body['interaction_id'])
+            if op=='respond': return tests.respond(session,resource,run,body['interaction_id'],body['approved'],body['options'],answer=body['answer'])
+            if op=='resume': return tests.respond(session,resource,run,body['interaction_id'],None,body['options'])
+            return tests.cancel(session,resource,run)
+        except (DurableInteractionHostError,SkeletonValidationError) as error:
+            raise SkeletonResourceError(error.code,tuple(getattr(error,'path',())),str(error),
+                status=getattr(error,'status_code',422)) from error
+    return _run(operation)
+
+
 @api_blueprint.get("/skeleton_runs/observation")
 def skeleton_run_observation():
     """Passive, authenticated observation; never the interaction recovery getter."""

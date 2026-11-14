@@ -66,8 +66,11 @@ def _bridge(selection, *, options, session_id, root_run_id, message, history, at
     from unchain.memory import MEMORY_V2_MODULE_KEY
 
     selected = selection.to_dict()
-    kernel = next(node["config"]["kernel"] for node in selected["document"]["nodes"] if node["type"] == "agent")
-    profile = kernel["profile"]
+    workflow = selected["kind"] == "workflow"
+    # Workflow roots have no Kernel/provider. The existing Context host still
+    # owns their input/interaction journal, with its conservative host budget.
+    profile = ({"provider": "", "model": "", "context_window": 0} if workflow else
+        next(node["config"]["kernel"]["profile"] for node in selected["document"]["nodes"] if node["type"] == "agent"))
     if launch is None:
         if not host._memory_v2_active_graph_candidate(options):
             _fail("skeleton_active_context_required", "Skeleton chat requires the active Context V2 host.", 422)
@@ -88,7 +91,7 @@ def _bridge(selection, *, options, session_id, root_run_id, message, history, at
         _fail("skeleton_launch_owner_mismatch", "Skeleton execution belongs to another chat.")
     run = PupuUnchainShadowRunDraft(session_id=session_id, identity=context.identity,
         grant=context.grant_for(MEMORY_V2_MODULE_KEY), current_input_draft=draft, attachment_blocks=raw_attachments)
-    memory_agent = select_pupu_memory_agent_invoker(options=options, chat_provider=profile["provider"],
+    memory_agent = None if workflow else select_pupu_memory_agent_invoker(options=options, chat_provider=profile["provider"],
         chat_model_id=profile["model"], provider_default_resolver=host._memory_v2_provider_default)
     windows = {(node["config"]["kernel"]["profile"]["provider"], node["config"]["kernel"]["profile"]["model"]): node["config"]["kernel"]["profile"]["context_window"]
         for node in selected["document"]["nodes"] if node["type"] == "agent"}
@@ -96,8 +99,8 @@ def _bridge(selection, *, options, session_id, root_run_id, message, history, at
         bootstrap_history=history if launch is None else (), no_unfinished_durable_checkpoint=launch is None,
         no_pending_interaction=launch is None,
         model_window_fallback=lambda provider, model: windows.get((provider, model)) or host.get_max_context_window_tokens(provider, model, options=options),
-        partial_attempt_sink=lambda value, error: None, memory_agent_enabled=True,
-        memory_agent_model_invoker_factory=memory_agent.host_invoker_factory())
+        partial_attempt_sink=lambda value, error: None, memory_agent_enabled=not workflow,
+        memory_agent_model_invoker_factory=memory_agent.host_invoker_factory() if memory_agent else None)
     admitted_options = dict(options, _memory_v2_unchain_active_preflight=True,
         _memory_v2_session_id=session_id, _memory_v2_attempt_id=root_run_id)
     admission = host._resolve_memory_v2_admission(admitted_options, provider=profile["provider"],
@@ -174,7 +177,7 @@ def _stream_worker_event(raw):
 
 def _stream_worker(*, host, bridge, durability, bindings, plan, selection, workflows,
                    session_id, attempt_id, root_run_id, token, cancel_event, launch=None,
-                   pending=None, response=None):
+                   pending=None, response=None, workflow_inputs=None):
     from unchain.execution import ExecutionRuntime
     events = queue.Queue()
     done = object()
@@ -211,7 +214,9 @@ def _stream_worker(*, host, bridge, durability, bindings, plan, selection, workf
             host._execution_raise_if_cancelled(token)
             guard = ExecutionRuntime(durability.store).acquire(session_id, owner_id=attempt_id)
             resolved = _attachments(bridge)
-            execution = PupuSkeletonAgentExecution(plan, bridge, graph_id=launch.descriptor["graph_id"] if launch else root_run_id,
+            from skeleton_workflow_test_runtime import PupuSkeletonWorkflowExecution
+            execution_type = PupuSkeletonWorkflowExecution if plan.snapshot()["kind"] == "workflow" else PupuSkeletonAgentExecution
+            execution = execution_type(plan, bridge, graph_id=launch.descriptor["graph_id"] if launch else root_run_id,
                 bind_profile=bindings.bind_profile, durability_runtime=durability, execution_guard=guard,
                 tools_for_node=bindings.tools_for_node, host_modules_for_node=bindings.modules_for_node,
                 workflow_tools_for_node=bindings.workflow_tools_for_node,
@@ -221,8 +226,9 @@ def _stream_worker(*, host, bridge, durability, bindings, plan, selection, workf
                 callback=emit, interject_options=host._public_interject_options(bindings._options))
             if launch is None:
                 draft = bridge.preparation.binding.canonical_value()["current_input_draft"]
-                inputs = {"message": draft["content"], "images": [row.to_dict() for row in resolved if row.kind == "image"],
-                    "files": [row.to_dict() for row in resolved if row.kind != "image"]}
+                inputs = (workflow_inputs if plan.snapshot()["kind"] == "workflow" else
+                    {"message": draft["content"], "images": [row.to_dict() for row in resolved if row.kind == "image"],
+                     "files": [row.to_dict() for row in resolved if row.kind != "image"]})
                 binary = {}
                 for row in resolved:
                     if row.name in binary: _fail("skeleton_attachment_name_conflict", "Attachment names must be unique.", 422)
@@ -232,13 +238,13 @@ def _stream_worker(*, host, bridge, durability, bindings, plan, selection, workf
                     workspace_root=bindings.workspace_root, inputs=inputs, attachments=[row.to_dict() for row in resolved],
                     capabilities={"toolkits": list(bindings._user_toolkit_ids), "include_user_dirs": bindings._include_user_dirs,
                         "workspace_roots": list(bindings.workspace_roots)}, code_snapshot=bindings._code_snapshot)
-                result, _receipt = execution.run(original_task=inputs["message"])
+                result, _receipt = execution.run(original_task=inputs.get("message", ""))
             else:
                 assert_launch_current(launch)
                 root_node_type = execution.runner.nodes[launch.store.load().state["active"]["node_id"]]["type"]
                 wait_id = pending.root_wait_id if root_node_type == "agent" else pending.request.interaction_id
                 result, _receipt = execution.resume_current_interaction(wait_id, response,
-                    node_invocation_id=pending.root_node_invocation_id, original_task=launch.descriptor["inputs"]["message"])
+                    node_invocation_id=pending.root_node_invocation_id, original_task=launch.descriptor["inputs"].get("message", ""))
             host._execution_raise_if_cancelled(token)
             if result.status == "waiting":
                 actual = resolve_pending_skeleton_interaction(session_id)
@@ -294,11 +300,17 @@ def _stream_worker(*, host, bridge, durability, bindings, plan, selection, workf
             request_cancellation("stream disconnected")
 
 
-def stream_skeleton_chat_events(*, message, history, attachments, options, session_id, attempt_id, cancel_event=None):
+def stream_skeleton_chat_events(*, message, history, attachments, options, session_id, attempt_id, cancel_event=None,
+                                frozen_material=None):
     import unchain_adapter as host
     try:
-        selection = prepare_skeleton_chat_selection(options)
-        workflows = freeze_skeleton_workflow_dependencies(selection)
+        if frozen_material is None:
+            selection = prepare_skeleton_chat_selection(options)
+            workflows = freeze_skeleton_workflow_dependencies(selection)
+        else:
+            from skeleton_chat_selection import _check_preflight
+            selection, workflows = frozen_material
+            _check_preflight(selection.to_dict(), selection.resource_id)
         assert_credential_scope(options, selection, workflows, mode="start", session_id=session_id,
             owner_chat_id=options.get("_memory_v2_owner_chat_id"))
         plan = __import__("unchain.skeleton", fromlist=["prepare_agent_graph"]).prepare_agent_graph(selection.to_dict()["document"])
@@ -354,6 +366,60 @@ def stream_skeleton_chat_events(*, message, history, attachments, options, sessi
             if bindings is not None and not worker_started: bindings.close()
 
 
+def stream_skeleton_test_events(*, selection, workflows, inputs, options, session_id, attempt_id, cancel_event=None):
+    """Host-only fixed-material entry shared by the Builder's two test modes."""
+    from skeleton_chat_selection import _check_preflight
+    from skeleton_production_state import canonical
+    from unchain.skeleton import prepare_workflow
+    from unchain.skeleton.workflow_inputs import bind_workflow_inputs
+    import unchain_adapter as host
+    selected = selection.to_dict()
+    _check_preflight(selected, selection.resource_id, kind=selected["kind"])
+    if selected["kind"] == "agent":
+        if type(inputs) is not dict or set(inputs) != {"message"} or type(inputs["message"]) is not str:
+            _fail("invalid_test_inputs", "Agent test requires only its message.", 400)
+        yield from stream_skeleton_chat_events(message=inputs["message"], history=(), attachments=(),
+            options=options, session_id=session_id, attempt_id=attempt_id, cancel_event=cancel_event,
+            frozen_material=(selection, workflows))
+        return
+    inputs = bind_workflow_inputs(selected["document"], inputs)
+    plan = prepare_workflow(selected["document"])
+    _identifiers(session_id, attempt_id)
+    roots = [] if options.get("disable_workspace_root") is True else host._extract_workspace_roots_from_options(options)
+    roots = list(dict.fromkeys(str(Path(root).expanduser().resolve()) for root in roots))
+    workspace = roots[0] if roots else None
+    recover_skeleton_before_start(session_id=session_id, attempt_id=attempt_id,
+        owner_chat_id=options.get("_memory_v2_owner_chat_id"))
+    registration = host._execution_control_call("register", session_id, attempt_id)
+    token = host._execution_cancellation_token(session_id, attempt_id)
+    if host._execution_result_is_terminal(registration):
+        return
+    running = host._execution_control_call("mark_running", session_id, attempt_id)
+    with host._AppliedExecutionOwnerScope(session_id=session_id, attempt_id=attempt_id, running=running, execution_token=token) as owner:
+        if getattr(running, "disposition", "") != "applied" or host._execution_result_is_terminal(running):
+            return
+        bindings = None
+        worker_started = False
+        try:
+            bindings = SkeletonProductionBindings(selection, workflows, options, session_id=session_id,
+                workspace_root=workspace, workspace_roots=roots)
+            old = load_active_launch(session_id, allow_terminal_stale=True)
+            if old and old.store.load().state["status"] not in {"completed", "failed", "cancelled", "outcome_unknown"}:
+                _fail("skeleton_execution_already_active", "Resume or cancel the existing test first.")
+            bridge, durability = _bridge(selection, options=options, session_id=session_id, root_run_id=attempt_id,
+                message=canonical(inputs).decode("utf-8"), history=(), attachments=())
+            worker_started = True
+            for event in _stream_worker(host=host, bridge=bridge, durability=durability, bindings=bindings, plan=plan,
+                    selection=selection, workflows=workflows, session_id=session_id, attempt_id=attempt_id,
+                    root_run_id=attempt_id, token=token, cancel_event=cancel_event, workflow_inputs=inputs):
+                owner.handoff()
+                yield event
+            owner.handoff()
+        finally:
+            if bindings is not None and not worker_started:
+                bindings.close()
+
+
 def resume_skeleton_chat_events(*, session_id, interaction_id, options=None, attempt_id="", source_attempt_id="", cancel_event=None):
     import unchain_adapter as host
     _identifiers(session_id, attempt_id)
@@ -375,9 +441,15 @@ def resume_skeleton_chat_events(*, session_id, interaction_id, options=None, att
     if source_attempt_id and source_attempt_id != root_run_id:
         _fail("execution_attempt_binding_conflict", "Resume source does not match the Skeleton root.")
     try:
-        assert_credential_scope(options, launch.selection, launch.workflows, mode="resume", session_id=session_id,
-            owner_chat_id=options.get("_memory_v2_owner_chat_id"), interaction_id=interaction_id,
-            source_attempt_id=root_run_id, launch=launch)
+        if launch.plan.snapshot()['kind']=='agent':
+            assert_credential_scope(options, launch.selection, launch.workflows, mode="resume", session_id=session_id,
+                owner_chat_id=options.get("_memory_v2_owner_chat_id"), interaction_id=interaction_id,
+                source_attempt_id=root_run_id, launch=launch)
+        elif options.get('skeleton_credentials') not in (None,{}) or options.get('skeleton_credential_scope') is not None:
+            # The explicitly versioned Workflow launch contains no Kernel.
+            # Its retained Code/Workflow snapshot is verified by load_launch;
+            # an Agent provider fence must never fabricate credentials here.
+            _fail('skeleton_credential_scope_invalid','A Workflow test has no provider credentials.',400)
     except SkeletonResourceError as error:
         wrapped = DurableInteractionHostError(error.code, str(error), status_code=error.status, retryable=False)
         wrapped.path = error.path

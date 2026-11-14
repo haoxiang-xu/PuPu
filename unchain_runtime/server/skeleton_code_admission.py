@@ -10,6 +10,37 @@ from skeleton_resource_store import SkeletonResourceStore, _resource_id, _digest
 from skeleton_workflow_snapshot import freeze_skeleton_workflow_dependencies
 
 
+def prepare_test_execution_material(resource_id, expected_edit_token, kind, *, store=None):
+    """Freeze a Builder test's exact saved root and closure in one read snapshot.
+
+    Ordinary chat retains its Agent-only resolver. Only this explicit test
+    boundary admits a Workflow, and it never publishes or rewrites a draft.
+    """
+    from skeleton_chat_selection import FrozenSkeletonChatSelection, _check_preflight
+    from skeleton_resource_store import SkeletonResourceError
+    from skeleton_production_state import canonical
+
+    if kind not in {"agent", "workflow"} or type(expected_edit_token) is not str or not expected_edit_token:
+        raise SkeletonResourceError("invalid_value", ("kind",), "A saved Agent or Workflow is required.")
+    store = SkeletonResourceStore() if store is None else store
+    with closing(store._connect()) as connection, connection:
+        connection.execute('BEGIN')
+        snapshot = _AdmissionStore(store, connection)
+        admitted = snapshot.preflight(resource_id)
+        if admitted['kind'] != kind:
+            raise SkeletonResourceError("wrong_kind", ("kind",), "The saved resource has a different kind.")
+        if admitted['edit_token'] != expected_edit_token:
+            raise SkeletonResourceError("edit_conflict", ("expected_edit_token",), "The resource changed before the test started.", status=409)
+        _check_preflight(admitted, resource_id, kind=kind)
+        selected = FrozenSkeletonChatSelection(canonical(admitted))
+        workflows = freeze_skeleton_workflow_dependencies(selected, store=snapshot)
+        if any(owner['managed'] for owner, _ in snapshot.records.values()):
+            closure = FrozenSkeletonCodeClosure.capture(selected, workflows, snapshot.records)
+            selected = replace(selected, _code_sources_json=closure._canonical,
+                               _workflows_json=workflows._canonical_json)
+        return selected, workflows
+
+
 class _AdmissionStore(SkeletonResourceStore):
     def __init__(self, store, connection):
         self.root = store.root

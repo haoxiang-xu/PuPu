@@ -73,7 +73,7 @@ class SkeletonProductionBindings:
         if type(options) is not dict:
             _fail("invalid_type", ("options",), "Options must be an object.")
         selected = selection.to_dict()
-        _check_preflight(selected, selection.resource_id)
+        _check_preflight(selected, selection.resource_id, kind=selected["kind"])
         if workflows.dependencies != selected["dependencies"]:
             # Ordering is canonical in each producer; compare records if a
             # trusted host has restored their order differently.

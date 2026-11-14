@@ -11,7 +11,7 @@ import json
 import re
 from typing import Any
 
-from unchain.skeleton import prepare_agent_graph
+from unchain.skeleton import prepare_agent_graph, prepare_workflow
 from unchain.skeleton.agent_preparation import execution_definition_digest
 
 from skeleton_resource_store import SkeletonResourceError, SkeletonResourceStore
@@ -91,10 +91,11 @@ def _admission_failed(path: tuple = ("preflight",)) -> None:
                                 "Skeleton chat resource admission failed.", status=503)
 
 
-def _check_document(document: Any, digest: Any, path: tuple) -> None:
+def _check_document(document: Any, digest: Any, path: tuple, *, kind="agent") -> None:
     if type(digest) is not str or _DIGEST.fullmatch(digest) is None:
         _admission_failed(path + ("definition_digest",))
-    if execution_definition_digest(prepare_agent_graph(document)) != digest:
+    prepare = prepare_workflow if kind == "workflow" else prepare_agent_graph
+    if execution_definition_digest(prepare(document)) != digest:
         _admission_failed(path + ("definition_digest",))
 
 
@@ -109,16 +110,20 @@ def _check_subagents(value: Any, path: tuple, depth: int = 0) -> None:
         _check_subagents(child["subagents"], child_path + ("subagents",), depth + 1)
 
 
-def _check_preflight(value: Any, resource_id: str) -> None:
+def _check_preflight(value: Any, resource_id: str, *, kind="agent") -> None:
+    if kind not in {"agent", "workflow"}:
+        _admission_failed()
     if type(value) is not dict or set(value) != _PREFLIGHT_FIELDS:
         _admission_failed()
-    if value["ok"] is not True or value["id"] != resource_id or value["kind"] != "agent":
+    if value["ok"] is not True or value["id"] != resource_id or value["kind"] != kind:
         _admission_failed()
     if type(value["edit_token"]) is not str or not value["edit_token"]:
         _admission_failed(("preflight", "edit_token"))
     if type(value["diagnostics"]) is not list or value["diagnostics"]:
         _admission_failed(("preflight", "diagnostics"))
-    _check_document(value["document"], value["definition_digest"], ("preflight",))
+    _check_document(value["document"], value["definition_digest"], ("preflight",), kind=kind)
+    if value["document"]["kind"] != kind or kind == "workflow" and value["subagents"]:
+        _admission_failed()
     if value["document"]["id"] != resource_id:
         _admission_failed(("preflight", "document", "id"))
     if type(value["dependencies"]) is not list:

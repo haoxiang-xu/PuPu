@@ -29,6 +29,8 @@ from skeleton_runtime_capability import require_skeleton_runtime, validate_retai
 
 _SCHEMA = "pupu.skeleton-launch.v1"
 _SCHEMA_V2 = "pupu.skeleton-launch.v2"
+_WORKFLOW_SCHEMA = "pupu.skeleton-workflow-launch.v1"
+_SCHEMAS = (_SCHEMA, _SCHEMA_V2, _WORKFLOW_SCHEMA)
 _EVENT = "pupu.skeleton.launch"
 _FIELDS = frozenset({"schema", "session_id", "owner_chat_id", "root_run_id", "graph_id",
     "selection", "workflows", "binding", "workspace_root", "inputs", "attachments",
@@ -135,8 +137,8 @@ def _restore_workflows(selection, value):
 
 def validate_launch_descriptor(value, *, session_id, root_run_id, expected_owner_chat_id=None):
     """Closed consumer for host-owned bytes; no file or provider side effects."""
-    if (type(value) is not dict or value.get("schema") not in (_SCHEMA, _SCHEMA_V2)
-            or set(value) != (_FIELDS_V2 if value["schema"] == _SCHEMA_V2 else _FIELDS)):
+    if (type(value) is not dict or value.get("schema") not in _SCHEMAS
+            or set(value) != (_FIELDS_V2 if value["schema"] in (_SCHEMA_V2, _WORKFLOW_SCHEMA) else _FIELDS)):
         _fail()
     if value["session_id"] != _text(session_id) or value["root_run_id"] != _text(root_run_id):
         _fail("skeleton_launch_identity_mismatch")
@@ -148,10 +150,11 @@ def validate_launch_descriptor(value, *, session_id, root_run_id, expected_owner
     selected = value["selection"]
     if type(selected) is not dict or type(selected.get("id")) is not str:
         _fail()
-    _check_preflight(selected, selected["id"])
+    workflow = value["schema"] == _WORKFLOW_SCHEMA
+    _check_preflight(selected, selected["id"], kind="workflow" if workflow else "agent")
     selection = FrozenSkeletonChatSelection(canonical(selected))
     workflows = _restore_workflows(selection, value["workflows"])
-    if value["schema"] == _SCHEMA_V2:
+    if value["schema"] == _SCHEMA_V2 or workflow and value["code_sources"] is not None:
         from skeleton_code_closure import FrozenCodeRuntimeSnapshot
         snapshot = value["code_sources"]
         if type(snapshot) is not dict or type(snapshot.get("closure")) is not dict:
@@ -182,19 +185,25 @@ def validate_launch_descriptor(value, *, session_id, root_run_id, expected_owner
             if node["type"] == "toolkit_pool" and node.get("config", {}).get("workflow_tools"):
                 required_features.add("subagent_tool_settlement_projection_v1")
     validate_retained_skeleton_runtime_manifest(value["runtime_manifest"], required_features=required_features)
-    if type(value["inputs"]) is not dict or set(value["inputs"]) != {"message", "images", "files"}:
+    if type(value["inputs"]) is not dict:
         _fail()
-    if (type(value["inputs"]["message"]) is not str or type(value["inputs"]["images"]) is not list
+    if not workflow and (set(value["inputs"]) != {"message", "images", "files"}
+            or type(value["inputs"]["message"]) is not str or type(value["inputs"]["images"]) is not list
             or type(value["inputs"]["files"]) is not list or type(value["attachments"]) is not list):
         _fail()
     from unchain.context import HostResolvedAttachment
     from unchain.context.attachments import normalize_host_resolved_attachments
     resolved = normalize_host_resolved_attachments(tuple(HostResolvedAttachment.from_dict(row) for row in value["attachments"]))
-    if (value["inputs"]["images"] != [row.to_dict() for row in resolved if row.kind == "image"]
+    if not workflow and (value["inputs"]["images"] != [row.to_dict() for row in resolved if row.kind == "image"]
             or value["inputs"]["files"] != [row.to_dict() for row in resolved if row.kind != "image"]):
         _fail("skeleton_launch_input_mismatch")
+    if workflow:
+        from unchain.skeleton.workflow_inputs import bind_workflow_inputs
+        if value["attachments"] != [] or bind_workflow_inputs(selected["document"], value["inputs"]) != value["inputs"]:
+            _fail("skeleton_launch_input_mismatch")
     draft = binding["current_input_draft"]
-    if (type(draft) is not dict or draft.get("kind") != "text" or draft.get("content") != value["inputs"]["message"]
+    input_text = canonical(value["inputs"]).decode("utf-8") if workflow else value["inputs"]["message"]
+    if (type(draft) is not dict or draft.get("kind") != "text" or draft.get("content") != input_text
             or draft.get("attachments", []) != value["attachments"]):
         _fail("skeleton_launch_input_mismatch")
     capabilities = value["capabilities"]
@@ -209,7 +218,7 @@ def validate_launch_descriptor(value, *, session_id, root_run_id, expected_owner
     if ((capabilities["workspace_roots"][0] if capabilities["workspace_roots"] else None) != value["workspace_root"]
             or len(set(capabilities["workspace_roots"])) != len(capabilities["workspace_roots"])): _fail()
     canonical(value)
-    return selection, workflows, prepare_agent_graph(selected["document"])
+    return selection, workflows, (prepare_workflow if workflow else prepare_agent_graph)(selected["document"])
 
 
 @dataclass(frozen=True)
@@ -255,6 +264,8 @@ def save_launch(*, bridge, store, selection, workflows, workspace_root, inputs, 
         value.update(schema=_SCHEMA_V2, code_sources=code_snapshot.to_dict())
     elif code_snapshot is not None:
         _fail("skeleton_launch_sources_invalid")
+    if store.plan.snapshot()["kind"] == "workflow":
+        value.update(schema=_WORKFLOW_SCHEMA, code_sources=code_snapshot.to_dict() if code_snapshot is not None else None)
     validate_launch_descriptor(value, session_id=value["session_id"], root_run_id=value["root_run_id"])
     ref, artifact = store.prepare_json(value, key="production.launch")
     digest = sha256(canonical(value)).hexdigest()
@@ -278,7 +289,7 @@ def load_launch(session_id, root_run_id, *, expected_owner_chat_id=None, allow_t
     if not path.is_file():
         _fail("skeleton_launch_missing")
     pointer = _strict_json(path.read_bytes())
-    if (type(pointer) is not dict or set(pointer) != _POINTER_FIELDS or pointer["schema"] not in (_SCHEMA, _SCHEMA_V2)
+    if (type(pointer) is not dict or set(pointer) != _POINTER_FIELDS or pointer["schema"] not in _SCHEMAS
             or pointer["session_id"] != session_id or pointer["root_run_id"] != root_run_id):
         _fail()
     from memory_v2_unchain_active_bridge import _open_existing_cold_context_journal
@@ -352,7 +363,7 @@ def load_active_launch(session_id, *, expected_owner_chat_id=None, allow_termina
     if not path.is_file():
         return None
     pointer = _strict_json(path.read_bytes())
-    if (type(pointer) is not dict or set(pointer) != _POINTER_FIELDS or pointer["schema"] not in (_SCHEMA, _SCHEMA_V2)
+    if (type(pointer) is not dict or set(pointer) != _POINTER_FIELDS or pointer["schema"] not in _SCHEMAS
             or pointer["session_id"] != session_id):
         _fail()
     launch = load_launch(session_id, pointer["root_run_id"], expected_owner_chat_id=expected_owner_chat_id,

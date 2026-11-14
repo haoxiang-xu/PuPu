@@ -65,8 +65,9 @@ const checkSkeletonRunObservationRequest = request => {
 };
 
 const checkDocument = doc => {
-  requireValid(closed(doc, ['schema_version', 'kind', 'id', 'name', 'nodes', 'edges'], ['description']));
+  requireValid(closed(doc, ['schema_version', 'kind', 'id', 'name', 'nodes', 'edges'], ['description', 'input_schema']));
   requireValid(doc.schema_version === 1 && ['agent', 'workflow'].includes(doc.kind) && text(doc.id) && text(doc.name));
+  requireValid(!own(doc, 'input_schema') || (doc.kind === 'workflow' && object(doc.input_schema)));
   requireValid(!own(doc, 'description') || typeof doc.description === 'string');
   requireValid(Array.isArray(doc.nodes) && Array.isArray(doc.edges));
   const nodes = new Map();

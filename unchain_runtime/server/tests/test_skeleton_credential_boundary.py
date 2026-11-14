@@ -164,6 +164,10 @@ def test_resume_scope_is_checked_before_attempt_binding_or_parked_transfer(tmp_p
     from durable_interaction_host import DurableInteractionHostError
     _store, selection, workflows = _frozen(tmp_path)
     launch = _launch(selection, workflows)
+    # Resume now distinguishes genuine Agent and Workflow root plans. Keep
+    # this credential-only test double faithful to a loaded Agent launch.
+    from unchain.skeleton import prepare_agent_graph
+    launch.plan = prepare_agent_graph(selection.to_dict()["document"])
     scope = requirements_from_frozen(selection, workflows, mode="resume", session_id="session",
         owner_chat_id="owner", interaction_id="interaction", launch=launch)["scope"]
     scope["selection_digest"] = "0" * 64

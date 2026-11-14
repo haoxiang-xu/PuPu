@@ -21,6 +21,7 @@ const invokeSkeletonResource = async (ipcRenderer, command) => {
 };
 
 const createMisoBridge = (ipcRenderer, streamClient) => ({
+  builderTestCommand: payload => invokeSkeletonResource(ipcRenderer, { action: 'builder_test', payload }),
   getLegacyChatCatalog: () => invokeSkeletonResource(ipcRenderer, { action: "legacy_chat_catalog", payload: {} }),
   ...createLegacyUpgradeBridge(command => invokeSkeletonResource(ipcRenderer, command)),
   getSkeletonRunObservation: request => invokeSkeletonResource(ipcRenderer, { action: "run_observation", payload: request }),
