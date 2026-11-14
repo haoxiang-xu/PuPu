@@ -963,7 +963,14 @@
         "object": "Objet",
         "array": "Liste",
         "null": "Null"
-      }
+      },
+      "help": "Ce qu’un appelant transmet en exécutant ce Workflow. Chaque paramètre est obligatoire ou prend sa valeur par défaut ; les nœuds suivants le lisent depuis Start.",
+      "default_short": "Par défaut",
+      "invalid_number": "Ce n’est pas un nombre.",
+      "invalid_integer": "Ce n’est pas un nombre entier.",
+      "invalid_json": "JSON non valide.",
+      "name_short": "Nom",
+      "type": "Type"
     },
     "missing": {
       "if_missing": "Si la valeur manque",

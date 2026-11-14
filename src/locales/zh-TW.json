@@ -963,7 +963,14 @@
         "object": "物件",
         "array": "清單",
         "null": "Null"
-      }
+      },
+      "help": "呼叫方執行這個 Workflow 時傳入的參數。每個參數要麼必填，要麼使用預設值；後續節點從 Start 讀取。",
+      "default_short": "預設值",
+      "invalid_number": "不是數字。",
+      "invalid_integer": "不是整數。",
+      "invalid_json": "不是有效的 JSON。",
+      "name_short": "名稱",
+      "type": "類型"
     },
     "missing": {
       "if_missing": "值缺失時",

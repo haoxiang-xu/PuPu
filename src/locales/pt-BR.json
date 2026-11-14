@@ -963,7 +963,14 @@
         "object": "Objeto",
         "array": "Lista",
         "null": "Null"
-      }
+      },
+      "help": "O que quem chama passa ao executar este Workflow. Cada parâmetro é obrigatório ou usa seu valor padrão; os nós seguintes o leem em Start.",
+      "default_short": "Padrão",
+      "invalid_number": "Não é um número.",
+      "invalid_integer": "Não é um número inteiro.",
+      "invalid_json": "JSON inválido.",
+      "name_short": "Nome",
+      "type": "Tipo"
     },
     "missing": {
       "if_missing": "Se o valor estiver ausente",

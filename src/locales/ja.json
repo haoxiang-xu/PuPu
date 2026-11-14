@@ -963,7 +963,14 @@
         "object": "オブジェクト",
         "array": "リスト",
         "null": "Null"
-      }
+      },
+      "help": "この Workflow を実行するときに呼び出し元が渡す値です。各パラメーターは必須か、既定値を使います。後続のノードは Start から読み取ります。",
+      "default_short": "既定値",
+      "invalid_number": "数値ではありません。",
+      "invalid_integer": "整数ではありません。",
+      "invalid_json": "有効な JSON ではありません。",
+      "name_short": "名前",
+      "type": "型"
     },
     "missing": {
       "if_missing": "値がない場合",

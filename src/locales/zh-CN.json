@@ -963,7 +963,14 @@
         "object": "对象",
         "array": "列表",
         "null": "Null"
-      }
+      },
+      "help": "调用方运行这个 Workflow 时传入的参数。每个参数要么必填，要么使用默认值；后续节点从 Start 读取。",
+      "default_short": "默认值",
+      "invalid_number": "不是数字。",
+      "invalid_integer": "不是整数。",
+      "invalid_json": "不是有效的 JSON。",
+      "name_short": "名称",
+      "type": "类型"
     },
     "missing": {
       "if_missing": "值缺失时",

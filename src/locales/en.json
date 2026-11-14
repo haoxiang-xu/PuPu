@@ -963,7 +963,14 @@
         "object": "Object",
         "array": "List",
         "null": "Null"
-      }
+      },
+      "help": "What a caller passes in when it runs this Workflow. Each parameter is either required or falls back to its default; later nodes read it from Start.",
+      "default_short": "Default",
+      "invalid_number": "Not a number.",
+      "invalid_integer": "Not a whole number.",
+      "invalid_json": "Not valid JSON.",
+      "name_short": "Name",
+      "type": "Type"
     },
     "missing": {
       "if_missing": "If missing",

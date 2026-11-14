@@ -963,7 +963,14 @@
         "object": "Objekt",
         "array": "Liste",
         "null": "Null"
-      }
+      },
+      "help": "Was ein Aufrufer beim Ausführen dieses Workflows übergibt. Jeder Parameter ist erforderlich oder fällt auf seinen Standardwert zurück; spätere Knoten lesen ihn aus Start.",
+      "default_short": "Standard",
+      "invalid_number": "Keine Zahl.",
+      "invalid_integer": "Keine ganze Zahl.",
+      "invalid_json": "Kein gültiges JSON.",
+      "name_short": "Name",
+      "type": "Typ"
     },
     "missing": {
       "if_missing": "Wenn der Wert fehlt",

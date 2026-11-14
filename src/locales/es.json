@@ -963,7 +963,14 @@
         "object": "Objeto",
         "array": "Lista",
         "null": "Null"
-      }
+      },
+      "help": "Lo que un llamador pasa al ejecutar este Workflow. Cada parámetro es obligatorio o usa su valor predeterminado; los nodos posteriores lo leen desde Start.",
+      "default_short": "Predeterminado",
+      "invalid_number": "No es un número.",
+      "invalid_integer": "No es un número entero.",
+      "invalid_json": "No es JSON válido.",
+      "name_short": "Nombre",
+      "type": "Tipo"
     },
     "missing": {
       "if_missing": "Si falta el valor",

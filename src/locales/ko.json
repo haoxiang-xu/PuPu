@@ -963,7 +963,14 @@
         "object": "객체",
         "array": "목록",
         "null": "Null"
-      }
+      },
+      "help": "이 Workflow를 실행할 때 호출자가 전달하는 값입니다. 각 매개변수는 필수이거나 기본값을 사용하며, 이후 노드는 Start에서 읽습니다.",
+      "default_short": "기본값",
+      "invalid_number": "숫자가 아닙니다.",
+      "invalid_integer": "정수가 아닙니다.",
+      "invalid_json": "올바른 JSON이 아닙니다.",
+      "name_short": "이름",
+      "type": "유형"
     },
     "missing": {
       "if_missing": "값이 없을 때",
