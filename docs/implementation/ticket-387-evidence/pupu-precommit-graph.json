@@ -1,0 +1,214 @@
+{
+  "summary": {
+    "changed_count": 29,
+    "affected_count": 0,
+    "changed_files": 26,
+    "risk_level": "low"
+  },
+  "changed_symbols": [
+    {
+      "id": "Section:docs/implementation/ticket-387-evidence/README.md:L1:#387 development verification",
+      "name": "#387 development verification",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-387-evidence/README.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-387-evidence/README.md:L22:Exact commands",
+      "name": "Exact commands",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-387-evidence/README.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Variable:docs/implementation/ticket-387-evidence/verify_pair.py:ROOT",
+      "name": "ROOT",
+      "type": "Variable",
+      "filePath": "docs/implementation/ticket-387-evidence/verify_pair.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Variable:docs/implementation/ticket-387-evidence/verify_pair.py:EVIDENCE",
+      "name": "EVIDENCE",
+      "type": "Variable",
+      "filePath": "docs/implementation/ticket-387-evidence/verify_pair.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Variable:docs/implementation/ticket-387-evidence/verify_pair.py:WHEEL",
+      "name": "WHEEL",
+      "type": "Variable",
+      "filePath": "docs/implementation/ticket-387-evidence/verify_pair.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Variable:docs/implementation/ticket-387-evidence/verify_pair.py:MODELS",
+      "name": "MODELS",
+      "type": "Variable",
+      "filePath": "docs/implementation/ticket-387-evidence/verify_pair.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Variable:docs/implementation/ticket-387-evidence/verify_pair.py:child",
+      "name": "child",
+      "type": "Variable",
+      "filePath": "docs/implementation/ticket-387-evidence/verify_pair.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Variable:docs/implementation/ticket-387-evidence/verify_pair.py:rounds",
+      "name": "rounds",
+      "type": "Variable",
+      "filePath": "docs/implementation/ticket-387-evidence/verify_pair.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Variable:docs/implementation/ticket-387-evidence/verify_pair.py:result",
+      "name": "result",
+      "type": "Variable",
+      "filePath": "docs/implementation/ticket-387-evidence/verify_pair.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-387.md:L1:Ticket #387 — OpenAI and Claude catalog refresh",
+      "name": "Ticket #387 — OpenAI and Claude catalog refresh",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-387.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-387.md:L14:Goal and settled decisions",
+      "name": "Goal and settled decisions",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-387.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-387.md:L62:Files, graph and risk",
+      "name": "Files, graph and risk",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-387.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-387.md:L81:Boundary contracts",
+      "name": "Boundary contracts",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-387.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-387.md:L122:Acceptance and execution slices",
+      "name": "Acceptance and execution slices",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-387.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-387.md:L166:Implementation-ready evidence — 2026-11-13",
+      "name": "Implementation-ready evidence — 2026-11-13",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-387.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Const:src/COMPONENTs/agents/pages/recipes_page/detail_panel/agent_panel.js:MODEL_OPTIONS",
+      "name": "MODEL_OPTIONS",
+      "type": "Const",
+      "filePath": "src/COMPONENTs/agents/pages/recipes_page/detail_panel/agent_panel.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Variable:unchain_runtime/server/computer_use_capabilities.py:_ANTHROPIC_TOOLSET_ONLY_MODEL_PREFIXES",
+      "name": "_ANTHROPIC_TOOLSET_ONLY_MODEL_PREFIXES",
+      "type": "Variable",
+      "filePath": "unchain_runtime/server/computer_use_capabilities.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:unchain_runtime/server/computer_use_capabilities.py:resolve_computer_use_capability",
+      "name": "resolve_computer_use_capability",
+      "type": "Function",
+      "filePath": "unchain_runtime/server/computer_use_capabilities.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Variable:unchain_runtime/server/tests/test_ticket_387_catalog.py:ROOT",
+      "name": "ROOT",
+      "type": "Variable",
+      "filePath": "unchain_runtime/server/tests/test_ticket_387_catalog.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Variable:unchain_runtime/server/tests/test_ticket_387_catalog.py:FIXTURE",
+      "name": "FIXTURE",
+      "type": "Variable",
+      "filePath": "unchain_runtime/server/tests/test_ticket_387_catalog.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Variable:unchain_runtime/server/tests/test_ticket_387_catalog.py:MODELS",
+      "name": "MODELS",
+      "type": "Variable",
+      "filePath": "unchain_runtime/server/tests/test_ticket_387_catalog.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:unchain_runtime/server/tests/test_ticket_387_catalog.py:test_new_claude_never_inherits_legacy_computer_protocol",
+      "name": "test_new_claude_never_inherits_legacy_computer_protocol",
+      "type": "Function",
+      "filePath": "unchain_runtime/server/tests/test_ticket_387_catalog.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:unchain_runtime/server/tests/test_ticket_387_catalog.py:test_existing_computer_routes_remain_supported",
+      "name": "test_existing_computer_routes_remain_supported",
+      "type": "Function",
+      "filePath": "unchain_runtime/server/tests/test_ticket_387_catalog.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:unchain_runtime/server/tests/test_ticket_387_catalog.py:_host_catalog",
+      "name": "_host_catalog",
+      "type": "Function",
+      "filePath": "unchain_runtime/server/tests/test_ticket_387_catalog.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:unchain_runtime/server/tests/test_ticket_387_catalog.py:test_real_host_catalog_and_efforts_match_renderer_fixture",
+      "name": "test_real_host_catalog_and_efforts_match_renderer_fixture",
+      "type": "Function",
+      "filePath": "unchain_runtime/server/tests/test_ticket_387_catalog.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:unchain_runtime/server/tests/test_ticket_387_catalog.py:test_recipe_offers_new_models_without_removing_existing_defaults",
+      "name": "test_recipe_offers_new_models_without_removing_existing_defaults",
+      "type": "Function",
+      "filePath": "unchain_runtime/server/tests/test_ticket_387_catalog.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:unchain_runtime/server/tests/test_ticket_387_catalog.py:test_real_host_effort_producer_reaches_strict_sdk_transport",
+      "name": "test_real_host_effort_producer_reaches_strict_sdk_transport",
+      "type": "Function",
+      "filePath": "unchain_runtime/server/tests/test_ticket_387_catalog.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:unchain_runtime/server/tests/test_ticket_387_catalog.py:test_real_host_effort_producer_reaches_strict_sdk_transport.send@120:4",
+      "name": "send",
+      "type": "Function",
+      "filePath": "unchain_runtime/server/tests/test_ticket_387_catalog.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:unchain_runtime/server/tests/test_ticket_387_catalog.py:test_real_host_effort_producer_reaches_strict_sdk_transport.factory@142:4",
+      "name": "factory",
+      "type": "Function",
+      "filePath": "unchain_runtime/server/tests/test_ticket_387_catalog.py",
+      "change_type": "touched"
+    }
+  ],
+  "affected_processes": []
+}

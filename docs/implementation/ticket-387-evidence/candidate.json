@@ -1,0 +1,28 @@
+{
+  "schema": "pupu.ticket-387.diagnostic-candidate.v1",
+  "candidate_digest": "sha256:f69c34f4b3a42fd30d3023ace76840e30c0db1b743150847b7122d4503272150",
+  "wheel_sha256": "ac4065ae1cb3a703a4b774f5384272ce0d5b59320fcf2bd1db2882d6fd93618c",
+  "runtime_manifest_digest": "sha256:8bb1c7d474eed7bd82f906ac6cd88a6b7e073a23f46319cf500ebbd6b50ff17b",
+  "file_count": 1119,
+  "file_policy": {
+    "included": [
+      "package.json",
+      "package-lock.json",
+      "src/",
+      "electron/",
+      "public/",
+      "unchain_runtime/server/"
+    ],
+    "excluded": [
+      "/tests/",
+      "/__fixtures__/",
+      ".test.",
+      ".pyc"
+    ],
+    "canonicalization": "UTF-8 compact JSON, sorted object keys; files ordered by path; sha256 per file; wheel SHA256 included"
+  },
+  "full_inputs_preserved_at": "/Users/red/Desktop/GITRepo/ticket-387-artifacts/ac4065ae1cb3/audit/candidate-inputs.json",
+  "candidate_kind": "local diagnostic Electron app + installed immutable wheel",
+  "packaged_desktop_installer": "NOT_RUN; no installer or build-system changes in this feature",
+  "live_app_probe": "live-app-probe.json"
+}

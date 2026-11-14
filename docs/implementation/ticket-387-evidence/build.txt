@@ -1,0 +1,22 @@
+Full original log SHA-256: 97991c089922ff7b0715556a4952ac6cf2a52c2e1a4f50a04974e73083962eaf
+Full original log preserved at: /Users/red/Desktop/GITRepo/ticket-387-artifacts/ac4065ae1cb3/audit/build.txt
+Excerpt: first 8 and last 8 lines; repeated diagnostics omitted.
+
+* Getting build dependencies for wheel...
+running egg_info
+creating src/unchain.egg-info
+writing src/unchain.egg-info/PKG-INFO
+writing dependency_links to src/unchain.egg-info/dependency_links.txt
+writing entry points to src/unchain.egg-info/entry_points.txt
+writing requirements to src/unchain.egg-info/requires.txt
+writing top-level names to src/unchain.egg-info/top_level.txt
+
+[repeated output omitted]
+adding 'unchain-0.2.0.dist-info/licenses/LICENSE'
+adding 'unchain-0.2.0.dist-info/METADATA'
+adding 'unchain-0.2.0.dist-info/WHEEL'
+adding 'unchain-0.2.0.dist-info/entry_points.txt'
+adding 'unchain-0.2.0.dist-info/top_level.txt'
+adding 'unchain-0.2.0.dist-info/RECORD'
+removing build/bdist.macosx-11.0-arm64/wheel
+Successfully built unchain-0.2.0-py3-none-any.whl
