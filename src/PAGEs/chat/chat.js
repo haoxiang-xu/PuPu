@@ -1407,7 +1407,7 @@ const ChatInterface = () => {
                             boxShadow: pinned
                               ? "0 2px 6px rgba(var(--pupu-accent-rgb), 0.45)"
                               : active
-                                ? "none"
+                                ? `0 1px 4px rgba(0, 0, 0, ${isDark ? 0.3 : 0.85})`
                                 : "0 1px 3px rgba(0, 0, 0, 0.14)",
                           }}
                         >
