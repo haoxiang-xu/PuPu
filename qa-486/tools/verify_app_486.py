@@ -66,7 +66,7 @@ def main():
         journal=open_existing_execution_journal_readonly(database_path=database,object_directory=copied/'objects',execution_id=session)
         events=journal.capture_snapshot().events
         for event in events:
-            if event.event_type!='provider.wire_snapshot' or event.event_id in wire_receipts:continue
+            if event.event_type!='provider.wire_snapshot' or (session,event.event_id) in wire_receipts:continue
             fields=provider_wire_snapshot_event_fields(event)
             raw_envelope=journal.read_full_verified(artifact=fields.artifact)
             envelope=ProviderWireEnvelope.from_dict(json.loads(raw_envelope))
@@ -75,7 +75,7 @@ def main():
             require(envelope.envelope_sha256==fields.envelope_sha256,'wire_envelope_digest')
             require(len(envelope.routes)==1,'unexpected_wire_routes')
             route=envelope.to_dict()['routes'][0]
-            wire_receipts[event.event_id]={'execution':session,'attempt':event.attempt.attempt_id,'request':route['request'],'request_sha256':route['request_sha256'],'event_id':event.event_id}
+            wire_receipts[(session,event.event_id)]={'execution':session,'attempt':event.attempt.attempt_id,'request':route['request'],'request_sha256':route['request_sha256'],'event_id':event.event_id}
         launches=[e for e in events if e.event_type=='pupu.skeleton.launch' and e.attempt.attempt_id==root];require(len(launches)==1,'launch_not_unique')
         launch=launches[0];payload=_thaw_json(launch.payload);raw=journal.read_full_verified(artifact=ArtifactRef.from_dict(payload['launch_ref']));require(sha256(raw).hexdigest()==payload['launch_sha256'],'launch_digest')
         descriptor=json.loads(raw);require(canonical(descriptor)==raw,'launch_noncanonical')

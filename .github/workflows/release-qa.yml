@@ -2,16 +2,16 @@ name: "#486 packaged-App offline acceptance (QA only, non-delivery)"
 
 # QA-only branch: replaces release-qa.yml so the ordinary PR pipeline never runs here.
 # Not for merge. Every identity is a dispatch input; nothing defaults to an old candidate.
-# Exact delivery input 71928810 / a6fa9a85; canonical B wheel from CI run 43650932378.
+# Exact delivery identity and canonical B wheel are pinned in the dispatch inputs below.
 # The Linux sidecar and the App are each built once here and reused; CI wheels are a separate identity.
 on:
   workflow_dispatch:
     inputs:
       mode: { required: true, type: choice, default: "acceptance", options: ["package_only", "acceptance", "replay"], description: "package_only = package and seal; acceptance = package, seal and run the #486 matrix" }
-      candidate_sha: { required: true, type: string, default: "9f9c95c7e477eee9da33b1fb6623829be3d89b1a" }
-      candidate_tree: { required: true, type: string, default: "1a2bf3bd2e7d64468ed274b0987c9aabd17480d3" }
-      wheel_run_id: { required: true, type: string, default: "43650932378", description: "run holding the one Core wheel artifact (canonical)" }
-      wheel_sha256: { required: true, type: string, default: "a927f15fb60835e519558a5ffc0ff73cec8cb3dd49d9bd8da033f0a27a4efa79" }
+      candidate_sha: { required: true, type: string, default: "9d04889b7708bf882a1b3ef39ba07d0ec7c3d055" }
+      candidate_tree: { required: true, type: string, default: "811cced463bfade4758e51f9e37cf53804daf967" }
+      wheel_run_id: { required: true, type: string, default: "43655432019", description: "run holding the one Core wheel artifact (canonical)" }
+      wheel_sha256: { required: true, type: string, default: "d1f4277e73e102d412e1b0bebc6f0a9665d4c37d5f9234c961c8e7c997ffa56a" }
       manifest_digest: { required: true, type: string, default: "sha256:8bb1c7d474eed7bd82f906ac6cd88a6b7e073a23f46319cf500ebbd6b50ff17b", description: "expected runtime protocol manifest" }
       feature_snapshot_json: { required: true, type: string, default: '{"enable_user_access_to_agents":true,"enable_user_access_to_characters":false,"enable_custom_model_providers":true,"enable_computer_use":false}', description: "QA build feature flags (release profile yields {} = Agents hidden); disclosed" }
 
