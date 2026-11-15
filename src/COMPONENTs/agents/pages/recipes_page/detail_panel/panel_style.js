@@ -22,6 +22,14 @@ export const fieldBorder = (isDark) => (isDark ? "rgba(255,255,255,0.13)" : "rgb
 export const muted = (isDark) => (isDark ? "#a6a6af" : "#686870");
 export const text = (isDark) => (isDark ? "#eeeef1" : "#26262c");
 export const errorColor = (isDark) => (isDark ? "#ff8c8c" : "#b02020");
+/* A state's colour, for a dot or a word beside it: done, needs you, busy,
+   wrong, and nothing yet. */
+export const statusColor = (tone, isDark) => ({
+  good: isDark ? "#4ade80" : "#16a34a",
+  wait: isDark ? "#fbbf24" : "#c27a05",
+  busy: isDark ? "#60a5fa" : "#3b63d8",
+  bad: errorColor(isDark),
+}[tone] || muted(isDark));
 
 /* The panel's switches: Settings' SemiSwitch at 0.85 of its 56×28, themed by
    the switch itself — no colours passed. Size goes through width/height
@@ -104,6 +112,16 @@ export const problem = (isDark) => ({ fontSize: 11.5, lineHeight: 1.45, color: e
 /* A secondary action that sits at the end of a list, left aligned. */
 export const addButtonStyle = (isDark) => ({
   alignSelf: "flex-start", fontSize: 11, paddingVertical: 5, paddingHorizontal: 6, borderRadius: CONTROL_RADIUS, color: muted(isDark),
+});
+
+/* The one thing a panel is for, when it has one (Run, Send): filled in the
+   text colour, so it is the darkest thing in the panel in the light and the
+   brightest in the dark, at a control's corners. */
+export const primaryButtonStyle = (isDark) => ({
+  fontSize: 12.5, fontWeight: 500, paddingVertical: 7, paddingHorizontal: 14, borderRadius: CONTROL_RADIUS,
+  color: isDark ? "#1b1b1f" : "#ffffff", backgroundColor: text(isDark),
+  hoverBackgroundColor: isDark ? "#ffffff" : "#000000", activeBackgroundColor: isDark ? "#d6d6dc" : "#3a3a40",
+  content: { icon: { color: isDark ? "#1b1b1f" : "#ffffff" } },
 });
 
 /* The in-row way out, the same as a variable row's. */

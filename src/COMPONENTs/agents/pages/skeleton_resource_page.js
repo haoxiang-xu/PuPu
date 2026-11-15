@@ -194,8 +194,12 @@ export default function SkeletonResourcePage({
   if (selectedNodeId) lastShownNodeRef.current = selectedNodeId;
   /* The control center's: Home, the Run menu, and an edit the canvas refused. */
   const [homeToken, setHomeToken] = useState(0);
-  const [runOpen, setRunOpen] = useState(false);
-  const [panelClosed, setPanelClosed] = useState(false);
+  /* The right panel shows either the selected node or the Test panel. One
+     flag decides which: Run opens Test, picking a node (or Escape, or the
+     panel's own close) goes back to the node. The Test panel stays mounted
+     while hidden, so its conversation and typed inputs are still there when
+     Run brings it back. */
+  const [testOpen, setTestOpen] = useState(false);
   const [runViewScope, setRunViewScope] = useState(null);
   const [canvasProblem, setCanvasProblem] = useState(null);
   /* The graphs left behind, outermost first. */
@@ -729,7 +733,7 @@ export default function SkeletonResourcePage({
       return;
     }
     if (pageRef.current?.contains(window.document.activeElement)) window.document.activeElement?.blur();
-    setRunOpen(false);
+    setTestOpen(false);
     setCanvasProblem(null);
     setRunViewScope(scope);
   }, [session.resource_id]);
@@ -781,9 +785,9 @@ export default function SkeletonResourcePage({
         take();
         return;
       }
-      /* An open Run menu is the nearest thing to close. */
-      if (runOpen) {
-        setRunOpen(false);
+      /* An open Test panel is the nearest thing to close. */
+      if (testOpen) {
+        setTestOpen(false);
         take();
         return;
       }
@@ -807,7 +811,7 @@ export default function SkeletonResourcePage({
     };
     window.document.addEventListener("keydown", onKey);
     return () => window.document.removeEventListener("keydown", onKey);
-  }, [drill_up, runOpen, runViewScope]);
+  }, [drill_up, testOpen, runViewScope]);
   dirtyRef.current = Boolean(session.dirty);
   useEffect(() => {
     if (!session.dirty) setEscapeHeld(false);
@@ -839,7 +843,7 @@ export default function SkeletonResourcePage({
   /* What the control center says belongs to the graph on screen: another
      resource or another graph inside this one starts without it. */
   useEffect(() => {
-    setRunOpen(false);
+    setTestOpen(false);
   }, [session.open_id]);
   useEffect(() => {
     setCanvasProblem(null);
@@ -896,7 +900,15 @@ export default function SkeletonResourcePage({
         }
       : null,
   ].filter(Boolean);
-  const showRun = runOpen && ready;
+  const showRun = testOpen && ready;
+  /* "Go to node" from the Test panel: the node it names is in this
+     resource's own graph, so an embedded child open on the canvas is left
+     for it first (one drill frame per embedded step). */
+  const fix_node = (node_id) => {
+    if (steps.length > 0) drill_to(stack.length - steps.length);
+    setTestOpen(false);
+    setSelectedNodeId(node_id);
+  };
   const upgradeCandidate = ready && steps.length === 0 && !runViewScope
     && is_legacy_upgrade_candidate(session.document);
   // First-hop migration carries its source on the root graph. Its old pool
@@ -944,7 +956,10 @@ export default function SkeletonResourcePage({
           document={document}
           commandScope={`${session.open_id}:${revision}`}
           onGraphCommand={(document?.kind === "agent" || document?.kind === "workflow") && document?.schema_version === 1 ? graphCommand : undefined}
-          onSelectNode={id=>{setSelectedNodeId(id);if(id){setRunOpen(false);setPanelClosed(false);}}}
+          onSelectNode={(id) => {
+            setSelectedNodeId(id);
+            if (id) setTestOpen(false);
+          }}
           onOpenSubagent={open_subagent}
           onOpenWorkflow={open_called_workflow}
           managedSources={session.sources}
@@ -1067,8 +1082,8 @@ export default function SkeletonResourcePage({
           saveLabel={session.saving ? t("agents.save.saving") : t("agents.save.save")}
           saveDisabled={!can_save(session)}
           saveActive={Boolean(session.dirty && !session.conflict)}
-          run={steps.length===0?<RunTrigger testId="skeleton-control-center-run" open={runOpen&&!panelClosed}
-            onToggle={()=>{setPanelClosed(false);setRunOpen(open=>panelClosed?true:!open);}}/>:null}
+          run={<RunTrigger testId="skeleton-control-center-run" open={testOpen}
+            onToggle={() => setTestOpen((open) => !open)} />}
         />
       )}
       {session.status !== SESSION_STATUS.EMPTY &&
@@ -1092,13 +1107,16 @@ export default function SkeletonResourcePage({
         <div data-testid="skeleton-editor-detail-boundary" inert={Boolean(runViewScope)} aria-hidden={runViewScope ? "true" : undefined} style={{ display: "contents" }}>
         <FloatingDetailShell
           isDark={isDark}
-          open={(Boolean(selectedNodeId)||runOpen) && !panelClosed && !runViewScope}
+          open={(Boolean(selectedNodeId) || testOpen) && !runViewScope}
           width={detail.width}
           minWidth={detail.minWidth}
           resizing={Boolean(detail.resizing)}
           testId="skeleton-detail-panel-shell"
-          onClose={() => {if(runOpen)setPanelClosed(true);else setSelectedNodeId(null);}}
-          onOpen={(reopenTarget||runOpen) && !runViewScope ? () => {setPanelClosed(false);if(!runOpen)setSelectedNodeId(reopenTarget);} : undefined}
+          onClose={() => {
+            setTestOpen(false);
+            setSelectedNodeId(null);
+          }}
+          onOpen={reopenTarget && !runViewScope ? () => setSelectedNodeId(reopenTarget) : undefined}
           handle={
             typeof detail.onDragStart === "function"
               ? {
@@ -1113,7 +1131,7 @@ export default function SkeletonResourcePage({
         >
           {/* Remounted by undo and redo: the document under a field was
               replaced, not typed into, so text it was holding has to go. */}
-          <div style={{display:showRun&&!panelClosed?'none':'contents'}}>
+          <div style={{ display: showRun ? "none" : "contents" }}>
           <DetailPanel
             key={`${session.open_id}:${session.history_epoch || 0}`}
             recipe={null}
@@ -1143,11 +1161,12 @@ export default function SkeletonResourcePage({
           />
           </div>
           <BuilderTestPanel key={session.document?.id}
-            active={showRun&&!panelClosed&&!runViewScope&&steps.length===0}
+            active={showRun && !runViewScope}
             session={session} isDark={isDark} onSave={handleSave} onCheck={preflight}
-            onDetails={()=>setRunOpen(false)}
+            onFix={fix_node}
+            scopeNote={steps.length > 0 ? t("agents.test_run.embedded_note", { name: resource_label }) : null}
             onViewChatRun={open_run_view}
-            onObserve={scope=>setRunViewScope(scope)}/>
+            onObserve={(scope) => setRunViewScope(scope)} />
         </FloatingDetailShell>
         </div>
       )}

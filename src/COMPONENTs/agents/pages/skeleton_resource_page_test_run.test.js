@@ -27,3 +27,17 @@ test('Run opens Test in the existing right detail shell, without execution or sa
   expect(builderTestCommand.mock.calls.some(([request])=>request.op==='start')).toBe(false);
   expect(screen.getByRole('textbox',{name:'city'})).toBeInTheDocument();
 });
+
+test('picking a node shows that node, and Run brings the same Test panel back with what was typed',async()=>{
+  api.unchain.getSkeletonResource=jest.fn().mockResolvedValue(resource);
+  builderTestCommand.mockResolvedValue({schema:'pupu.builder-test.v1',session:{id:'builder-test-wf',resource_id:'test-wf',kind:'workflow'},runs:[]});
+  render(<ConfigContext.Provider value={{theme:{},onThemeMode:'light_mode'}}><SkeletonResourcePage resourceId="test-wf"/></ConfigContext.Provider>);
+  await screen.findByTestId('skeleton-node-start');
+  fireEvent.click(screen.getByTestId('skeleton-control-center-run'));
+  fireEvent.change(await screen.findByRole('textbox',{name:'city'}),{target:{value:'Paris'}});
+  fireEvent.click(screen.getByTestId('skeleton-node-end'));
+  expect(screen.queryByTestId('builder-test-panel')).toBeNull();
+  expect(screen.getByTestId('recipe-detail-panel-header')).toBeInTheDocument();
+  fireEvent.click(screen.getByTestId('skeleton-control-center-run'));
+  expect(await screen.findByRole('textbox',{name:'city'})).toHaveValue('Paris');
+});

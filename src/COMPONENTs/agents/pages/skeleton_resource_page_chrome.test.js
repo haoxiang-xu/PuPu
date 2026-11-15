@@ -193,7 +193,7 @@ describe("the rest of the control center", () => {
     api.unchain.preflightSkeletonResource = jest.fn().mockResolvedValue({ ok: true, definition_digest: "sha256:a" });
     await act(async () => { openRunMenu(); });
     expect(api.unchain.preflightSkeletonResource).toHaveBeenCalledTimes(1);
-    expect(screen.getByTestId("skeleton-preflight-state")).toHaveTextContent("Ready to run.");
+    expect(screen.getByTestId("skeleton-preflight-state")).toHaveTextContent(/^Ready\./);
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByTestId("skeleton-run-menu")).toBeNull();
   });

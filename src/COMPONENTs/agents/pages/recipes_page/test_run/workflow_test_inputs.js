@@ -4,14 +4,28 @@ import SegmentedButton from "../../../../../BUILTIN_COMPONENTs/input/segmented_b
 import TextField from "../../../../../BUILTIN_COMPONENTs/input/textfield";
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { callee_interface } from "../workflow_call_config";
-import { workflow_parameters, workflow_signature_problems, parameter_type_matches } from "../workflow_parameters";
+import { workflow_parameters, workflow_signature_problems, parameter_type_matches, PARAMETER_TYPES } from "../workflow_parameters";
+import { TableHeads, TableRow, TABLE_CONTROL_INSET } from "../detail_panel/parameter_table";
+import { typed_input_template } from "../detail_panel/typed_input_row";
+import {
+  CONTROL_HEIGHT, CONTROL_RADIUS, REGION_RADIUS, Region, fieldBackground, muted, note, problem as problemOf, removeButtonStyle,
+} from "../detail_panel/panel_style";
 
 const record = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 const own = (value, key) => record(value) && Object.prototype.hasOwnProperty.call(value, key);
 const WHOLE_OBJECT = "\u0000workflow-input";
-const FIELD_STYLE = { width: "100%", minWidth: 0, fontSize: 12, paddingVertical: 5, paddingHorizontal: 7 };
-const muted = (isDark) => ({ color: isDark ? "#a1a1aa" : "#68686f" });
-const problemStyle = (isDark) => ({ color: isDark ? "#ff8c8c" : "#b02020", fontSize: 11.5, overflowWrap: "anywhere" });
+const MONO = { fontFamily: "ui-monospace, Menlo, monospace" };
+const ELLIPSIS = { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
+/* One value cell: the panel's white field, one line high for a scalar and a
+   region-cornered box for JSON, growing with what is typed. Its 4px inset
+   puts a line of 12px text at the panel's control height. */
+const cellStyle = (isDark, json) => ({
+  width: "100%", minWidth: 0, fontSize: 12, padding: 4, minHeight: CONTROL_HEIGHT,
+  borderRadius: json ? REGION_RADIUS : CONTROL_RADIUS, restFill: fieldBackground(isDark), restBorder: "1px solid transparent",
+  ...(json ? MONO : {}),
+});
+const type_word = (type, t) => type === undefined ? t("agents.parameters.types.any")
+  : PARAMETER_TYPES.includes(type) ? t(`agents.parameters.types.${type}`) : String(type);
 
 // A local form identity, never a Host digest. Ignore graph-only edits and JSON
 // key order, but do not carry arguments/drafts across a different interface.
@@ -61,7 +75,12 @@ function server_error(errors, key) {
   }) || null;
 }
 
-/** Controlled run-time arguments form. It never changes or saves the Workflow document. */
+/** Controlled run-time arguments form. It never changes or saves the Workflow document.
+ *
+ * Drawn as the panel's one table of named, typed values — Name / Type /
+ * Value, the same as Start's Parameters and a Workflow Call's Inputs — so the
+ * place a Workflow's inputs are declared and the place they are filled in for
+ * a test look like the same list. */
 export default function WorkflowTestInputs({ document, value, onChange, onValidityChange, isDark, disabled = false, errors = [] }) {
   const { t } = useTranslation();
   const [drafts, setDrafts] = useState({});
@@ -77,8 +96,9 @@ export default function WorkflowTestInputs({ document, value, onChange, onValidi
         name, type: field?.type, required,
         has_default: !!field && Object.prototype.hasOwnProperty.call(field, "default"),
         default: field?.default,
+        description: typeof field?.description === "string" ? field.description : "",
       }))
-      : (legacy?.inputs || []).map(({ key }) => ({ name: key, required: true }));
+      : (legacy?.inputs || []).map(({ key }) => ({ name: key, type: undefined, required: true }));
     return { hasSignature, legacy, malformed, rows };
   }, [document]);
   const { hasSignature, legacy, malformed, rows } = model;
@@ -120,50 +140,61 @@ export default function WorkflowTestInputs({ document, value, onChange, onValidi
     onChange?.(next);
   };
 
-  if (malformed) return <div role="alert" data-testid="workflow-test-inputs-invalid" style={problemStyle(isDark)}>
+  if (malformed) return <div role="alert" data-testid="workflow-test-inputs-invalid" style={problemOf(isDark)}>
     {t("agents.parameters.invalid", { path: "input_schema" })}
   </div>;
 
+  const template = typed_input_template(rows.map((row) => row.name));
   const renderRow = (row) => {
     const key = row.name;
     const draft = drafts[key];
     const anyMode = row.type === undefined;
     const mode = anyMode ? modes.has(key) ? modes.get(key) : own(supplied, key) && typeof supplied[key] !== "string" ? "json" : "text" : null;
+    const json = row.type === "object" || row.type === "array" || mode === "json";
     const text = draft ? draft.text : initial_text(supplied, row, mode);
     const error = server_error(errors, key);
-    const summary = row.required ? t("agents.parameters.required")
-      : row.has_default ? t("agents.execution.tool.default_value", { value1: JSON.stringify(row.default) }) : "";
-    return <div key={key} data-testid={`workflow-test-input-${key}`} style={{ display: "flex", flexDirection: "column", gap: 5, padding: "7px 0", minWidth: 0 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-        <label htmlFor={`workflow-test-input-control-${encodeURIComponent(key)}`} style={{ minWidth: 0, overflowWrap: "anywhere", fontSize: 12, fontWeight: 600 }}>
-          {key}{row.type ? <span style={{ ...muted(isDark), fontWeight: 400 }}> · {t(`agents.parameters.types.${row.type}`)}</span> : null}
+    /* Nothing typed is a placeholder: the default the Workflow falls back
+       to, or what kind of value goes here. */
+    const placeholder = row.has_default ? t("agents.execution.tool.default_value", { value1: JSON.stringify(row.default) })
+      : json ? t("agents.execution.tool.json_placeholder", { type: row.type || "JSON" })
+        : row.required ? t("agents.execution.tool.literal_placeholder") : t("agents.parameters.default_short");
+    const word = type_word(row.type, t);
+    return (
+      <TableRow key={key} template={template} testid={`workflow-test-input-${key}`} below={<>
+        {anyMode && (
+          <div data-testid={`workflow-test-input-${key}-mode`} style={{ display: "flex", padding: "0 6px 6px 10px" }}>
+            <SegmentedButton options={[
+              { value: "text", label: t("agents.test_run.text_mode") },
+              { value: "json", label: t("agents.test_run.json_mode") },
+            ]} value={mode} on_change={(next) => {
+              setModes((current) => new Map(current).set(key, next));
+              setDrafts((current) => { const nextDrafts = { ...current }; delete nextDrafts[key]; return nextDrafts; });
+            }} disabled={disabled} style={{ fontSize: 11, padding: 2, borderRadius: CONTROL_RADIUS }} button_style={{ padding: "2px 8px" }} />
+          </div>
+        )}
+        {draft && !draft.ok && <span role="status" style={{ ...problemOf(isDark), padding: "0 10px 6px" }}>{draft.message}</span>}
+        {error && <span role="status" style={{ ...problemOf(isDark), padding: "0 10px 6px" }}>{error.message || error.code || t("agents.execution.tool.arguments_failed")}</span>}
+      </>}>
+        <label htmlFor={`workflow-test-input-control-${encodeURIComponent(key)}`} title={[key, row.description].filter(Boolean).join(" — ")}
+          style={{ ...ELLIPSIS, ...MONO, fontSize: 11.5 }}>
+          {key}{row.required && <span aria-label={t("agents.schema.required")} style={{ color: problemOf(isDark).color, marginLeft: 2 }}>*</span>}
         </label>
-        <span style={{ ...muted(isDark), fontSize: 11, minWidth: 0, maxWidth: "65%", overflowWrap: "anywhere", textAlign: "right" }}>{summary}</span>
-      </div>
-      {anyMode && <div data-testid={`workflow-test-input-${key}-mode`} style={{ alignSelf: "flex-start" }}>
-        <SegmentedButton options={[
-          { value: "text", label: t("agents.test_run.text_mode") },
-          { value: "json", label: t("agents.test_run.json_mode") },
-        ]} value={mode} on_change={(next) => {
-          setModes((current) => new Map(current).set(key, next));
-          setDrafts((current) => { const nextDrafts = { ...current }; delete nextDrafts[key]; return nextDrafts; });
-        }} disabled={disabled} style={{ fontSize: 11, padding: 2 }} button_style={{ padding: "3px 8px" }} />
-      </div>}
-      <div style={{ display: "flex", alignItems: "center", gap: 5, minWidth: 0 }}>
-        <TextField aria_label={key} textarea_ref={(element) => {
-          if (element) {
-            element.id = `workflow-test-input-control-${encodeURIComponent(key)}`;
-            element.dataset.testid = `workflow-test-input-control-${key}`;
-          }
-        }} value={text} disabled={disabled} min_rows={1} max_display_rows={3}
-          placeholder={row.type === "object" || row.type === "array" ? t("agents.execution.tool.json_placeholder", { type: row.type }) : t("agents.execution.tool.literal_placeholder")}
-          set_value={(next) => update(key, parse_input(next, row.type, mode, t), next)} style={{ ...FIELD_STYLE, flex: 1, minHeight: 34, padding: 7 }} />
-        {own(supplied, key) && <Button ariaLabel={t("agents.parameters.remove", { name: key })} label={null} prefix_icon="close" disabled={disabled}
-          onClick={() => remove(key)} style={{ iconOnlyPaddingHorizontal: 5, iconOnlyPaddingVertical: 5, content: { icon: { width: 12, height: 12 } } }} />}
-      </div>
-      {draft && !draft.ok && <span role="status" style={problemStyle(isDark)}>{draft.message}</span>}
-      {error && <span role="status" style={problemStyle(isDark)}>{error.message || error.code || t("agents.execution.tool.arguments_failed")}</span>}
-    </div>;
+        <span title={word} style={{ ...ELLIPSIS, fontSize: 11.5, color: muted(isDark) }}>{word}</span>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 2, minWidth: 0 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <TextField aria_label={key} textarea_ref={(element) => {
+              if (element) {
+                element.id = `workflow-test-input-control-${encodeURIComponent(key)}`;
+                element.dataset.testid = `workflow-test-input-control-${key}`;
+              }
+            }} value={text} disabled={disabled} min_rows={1} max_display_rows={json ? 8 : 4} placeholder={placeholder}
+              set_value={(next) => update(key, parse_input(next, row.type, mode, t), next)} style={cellStyle(isDark, json)} />
+          </div>
+          {own(supplied, key) && <Button ariaLabel={t("agents.parameters.remove", { name: key })} label={null} prefix_icon="close" disabled={disabled}
+            onClick={() => remove(key)} style={{ ...removeButtonStyle(isDark), marginTop: 2 }} />}
+        </div>
+      </TableRow>
+    );
   };
 
   const whole = !hasSignature && legacy.whole;
@@ -172,11 +203,19 @@ export default function WorkflowTestInputs({ document, value, onChange, onValidi
   if (!wholeDraft) {
     try { wholeText = JSON.stringify(supplied, null, 2) ?? ""; } catch (_) { wholeText = ""; }
   }
-  return <div data-testid="workflow-test-inputs" style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
-    {rows.map(renderRow)}
-    {whole && <div data-testid="workflow-test-input-whole" style={{ display: "flex", flexDirection: "column", gap: 5, padding: "7px 0", minWidth: 0 }}>
-      <label htmlFor="workflow-test-input-whole-control" style={{ fontSize: 12, fontWeight: 600 }}>{t("agents.test_run.input_object")}</label>
-      <TextField aria_label={t('agents.test_run.input_object')} textarea_ref={(element) => {
+  if (rows.length === 0 && !whole) return <span data-testid="workflow-test-inputs" style={note(isDark)}>{t("agents.parameters.none")}</span>;
+  return <div data-testid="workflow-test-inputs" style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }}>
+    {rows.length > 0 && (
+      <Region isDark={isDark}>
+        <TableHeads key="heads" testid="workflow-test-input-heads" isDark={isDark} template={template}
+          columns={[{ label: t("agents.parameters.name_short") }, { label: t("agents.parameters.type") },
+            { label: t("agents.execution.tool.value_mode"), inset: TABLE_CONTROL_INSET }]} />
+        {rows.map(renderRow)}
+      </Region>
+    )}
+    {whole && <div data-testid="workflow-test-input-whole" style={{ display: "flex", flexDirection: "column", gap: 5, minWidth: 0 }}>
+      <label htmlFor="workflow-test-input-whole-control" style={note(isDark)}>{t("agents.test_run.input_object")}</label>
+      <TextField aria_label={t("agents.test_run.input_object")} textarea_ref={(element) => {
         if (element) {
           element.id = "workflow-test-input-whole-control";
           element.dataset.testid = "workflow-test-input-whole-control";
@@ -185,9 +224,8 @@ export default function WorkflowTestInputs({ document, value, onChange, onValidi
         set_value={(next) => {
           const parsed = parse_input(next, "object", "json", t);
           update(WHOLE_OBJECT, parsed, next, true);
-        }} style={{ ...FIELD_STYLE, minHeight: 78, padding: 7, fontFamily: "ui-monospace, Menlo, monospace" }} />
-      {wholeDraft && !wholeDraft.ok && <span role="status" style={problemStyle(isDark)}>{wholeDraft.message}</span>}
+        }} style={{ ...cellStyle(isDark, true), padding: 8 }} />
+      {wholeDraft && !wholeDraft.ok && <span role="status" style={problemOf(isDark)}>{wholeDraft.message}</span>}
     </div>}
-    {rows.length === 0 && !whole && <span style={{ ...muted(isDark), fontSize: 11.5 }}>{t("agents.parameters.none")}</span>}
   </div>;
 }

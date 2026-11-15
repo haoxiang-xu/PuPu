@@ -18,7 +18,7 @@ test('opening only reads; explicit send uses a dedicated session and exact saved
   expect(builderTestCommand.mock.calls.filter(([request])=>request.op==='start')).toHaveLength(0);
   fireEvent.change(screen.getByRole('textbox',{name:'Test message'}),{target:{value:'hello'}});
   builderTestCommand.mockResolvedValue(completed);
-  fireEvent.click(screen.getByRole('button',{name:'Send test message'}));
+  fireEvent.click(screen.getByRole('button',{name:'Send'}));
   await screen.findByText('reply');
   expect(builderTestCommand).toHaveBeenLastCalledWith(expect.objectContaining({op:'start',session_id:'builder-test-demo',resource_id:'agent-demo',
     expected_edit_token:'edit-A',inputs:{message:'hello'}}));
@@ -29,7 +29,7 @@ test('save conflict preserves arguments and never starts the old draft',async()=
   render(<BuilderTestPanel active session={{...session,dirty:true}} isDark={false} onSave={onSave} />);
   await screen.findByRole('textbox',{name:'Test message'});
   fireEvent.change(screen.getByRole('textbox',{name:'Test message'}),{target:{value:'keep this'}});
-  fireEvent.click(screen.getByRole('button',{name:'Save and test'}));
+  fireEvent.click(screen.getByRole('button',{name:'Save and send'}));
   await waitFor(()=>expect(onSave).toHaveBeenCalledTimes(1));
   expect(builderTestCommand.mock.calls.some(([request])=>request.op==='start')).toBe(false);
   expect(screen.getByRole('textbox',{name:'Test message'})).toHaveValue('keep this');
@@ -63,7 +63,7 @@ test('saving a new draft continues the same explicit test action after the save 
   }
   render(<NewDraft/>);
   fireEvent.change(screen.getByRole('textbox',{name:'Test message'}),{target:{value:'new draft'}});
-  fireEvent.click(screen.getByRole('button',{name:'Save and test'}));
+  fireEvent.click(screen.getByRole('button',{name:'Save and send'}));
   await screen.findByText('reply');
   expect(builderTestCommand.mock.calls.filter(([request])=>request.op==='start')).toHaveLength(1);
 });
@@ -73,9 +73,9 @@ test('an unconfirmed start is looked up, never automatically sent again',async()
   await waitFor(()=>expect(builderTestCommand).toHaveBeenCalledTimes(1));
   fireEvent.change(screen.getByRole('textbox',{name:'Test message'}),{target:{value:'send once'}});
   builderTestCommand.mockRejectedValueOnce(Object.assign(new Error('unconfirmed'),{code:'builder_test_unconfirmed'}));
-  fireEvent.click(screen.getByRole('button',{name:'Send test message'}));
+  fireEvent.click(screen.getByRole('button',{name:'Send'}));
   await screen.findByRole('alert');
-  expect(screen.getByRole('button',{name:'Send test message'})).toBeDisabled();
+  expect(screen.getByRole('button',{name:'Send'})).toBeDisabled();
   builderTestCommand.mockResolvedValue(completed);
   fireEvent.click(screen.getByRole('button',{name:'Refresh'}));
   await screen.findByText('reply');
@@ -89,7 +89,7 @@ test('the real v1 toolkit catalog name is submitted as the toolkit identity',asy
   try{
     render(<BuilderTestPanel active session={session} isDark={false}/>);
     await waitFor(()=>expect(builderTestCommand).toHaveBeenCalledTimes(1));
-    fireEvent.click(screen.getByRole('button',{name:'Tools and workspace'}));
+    fireEvent.click(screen.getByRole('button',{name:'Run settings'}));
     await act(async()=>{await Promise.resolve();});
     await waitFor(()=>expect(catalog).toHaveBeenCalledTimes(1));
     fireEvent.keyDown(screen.getAllByRole('combobox')[1],{key:'ArrowDown'});
@@ -99,7 +99,7 @@ test('the real v1 toolkit catalog name is submitted as the toolkit identity',asy
     fireEvent.keyDown(screen.getAllByRole('combobox')[1],{key:'Escape'});
     fireEvent.change(screen.getByRole('textbox',{name:'Test message'}),{target:{value:'tool scope'}});
     builderTestCommand.mockResolvedValue(completed);
-    fireEvent.click(screen.getByRole('button',{name:'Send test message'}));
+    fireEvent.click(screen.getByRole('button',{name:'Send'}));
     await waitFor(()=>expect(builderTestCommand).toHaveBeenLastCalledWith(expect.objectContaining({op:'start',toolkits:['core']})));
   }finally{catalog.mockRestore();}
 });
@@ -115,7 +115,7 @@ test('a transient status-read failure keeps read-only polling without resending'
     render(<BuilderTestPanel active session={session} isDark={false}/>);
     await act(async()=>{await Promise.resolve();});
     fireEvent.change(screen.getByRole('textbox',{name:'Test message'}),{target:{value:'poll me'}});
-    fireEvent.click(screen.getByRole('button',{name:'Send test message'}));
+    fireEvent.click(screen.getByRole('button',{name:'Send'}));
     await act(async()=>{await Promise.resolve();});
     await act(async()=>{jest.advanceTimersByTime(700);});
     expect(screen.getByRole('alert')).toHaveTextContent('temporary read race');
@@ -137,8 +137,8 @@ test('changed Workflow parameters discard obsolete argument values before the ne
   fireEvent.change(screen.getByRole('textbox',{name:'old',exact:true}),{target:{value:'obsolete'}});
   rerender(<BuilderTestPanel active session={{...workflowSession('fresh','integer'),edit_token:'edit-B'}} isDark={false}/>);
   fireEvent.change(screen.getByRole('textbox',{name:'fresh',exact:true}),{target:{value:'7'}});
-  await waitFor(()=>expect(screen.getByRole('button',{name:'Run Workflow',exact:true})).toBeEnabled());
-  fireEvent.click(screen.getByRole('button',{name:'Run Workflow',exact:true}));
+  await waitFor(()=>expect(screen.getByRole('button',{name:'Run',exact:true})).toBeEnabled());
+  fireEvent.click(screen.getByRole('button',{name:'Run',exact:true}));
   await waitFor(()=>expect(builderTestCommand).toHaveBeenLastCalledWith(expect.objectContaining({op:'start',expected_edit_token:'edit-B',inputs:{fresh:7}})));
 });
 
@@ -147,10 +147,10 @@ test('an invalid draft for a removed Workflow parameter cannot disable its repla
   const {rerender}=render(<BuilderTestPanel active session={workflowSession('old','integer')} isDark={false}/>);
   await waitFor(()=>expect(builderTestCommand).toHaveBeenCalledTimes(1));
   fireEvent.change(screen.getByRole('textbox',{name:'old',exact:true}),{target:{value:'invalid'}});
-  expect(screen.getByRole('button',{name:'Run Workflow',exact:true})).toBeDisabled();
+  expect(screen.getByRole('button',{name:'Run',exact:true})).toBeDisabled();
   rerender(<BuilderTestPanel active session={{...workflowSession('fresh','integer'),edit_token:'edit-B'}} isDark={false}/>);
   fireEvent.change(screen.getByRole('textbox',{name:'fresh',exact:true}),{target:{value:'7'}});
-  await waitFor(()=>expect(screen.getByRole('button',{name:'Run Workflow',exact:true})).toBeEnabled());
+  await waitFor(()=>expect(screen.getByRole('button',{name:'Run',exact:true})).toBeEnabled());
   expect(builderTestCommand.mock.calls.some(([request])=>request.op==='start')).toBe(false);
 });
 
@@ -185,4 +185,35 @@ test('a changed parameter interface leaves the admitted waiting run attached and
   expect(screen.getByTestId('test-turn-builder-run-A')).toHaveTextContent('Waiting');
   expect(waiting.runs[0].inputs).toEqual({old:'frozen A'});
   expect(builderTestCommand.mock.calls.some(([request])=>['start','respond','resume','cancel','new'].includes(request.op))).toBe(false);
+});
+
+test('a Workflow result is its End outputs as a Name / Value table, and a failure names the node it happened at',async()=>{
+  const doc={...workflowSession().document,nodes:[{id:'start',type:'start',config:{execution:{outputs:[]}}},{id:'code',type:'code',label:'Summarize',config:{execution:{inputs:[],outputs:[]}}}]};
+  const runs=[{...completed.runs[0],id:'builder-run-ok',inputs:{old:'x'},output:{summary:'short text',count:3}},
+    {...completed.runs[0],id:'builder-run-bad',inputs:{old:'y'},status:'failed',output:null,error:{code:'code_failed',path:['document','nodes',1],message:'division by zero'}}];
+  builderTestCommand.mockResolvedValue({...workflowOpened,runs});
+  const onFix=jest.fn();
+  render(<BuilderTestPanel active session={{...workflowSession(),document:doc}} isDark={false} onFix={onFix}/>);
+  const failure=await screen.findByTestId('test-run-error');
+  expect(failure).toHaveTextContent('Failed at “Summarize”');
+  expect(failure).toHaveTextContent('division by zero');
+  fireEvent.click(screen.getByRole('button',{name:'Go to node'}));
+  expect(onFix).toHaveBeenCalledWith('code');
+  /* The earlier, successful run is folded under the latest one. */
+  fireEvent.click(screen.getByRole('button',{name:'Earlier runs'}));
+  expect(screen.getByTestId('test-workflow-output-summary')).toHaveTextContent('short text');
+  expect(screen.getByTestId('test-workflow-output-count')).toHaveTextContent('3');
+});
+
+test('a refused check says which node to fix, blocks Run, and Go to node opens that node',async()=>{
+  const doc={...document,nodes:[{id:'start',type:'start',config:{execution:{outputs:[]}}},
+    {id:'agent',type:'agent',config:{execution:{inputs:[],outputs:[]},kernel_draft:{model:null,prompt:'p',max_iterations:null}}}]};
+  const onFix=jest.fn();
+  render(<BuilderTestPanel active isDark={false} onFix={onFix} session={{...session,document:doc,preflight:{ok:false,
+    error:{code:'invalid_shape',path:['document','nodes',1,'config'],message:'Agent node requires execution and kernel configuration'}}}}/>);
+  expect(await screen.findByTestId('skeleton-preflight-state')).toHaveTextContent('Can’t run yet: “Agent” has no model selected.');
+  fireEvent.change(screen.getByRole('textbox',{name:'Test message'}),{target:{value:'hello'}});
+  expect(screen.getByRole('button',{name:'Send'})).toBeDisabled();
+  fireEvent.click(screen.getByRole('button',{name:'Go to node'}));
+  expect(onFix).toHaveBeenCalledWith('agent');
 });

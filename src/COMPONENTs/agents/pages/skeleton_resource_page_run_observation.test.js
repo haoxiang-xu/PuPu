@@ -27,7 +27,7 @@ const show = () => render(<ConfigContext.Provider value={{ theme: {}, onThemeMod
 </ConfigContext.Provider>);
 const openView = async () => {
   fireEvent.click(screen.getByRole("button", { name: "Open the run menu" }));
-  fireEvent.click(await screen.findByRole("button", { name: "View current chat run" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Watch it running in chat" }));
 };
 
 beforeEach(() => {

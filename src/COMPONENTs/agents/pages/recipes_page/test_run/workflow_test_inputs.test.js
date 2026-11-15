@@ -31,8 +31,12 @@ const anyModeButton = (key, mode = "json") => within(screen.getByTestId(`workflo
 test("required and defaulted parameters are shown without injecting defaults into the supplied value", () => {
   const { onChange } = renderForm();
   expect(screen.getByTestId("workflow-test-input-city")).toBeInTheDocument();
-  expect(screen.getByText(/Required/)).toBeInTheDocument();
-  expect(screen.getByText(/defaults to 3/)).toBeInTheDocument();
+  /* The same table as Start's Parameters: a required name carries the red
+     mark, and a default is the empty cell's placeholder, never a value. */
+  expect(within(screen.getByTestId("workflow-test-input-city")).getByLabelText("required")).toBeInTheDocument();
+  expect(within(screen.getByTestId("workflow-test-input-days")).queryByLabelText("required")).toBeNull();
+  expect(screen.getByLabelText("days")).toHaveAttribute("placeholder", "defaults to 3");
+  expect(screen.getByTestId("workflow-test-input-heads")).toHaveTextContent(/Name\s*Type\s*Value/);
   expect(onChange).not.toHaveBeenCalled();
 });
 

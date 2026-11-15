@@ -205,7 +205,7 @@ describe("the run check, in the page", () => {
     await act(async () => {
       openRunMenu();
     });
-    expect(screen.getByTestId("skeleton-preflight-state").textContent).toMatch(/not ready to run/i);
+    expect(screen.getByTestId("skeleton-preflight-state").textContent).toMatch(/^Can’t run yet: /);
   });
 });
 
@@ -802,7 +802,7 @@ describe("a legacy inline subagent, converted on the real page", () => {
        that node, so the check is answerable out of the document alone. */
     expect(api.unchain.preflightSkeletonResource).toHaveBeenCalledWith("life", null);
     expect(screen.getByTestId("skeleton-preflight-state").textContent).toMatch(
-      /Ready to run/,
+      /^Ready\./,
     );
   });
 
