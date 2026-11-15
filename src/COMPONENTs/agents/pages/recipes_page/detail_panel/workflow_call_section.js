@@ -281,15 +281,11 @@ export default function WorkflowCallSection({ document, node, rowDiagnostics, is
   const optionsKey = options.map((option) => option.value + "\u0001" + option.label).join("\u0000");
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const tree = useMemo(() => buildAgentPickerTree({ choices: options }), [optionsKey]);
-  const [treeVisible, setTreeVisible] = useState(null);
-  const treeValues = useMemo(() => {
-    if (!treeVisible) return tree.values;
-    const known = new Set(tree.values);
-    return treeVisible.filter((id) => known.has(id));
-  }, [tree, treeVisible]);
-  const renderTree = ({ highlighted_value, render_option }) => (
+  /* The Select owns the tree's hover and visible rows (see Select's
+     palette_tree): the pill follows the pointer onto folder rows too. */
+  const renderTree = ({ highlighted_value, render_option, on_hover_row, on_visible_change }) => (
     <CommandTree data={tree.data} root={tree.root} activeNodeId={highlighted_value ?? null}
-      onVisibleChange={setTreeVisible} isDark={isDark} bare width="100%"
+      onHover={on_hover_row} onVisibleChange={on_visible_change} isDark={isDark} bare width="100%"
       renderRow={({ node: row, depth }) => render_option(row.option, { depth })} />
   );
   const pin_here = pin && pin.workflow_id === chosen;
@@ -359,7 +355,6 @@ export default function WorkflowCallSection({ document, node, rowDiagnostics, is
               set_value={choose}
               filterable
               palette_tree={renderTree}
-              palette_tree_values={treeValues}
               placeholder={library.status === "loading" ? t("agents.workflow.reading_library") : t("agents.workflow.choose")}
               disabled={!editable || library.status !== "ready"}
               dropdown_style={{ maxHeight: "min(280px, 40vh)" }}
