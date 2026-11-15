@@ -15,6 +15,7 @@ const {
 } = require("./skeleton_credentials");
 const { withConfiguredKernelProfiles } = require("./skeleton_kernel_catalog");
 const { createPortFinder } = require("../../../shared/port_utils");
+const { runBuilderTestCommand } = require('./builder_tests');
 const {
   MEMORY_V2_ENV_KEYS,
   constrainMemoryV2ConfigForPlatform,
@@ -4648,6 +4649,29 @@ const createUnchainService = ({
     const observationScope = action === "run_observation"
       ? Object.freeze({ ...checkSkeletonRunObservationRequest(payload) }) : null;
     ensureMisoReady();
+    if (action === 'builder_test') {
+      if (['start','respond','resume'].includes(payload?.op) && (windowsVaultCapabilityLatch.getStatus().status === 'lost' ||
+          (memoryV2RuntimeConfig.effectiveMode !== 'off' && memoryV2Readiness.status !== 'ready'))) {
+        const failure=getContextV2ReadinessFailure();
+        throw Object.assign(new Error(failure.message),{code:failure.code});
+      }
+      return runBuilderTestCommand(payload, {
+        resolveWorkspace: id => {
+          const snapshot=settingsStorageService?.getBootstrapSnapshot?.();
+          const rows=snapshot?.available===true && Array.isArray(snapshot.namespaces?.runtime?.workspaces)
+            ? snapshot.namespaces.runtime.workspaces.filter(row=>row?.id===id && typeof row.path==='string') : [];
+          return rows.length===1 ? runtimeService.validateWorkspaceRootPath(rows[0].path) : {valid:false};
+        },
+        resolveCredentials: (requirements, query) => resolveSkeletonCredentials(requirements, query, {
+          customProviders: requirements.profiles?.some(profile=>typeof profile.provider==='string' && profile.provider.startsWith('custom.'))
+            ? trustedCustomProviders(settingsStorageService?.readModelProviderRegistry?.() || {status:'unavailable'}) : [],
+          readSecret: readProviderSecretForInjection,
+        }),
+        post: async body => readSkeletonResourceResponse(await fetch(`http://${UNCHAIN_HOST}:${unchainPort}/skeleton_tests/command`, {
+          method:'POST',headers:{'Content-Type':'application/json','x-unchain-auth':unchainAuthToken},body:JSON.stringify(body),
+        })),
+      });
+    }
     if (upgrade) return runLegacyUpgradeCommand(upgrade, {
       baseUrl: `http://${UNCHAIN_HOST}:${unchainPort}`, authToken: unchainAuthToken,
       fetchImpl: (...args) => fetch(...args), readResponse: readSkeletonResourceResponse,

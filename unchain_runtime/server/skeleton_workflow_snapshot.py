@@ -154,7 +154,7 @@ def freeze_skeleton_workflow_dependencies(selection, *, store=None):
             return _restore_workflows(selection, json.loads(selection._workflows_json))
         selected = selection.to_dict()
         try:
-            _check_preflight(selected, selection.resource_id)
+            _check_preflight(selected, selection.resource_id, kind=selected["kind"])
         except (SkeletonResourceError, SkeletonValidationError):
             _snapshot_invalid(("selection",))
         metadata = _dependency_metadata(selected["dependencies"], ("dependencies",))

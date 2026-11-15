@@ -21,7 +21,8 @@ import {
   FloatingDetailShell,
   VISUALLY_HIDDEN,
 } from "./recipes_page/canvas_chrome";
-import SkeletonRunMenu, { RunTrigger } from "./recipes_page/skeleton_run_menu";
+import { RunTrigger } from "./recipes_page/skeleton_run_menu";
+import BuilderTestPanel from './recipes_page/test_run/builder_test_panel';
 import SkeletonRunView from "./recipes_page/skeleton_run_view";
 import { getChatMessages, getChatsStore } from "../../../SERVICEs/chat_storage";
 import { run_observation_scope } from "./recipes_page/run_observation_scope";
@@ -194,6 +195,7 @@ export default function SkeletonResourcePage({
   /* The control center's: Home, the Run menu, and an edit the canvas refused. */
   const [homeToken, setHomeToken] = useState(0);
   const [runOpen, setRunOpen] = useState(false);
+  const [panelClosed, setPanelClosed] = useState(false);
   const [runViewScope, setRunViewScope] = useState(null);
   const [canvasProblem, setCanvasProblem] = useState(null);
   /* The graphs left behind, outermost first. */
@@ -942,7 +944,7 @@ export default function SkeletonResourcePage({
           document={document}
           commandScope={`${session.open_id}:${revision}`}
           onGraphCommand={(document?.kind === "agent" || document?.kind === "workflow") && document?.schema_version === 1 ? graphCommand : undefined}
-          onSelectNode={setSelectedNodeId}
+          onSelectNode={id=>{setSelectedNodeId(id);if(id){setRunOpen(false);setPanelClosed(false);}}}
           onOpenSubagent={open_subagent}
           onOpenWorkflow={open_called_workflow}
           managedSources={session.sources}
@@ -1048,9 +1050,6 @@ export default function SkeletonResourcePage({
               </div>
             </ControlPopover>
           )}
-          {showRun && (
-            <SkeletonRunMenu session={session} isDark={isDark} onCheck={preflight} onViewRun={open_run_view} />
-          )}
           <CanvasMessageStrip isDark={isDark} items={messages} role="alert" />
         </AboveControls>
       )}
@@ -1068,7 +1067,8 @@ export default function SkeletonResourcePage({
           saveLabel={session.saving ? t("agents.save.saving") : t("agents.save.save")}
           saveDisabled={!can_save(session)}
           saveActive={Boolean(session.dirty && !session.conflict)}
-          run={<RunTrigger testId="skeleton-control-center-run" open={runOpen} onToggle={() => setRunOpen((open) => !open)} />}
+          run={steps.length===0?<RunTrigger testId="skeleton-control-center-run" open={runOpen&&!panelClosed}
+            onToggle={()=>{setPanelClosed(false);setRunOpen(open=>panelClosed?true:!open);}}/>:null}
         />
       )}
       {session.status !== SESSION_STATUS.EMPTY &&
@@ -1092,13 +1092,13 @@ export default function SkeletonResourcePage({
         <div data-testid="skeleton-editor-detail-boundary" inert={Boolean(runViewScope)} aria-hidden={runViewScope ? "true" : undefined} style={{ display: "contents" }}>
         <FloatingDetailShell
           isDark={isDark}
-          open={Boolean(selectedNodeId) && !runViewScope}
+          open={(Boolean(selectedNodeId)||runOpen) && !panelClosed && !runViewScope}
           width={detail.width}
           minWidth={detail.minWidth}
           resizing={Boolean(detail.resizing)}
           testId="skeleton-detail-panel-shell"
-          onClose={() => setSelectedNodeId(null)}
-          onOpen={reopenTarget && !runViewScope ? () => setSelectedNodeId(reopenTarget) : undefined}
+          onClose={() => {if(runOpen)setPanelClosed(true);else setSelectedNodeId(null);}}
+          onOpen={(reopenTarget||runOpen) && !runViewScope ? () => {setPanelClosed(false);if(!runOpen)setSelectedNodeId(reopenTarget);} : undefined}
           handle={
             typeof detail.onDragStart === "function"
               ? {
@@ -1113,6 +1113,7 @@ export default function SkeletonResourcePage({
         >
           {/* Remounted by undo and redo: the document under a field was
               replaced, not typed into, so text it was holding has to go. */}
+          <div style={{display:showRun&&!panelClosed?'none':'contents'}}>
           <DetailPanel
             key={`${session.open_id}:${session.history_epoch || 0}`}
             recipe={null}
@@ -1140,6 +1141,13 @@ export default function SkeletonResourcePage({
               : can_convert_legacy_pools(session) && steps.length === 0}
             convertingLegacy={session.converting}
           />
+          </div>
+          <BuilderTestPanel key={session.document?.id}
+            active={showRun&&!panelClosed&&!runViewScope&&steps.length===0}
+            session={session} isDark={isDark} onSave={handleSave} onCheck={preflight}
+            onDetails={()=>setRunOpen(false)}
+            onViewChatRun={open_run_view}
+            onObserve={scope=>setRunViewScope(scope)}/>
         </FloatingDetailShell>
         </div>
       )}

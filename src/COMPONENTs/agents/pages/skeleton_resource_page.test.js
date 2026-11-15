@@ -181,6 +181,9 @@ describe("the run check, in the page", () => {
     act(() => {
       openRunMenu();
     });
+    // Test Run now owns the right dock. Return to the same node's details
+    // before editing while the saved-version preflight is still in flight.
+    pressCanvasNode(screen.getByTestId("skeleton-node-end"));
     fireEvent.click(screen.getByRole("button", { name: "+ Add input", exact: true }));
 
     await act(async () => {
