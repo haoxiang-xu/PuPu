@@ -839,14 +839,6 @@ const AttachPanel = forwardRef(({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [agentSelectOptions, agentPickerOpen],
   );
-  /* The rows the tree shows right now (a folder can be folded), reported by
-     the tree itself; the picker's ↑↓ walk exactly these Agents. */
-  const [agentTreeVisibleIds, setAgentTreeVisibleIds] = useState(null);
-  const agentTreeValues = useMemo(() => {
-    if (!agentTreeVisibleIds) return agentTree.values;
-    const known = new Set(agentTree.values);
-    return agentTreeVisibleIds.filter((id) => known.has(id));
-  }, [agentTree, agentTreeVisibleIds]);
   const agentChoiceLabel = agentSelectOptions.find((option) => option.value === agentSelectValue)?.label
     || t("chat.attach.agent_default");
   const agentTriggerLabel = `${t("side_menu.agents")} · ${agentChoiceLabel}`;
@@ -973,33 +965,13 @@ const AttachPanel = forwardRef(({
     setAppMode("agents");
   };
 
-  /* The pointer on a folder row. The Select's highlight only ever names an
-     Agent, so without this the pill stayed on the last Agent hovered while
-     the pointer sat on the folder below it. Remembered with the Agent that
-     was highlighted then: once the highlight moves (an arrow key, another
-     row) the folder lets go of the pill. */
-  const [agentHoverFolder, setAgentHoverFolder] = useState(null);
-  useEffect(() => {
-    if (!agentPickerOpen) setAgentHoverFolder(null);
-  }, [agentPickerOpen]);
-
-  const renderAgentTree = ({ highlighted_value, render_option }) => (
+  const renderAgentTree = ({ highlighted_value, render_option, on_hover_row, on_visible_change }) => (
     <CommandTree
       data={agentTree.data}
       root={agentTree.root}
-      activeNodeId={
-        agentHoverFolder && agentHoverFolder.over === highlighted_value
-          ? agentHoverFolder.id
-          : highlighted_value ?? null
-      }
-      onHover={(nodeId) =>
-        setAgentHoverFolder(
-          agentTree.data[nodeId]?.kind === "folder"
-            ? { id: nodeId, over: highlighted_value }
-            : null,
-        )
-      }
-      onVisibleChange={setAgentTreeVisibleIds}
+      activeNodeId={highlighted_value ?? null}
+      onHover={on_hover_row}
+      onVisibleChange={on_visible_change}
       isDark={isDark}
       bare
       width="100%"
@@ -2045,7 +2017,6 @@ const AttachPanel = forwardRef(({
         palette_chip="agent"
         palette_rail
         palette_tree={renderAgentTree}
-        palette_tree_values={agentTreeValues}
         /* Arranging Agents is the Agents page's job; the picker only picks.
            Same word as the slash palette's own Organize. */
         palette_actions={

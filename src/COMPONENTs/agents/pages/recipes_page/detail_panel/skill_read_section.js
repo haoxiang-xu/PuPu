@@ -148,18 +148,13 @@ export default function SkillReadSection({ document, node, isDark, onChange }) {
   const optionsKey = options.map((option) => option.value + "\u0001" + option.label).join("\u0000");
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const skillTree = useMemo(() => buildSkillPickerTree({ choices: options }), [optionsKey]);
-  const [skillTreeVisible, setSkillTreeVisible] = useState(null);
-  const skillTreeValues = useMemo(() => {
-    if (!skillTreeVisible) return skillTree.values;
-    const known = new Set(skillTree.values);
-    return skillTreeVisible.filter((id) => known.has(id));
-  }, [skillTree, skillTreeVisible]);
-  const renderSkillTree = ({ highlighted_value, render_option }) => (
+  const renderSkillTree = ({ highlighted_value, render_option, on_hover_row, on_visible_change }) => (
     <CommandTree
       data={skillTree.data}
       root={skillTree.root}
       activeNodeId={highlighted_value ?? null}
-      onVisibleChange={setSkillTreeVisible}
+      onHover={on_hover_row}
+      onVisibleChange={on_visible_change}
       isDark={isDark}
       bare
       width="100%"
@@ -222,7 +217,6 @@ export default function SkillReadSection({ document, node, isDark, onChange }) {
             }}
             filterable
             palette_tree={renderSkillTree}
-            palette_tree_values={skillTreeValues}
             placeholder={list.status === "loading" ? t("agents.execution.skill.reading_list") : t("agents.execution.skill.pick_skill")}
             disabled={!editable}
             dropdown_style={{ maxHeight: "min(280px, 40vh)" }}

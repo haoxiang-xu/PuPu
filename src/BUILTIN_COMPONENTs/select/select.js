@@ -985,6 +985,9 @@ const Select = ({
   const dropdownListRef = useRef(null);
   const providerRailRef = useRef(null);
 
+  /* palette_tree: the rows the tree shows right now, reported by the tree
+     (on_visible_change) — a caller may still pass palette_tree_values. */
+  const [treeVisibleValues, setTreeVisibleValues] = useState(undefined);
   const hook = useSelect({
     options,
     value,
@@ -997,7 +1000,12 @@ const Select = ({
     on_open_change,
     on_group_toggle,
     keep_open_on_select,
-    browse_values: isPalette && palette_tree ? palette_tree_values : undefined,
+    browse_values:
+      isPalette && palette_tree
+        ? palette_tree_values !== undefined
+          ? palette_tree_values
+          : treeVisibleValues
+        : undefined,
   });
 
   const {
@@ -1273,6 +1281,35 @@ const Select = ({
     });
     if (query) handle_query_change("");
   };
+
+  /* ── palette_tree: the pill follows the pointer onto rows that are not
+     options (a folder). The keyboard's highlight only ever names an option,
+     so without this the pill stayed on the last option hovered while the
+     pointer sat on a folder row — a row away from where the pointer is.
+     The pointer's row is remembered together with the option highlighted
+     at that moment: once the highlight moves (an arrow key, an option
+     hovered) it lets go. `id: null` (the pointer is on the tree but on no
+     row the tree told us about) shows no pill at all rather than a wrong
+     one. */
+  const [treeHover, setTreeHover] = useState(null);
+  const highlightedOptionValue =
+    highlightedIndex >= 0 ? flatSelectable[highlightedIndex]?.value : undefined;
+  const treeHoverLive =
+    treeHover && treeHover.over === highlightedOptionValue ? treeHover : null;
+  const treeHighlightedValue = treeHoverLive
+    ? treeHoverLive.id
+    : highlightedOptionValue;
+  const treeHoverRow = (nodeId) => {
+    if (flatSelectable.some((option) => option?.value === nodeId)) {
+      setTreeHover(null);
+      return;
+    }
+    setTreeHover({ id: nodeId, over: highlightedOptionValue });
+  };
+  const treeVisibleChange = (ids) => setTreeVisibleValues(ids);
+  useEffect(() => {
+    if (!mergedOpen) setTreeHover(null);
+  }, [mergedOpen]);
 
   /* one hover pill gliding between rows (palette lists) */
   const slidingHoverColor = isDark
@@ -1588,14 +1625,30 @@ const Select = ({
           maxHeight: dropdownMaxHeight,
           padding: isPalette ? 0 : 2,
         }}
+        /* a tree that does not report its rows' hover (no on_hover_row):
+           the pointer on anything but an option still takes the pill off
+           the option it is not on */
+        onMouseOver={
+          isPalette && palette_tree
+            ? (event) => {
+                if (event.target?.closest?.('[role="option"]')) return;
+                setTreeHover((prev) =>
+                  prev && prev.over === highlightedOptionValue
+                    ? prev
+                    : { id: null, over: highlightedOptionValue },
+                );
+              }
+            : undefined
+        }
       >
         {/* a query searches every option, flat — the tree is for browsing */}
         {isPalette && palette_tree && !query.trim() ? (
           palette_tree({
-            highlighted_value:
-              highlightedIndex >= 0
-                ? flatSelectable[highlightedIndex]?.value
-                : undefined,
+            highlighted_value: treeHighlightedValue,
+            /* hand both to the tree: CommandTree's onHover and
+               onVisibleChange */
+            on_hover_row: treeHoverRow,
+            on_visible_change: treeVisibleChange,
             render_option: (option, { depth = 0 } = {}) => {
               const fi = flatSelectable.findIndex(
                 (entry) => entry?.value === option?.value,
@@ -1610,6 +1663,7 @@ const Select = ({
                   multi={false}
                   isDark={isDark}
                   onMouseEnter={() => {
+                    setTreeHover(null);
                     if (fi >= 0 && !option?.disabled)
                       setHighlightedIndexFromHover(fi);
                   }}
