@@ -7,7 +7,7 @@ files=subprocess.check_output(['git','diff','--name-only','3cdc274ad0273dee3f69c
 indexed={}
 for p in app.rglob('*.js.map'):
     m=json.loads(p.read_text());
-    for name,text in zip(m.get('sources',[]),m.get('sourcesContent',[])):
+    for name,text in zip(m.get('sources') or [],m.get('sourcesContent') or []):
         if text is not None:indexed.setdefault(name,[]).append(text)
 for name in files:
     if not name.endswith(('.js','.cjs')) or '.test.' in name:continue

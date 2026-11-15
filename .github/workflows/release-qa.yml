@@ -146,13 +146,6 @@ jobs:
           rows={str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(root.rglob('*')) if p.is_file()}
           Path('../test-results/app-files.json').write_text(json.dumps(rows,indent=2)+'\n')
           PY
-      - name: Bind packaged sources to the exact candidate
-        working-directory: candidate
-        run: |
-          if test -f dist/linux-unpacked/resources/app.asar; then
-            node -e "require('@electron/asar').extractAll('dist/linux-unpacked/resources/app.asar','../package-inspection')"
-          fi
-          python -I -B ../control/qa-486/tools/verify_package.py
       - name: Seal the one packaged App
         run: |
           set -euo pipefail
@@ -163,6 +156,13 @@ jobs:
       - name: Preserve the sealed App before running it
         uses: actions/upload-artifact@v4
         with: { name: 486-sealed-app, if-no-files-found: error, compression-level: 0, path: sealed/* }
+      - name: Bind packaged sources to the exact candidate
+        working-directory: candidate
+        run: |
+          if test -f dist/linux-unpacked/resources/app.asar; then
+            node -e "require('@electron/asar').extractAll('dist/linux-unpacked/resources/app.asar','../package-inspection')"
+          fi
+          python -I -B ../control/qa-486/tools/verify_package.py
       - name: Keep the packaged App's original Chromium sandbox and bind the App path
         working-directory: candidate
         run: |
@@ -174,7 +174,7 @@ jobs:
           test -x "$EXE"
           echo "QA_APP=$EXE" >> "$GITHUB_ENV"
           echo "QA_CANDIDATE_ROOT=$PWD" >> "$GITHUB_ENV"
-      - name: Packaged App #486 observation paths offline (loopback only)
+      - name: "Packaged App #486 observation paths offline (loopback only)"
         if: ${{ inputs.mode == 'acceptance' }}
         run: bash control/qa-486/tools/run_offline.sh app
       - name: Redact the capture and drop the raw pcap
@@ -293,7 +293,6 @@ jobs:
           mkdir -p candidate/dist
           tar -C candidate/dist -xzf sealed/linux-unpacked.tgz
           cp sealed/app-files.json test-results/app-files.json
-          cp prior-evidence/package-source-binding.json test-results/package-source-binding.json
           cp prior-evidence/sidecar-identity.txt test-results/sidecar-identity.txt
           cp prior-evidence/sealed-app.sha256 test-results/sealed-app.sha256
           QA_BINARY_SHA="$(sed -n 's/^sidecar_sha256=//p' test-results/sidecar-identity.txt)"
@@ -308,6 +307,13 @@ jobs:
           assert before==after,'retained App differs from the sealed package'
           Path('test-results/replay-identity.json').write_text(json.dumps({'sealed_run':'${{ inputs.sealed_run_id }}','tgz_sha256':'${{ inputs.sealed_tgz_sha256 }}','files':len(after)}))
           PYCODE
+      - name: Bind packaged sources to the exact candidate
+        working-directory: candidate
+        run: |
+          if test -f dist/linux-unpacked/resources/app.asar; then
+            node -e "require('@electron/asar').extractAll('dist/linux-unpacked/resources/app.asar','../package-inspection')"
+          fi
+          python -I -B ../control/qa-486/tools/verify_package.py
       - name: Keep the packaged App's original Chromium sandbox and bind the App path
         working-directory: candidate
         run: |
@@ -319,7 +325,7 @@ jobs:
           test -x "$EXE"
           echo "QA_APP=$EXE" >> "$GITHUB_ENV"
           echo "QA_CANDIDATE_ROOT=$PWD" >> "$GITHUB_ENV"
-      - name: Packaged App #486 observation paths offline (loopback only)
+      - name: "Packaged App #486 observation paths offline (loopback only)"
         if: ${{ inputs.mode == 'replay' }}
         run: bash control/qa-486/tools/run_offline.sh app
       - name: Redact the capture and drop the raw pcap
