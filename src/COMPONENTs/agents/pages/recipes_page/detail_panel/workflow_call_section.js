@@ -350,7 +350,9 @@ export default function WorkflowCallSection({ document, node, rowDiagnostics, is
           {t("agents.workflow.failure")} {t("agents.workflow.pinned_contract")}
         </span>}>
         <div style={{ ...ROW, minWidth: 0 }}>
-          <span data-testid="workflow-call-picker" style={{ flex: 1, minWidth: 0, display: "flex" }}>
+          {/* The Agent panel's Model picker's measure: a 200px field, 34 high,
+              text from the left and the arrow at the end. */}
+          <span data-testid="workflow-call-picker" style={{ display: "inline-flex", width: 200, minWidth: 0, maxWidth: "100%" }}>
             <Select
               options={options}
               value={chosen || null}
@@ -361,7 +363,10 @@ export default function WorkflowCallSection({ document, node, rowDiagnostics, is
               placeholder={library.status === "loading" ? t("agents.workflow.reading_library") : t("agents.workflow.choose")}
               disabled={!editable || library.status !== "ready"}
               dropdown_style={{ maxHeight: "min(280px, 40vh)" }}
-              style={FIELD}
+              align="left"
+              trigger_label_style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", textAlign: "left" }}
+              trigger_wrapper_style={{ display: "inline-flex", width: "100%", minWidth: 0 }}
+              style={{ width: "100%", maxWidth: "100%", height: 34, fontSize: 12.5, paddingVertical: 0, paddingHorizontal: 12 }}
             />
           </span>
           {/* Into the called Workflow, as a referenced subagent opens: its own

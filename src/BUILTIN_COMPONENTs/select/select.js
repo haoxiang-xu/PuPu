@@ -889,6 +889,9 @@ const Select = ({
      inside a full-width host (a menu row) needs width: 100% here or the
      inline-flex wrapper shrinks the row to its content */
   trigger_wrapper_style,
+  /* The chosen label's own layout, e.g. `{ flex: 1 }` to keep the icon and
+     text at the start and the arrow at the far end. */
+  trigger_label_style,
   style,
   dropdown_style,
   dropdown_position = "bottom",
@@ -1180,6 +1183,7 @@ const Select = ({
           position: "relative",
           zIndex: 1,
           color: triggerLabelIsPlaceholder ? placeholderColor : baseColor,
+          ...trigger_label_style,
         }}
       >
         {triggerLabel}
