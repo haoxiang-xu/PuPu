@@ -3,12 +3,19 @@ from pathlib import Path
 import hashlib,json,subprocess
 candidate=Path.cwd();app=candidate/'dist/linux-unpacked/resources/app';results=[]
 if not app.exists():app=candidate.parent/'package-inspection'
-files=subprocess.check_output(['git','diff','--name-only','3cdc274ad0273dee3f69cfc0681e318a5df0417c','HEAD'],text=True).splitlines()
+base='3cdc274ad0273dee3f69cfc0681e318a5df0417c'
+files=subprocess.check_output(['git','diff','--diff-filter=ACMR','--name-only',base,'HEAD'],text=True).splitlines()
+deleted=subprocess.check_output(['git','diff','--diff-filter=D','--name-only',base,'HEAD'],text=True).splitlines()
 indexed={}
 for p in app.rglob('*.js.map'):
     m=json.loads(p.read_text());
     for name,text in zip(m.get('sources') or [],m.get('sourcesContent') or []):
         if text is not None:indexed.setdefault(name,[]).append(text)
+for name in deleted:
+    if not name.endswith(('.js','.cjs')) or '.test.' in name:continue
+    assert not (app/name).exists(),('deleted_direct_source_present',name)
+    assert not any(key.endswith('/'+name) or key==name or key==name.removeprefix('src/') for key in indexed),('deleted_map_source_present',name)
+Path('../test-results/package-deleted-sources.json').write_text(json.dumps(deleted,indent=2)+'\n')
 for name in files:
     if not name.endswith(('.js','.cjs')) or '.test.' in name:continue
     raw=(candidate/name).read_bytes()
