@@ -24,6 +24,7 @@ _TERMINAL = {'completed', 'failed', 'cancelled', 'outcome_unknown'}
 CONTEXT_FIELDS={'toolkits','skills','workspace_root','workspace_roots','disable_workspace_root'}
 TRANSIENT_FIELDS={'skeleton_credentials','skeleton_credential_scope','openaiApiKey','openai_api_key',
     'anthropicApiKey','anthropic_api_key','geminiApiKey','gemini_api_key'}
+_TRACE_REDACTION_POLICY = 'registered-secrets-v1'
 
 
 def runtime_import_observation(manifest):
@@ -99,13 +100,30 @@ class BuilderTestSessions:
                 CREATE TABLE IF NOT EXISTS events (run_id TEXT NOT NULL, event_id TEXT NOT NULL, body TEXT NOT NULL,
                     PRIMARY KEY(run_id,event_id));
                 CREATE TABLE IF NOT EXISTS trace_limits (run_id TEXT PRIMARY KEY);
+                CREATE TABLE IF NOT EXISTS trace_omissions (run_id TEXT PRIMARY KEY);
             ''')
+            # Only the derived display cache changes. Retained executions and
+            # the legacy three-column events layout remain readable on rollback.
+            db.execute('BEGIN IMMEDIATE')
+            known = db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='trace_redactions'").fetchone()
+            db.execute('''CREATE TABLE IF NOT EXISTS trace_redactions (
+                run_id TEXT NOT NULL, event_id TEXT NOT NULL, policy TEXT NOT NULL,
+                body_sha256 TEXT NOT NULL, PRIMARY KEY(run_id,event_id))''')
+            if known is None:
+                # An old event has no trustworthy sanitization provenance. Do
+                # not depend on credentials still being registered after restart.
+                db.execute('INSERT OR IGNORE INTO trace_limits SELECT DISTINCT run_id FROM events')
+                db.execute('DELETE FROM events')
 
     @contextmanager
-    def _db(self):
+    def _db(self, existing=None):
+        if existing is not None:
+            yield existing
+            return
         db = sqlite3.connect(self.path, timeout=10)
         db.row_factory = sqlite3.Row
         try:
+            db.execute('PRAGMA secure_delete=ON')
             yield db
             db.commit()
         except BaseException:
@@ -144,7 +162,7 @@ class BuilderTestSessions:
 
     def _assert_idle(self, db, session, resource):
         for row in db.execute('SELECT * FROM runs WHERE session_id=?',(session,)):
-            status=self._project(dict(row))['status']
+            status=self._project(dict(row),_cache_db=db)['status']
             if status not in _TERMINAL and status!='ready':
                 _fail('test_already_active','Resume or stop the current test first.',('session_id',))
 
@@ -235,14 +253,52 @@ class BuilderTestSessions:
             _memory_v2_memory_agent_config=material.get('memory_agent_config'),
             durable_interactions_required=True)
 
+    def _cached_events(self, db, run):
+        rows = db.execute('''SELECT e.event_id,e.body,r.policy,r.body_sha256
+            FROM events e LEFT JOIN trace_redactions r
+            ON r.run_id=e.run_id AND r.event_id=e.event_id
+            WHERE e.run_id=? ORDER BY e.rowid''', (run,)).fetchall()
+        safe, rejected = [], []
+        for row in rows:
+            if (row['policy'] != _TRACE_REDACTION_POLICY or
+                    row['body_sha256'] != sha256(row['body'].encode('utf-8')).hexdigest()):
+                rejected.append((run,row['event_id']))
+            else:
+                safe.append(json.loads(row['body']))
+        if rejected:
+            db.execute('INSERT OR IGNORE INTO trace_limits VALUES (?)', (run,))
+            db.executemany('DELETE FROM events WHERE run_id=? AND event_id=?', rejected)
+            db.executemany('DELETE FROM trace_redactions WHERE run_id=? AND event_id=?', rejected)
+        return safe
+
     def _record_event(self, row, event):
-        raw=canonical(event).decode('utf-8')
+        from memory_v2_sanitizer import sanitize_value
+        # Separate reasoning/text chunks can each contain only part of a
+        # registered secret. Cache complete, sanitized observations instead;
+        # a missing incremental trace is explicit and never stops execution.
+        if (event.get('type') == 'step.delta' and
+                event.get('payload',{}).get('kind') in ('text','reasoning')):
+            with self._db() as db:
+                db.execute('INSERT OR IGNORE INTO trace_omissions VALUES (?)',(row['id'],))
+            return
+        safe = sanitize_value(event)
+        for key in ('schema_version','type','event_id','session_id','run_id','parent_run_id',
+                    'root_run_id','trace_id','span_id','parent_span_id'):
+            if safe.get(key) != event.get(key):
+                _fail('test_trace_sensitive_identity','Sensitive trace identifiers cannot be cached.',('events',))
+        raw=canonical(safe).decode('utf-8')
         with self._db() as db:
             size,count=db.execute('SELECT coalesce(sum(length(CAST(body AS BLOB))),0),count(*) FROM events WHERE run_id=?',(row['id'],)).fetchone()
             if size+len(raw.encode('utf-8'))>2*1024*1024 or count>=10000:
                 db.execute('INSERT OR IGNORE INTO trace_limits VALUES (?)',(row['id'],))
             elif not db.execute('SELECT 1 FROM trace_limits WHERE run_id=?',(row['id'],)).fetchone():
                 db.execute('INSERT OR IGNORE INTO events VALUES (?,?,?)',(row['id'],event['event_id'],raw))
+                # A duplicate id must not bless different pre-existing bytes.
+                db.execute('''INSERT OR IGNORE INTO trace_redactions
+                    SELECT ?,?,?,? WHERE EXISTS (
+                        SELECT 1 FROM events WHERE run_id=? AND event_id=? AND body=?)''',
+                    (row['id'],event['event_id'],_TRACE_REDACTION_POLICY,sha256(raw.encode('utf-8')).hexdigest(),
+                     row['id'],event['event_id'],raw))
 
     def _schedule(self, row, operation, *, transport_attempt=None):
         key=(str(self.path),row['id'])
@@ -288,7 +344,7 @@ class BuilderTestSessions:
             db.execute('BEGIN IMMEDIATE')
             row=self._run_row(db,session,resource,run)
             if row['phase']!='ready':
-                return self.read(session,resource)
+                return self.read(session,resource,_cache_db=db)
             selection,workflows,inputs=self._material(row)
             # Validate credentials against this frozen snapshot before consuming
             # the one dispatch claim. Missing credentials can be corrected.
@@ -302,16 +358,17 @@ class BuilderTestSessions:
                 inputs=inputs,options=opts,session_id=session,attempt_id=run))
         return self.read(session,resource)
 
-    def _project(self,row,*,_recheck=True):
+    def _project(self,row,*,_recheck=True,_cache_db=None):
         material=json.loads(row['material'])
         selected=material['selection']
         result={'id':row['id'],'request_id':row['request_id'],'edit_token':selected['edit_token'],
             'definition_digest':selected['definition_digest'],'inputs':material['inputs'],
             'status':row['phase'] if row['phase'] in ('ready','cancelled') else 'starting','output':None,'error':json.loads(row['error']) if row['error'] else None,
             'pending':None,'graphs':[],'events':[],'trace_complete':True}
-        with self._db() as db:
-            result['events']=[json.loads(item[0]) for item in db.execute('SELECT body FROM events WHERE run_id=? ORDER BY rowid',(row['id'],))]
-            result['trace_complete']=db.execute('SELECT 1 FROM trace_limits WHERE run_id=?',(row['id'],)).fetchone() is None
+        with self._db(_cache_db) as db:
+            result['events']=self._cached_events(db,row['id'])
+            result['trace_complete']=db.execute('''SELECT 1 FROM trace_limits WHERE run_id=?
+                UNION ALL SELECT 1 FROM trace_omissions WHERE run_id=?''',(row['id'],row['id'])).fetchone() is None
         if row['phase'] in ('ready','cancelled'): return result
         try:
             launch=load_launch(row['session_id'],row['id'],expected_owner_chat_id=row['session_id'],allow_terminal_stale=True)
@@ -353,10 +410,10 @@ class BuilderTestSessions:
             except (DurableInteractionHostError, SkeletonResourceError):
                 # The worker can settle a wait between these independent
                 # canonical reads. Re-read once; never retry an actor operation.
-                if _recheck:return self._project(row,_recheck=False)
+                if _recheck:return self._project(row,_recheck=False,_cache_db=_cache_db)
                 raise
             if result['pending'] is None and _recheck:
-                return self._project(row,_recheck=False)
+                return self._project(row,_recheck=False,_cache_db=_cache_db)
         elif state['status']=='running' and (str(self.path),row['id']) not in _WORKERS:
             # No automatic retry of a potentially effectful interrupted node.
             result['status']='outcome_unknown'
@@ -365,11 +422,11 @@ class BuilderTestSessions:
                 'message':'The recorded test failed.'}
         return result
 
-    def read(self,session,resource):
-        with self._db() as db:
+    def read(self,session,resource,*,_cache_db=None):
+        with self._db(_cache_db) as db:
             owner=self._session(db,session,resource)
             rows=[dict(row) for row in db.execute('SELECT * FROM runs WHERE session_id=? ORDER BY rowid',(session,))]
-        result={'schema':SCHEMA,'session':owner,'runs':[self._project(row) for row in rows]}
+            result={'schema':SCHEMA,'session':owner,'runs':[self._project(row,_cache_db=db) for row in rows]}
         if len(canonical(result))>16*1024*1024:
             _fail('test_result_too_large','Recorded test history exceeds the display limit. Start a new test conversation.',status=413)
         return result

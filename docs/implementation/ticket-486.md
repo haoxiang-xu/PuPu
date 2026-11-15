@@ -15,6 +15,44 @@ The original PuPu/Claude checkout and frozen candidates are outside this work.
 
 ## Delivered behavior
 
+### BC-005 / SEQ-007 / AC-011 — private credentials and derived trace cache
+
+The native runtime callback is an OPEN V4 event stream. Its Builder display
+projection crosses a persistence and renderer boundary; canonical execution
+state remains in the existing journal/CAS. Registered provider secrets and their
+encoded variants must pass the existing `memory_v2_sanitizer.sanitize_value`
+before serialization into the display cache. Opaque event identities must not
+change during sanitization; a sensitive identity fails closed. Incremental
+model text/reasoning frames are omitted because individually harmless chunks
+can reconstruct a secret. Complete sanitized observations, result, graphs and
+approval controls remain available. Omissions explicitly set `trace_complete`
+false without exhausting the trace budget or stopping execution.
+
+The cache policy is VERSIONED (`registered-secrets-v1`), with a per-event policy
+and exact serialized-body digest. These are provenance checks, not authentication
+against an attacker who already controls the local database. Cold reads never
+rely on credentials remaining in the process registry. First upgrade securely
+deletes legacy unattested display rows; late old writers, unknown policies and
+changed bytes are also removed and marked incomplete. The legacy three-column
+events layout remains intact for rollback; session/run identities, admitted
+material and journal history are unchanged. Duplicate IDs cannot attest different
+old bytes. Cleanup inside an admitted transaction borrows that connection and
+does not reacquire its own SQLite write lock. No cleanup triggers a provider,
+effect, replay or retry.
+
+AC-011 covers actual native delegated child output (benign and secret echo),
+encoded variants, split reasoning/text through the actual RuntimeEventBridge,
+sanitizer failure, sensitive identity, cold restart without the registry, legacy
+and late writers, unknown policy, changed bytes, duplicate ID, and prepare/new/
+duplicate-execute cleanup. The original child-secret trigger failed before the
+patch; the additional split-stream and three lock probes also failed before
+their correction. Validation reuses the retained QA wheel, SHA-256
+`80cb4fa242cc3c779884388f5d24702fa6a30658d05aa89fce9f39e91966f5bc`,
+Core source `9af29599b4e93f36eb2b93fefd1abb51907dfff9`, actual imported manifest
+`8bb1c7d474eed7bd82f906ac6cd88a6b7e073a23f46319cf500ebbd6b50ff17b`.
+The producer test captures actual consumer module origins and manifest; an
+environment variable or sibling checkout alone is not acceptance evidence.
+
 Run opens the existing docked right sidebar without executing. Agent accepts
 explicit messages in a dedicated, persistent test session and uses server-owned
 history and the saved graph's Kernel. Workflow accepts declared typed arguments
