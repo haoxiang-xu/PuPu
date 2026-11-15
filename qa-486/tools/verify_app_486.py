@@ -84,8 +84,18 @@ def main():
         require(type(row['response_message']) is dict and row['response_message']['role']=='assistant','provider_response_missing')
     require('Offline answer 1' in wires[1]['raw'],'server_history_missing')
     require(Counter(json.loads(r['raw'])['model'] for r in wires)==Counter({'qa486-model':2,'qa486-human':2,'qa486-hook':2,'qa486-parent':2,'qa486-child':1}),'model_call_counts')
-    require(read('ordinary-before.json')==read('ordinary-after.json'),'ordinary_chat_changed')
-    generations=read('process-generations.json');require(len(generations)==3,'cold_generations');runtime_imports=[]
+    generations=read('process-generations.json')
+    ordinary=[read(name) for name in ['ordinary-before.json','ordinary-before-cold1.json','ordinary-after-cold1.json','ordinary-before-cold2.json','ordinary-after-cold2.json','ordinary-after.json']]
+    for left,right in [(ordinary[0],ordinary[1]),(ordinary[2],ordinary[3]),(ordinary[4],ordinary[5])]:
+        require(left==right,'ordinary_chat_changed_within_process')
+    for index,(left,right) in enumerate([(ordinary[1],ordinary[2]),(ordinary[3],ordinary[4])],1):
+        left=json.loads(json.dumps(left));right=json.loads(json.dumps(right))
+        prior=left['meta'].pop('updatedAt');current=right['meta'].pop('updatedAt')
+        require(type(prior) is int and type(current) is int and current>=prior,'ordinary_chat_timestamp_invalid')
+        generation=generations[index]
+        require(current==prior or generation['started_wall_ms']<=current<=generation['ready_wall_ms'],'ordinary_chat_timestamp_outside_startup')
+        require(left==right,'ordinary_chat_content_changed_on_startup')
+    require(len(generations)==3,'cold_generations');runtime_imports=[]
     for i,g in enumerate(generations):
         require(g['all_owned_dead'],'processes_alive')
         require(g['sidecar_owned'],'sidecar_not_owned')
