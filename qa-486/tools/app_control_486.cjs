@@ -7,7 +7,7 @@ const {createStartupWatch}=require('./app_first_run.cjs');
 const candidate=path.resolve(process.env.QA_CANDIDATE_ROOT),req=createRequire(path.join(candidate,'package.json'));
 const {chromium}=req('playwright'),{expect}=req('@playwright/test');
 const out=path.resolve(process.env.QA_OUT),app=process.env.QA_APP,home=path.join(out,'home'),userData=path.join(home,'profile'),workspace=path.join(out,'workspace');
-const wires=[],errors=[],ledger=[],generations=[],snapshots=[],checks=[],consoleLines=[],productFindings=[];
+const wires=[],errors=[],ledger=[],generations=[],snapshots=[],checks=[],consoleLines=[],productFindings=[],runtimeImportLogs=[];
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const write=(name,data)=>fs.writeFileSync(path.join(out,name),JSON.stringify(data,null,2)+'\n');
 const mark=(kind,action,data={})=>{ledger.push({kind,action,at_ns:process.hrtime.bigint().toString(),...data});write('ledger.json',ledger);};
@@ -110,7 +110,7 @@ async function main(){
     const productEnv={...process.env};for(const key of ['PYTHONPATH','UNCHAIN_SOURCE_PATH','PYTHONHOME','VIRTUAL_ENV'])delete productEnv[key];
     const child = spawn(app, [`--remote-debugging-port=${debug}`, `--user-data-dir=${userData}`, '--password-store=gnome-libsecret'], {
       detached: true, env: { ...productEnv, HOME: home, XDG_CONFIG_HOME: path.join(home, '.config'), XDG_DATA_HOME: path.join(home, '.local/share'),
-        XDG_CACHE_HOME: path.join(home, '.cache'), PUPU_E2E: '1', PUPU_COMPUTER_USE: '0', UNCHAIN_MODEL: 'environment-decoy-486', OLLAMA_HOST: 'http://127.0.0.1:18992' },
+        XDG_CACHE_HOME: path.join(home, '.cache'), PUPU_E2E: '1', PUPU_COMPUTER_USE: '0', PUPU_VERIFY_RUNTIME_IMPORTS: '1', UNCHAIN_MODEL: 'environment-decoy-486', OLLAMA_HOST: 'http://127.0.0.1:18992' },
       stdio: ['ignore', logFd, logFd] });
     fs.closeSync(logFd);
     const owned = new Map();
@@ -125,7 +125,7 @@ async function main(){
     const page = await until(() => browser.contexts().flatMap(c => c.pages()).find(p => /^file:|^app:/.test(p.url())));
     current.page = page;
     page.on('pageerror', error => { errors.push(String(error)); write('page-errors.json', errors); });
-    page.on('console', message => { consoleLines.push({ at_ns: process.hrtime.bigint().toString(), type: message.type(), text: message.text().slice(0, 500) }); if (consoleLines.length % 20 === 0) write('renderer-console.json', consoleLines); });
+    page.on('console', message => { const text=message.text();if(text.includes('PUPU_RUNTIME_IMPORT ')){runtimeImportLogs.push({generation,at_ns:process.hrtime.bigint().toString(),text});write('runtime-import-console.json',runtimeImportLogs);}consoleLines.push({ at_ns: process.hrtime.bigint().toString(), type: message.type(), text: text.slice(0, 500) }); if (consoleLines.length % 20 === 0) write('renderer-console.json', consoleLines); });
     await page.waitForLoadState('domcontentloaded');
     const startup = createStartupWatch({ page, generation, out, write, mark, sleep });
     const gate = page.getByRole('button', { name: 'Click anywhere to start' });
@@ -134,6 +134,7 @@ async function main(){
     // Readiness is the product's own answer: getPendingInteraction throws "Miso service is not ready" until the sidecar is up.
     await until(() => page.evaluate(() => window.unchainAPI.getPendingInteraction({ session_id: 'qa486-readiness-probe' }).then(() => true, () => false)), 180000);
     collect();
+    record.runtime_capabilities=await page.evaluate(()=>window.unchainAPI.getManagedCodeCapabilities());
     record.ready_ns = process.hrtime.bigint().toString(); record.processes_at_ready = [...owned.values()];
     record.sidecar_owned = [...owned.values()].some(row => path.basename(row.exe) === 'unchain-server');
     assert.ok(owned.size > 1, 'ownership walk found no descendants of the Electron main process');
@@ -151,7 +152,7 @@ async function main(){
  async function open(name){activeName=name;const p=current.page;const close=p.getByRole('button',{name:'Close builder',exact:true});if(await close.isVisible().catch(()=>false))await close.click();const explorer=p.getByTestId('agent-explorer');if(!await explorer.isVisible().catch(()=>false)){await sidebar();if(!await explorer.isVisible().catch(()=>false))await p.getByRole('button',{name:'Agents',exact:true}).click();}await explorer.getByText(name,{exact:true}).click();await expect(p.getByTestId('skeleton-resource-page')).toBeVisible();if(await explorer.isVisible().catch(()=>false)){await p.getByRole('button',{name:'Close sidebar',exact:true}).click();await expect(explorer).not.toBeVisible();}mark('ui','open Builder',{name});}
  async function test(){await current.page.getByTestId('skeleton-control-center-run').click();await expect(current.page.getByTestId('builder-test-panel')).toBeVisible();await expect(current.page.getByTestId('builder-test-panel')).toContainText(activeName);mark('ui','open Test',{resource_name:activeName});}
  async function read(resource,label){const value=await current.page.evaluate(async resource=>{const opened=await window.unchainAPI.builderTestCommand({op:'open',resource_id:resource,kind:['qa486-agent','qa486-human','qa486-hook','qa486-parent','qa486-missing'].includes(resource)?'agent':'workflow'});return window.unchainAPI.builderTestCommand({op:'read',resource_id:resource,session_id:opened.session.id});},resource);const previous=snapshots.findLast(s=>s.resource===resource);if(!previous||JSON.stringify(previous.value)!==JSON.stringify(value)){snapshots.push({label,resource,at_ns:process.hrtime.bigint().toString(),value});write('snapshots.json',snapshots);}return value;}
- async function waitState(resource,status,label){return until(async()=>{const v=await read(resource,label);const last=v.runs.at(-1);if(last?.status==='failed'&&status!=='failed')throw Error('Run failed: '+JSON.stringify(last.error));return last?.status===status?v:null;});}
+ async function waitState(resource,status,label){const result=await until(async()=>{const v=await read(resource,label);const last=v.runs.at(-1);if(last?.status==='failed'&&status!=='failed')throw Error('Run failed: '+JSON.stringify(last.error));return last?.status===status?v:null;});if(['completed','failed','cancelled','outcome_unknown'].includes(status)){const p=current.page;await p.getByTestId('builder-test-panel').getByRole('button',{name:'Refresh',exact:true}).click();const shown={completed:'Completed',failed:'Failed',cancelled:'Cancelled',outcome_unknown:'Outcome unknown'}[status];const held=result.runs.at(-1);await expect(p.getByTestId('test-turn-'+held.id).getByRole('status').filter({hasText:new RegExp('^'+shown+'$')})).toHaveCount(1);const after=(await read(resource,label+'-explicit-readback')).runs.at(-1);for(const key of ['id','request_id','edit_token','definition_digest','inputs','status','output'])assert.deepEqual(after[key],held[key]);mark('ui','Refresh recorded outcome; no actor retry',{resource,run_id:held.id,status});}return result;}
  async function save(){const p=current.page;const close=p.getByTestId('skeleton-detail-panel-shell-close');if(await close.isVisible().catch(()=>false))await close.click();await p.getByRole('button',{name:'Save',exact:true}).click();await expect(p.getByTestId('skeleton-save-state')).toHaveText('Saved');mark('ui','explicit Save');}
  async function rename(id,text){const p=current.page;await p.getByTestId('skeleton-node-'+id).click();await p.keyboard.press('F2');const f=p.locator(`[data-flow-node-id="${id}"] [data-node-title-field]`);await expect(f).toBeVisible();await f.fill(text);await f.press('Enter');await expect(p.getByTestId('skeleton-save-state')).toHaveText('Unsaved changes');mark('ui','inline rename',{id,text});}
  async function tools(){const p=current.page;if(!await p.getByRole('combobox').filter({hasText:'No workspace'}).isVisible().catch(()=>false))await p.getByRole('button',{name:'Tools and workspace',exact:true}).click();await p.getByRole('combobox').filter({hasText:'No workspace'}).click();await p.getByRole('option',{name:'QA486 Workspace '+workspace,exact:true}).click();await p.getByRole('combobox').filter({hasText:'Tools'}).click();await p.getByRole('option',{name:'core',exact:true}).click();await p.keyboard.press('Escape');}

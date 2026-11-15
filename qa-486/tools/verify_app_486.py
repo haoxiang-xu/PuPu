@@ -9,6 +9,7 @@ from hashlib import sha256
 import json,os,shutil,sqlite3,sys,zipfile
 from pathlib import Path
 from skeleton_production_state import canonical,validate_launch_descriptor
+from skeleton_runtime_capability import validate_skeleton_runtime_manifest
 from unchain.journal import ArtifactRef,AttemptRef
 from unchain.journal.models import _thaw_json
 from unchain.persistence.sqlite_v2 import open_existing_execution_journal_readonly
@@ -36,6 +37,35 @@ def sidecar_processes(g):
             require(current['pid'] not in seen and current['parent'] in by_pid,'sidecar_process_chain')
             seen.add(current['pid']);current=by_pid[current['parent']]
     return rows
+def runtime_import_check(g,number):
+    lines=[]
+    console=out/'runtime-import-console.json'
+    if console.exists():lines.extend(row['text'] for row in json.loads(console.read_text()) if row['generation']==number)
+    log=out/f'app-{number}.log'
+    if log.exists():lines.extend(log.read_text(errors='replace').splitlines())
+    records=[]
+    for line in lines:
+        if 'PUPU_RUNTIME_IMPORT ' not in line:continue
+        text=line.split('PUPU_RUNTIME_IMPORT ',1)[1].lstrip()
+        record,_=json.JSONDecoder().raw_decode(text)
+        require(set(record)=={'schema','pid','executable','frozen','bundle_root','modules','manifest_digest'},'runtime_observation_shape')
+        require(record['schema']=='pupu.runtime-import-observation.v1' and record['frozen'] is True,'runtime_not_frozen')
+        group=sidecar_processes(g)
+        require(record['pid'] in {p['pid'] for p in group},'runtime_consumer_pid')
+        require(record['executable'] in {p['exe'] for p in group},'runtime_consumer_executable')
+        root=Path(record['bundle_root']);require(root.is_absolute() and root.name.startswith('_MEI'),'runtime_bundle_origin')
+        require(set(record['modules'])=={'unchain','unchain.runtime.runtime_protocol'},'runtime_modules_missing')
+        for name,member in [('unchain','unchain/__init__.py'),('unchain.runtime.runtime_protocol','unchain/runtime/runtime_protocol.py')]:
+            module=record['modules'][name];require(set(module)=={'file','loader'},'runtime_module_shape')
+            origin=Path(module['file']);require(origin.is_relative_to(root),'runtime_source_shadow')
+            relative=origin.relative_to(root).with_suffix('.py').as_posix()
+            require(relative==member and module['loader'].startswith('pyimod') and module['loader'].endswith('.PyiFrozenLoader'),'runtime_frozen_module_mapping')
+        actual=validate_skeleton_runtime_manifest(g['runtime_capabilities']['runtime_manifest'])
+        require(record['manifest_digest']==actual['manifest_digest']==os.environ['QA_MANIFEST'],'runtime_consumer_manifest')
+        records.append(record)
+    require(bool(records),'runtime_consumer_evidence_missing')
+    require(len({(r['pid'],r['bundle_root'],r['manifest_digest']) for r in records})==1,'runtime_consumer_identity_changed')
+    return records[0]
 def workspace_check(root,effects):
     expected={'a-first.txt','b-first.txt','b-second.txt','hook.txt'}
     require({p.name for p in root.iterdir()}==expected,'workspace_extra_or_missing')
@@ -55,14 +85,16 @@ def main():
     require('Offline answer 1' in wires[1]['raw'],'server_history_missing')
     require(Counter(json.loads(r['raw'])['model'] for r in wires)==Counter({'qa486-model':2,'qa486-human':2,'qa486-hook':2,'qa486-parent':2,'qa486-child':1}),'model_call_counts')
     require(read('ordinary-before.json')==read('ordinary-after.json'),'ordinary_chat_changed')
-    generations=read('process-generations.json');require(len(generations)==3,'cold_generations')
+    generations=read('process-generations.json');require(len(generations)==3,'cold_generations');runtime_imports=[]
     for i,g in enumerate(generations):
         require(g['all_owned_dead'],'processes_alive')
         require(g['sidecar_owned'],'sidecar_not_owned')
+        runtime_imports.append(runtime_import_check(g,i+1))
         sidecars=sidecar_processes(g)
         require(all(sha256(Path(p['exe']).read_bytes()).hexdigest()==os.environ['QA_BINARY_SHA'] for p in sidecars),'sidecar_binary_hash')
         if i:require(int(generations[i-1]['stopped_ns'])<int(g['started_ns']),'cold_order')
     require(len({g['main']['pid'] for g in generations})==3,'main_pid_reused')
+    (out/'actual-runtime-consumers.json').write_text(json.dumps(runtime_imports,indent=2)+'\n')
     workspace_check(out/'workspace',read('effects.json'))
     databases=list((out/'home').rglob('context_v2.sqlite3'));require(len(databases)==1,'context_database_count')
     copied=out/'journal-verification-copy';shutil.copytree(databases[0].parent,copied)
