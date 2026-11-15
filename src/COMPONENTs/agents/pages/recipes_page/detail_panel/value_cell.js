@@ -35,7 +35,7 @@ function useCompact(ref) {
 }
 
 export default function ValueCell({
-  value, type, placeholder, sources, sourceTag, editable = true, optional, isDark, testid, ariaLabel,
+  value, type, choices, placeholder, sources, sourceTag, editable = true, optional, isDark, testid, ariaLabel,
   onChange, onProblem, trailing,
 }) {
   const { t } = useTranslation();
@@ -82,10 +82,14 @@ export default function ValueCell({
   };
 
   const items = [
-    ...(type === "boolean" ? [true, false].filter((flag) => !filter || String(flag).includes(filter)).map((flag) => ({
-      label: <span style={{ fontFamily: "ui-monospace, Menlo, monospace" }}>{String(flag)}</span>,
-      onClick: () => choose(literal_expression(flag)),
-    })) : []),
+    /* The values the type allows, offered before the sources: true and
+       false, or a schema's `enum`. */
+    ...(Array.isArray(choices) ? choices : type === "boolean" ? [true, false] : [])
+      .filter((choice) => !filter || literal_to_text(choice, type).toLowerCase().includes(filter))
+      .map((choice) => ({
+        label: <span style={{ fontFamily: "ui-monospace, Menlo, monospace" }}>{literal_to_text(choice, type)}</span>,
+        onClick: () => choose(literal_expression(choice)),
+      })),
     ...sources
       .filter((item) => `${item.node_label} ${item.node_id} ${item.name}`.toLowerCase().includes(filter))
       .map((item) => ({

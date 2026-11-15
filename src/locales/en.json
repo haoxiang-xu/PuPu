@@ -2151,7 +2151,8 @@
         "unset_default": "Not set. {toolName} uses its own default.",
         "unsupported_setting": "Unsupported setting: {key}",
         "value_mode": "Value",
-        "variable_mode": "Variable"
+        "variable_mode": "Variable",
+        "when_it_runs": "When it runs"
       }
     },
     "result_roots": {

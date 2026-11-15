@@ -2231,7 +2231,8 @@
         "unset_default": "설정되지 않았습니다. {toolName}의 기본값을 사용합니다.",
         "unsupported_setting": "지원하지 않는 설정: {key}",
         "value_mode": "값",
-        "variable_mode": "변수"
+        "variable_mode": "변수",
+        "when_it_runs": "실행 시"
       }
     },
     "pinned": {

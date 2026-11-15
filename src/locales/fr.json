@@ -2231,7 +2231,8 @@
         "unset_default": "Non défini. {toolName} utilise sa propre valeur par défaut.",
         "unsupported_setting": "Réglage non pris en charge : {key}",
         "value_mode": "Valeur",
-        "variable_mode": "Variable"
+        "variable_mode": "Variable",
+        "when_it_runs": "À l’exécution"
       }
     },
     "pinned": {

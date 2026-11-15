@@ -142,6 +142,20 @@ beforeEach(() => {
   api.unchain.saveSkeletonResource = jest.fn().mockImplementation(async ({ document }) => stored(document, "saved-token"));
 });
 
+/* An argument's value is one cell: typed in (written on Enter), or a source
+   picked from what the cell offers when it is focused. */
+const valueBox = (name) => within(screen.getByTestId(`tool-call-argument-${name}-value`)).getByRole("textbox");
+const typeValue = (name, text) => {
+  fireEvent.focus(valueBox(name));
+  fireEvent.change(valueBox(name), { target: { value: text } });
+  fireEvent.keyDown(valueBox(name), { key: "Enter" });
+};
+const pickSource = (name, title) => {
+  fireEvent.focus(valueBox(name));
+  const options = screen.getAllByTitle(title);
+  fireEvent.click(options[options.length - 1]);
+};
+
 test("Skill Read: add, pick, preview, map content and name, feed the router, save, reopen", async () => {
   await open(baseRecord());
   deleteEdge("a");
@@ -191,12 +205,10 @@ test("Skill Read before an approval: the read happens first, a Write waits, the 
   drag("start", "out", "skill", "in");
   drag("skill", "out", "tool", "in");
   drag("tool", "out", "router", "in");
-  choose(screen.getByTestId("tool-call-picker"), "Write · Core");
+  choose(screen.getByTestId("tool-call-picker"), "Write");
   await screen.findByTestId("tool-call-argument-content");
-  fireEvent.click(within(screen.getByTestId("tool-call-argument-path")).getByRole("button", { name: "Variable" }));
-  choose(screen.getByTestId("tool-call-argument-path"), "start · message");
-  fireEvent.click(within(screen.getByTestId("tool-call-argument-content")).getByRole("button", { name: "Value" }));
-  fireEvent.change(within(screen.getByTestId("tool-call-argument-content")).getByPlaceholderText("a value written here"), { target: { value: "after the skill" } });
+  pickSource("path", "start · message");
+  typeValue("content", "after the skill");
   fireEvent.click(within(screen.getByTestId("tool-call-on-error")).getByRole("button", { name: "Fail the run" }));
   fireEvent.change(within(screen.getByTestId("tool-call-approval")).getByPlaceholderText("seconds"), { target: { value: "60" } });
   bindGuideIntoRouter();

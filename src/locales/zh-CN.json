@@ -1979,7 +1979,8 @@
         "unset_default": "未设置。{toolName} 使用其自己的默认值。",
         "unsupported_setting": "不支持的设置：{key}",
         "value_mode": "值",
-        "variable_mode": "变量"
+        "variable_mode": "变量",
+        "when_it_runs": "运行时"
       }
     },
     "result_roots": {

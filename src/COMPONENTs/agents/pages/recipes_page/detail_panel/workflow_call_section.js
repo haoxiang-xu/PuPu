@@ -29,13 +29,9 @@ import {
   workflow_reference,
 } from "../workflow_call_config";
 import { Block } from "./process_timeline";
-import { addButtonStyle, muted, note, pickerSelectProps, pickerSlotStyle, problem as problemOf, Region } from "./panel_style";
-import { TableHeads, TableRow, TABLE_CONTROL_INSET } from "./parameter_table";
-import ValueCell from "./value_cell";
-import usePillMissingPolicy from "./pill_missing_policy";
-import { binding_default, make_binding } from "../skeleton_io";
-import { literal_to_text } from "../tool_call_config";
-import { PARAMETER_TYPES } from "../workflow_parameters";
+import { addButtonStyle, note, pickerSelectProps, pickerSlotStyle, problem as problemOf, Region } from "./panel_style";
+import { TableHeads, TABLE_CONTROL_INSET } from "./parameter_table";
+import TypedInputRow, { typed_input_template } from "./typed_input_row";
 
 /* A Workflow Call node (#357): which published Workflow revision it runs, the
  * values that revision's Start reads, and what its End gives back. Every rule
@@ -59,58 +55,6 @@ const ROW = { display: "flex", alignItems: "center", gap: 6 };
 const FIELD = { width: "100%", fontSize: 12, paddingVertical: 4, paddingHorizontal: 6 };
 /* One input row of the Inputs region, as Tool Call's argument rows. */
 const ROW_PAD = "8px 10px 8px 11px";
-
-/* The Inputs table: the called Workflow's Parameters seen from the caller —
-   the same table as Start's, Name / Type / Value, one line a row. The name
-   column is as wide as the longest name needs and no wider, the type column
-   is the type's word, and the value takes every pixel left, so a wider panel
-   widens the value first. */
-const NAME_CHAR = 6.95;
-const TYPE_COLUMN = 46;
-/* A longer name ends in an ellipsis and is read whole on hover, so the value
-   keeps room for a source's tag in the panel's default width. */
-const name_column = (names) => Math.round(Math.min(84, Math.max(40, Math.max(0, ...names.map((name) => name.length)) * NAME_CHAR + 10)));
-const call_input_template = (names) => `${name_column(names)}px ${TYPE_COLUMN}px minmax(0, 1fr)`;
-const ELLIPSIS = { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
-
-function type_word(type, t) {
-  if (type === null || type === undefined) return t("agents.parameters.types.any");
-  return PARAMETER_TYPES.includes(type) ? t(`agents.parameters.types.${type}`) : String(type);
-}
-
-/* One input of the call: its name and type as the callee declares them, and
-   one cell for its value. What happens when a picked source has nothing is
-   the row's "more", as on an Input Variables row. */
-function CallInputRow({ name, type, required, hasDefault, defaultValue, description, binding, template, sources, sourceTag,
-  editable, isDark, testid, onSet, children }) {
-  const { t } = useTranslation();
-  const [problem, setProblem] = useState(null);
-  const value = record(binding) ? binding.value : null;
-  const set = (expression) => onSet(expression === null ? null : make_binding({
-    name, value: expression, missing: record(binding) && expression.kind !== "literal" ? binding.missing : "error",
-    default_value: expression.kind !== "literal" ? binding_default(binding) : undefined,
-  }));
-  const policy = usePillMissingPolicy({ binding, onChange: onSet, isDark,
-    hidden: !record(binding) || !value || value.kind === "literal" || !editable, testid });
-  const placeholder = !required && hasDefault ? literal_to_text(defaultValue, type) : t("agents.execution.tool.literal_placeholder");
-  const word = type_word(type, t);
-  return (
-    <TableRow template={template} testid={testid} below={<>
-      {policy.settings}
-      {problem && <span data-testid={`${testid}-problem`} style={{ ...problemOf(isDark), padding: "0 10px 6px" }}>
-        {t("agents.execution.tool.pending_literal", { problem })}</span>}
-      {children}
-    </>}>
-      <span title={[name, description].filter(Boolean).join(" — ")} style={{ ...ELLIPSIS, ...MONO, fontSize: 11.5 }}>
-        {name}{required && <span aria-label={t("agents.schema.required")} style={{ color: problemOf(isDark).color, marginLeft: 2 }}>*</span>}
-      </span>
-      <span title={word} style={{ ...ELLIPSIS, fontSize: 11.5, color: muted(isDark) }}>{word}</span>
-      <ValueCell value={value} type={type} placeholder={placeholder} optional={!required} sources={sources} sourceTag={sourceTag}
-        editable={editable} isDark={isDark} testid={`${testid}-value`} ariaLabel={name}
-        onProblem={setProblem} onChange={set} trailing={policy.action} />
-    </TableRow>
-  );
-}
 
 const PUBLISHING = agentMessage("agents.workflow.publishing");
 const record = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
@@ -418,7 +362,7 @@ export default function WorkflowCallSection({ document, node, rowDiagnostics, is
         )}
         {record(stored) && !pin && (
           <span data-testid="workflow-call-stored-invalid" style={problemOf(isDark)}>
-            {t("agents.workflow.stored", { value: "" }).split("").map((part, index) => <React.Fragment key={index}>{index > 0 && <span style={MONO}>{safe_text(JSON.stringify(stored))}</span>}{part}</React.Fragment>)}
+            {t("agents.workflow.stored", { value: "\uE000" }).split("\uE000").map((part, index) => <React.Fragment key={index}>{index > 0 && <span style={MONO}>{safe_text(JSON.stringify(stored))}</span>}{part}</React.Fragment>)}
           </span>
         )}
       </Block>
@@ -447,7 +391,7 @@ export default function WorkflowCallSection({ document, node, rowDiagnostics, is
           ].map((extra) => ({ ...extra, name: extra.pending ? extra.name : record(extra.binding) && typeof extra.binding.name === "string" ? extra.binding.name : "" }));
           const named = keyed.filter((extra) => extra.pending || (whole && !extra.duplicate && extra.name));
           const others = keyed.filter((extra) => !(extra.pending || (whole && !extra.duplicate && extra.name)));
-          const template = call_input_template([...listed.map(({ row }) => row.name), ...named.map((extra) => extra.name)]);
+          const template = typed_input_template([...listed.map(({ row }) => row.name), ...named.map((extra) => extra.name)]);
           const table = [...listed, ...named];
           return (
             <Region isDark={isDark}>
@@ -455,14 +399,14 @@ export default function WorkflowCallSection({ document, node, rowDiagnostics, is
                 columns={[{ label: t("agents.parameters.name_short") }, { label: t("agents.parameters.type") },
                   { label: t("agents.execution.tool.value_mode"), inset: TABLE_CONTROL_INSET }]} />}
               {listed.map(({ row, parameter }) => (
-                <CallInputRow key={row.name} testid={`workflow-call-input-${row.name}`} template={template}
+                <TypedInputRow key={row.name} testid={`workflow-call-input-${row.name}`} template={template}
                   name={row.name} type={parameter.type || null} required={parameter.required !== false}
                   hasDefault={Object.prototype.hasOwnProperty.call(parameter, "default")} defaultValue={parameter.default}
                   description={parameter.description || (shape.declared ? "" : t("agents.workflow.read_as", { names: row.read_as.map((name) => safe_text(name)).join(t("agents.schema.fields.list_separator")) }))}
                   binding={row.binding} sources={sources} sourceTag={source_tag} editable={editable} isDark={isDark}
                   onSet={(binding) => commit(with_call_input(document, node.id, row.name, binding, order))}>
                   <Diagnostics index={row.binding ? row.index : -1} testid={`workflow-call-input-${row.name}`} />
-                </CallInputRow>
+                </TypedInputRow>
               ))}
               {/* One list, one key per input name: a key added here and then
                   written for the first time stays the same row — the same
@@ -470,7 +414,7 @@ export default function WorkflowCallSection({ document, node, rowDiagnostics, is
                   "stored" (R-WFC-03a). */}
               {named.map(({ binding, index, pending, name }) => (
                 <div key={`named-${name}`} data-testid={pending ? `workflow-call-added-${name}` : `workflow-call-extra-${index}`} style={{ minWidth: 0 }}>
-                <CallInputRow testid={`workflow-call-input-${name}`} template={template}
+                <TypedInputRow testid={`workflow-call-input-${name}`} template={template}
                   name={name} type={null} required={false} hasDefault={false} description={t("agents.workflow.whole_key")}
                   binding={binding} sources={sources} sourceTag={source_tag} editable={editable} isDark={isDark}
                   onSet={(next) => {
@@ -482,7 +426,7 @@ export default function WorkflowCallSection({ document, node, rowDiagnostics, is
                     }
                   }}>
                   <Diagnostics index={index} testid={`workflow-call-extra-${index}`} />
-                </CallInputRow>
+                </TypedInputRow>
                 </div>
               ))}
               {others.map(({ binding, index, duplicate, name }) => (

@@ -2231,7 +2231,8 @@
         "unset_default": "Не задано. {toolName} использует своё значение по умолчанию.",
         "unsupported_setting": "Неподдерживаемая настройка: {key}",
         "value_mode": "Значение",
-        "variable_mode": "Переменная"
+        "variable_mode": "Переменная",
+        "when_it_runs": "При запуске"
       }
     },
     "pinned": {

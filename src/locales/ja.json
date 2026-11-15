@@ -2231,7 +2231,8 @@
         "unset_default": "未設定。{toolName} 自体の既定値を使います。",
         "unsupported_setting": "未対応の設定：{key}",
         "value_mode": "値",
-        "variable_mode": "変数"
+        "variable_mode": "変数",
+        "when_it_runs": "実行時"
       }
     },
     "pinned": {

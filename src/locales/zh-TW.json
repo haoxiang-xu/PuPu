@@ -2078,7 +2078,8 @@
         "unset_default": "未設定。{toolName} 使用其自己的預設值。",
         "unsupported_setting": "不支援的設定：{key}",
         "value_mode": "值",
-        "variable_mode": "變數"
+        "variable_mode": "變數",
+        "when_it_runs": "執行時"
       }
     },
     "workflow": {
