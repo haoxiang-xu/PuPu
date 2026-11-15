@@ -103,3 +103,18 @@ test("keeps threshold texels at device-pixel scale when moving between displays"
   unmount();
   expect(queries[1].removeEventListener).toHaveBeenCalledWith("change", expect.any(Function));
 });
+
+test("falls back to a source-over tint where the backdrop is not opaque", () => {
+  computedColor = "rgba(30, 30, 30, 0.6)";
+  const { container } = render(<Surface />);
+  const flood = container.querySelector("feFlood");
+  expect(flood).toHaveAttribute("flood-color", "rgb(30 30 30)");
+  expect(flood).toHaveAttribute("flood-opacity", "0.6");
+  const mask = container.querySelector("feComponentTransfer");
+  expect(mask).toHaveAttribute("in", "saturated");
+  expect(mask.querySelector("feFuncA")).toHaveAttribute("intercept", "-254");
+  const composites = [...container.querySelectorAll("feComposite")];
+  expect(composites.map((node) => node.getAttribute("operator"))).toEqual(["arithmetic", "over", "in", "out", "arithmetic"]);
+  /* the last primitive is the filter output: the opaque/translucent blend */
+  expect(container.querySelector("filter").lastElementChild).toBe(composites[composites.length - 1]);
+});

@@ -9,7 +9,7 @@ import capture from "./workflow_call_capture.json";
 import { forget_workflow_versions } from "./workflow_versions";
 
 jest.mock("../../../../SERVICEs/api", () => ({ api: { unchain: {} } }));
-jest.mock("./detail_panel/tool_call_section", () => ({ ArgumentRow: () => null }));
+jest.mock("./detail_panel/typed_input_row", () => ({ __esModule: true, default: () => null, typed_input_template: () => "" }));
 const copy = (value) => JSON.parse(JSON.stringify(value));
 const row = (name) => copy(capture.rows.find((item) => item.case === name).reply);
 const raw = "agents.workflow.title {raw} · OPAQUE";

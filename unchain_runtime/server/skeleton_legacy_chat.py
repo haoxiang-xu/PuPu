@@ -67,8 +67,14 @@ def legacy_chat_catalog(store=None):
         connection.execute('BEGIN')
         resources = [{'resource_id': row['resource_id'], 'upgraded': _upgraded(connection, row)}
                      for row in connection.execute('SELECT * FROM resources WHERE source_identity IS NOT NULL ORDER BY resource_id')]
+        listed = {row['resource_id'] for row in resources}
         grouped = {}
         for row in connection.execute('SELECT source_scope,legacy_name,target_id FROM legacy_aliases ORDER BY source_scope,legacy_name,target_id'):
+            # A managed delete keeps the alias as a tombstone so the legacy
+            # source never comes back; its target is gone, and the closed
+            # consumer admits only ids this catalog lists.
+            if row['target_id'] not in listed:
+                continue
             grouped.setdefault((row['source_scope'], row['legacy_name']), set()).add(row['target_id'])
         aliases = [{'source_scope': scope, 'legacy_name': name, 'resource_ids': sorted(ids)}
                    for (scope, name), ids in grouped.items()]

@@ -108,6 +108,19 @@ const choose = (container, label, which = 0) => {
   fireEvent.click(within(lists[lists.length - 1]).getByText(label, { exact: true }));
 };
 const argument = (name) => screen.getByTestId(`tool-call-argument-${name}`);
+/* An argument's value is one cell: typed in (written on Enter), or a source
+   picked from what the cell offers when it is focused. */
+const valueBox = (name) => within(screen.getByTestId(`tool-call-argument-${name}-value`)).getByRole("textbox");
+const typeValue = (name, text) => {
+  fireEvent.focus(valueBox(name));
+  fireEvent.change(valueBox(name), { target: { value: text } });
+  fireEvent.keyDown(valueBox(name), { key: "Enter" });
+};
+const pickSource = (name, title) => {
+  fireEvent.focus(valueBox(name));
+  const options = screen.getAllByTitle(title);
+  fireEvent.click(options[options.length - 1]);
+};
 const save = async () => {
   fireEvent.click(screen.getByRole("button", { name: "Save", exact: true }));
   await waitFor(() => expect(screen.getByTestId("skeleton-save-state")).toHaveTextContent(/^Saved$/));
@@ -138,6 +151,15 @@ beforeEach(() => {
   api.unchain.saveSkeletonResource = jest.fn().mockImplementation(async ({ document }) => stored(document, "saved-token"));
 });
 
+/* The tool picker opens with its toolkit folders folded: open Core, then pick. */
+const chooseTool = (label) => {
+  fireEvent.click(within(screen.getByTestId("tool-call-picker")).getByRole("combobox"));
+  const lists = screen.getAllByRole("listbox", { hidden: true });
+  fireEvent.click(within(lists[lists.length - 1]).getByText("Core", { exact: true }));
+  const again = screen.getAllByRole("listbox", { hidden: true });
+  fireEvent.click(within(again[again.length - 1]).getByText(label, { exact: true }));
+};
+
 test("Read: add, pick, bind one argument and fix another, choose Continue, map the result, branch on ok, save, reopen", async () => {
   await open(baseRecord());
   deleteEdge("a");
@@ -145,12 +167,10 @@ test("Read: add, pick, bind one argument and fix another, choose Continue, map t
   await screen.findByTestId("tool-call-section");
   drag("start", "out", "tool", "in");
 
-  choose(screen.getByTestId("tool-call-picker"), "Read · Core");
+  chooseTool("Read");
   await screen.findByTestId("tool-call-argument-path");
-  fireEvent.click(within(argument("path")).getByRole("button", { name: "Variable" }));
-  choose(argument("path"), "start · message");
-  fireEvent.click(within(argument("limit")).getByRole("button", { name: "Value" }));
-  fireEvent.change(within(argument("limit")).getByPlaceholderText("a value written here"), { target: { value: "5" } });
+  pickSource("path", "start · message");
+  typeValue("limit", "5");
   fireEvent.click(within(screen.getByTestId("tool-call-on-error")).getByRole("button", { name: "Continue" }));
   fireEvent.change(within(screen.getByTestId("tool-call-approval")).getByPlaceholderText("seconds"), { target: { value: "60" } });
   addOutput(0, "result", "page");
@@ -218,10 +238,10 @@ test("Read: add, pick, bind one argument and fix another, choose Continue, map t
   expect(screen.getByTestId("tool-call-node-tool-row-1")).toHaveTextContent("limit5");
   pressCanvasNode("tool");
   await screen.findByTestId("tool-call-argument-path");
-  expect(within(screen.getByTestId("tool-call-picker")).getByRole("combobox")).toHaveTextContent("Read · Core");
-  expect(within(argument("path")).getByRole("button", { name: "Variable" })).toBeInTheDocument();
-  expect(within(argument("path")).getAllByRole("combobox")[0]).toHaveTextContent("start · message");
-  expect(within(argument("limit")).getByPlaceholderText("a value written here")).toHaveValue("5");
+  expect(within(screen.getByTestId("tool-call-picker")).getByRole("combobox")).toHaveTextContent("Read");
+  expect(screen.getByTestId("tool-call-tool")).toHaveTextContent("Core");
+  expect(screen.getByTestId("tool-call-argument-path-value-selected")).toHaveAttribute("title", "start · message");
+  expect(valueBox("limit")).toHaveValue("5");
   expect(within(screen.getByTestId("tool-call-approval")).getByPlaceholderText("seconds")).toHaveValue("60");
   expect(screen.getByTestId("skeleton-save-state")).toHaveTextContent(/^Saved$/);
 });
@@ -233,13 +253,11 @@ test("Write: a tool that asks for approval, Fail the run, saved and reopened as 
   await screen.findByTestId("tool-call-section");
   drag("start", "out", "tool", "in");
   drag("tool", "out", "router", "in");
-  choose(screen.getByTestId("tool-call-picker"), "Write · Core");
+  chooseTool("Write");
   await screen.findByTestId("tool-call-argument-content");
   expect(screen.getByTestId("tool-call-confirmation")).toHaveTextContent("asks for approval each time");
-  fireEvent.click(within(argument("path")).getByRole("button", { name: "Variable" }));
-  choose(argument("path"), "start · message");
-  fireEvent.click(within(argument("content")).getByRole("button", { name: "Value" }));
-  fireEvent.change(within(argument("content")).getByPlaceholderText("a value written here"), { target: { value: "written by the builder" } });
+  pickSource("path", "start · message");
+  typeValue("content", "written by the builder");
   fireEvent.click(within(screen.getByTestId("tool-call-on-error")).getByRole("button", { name: "Fail the run" }));
   fireEvent.change(within(screen.getByTestId("tool-call-approval")).getByPlaceholderText("seconds"), { target: { value: "30" } });
   expect(screen.queryByTestId("tool-call-problems")).toBeNull();
@@ -263,6 +281,6 @@ test("Write: a tool that asks for approval, Fail the run, saved and reopened as 
   await open(stored(document, "saved-token"));
   pressCanvasNode("tool");
   await screen.findByTestId("tool-call-argument-content");
-  expect(within(argument("content")).getByPlaceholderText("a value written here")).toHaveValue("written by the builder");
+  expect(valueBox("content")).toHaveValue("written by the builder");
   expect(within(screen.getByTestId("tool-call-approval")).getByPlaceholderText("seconds")).toHaveValue("30");
 });

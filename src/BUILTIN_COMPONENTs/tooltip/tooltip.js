@@ -72,6 +72,11 @@ const _releasePortal = () => {
 const default_trigger = ["hover", "focus", "click"];
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+/* Gap kept between any bubble and the window edge. */
+const VIEWPORT_MARGIN = 8;
+/* Clamp into [min, max]; when the range is empty (bubble wider/taller than
+   the room) pin to `min` so the start edge stays readable. */
+const clamp_into = (value, min, max) => Math.max(min, Math.min(value, max));
 const toNumber = (value, fallback) => {
   if (value === undefined || value === null) return fallback;
   if (typeof value === "number" && !Number.isNaN(value)) return value;
@@ -367,6 +372,12 @@ const Tooltip = ({
      whole trigger still opens it. Horizontal placement only: the bubble
      keeps its distance from the trigger's own edge. */
   anchor_selector,
+  /* Opt-in for menus (Select dropdowns): the bubble never grows past the
+     window. Its content box becomes a column whose max size is the room on
+     the chosen side, so a panel with `minHeight: 0` and a scrollable list
+     shrinks into the window and scrolls instead of being cut off. Width
+     follows the window too instead of the plain-tooltip 260px cap. */
+  fit_viewport = false,
 }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const trigger_ref = useRef(null);
@@ -395,6 +406,9 @@ const Tooltip = ({
     transform: "translate(-50%, -100%)",
   });
   const [isReady, setIsReady] = useState(false);
+  /* fit_viewport: room (px) on the side the bubble opened to; null = not
+     measured yet this open, so the first measure sees the natural size. */
+  const [availableHeight, setAvailableHeight] = useState(null);
 
   const triggerList = useMemo(() => {
     if (Array.isArray(trigger)) return trigger;
@@ -653,75 +667,34 @@ const Tooltip = ({
         return { width: bubble.width + arrowExtent, height: bubble.height };
       };
 
-      const get_top_left = (pos, anchor, totalSize) => {
-        if (!totalSize) return { left: anchor.x, top: anchor.y };
-        if (pos === "bottom") {
-          if (resolvedAlign === "start") {
-            return { left: anchor.x, top: anchor.y };
-          }
-          if (resolvedAlign === "end") {
-            return { left: anchor.x - totalSize.width, top: anchor.y };
-          }
-          return { left: anchor.x - totalSize.width / 2, top: anchor.y };
-        }
-        if (pos === "left") {
-          return {
-            left: anchor.x - totalSize.width,
-            top: anchor.y - totalSize.height / 2,
-          };
-        }
-        if (pos === "right") {
-          return { left: anchor.x, top: anchor.y - totalSize.height / 2 };
-        }
-        if (resolvedAlign === "start") {
-          return { left: anchor.x, top: anchor.y - totalSize.height };
-        }
-        if (resolvedAlign === "end") {
-          return {
-            left: anchor.x - totalSize.width,
-            top: anchor.y - totalSize.height,
-          };
-        }
-        return {
-          left: anchor.x - totalSize.width / 2,
-          top: anchor.y - totalSize.height,
-        };
+      const opposite = {
+        top: "bottom",
+        bottom: "top",
+        left: "right",
+        right: "left",
       };
-
-      const get_overflow = (pos, bubble) => {
-        const totalSize = get_size_for_pos(pos, bubble);
-        if (!totalSize) {
-          return { top: 0, bottom: 0, left: 0, right: 0 };
-        }
-        const anchor = get_anchor(pos);
-        const topLeft = get_top_left(pos, anchor, totalSize);
-        return {
-          left: Math.max(0, -topLeft.left),
-          right: Math.max(0, topLeft.left + totalSize.width - viewportWidth),
-          top: Math.max(0, -topLeft.top),
-          bottom: Math.max(0, topLeft.top + totalSize.height - viewportHeight),
-        };
+      const vertical = position === "top" || position === "bottom";
+      const M = VIEWPORT_MARGIN;
+      /* Room along the main axis on each side, after offset, arrow and the
+         window margin. */
+      const room = {
+        top: rect.top - offset - arrowExtent - M,
+        bottom: viewportHeight - rect.bottom - offset - arrowExtent - M,
+        left: rect.left - offset - arrowExtent - M,
+        right: viewportWidth - rect.right - offset - arrowExtent - M,
       };
+      const need = vertical ? size.height : size.width;
 
+      /* Preferred side if it fits; else the opposite if that fits; else
+         whichever side has more room (fit_viewport then shrinks into it).
+         Stable under the shrink: once clamped to the bigger side's room the
+         bubble still does not fit the smaller preferred side. */
       let nextPosition = position;
-      const overflow = get_overflow(position, size);
-      const mainOverflow =
-        position === "top"
-          ? overflow.top
-          : position === "bottom"
-            ? overflow.bottom
-            : position === "left"
-              ? overflow.left
-              : overflow.right;
-      if (mainOverflow > 0) {
-        nextPosition =
-          position === "top"
-            ? "bottom"
-            : position === "bottom"
-              ? "top"
-              : position === "left"
-                ? "right"
-                : "left";
+      if (need > room[position]) {
+        const other = opposite[position];
+        if (need <= room[other] || room[other] > room[position]) {
+          nextPosition = other;
+        }
       }
 
       const anchor = get_anchor(nextPosition);
@@ -730,25 +703,35 @@ const Tooltip = ({
 
       const adjustedSize = get_size_for_pos(nextPosition, size);
       if (adjustedSize) {
+        const w = adjustedSize.width;
+        const h = adjustedSize.height;
         if (nextPosition === "top" || nextPosition === "bottom") {
-          if (resolvedAlign === "start") {
-            const minX = 0;
-            const maxX = viewportWidth - adjustedSize.width;
-            anchorX = Math.min(Math.max(anchorX, minX), maxX);
-          } else if (resolvedAlign === "end") {
-            const minX = adjustedSize.width;
-            const maxX = viewportWidth;
-            anchorX = Math.min(Math.max(anchorX, minX), maxX);
-          } else {
-            const minX = adjustedSize.width / 2;
-            const maxX = viewportWidth - adjustedSize.width / 2;
-            anchorX = Math.min(Math.max(anchorX, minX), maxX);
-          }
+          /* anchorX is the bubble's start / end / centre depending on align;
+             convert the window box [M, vw - M] into that frame. */
+          const shift =
+            resolvedAlign === "start" ? 0 : resolvedAlign === "end" ? w : w / 2;
+          anchorX = clamp_into(anchorX, M + shift, viewportWidth - M - w + shift);
         } else {
-          const minY = adjustedSize.height / 2;
-          const maxY = viewportHeight - adjustedSize.height / 2;
-          anchorY = Math.min(Math.max(anchorY, minY), maxY);
+          anchorY = clamp_into(
+            anchorY,
+            M + h / 2,
+            viewportHeight - M - h / 2,
+          );
         }
+      }
+
+      if (fit_viewport) {
+        const nextAvailable = Math.max(
+          0,
+          Math.floor(
+            nextPosition === "top" || nextPosition === "bottom"
+              ? room[nextPosition]
+              : viewportHeight - 2 * M,
+          ),
+        );
+        setAvailableHeight((prev) =>
+          prev === nextAvailable ? prev : nextAvailable,
+        );
       }
 
       setActivePosition(nextPosition);
@@ -758,12 +741,13 @@ const Tooltip = ({
         transform: anchor.transform,
       });
     },
-    [position, offset, show_arrow, arrowHeight, align, anchor_selector],
+    [position, offset, show_arrow, arrowHeight, align, anchor_selector, fit_viewport],
   );
 
   useLayoutEffect(() => {
     if (!isOpen) {
       setIsReady(false);
+      setAvailableHeight(null);
       return;
     }
     const measured = measure_bubble();
@@ -1064,7 +1048,22 @@ const Tooltip = ({
     theme?.tooltip?.boxShadow ??
     defaultTooltipStyle.boxShadow;
   const contentPadding = stylePadding ?? "6px";
-  const contentMaxWidth = styleMaxWidth ?? 260;
+  const contentMaxWidth =
+    styleMaxWidth ??
+    (fit_viewport ? `calc(100vw - ${VIEWPORT_MARGIN * 2}px)` : 260);
+  /* fit_viewport: a column capped at the measured room, so a shrinkable
+     child (minHeight: 0) gives up height and scrolls inside. */
+  const fitStyle = fit_viewport
+    ? {
+        boxSizing: "border-box",
+        display: "flex",
+        flexDirection: "column",
+        maxHeight:
+          availableHeight !== null
+            ? availableHeight
+            : `calc(100vh - ${VIEWPORT_MARGIN * 2}px)`,
+      }
+    : null;
   const contentFontSize = styleFontSize ?? 12;
   const contentLineHeight = styleLineHeight ?? 1.4;
   const contentFontFamily =
@@ -1217,6 +1216,7 @@ const Tooltip = ({
                     fontSize: contentFontSize,
                     lineHeight: contentLineHeight,
                     fontFamily: contentFontFamily,
+                    ...fitStyle,
                     ...contentStyleOverrides,
                   }}
                 >

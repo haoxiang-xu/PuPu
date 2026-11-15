@@ -684,6 +684,7 @@ export default function AgentExplorer({
       buildAgentExplorerMenuItems({
         node: contextMenu.node,
         activeDirty,
+        canCreate,
         onNewAgent: handleNewAgent,
         onNewWorkflow: handleNewWorkflow,
         onNewFolder: handleNewFolder,
@@ -697,7 +698,7 @@ export default function AgentExplorer({
         onDeleteResource: handleDeleteResource,
         onDeleteFolder: handleDeleteFolder,
       }, t),
-    [contextMenu.node, activeDirty, handleNewAgent, handleNewWorkflow, handleNewFolder, handleStartRename, handleDuplicate,
+    [contextMenu.node, activeDirty, canCreate, handleNewAgent, handleNewWorkflow, handleNewFolder, handleStartRename, handleDuplicate,
       handleChangeIcon, iconsEditable, handleDeleteResource, handleDeleteFolder, closeContextMenu, t],
   );
 
@@ -705,13 +706,18 @@ export default function AgentExplorer({
   const sideActive = activeId ? `${ARCHIVED}${activeId}` : undefined;
   const caption = { fontSize: 11, color: MUTED, padding: "4px 10px", lineHeight: 1.45 };
 
+  /* One + for everything this list can make (Agent, Workflow, Folder,
+     Import): it opens the same menu as a right-click on the background. */
   const actionButtons = (
-    <>
-      <Button prefix_icon="upload" ariaLabel={t("agents.explorer.import")} onClick={() => setImportOpen(true)} style={ICON_BUTTON} />
-      <Button prefix_icon="folder_new" ariaLabel={t("agents.explorer.new_folder")} onClick={() => handleNewFolder(null)} style={ICON_BUTTON} />
-      <Button prefix_icon="workflow" ariaLabel={t("agents.explorer.new_workflow")} disabled={!canCreate} onClick={() => handleNewWorkflow(null)} style={ICON_BUTTON} />
-      <Button prefix_icon="add" ariaLabel={t("agents.explorer.new_agent")} disabled={!canCreate} onClick={() => handleNewAgent(null)} style={ICON_BUTTON} />
-    </>
+    <Button
+      prefix_icon="add"
+      ariaLabel={t("side_menu.new")}
+      onClick={(event) => {
+        const rect = event.currentTarget.getBoundingClientRect();
+        setContextMenu({ visible: true, x: rect.left, y: rect.bottom + 4, node: null });
+      }}
+      style={ICON_BUTTON}
+    />
   );
   const searchField = (
     <Input

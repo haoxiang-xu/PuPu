@@ -16,6 +16,17 @@ jest.mock("../../../SERVICEs/bridges/window_state_bridge", () => ({
   windowStateBridge: { isListenerAvailable: () => false, onWindowStateChange: () => () => {} },
 }));
 
+jest.mock("../../../BUILTIN_COMPONENTs/context_menu/context_menu", () => function MockMenu({ visible, items }) {
+  if (!visible) return null;
+  return (
+    <div data-testid="context-menu">
+      {items.filter((item) => item.label).map((item) => (
+        <button key={item.label} type="button" disabled={item.disabled} onClick={item.onClick}>{item.label}</button>
+      ))}
+    </div>
+  );
+});
+
 if (!global.ResizeObserver) global.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
 const show = () => render(
   <ConfigContext.Provider value={{ theme: {}, onThemeMode: "light_mode" }}>
@@ -45,10 +56,16 @@ beforeEach(() => {
 
 /* Creation is the explorer's own: New Agent opens an inline name row in the
    Agents explorer (the same row the legacy recipe list used), Enter creates. */
+/* The explorer's header has one + for everything it makes; New Agent is in
+   its menu. */
+const newAgentItem = () => {
+  fireEvent.click(screen.getByRole("button", { name: "New" }));
+  return within(screen.getByTestId("context-menu")).getByRole("button", { name: "New Agent" });
+};
 const nameRow = () => within(screen.getByTestId("agent-explorer")).getByRole("textbox", { name: "" });
 const compose = async (name = "My first Agent") => {
-  await waitFor(() => expect(screen.getByRole("button", { name: "New Agent" })).toBeEnabled());
-  fireEvent.click(screen.getByRole("button", { name: "New Agent" }));
+  await waitFor(() => expect(newAgentItem()).toBeEnabled());
+  fireEvent.click(within(screen.getByTestId("context-menu")).getByRole("button", { name: "New Agent" }));
   fireEvent.change(nameRow(), { target: { value: name } });
   fireEvent.keyDown(nameRow(), { key: "Enter" });
   expect(await screen.findByTestId("skeleton-node-agent")).toBeInTheDocument();
@@ -129,11 +146,11 @@ test("a refused first save keeps the draft and offers explicit conflict choices,
 
 test("a blank name cannot create, and Escape does not leave a draft or send a request", async () => {
   show();
-  await waitFor(() => expect(screen.getByRole("button", { name: "New Agent" })).toBeEnabled());
-  fireEvent.click(screen.getByRole("button", { name: "New Agent" }));
+  await waitFor(() => expect(newAgentItem()).toBeEnabled());
+  fireEvent.click(within(screen.getByTestId("context-menu")).getByRole("button", { name: "New Agent" }));
   fireEvent.keyDown(nameRow(), { key: "Enter" });
   expect(screen.queryByTestId("skeleton-resource-page")).toBeNull();
-  fireEvent.click(screen.getByRole("button", { name: "New Agent" }));
+  fireEvent.click(newAgentItem());
   fireEvent.change(nameRow(), { target: { value: "Never made" } });
   fireEvent.keyDown(nameRow(), { key: "Escape" });
   expect(within(screen.getByTestId("agent-explorer")).queryByRole("textbox", { name: "" })).toBeNull();
@@ -145,5 +162,5 @@ test("a listing without a save bridge does not offer creation", async () => {
   delete api.unchain.saveSkeletonResource;
   show();
   expect(await screen.findByTestId("agent-explorer-empty")).toHaveTextContent("No Agents yet");
-  expect(screen.getByRole("button", { name: "New Agent" })).toBeDisabled();
+  expect(newAgentItem()).toBeDisabled();
 });

@@ -1,70 +1,172 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+/* Defaults for the new-chat model chips. Tune here. */
+export const MODEL_CHIP_LIMIT = 16;
+export const MODEL_CHIP_SWAP_COUNT = 2;
+export const MODEL_CHIP_INTERVAL_MS = 2500;
+
+const pickRandom = (items, count, random) => {
+  const pool = items.slice();
+  const picked = [];
+  while (picked.length < count && pool.length > 0) {
+    const index = Math.floor(random() * pool.length);
+    picked.push(pool.splice(index, 1)[0]);
+  }
+  return picked;
+};
 
 /**
- * Sliding-window rotation for model chips.
+ * Reconcile the previous slot ids with the current chip list: keep every id
+ * that still exists in its slot, make sure the pinned id is visible, then fill
+ * empty slots with random chips that are not on screen yet.
+ */
+export const reconcileModelChipSlots = (
+  previous,
+  chips,
+  { limit, pinnedId = null, keepIds = [], random = Math.random },
+) => {
+  const ids = chips.map((chip) => chip.id);
+  if (ids.length <= limit) return ids;
+  const known = new Set(ids);
+  const slots = previous.slice(0, limit).map((id) => (known.has(id) ? id : null));
+  while (slots.length < limit) slots.push(null);
+
+  const seen = new Set();
+  for (let i = 0; i < slots.length; i += 1) {
+    if (slots[i] !== null && seen.has(slots[i])) slots[i] = null;
+    if (slots[i] !== null) seen.add(slots[i]);
+  }
+
+  /* ids that must be on screen: the selected model, plus e.g. a chip the
+     pointer is on that just left the pinned group */
+  const keep = [pinnedId, ...keepIds].filter((id) => id && known.has(id));
+  keep.forEach((id) => {
+    if (seen.has(id)) return;
+    let target = slots.indexOf(null);
+    if (target < 0) {
+      for (let i = slots.length - 1; i >= 0; i -= 1) {
+        if (!keep.includes(slots[i])) {
+          target = i;
+          break;
+        }
+      }
+    }
+    if (target < 0) return;
+    if (slots[target] !== null) seen.delete(slots[target]);
+    slots[target] = id;
+    seen.add(id);
+  });
+
+  const empty = slots.reduce((acc, id, i) => (id === null ? [...acc, i] : acc), []);
+  const fill = pickRandom(
+    ids.filter((id) => !seen.has(id)),
+    empty.length,
+    random,
+  );
+  empty.forEach((slotIndex, i) => {
+    slots[slotIndex] = fill[i];
+  });
+  return slots;
+};
+
+/** Replace `count` random non-pinned slots with random off-screen chips. */
+export const swapModelChipSlots = (
+  slots,
+  chips,
+  { count, pinnedId = null, heldId = null, random = Math.random },
+) => {
+  const visible = new Set(slots);
+  const hidden = chips.map((chip) => chip.id).filter((id) => !visible.has(id));
+  const candidates = slots
+    .map((id, index) => ({ id, index }))
+    .filter(({ id }) => id !== pinnedId && id !== heldId);
+  const n = Math.min(count, hidden.length, candidates.length);
+  if (n <= 0) return slots;
+  const outgoing = pickRandom(candidates, n, random);
+  const incoming = pickRandom(hidden, n, random);
+  const next = slots.slice();
+  outgoing.forEach(({ index }, i) => {
+    next[index] = incoming[i];
+  });
+  return next;
+};
+
+/**
+ * Random rotation for the new-chat model chips.
  *
- * When `chips.length <= limit` every chip is shown and no timer runs.
- * Otherwise a window of `limit` chips is displayed, advancing by `step`
- * positions every `intervalMs` milliseconds in a deterministic sequence
- * so every model gets equal screen-time.
+ * At most `limit` chips are on screen. When there are more models than that,
+ * every `intervalMs` a random `swapCount` of the visible chips are replaced in
+ * place by random models that are not on screen. Slots keep their position
+ * (and React key), so a swap only changes what one slot shows; the caller
+ * animates that change. With `limit` or fewer models, all of them are shown
+ * and nothing rotates.
  *
- * The currently-selected model is always pinned into the visible window
- * (swapped into the last slot if it would otherwise be off-screen).
+ * The selected model is always visible and never swapped out. Rotation pauses
+ * `heldId` (the chip under the pointer) is likewise never swapped out, so a
+ * chip can't change while it is being clicked; the rest keep rotating.
+ * Rotation pauses while `paused` is true and while the
+ * window is hidden.
  *
- * @param {Array<{id:string}>} chips        – full ordered chip list
- * @param {object}             opts
- * @param {number}            [opts.limit=24]        – max visible chips
- * @param {number}            [opts.step=4]          – advance per tick
- * @param {number}            [opts.intervalMs=5000]  – ms between ticks
- * @param {string|null}       [opts.selectedModelId]  – always-visible id
- * @returns {Array}  visible chip slice (length ≤ limit)
+ * @returns {Array<{slot:number, chip:object}>}
  */
 export function useRotatingModelChips(
   chips,
-  { limit = 24, step = 4, intervalMs = 5000, selectedModelId = null } = {},
+  {
+    limit = MODEL_CHIP_LIMIT,
+    swapCount = MODEL_CHIP_SWAP_COUNT,
+    intervalMs = MODEL_CHIP_INTERVAL_MS,
+    selectedModelId = null,
+    heldId = null,
+    paused = false,
+  } = {},
 ) {
-  const [offset, setOffset] = useState(0);
+  const chipKey = chips.map((chip) => chip.id).join("\u0000");
+  const [slots, setSlots] = useState(() =>
+    reconcileModelChipSlots([], chips, { limit, pinnedId: selectedModelId }),
+  );
 
-  /* Reset offset when the chip list identity changes (models added/removed). */
-  const prevLenRef = useRef(chips.length);
-  useEffect(() => {
-    if (chips.length !== prevLenRef.current) {
-      setOffset(0);
-      prevLenRef.current = chips.length;
+  /* Reconcile when models come and go or the selection moves. Done during
+     render (not in an effect) so the first paint already has the right set. */
+  const reconcileKey = `${chipKey}|${selectedModelId}|${heldId}|${limit}`;
+  const reconcileKeyRef = useRef(reconcileKey);
+  let currentSlots = slots;
+  if (reconcileKeyRef.current !== reconcileKey) {
+    reconcileKeyRef.current = reconcileKey;
+    currentSlots = reconcileModelChipSlots(slots, chips, {
+      limit,
+      pinnedId: selectedModelId,
+      keepIds: heldId ? [heldId] : [],
+    });
+    if (currentSlots.join("\u0000") !== slots.join("\u0000")) {
+      setSlots(currentSlots);
     }
-  }, [chips.length]);
+  }
 
-  /* Advance the window on a fixed interval when rotation is needed. */
   const needsRotation = chips.length > limit;
+  const latestRef = useRef({ chips, selectedModelId, heldId, swapCount });
+  latestRef.current = { chips, selectedModelId, heldId, swapCount };
+
   useEffect(() => {
-    if (!needsRotation) return;
+    if (!needsRotation || paused) return undefined;
     const id = setInterval(() => {
-      setOffset((prev) => (prev + step) % chips.length);
+      if (typeof document !== "undefined" && document.hidden) return;
+      const latest = latestRef.current;
+      setSlots((previous) =>
+        swapModelChipSlots(previous, latest.chips, {
+          count: latest.swapCount,
+          pinnedId: latest.selectedModelId,
+          heldId: latest.heldId,
+        }),
+      );
     }, intervalMs);
     return () => clearInterval(id);
-  }, [needsRotation, chips.length, step, intervalMs]);
+  }, [needsRotation, paused, intervalMs]);
 
-  /* Build the visible slice. */
   return useMemo(() => {
-    if (chips.length <= limit) return chips;
-
-    const visible = [];
-    const seen = new Set();
-    for (let i = 0; i < limit; i++) {
-      const idx = (offset + i) % chips.length;
-      visible.push(chips[idx]);
-      seen.add(chips[idx].id);
-    }
-
-    /* Pin selected model — if it fell outside the window, swap it into the
-       last position so the user always sees their current choice. */
-    if (selectedModelId && !seen.has(selectedModelId)) {
-      const pinned = chips.find((c) => c.id === selectedModelId);
-      if (pinned) {
-        visible[visible.length - 1] = pinned;
-      }
-    }
-
-    return visible;
-  }, [chips, limit, offset, selectedModelId]);
+    const byId = new Map(chips.map((chip) => [chip.id, chip]));
+    return currentSlots
+      .map((id, slot) => ({ slot, chip: byId.get(id) }))
+      .filter((entry) => entry.chip);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentSlots, chipKey]);
 }

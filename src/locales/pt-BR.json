@@ -548,7 +548,8 @@
     "chats": "Chats",
     "home": "Início",
     "no_chats_found": "Nenhum chat encontrado",
-    "models": "Modelos"
+    "models": "Modelos",
+    "new": "Novo"
   },
   "context_menu": {
     "new_chat": "Novo chat",
@@ -575,6 +576,8 @@
     "no_results": "Nenhum resultado"
   },
   "chat": {
+    "pin_model": "Fixar modelo",
+    "unpin_model": "Desafixar modelo",
     "placeholder": "Mensagem para PuPu...",
     "settlement": {
       "waiting": "Aguardando a execução anterior terminar…",
@@ -960,7 +963,14 @@
         "object": "Objeto",
         "array": "Lista",
         "null": "Null"
-      }
+      },
+      "help": "O que quem chama passa ao executar este Workflow. Cada parâmetro é obrigatório ou usa seu valor padrão; os nós seguintes o leem em Start.",
+      "default_short": "Padrão",
+      "invalid_number": "Não é um número.",
+      "invalid_integer": "Não é um número inteiro.",
+      "invalid_json": "JSON inválido.",
+      "name_short": "Nome",
+      "type": "Tipo"
     },
     "missing": {
       "if_missing": "Se o valor estiver ausente",
@@ -1767,7 +1777,16 @@
       "revision_failed": "Não foi possível ler a revisão fixada: {message}.",
       "missing_input": "O Start do Workflow chamado lê “{key}”. Sem esse valor, a chamada falha quando a execução chega aqui.",
       "unknown_output": "“{name}” não é algo que o End da revisão fixada exporte; essa saída estaria ausente quando a execução chegasse aqui.",
-      "reads_nothing": "{name} não lê nada de sua entrada de execução."
+      "reads_nothing": "{name} não lê nada de sua entrada de execução.",
+      "not_a_workflow": "Isso não é um fluxo de trabalho.",
+      "locking": "Fixando a versão atual…",
+      "uses_version": "Usa a versão {ordinal}",
+      "changed_since": "{name} mudou desde a versão {ordinal}",
+      "update": "Atualizar",
+      "update_label": "Usar a versão atual de {name}",
+      "edit": "Editar",
+      "edit_label": "Abrir {name} para editar",
+      "lock_failed": "Não foi possível fixar a versão atual: {message}"
     },
     "toolkit": {
       "remove": "Remover",
@@ -1964,7 +1983,14 @@
         "unreadable_condition_part": "Esta parte da condição não tem uma estrutura que o editor consiga decompor, portanto é mantida exatamente como armazenada.",
         "unreadable_operand": "Este lado não tem uma estrutura que o editor consiga decompor, portanto é mantido exatamente como armazenado.",
         "unreadable_settings": "As configurações desta ramificação não têm uma estrutura que o editor consiga ler, portanto são mantidas exatamente como armazenadas.",
-        "use_an_input": "Usar uma entrada"
+        "use_an_input": "Usar uma entrada",
+        "branches": "Ramos",
+        "when": "quando",
+        "otherwise": "senão",
+        "value_text": "Texto",
+        "value_number": "Número",
+        "value_input": "Entrada {name}",
+        "read_inside_option": "Ler dentro…"
       },
       "code": {
         "a_named_python": "um Python nomeado",
@@ -2205,7 +2231,8 @@
         "unset_default": "Não definido. {toolName} usa seu próprio padrão.",
         "unsupported_setting": "Configuração não compatível: {key}",
         "value_mode": "Valor",
-        "variable_mode": "Variável"
+        "variable_mode": "Variável",
+        "when_it_runs": "Ao executar"
       }
     },
     "pinned": {
@@ -2770,7 +2797,13 @@
       "workflow_embedded_shape": "O Workflow armazenado não é exatamente {kind: embedded, document}; a execução o recusa.",
       "workflow_missing": "Fixe o Workflow publicado que este Hook executa.",
       "workflow_reference_shape": "A referência de Workflow armazenada não é exatamente {workflow_id, revision_id}, ambos com nome; a execução a recusa.",
-      "workflow_revision": "{name} · rev. {ordinal}"
+      "workflow_revision": "{name} · rev. {ordinal}",
+      "tools": "Ferramentas",
+      "add_tool": "adicionar uma ferramenta",
+      "remove_tool": "Remover {name}",
+      "runs_named": "{id} executa",
+      "list_is_order": "Os hooks rodam de cima para baixo; arraste um para mudar a ordem.",
+      "place_last": "Colocar por último"
     },
     "legacy_tools": {
       "installed": "Instalados",

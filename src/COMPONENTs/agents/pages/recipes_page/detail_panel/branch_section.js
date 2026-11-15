@@ -4,7 +4,7 @@ import Select from "./panel_select";
 import Input from "./panel_input";
 import BareInput from "../../../../../BUILTIN_COMPONENTs/input/input";
 import { variablePillField } from "./variable_pill";
-import NodeTag from "./node_tag";
+import NodeTag, { NODE_TAG_HEIGHT, NODE_TAG_RADIUS } from "./node_tag";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import PathEditor from "./path_editor";
 import usePendingText from "./pending_text";
@@ -29,7 +29,7 @@ import {
   remove_case,
   with_branch_execution,
 } from "../skeleton_branch_config";
-import { PANEL_SWITCH, Region, SettingRow, addButtonStyle, errorColor, muted, note, problem as problemStyle, removeButtonStyle, text as textColor } from "./panel_style";
+import { PANEL_SWITCH, Region, SettingRow, addButtonStyle, errorColor, fillStrong, hairline, muted, note, problem as problemStyle, removeButtonStyle, text as textColor } from "./panel_style";
 import { Block } from "./process_timeline";
 import AddButton from "./add_button";
 import { SemiSwitch } from "../../../../../BUILTIN_COMPONENTs/input/switch";
@@ -53,27 +53,12 @@ const MONO = { fontFamily: "ui-monospace, Menlo, monospace" };
 const ROW = { display: "flex", alignItems: "center", gap: 6, minWidth: 0 };
 /* A secondary action that is not an add-at-the-end (replace, remove, keep). */
 const SMALL_BUTTON = { fontSize: 11.5, paddingVertical: 3, paddingHorizontal: 8, borderRadius: 8 };
-const SELECT_STYLE = { fontSize: 12, paddingVertical: 4, paddingHorizontal: 6, gap: 4 };
 const FIELD_TEXT = { width: "100%", fontSize: 12, paddingVertical: 4, paddingHorizontal: 6 };
 
 const is_record = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 const has_own = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
 
 const ALLOWED_EXECUTION_KEYS = { if_else: ["inputs", "condition"], switch_case: ["inputs", "value", "cases"] };
-const JOINERS = [
-  { value: "all", label: "All of these (and)" },
-  { value: "any", label: "Any of these (or)" },
-];
-const OPERAND_KINDS = [
-  { value: "input", label: "An input" },
-  { value: "literal", label: "A fixed value" },
-];
-const LITERAL_KINDS = [
-  { value: "string", label: "Text" },
-  { value: "number", label: "Number" },
-  { value: "boolean", label: "True / false" },
-  { value: "null", label: "null" },
-];
 const LITERAL_SEED = { string: "", number: 0, boolean: true, null: null };
 
 function summary_text(value) {
@@ -135,74 +120,68 @@ function NumberBox({ value, onChange, testid, disabled, isDark, style = FIELD_TE
   );
 }
 
-/* One JSON scalar. `kinds` is what may be chosen; the stored kind is always
-   offered too, so a stored value of an unexpected type stays visible and can
-   be changed deliberately rather than vanishing from the menu. */
-function LiteralEditor({ value, kinds, onChange, testid, disabled, isDark }) {
-  const { t } = useTranslation();
-  const kind = json_type(value);
-  if (!["string", "number", "boolean", "null"].includes(kind)) {
-    return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1, minWidth: 0 }}>
-        <Stored value={value} testid={`${testid}-stored`} isDark={isDark}>{t("agents.execution.branch.stored_non_scalar")}</Stored>
-        <Button label={t("agents.execution.branch.replace_with_text")} disabled={disabled} onClick={() => onChange("")} style={{ ...SMALL_BUTTON, alignSelf: "flex-start" }} />
-      </div>
-    );
-  }
-  const offered = LITERAL_KINDS.filter((option) => kinds.includes(option.value) || option.value === kind).map((option) => ({ ...option, label: t(`agents.execution.branch.literal_${option.value}`) }));
-  return (
-    <div style={{ ...ROW, flex: 1 }}>
-      {offered.length > 1 && (
-        <span data-testid={`${testid}-kind`} style={{ width: 96, flexShrink: 0 }}>
-          <Select options={offered} value={kind} filterable={false} disabled={disabled}
-            set_value={(next) => next !== kind && onChange(LITERAL_SEED[next])} style={{ ...SELECT_STYLE, width: 96 }} />
-        </span>
-      )}
-      {kind === "string" && (
-        <span data-testid={`${testid}-text`} style={{ flex: 1, minWidth: 0 }}>
-          <Input value={value} disabled={disabled} placeholder={t("agents.execution.branch.text_placeholder")} set_value={(next) => onChange(next)}
-            style={FIELD_TEXT} />
-        </span>
-      )}
-      {kind === "number" && <NumberBox value={value} onChange={onChange} testid={testid} disabled={disabled} isDark={isDark} />}
-      {kind === "boolean" && (
-        <span data-testid={`${testid}-boolean`} style={{ flex: 1, minWidth: 0 }}>
-          <Select options={[{ value: "true", label: "true" }, { value: "false", label: "false" }]} value={String(value)}
-            filterable={false} disabled={disabled} set_value={(next) => onChange(next === "true")} style={SELECT_STYLE} />
-        </span>
-      )}
-      {kind === "null" && <span style={{ ...note(isDark), ...MONO }}>null</span>}
-    </div>
-  );
-}
+/* ── one side of a comparison ───────────────────────────────────────── */
 
-/* ── operands ───────────────────────────────────────────────────────── */
+/* The If / Else selects read left to right, so a row reads as a sentence:
+   `flag  is  true`. Corners and height are every panel control's. */
+const IF_SELECT = { fontSize: 12, paddingVertical: 3, paddingHorizontal: 7, gap: 4, width: "auto" };
+const IF_FIELD_TEXT = { width: "100%", fontSize: 12, paddingVertical: 3, paddingHorizontal: 7 };
+const IfSelect = (props) => <Select align="left" {...props} style={{ ...IF_SELECT, ...props.style }} />;
+/* One cell of a row: as wide as what it shows, never wider than the row. */
+const CELL = { flexShrink: 0, minWidth: 0, maxWidth: "100%" };
+const READ_INSIDE = "\u0000inside";
 
-function InputOperand({ operand, names, onChange, testid, disabled, isDark }) {
+/* The input a side reads, picked from the node's inputs. Reading inside it is
+   one more choice in the same list; the steps then show under the row. */
+function InputPick({ path, names, onChange, testid, disabled, isDark }) {
   const { t } = useTranslation();
-  const path = operand.path;
   const head = path.length > 0 ? path[0] : "";
   const options = names.map((name) => ({ value: name, label: name }));
   if (typeof head === "string" && head && !names.includes(head)) options.push({ value: head, label: t("agents.execution.branch.unbound_input_option", { head: head }) });
   if (head !== "" && typeof head !== "string") options.push({ value: String(head), label: t("agents.execution.branch.position_head", { head: head }) });
-  const picker = (
-    <span data-testid={`${testid}-input`} style={{ flex: 1, minWidth: 0 }}>
-      {options.length === 0 ? (
-        <span style={note(isDark)}>{t("agents.execution.branch.no_inputs")}</span>
-      ) : (
-        <Select options={options} value={typeof head === "string" ? head : String(head)} placeholder={t("agents.execution.branch.choose_an_input")}
-          filterable={options.length > 8} disabled={disabled}
-          set_value={(name) => onChange({ kind: "input", path: [name, ...path.slice(1)] })} style={SELECT_STYLE} />
-      )}
-    </span>
-  );
+  if (options.length === 0) return <span style={note(isDark)}>{t("agents.execution.branch.no_inputs")}</span>;
+  if (head !== "") options.push({ value: READ_INSIDE, label: t("agents.execution.branch.read_inside_option") });
   return (
-    <PathEditor path={path} testid={`${testid}-path`} identity={testid} leading={picker} addLabel={t("agents.execution.branch.read_inside_it")}
-      onChange={(next) => !disabled && onChange({ kind: "input", path: next })} />
+    <span data-testid={`${testid}-input`} style={CELL}>
+      <IfSelect options={options} value={typeof head === "string" ? head : String(head)} placeholder={t("agents.execution.branch.choose_an_input")}
+        filterable={options.length > 8} disabled={disabled}
+        set_value={(next) => {
+          if (next === READ_INSIDE) onChange([...path, ""]);
+          else onChange([next, ...path.slice(1)]);
+        }} style={{ ...MONO }} />
+    </span>
   );
 }
 
-function OperandEditor({ operand, names, expected, allowKinds, onChange, testid, disabled, isDark }) {
+/* The steps inside an input, under the row — only once there are any. */
+function InsideSteps({ path, onChange, testid, disabled }) {
+  const { t } = useTranslation();
+  if (path.length < 2) return null;
+  return (
+    <div style={{ paddingLeft: 2 }}>
+      <PathEditor path={path} testid={`${testid}-path`} identity={testid} leading={<React.Fragment />} addLabel={t("agents.execution.branch.read_inside_it")}
+        onChange={(next) => !disabled && onChange(next)} />
+    </div>
+  );
+}
+
+/* What a side compares with, in one list: true / false, or text or a number
+   typed beside it, or another input. The kind of a fixed value is the value
+   itself — there is no separate "type" to choose. `expected` narrows the list
+   to what the other side can be compared with; the stored kind always stays
+   on offer, so an unexpected value stays visible. */
+const VALUE_KEY = {
+  literal: (value) => {
+    const kind = json_type(value);
+    return kind === "boolean" ? `bool:${value}` : `kind:${kind}`;
+  },
+};
+function value_key(operand) {
+  if (operand.kind === "input") return `input:${String(operand.path.length ? operand.path[0] : "")}`;
+  return VALUE_KEY.literal(operand.value);
+}
+
+function ValuePick({ operand, names, expected, onChange, testid, disabled, isDark }) {
   const { t } = useTranslation();
   if (!operand_is_readable(operand)) {
     return (
@@ -213,32 +192,61 @@ function OperandEditor({ operand, names, expected, allowKinds, onChange, testid,
       </div>
     );
   }
+  if (operand.kind === "literal" && !["string", "number", "boolean", "null"].includes(json_type(operand.value))) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1, minWidth: 0 }}>
+        <Stored value={operand.value} testid={`${testid}-literal-stored`} isDark={isDark}>{t("agents.execution.branch.stored_non_scalar")}</Stored>
+        <Button label={t("agents.execution.branch.replace_with_text")} disabled={disabled}
+          onClick={() => onChange({ kind: "literal", value: "" })} style={{ ...SMALL_BUTTON, alignSelf: "flex-start" }} />
+      </div>
+    );
+  }
   const kinds = expected && ["string", "number", "boolean"].includes(expected) ? [expected] : ["string", "number", "boolean"];
+  const current = value_key(operand);
+  const options = [];
+  if (kinds.includes("boolean")) options.push({ value: "bool:true", label: "true" }, { value: "bool:false", label: "false" });
+  if (kinds.includes("string")) options.push({ value: "kind:string", label: t("agents.execution.branch.value_text") });
+  if (kinds.includes("number")) options.push({ value: "kind:number", label: t("agents.execution.branch.value_number") });
+  names.forEach((name) => options.push({ value: `input:${name}`, label: t("agents.execution.branch.value_input", { name }) }));
+  if (!options.some((option) => option.value === current)) {
+    const label = operand.kind === "input" ? t("agents.execution.branch.value_input", { name: current.slice(6) })
+      : current === "kind:null" ? "null" : current === "bool:true" || current === "bool:false" ? current.slice(5)
+        : t(`agents.execution.branch.value_${json_type(operand.value) === "number" ? "number" : "text"}`);
+    options.push({ value: current, label });
+  }
+  function pick(next) {
+    if (next === current || !options.some((option) => option.value === next)) return;
+    if (next.startsWith("input:")) onChange({ kind: "input", path: [next.slice(6)] });
+    else if (next.startsWith("bool:")) onChange({ kind: "literal", value: next === "bool:true" });
+    else onChange({ kind: "literal", value: LITERAL_SEED[next.slice(5)] });
+  }
+  const kind = operand.kind === "literal" ? json_type(operand.value) : null;
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1, minWidth: 0 }}>
-      {allowKinds && (
-        <span data-testid={`${testid}-kind`} style={{ width: 132 }}>
-          <Select options={OPERAND_KINDS.map((option) => ({ ...option, label: t(`agents.execution.branch.operand_${option.value}`) }))} value={operand.kind} filterable={false} disabled={disabled}
-            set_value={(next) => {
-              if (next === operand.kind) return;
-              if (next === "input") onChange({ kind: "input", path: names.length ? [names[0]] : [] });
-              else onChange({ kind: "literal", value: LITERAL_SEED[kinds[0]] });
-            }} style={{ ...SELECT_STYLE, width: 132 }} />
+    <>
+      <span data-testid={`${testid}-value`} style={CELL}>
+        <IfSelect options={options} value={current} filterable={options.length > 8} disabled={disabled} set_value={pick} />
+      </span>
+      {kind === "string" && (
+        <span data-testid={`${testid}-literal-text`} style={{ flex: 1, minWidth: 64 }}>
+          <Input value={operand.value} disabled={disabled} placeholder={t("agents.execution.branch.text_placeholder")}
+            set_value={(next) => onChange({ kind: "literal", value: next })} style={IF_FIELD_TEXT} />
         </span>
       )}
-      {operand.kind === "input" ? (
-        <InputOperand operand={operand} names={names} onChange={onChange} testid={testid} disabled={disabled} isDark={isDark} />
-      ) : (
-        <LiteralEditor value={operand.value} kinds={kinds} disabled={disabled} testid={`${testid}-literal`} isDark={isDark}
-          onChange={(value) => onChange({ kind: "literal", value })} />
+      {kind === "number" && (
+        <span style={{ flex: 1, minWidth: 56, display: "flex" }}>
+          <NumberBox value={operand.value} onChange={(value) => onChange({ kind: "literal", value })} testid={`${testid}-literal`}
+            disabled={disabled} isDark={isDark} style={IF_FIELD_TEXT} />
+        </span>
       )}
-    </div>
+    </>
   );
 }
 
 /* ── the condition tree ─────────────────────────────────────────────── */
 
-function CompareRow({ condition, document, node, names, onChange, testid, disabled, isDark }) {
+/* A comparison is one line — what is read, how, and what with — and wraps
+   only when the panel is too narrow for it. */
+function CompareRow({ condition, document, node, names, onChange, remove, testid, disabled, isDark }) {
   const { t } = useTranslation();
   const op = operator_info(condition.operator);
   const left_type = condition.left.kind === "input"
@@ -261,24 +269,36 @@ function CompareRow({ condition, document, node, names, onChange, testid, disabl
     }
   }
 
+  const left_readable = operand_is_readable(condition.left);
   return (
-    <div data-testid={testid} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <div style={{ ...ROW, alignItems: "flex-start" }}>
-        <OperandEditor operand={condition.left} names={names} expected={null} allowKinds={condition.left.kind !== "input"}
-          testid={`${testid}-left`} disabled={disabled} isDark={isDark}
-          onChange={(left) => onChange({ ...condition, left })} />
-        <span data-testid={`${testid}-operator`} style={{ width: 128, flexShrink: 0 }}>
-          <Select options={offered.map((entry) => ({ value: entry.value, label: entry.label }))} value={op.value}
-            filterable={false} disabled={disabled} set_value={set_operator} style={{ ...SELECT_STYLE, width: 128 }} />
-        </span>
+    <div data-testid={testid} style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 6, minWidth: 0 }}>
+        <div style={{ ...ROW, flex: 1, flexWrap: "wrap", rowGap: 4 }}>
+          {left_readable && condition.left.kind === "input" ? (
+            <InputPick path={condition.left.path} names={names} testid={`${testid}-left`} disabled={disabled} isDark={isDark}
+              onChange={(path) => onChange({ ...condition, left: { kind: "input", path } })} />
+          ) : (
+            <ValuePick operand={condition.left} names={names} expected={null} testid={`${testid}-left`} disabled={disabled} isDark={isDark}
+              onChange={(left) => onChange({ ...condition, left })} />
+          )}
+          <span data-testid={`${testid}-operator`} style={CELL}>
+            <IfSelect options={offered.map((entry) => ({ value: entry.value, label: entry.label }))} value={op.value}
+              filterable={false} disabled={disabled} set_value={set_operator} />
+          </span>
+          {op.arity === 2 && (
+            <ValuePick operand={condition.right} names={names} expected={left_type} testid={`${testid}-right`} disabled={disabled} isDark={isDark}
+              onChange={(right) => onChange({ ...condition, right })} />
+          )}
+        </div>
+        {remove}
       </div>
-      {op.arity === 2 && (
-        <OperandEditor operand={condition.right} names={names} expected={left_type} allowKinds
-          testid={`${testid}-right`} disabled={disabled} isDark={isDark}
-          onChange={(right) => onChange({ ...condition, right })} />
+      {left_readable && condition.left.kind === "input" && (
+        <InsideSteps path={condition.left.path} testid={`${testid}-left`} disabled={disabled}
+          onChange={(path) => onChange({ ...condition, left: { kind: "input", path } })} />
       )}
-      {left_type === null && condition.left.kind === "input" && (
-        <span style={note(isDark)}>{t("agents.execution.branch.input_type_unknown")}</span>
+      {op.arity === 2 && operand_is_readable(condition.right) && condition.right.kind === "input" && (
+        <InsideSteps path={condition.right.path} testid={`${testid}-right`} disabled={disabled}
+          onChange={(path) => onChange({ ...condition, right: { kind: "input", path } })} />
       )}
       {problems.map((problem, index) => (
         <span key={index} data-testid={`${testid}-problem-${index}`} style={problemStyle(isDark)}>{problem.message}</span>
@@ -286,6 +306,18 @@ function CompareRow({ condition, document, node, names, onChange, testid, disabl
     </div>
   );
 }
+
+/* Whether any comparison in the tree reads an input whose type is not known;
+   said once under the branches rather than on every row. */
+function reads_untyped_input(condition, document, node) {
+  if (!condition_node_is_readable(condition)) return false;
+  if (condition.kind === "compare") {
+    return condition.left.kind === "input" && input_value_type(document, node, condition.left.path) === null;
+  }
+  return condition.conditions.some((child) => reads_untyped_input(child, document, node));
+}
+
+const JOINER_LABEL = { all: "join_all", any: "join_any" };
 
 function ConditionTree({ condition, path, document, node, names, onChange, onRemove, removeDisabled, identity, disabled, isDark }) {
   const { t } = useTranslation();
@@ -306,13 +338,8 @@ function ConditionTree({ condition, path, document, node, names, onChange, onRem
   }
   if (condition.kind === "compare") {
     return (
-      <div style={{ ...ROW, alignItems: "flex-start" }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <CompareRow condition={condition} document={document} node={node} names={names} onChange={onChange}
-            testid={testid} disabled={disabled} isDark={isDark} />
-        </div>
-        {remove}
-      </div>
+      <CompareRow condition={condition} document={document} node={node} names={names} onChange={onChange} remove={remove}
+        testid={testid} disabled={disabled} isDark={isDark} />
     );
   }
   return (
@@ -321,25 +348,20 @@ function ConditionTree({ condition, path, document, node, names, onChange, onRem
   );
 }
 
-function ConditionGroup({ condition, path, document, node, names, onChange, remove, identity, testid, disabled, isDark }) {
+/* The rows of a group. The root group's joiner lives on the True row
+   ("when all hold"); a nested group shows its own above its rows, on a rail. */
+function GroupRows({ condition, path, document, node, names, onChange, identity, disabled, isDark }) {
   const { t } = useTranslation();
   const children = condition.conditions;
   const rows = useListIdentities(identity, children.length);
+  const testid = `condition-${path.length ? path.join("-") : "root"}`;
   const add = (child) => {
     rows.added();
     onChange({ ...condition, conditions: [...children, child] });
   };
   const opposite = condition.kind === "all" ? "any" : "all";
   return (
-    <div data-testid={testid} style={{ display: "flex", flexDirection: "column", gap: 6, paddingLeft: 10 }}>
-      <div style={ROW}>
-        <span data-testid={`${testid}-joiner`} style={{ width: 168 }}>
-          <Select options={JOINERS.map((option) => ({ ...option, label: t(`agents.execution.branch.join_${option.value}`) }))} value={condition.kind} filterable={false} disabled={disabled}
-            set_value={(kind) => kind !== condition.kind && onChange({ ...condition, kind })} style={{ ...SELECT_STYLE, width: 168 }} />
-        </span>
-        <span style={{ flex: 1 }} />
-        {remove}
-      </div>
+    <>
       {children.length === 0 && (
         <span data-testid={`${testid}-empty`} style={problemStyle(isDark)}>{t("agents.execution.branch.empty_group")}</span>
       )}
@@ -353,20 +375,90 @@ function ConditionGroup({ condition, path, document, node, names, onChange, remo
             onChange({ ...condition, conditions: children.filter((_, at) => at !== index) });
           }} />
       ))}
-      {children.length === 1 && <span style={note(isDark)}>{t("agents.execution.branch.last_part_remove_group")}</span>}
       <div style={ROW}>
         <Button label={t("agents.execution.branch.comparison")} disabled={disabled || names.length === 0} onClick={() => add(new_compare(document, node, names[0]))} style={addButtonStyle(isDark)} />
         <Button label={opposite === "all" ? t("agents.execution.branch.add_all_group") : t("agents.execution.branch.add_any_group")} disabled={disabled || names.length === 0}
           onClick={() => add({ kind: opposite, conditions: [new_compare(document, node, names[0])] })} style={addButtonStyle(isDark)} />
       </div>
+    </>
+  );
+}
+
+function JoinerPick({ condition, onChange, testid, disabled }) {
+  const { t } = useTranslation();
+  return (
+    <span data-testid={`${testid}-joiner`} style={CELL}>
+      <IfSelect options={Object.keys(JOINER_LABEL).map((value) => ({ value, label: t(`agents.execution.branch.${JOINER_LABEL[value]}`) }))}
+        value={condition.kind} filterable={false} disabled={disabled}
+        set_value={(kind) => kind !== condition.kind && onChange({ ...condition, kind })} />
+    </span>
+  );
+}
+
+function ConditionGroup({ condition, path, document, node, names, onChange, remove, identity, testid, disabled, isDark }) {
+  return (
+    <div data-testid={testid} style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
+      <div style={ROW}>
+        <JoinerPick condition={condition} onChange={onChange} testid={testid} disabled={disabled} />
+        <span style={{ flex: 1 }} />
+        {remove}
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0, paddingLeft: 10, borderLeft: `1px solid ${hairline(isDark)}` }}>
+        <GroupRows condition={condition} path={path} document={document} node={node} names={names} onChange={onChange}
+          identity={identity} disabled={disabled} isDark={isDark} />
+      </div>
     </div>
   );
 }
 
+/* An outlet's name, drawn as the canvas draws it on the node. */
+function OutletBadge({ label, isDark }) {
+  return (
+    <span style={{ flexShrink: 0, height: NODE_TAG_HEIGHT, display: "inline-flex", alignItems: "center", padding: "0 7px",
+      borderRadius: NODE_TAG_RADIUS, background: fillStrong(isDark), fontSize: 11, color: textColor(isDark) }}>{label}</span>
+  );
+}
+
+/* Where an outlet goes, then (on the right) when: the same row shape as a
+   Switch case, `True → [step]`. */
+function OutletRow({ label, targets, testid, aside, isDark, t }) {
+  return (
+    <div data-testid={testid} style={{ ...ROW, minHeight: CASE_ROW_HEIGHT, padding: "4px 8px 4px 8px" }}>
+      <OutletBadge label={label} isDark={isDark} />
+      <CaseArrow isDark={isDark} />
+      <span style={{ minWidth: 0, flexShrink: 1, display: "flex" }}>
+        <Target targets={targets} testid={`${testid}-target`} isDark={isDark} t={t} />
+      </span>
+      <span style={{ flex: 1 }} />
+      {aside}
+    </div>
+  );
+}
+
+const OUTLET_INSET = { padding: "2px 8px 8px 20px", display: "flex", flexDirection: "column", gap: 6, minWidth: 0 };
+
+/* If / Else, organised by where the flow goes: the True outlet holds the
+   condition that sends it there, and False is everything else. */
 function IfEditor({ document, node, execution, names, write, identity, disabled, isDark }) {
   const { t } = useTranslation();
-  if (!has_own(execution, "condition")) {
-    return (
+  const true_targets = outlet_targets(document, node.id, "true");
+  const false_targets = outlet_targets(document, node.id, "false");
+  const has_condition = has_own(execution, "condition");
+  const root = execution.condition;
+  const readable_root = has_condition && condition_node_is_readable(root);
+  const root_group = readable_root && root.kind !== "compare";
+  const muted_word = (text) => <span style={{ fontSize: 11.5, color: muted(isDark), flexShrink: 0 }}>{text}</span>;
+
+  const when = root_group ? (
+    <span style={{ ...ROW, flexShrink: 0 }}>
+      {muted_word(t("agents.execution.branch.when"))}
+      <JoinerPick condition={root} onChange={(next) => write("condition", next)} testid="condition-root" disabled={disabled} />
+    </span>
+  ) : has_condition ? muted_word(t("agents.execution.branch.when")) : null;
+
+  let body;
+  if (!has_condition) {
+    body = (
       <div data-testid="branch-condition-missing" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         <span style={note(isDark)}>{t("agents.execution.branch.condition_missing")}</span>
         <Button label={t("agents.execution.branch.add_a_condition")} disabled={disabled || names.length === 0}
@@ -374,32 +466,58 @@ function IfEditor({ document, node, execution, names, write, identity, disabled,
         {names.length === 0 && <span style={note(isDark)}>{t("agents.execution.branch.condition_needs_input")}</span>}
       </div>
     );
+  } else if (root_group) {
+    body = (
+      <div data-testid="condition-root" style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
+        <GroupRows condition={root} path={[]} document={document} node={node} names={names} identity={identity}
+          disabled={disabled} isDark={isDark} onChange={(next) => write("condition", next)} />
+      </div>
+    );
+  } else {
+    body = (
+      <>
+        <ConditionTree condition={root} path={[]} document={document} node={node} names={names} identity={identity}
+          disabled={disabled} isDark={isDark} onChange={(next) => write("condition", next)} />
+        {readable_root && (
+          <div style={ROW}>
+            <Button label={t("agents.execution.branch.comparison")} disabled={disabled || names.length === 0}
+              onClick={() => write("condition", grouped_with(root, "all", new_compare(document, node, names[0])))} style={addButtonStyle(isDark)} />
+            <Button label={t("agents.execution.branch.add_any_group")} disabled={disabled || names.length === 0}
+              onClick={() => write("condition", grouped_with(root, "all", { kind: "any", conditions: [new_compare(document, node, names[0])] }))} style={addButtonStyle(isDark)} />
+          </div>
+        )}
+      </>
+    );
   }
-  const root = execution.condition;
-  const readable_root = condition_node_is_readable(root);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <span style={note(isDark)}>{t("agents.execution.branch.condition_flow_note")}</span>
-      <ConditionTree condition={root} path={[]} document={document} node={node} names={names} identity={identity}
-        disabled={disabled} isDark={isDark} onChange={(next) => write("condition", next)} />
-      {readable_root && root.kind === "compare" && (
-        <div style={ROW}>
-          <Button label={t("agents.execution.branch.and")} disabled={disabled || names.length === 0}
-            onClick={() => write("condition", grouped_with(root, "all", new_compare(document, node, names[0])))} style={addButtonStyle(isDark)} />
-          <Button label={t("agents.execution.branch.or")} disabled={disabled || names.length === 0}
-            onClick={() => write("condition", grouped_with(root, "any", new_compare(document, node, names[0])))} style={addButtonStyle(isDark)} />
+      <Region isDark={isDark} testid="branch-if-true">
+        <div key="true" style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+          <OutletRow label={t("agents.branch.true")} targets={true_targets} testid="branch-if-true-outlet" aside={when} isDark={isDark} t={t} />
+          <div style={OUTLET_INSET}>{body}</div>
         </div>
+      </Region>
+      <Region isDark={isDark} testid="branch-if-false">
+        <OutletRow key="false" label={t("agents.branch.false")} targets={false_targets} testid="branch-if-false-outlet"
+          aside={muted_word(t("agents.execution.branch.otherwise"))} isDark={isDark} t={t} />
+      </Region>
+      {readable_root && reads_untyped_input(root, document, node) && (
+        <span data-testid="branch-condition-untyped" style={note(isDark)}>{t("agents.execution.branch.input_type_unknown")}</span>
       )}
-      {!condition_is_readable(root) && readable_root && (
+      {has_condition && !condition_is_readable(root) && readable_root && (
         <span style={note(isDark)}>{t("agents.execution.branch.stored_parts_unchanged")}</span>
       )}
-      <div style={ROW}>
-        {!readable_root && (
-          <Button label={t("agents.execution.branch.replace_condition")} disabled={disabled || names.length === 0}
-            onClick={() => write("condition", new_compare(document, node, names[0]))} style={SMALL_BUTTON} />
-        )}
-        <Button label={t("agents.execution.branch.remove_condition")} disabled={disabled} onClick={() => write("condition", undefined)} style={SMALL_BUTTON} />
-      </div>
+      {has_condition && (
+        <div style={ROW}>
+          {!readable_root && (
+            <Button label={t("agents.execution.branch.replace_condition")} disabled={disabled || names.length === 0}
+              onClick={() => write("condition", new_compare(document, node, names[0]))} style={SMALL_BUTTON} />
+          )}
+          <Button label={t("agents.execution.branch.remove_condition")} disabled={disabled} onClick={() => write("condition", undefined)}
+            style={{ ...addButtonStyle(isDark) }} />
+        </div>
+      )}
     </div>
   );
 }
@@ -828,7 +946,7 @@ export default function BranchSection({ document, node, isDark, onChange }) {
         </span>
       )}
       {node.type === "if_else" ? (
-        <Block section="branch-condition" title={t("agents.execution.branch.condition")} isDark={isDark}>
+        <Block section="branch-condition" title={t("agents.execution.branch.branches")} help={t("agents.execution.branch.condition_flow_note")} isDark={isDark}>
           <IfEditor document={document} node={node} execution={execution} names={names} write={write} identity={identity}
             disabled={!editable} isDark={isDark} />
         </Block>

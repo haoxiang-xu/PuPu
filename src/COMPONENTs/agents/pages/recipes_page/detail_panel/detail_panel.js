@@ -73,7 +73,7 @@ export default function DetailPanel({
   onOpenEmbeddedHook,
   /* A Workflow Call asks the page to open the revision it is pinned to,
      read-only (#357). Absent on the legacy recipe page: no button then. */
-  onOpenPinnedWorkflow,
+  onOpenWorkflow,
   embedded,
   document,
   rootDocument,
@@ -396,7 +396,7 @@ export default function DetailPanel({
                  place of Input Variables as the Tool Call's does. */
               <WorkflowCallSection key={JSON.stringify([document.id, skeleton_node.id, documentRevision])}
                 document={document} node={skeleton_node} rowDiagnostics={routed.rows.inputs} isDark={isDark} onChange={onDocumentChange}
-                onOpenPinned={onOpenPinnedWorkflow} />
+                onOpenWorkflow={onOpenWorkflow} />
             ) : skeleton_node.type === "skill_read" ? (
               /* A Skill Read takes no inputs; its section says so and holds
                  the skill picker and the runtime-read preview instead. */

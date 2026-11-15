@@ -144,3 +144,17 @@ def test_start_options_keep_host_only_noncopyable_runtime_objects(legacy):
     lock = threading.Lock()
     result = api().resolve_legacy_chat_options({'recipe_name': 'Old', '_host_runtime': lock}, store=store)
     assert result['_host_runtime'] is lock
+
+
+def test_catalog_leaves_out_aliases_of_deleted_resources(legacy):
+    """A managed delete keeps its alias as a tombstone; the catalog must not
+    name that id, because the closed consumer only admits ids it lists."""
+    from skeleton_code_source_store import delete_managed_resource
+    store, resource, _, _ = legacy
+    gone, _ = migrate(store, recipe(name='Gone'), scope='user:subagents', identity='Gone.skeleton', kind='recipe')
+    delete_managed_resource(store, gone['id'], expected_edit_token=gone['edit_token'])
+    catalog = api().legacy_chat_catalog(store)
+    listed = {row['resource_id'] for row in catalog['resources']}
+    assert listed == {resource['id']}
+    assert catalog['aliases'] == [{'source_scope': 'user:agent_recipes', 'legacy_name': 'Old', 'resource_ids': [resource['id']]}]
+    assert all(set(alias['resource_ids']) <= listed for alias in catalog['aliases'])

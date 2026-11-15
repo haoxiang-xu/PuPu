@@ -39,13 +39,11 @@ test("the actual Mini UI selector can replace a malformed stored type without an
   expect(write.mock.calls[0][0].input_schema.properties.city).toEqual({ type: "string" });
 });
 
-test("the actual default selector keeps an invalid stored type visible but writes only a JSON default", async () => {
+test("the Required switch keeps an invalid stored type visible but writes only a JSON default", async () => {
   const write = show("constructor");
   await waitFor(() => expect(screen.getByRole("button", { name: "Add parameter" })).toBeEnabled());
   const row = screen.getByTestId("workflow-parameter-0");
-  fireEvent.click(within(row).getAllByRole("combobox")[1]);
-  const lists = screen.getAllByRole("listbox", { hidden: true });
-  fireEvent.click(within(lists.at(-1)).getByText("Default value", { exact: true }));
+  fireEvent.click(within(row).getByRole("switch", { name: "Required" }));
   const next = write.mock.calls.at(-1)[0];
   expect(next.input_schema.properties.city).toEqual({ type: "constructor", default: null });
   expect(JSON.parse(JSON.stringify(next))).toEqual(next);

@@ -1,5 +1,5 @@
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
-import { node_display_title } from "../node_display_labels";
+import { node_title } from "../node_title";
 import React from "react";
 import PuzzleShape from "./puzzle_shape";
 import { node_caption } from "./node_caption";
@@ -8,7 +8,7 @@ import { NODE_PORT_ANCHOR } from "./node_metrics";
 
 export default function EndNode({ node, isDark, rename }) {
   const { t } = useTranslation();
-  const title = node_display_title(node, t("agents.nodes.end"));
+  const title = node_title({ type: "end", ...node }, t).title;
   return (
     <div style={{ width: 130 }}>
       <PuzzleShape tabs={[]} cutouts={["left"]} anchor={NODE_PORT_ANCHOR} isDark={isDark}>

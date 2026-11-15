@@ -99,12 +99,19 @@ const save = async (store) => {
   return store.save.mock.calls.at(-1)[0];
 };
 const hooksOf = (document, id = "hooks") => document.nodes.find((node) => node.id === id).config.hooks;
+/* Picking a Workflow takes its current version (its publication). */
 const pinByPublish = async (index, label) => {
-  const control = screen.getByTestId(`hook-${index}-workflow`);
   await waitFor(() => expect(within(screen.getByTestId(`hook-${index}-workflow-picker`)).getByRole("combobox")).not.toBeDisabled());
   choose(screen.getByTestId(`hook-${index}-workflow-picker`), label);
-  fireEvent.click(within(control).getByRole("button", { name: /Publish its current draft and pin/ }));
-  await within(screen.getByTestId(`hook-${index}-workflow`)).findByText(/Pinned revision 1\./);
+  await waitFor(() => expect(screen.getByTestId(`hook-${index}-workflow-pinned`)).toHaveTextContent("Uses version 1"));
+};
+/* The tool picker opens with its toolkit folders folded: open the toolkit, then pick. */
+const chooseTool = (index, folder, label) => {
+  fireEvent.click(within(screen.getByTestId(`hook-${index}-tool-picker`)).getByRole("combobox"));
+  const lists = screen.getAllByRole("listbox", { hidden: true });
+  fireEvent.click(within(lists[lists.length - 1]).getByText(folder, { exact: true }));
+  const again = screen.getAllByRole("listbox", { hidden: true });
+  fireEvent.click(within(again[again.length - 1]).getByText(label, { exact: true }));
 };
 
 beforeEach(() => {
@@ -128,30 +135,26 @@ test("add a hook, configure every field, pin its Workflow by publishing, Save, r
   await openPool();
   expect(screen.getByTestId("hooks-pool-problems")).toHaveTextContent("Add a hook.");
   fireEvent.click(screen.getByRole("button", { name: "+ Add hook" }));
-  /* Only the id is written; every other field is the author's. */
+  /* A new hook is its id, the order that puts it last and Always ask off;
+     every other field is the author's. */
   await screen.findByTestId("hook-0-editor");
   const problems = () => screen.getByTestId("hook-0-problems").textContent;
-  expect(problems()).toContain("Set the order");
+  expect(problems()).not.toContain("Set the order");
   expect(problems()).toContain("Choose when it runs");
   expect(problems()).toContain("Choose which tool calls it sees");
   expect(problems()).toContain("Pin the published Workflow");
 
-  fireEvent.change(within(screen.getByTestId("hook-0-editor")).getByPlaceholderText("0 … 1,000,000"), { target: { value: "1.5" } });
-  expect(screen.getByTestId("hook-0-order-problem")).toBeInTheDocument();
-  fireEvent.change(within(screen.getByTestId("hook-0-editor")).getByPlaceholderText("0 … 1,000,000"), { target: { value: "10" } });
   choose(screen.getByTestId("hook-0-event"), "Before the tool call");
-  fireEvent.click(within(screen.getByTestId("hook-0-tool")).getByText("One tool"));
-  choose(screen.getByTestId("hook-0-tool-picker"), "write");
-  fireEvent.click(within(screen.getByTestId("hook-0-approval")).getByText("Always ask"));
-  await pinByPublish(0, "Allow · 1 published");
+  chooseTool(0, "Core", "Write");
+  fireEvent.click(within(screen.getByTestId("hook-0-approval")).getByRole("switch", { name: "Always ask" }));
+  await pinByPublish(0, "Allow");
   expect(screen.queryByTestId("hook-0-problems")).toBeNull();
   expect(screen.getByTestId("hook-0-exports")).toHaveTextContent("decision, require_approval");
-  expect(screen.getByTestId("hooks-pool-order-kernel")).toHaveTextContent("hook-1");
   expect(screen.getByTestId("hooks-pool-node-hooks")).toHaveTextContent("Allow · rev 1");
 
   const edit = await save(store);
   expect(hooksOf(edit.document)).toEqual([{
-    id: "hook-1", order: 10, event: "before_tool_call", tool_name: "write",
+    id: "hook-1", order: 1, event: "before_tool_call", tool_name: "write",
     workflow: { workflow_id: "wf-hook-continue", revision_id: REV["wf-hook-continue"] }, force_approval: true,
   }]);
   expect(edit.managed_sources).toEqual([]);
@@ -162,8 +165,7 @@ test("add a hook, configure every field, pin its Workflow by publishing, Save, r
   await open("agent-seed");
   await openPool();
   fireEvent.click(screen.getByRole("button", { name: "Edit hook 1" }));
-  expect(within(screen.getByTestId("hook-0-editor")).getByPlaceholderText("0 … 1,000,000")).toHaveValue("10");
-  await waitFor(() => expect(screen.getByTestId("hook-0-workflow-pinned")).toHaveTextContent("revision 1 of Allow"));
+  await waitFor(() => expect(screen.getByTestId("hook-0-workflow-pinned")).toHaveTextContent("Uses version 1"));
 });
 
 test("stored values the runtime refuses are shown as stored and can be fixed in place", async () => {
@@ -172,12 +174,13 @@ test("stored values the runtime refuses are shown as stored and can be fixed in 
   await openPool();
   expect(screen.getByTestId("hook-row-0")).toHaveTextContent("1 to fix");
   fireEvent.click(screen.getByRole("button", { name: "Edit hook 1" }));
-  expect(within(screen.getByTestId("hook-0-editor")).getByPlaceholderText("stored: 1.5")).toBeInTheDocument();
   expect(screen.getByTestId("hook-0-problems")).toHaveTextContent("whole number");
-  fireEvent.change(within(screen.getByTestId("hook-0-editor")).getByPlaceholderText("stored: 1.5"), { target: { value: "2" } });
+  /* The list is the run order, so a stored order it cannot place is fixed
+     by giving the hook a place: last. */
+  fireEvent.click(screen.getByRole("button", { name: "Put it last" }));
   expect(screen.queryByTestId("hook-0-problems")).toBeNull();
   const edit = await save(store);
-  expect(hooksOf(edit.document)[0].order).toBe(2);
+  expect(hooksOf(edit.document)[0].order).toBe(1);
   exportPayload("fix-order", "order_float_get", edit);
 });
 
@@ -247,10 +250,9 @@ test("a publication that answers after the author changed Workflow pins nothing"
   fireEvent.click(screen.getByRole("button", { name: "+ Add hook" }));
   await screen.findByTestId("hook-0-editor");
   await waitFor(() => expect(within(screen.getByTestId("hook-0-workflow-picker")).getByRole("combobox")).not.toBeDisabled());
-  choose(screen.getByTestId("hook-0-workflow-picker"), "Allow · 1 published");
-  fireEvent.click(within(screen.getByTestId("hook-0-workflow")).getByRole("button", { name: /Publish its current draft and pin/ }));
+  choose(screen.getByTestId("hook-0-workflow-picker"), "Allow");
   await waitFor(() => expect(store.publish).toHaveBeenCalledTimes(1));
-  choose(screen.getByTestId("hook-0-workflow-picker"), "Block · 1 published");
+  choose(screen.getByTestId("hook-0-workflow-picker"), "Block");
   await act(async () => {
     late.resolve(row("wf-hook-continue_publish").reply);
     await late.promise;

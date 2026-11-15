@@ -548,7 +548,8 @@
     "chats": "聊天",
     "home": "首頁",
     "no_chats_found": "找不到聊天",
-    "models": "模型"
+    "models": "模型",
+    "new": "新增"
   },
   "context_menu": {
     "new_chat": "新增聊天",
@@ -575,6 +576,8 @@
     "no_results": "無結果"
   },
   "chat": {
+    "pin_model": "釘選模型",
+    "unpin_model": "取消釘選",
     "placeholder": "傳送訊息給 PuPu...",
     "settlement": {
       "waiting": "正在等待上一個任務完成收尾…",
@@ -960,7 +963,14 @@
         "object": "物件",
         "array": "清單",
         "null": "Null"
-      }
+      },
+      "help": "呼叫方執行這個 Workflow 時傳入的參數。每個參數要麼必填，要麼使用預設值；後續節點從 Start 讀取。",
+      "default_short": "預設值",
+      "invalid_number": "不是數字。",
+      "invalid_integer": "不是整數。",
+      "invalid_json": "不是有效的 JSON。",
+      "name_short": "名稱",
+      "type": "類型"
     },
     "missing": {
       "if_missing": "值缺失時",
@@ -1198,7 +1208,7 @@
         "tool_call": "以指定參數執行一個工具，不呼叫模型",
         "skill_read": "執行到此處時讀取一項技能的說明",
         "code": "在獨立行程中執行一個 Python 函式，不呼叫模型",
-        "workflow_call": "將一個已發佈的工作流程修訂版本作為步驟執行",
+        "workflow_call": "呼叫另一個工作流程作為一個步驟",
         "hooks_pool": "在智慧體呼叫工具之前或之後執行的工作流程"
       }
     },
@@ -1220,10 +1230,10 @@
       "skill_read": "技能讀取",
       "pick_skill": "請選擇技能",
       "workflow_call": "工作流程呼叫",
-      "pin_revision": "請釘選修訂版本",
-      "revision": "修訂 {revision}",
-      "revision_unreadable": "無法讀取修訂版本",
-      "revision_reading": "正在讀取修訂版本…",
+      "pin_revision": "選擇工作流程",
+      "revision": "第 {revision} 版",
+      "revision_unreadable": "無法讀取版本",
+      "revision_reading": "正在讀取版本…",
       "set": "已設定",
       "missing": "缺失",
       "nothing_exported": "→ 無匯出值",
@@ -1526,7 +1536,7 @@
       "skill_step": "執行到此處時讀取一項技能",
       "python_process": "在獨立行程中執行 Python",
       "hooks_around": "在此智慧體呼叫工具前後執行的工作流程",
-      "workflow_step": "執行一個已發佈的工作流程修訂版本",
+      "workflow_step": "呼叫另一個工作流程",
       "no_toolkits": "沒有工具箱",
       "no_subagents": "沒有子智慧體"
     },
@@ -1820,7 +1830,14 @@
         "unreadable_condition_part": "編輯器無法拆解此部分條件，因此會完整保留已儲存的內容。",
         "unreadable_operand": "編輯器無法拆解此側的結構，因此會完整保留已儲存的內容。",
         "unreadable_settings": "編輯器無法讀取此分支設定的結構，因此會完整保留已儲存的內容。",
-        "use_an_input": "改用輸入"
+        "use_an_input": "改用輸入",
+        "branches": "分支",
+        "when": "條件",
+        "otherwise": "否則",
+        "value_text": "文字",
+        "value_number": "數字",
+        "value_input": "輸入 {name}",
+        "read_inside_option": "讀取內部…"
       },
       "code": {
         "a_named_python": "指定的 Python",
@@ -2061,7 +2078,8 @@
         "unset_default": "未設定。{toolName} 使用其自己的預設值。",
         "unsupported_setting": "不支援的設定：{key}",
         "value_mode": "值",
-        "variable_mode": "變數"
+        "variable_mode": "變數",
+        "when_it_runs": "執行時"
       }
     },
     "workflow": {
@@ -2131,7 +2149,16 @@
       "revision_failed": "無法讀取已固定的修訂版：{message}。",
       "missing_input": "被呼叫工作流程的 Start 讀取「{key}」。缺少它會使呼叫在執行到達此節點時失敗。",
       "unknown_output": "「{name}」不是已固定修訂版的 End 匯出的內容；執行到達此節點時，該輸出會缺失。",
-      "reads_nothing": "{name} 不會讀取其執行輸入。"
+      "reads_nothing": "{name} 不會讀取其執行輸入。",
+      "not_a_workflow": "這不是一個工作流程。",
+      "locking": "正在鎖定目前版本…",
+      "uses_version": "使用第 {ordinal} 版",
+      "changed_since": "{name} 在第 {ordinal} 版之後有新改動",
+      "update": "更新",
+      "update_label": "改用 {name} 的目前版本",
+      "edit": "編輯",
+      "edit_label": "開啟 {name} 進行編輯",
+      "lock_failed": "無法鎖定目前版本：{message}"
     },
     "toolkit": {
       "remove": "移除",
@@ -2770,7 +2797,13 @@
       "workflow_embedded_shape": "已儲存的工作流不完全符合 {kind: embedded, document}；執行會拒絕它。",
       "workflow_missing": "請固定此 hook 執行的已發布工作流。",
       "workflow_reference_shape": "已儲存的工作流參照不完全符合兩個均具名的結構 {workflow_id, revision_id}；執行會拒絕它。",
-      "workflow_revision": "{name} · 修訂版 {ordinal}"
+      "workflow_revision": "{name} · 修訂版 {ordinal}",
+      "tools": "工具",
+      "add_tool": "新增工具",
+      "remove_tool": "移除 {name}",
+      "runs_named": "{id} 啟用",
+      "list_is_order": "Hook 由上到下依序執行；拖曳可以調整順序。",
+      "place_last": "排到最後"
     },
     "legacy_tools": {
       "installed": "已安裝",

@@ -548,7 +548,8 @@
     "chats": "Chats",
     "home": "Home",
     "no_chats_found": "No chats found",
-    "models": "Models"
+    "models": "Models",
+    "new": "New"
   },
   "context_menu": {
     "new_chat": "New Chat",
@@ -575,6 +576,8 @@
     "no_results": "No results"
   },
   "chat": {
+    "pin_model": "Pin model",
+    "unpin_model": "Unpin model",
     "placeholder": "Message PuPu...",
     "settlement": {
       "waiting": "Waiting for the previous run to finish…",
@@ -960,7 +963,14 @@
         "object": "Object",
         "array": "List",
         "null": "Null"
-      }
+      },
+      "help": "What a caller passes in when it runs this Workflow. Each parameter is either required or falls back to its default; later nodes read it from Start.",
+      "default_short": "Default",
+      "invalid_number": "Not a number.",
+      "invalid_integer": "Not a whole number.",
+      "invalid_json": "Not valid JSON.",
+      "name_short": "Name",
+      "type": "Type"
     },
     "missing": {
       "if_missing": "If missing",
@@ -1198,7 +1208,7 @@
         "tool_call": "Run one tool with arguments you fix, no model",
         "skill_read": "Read one skill's instructions when the run gets here",
         "code": "Run one Python function in its own process, no model",
-        "workflow_call": "Run one published Workflow revision as a step",
+        "workflow_call": "Run another Workflow as a step",
         "hooks_pool": "Workflows that run before or after an agent's tool calls"
       }
     },
@@ -1220,10 +1230,10 @@
       "skill_read": "Skill read",
       "pick_skill": "pick a skill",
       "workflow_call": "Workflow call",
-      "pin_revision": "pin a revision",
-      "revision": "revision {revision}",
-      "revision_unreadable": "revision unreadable",
-      "revision_reading": "reading the revision…",
+      "pin_revision": "pick a Workflow",
+      "revision": "version {revision}",
+      "revision_unreadable": "version unreadable",
+      "revision_reading": "reading the version…",
       "set": "set",
       "missing": "missing",
       "nothing_exported": "→ nothing exported",
@@ -1526,7 +1536,7 @@
       "skill_step": "Read one skill when the run gets here",
       "python_process": "Python in its own process",
       "hooks_around": "Workflows around this Agent's tool calls",
-      "workflow_step": "Run one published Workflow revision",
+      "workflow_step": "Run another Workflow",
       "no_toolkits": "No toolkits",
       "no_subagents": "No subagents"
     },
@@ -1762,7 +1772,16 @@
       "revision_failed": "The pinned revision could not be read: {message}.",
       "missing_input": "The called Workflow's Start reads “{key}”. Without it the call fails when the run gets here.",
       "unknown_output": "“{name}” is not something the pinned revision's End exports; that output would be missing when the run gets here.",
-      "reads_nothing": "{name} reads nothing from its run input."
+      "reads_nothing": "{name} reads nothing from its run input.",
+      "not_a_workflow": "That is not a Workflow.",
+      "locking": "Taking its current version…",
+      "uses_version": "Uses version {ordinal}",
+      "changed_since": "{name} has changed since version {ordinal}",
+      "update": "Update",
+      "update_label": "Use the current version of {name}",
+      "edit": "Edit",
+      "edit_label": "Open {name} to edit it",
+      "lock_failed": "Its current version could not be taken: {message}"
     },
     "execution": {
       "agent": {
@@ -1884,7 +1903,14 @@
         "unreadable_condition_part": "This part of the condition is not a shape the editor can take apart, so it is kept exactly as stored.",
         "unreadable_operand": "This side is not a shape the editor can take apart, so it is kept exactly as stored.",
         "unreadable_settings": "This branch's settings are not a shape the editor can read, so they are kept exactly as stored.",
-        "use_an_input": "Use an input instead"
+        "use_an_input": "Use an input instead",
+        "branches": "Branches",
+        "when": "when",
+        "otherwise": "otherwise",
+        "value_text": "Text",
+        "value_number": "Number",
+        "value_input": "Input {name}",
+        "read_inside_option": "Read inside…"
       },
       "code": {
         "a_named_python": "a named Python",
@@ -2125,7 +2151,8 @@
         "unset_default": "Not set. {toolName} uses its own default.",
         "unsupported_setting": "Unsupported setting: {key}",
         "value_mode": "Value",
-        "variable_mode": "Variable"
+        "variable_mode": "Variable",
+        "when_it_runs": "When it runs"
       }
     },
     "result_roots": {
@@ -2458,7 +2485,13 @@
       "workflow_embedded_shape": "The stored Workflow is not exactly {kind: embedded, document}; the run refuses it.",
       "workflow_missing": "Pin the published Workflow this hook runs.",
       "workflow_reference_shape": "The stored Workflow reference is not exactly {workflow_id, revision_id}, both named; the run refuses it.",
-      "workflow_revision": "{name} · rev {ordinal}"
+      "workflow_revision": "{name} · rev {ordinal}",
+      "tools": "Tools",
+      "add_tool": "add a tool",
+      "remove_tool": "Remove {name}",
+      "runs_named": "{id} runs",
+      "list_is_order": "Hooks run top to bottom; drag one to change when it runs.",
+      "place_last": "Put it last"
     },
     "subagents": {
       "field_name": "Name",

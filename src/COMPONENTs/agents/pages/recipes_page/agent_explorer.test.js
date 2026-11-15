@@ -102,6 +102,8 @@ const show = (extra) => {
 };
 const openMenu = (rowId) => fireEvent.click(screen.getByTestId(`menu-${rowId}`));
 const menuItem = (label) => within(screen.getByTestId("context-menu")).getByRole("button", { name: label });
+/* The header has one + for everything the list can make: it opens the menu. */
+const openNewMenu = () => fireEvent.click(screen.getByRole("button", { name: "New" }));
 
 beforeEach(() => {
   explorers.length = 0;
@@ -199,10 +201,13 @@ describe("what is listed", () => {
 
   test("a build with no store lists no Agents and does not claim an empty library", async () => {
     show({ recipes: [{ name: "Old" }] });
-    expect(await screen.findByRole("button", { name: "New Agent" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "New" })).toBeInTheDocument();
     expect(screen.queryByTestId("row-legacy:Old")).toBeNull();
     expect(screen.queryByTestId("agent-explorer-empty")).toBeNull();
-    expect(screen.getByRole("button", { name: "New Agent" })).toBeDisabled();
+    openNewMenu();
+    expect(menuItem("New Agent")).toBeDisabled();
+    expect(menuItem("New Workflow")).toBeDisabled();
+    expect(menuItem("New Folder")).toBeEnabled();
   });
 
   test("an empty library says so", async () => {
@@ -353,13 +358,15 @@ describe("creating", () => {
     api.unchain.listSkeletonResources = jest.fn().mockResolvedValue([]);
     const { p } = show();
     await screen.findByTestId("agent-explorer-empty");
-    fireEvent.click(screen.getByRole("button", { name: "New Agent" }));
+    openNewMenu();
+    fireEvent.click(menuItem("New Agent"));
     const input = within(screen.getByTestId("row-__pending_agent__")).getByRole("textbox");
     fireEvent.keyDown(input, { key: "Enter" });
     expect(p.onCreate).not.toHaveBeenCalled();
     delete api.unchain.saveSkeletonResource;
     act(() => { emitSkeletonLibraryRefresh(); });
-    await waitFor(() => expect(screen.getByRole("button", { name: "New Agent" })).toBeDisabled());
+    openNewMenu();
+    await waitFor(() => expect(menuItem("New Agent")).toBeDisabled());
   });
 });
 

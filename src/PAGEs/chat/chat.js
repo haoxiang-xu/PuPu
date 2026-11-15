@@ -5,6 +5,8 @@ import {
 } from "../../SERVICEs/side_menu_width";
 import ShadowSurface from "../../BUILTIN_COMPONENTs/material/shadow_surface";
 import {
+  cloneElement,
+  isValidElement,
   useCallback,
   useContext,
   useEffect,
@@ -20,6 +22,12 @@ import ChatMessages from "../../COMPONENTs/chat-messages/chat_messages";
 import ChatInput from "../../COMPONENTs/chat-input/chat_input";
 import { CONTEXT_WINDOW_PRESETS } from "../../COMPONENTs/chat-input/constants";
 import SecretCaptureModal from "./secret_capture_modal";
+import ModelChipRow from "./model_chip_row";
+import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
+import {
+  readPinnedModelChips,
+  togglePinnedModelChip,
+} from "../../SERVICEs/model_chip_pins";
 import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import {
   bootstrapChatsStore,
@@ -98,6 +106,19 @@ const PROVIDER_ICON = {
  */
 const resolveProviderIcon = (provider) =>
   PROVIDER_ICON[provider] || _CustomProviderSVG;
+
+/* The manifest's logo components ignore their props (some draw at 1em, some
+   at the full container size), so a `style` passed to them is lost. Render
+   the bare <svg> they return and size that element directly. */
+const renderSizedProviderIcon = (IconComp, size) => {
+  const svg = IconComp({});
+  const sizing = { width: size, height: size, display: "block", flexShrink: 0 };
+  return isValidElement(svg) ? (
+    cloneElement(svg, { width: size, height: size, style: { ...svg.props.style, ...sizing } })
+  ) : (
+    <IconComp style={sizing} />
+  );
+};
 
 const HERO_PHRASES = [
   "How can I help you today?",
@@ -250,6 +271,10 @@ const HeroHeadline = ({ isDark }) => {
 
 const ChatInterface = () => {
   const { t } = useTranslation();
+  const [pinnedModelChips, setPinnedModelChips] = useState(readPinnedModelChips);
+  const onTogglePinnedModelChip = useCallback((modelId) => {
+    setPinnedModelChips(togglePinnedModelChip(modelId));
+  }, []);
   const { theme, onThemeMode } = useContext(ThemeContext) || {};
   const {
     onFragment,
@@ -1308,19 +1333,23 @@ const ChatInterface = () => {
               ];
               if (chips.length === 0) return null;
               return (
-                <RiseIn
-                  delay="145ms"
-                  style={{
-                    display: "flex",
-                    gap: 8,
-                    flexWrap: "wrap",
-                    justifyContent: "center",
-                    maxWidth: 720,
-                  }}
-                >
-                  {chips.map((chip) => {
+                <RiseIn delay="145ms" style={{ width: "100%", maxWidth: 720 }}>
+                  <ModelChipRow
+                    chips={chips}
+                    selectedModelId={session.selectedModelId}
+                    pinnedIds={pinnedModelChips}
+                    onTogglePin={onTogglePinnedModelChip}
+                    renderChip={(chip, { pinned, hovered, onTogglePin }) => {
+                    /* Badge pill: provider logo in a round badge, no borders.
+                       Selected = solid inverted pill. Pinned = the badge fills
+                       with the theme highlight (accent) colour; a selected,
+                       unpinned chip's badge melts into the pill (same colour inside
+                       and out). */
                     const active = session.selectedModelId === chip.id;
+                    const hover = hovered && !active && !isModelSelectionDisabled;
                     const IconComp = resolveProviderIcon(chip.provider);
+                    const fg = isDark ? "255,255,255" : "0,0,0";
+                    const pinLabel = t(pinned ? "chat.unpin_model" : "chat.pin_model");
                     return (
                       <ShadowSurface as="button"
                         key={chip.id}
@@ -1329,91 +1358,117 @@ const ChatInterface = () => {
                         style={{
                           display: "inline-flex",
                           alignItems: "center",
-                          gap: 5,
-                          padding: "6px 13px",
-                          borderRadius: 20,
+                          gap: 7,
+                          height: 30,
+                          boxSizing: "border-box",
+                          padding: "0 10px 0 4px",
+                          borderRadius: 999,
+                          border: "none",
                           fontSize: 12.5,
-                          fontWeight: active ? 550 : 450,
+                          fontWeight: active ? 500 : 450,
                           fontFamily: theme?.font?.fontFamily || "inherit",
                           cursor: isModelSelectionDisabled
                             ? "not-allowed"
                             : "pointer",
                           outline: "none",
                           whiteSpace: "nowrap",
-                          transition:
-                            "background 0.18s, border-color 0.18s, color 0.18s, transform 0.22s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.18s",
+                          transition: "background 0.18s, color 0.18s",
                           color: active
-                            ? isDark
-                              ? "rgba(255,255,255,0.88)"
-                              : "rgba(0,0,0,0.80)"
-                            : isDark
-                              ? "rgba(255,255,255,0.45)"
-                              : "rgba(0,0,0,0.42)",
+                            ? "var(--pupu-background)"
+                            : `rgba(${fg}, ${hover || pinned ? 0.85 : 0.55})`,
                           background: active
-                            ? isDark
-                              ? "rgba(255,255,255,0.09)"
-                              : "rgba(255,255,255,0.92)"
-                            : isDark
-                              ? "rgba(255,255,255,0.04)"
-                              : "rgba(0,0,0,0.03)",
-                          border: active
-                            ? isDark
-                              ? "1px solid rgba(255,255,255,0.16)"
-                              : "1px solid rgba(0,0,0,0.13)"
-                            : isDark
-                              ? "1px solid rgba(255,255,255,0.08)"
-                              : "1px solid rgba(0,0,0,0.09)",
-                          transform: active ? "translateY(-3px)" : "translateY(0)",
-                          boxShadow: active
-                            ? isDark
-                              ? "0 6px 16px rgba(0,0,0,0.40), 0 2px 4px rgba(0,0,0,0.25)"
-                              : "0 6px 16px rgba(0,0,0,0.10), 0 2px 4px rgba(0,0,0,0.07)"
-                            : "none",
+                            ? `rgba(${fg}, 0.88)`
+                            : `rgba(${fg}, ${hover ? 0.08 : 0.045})`,
                           opacity: isModelSelectionDisabled ? 0.45 : 1,
                         }}
-                        onMouseEnter={(event) => {
-                          if (active || isModelSelectionDisabled) return;
-                          event.currentTarget.style.background = isDark
-                            ? "rgba(255,255,255,0.08)"
-                            : "rgba(0,0,0,0.06)";
-                          event.currentTarget.style.borderColor = isDark
-                            ? "rgba(255,255,255,0.15)"
-                            : "rgba(0,0,0,0.14)";
-                          event.currentTarget.style.color = isDark
-                            ? "rgba(255,255,255,0.75)"
-                            : "rgba(0,0,0,0.70)";
-                        }}
-                        onMouseLeave={(event) => {
-                          if (active || isModelSelectionDisabled) return;
-                          event.currentTarget.style.background = isDark
-                            ? "rgba(255,255,255,0.04)"
-                            : "rgba(0,0,0,0.03)";
-                          event.currentTarget.style.borderColor = isDark
-                            ? "rgba(255,255,255,0.08)"
-                            : "rgba(0,0,0,0.09)";
-                          event.currentTarget.style.color = isDark
-                            ? "rgba(255,255,255,0.45)"
-                            : "rgba(0,0,0,0.42)";
-                        }}
                       >
-                        {IconComp && (
-                          <span
-                            style={{
-                              width: 13,
-                              height: 13,
-                              display: "flex",
-                              alignItems: "center",
-                              flexShrink: 0,
-                              opacity: active ? 0.9 : 0.5,
-                            }}
-                          >
-                            <IconComp style={{ width: 13, height: 13 }} />
-                          </span>
-                        )}
+                        <span
+                          style={{
+                            width: 22,
+                            height: 22,
+                            borderRadius: 11,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            flexShrink: 0,
+                            transition: "background 0.18s, color 0.18s, box-shadow 0.18s",
+                            background: pinned
+                              ? "var(--pupu-accent)"
+                              : active
+                                ? "transparent"
+                                : isDark
+                                ? "color-mix(in srgb, var(--pupu-surface, rgb(30, 30, 30)) 90%, white)"
+                                : "var(--pupu-surface, rgb(255, 255, 255))",
+                            color: pinned
+                              ? "rgb(255, 255, 255)"
+                              : active
+                                ? "var(--pupu-background)"
+                                : `rgba(${fg}, 0.7)`,
+                            boxShadow: pinned
+                              ? "0 2px 6px rgba(var(--pupu-accent-rgb), 0.45)"
+                              : active
+                                ? `0 1px 4px rgba(0, 0, 0, ${isDark ? 0.3 : 0.85})`
+                                : "0 1px 3px rgba(0, 0, 0, 0.14)",
+                          }}
+                        >
+                          {IconComp && (
+                                                        <span
+                              style={{
+                                width: 12,
+                                height: 12,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                              }}
+                            >
+                              {renderSizedProviderIcon(IconComp, 12)}
+                            </span>
+                          )}
+                        </span>
                         {chip.label}
+                        {/* pin toggle: always takes its space (so revealing it
+                            on hover never re-lays out the row), shown on hover.
+                            Not a <button> — it sits inside one. */}
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          aria-pressed={pinned}
+                          aria-label={pinLabel}
+                          title={pinLabel}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onTogglePin();
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key !== "Enter" && event.key !== " ") return;
+                            event.preventDefault();
+                            event.stopPropagation();
+                            onTogglePin();
+                          }}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            width: 16,
+                            height: 16,
+                            marginLeft: -2,
+                            flexShrink: 0,
+                            cursor: "pointer",
+                            color: pinned ? "var(--pupu-accent)" : "inherit",
+                            opacity: hovered ? (pinned ? 0.9 : 0.45) : 0,
+                            transition: "opacity 0.18s",
+                          }}
+                        >
+                          <Icon
+                            src={pinned ? "pin_fill" : "pin"}
+                            color="currentColor"
+                            style={{ width: 14, height: 14 }}
+                          />
+                        </span>
                       </ShadowSurface>
                     );
-                  })}
+                    }}
+                  />
                 </RiseIn>
               );
             })()}

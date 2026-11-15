@@ -548,7 +548,8 @@
     "chats": "チャット",
     "home": "ホーム",
     "no_chats_found": "チャットが見つかりません",
-    "models": "モデル"
+    "models": "モデル",
+    "new": "新規作成"
   },
   "context_menu": {
     "new_chat": "新規チャット",
@@ -575,6 +576,8 @@
     "no_results": "結果なし"
   },
   "chat": {
+    "pin_model": "モデルをピン留め",
+    "unpin_model": "ピン留めを解除",
     "placeholder": "PuPu にメッセージを送信...",
     "settlement": {
       "waiting": "前の処理が終了するのを待っています…",
@@ -960,7 +963,14 @@
         "object": "オブジェクト",
         "array": "リスト",
         "null": "Null"
-      }
+      },
+      "help": "この Workflow を実行するときに呼び出し元が渡す値です。各パラメーターは必須か、既定値を使います。後続のノードは Start から読み取ります。",
+      "default_short": "既定値",
+      "invalid_number": "数値ではありません。",
+      "invalid_integer": "整数ではありません。",
+      "invalid_json": "有効な JSON ではありません。",
+      "name_short": "名前",
+      "type": "型"
     },
     "missing": {
       "if_missing": "値がない場合",
@@ -1767,7 +1777,16 @@
       "revision_failed": "固定済みリビジョンを読み取れませんでした：{message}。",
       "missing_input": "呼び出したワークフローの Start は「{key}」を読み取ります。これがないと、実行がここに到達した時点で呼び出しが失敗します。",
       "unknown_output": "「{name}」は固定済みリビジョンの End のエクスポートではありません。実行がここに到達した時点で、その出力は存在しません。",
-      "reads_nothing": "{name} は自身の実行入力から何も読み取りません。"
+      "reads_nothing": "{name} は自身の実行入力から何も読み取りません。",
+      "not_a_workflow": "これはワークフローではありません。",
+      "locking": "現在のバージョンを固定しています…",
+      "uses_version": "バージョン {ordinal} を使用",
+      "changed_since": "{name} はバージョン {ordinal} 以降に変更されています",
+      "update": "更新",
+      "update_label": "{name} の現在のバージョンを使う",
+      "edit": "編集",
+      "edit_label": "{name} を開いて編集",
+      "lock_failed": "現在のバージョンを固定できませんでした: {message}"
     },
     "toolkit": {
       "remove": "削除",
@@ -1964,7 +1983,14 @@
         "unreadable_condition_part": "この条件部分はエディターで分解できる構造ではないため、保存内容をそのまま保持します。",
         "unreadable_operand": "この側はエディターで分解できる構造ではないため、保存内容をそのまま保持します。",
         "unreadable_settings": "この分岐の設定はエディターが読み取れる構造ではないため、保存内容をそのまま保持します。",
-        "use_an_input": "代わりに入力を使う"
+        "use_an_input": "代わりに入力を使う",
+        "branches": "分岐",
+        "when": "条件",
+        "otherwise": "それ以外",
+        "value_text": "テキスト",
+        "value_number": "数値",
+        "value_input": "入力 {name}",
+        "read_inside_option": "内部を読む…"
       },
       "code": {
         "a_named_python": "名前を付けた Python",
@@ -2205,7 +2231,8 @@
         "unset_default": "未設定。{toolName} 自体の既定値を使います。",
         "unsupported_setting": "未対応の設定：{key}",
         "value_mode": "値",
-        "variable_mode": "変数"
+        "variable_mode": "変数",
+        "when_it_runs": "実行時"
       }
     },
     "pinned": {
@@ -2770,7 +2797,13 @@
       "workflow_embedded_shape": "保存された Workflow は正確な {kind: embedded, document} ではありません。実行時に拒否されます。",
       "workflow_missing": "この Hook が実行する公開済み Workflow を固定してください。",
       "workflow_reference_shape": "保存された Workflow 参照は、両方に名前を指定した正確な {workflow_id, revision_id} ではありません。実行時に拒否されます。",
-      "workflow_revision": "{name} · リビジョン {ordinal}"
+      "workflow_revision": "{name} · リビジョン {ordinal}",
+      "tools": "ツール",
+      "add_tool": "ツールを追加",
+      "remove_tool": "{name} を削除",
+      "runs_named": "{id} を実行",
+      "list_is_order": "フックは上から順に実行されます。ドラッグで順序を変えられます。",
+      "place_last": "最後に置く"
     },
     "legacy_tools": {
       "installed": "インストール済み",

@@ -1,6 +1,6 @@
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { is_skeleton_node } from "../skeleton_document";
-import { node_display_title } from "../node_display_labels";
+import { node_title } from "../node_title";
 import React from "react";
 import PuzzleShape from "./puzzle_shape";
 import { safe_text } from "../document_values";
@@ -19,7 +19,7 @@ export default function AgentNode({ node, isDark, rename }) {
      model hints keep their existing guarded text readers. */
   /* A native Agent without a name of its own reads as its type, "Agent" —
      never as its internal id. */
-  const label = is_skeleton_node(node) ? node_display_title(node, t("agents.nodes.agent")) : safe_text(node.label || node.id);
+  const label = is_skeleton_node(node) ? node_title(node, t).title : safe_text(node.label || node.id);
   /* The model, when one is named; nothing otherwise (the line then says
      only what the node is). */
   const model = safe_text(node.model || node.override?.model || "");

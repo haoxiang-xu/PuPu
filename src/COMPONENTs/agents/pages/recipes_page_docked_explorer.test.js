@@ -110,7 +110,13 @@ test("docked, the pane reads the way back, then the Agents title and its actions
   const title = within(slot).getByTestId("agent-explorer-section-title");
   const before = (a, b) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
   expect(before(back, title)).toBe(true);
-  expect(within(title).getByLabelText("New Agent")).toBeInTheDocument();
+  /* One + for everything the list makes; the kinds are in its menu. */
+  expect(within(title).getByLabelText("New")).toBeInTheDocument();
+  expect(within(title).queryByLabelText("New Agent")).toBeNull();
+  fireEvent.click(within(title).getByLabelText("New"));
+  const menu = screen.getByTestId("context-menu");
+  ["New Agent", "New Workflow", "New Folder", "Import…"].forEach((label) =>
+    expect(within(menu).getByRole("button", { name: label })).toBeInTheDocument());
 
   fireEvent.click(back);
   expect(onBack).toHaveBeenCalledTimes(1);
