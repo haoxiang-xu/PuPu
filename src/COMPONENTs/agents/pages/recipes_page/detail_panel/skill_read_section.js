@@ -20,7 +20,7 @@ import {
   with_skill,
   without_inputs,
 } from "../skill_read_config";
-import { addButtonStyle, note, problem as problemOf, Region } from "./panel_style";
+import { addButtonStyle, note, problem as problemOf, Region, pickerSelectProps, pickerSlotStyle } from "./panel_style";
 import { Block } from "./process_timeline";
 
 /* A Skill Read node: one skill, read by the runtime when the run reaches it
@@ -40,7 +40,6 @@ import { Block } from "./process_timeline";
 
 const MONO = { fontFamily: "ui-monospace, Menlo, monospace" };
 const ROW = { display: "flex", alignItems: "center", gap: 6 };
-const FIELD = { width: "100%", fontSize: 12, paddingVertical: 4, paddingHorizontal: 6 };
 const SMALL_BUTTON = { fontSize: 11.5, paddingVertical: 1, paddingHorizontal: 6 };
 const STORED = "\u0000stored";
 const IDENTITY_KEYS = ["source", "source_id", "name"];
@@ -206,7 +205,7 @@ export default function SkillReadSection({ document, node, isDark, onChange }) {
               : t("agents.execution.skill.packs_only_note")}
             {" "}{t("agents.execution.skill.project_sources_note")}</span>
       }>
-        <span data-testid="skill-read-picker">
+        <span data-testid="skill-read-picker" style={pickerSlotStyle}>
           <Select
             options={options}
             value={selected}
@@ -220,7 +219,7 @@ export default function SkillReadSection({ document, node, isDark, onChange }) {
             placeholder={list.status === "loading" ? t("agents.execution.skill.reading_list") : t("agents.execution.skill.pick_skill")}
             disabled={!editable}
             dropdown_style={{ maxHeight: "min(280px, 40vh)" }}
-            style={FIELD}
+            {...pickerSelectProps}
           />
         </span>
         {list.status === "error" && (

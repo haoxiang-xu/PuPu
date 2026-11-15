@@ -40,6 +40,20 @@ export const FIELD_RADIUS = CONTROL_RADIUS;
 /* One height for every single-line control, so a select and the box beside
    it share a row line. */
 export const CONTROL_HEIGHT = 26;
+/* A picker that chooses what a node is about — the Agent's Model, a Workflow
+   Call's Workflow, a Skill Read's skill: one measure for all of them, a
+   200px field 34 high (it still shrinks in a narrow panel), the icon and
+   name at the start, the arrow at the end. Spread into a PanelSelect. */
+export const PICKER_WIDTH = 200;
+export const PICKER_HEIGHT = 34;
+export const pickerSelectProps = Object.freeze({
+  align: "left",
+  trigger_wrapper_style: { display: "inline-flex", width: "100%", minWidth: 0 },
+  trigger_label_style: { flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", textAlign: "left" },
+  style: { width: "100%", maxWidth: "100%", height: PICKER_HEIGHT, fontSize: 12.5, paddingVertical: 0, paddingHorizontal: 12 },
+});
+export const pickerSlotStyle = Object.freeze({ display: "inline-flex", width: PICKER_WIDTH, minWidth: 0, maxWidth: "100%" });
+
 /* Inside a control: white in the light (the theme's surface), a faint lift in
    the dark — only a step above a region's 3.5%, so it does not glare. */
 export const fieldBackground = (isDark) => (isDark ? "rgba(255,255,255,0.045)" : "var(--pupu-surface, #ffffff)");
