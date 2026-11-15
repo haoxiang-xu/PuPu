@@ -15,7 +15,7 @@ on:
       manifest_digest: { required: true, type: string, default: "sha256:8bb1c7d474eed7bd82f906ac6cd88a6b7e073a23f46319cf500ebbd6b50ff17b", description: "expected runtime protocol manifest" }
       feature_snapshot_json: { required: true, type: string, default: '{"enable_user_access_to_agents":true,"enable_user_access_to_characters":false,"enable_custom_model_providers":true,"enable_computer_use":false}', description: "QA build feature flags (release profile yields {} = Agents hidden); disclosed" }
 
-      sealed_run_id: { required: false, type: string, description: "Replay only: run holding the sealed App artifact" }
+      sealed_run_id: { required: false, type: string, description: "Prior artifact run: replay uses its sealed App; acceptance may reuse its built sidecar" }
       sealed_tgz_sha256: { required: false, type: string, description: "Replay only: exact sealed tarball SHA-256" }
 
 permissions:
@@ -32,6 +32,7 @@ jobs:
       QA_CANDIDATE_TREE: ${{ inputs.candidate_tree }}
       QA_WHEEL_SHA: ${{ inputs.wheel_sha256 }}
       QA_MANIFEST: ${{ inputs.manifest_digest }}
+      QA_PRIOR_RUN: ${{ inputs.sealed_run_id }}
     steps:
       - name: Validate immutable input identities
         run: |
@@ -40,12 +41,13 @@ jobs:
           [[ "$QA_CANDIDATE_TREE" =~ ^[0-9a-f]{40}$ ]]
           [[ "$QA_WHEEL_SHA" =~ ^[0-9a-f]{64}$ ]]
           [[ "$QA_MANIFEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          [[ -z "$QA_PRIOR_RUN" || "$QA_PRIOR_RUN" =~ ^[0-9]+$ ]]
           [[ "${{ inputs.wheel_run_id }}" =~ ^[0-9]+$ ]]
           printf '%s' '${{ inputs.feature_snapshot_json }}' | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d.get("enable_user_access_to_agents") is True'
       - uses: actions/checkout@v4
         with: { path: control, persist-credentials: false }
       - uses: actions/checkout@v4
-        with: { ref: "${{ inputs.candidate_sha }}", path: candidate, persist-credentials: false }
+        with: { ref: "${{ inputs.candidate_sha }}", path: candidate, fetch-depth: 0, persist-credentials: false }
       - name: Bind the candidate
         working-directory: candidate
         run: |
@@ -87,6 +89,10 @@ jobs:
           node node_modules/@playwright/test/cli.js install-deps chromium
           sudo apt-get update
           sudo apt-get install -y xvfb dbus-x11 gnome-keyring libsecret-tools tcpdump
+      - name: Read an already-built sidecar when the prior QA run preserved it
+        if: ${{ inputs.sealed_run_id != '' }}
+        uses: actions/download-artifact@v4
+        with: { name: "486-app-acceptance-evidence", path: prior-evidence, run-id: "${{ inputs.sealed_run_id }}", github-token: "${{ github.token }}" }
       - name: Build the Linux sidecar ONCE from the canonical wheel (recorded, then reused)
         working-directory: candidate
         env:
@@ -97,7 +103,19 @@ jobs:
         run: |
           set -euo pipefail
           export PUPU_BUILD_VERSION="$(node -p 'require("./package.json").version')"
-          npm run build:unchain:linux
+          if [[ -n "$QA_PRIOR_RUN" ]]; then
+            grep -qx "candidate=$QA_CANDIDATE" ../prior-evidence/candidate-identity.txt
+            grep -qx "tree=$QA_CANDIDATE_TREE" ../prior-evidence/candidate-identity.txt
+            grep -qx "built_from_wheel=$QA_WHEEL_SHA" ../prior-evidence/sidecar-identity.txt
+            PRIOR_SHA="$(sed -n 's/^sidecar_sha256=//p' ../prior-evidence/sidecar-identity.txt)"
+            [[ "$PRIOR_SHA" =~ ^[0-9a-f]{64}$ ]]
+            echo "$PRIOR_SHA  ../prior-evidence/unchain-server.built-once" | sha256sum -c -
+            mkdir -p unchain_runtime/dist/linux
+            cp ../prior-evidence/unchain-server.built-once unchain_runtime/dist/linux/unchain-server
+            chmod 755 unchain_runtime/dist/linux/unchain-server
+          else
+            npm run build:unchain:linux
+          fi
           test -x unchain_runtime/dist/linux/unchain-server
           QA_BINARY_SHA="$(sha256sum unchain_runtime/dist/linux/unchain-server | cut -d' ' -f1)"
           echo "QA_BINARY_SHA=$QA_BINARY_SHA" >> "$GITHUB_ENV"
@@ -201,6 +219,7 @@ jobs:
       QA_CANDIDATE_TREE: ${{ inputs.candidate_tree }}
       QA_WHEEL_SHA: ${{ inputs.wheel_sha256 }}
       QA_MANIFEST: ${{ inputs.manifest_digest }}
+      QA_PRIOR_RUN: ${{ inputs.sealed_run_id }}
     steps:
       - name: Validate immutable input identities
         run: |
@@ -209,12 +228,13 @@ jobs:
           [[ "$QA_CANDIDATE_TREE" =~ ^[0-9a-f]{40}$ ]]
           [[ "$QA_WHEEL_SHA" =~ ^[0-9a-f]{64}$ ]]
           [[ "$QA_MANIFEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          [[ -z "$QA_PRIOR_RUN" || "$QA_PRIOR_RUN" =~ ^[0-9]+$ ]]
           [[ "${{ inputs.wheel_run_id }}" =~ ^[0-9]+$ ]]
           printf '%s' '${{ inputs.feature_snapshot_json }}' | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d.get("enable_user_access_to_agents") is True'
       - uses: actions/checkout@v4
         with: { path: control, persist-credentials: false }
       - uses: actions/checkout@v4
-        with: { ref: "${{ inputs.candidate_sha }}", path: candidate, persist-credentials: false }
+        with: { ref: "${{ inputs.candidate_sha }}", path: candidate, fetch-depth: 0, persist-credentials: false }
       - name: Bind the candidate
         working-directory: candidate
         run: |
