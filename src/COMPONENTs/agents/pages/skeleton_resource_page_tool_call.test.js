@@ -151,6 +151,15 @@ beforeEach(() => {
   api.unchain.saveSkeletonResource = jest.fn().mockImplementation(async ({ document }) => stored(document, "saved-token"));
 });
 
+/* The tool picker opens with its toolkit folders folded: open Core, then pick. */
+const chooseTool = (label) => {
+  fireEvent.click(within(screen.getByTestId("tool-call-picker")).getByRole("combobox"));
+  const lists = screen.getAllByRole("listbox", { hidden: true });
+  fireEvent.click(within(lists[lists.length - 1]).getByText("Core", { exact: true }));
+  const again = screen.getAllByRole("listbox", { hidden: true });
+  fireEvent.click(within(again[again.length - 1]).getByText(label, { exact: true }));
+};
+
 test("Read: add, pick, bind one argument and fix another, choose Continue, map the result, branch on ok, save, reopen", async () => {
   await open(baseRecord());
   deleteEdge("a");
@@ -158,7 +167,7 @@ test("Read: add, pick, bind one argument and fix another, choose Continue, map t
   await screen.findByTestId("tool-call-section");
   drag("start", "out", "tool", "in");
 
-  choose(screen.getByTestId("tool-call-picker"), "Read");
+  chooseTool("Read");
   await screen.findByTestId("tool-call-argument-path");
   pickSource("path", "start · message");
   typeValue("limit", "5");
@@ -244,7 +253,7 @@ test("Write: a tool that asks for approval, Fail the run, saved and reopened as 
   await screen.findByTestId("tool-call-section");
   drag("start", "out", "tool", "in");
   drag("tool", "out", "router", "in");
-  choose(screen.getByTestId("tool-call-picker"), "Write");
+  chooseTool("Write");
   await screen.findByTestId("tool-call-argument-content");
   expect(screen.getByTestId("tool-call-confirmation")).toHaveTextContent("asks for approval each time");
   pickSource("path", "start · message");

@@ -229,7 +229,7 @@ export default function WorkflowCallSection({ document, node, rowDiagnostics, is
      palette_tree): the pill follows the pointer onto folder rows too. */
   const renderTree = ({ highlighted_value, render_option, on_hover_row, on_visible_change }) => (
     <CommandTree data={tree.data} root={tree.root} activeNodeId={highlighted_value ?? null}
-      onHover={on_hover_row} onVisibleChange={on_visible_change} isDark={isDark} bare width="100%"
+      onHover={on_hover_row} onVisibleChange={on_visible_change} defaultExpanded={false} isDark={isDark} bare width="100%"
       renderRow={({ node: row, depth }) => render_option(row.option, { depth })} />
   );
   const pin_here = pin && pin.workflow_id === chosen;

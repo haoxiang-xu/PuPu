@@ -156,6 +156,15 @@ const pickSource = (name, title) => {
   fireEvent.click(options[options.length - 1]);
 };
 
+/* The tool picker opens with its toolkit folders folded: open Core, then pick. */
+const chooseTool = (label) => {
+  fireEvent.click(within(screen.getByTestId("tool-call-picker")).getByRole("combobox"));
+  const lists = screen.getAllByRole("listbox", { hidden: true });
+  fireEvent.click(within(lists[lists.length - 1]).getByText("Core", { exact: true }));
+  const again = screen.getAllByRole("listbox", { hidden: true });
+  fireEvent.click(within(again[again.length - 1]).getByText(label, { exact: true }));
+};
+
 test("Skill Read: add, pick, preview, map content and name, feed the router, save, reopen", async () => {
   await open(baseRecord());
   deleteEdge("a");
@@ -205,7 +214,7 @@ test("Skill Read before an approval: the read happens first, a Write waits, the 
   drag("start", "out", "skill", "in");
   drag("skill", "out", "tool", "in");
   drag("tool", "out", "router", "in");
-  choose(screen.getByTestId("tool-call-picker"), "Write");
+  chooseTool("Write");
   await screen.findByTestId("tool-call-argument-content");
   pickSource("path", "start · message");
   typeValue("content", "after the skill");

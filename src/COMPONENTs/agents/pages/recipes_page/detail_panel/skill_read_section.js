@@ -153,7 +153,7 @@ export default function SkillReadSection({ document, node, isDark, onChange }) {
       root={skillTree.root}
       activeNodeId={highlighted_value ?? null}
       onHover={on_hover_row}
-      onVisibleChange={on_visible_change}
+      onVisibleChange={on_visible_change} defaultExpanded={false}
       isDark={isDark}
       bare
       width="100%"
