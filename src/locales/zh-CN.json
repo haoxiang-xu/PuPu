@@ -2485,7 +2485,13 @@
       "workflow_embedded_shape": "已存储的工作流不完全符合 {kind: embedded, document}；运行会拒绝它。",
       "workflow_missing": "请固定此 hook 运行的已发布工作流。",
       "workflow_reference_shape": "已存储的工作流引用不完全符合两个均具名的结构 {workflow_id, revision_id}；运行会拒绝它。",
-      "workflow_revision": "{name} · 修订版 {ordinal}"
+      "workflow_revision": "{name} · 修订版 {ordinal}",
+      "tools": "工具",
+      "add_tool": "添加工具",
+      "remove_tool": "移除 {name}",
+      "runs_named": "{id} 启用",
+      "list_is_order": "Hook 从上到下依次运行；拖动可以调整顺序。",
+      "place_last": "排到最后"
     },
     "subagents": {
       "field_name": "名称",

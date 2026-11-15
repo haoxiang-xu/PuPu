@@ -2797,7 +2797,13 @@
       "workflow_embedded_shape": "已儲存的工作流不完全符合 {kind: embedded, document}；執行會拒絕它。",
       "workflow_missing": "請固定此 hook 執行的已發布工作流。",
       "workflow_reference_shape": "已儲存的工作流參照不完全符合兩個均具名的結構 {workflow_id, revision_id}；執行會拒絕它。",
-      "workflow_revision": "{name} · 修訂版 {ordinal}"
+      "workflow_revision": "{name} · 修訂版 {ordinal}",
+      "tools": "工具",
+      "add_tool": "新增工具",
+      "remove_tool": "移除 {name}",
+      "runs_named": "{id} 啟用",
+      "list_is_order": "Hook 由上到下依序執行；拖曳可以調整順序。",
+      "place_last": "排到最後"
     },
     "legacy_tools": {
       "installed": "已安裝",

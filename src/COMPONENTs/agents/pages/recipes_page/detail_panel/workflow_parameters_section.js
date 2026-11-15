@@ -50,7 +50,7 @@ export function read_default(type, text) {
 /* The panel's switch with the keyboard and an accessible name, as the Switch /
    Case boolean value has it: the switch commits its own click, the span
    answers a key and an assistive click. */
-function RowSwitch({ on, label, disabled, onFlip, testid, children }) {
+export function RowSwitch({ on, label, disabled, onFlip, testid, children }) {
   const flip = () => { if (!disabled) onFlip(!on); };
   return (
     <span role="switch" aria-checked={on} aria-label={label} aria-disabled={disabled || undefined} tabIndex={disabled ? -1 : 0}

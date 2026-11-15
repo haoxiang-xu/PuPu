@@ -2485,7 +2485,13 @@
       "workflow_embedded_shape": "The stored Workflow is not exactly {kind: embedded, document}; the run refuses it.",
       "workflow_missing": "Pin the published Workflow this hook runs.",
       "workflow_reference_shape": "The stored Workflow reference is not exactly {workflow_id, revision_id}, both named; the run refuses it.",
-      "workflow_revision": "{name} · rev {ordinal}"
+      "workflow_revision": "{name} · rev {ordinal}",
+      "tools": "Tools",
+      "add_tool": "add a tool",
+      "remove_tool": "Remove {name}",
+      "runs_named": "{id} runs",
+      "list_is_order": "Hooks run top to bottom; drag one to change when it runs.",
+      "place_last": "Put it last"
     },
     "subagents": {
       "field_name": "Name",

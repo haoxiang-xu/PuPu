@@ -2797,7 +2797,13 @@
       "workflow_embedded_shape": "Der gespeicherte Workflow ist nicht genau {kind: embedded, document}; der Lauf lehnt ihn ab.",
       "workflow_missing": "Heften Sie den veröffentlichten Workflow an, den dieser Hook ausführt.",
       "workflow_reference_shape": "Der gespeicherte Workflow-Verweis ist nicht genau {workflow_id, revision_id}, beide benannt; der Lauf lehnt ihn ab.",
-      "workflow_revision": "{name} · Rev. {ordinal}"
+      "workflow_revision": "{name} · Rev. {ordinal}",
+      "tools": "Tools",
+      "add_tool": "Tool hinzufügen",
+      "remove_tool": "{name} entfernen",
+      "runs_named": "{id} läuft",
+      "list_is_order": "Hooks laufen von oben nach unten; ziehen, um die Reihenfolge zu ändern.",
+      "place_last": "Ans Ende setzen"
     },
     "legacy_tools": {
       "installed": "Installiert",

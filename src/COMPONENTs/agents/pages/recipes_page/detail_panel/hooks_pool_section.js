@@ -1,17 +1,17 @@
 import { agentMessage, renderAgentMessage } from "../agents_i18n";
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import Input from "./panel_input";
 import Select from "./panel_select";
-import SegmentedControl from "../../../../toolkit/components/segmented_control";
 import { api } from "../../../../../SERVICEs/api";
-import { subscribeToolkitCatalogRefresh } from "../../../../../SERVICEs/toolkit_catalog_refresh";
 import usePendingText from "./pending_text";
 import useListIdentities from "./list_identity";
 import HookWorkflowSource, { useHookWorkflowCapability } from "./hook_workflow_source";
+import PanelHelp from "./panel_help";
+import ToolPicker, { TOOL_KEY, tool_value, useToolLibrary } from "./tool_picker";
+import { RowSwitch } from "./workflow_parameters_section";
 import { safe_text } from "../document_values";
-import { read_toolkit_catalog } from "../toolkit_pool_config";
 import { cached_workflow_version, useWorkflowVersions } from "../workflow_versions";
 import {
   DECISION_SHAPES,
@@ -44,38 +44,36 @@ import {
   without_pool_setting,
 } from "../hooks_pool_config";
 import { Block } from "./process_timeline";
-import { addButtonStyle, note, problem as problemOf, Region, SettingRow } from "./panel_style";
+import { addButtonStyle, CONTROL_RADIUS, fillStrong, hairline, muted, note, problem as problemOf, Region, text as textColor } from "./panel_style";
 
-/* A Hooks Pool (#357): the hooks one Agent runs around its tool calls. Every
- * rule is the fixed runtime's (see `hooks_pool_config`):
+/* A Hooks Pool (#357, #484): the hooks one Agent runs around its tool calls.
+ * Every rule is the fixed runtime's (see `hooks_pool_config`):
  *
  *   - each hook is an id, an order, an event (before or after the tool call),
- *     a tool matcher (one tool's exact name, or every tool), one pinned
- *     published Workflow revision, whether it always asks for approval and —
- *     only where the host's Hook contract says the runtime reads it — whether
- *     it is on; there is no name or failure policy — it fails closed
- *     (`hooks_runtime`: a wrong before answer blocks the call; a child that
- *     does not complete, or a wrong after answer, is raised);
+ *     a tool matcher (every tool, one tool's exact name, or — where the host
+ *     says the runtime reads one — a set of names), one Workflow, whether it
+ *     always asks for approval and — only where the host's Hook contract says
+ *     the runtime reads it — whether it is on. It fails closed;
  *   - the run calls every hook that is on of every pool attached to the
- *     Agent, by (order, id), and the panel says that order; dragging a hook
- *     there writes its `order` (and, only if needed, its own pool's other
- *     orders), never the position in the stored list;
- *   - the pinned Workflow's End exports ARE the hook's decision, so the
- *     returns are read from it and checked against what the event accepts;
- *   - nothing is written the author did not choose: a new hook carries only
- *     its id, and each control writes its own key. A stored value the runtime
- *     refuses is shown as stored, with what is wrong and how to fix it. */
+ *     Agent, by (order, id). The list draws this pool's hooks in that order,
+ *     so top to bottom IS the run order: dragging a hook (or Move earlier /
+ *     later) writes its `order` — and, only if needed, its own pool's other
+ *     orders — never the position in the stored list;
+ *   - a hook is one line (its id, when and which tools, what is wrong, and its
+ *     switch); opened, one region of label / control rows;
+ *   - a new hook carries its id, the order that puts it last, and Always ask
+ *     off; every other key is the author's choice. A stored value the runtime
+ *     refuses is shown as stored, with what is wrong. */
 
 const MONO = { fontFamily: "ui-monospace, Menlo, monospace" };
 const ROW = { display: "flex", alignItems: "center", gap: 6 };
 const FIELD = { width: "100%", fontSize: 12, paddingVertical: 4, paddingHorizontal: 6 };
-/* The small text actions of a row, centred with what sits beside them. */
+const ELLIPSIS = { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
 const small = (isDark) => ({ ...addButtonStyle(isDark), alignSelf: "auto" });
-/* One row of a region. */
-const ROW_PAD = "6px 10px 6px 11px";
 const record = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 const has = (value, key) => record(value) && Object.prototype.hasOwnProperty.call(value, key);
-const EVENT_LABEL = { before_tool_call: "Before the tool call", after_tool_call: "After the tool call" };
+/* "Every tool", offered first in the tool picker. */
+const EVERY = `*${TOOL_KEY}every`;
 const raw = (value) => {
   try {
     const text = JSON.stringify(value);
@@ -84,34 +82,6 @@ const raw = (value) => {
     return "(unreadable)";
   }
 };
-
-/* Tool names from the same library the Toolkit Pool and Tool Call read. */
-function useToolNames() {
-  const [state, setState] = useState({ status: "loading", names: [] });
-  const ticket = useRef(0);
-  const read = useCallback(async () => {
-    const mine = ++ticket.current;
-    try {
-      const kits = read_toolkit_catalog(await api.unchain.listToolModalCatalog({ strict: true }));
-      const names = [];
-      kits.filter((kit) => kit.hidden !== true).forEach((kit) => kit.tools.forEach((tool) => {
-        if (tool.hidden !== true && !names.includes(tool.name)) names.push(tool.name);
-      }));
-      if (mine === ticket.current) setState({ status: "ready", names });
-    } catch (_error) {
-      if (mine === ticket.current) setState({ status: "error", names: [] });
-    }
-  }, []);
-  useEffect(() => {
-    read();
-    const off = subscribeToolkitCatalogRefresh(read);
-    return () => {
-      ticket.current += 1;
-      off();
-    };
-  }, [read]);
-  return state;
-}
 
 /* The Hook contract of the runtime this host runs, read once per panel. Until
    it answers, and when it cannot, nothing about on/off is guessed. */
@@ -153,47 +123,13 @@ function useToolSetCapability() {
   return state;
 }
 
-function OrderInput({ entry, editable, isDark, testid, about, onWrite }) {
-  const { t } = useTranslation();
-  const stored = has(entry, "order") && Number.isSafeInteger(entry.order) && typeof entry.order === "number" ? String(entry.order) : "";
-  /* Held against the row's identity, not its position (R-HP-04). */
-  const pending = usePendingText(stored, about);
-  const text = pending.text !== null ? pending.text : stored;
-  const check = (value) => {
-    const trimmed = value.trim();
-    if (!/^\d+$/.test(trimmed)) return { ok: false, problem: t("agents.hooks.order_integer") };
-    const number = Number(trimmed);
-    return number <= MAX_ORDER ? { ok: true, value: number } : { ok: false, problem: t("agents.hooks.order_integer") };
-  };
-  return (
-    <span style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-      <Input
-        value={text}
-        disabled={!editable}
-        placeholder={has(entry, "order") && !stored ? t("agents.hooks.stored_placeholder", { value: raw(entry.order) }) : "0 … 1,000,000"}
-        set_value={(next) => {
-          const parsed = check(next);
-          if (!parsed.ok) {
-            pending.hold(next);
-            return;
-          }
-          pending.release();
-          onWrite(parsed.value);
-        }}
-        style={{ ...FIELD, width: 140, ...MONO }}
-      />
-      {pending.text !== null && <span data-testid={`${testid}-problem`} style={problemOf(isDark)}>{t("agents.hooks.pending_order", { problem: check(pending.text).problem })}</span>}
-    </span>
-  );
-}
-
 function IdInput({ entry, editable, isDark, testid, about, onWrite }) {
   const { t } = useTranslation();
   const stored = has(entry, "id") && typeof entry.id === "string" ? entry.id : "";
   const pending = usePendingText(stored, about);
   const text = pending.text !== null ? pending.text : stored;
   return (
-    <span style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+    <span style={{ display: "flex", flexDirection: "column", gap: 2, alignItems: "flex-end" }}>
       <Input
         value={text}
         disabled={!editable}
@@ -206,77 +142,154 @@ function IdInput({ entry, editable, isDark, testid, about, onWrite }) {
           pending.release();
           onWrite(next);
         }}
-        style={{ ...FIELD, width: 180, ...MONO }}
+        style={{ ...FIELD, width: 170, ...MONO }}
       />
       {pending.text !== null && <span data-testid={`${testid}-problem`} style={problemOf(isDark)}>{t("agents.hooks.id_pending")}</span>}
     </span>
   );
 }
 
-/* The tool library is open-ended: bounded like the Builder's other library
-   pickers (Kernel model, Skill Read, Tool Call), so a long list scrolls inside
-   instead of opening past the window in a narrow panel (#357). */
-const TOOL_LIST = { maxHeight: "min(280px, 40vh)" };
+/* One tool of a hook's matcher, removable. */
+function ToolChip({ label, isDark, editable, removeLabel, onRemove, testid }) {
+  return (
+    <span data-testid={testid} style={{ display: "inline-flex", alignItems: "center", gap: 2, height: 22, padding: "0 2px 0 8px",
+      borderRadius: CONTROL_RADIUS, background: fillStrong(isDark), fontSize: 11.5, color: textColor(isDark), ...MONO, maxWidth: "100%" }}>
+      <span style={ELLIPSIS}>{label}</span>
+      <Button prefix_icon="close" ariaLabel={removeLabel} disabled={!editable} onClick={onRemove}
+        style={{ width: 18, height: 18, borderRadius: CONTROL_RADIUS, backgroundColor: "transparent", color: muted(isDark), opacity: 0.75,
+          iconOnlyPaddingVertical: 0, iconOnlyPaddingHorizontal: 0, content: { icon: { width: 10, height: 10 } } }} />
+    </span>
+  );
+}
 
-function HookEditor({ entry, index, rowId, nodeId, parentId, siblings, scopeDuplicates, toolNames, capability, toolSetCapability, workflowCapability, managedSources, onOpenEmbedded, editable, isDark, write, writeEnabled, remove }) {
+/* Which calls the hook sees: every tool, or the tools picked (one, or — on a
+   runtime that reads one — a set). The tools are picked in the Tool Call's
+   explorer; a set is its chips. Removing the last tool writes nothing — it
+   never quietly becomes "every tool"; Every tool is chosen in the picker. */
+function ToolsControl({ entry, library, toolSetCapability, editable, isDark, testid, set }) {
+  const { t } = useTranslation();
+  const sets_ok = tool_set_supported(toolSetCapability);
+  const kind = tool_matcher_kind(entry);
+  const [held, setHeld] = useState(null);
+  useEffect(() => { setHeld(null); }, [entry.tool_name]);
+  /* A set is shown as its chips only when it is one the runtime takes:
+     some names, each a tool name, none twice. Anything else is shown as
+     stored, and the first pick replaces it. */
+  const stored_set = Array.isArray(entry.tool_name) ? entry.tool_name : null;
+  const clean_set = Boolean(stored_set) && stored_set.length > 0 && stored_set.every((name) => tool_name_ok(name)) && new Set(stored_set).size === stored_set.length;
+  const stored = kind === "one" && tool_name_ok(entry.tool_name) ? [entry.tool_name]
+    : clean_set && sets_ok ? stored_set
+      : [];
+  const names = held !== null ? held : stored;
+  const every = held === null && entry.tool_name === null;
+  const value_of = (name) => tool_value(library, name) || `${TOOL_KEY}${name}`;
+  const unlisted = names.filter((name) => !tool_value(library, name)).map((name) => ({ value: `${TOOL_KEY}${name}`, label: t("agents.hooks.tool_unlisted", { name: safe_text(name) }) }));
+  const pinned = [{ value: EVERY, label: t("agents.hooks.every_tool"), icon: "tool" }, ...unlisted];
+  const pick = (value) => {
+    if (value === EVERY) {
+      setHeld(null);
+      if (entry.tool_name !== null) set("tool_name", null);
+      return;
+    }
+    const name = String(value).split(TOOL_KEY)[1];
+    if (!name) return;
+    /* Where the runtime reads a set, picks are a set — one tool is a set of
+       one; elsewhere a pick is the one tool's exact name. */
+    if (!sets_ok) {
+      setHeld(null);
+      if (entry.tool_name !== name) set("tool_name", name);
+      return;
+    }
+    if (names.includes(name)) return;
+    setHeld(null);
+    set("tool_name", [...names, name]);
+  };
+  const remove = (name) => {
+    const rest = names.filter((item) => item !== name);
+    if (rest.length === 0) {
+      setHeld([]);
+      return;
+    }
+    setHeld(null);
+    set("tool_name", rest.length === 1 && !Array.isArray(entry.tool_name) ? rest[0] : rest);
+  };
+  const title = (name) => {
+    const found = (library.rows || []).flatMap((kit) => kit.tools).find((item) => item.name === name);
+    return found ? found.title || name : library.status === "ready" ? t("agents.hooks.tool_unlisted", { name: safe_text(name) }) : name;
+  };
+  const show_chips = sets_ok && names.length > 0;
+  return (
+    <div data-testid={`${testid}-tool`} style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6, flex: "0 1 200px", minWidth: 0, maxWidth: "100%" }}>
+      {show_chips && (
+        <span data-testid={`${testid}-tool-set-names`} style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-end", gap: 4, minWidth: 0 }}>
+          {names.map((name) => (
+            <ToolChip key={name} label={title(name)} isDark={isDark} editable={editable} testid={`${testid}-tool-chip-${name}`}
+              removeLabel={t("agents.hooks.remove_tool", { name: safe_text(name) })} onRemove={() => remove(name)} />
+          ))}
+        </span>
+      )}
+      <span data-testid={`${testid}-tool-picker`} style={{ display: "inline-flex", width: "100%", minWidth: 0 }}>
+        <ToolPicker library={library} isDark={isDark} editable={editable} pinned={pinned}
+          value={show_chips ? null : every ? EVERY : names.length === 1 ? value_of(names[0]) : null}
+          placeholder={library.status === "loading" ? t("agents.execution.tool.reading_library") : show_chips ? t("agents.hooks.add_tool") : t("agents.hooks.pick_tools")}
+          onPick={pick} />
+      </span>
+      {held !== null && held.length === 0 && (
+        <span data-testid={`${testid}-tool-set-held`} style={problemOf(isDark)}>{t("agents.hooks.set_pending")}</span>
+      )}
+      {/* What is stored and not taken as it is: shown as stored; why is said
+          with the hook's other problems. */}
+      {has(entry, "tool_name") && entry.tool_name !== null && typeof entry.tool_name !== "string" && !(clean_set && sets_ok) && (
+        <span data-testid={`${testid}-tool-stored`} style={problemOf(isDark)}>
+          {t(sets_ok ? "agents.hooks.stored_set" : "agents.hooks.stored_single", { value: "{value}" }).split(/(\{value\})/g).map((part, index) => ({ __proto__: null, "{value}": (<span key={index} style={MONO}>{safe_text(raw(entry.tool_name))}</span>) }[part] ?? part))}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/* One row of an open hook: what it is on the left, its control on the right. */
+function HookRow({ label, isDark, testid, children, help, stack }) {
+  return (
+    <div data-testid={testid} style={{ borderTop: `1px solid ${hairline(isDark)}`, padding: "5px 6px 5px 10px",
+      display: "flex", flexDirection: stack ? "column" : "row", alignItems: stack ? "stretch" : "center", gap: stack ? 6 : 8, minWidth: 0 }}>
+      {stack ? (
+        <span style={{ ...ROW, minHeight: 26, fontSize: 12.5, color: isDark ? "#c9c9cf" : "#3a3a40" }}>{label}{help}</span>
+      ) : (
+        <span style={{ flex: "1 0 auto", ...ROW, minWidth: 0, fontSize: 12.5, lineHeight: "18px", color: isDark ? "#c9c9cf" : "#3a3a40", minHeight: 30 }}>{label}{help}</span>
+      )}
+      {children}
+    </div>
+  );
+}
+
+function HookEditor({ entry, index, rowId, nodeId, parentId, siblings, scopeDuplicates, library, capability, toolSetCapability, workflowCapability, managedSources, onOpenEmbedded, editable, isDark, write, remove, move, lastOrder }) {
   const { t } = useTranslation();
   const set = (key, value) => write({ ...entry, [key]: value });
-  const stored_kind = tool_matcher_kind(entry);
-  const sets_ok = tool_set_supported(toolSetCapability);
-  const tool_mode = stored_kind === "every" ? "every" : stored_kind === "one" ? "one" : stored_kind === "set" && sets_ok ? "set" : null;
-  const [toolMode, setToolMode] = useState(tool_mode);
-  useEffect(() => {
-    if (tool_mode) setToolMode(tool_mode);
-  }, [tool_mode]);
   const pin = hook_pin(entry);
   const version = pin ? cached_workflow_version(pin.workflow_id, pin.revision_id) : null;
   const own = hook_embedded(entry);
   const shape = record(own) ? hook_workflow_shape(own) : version ? hook_workflow_shape(version.document) : null;
   const event_ok = HOOK_EVENTS.includes(entry.event);
   const problems = hook_entry_problems(entry, { siblings, scope_duplicates: scopeDuplicates, capability, toolSetCapability, workflowCapability }, t);
-  /* A set held here only while it is empty: removing the last tool writes
-     nothing, it never quietly becomes "every tool". */
-  const [setHeld, setSetHeld] = useState(null);
-  const stored_set = Array.isArray(entry.tool_name) ? entry.tool_name : null;
-  const stored_set_clean = stored_set && stored_set.length > 0 && stored_set.every((name) => typeof name === "string") &&
-    new Set(stored_set).size === stored_set.length && problems.every((p) => !p.code.startsWith("tool_set_"));
-  /* What the set picker starts from: a clean stored set as stored; a valid
-     single stored name (the runtime's rule, so "\ufeff" counts and "\x85"
-     does not) as a one-name set, shown and not written; anything else, empty,
-     so a pick replaces it. */
-  const set_value = setHeld !== null ? setHeld : stored_set_clean ? stored_set : stored_kind === "one" && tool_name_ok(entry.tool_name) ? [entry.tool_name] : [];
-  const set_options = [
-    ...set_value.filter((name) => !toolNames.names.includes(name)).map((name) => ({ value: name, label: t("agents.hooks.tool_unlisted", { name: safe_text(name) }) })),
-    ...toolNames.names.map((name) => ({ value: name, label: name })),
-  ];
   const supported = enable_supported(capability);
-  /* `enabled` is the on/off control's once the contract is known; before
-     that, and on a runtime without it, a stored value is shown as stored. */
+  /* `enabled` is the switch's once the contract is known; before that, and
+     on a runtime without it, a stored value is shown as stored. */
   const extras = Object.keys(entry).filter((key) => !HOOK_KEYS.includes(key) && !(supported && key === "enabled"));
-  const runs = !has(entry, "enabled") || entry.enabled === true ? "on" : entry.enabled === false ? "off" : null;
-  const stored_tool = typeof entry.tool_name === "string" ? entry.tool_name : null;
-  const tool_options = [
-    ...(stored_tool && !toolNames.names.includes(stored_tool) ? [{ value: stored_tool, label: t("agents.hooks.tool_unlisted", { name: safe_text(stored_tool) }) }] : []),
-    ...toolNames.names.map((name) => ({ value: name, label: name })),
-  ];
   const testid = `hook-${index}`;
-  const NOTE = note(isDark);
   const SMALL = small(isDark);
 
   return (
-    <div data-testid={`${testid}-editor`} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      <SettingRow label={t("agents.hooks.id")} isDark={isDark}>
+    <div data-testid={`${testid}-editor`} style={{ display: "flex", flexDirection: "column", minWidth: 0, margin: "4px -6px -6px -10px" }}>
+      <HookRow label={t("agents.hooks.id")} isDark={isDark} testid={`${testid}-id-row`}>
         <IdInput entry={entry} editable={editable} isDark={isDark} testid={`${testid}-id`} about={`${rowId}:id`} onWrite={(value) => set("id", value)} />
-      </SettingRow>
-      <SettingRow label={t("agents.hooks.order")} isDark={isDark}>
-        <OrderInput entry={entry} editable={editable} isDark={isDark} testid={`${testid}-order`} about={`${rowId}:order`} onWrite={(value) => set("order", value)} />
-      </SettingRow>
-      <Block section={`${testid}-when`} title={t("agents.hooks.when")} isDark={isDark}>
+      </HookRow>
+      <HookRow label={t("agents.hooks.when")} isDark={isDark} testid={`${testid}-when`}>
         <span data-testid={`${testid}-event`}>
           <Select
             options={[
               ...(has(entry, "event") && !event_ok ? [{ value: "\u0000stored", label: t("agents.hooks.stored_placeholder", { value: safe_text(raw(entry.event)) }) }] : []),
-              ...HOOK_EVENTS.map((event) => ({ value: event, label: EVENT_LABEL[event] ? t(event === "before_tool_call" ? "agents.hooks.event_before" : "agents.hooks.event_after") : EVENT_LABEL[event] })),
+              ...HOOK_EVENTS.map((event) => ({ value: event, label: t(event === "before_tool_call" ? "agents.hooks.event_before" : "agents.hooks.event_after") })),
             ]}
             value={event_ok ? entry.event : has(entry, "event") ? "\u0000stored" : null}
             set_value={(value) => {
@@ -288,190 +301,95 @@ function HookEditor({ entry, index, rowId, nodeId, parentId, siblings, scopeDupl
             style={FIELD}
           />
         </span>
-      </Block>
-      <div data-testid={`${testid}-tool`}>
-      <Block section={`${testid}-tool-matcher`} title={t("agents.hooks.tool_matcher")} isDark={isDark}>
-        <span style={{ opacity: editable ? 1 : 0.5, pointerEvents: editable ? "auto" : "none" }}>
-          <SegmentedControl
-            size="compact"
-            isDark={isDark}
-            buttonFontWeight={500}
-            sections={[{ key: "every", label: t("agents.hooks.every_tool") }, { key: "one", label: t("agents.hooks.one_tool") }, ...(sets_ok ? [{ key: "set", label: t("agents.hooks.tool_set") }] : [])]}
-            selected={toolMode}
-            onChange={(next) => {
-              setToolMode(next);
-              setSetHeld(null);
-              if (next === "every" && entry.tool_name !== null) set("tool_name", null);
-            }}
-          />
-        </span>
-        {toolMode === "one" && (
-          <span data-testid={`${testid}-tool-picker`}>
-            <Select
-              options={tool_options}
-              value={stored_tool !== null && tool_name_ok(stored_tool) ? stored_tool : null}
-              set_value={(value) => {
-                if (typeof value === "string" && value && value !== entry.tool_name) set("tool_name", value);
-              }}
-              filterable
-              placeholder={toolNames.status === "loading" ? t("agents.execution.tool.reading_library") : t("agents.hooks.tool_exact_name")}
-              disabled={!editable}
-              dropdown_style={TOOL_LIST}
-              style={FIELD}
-            />
-          </span>
-        )}
-        {toolMode === "set" && sets_ok && (
-          <span data-testid={`${testid}-tool-set-picker`}>
-            <Select
-              multi
-              options={set_options}
-              value={set_value}
-              set_value={(next) => {
-                if (!Array.isArray(next)) return;
-                if (next.length === 0) {
-                  setSetHeld([]);
-                  return;
-                }
-                setSetHeld(null);
-                if (JSON.stringify(next) !== JSON.stringify(entry.tool_name)) set("tool_name", next);
-              }}
-              multi_label={(count) => t(count === 1 ? "agents.hooks.set_count_one" : "agents.hooks.set_count_other", { count })}
-              filterable
-              placeholder={toolNames.status === "loading" ? t("agents.execution.tool.reading_library") : t("agents.hooks.pick_tools")}
-              disabled={!editable}
-              dropdown_style={TOOL_LIST}
-              style={FIELD}
-            />
-          </span>
-        )}
-        {toolMode === "set" && sets_ok && setHeld !== null && setHeld.length === 0 && (
-          <span data-testid={`${testid}-tool-set-held`} style={problemOf(isDark)}>{t("agents.hooks.set_pending")}</span>
-        )}
-        {toolMode === "set" && sets_ok && set_value.length > 0 && (
-          <span data-testid={`${testid}-tool-set-names`} style={NOTE}>
-            {t("agents.hooks.set_matches", { names: "{names}" }).split(/(\{names\})/g).map((part, index) => ({ __proto__: null, "{names}": (<span key={index} style={MONO}>{set_value.map((name) => safe_text(name)).join(t("agents.schema.fields.list_separator"))}</span>) }[part] ?? part))}
-            {set_value.filter((name) => !toolNames.names.includes(name)).map((name) => t("agents.hooks.tool_unlisted_note", { name: safe_text(name) })).join("")}
-            {stored_kind === "one" && setHeld === null ? t("agents.hooks.set_unwritten_note") : ""}
-          </span>
-        )}
-        {has(entry, "tool_name") && entry.tool_name !== null && typeof entry.tool_name !== "string" && !(stored_set_clean && sets_ok) && (
-          <span data-testid={`${testid}-tool-stored`} style={problemOf(isDark)}>{sets_ok ? t("agents.hooks.stored_set", { value: "{value}" }).split(/(\{value\})/g).map((part, index) => ({ __proto__: null, "{value}": (<span key={index} style={MONO}>{safe_text(raw(entry.tool_name))}</span>) }[part] ?? part)) : t("agents.hooks.stored_single", { value: "{value}" }).split(/(\{value\})/g).map((part, index) => ({ __proto__: null, "{value}": (<span key={index} style={MONO}>{safe_text(raw(entry.tool_name))}</span>) }[part] ?? part))}</span>
-        )}
-        {!sets_ok && (
-          <span data-testid={`${testid}-tool-set-note`} style={NOTE}>
-            {toolSetCapability.status === "loading" ? t("agents.hooks.checking_set") : toolSetCapability.reason ? t("agents.hooks.set_unconfirmed_reason", { reason: renderAgentMessage(toolSetCapability.reason, t) }) : t("agents.hooks.set_unconfirmed")}
-          </span>
-        )}
-        <span style={NOTE}>{t("agents.hooks.named_tool_note")}</span>
-      </Block>
-      </div>
-      <div data-testid={`${testid}-runs`}>
-      <Block section={`${testid}-runs`} title={t("agents.hooks.runs")} isDark={isDark}>
-        <span style={{ opacity: editable && supported ? 1 : 0.5, pointerEvents: editable && supported ? "auto" : "none" }}>
-          <SegmentedControl
-            size="compact"
-            isDark={isDark}
-            buttonFontWeight={500}
-            sections={[{ key: "on", label: t("agents.hooks.on") }, { key: "off", label: t("agents.hooks.off") }]}
-            selected={supported ? runs : null}
-            onChange={(next) => {
-              if (!editable || !supported) return;
-              /* A missing setting already runs: choosing On writes nothing. */
-              if (next === "on" && !has(entry, "enabled")) return;
-              if ((next === "on") !== entry.enabled || typeof entry.enabled !== "boolean") writeEnabled(next === "on");
-            }}
-          />
-        </span>
-        {supported && has(entry, "enabled") && typeof entry.enabled !== "boolean" && (
-          <span style={problemOf(isDark)}>{t("agents.hooks.stored_enabled", { value: "{value}" }).split(/(\{value\})/g).map((part, index) => ({ __proto__: null, "{value}": (<span key={index} style={MONO}>{safe_text(raw(entry.enabled))}</span>) }[part] ?? part))}</span>
-        )}
-        <span data-testid={`${testid}-runs-note`} style={NOTE}>
-          {capability.status === "loading"
-            ? t("agents.hooks.checking_enabled")
-            : !supported
-              ? capability.reason ? t("agents.hooks.enabled_unconfirmed_reason", { reason: renderAgentMessage(capability.reason, t) }) : t("agents.hooks.enabled_unconfirmed")
-              : !has(entry, "enabled")
-                ? t("agents.hooks.enabled_absent_note")
-                : t("agents.hooks.disabled_note")}
-        </span>
-      </Block>
-      </div>
-      <div data-testid={`${testid}-approval`}>
-      <Block section={`${testid}-approval`} title={t("agents.hooks.approval")} isDark={isDark}
-        help={<span>{t("agents.hooks.approval_note")}</span>}>
-        <span style={{ opacity: editable ? 1 : 0.5, pointerEvents: editable ? "auto" : "none" }}>
-          <SegmentedControl
-            size="compact"
-            isDark={isDark}
-            buttonFontWeight={500}
-            sections={[{ key: "ask", label: t("agents.hooks.always_ask") }, { key: "decide", label: t("agents.hooks.workflow_decides") }]}
-            selected={entry.force_approval === true ? "ask" : entry.force_approval === false ? "decide" : null}
-            onChange={(next) => set("force_approval", next === "ask")}
-          />
-        </span>
-        {has(entry, "force_approval") && typeof entry.force_approval !== "boolean" && (
-          <span style={problemOf(isDark)}>{t("agents.hooks.stored_approval", { value: "{value}" }).split(/(\{value\})/g).map((part, index) => ({ __proto__: null, "{value}": (<span key={index} style={MONO}>{safe_text(raw(entry.force_approval))}</span>) }[part] ?? part))}</span>
-        )}
-      </Block>
-      </div>
-      <HookWorkflowSource
-        entry={entry}
-        index={index}
-        nodeId={nodeId}
-        parentId={parentId}
-        pin={pin}
-        editable={editable}
-        isDark={isDark}
-        testid={testid}
-        capability={workflowCapability}
-        managedSources={managedSources}
-        onWrite={(workflow) => set("workflow", workflow)}
-        onOpen={onOpenEmbedded}
-      />
-      <div data-testid={`${testid}-contract`}>
-      <Block section={`${testid}-contract`} title={t("agents.hooks.contract")} isDark={isDark} help={event_ok ? (
-          <>
-            <span>{t("agents.hooks.start_given", { keys: "{keys}" }).split(/(\{keys\})/g).map((part, index) => ({ __proto__: null, "{keys}": (<span key={index} style={MONO}>{EVENT_INPUT_KEYS[entry.event].join(t("agents.schema.fields.list_separator"))}</span>) }[part] ?? part))}</span>
-            <span>
-              {t("agents.hooks.end_decisions", { decisions: DECISION_SHAPES[entry.event].map((item, index) => `${t(({ __proto__: null, before_tool_call: ["agents.hooks.decision_continue", "agents.hooks.decision_arguments", "agents.hooks.decision_block"], after_tool_call: ["agents.hooks.decision_continue", "agents.hooks.decision_replace"] })[entry.event][index])} — ${item.keys.join(t("agents.schema.fields.list_separator"))}`).join(t("agents.execution.kernel.list_separator")) })}
-              {entry.event === "before_tool_call"
-                ? t("agents.hooks.before_bad_decision")
-                : t("agents.hooks.after_bad_decision")}
-            </span>
-            {shape && shape.readable && (
-              <span data-testid={`${testid}-exports`}>{record(own) ? t("agents.hooks.exports_own", { exports: "{exports}" }).split(/(\{exports\})/g).map((part, index) => ({ __proto__: null, "{exports}": (<span key={index} style={MONO}>{shape.exports.join(t("agents.schema.fields.list_separator")) || t("agents.hooks.nothing")}</span>) }[part] ?? part)) : t("agents.hooks.exports_pinned", { exports: "{exports}" }).split(/(\{exports\})/g).map((part, index) => ({ __proto__: null, "{exports}": (<span key={index} style={MONO}>{shape.exports.join(t("agents.schema.fields.list_separator")) || t("agents.hooks.nothing")}</span>) }[part] ?? part))}</span>
-            )}
-          </>
-        ) : (
-          <span>{t("agents.hooks.choose_event_contract")}</span>
-        )} />
-      </div>
-      {extras.map((key) => (
-        <div key={key} data-testid={`${testid}-extra-${key}`} style={{ ...ROW, justifyContent: "space-between" }}>
-          <span style={problemOf(isDark)}>{key === "enabled" ? t("agents.hooks.stored_enabled_extra", { key: "{key}", value: "{value}" }).split(/(\{key\}|\{value\})/g).map((part, index) => ({ __proto__: null, "{key}": (<span key={index} style={MONO}>{safe_text(key)}</span>), "{value}": (<span key={index} style={MONO}>{safe_text(raw(entry[key]))}</span>) }[part] ?? part)) : t("agents.hooks.stored_unknown", { key: "{key}", value: "{value}" }).split(/(\{key\}|\{value\})/g).map((part, index) => ({ __proto__: null, "{key}": (<span key={index} style={MONO}>{safe_text(key)}</span>), "{value}": (<span key={index} style={MONO}>{safe_text(raw(entry[key]))}</span>) }[part] ?? part))}</span>
-          <Button
-            label={t("agents.execution.tool.remove")}
-            ariaLabel={t("agents.hooks.remove_setting", { key: key })}
-            disabled={!editable}
-            onClick={() => {
-              const next = { ...entry };
-              delete next[key];
-              write(next);
-            }}
-            style={SMALL}
-          />
-        </div>
-      ))}
-      {problems.length > 0 && (
-        <div data-testid={`${testid}-problems`} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          {problems.map((problem, at) => <span key={`${problem.code}-${at}`} style={problemOf(isDark)}>{problem.message}</span>)}
-        </div>
+      </HookRow>
+      <HookRow label={t("agents.hooks.tools")} isDark={isDark} testid={`${testid}-tools`}
+        help={<PanelHelp label={t("agents.hooks.tools")}>{t("agents.hooks.named_tool_note")}</PanelHelp>}>
+        <ToolsControl entry={entry} library={library} toolSetCapability={toolSetCapability} editable={editable} isDark={isDark} testid={testid} set={set} />
+      </HookRow>
+      <HookRow label={t("agents.hooks.always_ask")} isDark={isDark} testid={`${testid}-approval`}
+        help={<PanelHelp label={t("agents.hooks.always_ask")}>{t("agents.hooks.approval_note")}</PanelHelp>}>
+        <RowSwitch on={entry.force_approval === true} label={t("agents.hooks.always_ask")} disabled={!editable}
+          testid={`${testid}-approval-switch`} onFlip={(next) => set("force_approval", next)} />
+      </HookRow>
+      {has(entry, "force_approval") && typeof entry.force_approval !== "boolean" && (
+        <span style={{ ...problemOf(isDark), padding: "0 10px 6px" }}>{t("agents.hooks.stored_approval", { value: "{value}" }).split(/(\{value\})/g).map((part, at) => ({ __proto__: null, "{value}": (<span key={at} style={MONO}>{safe_text(raw(entry.force_approval))}</span>) }[part] ?? part))}</span>
       )}
-      <span>
-        <Button label={t("agents.hooks.remove_hook")} ariaLabel={t("agents.hooks.remove_hook_named", { id: safe_text(raw(entry.id)) })} disabled={!editable} onClick={remove} style={{ ...SMALL, opacity: 0.8 }} />
-      </span>
+      <HookRow label={t("agents.hook_source.title")} isDark={isDark} testid={`${testid}-contract`} stack
+        help={<PanelHelp label={t("agents.hooks.contract")}>
+          {event_ok ? (
+            <>
+              <span>{t("agents.hooks.start_given", { keys: "{keys}" }).split(/(\{keys\})/g).map((part, at) => ({ __proto__: null, "{keys}": (<span key={at} style={MONO}>{EVENT_INPUT_KEYS[entry.event].join(t("agents.schema.fields.list_separator"))}</span>) }[part] ?? part))}</span>{" "}
+              <span>
+                {t("agents.hooks.end_decisions", { decisions: DECISION_SHAPES[entry.event].map((item, at) => `${t(({ __proto__: null, before_tool_call: ["agents.hooks.decision_continue", "agents.hooks.decision_arguments", "agents.hooks.decision_block"], after_tool_call: ["agents.hooks.decision_continue", "agents.hooks.decision_replace"] })[entry.event][at])} — ${item.keys.join(t("agents.schema.fields.list_separator"))}`).join(t("agents.execution.kernel.list_separator")) })}
+                {entry.event === "before_tool_call" ? t("agents.hooks.before_bad_decision") : t("agents.hooks.after_bad_decision")}
+              </span>{" "}
+              {shape && shape.readable && (
+                <span data-testid={`${testid}-exports`}>{t(record(own) ? "agents.hooks.exports_own" : "agents.hooks.exports_pinned", { exports: "{exports}" }).split(/(\{exports\})/g).map((part, at) => ({ __proto__: null, "{exports}": (<span key={at} style={MONO}>{shape.exports.join(t("agents.schema.fields.list_separator")) || t("agents.hooks.nothing")}</span>) }[part] ?? part))}</span>
+              )}
+            </>
+          ) : t("agents.hooks.choose_event_contract")}
+        </PanelHelp>}>
+        <HookWorkflowSource
+          entry={entry}
+          index={index}
+          nodeId={nodeId}
+          parentId={parentId}
+          pin={pin}
+          editable={editable}
+          isDark={isDark}
+          testid={testid}
+          capability={workflowCapability}
+          managedSources={managedSources}
+          onWrite={(workflow) => set("workflow", workflow)}
+          onOpen={onOpenEmbedded}
+        />
+      </HookRow>
+      <div style={{ borderTop: `1px solid ${hairline(isDark)}`, padding: "6px 6px 8px 10px", display: "flex", flexDirection: "column", gap: 6 }}>
+        {extras.map((key) => (
+          <div key={key} data-testid={`${testid}-extra-${key}`} style={{ ...ROW, justifyContent: "space-between" }}>
+            <span style={problemOf(isDark)}>{key === "enabled" ? t("agents.hooks.stored_enabled_extra", { key: "{key}", value: "{value}" }).split(/(\{key\}|\{value\})/g).map((part, at) => ({ __proto__: null, "{key}": (<span key={at} style={MONO}>{safe_text(key)}</span>), "{value}": (<span key={at} style={MONO}>{safe_text(raw(entry[key]))}</span>) }[part] ?? part)) : t("agents.hooks.stored_unknown", { key: "{key}", value: "{value}" }).split(/(\{key\}|\{value\})/g).map((part, at) => ({ __proto__: null, "{key}": (<span key={at} style={MONO}>{safe_text(key)}</span>), "{value}": (<span key={at} style={MONO}>{safe_text(raw(entry[key]))}</span>) }[part] ?? part))}</span>
+            <Button
+              label={t("agents.execution.tool.remove")}
+              ariaLabel={t("agents.hooks.remove_setting", { key: key })}
+              disabled={!editable}
+              onClick={() => {
+                const next = { ...entry };
+                delete next[key];
+                write(next);
+              }}
+              style={SMALL}
+            />
+          </div>
+        ))}
+        {problems.length > 0 && (
+          <div data-testid={`${testid}-problems`} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {problems.map((problem, at) => <span key={`${problem.code}-${at}`} style={problemOf(isDark)}>{problem.message}</span>)}
+          </div>
+        )}
+        {/* A stored order the run cannot place: the list is the run order, so
+            the fix is a place in it — last. */}
+        {problems.some((problem) => problem.code === "order_missing" || problem.code === "order_invalid") && (
+          <span>
+            <Button label={t("agents.hooks.place_last")} disabled={!editable} onClick={() => set("order", lastOrder)} style={SMALL} />
+          </span>
+        )}
+        <span style={{ ...ROW, flexWrap: "wrap" }}>
+          {move}
+          <Button label={t("agents.hooks.remove_hook")} ariaLabel={t("agents.hooks.remove_hook_named", { id: safe_text(raw(entry.id)) })} disabled={!editable} onClick={remove} style={{ ...SMALL, opacity: 0.8, marginLeft: "auto" }} />
+        </span>
+      </div>
     </div>
+  );
+}
+
+/* The six dots a row is dragged by. */
+function Grip({ isDark, active }) {
+  const dot = { width: 2.5, height: 2.5, borderRadius: 2, background: muted(isDark) };
+  return (
+    <span aria-hidden="true" style={{ display: "grid", gridTemplateColumns: "2.5px 2.5px", gap: 2, padding: "2px 1px", flexShrink: 0,
+      opacity: active ? 0.75 : 0.25, cursor: active ? "grab" : "default" }}>
+      {[0, 1, 2, 3, 4, 5].map((at) => <span key={at} style={dot} />)}
+    </span>
   );
 }
 
@@ -479,7 +397,7 @@ export default function HooksPoolSection({ document, node, isDark, onChange, man
   const { t } = useTranslation();
   const list = hooks_list(node);
   const entries = Array.isArray(list) ? list : [];
-  const toolNames = useToolNames();
+  const [library] = useToolLibrary();
   const capability = useHookCapability();
   const toolSetCapability = useToolSetCapability();
   const workflowCapability = useHookWorkflowCapability();
@@ -489,7 +407,7 @@ export default function HooksPoolSection({ document, node, isDark, onChange, man
   const unique = Array.isArray(document && document.nodes) && document.nodes.filter((item) => item && item.id === node.id).length === 1;
   const editable = unique && document.kind === "agent" && document.schema_version === 1 && typeof onChange === "function";
   /* Pins answer later than the click; they write against the document as it
-     is then (see WorkflowPinControl). */
+     is then. */
   const latest = useRef({ document, onChange });
   latest.current = { document, onChange };
   /* One identity per stored row, carried across this editor's own writes and
@@ -518,17 +436,41 @@ export default function HooksPoolSection({ document, node, isDark, onChange, man
   const scopeDuplicates = scope_duplicate_ids(document, node.id);
   const agents = attached_agents(document, node.id);
   const problems = pool_problems(node, document, t);
+  const supported = enable_supported(capability);
 
-  const row_label = (entry) => {
-    if (!record(entry)) return { title: raw(entry), detail: t("agents.hooks.no_entry") };
-    const pin = hook_pin(entry);
-    const version = pin ? cached_workflow_version(pin.workflow_id, pin.revision_id) : null;
+  /* The run order on the Agent this pool is attached to: this pool's hooks
+     are drawn in it, each hook a stored order cannot place (yet) after them. */
+  const scope_agent = agents[0] || null;
+  const scope = scope_agent ? hook_scope_entries(document, scope_agent) : [];
+  const placed = scope.filter((item) => item.pool_id === node.id).map((item) => item.index);
+  const drawn = [...placed, ...entries.map((_entry, index) => index).filter((index) => !placed.includes(index))];
+  const others = scope.some((item) => item.pool_id !== node.id);
+  const move = (index, position) => {
+    if (!scope_agent) return;
+    const result = move_hook(latest.current.document, node.id, scope_agent, index, position, agentMessage);
+    setMoveProblem(result.ok ? null : { agent_id: scope_agent, message: result.problem.message });
+    if (result.ok) commit(result.document);
+  };
+  /* Where a hook lands, counted in the scope without it. */
+  const landing = (index, target) => {
+    const rest = scope.filter((item) => !(item.pool_id === node.id && item.index === index));
+    return target === null ? rest.length : rest.findIndex((item) => item === target);
+  };
+  const scope_item = (index) => scope.find((item) => item.pool_id === node.id && item.index === index) || null;
+  /* A new hook goes last: the next order after every hook the Agent runs. */
+  const next_order = () => {
+    const orders = [
+      ...scope.map((item) => item.order),
+      ...entries.filter((entry) => record(entry) && Number.isSafeInteger(entry.order) && typeof entry.order === "number").map((entry) => entry.order),
+    ];
+    return Math.min(MAX_ORDER, orders.length ? Math.max(...orders) + 1 : 1);
+  };
+
+  const summary = (entry) => {
     const when = entry.event === "before_tool_call" ? t("agents.hooks.before_detail") : entry.event === "after_tool_call" ? t("agents.hooks.after_detail") : "?";
     const tool = !has(entry, "tool_name") ? "?" : entry.tool_name === null ? t("agents.hooks.every_tool_detail") : typeof entry.tool_name === "string" ? entry.tool_name
-      : Array.isArray(entry.tool_name) && entry.tool_name.length > 0 && entry.tool_name.every((name) => typeof name === "string") ? t("agents.hooks.tool_names", { names: entry.tool_name.join(t("agents.schema.fields.list_separator")) }) : "?";
-    const own = hook_embedded(entry);
-    const workflow = record(own) ? typeof own.name === "string" && own.name ? t("agents.hooks.own_workflow_named", { name: own.name }) : t("agents.hooks.own_workflow") : version ? t("agents.hooks.workflow_revision", { name: version.document.name || pin.workflow_id, ordinal: version.ordinal }) : pin ? `${pin.workflow_id} · ${pin.revision_id}` : t("agents.hooks.no_workflow");
-    return { title: typeof entry.id === "string" && entry.id ? entry.id : t("agents.hooks.no_id"), detail: t("agents.hooks.row_summary", { when, tool, workflow, approval: entry.force_approval === true ? t("agents.hooks.always_asks_suffix") : "", enabled: hook_runs(entry) ? "" : t("agents.hooks.off_suffix") }) };
+      : Array.isArray(entry.tool_name) && entry.tool_name.length > 0 && entry.tool_name.every((name) => typeof name === "string") ? entry.tool_name.join(t("agents.schema.fields.list_separator")) : "?";
+    return `${when} · ${tool}`;
   };
 
   const NOTE = note(isDark);
@@ -548,6 +490,7 @@ export default function HooksPoolSection({ document, node, isDark, onChange, man
         </div>
       )}
       <Block section="hooks-pool-hooks" title={t("agents.hooks.title")} isDark={isDark}
+        help={<span>{t("agents.hooks.order_explanation")}</span>}
         aside={Array.isArray(list) ? (
             <Button
               label={t("agents.hooks.add_hook")}
@@ -557,26 +500,66 @@ export default function HooksPoolSection({ document, node, isDark, onChange, man
                    scope the run's admission refuses a repeat in (R-HP-02). */
                 const taken = scope_hook_ids(latest.current.document, node.id);
                 rows.added();
-                commit(with_hooks(latest.current.document, node.id, [...entries, { id: free_hook_id(taken) }]));
+                commit(with_hooks(latest.current.document, node.id, [...entries, { id: free_hook_id(taken), order: next_order(), force_approval: false }]));
                 setOpenLast(true);
               }}
               style={addButtonStyle(isDark)}
             />
           ) : undefined}>
-        <Region isDark={isDark}>{entries.map((entry, index) => {
+        <Region isDark={isDark}>{drawn.map((index) => {
+          const entry = entries[index];
           const rowId = rows.ids[index];
-          const label = row_label(entry);
-          const count = hook_entry_problems(entry, { siblings: entries, scope_duplicates: scopeDuplicates, capability, toolSetCapability, workflowCapability }, t).length;
+          const item = scope_item(index);
+          const position = item ? scope.indexOf(item) : -1;
+          const can_drag = Boolean(item) && editable;
+          const count = record(entry) ? hook_entry_problems(entry, { siblings: entries, scope_duplicates: scopeDuplicates, capability, toolSetCapability, workflowCapability }, t).length : 0;
+          const opened = record(entry) && open_index === index;
+          const runs = record(entry) && hook_runs(entry);
           return (
-            <div key={rowId} data-testid={`hook-row-${index}`} style={{ display: "flex", flexDirection: "column", gap: 6, padding: ROW_PAD }}>
-              <div style={{ ...ROW, justifyContent: "space-between", flexWrap: "wrap" }}>
-                <span style={{ flex: "1 1 160px", minWidth: 0, overflowWrap: "anywhere" }}>
-                  <span style={{ ...MONO, fontSize: 12 }}>{safe_text(label.title)}</span>
-                  <span style={{ ...NOTE, marginLeft: 6 }}>{safe_text(label.detail)}</span>
-                  {count > 0 && <span style={{ ...problemOf(isDark), marginLeft: 6 }}>{t("agents.hooks.to_fix", { count })}</span>}
+            <div key={rowId} data-testid={`hook-row-${index}`} data-hook-id={record(entry) && typeof entry.id === "string" ? entry.id : ""}
+              draggable={can_drag && !opened}
+              onDragStart={can_drag ? (event) => {
+                setDragging({ index });
+                if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
+              } : undefined}
+              onDragEnd={() => setDragging(null)}
+              onDragOver={editable && dragging && item ? (event) => event.preventDefault() : undefined}
+              onDrop={editable && dragging && item ? (event) => {
+                event.preventDefault();
+                const from = dragging.index;
+                setDragging(null);
+                /* Dropped back on itself: nothing moves, nothing is written. */
+                if (from === index) return;
+                move(from, landing(from, item));
+              } : undefined}
+              style={{ display: "flex", flexDirection: "column", padding: "6px 6px 6px 10px", minWidth: 0 }}>
+              <div style={{ ...ROW, gap: 6, minHeight: 28, minWidth: 0 }}>
+                <Grip isDark={isDark} active={can_drag} />
+                <span style={{ ...MONO, fontSize: 12, fontWeight: 500, color: textColor(isDark), flex: "0 1 auto", ...ELLIPSIS, opacity: runs || !record(entry) ? 1 : 0.55 }}>
+                  {record(entry) ? safe_text(typeof entry.id === "string" && entry.id ? entry.id : t("agents.hooks.no_id")) : safe_text(raw(entry))}
                 </span>
+                <span style={{ ...NOTE, ...ELLIPSIS, flex: "1 1 0" }}>{record(entry) ? safe_text(summary(entry)) : t("agents.hooks.no_entry")}</span>
+                {count > 0 && <span data-testid={`hook-row-${index}-to-fix`} style={{ ...problemOf(isDark), flexShrink: 0 }}>{t("agents.hooks.to_fix", { count })}</span>}
+                {record(entry) && supported && (
+                  <RowSwitch on={has(entry, "enabled") ? entry.enabled === true : true} label={t("agents.hooks.runs_named", { id: safe_text(raw(entry.id)) })}
+                    disabled={!editable} testid={`hook-${index}-runs`}
+                    onFlip={(next) => {
+                      /* A missing setting already runs: turning it on writes nothing.
+                         A stored value that is not on or off is replaced by the
+                         one chosen. */
+                      if (next && !has(entry, "enabled")) return;
+                      const now = latest.current.document;
+                      const current = now.nodes.find((candidate) => candidate && candidate.id === node.id);
+                      const now_list = hooks_list(current);
+                      if (!Array.isArray(now_list) || index >= now_list.length) return;
+                      commit(with_hook_enabled(now, node.id, index, next));
+                    }} />
+                )}
                 {record(entry) ? (
-                  <Button label={open_index === index ? t("agents.import.close") : t("agents.hooks.edit")} ariaLabel={t(open_index === index ? "agents.hooks.close_hook" : "agents.hooks.edit_hook", { index: index + 1 })} onClick={() => setOpen(open_index === index ? null : rowId)} style={{ ...SMALL, flexShrink: 0 }} />
+                  <Button prefix_icon={opened ? "arrow_up" : "arrow_down"} ariaLabel={t(opened ? "agents.hooks.close_hook" : "agents.hooks.edit_hook", { index: index + 1 })}
+                    onClick={() => setOpen(opened ? null : rowId)}
+                    style={{ flexShrink: 0, width: 22, height: 22, borderRadius: CONTROL_RADIUS, backgroundColor: "transparent", color: muted(isDark),
+                      iconOnlyPaddingVertical: 0, iconOnlyPaddingHorizontal: 0, content: { icon: { width: 12, height: 12 } } }} />
                 ) : (
                   <Button
                     label={t("agents.execution.tool.remove")}
@@ -591,14 +574,14 @@ export default function HooksPoolSection({ document, node, isDark, onChange, man
                 )}
               </div>
               {!record(entry) && <span style={problemOf(isDark)}>{hook_entry_problems(entry, {}, t)[0].message}</span>}
-              {record(entry) && open_index === index && (
+              {opened && (
                 <HookEditor
                   entry={entry}
                   index={index}
                   rowId={rowId}
                   siblings={entries}
                   scopeDuplicates={scopeDuplicates}
-                  toolNames={toolNames}
+                  library={library}
                   nodeId={node.id}
                   parentId={document && document.id}
                   capability={capability}
@@ -610,113 +593,62 @@ export default function HooksPoolSection({ document, node, isDark, onChange, man
                   isDark={isDark}
                   write={(next) => {
                     const now = latest.current.document;
-                    const current = now.nodes.find((item) => item && item.id === node.id);
+                    const current = now.nodes.find((candidate) => candidate && candidate.id === node.id);
                     const now_list = hooks_list(current);
                     /* Against the list as it is now: an answer may land after
                        another edit to this pool. */
                     if (!Array.isArray(now_list) || index >= now_list.length) return;
                     commit(with_hook(now, node.id, index, next));
                   }}
-                  writeEnabled={(enabled) => {
-                    const now = latest.current.document;
-                    const current = now.nodes.find((item) => item && item.id === node.id);
-                    const now_list = hooks_list(current);
-                    if (!Array.isArray(now_list) || index >= now_list.length) return;
-                    commit(with_hook_enabled(now, node.id, index, enabled));
-                  }}
+                  lastOrder={next_order()}
                   remove={() => {
                     setOpen(null);
                     rows.removed(index);
                     commit(remove_hook(latest.current.document, node.id, index));
                   }}
+                  move={item ? (
+                    <>
+                      <Button label="↑" ariaLabel={t("agents.hooks.move_earlier", { value1: safe_text(item.id), value2: safe_text(scope_agent) })} disabled={!editable || position === 0} onClick={() => move(index, position - 1)} style={SMALL} />
+                      <Button label="↓" ariaLabel={t("agents.hooks.move_later", { value1: safe_text(item.id), value2: safe_text(scope_agent) })} disabled={!editable || position === scope.length - 1} onClick={() => move(index, position + 1)} style={SMALL} />
+                    </>
+                  ) : null}
                 />
               )}
             </div>
           );
         })}</Region>
-      </Block>
-
-      <div data-testid="hooks-pool-order">
-      <Block section="hooks-run-order" title={t("agents.hooks.run_order")} isDark={isDark}
-        help={<span>{t("agents.hooks.order_explanation")}</span>}>
-        {agents.length === 0 && <span style={NOTE}>{t("agents.hooks.not_attached")}</span>}
-        {agents.map((agent_id) => {
-          const order = kernel_hook_order(document, agent_id);
-          const scope = hook_scope_entries(document, agent_id);
-          const move = (index, position) => {
-            const result = move_hook(latest.current.document, node.id, agent_id, index, position, agentMessage);
-            setMoveProblem(result.ok ? null : { agent_id, message: result.problem.message });
-            if (result.ok) commit(result.document);
-          };
-          /* Where a hook lands, counted in the scope without it. */
-          const landing = (index, target) => {
-            const rest = scope.filter((item) => !(item.pool_id === node.id && item.index === index));
-            return target === null ? rest.length : rest.findIndex((item) => item === target);
-          };
-          return (
-            <div key={agent_id} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <span data-testid={`hooks-pool-order-${agent_id}`} style={NOTE}>
-                {t("agents.hooks.scope_order", { agent: "{agent}", order: "{order}" }).split(/(\{agent\}|\{order\})/g).map((part, index) => ({ __proto__: null, "{agent}": (<span key={index} style={MONO}>{safe_text(agent_id)}</span>), "{order}": order.length ? order.map((item) => `${safe_text(item.id)}${item.pool_id !== node.id ? ` (${safe_text(item.pool_id)})` : ""}`).join(" → ") : t("agents.hooks.none_yet") }[part] ?? part))}
+        {/* Below the last hook: dropping here moves a hook to the end. */}
+        {scope_agent && placed.length > 0 && editable && (
+          <div
+            data-testid={`hooks-run-end-${scope_agent}`}
+            onDragOver={dragging ? (event) => event.preventDefault() : undefined}
+            onDrop={dragging ? (event) => {
+              event.preventDefault();
+              const from = dragging.index;
+              setDragging(null);
+              move(from, landing(from, null));
+            } : undefined}
+            style={{ height: 8, marginTop: -8 }}
+          />
+        )}
+        {/* Run order, said once: the list is it; another pool on the same
+            Agent, or a pool on several Agents, is named. */}
+        <div data-testid="hooks-pool-order" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          {agents.length === 0 && <span style={NOTE}>{t("agents.hooks.not_attached")}</span>}
+          {agents.length > 0 && entries.length > 1 && !others && agents.length === 1 && <span style={NOTE}>{t("agents.hooks.list_is_order")}</span>}
+          {(others || agents.length > 1) && agents.map((agent_id) => {
+            const order = kernel_hook_order(document, agent_id);
+            return (
+              <span key={agent_id} data-testid={`hooks-pool-order-${agent_id}`} style={NOTE}>
+                {t("agents.hooks.scope_order", { agent: "{agent}", order: "{order}" }).split(/(\{agent\}|\{order\})/g).map((part, at) => ({ __proto__: null, "{agent}": (<span key={at} style={MONO}>{safe_text(agent_id)}</span>), "{order}": order.length ? order.map((hook) => `${safe_text(hook.id)}${hook.pool_id !== node.id ? ` (${safe_text(hook.pool_id)})` : ""}`).join(" → ") : t("agents.hooks.none_yet") }[part] ?? part))}
               </span>
-              <div data-testid={`hooks-run-list-${agent_id}`} style={{ display: "flex", flexDirection: "column" }}>
-                <Region isDark={isDark}>{scope.map((item, position) => {
-                  const own = item.pool_id === node.id;
-                  const can = own && editable;
-                  return (
-                    <div
-                      key={`${item.pool_id}\u0000${item.index}`}
-                      data-testid={`hooks-run-row-${agent_id}-${item.pool_id}-${item.id}`}
-                      draggable={can}
-                      onDragStart={can ? (event) => {
-                        setDragging({ agent_id, index: item.index });
-                        if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
-                      } : undefined}
-                      onDragEnd={() => setDragging(null)}
-                      onDragOver={editable && dragging && dragging.agent_id === agent_id ? (event) => event.preventDefault() : undefined}
-                      onDrop={editable && dragging && dragging.agent_id === agent_id ? (event) => {
-                        event.preventDefault();
-                        const from = dragging.index;
-                        setDragging(null);
-                        /* Dropped back on itself: nothing moves, nothing is written. */
-                        if (own && item.index === from) return;
-                        move(from, landing(from, item));
-                      } : undefined}
-                      style={{ ...ROW, justifyContent: "space-between", padding: ROW_PAD, cursor: can ? "grab" : "default", opacity: item.runs ? 1 : 0.55 }}
-                    >
-                      <span style={{ ...NOTE, minWidth: 0 }}>
-                        {t("agents.hooks.row_order", { id: "{id}", order: "{order}", pool: "{pool}", enabled: "{enabled}" }).split(/(\{id\}|\{order\}|\{pool\}|\{enabled\})/g).map((part, index) => ({ __proto__: null, "{id}": (<span key={index} style={MONO}>{safe_text(item.id)}</span>), "{order}": item.order, "{pool}": own ? "" : ` · ${safe_text(item.pool_id)}`, "{enabled}": item.runs ? "" : t("agents.hooks.off_not_run") }[part] ?? part))}
-                      </span>
-                      {own && (
-                        <span style={ROW}>
-                          <Button label="↑" ariaLabel={t("agents.hooks.move_earlier", { value1: safe_text(item.id), value2: safe_text(agent_id) })} disabled={!editable || position === 0} onClick={() => move(item.index, position - 1)} style={SMALL} />
-                          <Button label="↓" ariaLabel={t("agents.hooks.move_later", { value1: safe_text(item.id), value2: safe_text(agent_id) })} disabled={!editable || position === scope.length - 1} onClick={() => move(item.index, position + 1)} style={SMALL} />
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}</Region>
-                {scope.length > 0 && (
-                  <div
-                    data-testid={`hooks-run-end-${agent_id}`}
-                    onDragOver={editable && dragging && dragging.agent_id === agent_id ? (event) => event.preventDefault() : undefined}
-                    onDrop={editable && dragging && dragging.agent_id === agent_id ? (event) => {
-                      event.preventDefault();
-                      const from = dragging.index;
-                      setDragging(null);
-                      move(from, landing(from, null));
-                    } : undefined}
-                    style={{ height: 10 }}
-                  />
-                )}
-              </div>
-              {moveProblem && moveProblem.agent_id === agent_id && (
-                <span data-testid={`hooks-run-problem-${agent_id}`} style={problemOf(isDark)}>{renderAgentMessage(moveProblem.message, t)}</span>
-              )}
-            </div>
-          );
-        })}
+            );
+          })}
+          {moveProblem && (
+            <span data-testid={`hooks-run-problem-${moveProblem.agent_id}`} style={problemOf(isDark)}>{renderAgentMessage(moveProblem.message, t)}</span>
+          )}
+        </div>
       </Block>
-      </div>
 
       {pool_extras.map((key) => (
         <div key={key} data-testid={`hooks-pool-extra-${key}`} style={{ ...ROW, justifyContent: "space-between" }}>

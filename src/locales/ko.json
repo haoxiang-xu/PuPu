@@ -2797,7 +2797,13 @@
       "workflow_embedded_shape": "저장된 Workflow가 정확히 {kind: embedded, document} 형식이 아니므로 실행 시 거부됩니다.",
       "workflow_missing": "이 Hook이 실행할 게시된 Workflow를 고정하세요.",
       "workflow_reference_shape": "저장된 Workflow 참조가 두 값에 모두 이름이 있는 정확한 {workflow_id, revision_id} 형식이 아니므로 실행 시 거부됩니다.",
-      "workflow_revision": "{name} · 리비전 {ordinal}"
+      "workflow_revision": "{name} · 리비전 {ordinal}",
+      "tools": "도구",
+      "add_tool": "도구 추가",
+      "remove_tool": "{name} 제거",
+      "runs_named": "{id} 실행",
+      "list_is_order": "훅은 위에서 아래로 실행됩니다. 끌어서 순서를 바꿀 수 있습니다.",
+      "place_last": "맨 뒤로"
     },
     "legacy_tools": {
       "installed": "설치됨",

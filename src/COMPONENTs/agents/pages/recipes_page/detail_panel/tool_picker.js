@@ -107,7 +107,7 @@ export default function ToolPicker({ library, value, pinned = [], isDark, editab
       palette_tree={renderTree}
       placeholder={placeholder}
       disabled={!editable}
-      dropdown_style={dropdownStyle || { maxHeight: "min(320px, 45vh)" }}
+      dropdown_style={dropdownStyle || { maxHeight: "min(280px, 40vh)" }}
       {...pickerSelectProps}
       {...(style ? { style: { ...pickerSelectProps.style, ...style } } : {})}
     />

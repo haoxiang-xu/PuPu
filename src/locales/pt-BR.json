@@ -2797,7 +2797,13 @@
       "workflow_embedded_shape": "O Workflow armazenado não é exatamente {kind: embedded, document}; a execução o recusa.",
       "workflow_missing": "Fixe o Workflow publicado que este Hook executa.",
       "workflow_reference_shape": "A referência de Workflow armazenada não é exatamente {workflow_id, revision_id}, ambos com nome; a execução a recusa.",
-      "workflow_revision": "{name} · rev. {ordinal}"
+      "workflow_revision": "{name} · rev. {ordinal}",
+      "tools": "Ferramentas",
+      "add_tool": "adicionar uma ferramenta",
+      "remove_tool": "Remover {name}",
+      "runs_named": "{id} executa",
+      "list_is_order": "Os hooks rodam de cima para baixo; arraste um para mudar a ordem.",
+      "place_last": "Colocar por último"
     },
     "legacy_tools": {
       "installed": "Instalados",

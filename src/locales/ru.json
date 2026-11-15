@@ -2797,7 +2797,13 @@
       "workflow_embedded_shape": "Сохранённый Workflow не является в точности {kind: embedded, document}; запуск отклоняет его.",
       "workflow_missing": "Закрепите опубликованный Workflow, который выполняет этот Hook.",
       "workflow_reference_shape": "Сохранённая ссылка на Workflow не является в точности {workflow_id, revision_id}, где оба значения заданы; запуск отклоняет её.",
-      "workflow_revision": "{name} · рев. {ordinal}"
+      "workflow_revision": "{name} · рев. {ordinal}",
+      "tools": "Инструменты",
+      "add_tool": "добавить инструмент",
+      "remove_tool": "Убрать {name}",
+      "runs_named": "{id} выполняется",
+      "list_is_order": "Хуки выполняются сверху вниз; перетащите, чтобы изменить порядок.",
+      "place_last": "Поставить последним"
     },
     "legacy_tools": {
       "installed": "Установленные",

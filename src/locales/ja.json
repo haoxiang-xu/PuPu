@@ -2797,7 +2797,13 @@
       "workflow_embedded_shape": "保存された Workflow は正確な {kind: embedded, document} ではありません。実行時に拒否されます。",
       "workflow_missing": "この Hook が実行する公開済み Workflow を固定してください。",
       "workflow_reference_shape": "保存された Workflow 参照は、両方に名前を指定した正確な {workflow_id, revision_id} ではありません。実行時に拒否されます。",
-      "workflow_revision": "{name} · リビジョン {ordinal}"
+      "workflow_revision": "{name} · リビジョン {ordinal}",
+      "tools": "ツール",
+      "add_tool": "ツールを追加",
+      "remove_tool": "{name} を削除",
+      "runs_named": "{id} を実行",
+      "list_is_order": "フックは上から順に実行されます。ドラッグで順序を変えられます。",
+      "place_last": "最後に置く"
     },
     "legacy_tools": {
       "installed": "インストール済み",
