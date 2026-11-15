@@ -2,15 +2,12 @@ import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import Input from "./panel_input";
-import Select from "./panel_select";
 import SegmentedButton from "../../../../../BUILTIN_COMPONENTs/input/segmented_button";
 import { api } from "../../../../../SERVICEs/api";
-import { subscribeToolkitCatalogRefresh } from "../../../../../SERVICEs/toolkit_catalog_refresh";
 import usePendingText from "./pending_text";
 import { binding_sources } from "./input_variables_section";
 import { safe_text } from "../document_values";
 import { node_bindings } from "../skeleton_document";
-import { read_toolkit_catalog } from "../toolkit_pool_config";
 import {
   APPROVAL_LIMIT_MS,
   ON_ERROR_CHOICES,
@@ -21,12 +18,10 @@ import {
   with_argument,
   with_tool_settings,
 } from "../tool_call_config";
-import { addButtonStyle, CONTROL_RADIUS, note, pickerSelectProps, pickerSlotStyle, problem as problemOf, Region, SettingRow } from "./panel_style";
+import { addButtonStyle, CONTROL_RADIUS, note, pickerSlotStyle, problem as problemOf, Region, SettingRow } from "./panel_style";
 import { TableHeads, TABLE_CONTROL_INSET } from "./parameter_table";
 import TypedInputRow, { typed_input_template } from "./typed_input_row";
-import CommandTree from "../../../../chat-input/components/command_tree";
-import { ToolkitIconFrame } from "../../../../toolkit/components/toolkit_icon";
-import { withMcpStoreIcon } from "../../../../../SERVICEs/mcp_toolkit_store";
+import ToolPicker, { TOOL_KEY, useToolLibrary } from "./tool_picker";
 import { Block } from "./process_timeline";
 
 /* A Tool Call node: one tool, the arguments you fix, and what happens when it
@@ -51,39 +46,10 @@ const FIELD = { width: "100%", fontSize: 12, paddingVertical: 4, paddingHorizont
 const ARGUMENT_ROW_PAD = { padding: "8px 10px 8px 11px", minWidth: 0 };
 /* A text action that sits in a row beside what it removes. */
 const inRowButtonStyle = (isDark) => ({ ...addButtonStyle(isDark), alignSelf: "center", flexShrink: 0 });
-/* A tool's picker value: its toolkit and its name. The value is also the
-   explorer row's id, so it is printable. */
-const KEY = "::";
-const ACCENT = "#ea7547";
+
 
 const record = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 
-function useToolLibrary() {
-  const [library, setLibrary] = useState({ status: "loading", rows: [] });
-  const ticket = useRef(0);
-  const alive = useRef(true);
-  const read = useCallback(async () => {
-    const mine = ++ticket.current;
-    setLibrary((old) => ({ ...old, status: "loading" }));
-    try {
-      const rows = read_toolkit_catalog(await api.unchain.listToolModalCatalog({ strict: true }));
-      if (alive.current && mine === ticket.current) setLibrary({ status: "ready", rows });
-    } catch (_error) {
-      if (alive.current && mine === ticket.current) setLibrary((old) => ({ ...old, status: "error" }));
-    }
-  }, []);
-  useEffect(() => {
-    alive.current = true;
-    read();
-    const unsubscribe = subscribeToolkitCatalogRefresh(read);
-    return () => {
-      alive.current = false;
-      ticket.current += 1;
-      unsubscribe();
-    };
-  }, [read]);
-  return [library, read];
-}
 
 function useToolSchemas(toolkitId) {
   const [state, setState] = useState({ toolkitId: null, status: "idle", tools: null, error: null });
@@ -135,57 +101,10 @@ export default function ToolCallSection({ document, node, isDark, onChange }) {
   };
   const setTool = (next) => commit(with_tool_settings(document, node.id, next));
 
-  /* The tools as the library files them: one folder per toolkit, with the
-     toolkit's icon, each tool with its own (or its toolkit's) icon — the
-     explorer Select the Workflow and Skill pickers use. Typing searches every
-     tool flat; a row's description is its tooltip. */
-  const icon_of = (kit, item) => (
-    <ToolkitIconFrame icon={(item && item.icon) || withMcpStoreIcon(kit).toolkitIcon || {}} isDark={isDark}
-      size={16} iconSize={10} transparentIconSize={14} borderRadius={4} fallbackColor={ACCENT} />
-  );
   const unlisted = name && !home && library.status === "ready"
-    ? { value: `${KEY}${name}`, label: homes.length > 1 ? t("agents.execution.tool.ambiguous_option", { name }) : t("agents.execution.tool.unlisted_option", { name }), pinned: true }
+    ? { value: `${TOOL_KEY}${name}`, label: homes.length > 1 ? t("agents.execution.tool.ambiguous_option", { name }) : t("agents.execution.tool.unlisted_option", { name }) }
     : null;
-  const options = [
-    ...(unlisted ? [unlisted] : []),
-    ...visible.flatMap((kit) => kit.tools.filter((item) => item.hidden !== true).map((item) => ({
-      value: `${kit.toolkitId}${KEY}${item.name}`,
-      label: item.title || item.name,
-      icon: icon_of(kit, item),
-      description: item.description || "",
-    }))),
-  ];
-  const optionsKey = options.map((option) => option.value).join("\n");
-  const tree = useMemo(() => {
-    const data = {};
-    const byValue = new Map(options.map((option) => [option.value, option]));
-    const leaf = (value) => {
-      data[value] = { id: value, label: byValue.get(value).label, type: "file", kind: "command", option: byValue.get(value) };
-      return value;
-    };
-    const root = unlisted ? [leaf(unlisted.value)] : [];
-    visible.forEach((kit) => {
-      const children = kit.tools.filter((item) => item.hidden !== true).map((item) => leaf(`${kit.toolkitId}${KEY}${item.name}`));
-      if (children.length === 0) return;
-      const id = `folder:${kit.toolkitId}`;
-      const mark = withMcpStoreIcon(kit).toolkitIcon || {};
-      data[id] = { id, label: kit.toolkitName || kit.toolkitId, type: "folder", kind: "folder", children,
-        prefix_icon: "tool",
-        prefix_render: (size) => <ToolkitIconFrame icon={mark} isDark={isDark} size={size} iconSize={Math.round(size * 0.62)}
-          transparentIconSize={size} borderRadius={4} fallbackColor={ACCENT} /> };
-      root.push(id);
-    });
-    return { data, root };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [optionsKey, isDark]);
-  const renderTree = ({ highlighted_value, render_option, on_hover_row, on_visible_change }) => (
-    <CommandTree data={tree.data} root={tree.root} activeNodeId={highlighted_value ?? null}
-      onHover={on_hover_row} onVisibleChange={on_visible_change} defaultExpanded={false} isDark={isDark} bare width="100%"
-      renderRow={({ node: row, depth }) => (
-        <div title={row.option.description || undefined}>{render_option(row.option, { depth })}</div>
-      )} />
-  );
-  const selected = !name ? null : home ? `${home.toolkitId}${KEY}${name}` : `${KEY}${name}`;
+  const selected = !name ? null : home ? `${home.toolkitId}${TOOL_KEY}${name}` : `${TOOL_KEY}${name}`;
 
   const layout = argument_layout(parameters, node_bindings(node));
   const order = layout.rows.map((row) => row.name);
@@ -210,20 +129,12 @@ export default function ToolCallSection({ document, node, isDark, onChange }) {
       <Block section="tool-call-tool" title={t("agents.execution.tool.tool")} isDark={isDark}>
         <div style={{ ...ROW, minWidth: 0 }}>
           <span data-testid="tool-call-picker" style={pickerSlotStyle}>
-            <Select
-              options={options}
-              value={selected}
-              set_value={(value) => {
-                const picked = String(value).split(KEY)[1];
-                if (picked && picked !== name) setTool({ ...(tool || {}), name: picked });
-              }}
-              filterable
-              palette_tree={renderTree}
+            <ToolPicker library={library} value={selected} pinned={unlisted ? [unlisted] : []} isDark={isDark} editable={editable}
               placeholder={library.status === "loading" ? t("agents.execution.tool.reading_library") : t("agents.execution.tool.pick_tool")}
-              disabled={!editable}
-              dropdown_style={{ maxHeight: "min(320px, 45vh)" }}
-              {...pickerSelectProps}
-            />
+              onPick={(value) => {
+                const picked = String(value).split(TOOL_KEY)[1];
+                if (picked && picked !== name) setTool({ ...(tool || {}), name: picked });
+              }} />
           </span>
           {home && <span style={{ ...note(isDark), minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{home.toolkitName || home.toolkitId}</span>}
         </div>
