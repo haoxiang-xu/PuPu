@@ -15,7 +15,7 @@ for name in files:
     if name.startswith(('electron/','public/')):
         packed=app/name;assert packed.is_file(),('direct_source_missing',name);assert raw==packed.read_bytes(),('direct_source_mismatch',name);kind='direct'
     elif name.startswith('src/'):
-        matches=[text for key,texts in indexed.items() if key.endswith('/'+name) or key==name for text in texts]
+        matches=[text for key,texts in indexed.items() if key.endswith('/'+name) or key==name or key==name.removeprefix('src/') for text in texts]
         assert matches,('map_source_missing',name);assert all(text.encode()==raw for text in matches),('map_source_mismatch',name);kind='sourcemap'
     else:continue
     results.append({'file':name,'sha256':hashlib.sha256(raw).hexdigest(),'kind':kind})
