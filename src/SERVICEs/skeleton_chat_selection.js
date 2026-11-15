@@ -95,7 +95,12 @@ export const skeleton_agent_options = (resources) => {
     if (!id || seen.has(id)) return;
     seen.add(id);
     const name = typeof row.name === "string" && row.name.trim() ? row.name.trim() : id;
-    options.push({ id, name });
+    /* The Agent's own icon, for the picker's rows; absent when it has none. */
+    const option = { id, name };
+    if (row.presentation && typeof row.presentation === "object" && !Array.isArray(row.presentation)) {
+      option.presentation = row.presentation;
+    }
+    options.push(option);
   });
   return options;
 };

@@ -3,7 +3,7 @@ import { palette_entry_caption } from "../node_catalog_captions";
 import { own, safe_text } from "../document_values";
 import { TOOLKIT_POOL_TYPE, normalize_node_type } from "../recipe_graph";
 import { is_skeleton_node } from "../skeleton_document";
-import { node_display_title } from "../node_display_labels";
+import { node_title } from "../node_title";
 
 /* Who a node is, in one table.
  *
@@ -95,7 +95,7 @@ const IDENTITY = {
     icon: "workflow",
     gradient: "#4f5fd6",
     title: () => "Workflow call",
-    subtitle: () => "Run one published Workflow revision",
+    subtitle: () => "Run another Workflow",
   },
 };
 
@@ -162,7 +162,8 @@ export function node_identity(node, t = agentEnglishText) {
   return {
     icon: entry.icon,
     gradient: entry.gradient,
-    title: native ? node_display_title(node, title) : title,
+    /* Native nodes go by the same name as their canvas card. */
+    title: native ? node_title(node, t).title : title,
     subtitle,
   };
 }

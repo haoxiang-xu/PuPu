@@ -96,6 +96,7 @@ export function useSurfaceComposite({ backgroundColor, backdropFilter, enabled =
     0, 0, 0, 1, 0,
   ].join(" ") : "";
   const tileSize = 64 / (paint?.ratio || 1);
+  const floodColor = rgba ? `rgb(${rgba.slice(0, 3).map((v) => +(v * 255).toFixed(3)).join(" ")})` : "";
 
   return {
     style: active ? {
@@ -116,7 +117,22 @@ export function useSurfaceComposite({ backgroundColor, backdropFilter, enabled =
             <feTile in="tile" result="thresholds" />
             <feColorMatrix in="thresholds" type="matrix"
               values="0.002941176 0 0 0 0 0 0.002941176 0 0 0 0 0 0.002941176 0 0 0 0 0 0 1" result="thresholds" />
-            <feComposite in="tinted" in2="thresholds" operator="arithmetic" k2="1" k3="1" k4={-0.375 / 255} />
+            <feComposite in="tinted" in2="thresholds" operator="arithmetic" k2="1" k3="1" k4={-0.375 / 255} result="dithered" />
+            {/* The matrix + dither above assume an opaque backdrop: the threshold
+                tile is opaque, so wherever the backdrop is transparent the sum
+                comes out as opaque near-black. That happens whenever an ancestor
+                becomes the backdrop root (opacity < 1, e.g. a fade-in), which
+                painted the new-chat composer black until its rise-in finished.
+                Keep the dithered result where the backdrop is opaque, and use a
+                plain source-over tint everywhere else. */}
+            <feComponentTransfer in="saturated" result="opaque">
+              <feFuncA type="linear" slope="255" intercept="-254" />
+            </feComponentTransfer>
+            <feFlood floodColor={floodColor} floodOpacity={alpha} result="tint" />
+            <feComposite in="tint" in2="saturated" operator="over" result="tintedOver" />
+            <feComposite in="dithered" in2="opaque" operator="in" result="ditheredOpaque" />
+            <feComposite in="tintedOver" in2="opaque" operator="out" result="translucent" />
+            <feComposite in="ditheredOpaque" in2="translucent" operator="arithmetic" k2="1" k3="1" />
           </filter>
         </defs>}
       </svg>

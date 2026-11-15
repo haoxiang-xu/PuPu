@@ -3,14 +3,12 @@ import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use
 import React, { useEffect, useRef, useState } from "react";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import Input from "./panel_input";
-import SegmentedControl from "../../../../toolkit/components/segmented_control";
 import { api } from "../../../../../SERVICEs/api";
-import WorkflowPinControl from "./workflow_pin_control";
+import WorkflowPicker from "./workflow_picker";
 import { safe_text } from "../document_values";
 import { embedded_supported, hook_embedded } from "../hooks_pool_config";
 import { new_workflow_document } from "../skeleton_graph_edits";
 import { save_draft } from "../skeleton_resources";
-import { Block } from "./process_timeline";
 import { addButtonStyle, note, problem } from "./panel_style";
 
 /* Which Workflow one hook runs (#357): a pinned published revision, or — only
@@ -71,13 +69,6 @@ export default function HookWorkflowSource({ entry, index, nodeId, parentId, pin
   const body = hook_embedded(entry);
   const stored_own = record(entry.workflow) && Object.prototype.hasOwnProperty.call(entry.workflow, "kind");
   const offered = embedded_supported(capability);
-  /* Showing the pin control writes nothing, so it is held here until a pin
-     is chosen. */
-  const [showPin, setShowPin] = useState(false);
-  useEffect(() => {
-    if (!stored_own) setShowPin(false);
-  }, [stored_own]);
-  const mode = stored_own && !showPin ? "own" : "pinned";
 
   const [saveAs, setSaveAs] = useState(null);
   const [saveState, setSaveState] = useState({ status: "idle", message: null });
@@ -125,57 +116,38 @@ export default function HookWorkflowSource({ entry, index, nodeId, parentId, pin
   /* The small text actions, centred with what sits beside them. */
   const SMALL = { ...addButtonStyle(isDark), alignSelf: "auto" };
 
+  /* "Its own Workflow" is a choice beside the library's: picking it writes a
+     Start→End Workflow in place of the reference (one undo away); picking a
+     library Workflow pins its current version in place of it. */
+  const OWN = "\u0001own";
+  const edit_own = (
+              <Button
+                label={t("agents.workflow.edit")}
+                ariaLabel={t("agents.hook_source.open_hook", { value1: safe_text(entry.id) })}
+                disabled={!offered || !record(body) || typeof onOpen !== "function"}
+                onClick={() => onOpen({ pool_node_id: nodeId, entry_id: entry.id, entry_index: index })}
+                style={{ ...SMALL, flexShrink: 0 }}
+              />
+  );
   return (
-    <div data-testid={`${testid}-source`}>
-    <Block section={`${testid}-source`} title={t("agents.hook_source.title")} isDark={isDark}>
-      {offered && (
-        <span style={{ opacity: editable ? 1 : 0.5, pointerEvents: editable ? "auto" : "none" }}>
-          <SegmentedControl
-            size="compact"
-            isDark={isDark}
-            buttonFontWeight={500}
-            sections={[{ key: "pinned", label: t("agents.hook_source.pinned") }, { key: "own", label: t("agents.hook_source.own") }]}
-            selected={!stored_own && !Object.prototype.hasOwnProperty.call(entry, "workflow") ? null : mode}
-            onChange={(next) => {
-              if (!editable) return;
-              if (next === "pinned") {
-                setShowPin(true);
-                return;
-              }
-              setShowPin(false);
-              if (stored_own) return;
-              const seed = seed_hook_workflow(entry, parentId);
-              if (seed) onWrite({ kind: "embedded", document: seed });
-            }}
-          />
-        </span>
-      )}
-      {!offered && (
-        <span data-testid={`${testid}-source-note`} style={NOTE}>
-          {capability.status === "loading"
-            ? t("agents.hook_source.checking_contract")
-            : capability.reason ? t("agents.hook_source.unconfirmed_reason", { reason: renderAgentMessage(capability.reason, t) }) : t("agents.hook_source.unconfirmed")}
-        </span>
-      )}
-
-      {mode === "pinned" && (
-        <>
-          {stored_own && (
-            <span data-testid={`${testid}-replaces-own`} style={NOTE}>{t("agents.hook_source.pin_replaces_embedded")}</span>
-          )}
-          <WorkflowPinControl
-            pin={pin}
-            stored={!stored_own && Object.prototype.hasOwnProperty.call(entry, "workflow") ? entry.workflow : undefined}
-            editable={editable}
-            isDark={isDark}
-            testid={`${testid}-workflow`}
-            onPin={(workflow_id, revision_id) => onWrite({ workflow_id, revision_id })}
-          />
-        </>
-      )}
-
-      {mode === "own" && (
-        <div data-testid={`${testid}-own`} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+    <div data-testid={`${testid}-source`} style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
+      <WorkflowPicker
+        pin={pin}
+        stored={!stored_own && Object.prototype.hasOwnProperty.call(entry, "workflow") ? entry.workflow : undefined}
+        editable={editable}
+        isDark={isDark}
+        testid={`${testid}-workflow`}
+        onPin={(workflow_id, revision) => onWrite({ workflow_id, revision_id: revision.revision_id })}
+        extraOptions={offered ? [{ value: OWN, label: t("agents.hook_source.own"), icon: "workflow" }] : []}
+        extraValue={stored_own ? OWN : null}
+        onExtra={() => {
+          if (!editable || stored_own) return;
+          const seed = seed_hook_workflow(entry, parentId);
+          if (seed) onWrite({ kind: "embedded", document: seed });
+        }}
+        extraAction={stored_own ? edit_own : null}
+        extraStatus={stored_own ? (
+          <div data-testid={`${testid}-own`} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {record(body) ? (
             <span style={NOTE}>
               {t("agents.hook_source.own_summary", { name: "{name}", id: "{id}", count: "{count}" }).split(/(\{name\}|\{id\}|\{count\})/g).map((part, index) => ({ __proto__: null, "{name}": (<b key={index}>{safe_text(body.name || body.id)}</b>), "{id}": (<span key={index} style={MONO}>{safe_text(body.id)}</span>), "{count}": Array.isArray(body.nodes) ? body.nodes.length : 0 }[part] ?? part))}
@@ -184,13 +156,6 @@ export default function HookWorkflowSource({ entry, index, nodeId, parentId, pin
             <span style={problem(isDark)}>{t("agents.hook_source.unreadable")}</span>
           )}
           <div style={{ ...ROW, flexWrap: "wrap" }}>
-            <Button
-              label={t("agents.hook_source.open")}
-              ariaLabel={t("agents.hook_source.open_hook", { value1: safe_text(entry.id) })}
-              disabled={!offered || !record(body) || typeof onOpen !== "function"}
-              onClick={() => onOpen({ pool_node_id: nodeId, entry_id: entry.id, entry_index: index })}
-              style={{ ...SMALL, color: "var(--pupu-text-muted)", flexShrink: 0 }}
-            />
             {!saveAs && (
               <Button
                 label={t("agents.hook_source.save_as")}
@@ -220,8 +185,15 @@ export default function HookWorkflowSource({ entry, index, nodeId, parentId, pin
             <span data-testid={`${testid}-save-as-state`} style={saveState.status === "refused" ? problem(isDark) : NOTE}>{renderAgentMessage(saveState.message, t)}</span>
           )}
         </div>
+        ) : null}
+      />
+      {!offered && stored_own && (
+        <span data-testid={`${testid}-source-note`} style={NOTE}>
+          {capability.status === "loading"
+            ? t("agents.hook_source.checking_contract")
+            : capability.reason ? t("agents.hook_source.unconfirmed_reason", { reason: renderAgentMessage(capability.reason, t) }) : t("agents.hook_source.unconfirmed")}
+        </span>
       )}
-    </Block>
     </div>
   );
 }

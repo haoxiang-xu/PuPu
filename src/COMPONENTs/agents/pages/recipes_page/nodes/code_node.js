@@ -1,10 +1,9 @@
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
-import { node_display_title } from "../node_display_labels";
+import { node_title } from "../node_title";
 import React from "react";
 import PuzzleShape from "./puzzle_shape";
 import { node_caption } from "./node_caption";
 import NodeHeader, { NodeBody } from "./node_header";
-import { safe_text } from "../document_values";
 import { NODE_PORT_ANCHOR } from "./node_metrics";
 
 /* A Code node on the canvas (#357): a plain header node like the other
@@ -18,8 +17,7 @@ export default function CodeNode({ node, isDark, rename }) {
   const { t } = useTranslation();
   /* Unnamed, a Code node is titled by its id, in the code typeface; a name
      the author gave it is ordinary text. */
-  const named = node_display_title(node, "") !== "";
-  const title = node_display_title(node, safe_text(node.id));
+  const { title, code_face } = node_title(node, t);
   return (
     <div data-testid={`code-node-${node.id}`} style={{ width: WIDTH }}>
       <PuzzleShape tabs={["right"]} cutouts={["left"]} anchor={NODE_PORT_ANCHOR} isDark={isDark}>
@@ -30,7 +28,7 @@ export default function CodeNode({ node, isDark, rename }) {
             src="code"
             tile={{ background: "#5b6475" }}
             title={title}
-            titleStyle={named ? undefined : { fontFamily: "ui-monospace, Menlo, monospace" }}
+            titleStyle={!code_face ? undefined : { fontFamily: "ui-monospace, Menlo, monospace" }}
             subtitle={node_caption({ type: "code", title, summary: t("agents.nodes.code.python") }, t)}
             rename={rename}
           />

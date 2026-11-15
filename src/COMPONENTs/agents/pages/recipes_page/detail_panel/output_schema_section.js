@@ -15,7 +15,7 @@ import { identity_of } from "../document_values";
 import { output_schema_problems } from "../output_schema";
 import usePendingText from "./pending_text";
 import useTakenName from "./taken_name";
-import { fill, PANEL_SWITCH, textFieldFill } from "./panel_style";
+import { CONTROL_RADIUS, fill, PANEL_SWITCH, textFieldFill } from "./panel_style";
 import useListIdentities from "./list_identity";
 import {
   BOUND_LABEL,
@@ -153,7 +153,7 @@ function Bound({ field, bound, revision, onChange }) {
             ...MONO,
             paddingVertical: 3,
             paddingHorizontal: 5,
-            borderRadius: 4,
+            borderRadius: CONTROL_RADIUS,
           }}
         />
       </div>
@@ -217,7 +217,7 @@ function FieldName({ field, taken, revision, onChange }) {
           ...MONO,
           paddingVertical: 4,
           paddingHorizontal: 6,
-          borderRadius: 5,
+          borderRadius: CONTROL_RADIUS,
         }}
       />
       {pending.text !== null && (
@@ -273,13 +273,14 @@ export function FieldRow({ field, index, taken, revision, isDark, onChange, onRe
           value={field.type}
           set_value={(next) => onChange({ ...field, type: next })}
           filterable={false}
+          align="left"
           style={{
             width: 96,
             flexShrink: 0,
             fontSize: 11.5,
             paddingVertical: 4,
             paddingHorizontal: 6,
-            borderRadius: 5,
+            borderRadius: CONTROL_RADIUS,
             gap: 4,
           }}
         />
@@ -289,13 +290,14 @@ export function FieldRow({ field, index, taken, revision, isDark, onChange, onRe
             value={field.items_type}
             set_value={(next) => onChange({ ...field, items_type: next })}
             filterable={false}
+            align="left"
             style={{
               width: 104,
               flexShrink: 0,
               fontSize: 11.5,
               paddingVertical: 4,
               paddingHorizontal: 6,
-              borderRadius: 5,
+              borderRadius: CONTROL_RADIUS,
               gap: 4,
             }}
           />
@@ -317,7 +319,7 @@ export function FieldRow({ field, index, taken, revision, isDark, onChange, onRe
             flexShrink: 0,
             paddingVertical: 4,
             paddingHorizontal: 4,
-            borderRadius: 4,
+            borderRadius: CONTROL_RADIUS,
             content: { icon: { width: 11, height: 11 } },
           }}
         />
@@ -334,7 +336,7 @@ export function FieldRow({ field, index, taken, revision, isDark, onChange, onRe
             fontSize: 11,
             paddingVertical: 3,
             paddingHorizontal: 6,
-            borderRadius: 5,
+            borderRadius: CONTROL_RADIUS,
           }}
         />
         {bounds.map((bound) => (
@@ -542,7 +544,7 @@ export default function OutputSchemaSection({
               fontSize: 11,
               paddingVertical: 4,
               paddingHorizontal: 6,
-              borderRadius: 5,
+              borderRadius: CONTROL_RADIUS,
             }}
           />
 
@@ -600,7 +602,7 @@ export default function OutputSchemaSection({
               fontSize: 11,
               paddingVertical: 3,
               paddingHorizontal: 8,
-              borderRadius: 5,
+              borderRadius: CONTROL_RADIUS,
               color: "#4a5bd8",
             }}
           />
@@ -672,7 +674,7 @@ export default function OutputSchemaSection({
             fontSize: 11,
             paddingVertical: 3,
             paddingHorizontal: 8,
-            borderRadius: 5,
+            borderRadius: CONTROL_RADIUS,
             color: "#4a5bd8",
           }}
         />

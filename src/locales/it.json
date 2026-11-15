@@ -548,7 +548,8 @@
     "chats": "Chat",
     "home": "Home",
     "no_chats_found": "Nessuna chat trovata",
-    "models": "Modelli"
+    "models": "Modelli",
+    "new": "Nuovo"
   },
   "context_menu": {
     "new_chat": "Nuova chat",
@@ -575,6 +576,8 @@
     "no_results": "Nessun risultato"
   },
   "chat": {
+    "pin_model": "Fissa modello",
+    "unpin_model": "Sblocca modello",
     "placeholder": "Messaggio a PuPu...",
     "settlement": {
       "waiting": "In attesa che termini l’esecuzione precedente…",
@@ -1000,7 +1003,14 @@
         "object": "Oggetto",
         "array": "Elenco",
         "null": "Null"
-      }
+      },
+      "help": "Ciò che un chiamante passa quando esegue questo Workflow. Ogni parametro è obbligatorio oppure usa il suo valore predefinito; i nodi successivi lo leggono da Start.",
+      "default_short": "Predefinito",
+      "invalid_number": "Non è un numero.",
+      "invalid_integer": "Non è un numero intero.",
+      "invalid_json": "JSON non valido.",
+      "name_short": "Nome",
+      "type": "Tipo"
     },
     "missing": {
       "if_missing": "Se il valore manca",
@@ -1807,7 +1817,16 @@
       "revision_failed": "Impossibile leggere la revisione fissata: {message}.",
       "missing_input": "Lo Start del Workflow chiamato legge «{key}». Senza questo valore la chiamata fallisce quando l’esecuzione arriva qui.",
       "unknown_output": "«{name}» non è esportato dall’End della revisione fissata; quell’output sarebbe assente quando l’esecuzione arriva qui.",
-      "reads_nothing": "{name} non legge nulla dal proprio input di esecuzione."
+      "reads_nothing": "{name} non legge nulla dal proprio input di esecuzione.",
+      "not_a_workflow": "Questo non è un workflow.",
+      "locking": "Acquisizione della versione attuale…",
+      "uses_version": "Usa la versione {ordinal}",
+      "changed_since": "{name} è cambiato dalla versione {ordinal}",
+      "update": "Aggiorna",
+      "update_label": "Usa la versione attuale di {name}",
+      "edit": "Modifica",
+      "edit_label": "Apri {name} per modificarlo",
+      "lock_failed": "Impossibile acquisire la versione attuale: {message}"
     },
     "toolkit": {
       "remove": "Rimuovi",
@@ -2004,7 +2023,14 @@
         "unreadable_condition_part": "Questa parte della condizione non ha una struttura che l’editor possa scomporre, quindi viene mantenuta esattamente come salvata.",
         "unreadable_operand": "Questo lato non ha una struttura che l’editor possa scomporre, quindi viene mantenuto esattamente come salvato.",
         "unreadable_settings": "Le impostazioni di questo ramo non hanno una struttura leggibile dall’editor, quindi vengono mantenute esattamente come salvate.",
-        "use_an_input": "Usa invece un input"
+        "use_an_input": "Usa invece un input",
+        "branches": "Rami",
+        "when": "quando",
+        "otherwise": "altrimenti",
+        "value_text": "Testo",
+        "value_number": "Numero",
+        "value_input": "Input {name}",
+        "read_inside_option": "Leggi all’interno…"
       },
       "code": {
         "a_named_python": "un Python con nome",
@@ -2245,7 +2271,8 @@
         "unset_default": "Non impostato. {toolName} usa il proprio valore predefinito.",
         "unsupported_setting": "Impostazione non supportata: {key}",
         "value_mode": "Valore",
-        "variable_mode": "Variabile"
+        "variable_mode": "Variabile",
+        "when_it_runs": "Durante l’esecuzione"
       }
     },
     "pinned": {
@@ -2810,7 +2837,13 @@
       "workflow_embedded_shape": "Il Workflow memorizzato non è esattamente {kind: embedded, document}; l’esecuzione lo rifiuta.",
       "workflow_missing": "Fissare il Workflow pubblicato eseguito da questo Hook.",
       "workflow_reference_shape": "Il riferimento al Workflow memorizzato non è esattamente {workflow_id, revision_id}, entrambi nominati; l’esecuzione lo rifiuta.",
-      "workflow_revision": "{name} · rev. {ordinal}"
+      "workflow_revision": "{name} · rev. {ordinal}",
+      "tools": "Strumenti",
+      "add_tool": "aggiungi uno strumento",
+      "remove_tool": "Rimuovi {name}",
+      "runs_named": "{id} attivo",
+      "list_is_order": "Gli hook vengono eseguiti dall’alto in basso; trascinane uno per cambiare l’ordine.",
+      "place_last": "Mettilo per ultimo"
     },
     "legacy_tools": {
       "installed": "Installati",

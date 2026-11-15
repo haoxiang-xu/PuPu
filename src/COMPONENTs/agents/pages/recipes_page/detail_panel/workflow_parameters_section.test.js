@@ -94,9 +94,57 @@ test.each(["constructor", "__proto__", "toString"])("an invalid stored type %s c
   const write = show(document);
   await waitFor(() => expect(screen.getByRole("button", { name: "Add parameter" })).toBeEnabled());
   const row = screen.getByTestId("workflow-parameter-0");
-  fireEvent.change(within(row).getAllByRole("combobox")[1], { target: { value: "default" } });
+  fireEvent.click(within(row).getByRole("switch", { name: "Required" }));
   const next = write.mock.calls.at(-1)[0];
   expect(next.input_schema.properties.city.default).toBeNull();
   expect(JSON.parse(JSON.stringify(next))).toEqual(next);
   expect(next.input_schema.properties.city.type).toBe(type);
+});
+
+test("Required is a switch on the parameter's own line; turning it off seeds a typed default", async () => {
+  const write = show(doc());
+  await waitFor(() => expect(screen.getByRole("button", { name: "Add parameter" })).toBeEnabled());
+  const city = screen.getByTestId("workflow-parameter-0");
+  const required = within(city).getByRole("switch", { name: "Required" });
+  expect(required).toHaveAttribute("aria-checked", "true");
+  expect(within(city).queryByLabelText("Default value")).toBeNull();
+  fireEvent.click(required);
+  const saved = write.mock.calls.at(-1)[0];
+  expect(saved.input_schema.required).toEqual([]);
+  expect(saved.input_schema.properties.city).toEqual({ type: "string", default: "" });
+  expect(within(screen.getByTestId("workflow-parameter-0")).getByLabelText("Default value")).toBeInTheDocument();
+});
+
+test("a number default that is not a number is kept on screen, not written, and says why", async () => {
+  const write = show(doc());
+  await waitFor(() => expect(screen.getByRole("button", { name: "Add parameter" })).toBeEnabled());
+  const row = screen.getByTestId("workflow-parameter-1");
+  fireEvent.change(within(row).getByLabelText("Default value"), { target: { value: "12a" } });
+  expect(write).not.toHaveBeenCalled();
+  expect(within(row).getByDisplayValue("12a")).toBeInTheDocument();
+  expect(within(row).getByTestId("workflow-parameter-1-default-problem")).toHaveTextContent("Not a number.");
+  fireEvent.change(within(row).getByLabelText("Default value"), { target: { value: "1.5" } });
+  expect(write).not.toHaveBeenCalled();
+  expect(within(row).getByTestId("workflow-parameter-1-default-problem")).toHaveTextContent("Not a whole number.");
+  fireEvent.change(within(row).getByLabelText("Default value"), { target: { value: "4" } });
+  expect(write.mock.calls.at(-1)[0].input_schema.properties.days).toEqual({ type: "integer", default: 4 });
+  expect(within(screen.getByTestId("workflow-parameter-1")).queryByTestId("workflow-parameter-1-default-problem")).toBeNull();
+});
+
+test("a boolean default is a switch", async () => {
+  const document = doc(); document.input_schema.properties.days = { type: "boolean", default: false };
+  const write = show(document);
+  await waitFor(() => expect(screen.getByRole("button", { name: "Add parameter" })).toBeEnabled());
+  const flag = within(screen.getByTestId("workflow-parameter-1")).getByTestId("workflow-parameter-1-default-boolean");
+  expect(flag).toHaveAttribute("aria-checked", "false");
+  fireEvent.click(flag);
+  expect(write.mock.calls.at(-1)[0].input_schema.properties.days).toEqual({ type: "boolean", default: true });
+});
+
+test("a Workflow with no parameters says so", async () => {
+  const document = doc(); document.input_schema = { type: "object", properties: {}, required: [], additionalProperties: false };
+  document.nodes[0].config.execution.outputs = [];
+  show(document);
+  await waitFor(() => expect(screen.getByRole("button", { name: "Add parameter" })).toBeEnabled());
+  expect(screen.getByTestId("workflow-parameters-empty")).toHaveTextContent("No parameters.");
 });

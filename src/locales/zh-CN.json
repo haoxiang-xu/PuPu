@@ -548,7 +548,8 @@
     "chats": "聊天",
     "home": "主页",
     "no_chats_found": "没有找到聊天",
-    "models": "模型"
+    "models": "模型",
+    "new": "新建"
   },
   "context_menu": {
     "new_chat": "新建聊天",
@@ -575,6 +576,8 @@
     "no_results": "无结果"
   },
   "chat": {
+    "pin_model": "固定模型",
+    "unpin_model": "取消固定",
     "placeholder": "向 PuPu 发送消息...",
     "settlement": {
       "waiting": "正在等待上一条任务收尾…",
@@ -1000,7 +1003,14 @@
         "object": "对象",
         "array": "列表",
         "null": "Null"
-      }
+      },
+      "help": "调用方运行这个 Workflow 时传入的参数。每个参数要么必填，要么使用默认值；后续节点从 Start 读取。",
+      "default_short": "默认值",
+      "invalid_number": "不是数字。",
+      "invalid_integer": "不是整数。",
+      "invalid_json": "不是有效的 JSON。",
+      "name_short": "名称",
+      "type": "类型"
     },
     "missing": {
       "if_missing": "值缺失时",
@@ -1238,7 +1248,7 @@
         "tool_call": "用指定参数运行一个工具，不调用模型",
         "skill_read": "运行到此处时读取一个技能的说明",
         "code": "在独立进程中运行一个 Python 函数，不调用模型",
-        "workflow_call": "将已发布的固定工作流版本作为一个步骤运行",
+        "workflow_call": "调用另一个工作流作为一个步骤",
         "hooks_pool": "在智能体调用工具之前或之后运行的工作流"
       }
     },
@@ -1260,10 +1270,10 @@
       "skill_read": "技能读取",
       "pick_skill": "请选择技能",
       "workflow_call": "工作流调用",
-      "pin_revision": "请固定修订版本",
-      "revision": "修订 {revision}",
-      "revision_unreadable": "无法读取修订版本",
-      "revision_reading": "正在读取修订版本…",
+      "pin_revision": "选择工作流",
+      "revision": "第 {revision} 版",
+      "revision_unreadable": "无法读取版本",
+      "revision_reading": "正在读取版本…",
       "set": "已设置",
       "missing": "缺失",
       "nothing_exported": "→ 无导出值",
@@ -1566,7 +1576,7 @@
       "skill_step": "运行到此处时读取一个技能",
       "python_process": "在独立进程中运行 Python",
       "hooks_around": "围绕此智能体工具调用运行的工作流",
-      "workflow_step": "运行已发布的固定工作流版本",
+      "workflow_step": "调用另一个工作流",
       "no_toolkits": "没有工具箱",
       "no_subagents": "没有子智能体"
     },
@@ -1761,7 +1771,14 @@
         "unreadable_condition_part": "编辑器无法拆解此部分条件，因此会完整保留已存储的内容。",
         "unreadable_operand": "编辑器无法拆解此侧的结构，因此会完整保留已存储的内容。",
         "unreadable_settings": "编辑器无法读取此分支设置的结构，因此会完整保留已存储的内容。",
-        "use_an_input": "改用输入"
+        "use_an_input": "改用输入",
+        "branches": "分支",
+        "when": "条件",
+        "otherwise": "否则",
+        "value_text": "文本",
+        "value_number": "数字",
+        "value_input": "输入 {name}",
+        "read_inside_option": "读取内部…"
       },
       "code": {
         "a_named_python": "指定的 Python",
@@ -2002,7 +2019,8 @@
         "unset_default": "未设置。{toolName} 使用其自己的默认值。",
         "unsupported_setting": "不支持的设置：{key}",
         "value_mode": "值",
-        "variable_mode": "变量"
+        "variable_mode": "变量",
+        "when_it_runs": "运行时"
       }
     },
     "result_roots": {
@@ -2246,7 +2264,16 @@
       "revision_failed": "无法读取已固定的修订版：{message}。",
       "missing_input": "被调用工作流的 Start 读取“{key}”。缺少它会使调用在运行到达此节点时失败。",
       "unknown_output": "“{name}”不是已固定修订版的 End 导出的内容；运行到达此节点时，该输出会缺失。",
-      "reads_nothing": "{name} 不会读取其运行输入。"
+      "reads_nothing": "{name} 不会读取其运行输入。",
+      "not_a_workflow": "这不是一个工作流。",
+      "locking": "正在锁定当前版本…",
+      "uses_version": "使用第 {ordinal} 版",
+      "changed_since": "{name} 在第 {ordinal} 版之后有新改动",
+      "update": "更新",
+      "update_label": "改用 {name} 的当前版本",
+      "edit": "编辑",
+      "edit_label": "打开 {name} 进行编辑",
+      "lock_failed": "无法锁定当前版本：{message}"
     },
     "pinned": {
       "label": "{name} · 版本 {ordinal}",
@@ -2498,7 +2525,13 @@
       "workflow_embedded_shape": "已存储的工作流不完全符合 {kind: embedded, document}；运行会拒绝它。",
       "workflow_missing": "请固定此 hook 运行的已发布工作流。",
       "workflow_reference_shape": "已存储的工作流引用不完全符合两个均具名的结构 {workflow_id, revision_id}；运行会拒绝它。",
-      "workflow_revision": "{name} · 修订版 {ordinal}"
+      "workflow_revision": "{name} · 修订版 {ordinal}",
+      "tools": "工具",
+      "add_tool": "添加工具",
+      "remove_tool": "移除 {name}",
+      "runs_named": "{id} 启用",
+      "list_is_order": "Hook 从上到下依次运行；拖动可以调整顺序。",
+      "place_last": "排到最后"
     },
     "subagents": {
       "field_name": "名称",

@@ -548,7 +548,8 @@
     "chats": "Chats",
     "home": "Inicio",
     "no_chats_found": "No se encontraron chats",
-    "models": "Modelos"
+    "models": "Modelos",
+    "new": "Nuevo"
   },
   "context_menu": {
     "new_chat": "Nuevo chat",
@@ -575,6 +576,8 @@
     "no_results": "Sin resultados"
   },
   "chat": {
+    "pin_model": "Fijar modelo",
+    "unpin_model": "Desfijar modelo",
     "placeholder": "Mensaje a PuPu...",
     "settlement": {
       "waiting": "Esperando a que termine la ejecución anterior…",
@@ -1000,7 +1003,14 @@
         "object": "Objeto",
         "array": "Lista",
         "null": "Null"
-      }
+      },
+      "help": "Lo que un llamador pasa al ejecutar este Workflow. Cada parámetro es obligatorio o usa su valor predeterminado; los nodos posteriores lo leen desde Start.",
+      "default_short": "Predeterminado",
+      "invalid_number": "No es un número.",
+      "invalid_integer": "No es un número entero.",
+      "invalid_json": "No es JSON válido.",
+      "name_short": "Nombre",
+      "type": "Tipo"
     },
     "missing": {
       "if_missing": "Si falta el valor",
@@ -1807,7 +1817,16 @@
       "revision_failed": "No se pudo leer la revisión fijada: {message}.",
       "missing_input": "El Start del Workflow llamado lee «{key}». Sin ese valor la llamada falla cuando la ejecución llega aquí.",
       "unknown_output": "«{name}» no es algo que exporte el End de la revisión fijada; esa salida faltaría cuando la ejecución llegue aquí.",
-      "reads_nothing": "{name} no lee nada de su entrada de ejecución."
+      "reads_nothing": "{name} no lee nada de su entrada de ejecución.",
+      "not_a_workflow": "Eso no es un flujo de trabajo.",
+      "locking": "Tomando su versión actual…",
+      "uses_version": "Usa la versión {ordinal}",
+      "changed_since": "{name} ha cambiado desde la versión {ordinal}",
+      "update": "Actualizar",
+      "update_label": "Usar la versión actual de {name}",
+      "edit": "Editar",
+      "edit_label": "Abrir {name} para editarlo",
+      "lock_failed": "No se pudo tomar su versión actual: {message}"
     },
     "toolkit": {
       "remove": "Eliminar",
@@ -2004,7 +2023,14 @@
         "unreadable_condition_part": "Esta parte de la condición no tiene una estructura que pueda descomponer el editor, por lo que se conserva exactamente como está almacenada.",
         "unreadable_operand": "Este lado no tiene una estructura que pueda descomponer el editor, por lo que se conserva exactamente como está almacenado.",
         "unreadable_settings": "Los ajustes de esta rama no tienen una estructura que pueda leer el editor, por lo que se conservan exactamente como están almacenados.",
-        "use_an_input": "Usar una entrada"
+        "use_an_input": "Usar una entrada",
+        "branches": "Ramas",
+        "when": "cuando",
+        "otherwise": "si no",
+        "value_text": "Texto",
+        "value_number": "Número",
+        "value_input": "Entrada {name}",
+        "read_inside_option": "Leer dentro…"
       },
       "code": {
         "a_named_python": "un Python con nombre",
@@ -2245,7 +2271,8 @@
         "unset_default": "Sin establecer. {toolName} usa su propio valor predeterminado.",
         "unsupported_setting": "Ajuste no compatible: {key}",
         "value_mode": "Valor",
-        "variable_mode": "Variable"
+        "variable_mode": "Variable",
+        "when_it_runs": "Al ejecutarse"
       }
     },
     "pinned": {
@@ -2810,7 +2837,13 @@
       "workflow_embedded_shape": "El Workflow almacenado no es exactamente {kind: embedded, document}; la ejecución lo rechaza.",
       "workflow_missing": "Fije el Workflow publicado que ejecuta este Hook.",
       "workflow_reference_shape": "La referencia de Workflow almacenada no es exactamente {workflow_id, revision_id}, ambos con nombre; la ejecución la rechaza.",
-      "workflow_revision": "{name} · rev. {ordinal}"
+      "workflow_revision": "{name} · rev. {ordinal}",
+      "tools": "Herramientas",
+      "add_tool": "añadir una herramienta",
+      "remove_tool": "Quitar {name}",
+      "runs_named": "{id} se ejecuta",
+      "list_is_order": "Los hooks se ejecutan de arriba abajo; arrastra uno para cambiar el orden.",
+      "place_last": "Ponerlo al final"
     },
     "legacy_tools": {
       "installed": "Instalados",

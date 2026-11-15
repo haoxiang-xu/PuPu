@@ -25,6 +25,9 @@ import Tooltip from "../../../BUILTIN_COMPONENTs/tooltip/tooltip";
 import { Select } from "../../../BUILTIN_COMPONENTs/select/select";
 import ModelPicker, { modelPickerTriggerStyle } from "../../../BUILTIN_COMPONENTs/select/model_picker";
 import AttachmentChipList from "./attachment_chip_list";
+import CommandTree from "./command_tree";
+import AgentAvatar from "../../agents/agent_avatar";
+import { buildAgentPickerTree } from "../../../SERVICEs/agent_picker_tree";
 import { QueueAttachSection } from "./queue_pile";
 import { WorkspaceModal } from "../../workspace/workspace_modal";
 import useChatInputToolkits from "../hooks/use_chat_input_toolkits";
@@ -53,6 +56,11 @@ import ContextCompositionProgress from "./context_composition_progress";
 /* The Agent row's own value for "no Agent". A resource id can never be empty
    and a legacy Recipe name can never be this, so it collides with neither. */
 const AGENT_DEFAULT = "__pupu_agent_default__";
+/* An Agent row's icon: its own glyph in the row's colour, as the Agents page
+   lists it. No presentation draws the default bot. */
+const agentRowIcon = (presentation) => (
+  <AgentAvatar variant="glyph" presentation={presentation || null} size={14} glyphScale={1} />
+);
 
 const MOVABLE_ATTACH_WIDGET_SET = new Set(MOVABLE_ATTACH_WIDGETS);
 
@@ -614,7 +622,7 @@ const AttachPanel = forwardRef(({
   onRequestInputFocus = () => {},
   onSelectorOpenChange = () => {},
 }, ref) => {
-  const { theme } = useContext(ConfigContext);
+  const { theme, setAppMode } = useContext(ConfigContext);
   const { t } = useTranslation();
   const highlight = themeHighlightColor(theme);
   const [workspaceModalOpen, setWorkspaceModalOpen] = useState(false);
@@ -733,19 +741,43 @@ const AttachPanel = forwardRef(({
      its own (`skeleton:<id>`) — and the option that was picked is looked up in
      a Map built from the same list, so a name that happens to look like an
      encoded id decides nothing. */
+  /* The stored Agent the store itself runs for a chat with no Agent chosen:
+     the one active Agent named "Default" (SkeletonResourceStore.resolve,
+     default_if_unselected). It and "no Agent" are one choice to the person
+     choosing — two rows both saying Default was a list contradicting itself
+     — so it is not listed again; the default row carries its name and icon.
+     Picking that row stays what it always was (no Agent chosen); a chat that
+     already holds this resource keeps it and shows it as that row. */
+  const defaultAgentResource = useMemo(() => {
+    const named = (skeletonAgentOptions || []).filter(
+      (option) => option && option.name === "Default",
+    );
+    return named.length === 1 ? named[0] : null;
+  }, [skeletonAgentOptions]);
   const agentOptions = useMemo(() => [
-    { value: AGENT_DEFAULT, label: t("chat.attach.agent_default") },
-    ...skeletonAgentOptions.map((option) => ({
-      value: `skeleton:${option.id}`,
-      label: option.name,
-    })),
+    {
+      value: AGENT_DEFAULT,
+      label: defaultAgentResource ? defaultAgentResource.name : t("chat.attach.agent_default"),
+      icon: agentRowIcon(defaultAgentResource?.presentation),
+      pinned: true,
+    },
+    ...skeletonAgentOptions
+      .filter((option) => option !== defaultAgentResource)
+      .map((option) => ({
+        value: `skeleton:${option.id}`,
+        label: option.name,
+        icon: agentRowIcon(option.presentation),
+        /* places it in its folder on the Agents page — see agent_picker_tree */
+        resourceId: option.id,
+      })),
     ...(recipeOptions || [])
       .filter((option) => option && option.value && option.value !== "Default")
       .map((option) => ({
         value: `legacy:${option.value}`,
         label: option.label || option.value,
+        icon: agentRowIcon(null),
       })),
-  ], [recipeOptions, skeletonAgentOptions, t]);
+  ], [defaultAgentResource, recipeOptions, skeletonAgentOptions, t]);
   /* A Map, not an object: both key spaces are document-chosen text — a
      resource id may be `constructor` and a Recipe may be named `__proto__` —
      and a plain object would answer for keys nobody put in it. */
@@ -770,7 +802,10 @@ const AttachPanel = forwardRef(({
   );
   const upgradedAliasOption = (skeletonAgentOptions || []).find(option =>
     selectedRecipeName !== "Default" && Array.isArray(option.legacyNames) && option.legacyNames.includes(selectedRecipeName));
-  const agentSelectValue = selectedSkeletonAgentId
+  const agentSelectValue =
+    selectedSkeletonAgentId && defaultAgentResource && selectedSkeletonAgentId === defaultAgentResource.id
+      ? AGENT_DEFAULT
+      : selectedSkeletonAgentId
     ? `skeleton:${selectedSkeletonAgentId}`
     : upgradedAliasOption
       ? `skeleton:${upgradedAliasOption.id}`
@@ -784,12 +819,26 @@ const AttachPanel = forwardRef(({
   const agentSelectionUnavailable =
     Boolean(selectedSkeletonAgentId || (selectedRecipeName && selectedRecipeName !== "Default")) &&
     !agentChoiceByValue.has(agentSelectValue);
-  const agentSelectOptions = agentSelectionUnavailable
-    ? [
-        ...agentOptions,
-        { value: agentSelectValue, label: t("chat.attach.agent_unavailable") },
-      ]
-    : agentOptions;
+  const agentSelectOptions = useMemo(
+    () =>
+      agentSelectionUnavailable
+        ? [
+            ...agentOptions,
+            { value: agentSelectValue, label: t("chat.attach.agent_unavailable") },
+          ]
+        : agentOptions,
+    [agentOptions, agentSelectionUnavailable, agentSelectValue, t],
+  );
+  /* The list as the Agents page arranges it: its folders, its order. Read
+     when the picker opens — the folders are the Agents page's to change, and
+     this chat may have sat open while they were. With no folders it is the
+     flat list it always was. */
+  const agentPickerOpen = openSelector === "agent";
+  const agentTree = useMemo(
+    () => buildAgentPickerTree({ choices: agentSelectOptions }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [agentSelectOptions, agentPickerOpen],
+  );
   const agentChoiceLabel = agentSelectOptions.find((option) => option.value === agentSelectValue)?.label
     || t("chat.attach.agent_default");
   const agentTriggerLabel = `${t("side_menu.agents")} · ${agentChoiceLabel}`;
@@ -909,6 +958,26 @@ const AttachPanel = forwardRef(({
       setKbIndex(kbReturnIndexRef.current); // back where the user was
     }
   }, [onRequestInputFocus]);
+
+  const handleAgentOrganize = () => {
+    kbOpenedSelectorRef.current = null;
+    setOpenSelector(null);
+    setAppMode("agents");
+  };
+
+  const renderAgentTree = ({ highlighted_value, render_option, on_hover_row, on_visible_change }) => (
+    <CommandTree
+      data={agentTree.data}
+      root={agentTree.root}
+      activeNodeId={highlighted_value ?? null}
+      onHover={on_hover_row}
+      onVisibleChange={on_visible_change}
+      isDark={isDark}
+      bare
+      width="100%"
+      renderRow={({ node, depth }) => render_option(node.option, { depth })}
+    />
+  );
 
   const handleAgentSelectorOpenChange = useCallback(
     (next) => {
@@ -1947,6 +2016,16 @@ const AttachPanel = forwardRef(({
         variant="palette"
         palette_chip="agent"
         palette_rail
+        palette_tree={renderAgentTree}
+        /* Arranging Agents is the Agents page's job; the picker only picks.
+           Same word as the slash palette's own Organize. */
+        palette_actions={
+          typeof setAppMode === "function" ? (
+            <HeaderAction onAct={handleAgentOrganize} isDark={isDark} theme={theme}>
+              {t("commands.organize_action")}
+            </HeaderAction>
+          ) : null
+        }
         custom_trigger={trigger}
       />
     </span>
@@ -2094,7 +2173,10 @@ const AttachPanel = forwardRef(({
                   width: PILL_HEIGHT,
                   height: PILL_HEIGHT,
                   borderRadius: 999,
-                  color: agentSelectValue !== AGENT_DEFAULT ? highlight : color,
+                  /* One colour whatever is chosen, like the other icons in
+                     the row: which Agent runs is the picker's to show (each
+                     row its own icon), not the trigger's. */
+                  color,
                 }}
               />,
             )}
@@ -2201,7 +2283,7 @@ const AttachPanel = forwardRef(({
         const picture = menuRow(id, index, {
           icon: "bot",
           label: t("side_menu.agents"),
-          tinted: agentSelectValue !== AGENT_DEFAULT,
+          /* never tinted: same as the trigger in the row */
           inert,
         });
         return inert ? picture : (

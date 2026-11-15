@@ -47,7 +47,7 @@ const chooseWhole = async () => {
   await waitFor(() => expect(within(picker).getByRole("combobox")).not.toBeDisabled());
   fireEvent.click(within(picker).getByRole("combobox"));
   const lists = screen.getAllByRole("listbox", { hidden: true });
-  fireEvent.click(within(lists.at(-1)).getByText("Whole · 1 published", { exact: true }));
+  fireEvent.click(within(lists.at(-1)).getByText("Whole", { exact: true }));
 };
 const unpinned = () => {
   const document = row("caller_whole_get").reply.resource.document;
@@ -68,6 +68,17 @@ beforeEach(() => {
   api.unchain.publishManagedSkeletonWorkflow = jest.fn().mockResolvedValue(row("whole_publish").reply);
 });
 
+const box = (name) => within(screen.getByTestId(`workflow-call-input-${name}-value`)).getByRole("textbox");
+const enter = (name, text) => {
+  fireEvent.focus(box(name));
+  fireEvent.change(box(name), { target: { value: text } });
+  fireEvent.keyDown(box(name), { key: "Enter" });
+};
+const unset = (name) => {
+  fireEvent.focus(box(name));
+  fireEvent.click(screen.getByText("Unset", { exact: true }));
+};
+
 describe("R-WFC-01: readers of one revision share one read", () => {
   test("two concurrent requests both settle with the admitted revision, from one read", async () => {
     const late = deferred();
@@ -80,22 +91,15 @@ describe("R-WFC-01: readers of one revision share one read", () => {
     expect(api.unchain.getManagedSkeletonWorkflowVersion).toHaveBeenCalledTimes(1);
   });
 
-  test("Pin waits for the read another reader already started, then pins", async () => {
-    const late = deferred();
-    api.unchain.getManagedSkeletonWorkflowVersion.mockImplementation(() => late.promise);
-    const canvas = request_workflow_version("wf-whole", REV);
+  /* Picking a Workflow takes its current version: the publication's own
+     answer is the revision, kept for every reader, so nothing reads it again. */
+  test("picking pins the published answer and shares it with the other readers", async () => {
     render(<Harness initial={unpinned()} />);
     await chooseWhole();
-    fireEvent.change(screen.getByPlaceholderText("or a revision id, e.g. rev-2-…"), { target: { value: REV } });
-    fireEvent.click(screen.getByRole("button", { name: "Pin this revision" }));
-    await act(async () => {
-      late.resolve(row("whole_publish").reply);
-      await canvas;
-    });
     await waitFor(() => expect(writes).toHaveLength(1));
     expect(call(writes[0]).config.workflow).toEqual({ workflow_id: "wf-whole", revision_id: REV });
-    expect(screen.getByTestId("workflow-call-pin-state")).toHaveTextContent("Pinned revision 1.");
     expect(workflow_version_state("wf-whole", REV).status).toBe("ready");
+    expect(api.unchain.getManagedSkeletonWorkflowVersion).not.toHaveBeenCalled();
   });
 });
 
@@ -125,17 +129,14 @@ describe("R-WFC-03: a Start that reads the whole input reads every key", () => {
     render(<Harness initial={row("caller_whole_get").reply.resource.document} />);
     const area = screen.getByTestId("workflow-call-inputs");
     expect(area).not.toHaveTextContent(/ignores it/i);
-    const unlisted = screen.getByTestId("tool-call-argument-unlisted");
-    expect(unlisted).toHaveTextContent(/whole input/i);
-    fireEvent.click(within(unlisted).getByText("Value"));
-    fireEvent.change(within(screen.getByTestId("tool-call-argument-unlisted")).getByPlaceholderText("a value written here"), { target: { value: "24" } });
+    const unlisted = screen.getByTestId("workflow-call-input-unlisted");
+    expect(within(unlisted).getByTitle(/whole input/i)).toBeInTheDocument();
+    enter("unlisted", "24");
     expect(call(latest).config.execution.inputs.find((item) => item.name === "unlisted").value).toEqual({ kind: "literal", value: "24" });
 
     fireEvent.change(screen.getByPlaceholderText("another input name"), { target: { value: "extra" } });
     fireEvent.click(screen.getByRole("button", { name: "Add input" }));
-    const added = screen.getByTestId("tool-call-argument-extra");
-    fireEvent.click(within(added).getByText("Value"));
-    fireEvent.change(within(screen.getByTestId("tool-call-argument-extra")).getByPlaceholderText("a value written here"), { target: { value: "x" } });
+    enter("extra", "x");
     expect(call(latest).config.execution.inputs.map((item) => item.name)).toEqual(["message", "unlisted", "extra"]);
     expect(screen.queryByTestId("workflow-call-problems")).toBeNull();
   });
@@ -149,11 +150,14 @@ describe("R-WFC-03: a Start that reads the whole input reads every key", () => {
 });
 
 describe("R-WFC-03a: a new input keeps its editor across its first write", () => {
-  const typeFirst = async (row_testid) => {
-    fireEvent.click(within(screen.getByTestId(row_testid)).getByText("Value"));
-    const before = within(screen.getByTestId(row_testid)).getByPlaceholderText("a value written here");
+  /* A value is written when it is entered (Enter, or leaving the cell), not
+     on each keystroke, so typing to look for a source writes nothing; the
+     cell that took it keeps its focus through that first write. */
+  const typeFirst = async (name) => {
+    const before = box(name);
     await act(async () => { before.focus(); });
     fireEvent.change(before, { target: { value: "h" } });
+    fireEvent.keyDown(before, { key: "Enter" });
     return before;
   };
 
@@ -163,21 +167,22 @@ describe("R-WFC-03a: a new input keeps its editor across its first write", () =>
     fireEvent.change(screen.getByPlaceholderText("another input name"), { target: { value: "extra" } });
     fireEvent.click(screen.getByRole("button", { name: "Add input" }));
     expect(writes).toHaveLength(0);
-    const before = await typeFirst("tool-call-argument-extra");
-    const after = within(screen.getByTestId("tool-call-argument-extra")).getByPlaceholderText("a value written here");
+    const before = await typeFirst("extra");
+    const after = box("extra");
     expect(after).toBe(before);
     expect(before.isConnected).toBe(true);
     expect(after).toHaveFocus();
     expect(call(latest).config.execution.inputs.find((item) => item.name === "extra").value).toEqual({ kind: "literal", value: "h" });
     fireEvent.change(after, { target: { value: "he" } });
     fireEvent.change(after, { target: { value: "hello" } });
-    expect(within(screen.getByTestId("tool-call-argument-extra")).getByPlaceholderText("a value written here")).toBe(before);
+    fireEvent.keyDown(after, { key: "Enter" });
+    expect(box("extra")).toBe(before);
     expect(after).toHaveFocus();
     expect(after.value).toBe("hello");
     expect(after.selectionStart).toBe(5);
     expect(call(latest).config.execution.inputs.find((item) => item.name === "extra").value).toEqual({ kind: "literal", value: "hello" });
     /* Unset still removes it; the stored row and its diagnostics path are unchanged. */
-    fireEvent.click(screen.getByRole("button", { name: "Unset extra" }));
+    unset("extra");
     expect(call(latest).config.execution.inputs.map((item) => item.name)).toEqual(["message", "unlisted"]);
   });
 
@@ -194,8 +199,8 @@ describe("R-WFC-03a: a new input keeps its editor across its first write", () =>
     await screen.findByPlaceholderText("another input name");
     fireEvent.change(screen.getByPlaceholderText("another input name"), { target: { value: "extra" } });
     fireEvent.click(screen.getByRole("button", { name: "Add input" }));
-    const before = await typeFirst("tool-call-argument-extra");
-    const after = within(screen.getByTestId("tool-call-argument-extra")).getByPlaceholderText("a value written here");
+    const before = await typeFirst("extra");
+    const after = box("extra");
     expect(after).toBe(before);
     expect(after).toHaveFocus();
     fireEvent.change(after, { target: { value: "hi" } });
@@ -240,8 +245,7 @@ describe("R-WFC-05: a revision answer must be about what was asked", () => {
     api.unchain.publishManagedSkeletonWorkflow.mockResolvedValue(row("other_publish").reply);
     render(<Harness initial={unpinned()} />);
     await chooseWhole();
-    fireEvent.click(screen.getByRole("button", { name: "Publish its current draft and pin it" }));
-    await screen.findByText(/Nothing was pinned/);
+    await screen.findByText(/current version could not be taken/);
     expect(writes).toHaveLength(0);
     expect(workflow_version_state("wf-other", row("other_publish").reply.version.revision_id)).toBeNull();
   });
@@ -249,7 +253,6 @@ describe("R-WFC-05: a revision answer must be about what was asked", () => {
   test("control: the same-identity publication pins exactly that reference", async () => {
     render(<Harness initial={unpinned()} />);
     await chooseWhole();
-    fireEvent.click(screen.getByRole("button", { name: "Publish its current draft and pin it" }));
     await waitFor(() => expect(writes).toHaveLength(1));
     expect(call(writes[0]).config.workflow).toEqual({ workflow_id: "wf-whole", revision_id: REV });
   });

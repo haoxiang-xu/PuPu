@@ -215,14 +215,39 @@ describe("the reason is derived, not guessed", () => {
     expect(why_fields_cannot_hold(schema)).toMatch(/empty list of required/i);
   });
 
-  test("a required list ordered differently from the fields is named", () => {
+  /* The store writes documents with sorted keys, so `properties` comes back
+     alphabetical while `required` keeps the author's order. That is the same
+     schema, and the rows must still hold it — and write `required` back in the
+     order it was stored, not in key order. */
+  test("a required list ordered differently from the property keys is held", () => {
+    const schema = {
+      type: "object",
+      properties: { length: { type: "integer" }, summary: { type: "string" } },
+      required: ["summary", "length"],
+    };
+    expect(fields_hold_schema(schema)).toBe(true);
+    const { fields, closed, root } = schema_fields(schema);
+    expect(fields.map((field) => field.name)).toEqual(["summary", "length"]);
+    expect(schema_from_fields(fields, closed, root).required).toEqual(["summary", "length"]);
+  });
+
+  test("required fields come first, the rest keep key order", () => {
+    const schema = {
+      type: "object",
+      properties: { a: { type: "string" }, b: { type: "string" }, c: { type: "string" } },
+      required: ["c"],
+    };
+    expect(fields_hold_schema(schema)).toBe(true);
+    expect(schema_fields(schema).fields.map((field) => field.name)).toEqual(["c", "a", "b"]);
+  });
+
+  test("a required list naming a field twice is still shown as JSON", () => {
     const schema = {
       type: "object",
       properties: { a: { type: "string" }, b: { type: "string" } },
-      required: ["b", "a"],
+      required: ["a", "b", "a"],
     };
     expect(fields_hold_schema(schema)).toBe(false);
-    expect(why_fields_cannot_hold(schema)).toMatch(/different order/i);
   });
 
   test("the same list in the fields' own order is held", () => {

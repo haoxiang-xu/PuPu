@@ -24,9 +24,6 @@ jest.mock("../../../../../BUILTIN_COMPONENTs/select/select", () => function Mock
     </select>
   );
 });
-jest.mock("../../../../../BUILTIN_COMPONENTs/input/input", () => function MockInput({ value, set_value, placeholder, disabled }) {
-  return <input placeholder={placeholder} value={value} disabled={disabled} onChange={(event) => set_value(event.target.value)} />;
-});
 jest.mock("../../../../../BUILTIN_COMPONENTs/input/button", () => function MockButton({ label, ariaLabel, onClick, disabled }) {
   return <button type="button" aria-label={ariaLabel} disabled={disabled} onClick={onClick}>{label || ariaLabel}</button>;
 });
@@ -44,7 +41,7 @@ jest.mock("../../../../toolkit/components/segmented_control", () => function Moc
 
 const CATALOG = JSON.parse(capture.catalog_v2.body_text);
 const CORE = JSON.parse(capture.core_schemas.body_text);
-const SEP = "\u0000";
+const SEP = "::";
 
 const out = (name, root) => ({ name, source: { kind: "result", path: [root] } });
 const graph = (tool, extra = []) => ({
@@ -78,6 +75,19 @@ const show = async (document) => {
 const tool = () => latest.nodes.find((node) => node.id === "tool");
 const pickTool = (name) => fireEvent.change(within(screen.getByTestId("tool-call-picker")).getByTestId("select"), { target: { value: `core${SEP}${name}` } });
 const argument = (name) => screen.getByTestId(`tool-call-argument-${name}`);
+/* An argument's value is one cell: typed in (written on Enter), or a source
+   picked from what the cell offers when it is focused. */
+const box = (name) => within(screen.getByTestId(`tool-call-argument-${name}-value`)).getByRole("textbox");
+const type = (name, text) => {
+  fireEvent.focus(box(name));
+  fireEvent.change(box(name), { target: { value: text } });
+  fireEvent.keyDown(box(name), { key: "Enter" });
+};
+const pick = (name, title) => {
+  fireEvent.focus(box(name));
+  const options = screen.getAllByTitle(title);
+  fireEvent.click(options[options.length - 1]);
+};
 
 beforeEach(() => {
   writes = [];
@@ -113,9 +123,9 @@ describe("picking the tool", () => {
     names.forEach((name) => expect(argument(name)).toBeInTheDocument());
     expect(within(argument("path")).getByLabelText("required")).toBeInTheDocument();
     expect(within(argument("offset")).queryByLabelText("required")).toBeNull();
-    expect(argument("offset")).toHaveTextContent("integer");
-    expect(argument("path")).toHaveTextContent("Required by read.");
-    expect(argument("limit")).toHaveTextContent("Not set. read uses its own default.");
+    expect(argument("offset")).toHaveTextContent("Integer");
+    expect(box("path")).toHaveAttribute("placeholder", "a value written here");
+    expect(box("limit")).toHaveAttribute("placeholder", "Default");
     expect(screen.queryByRole("button", { name: /add/i })).toBeNull();
   });
 
@@ -142,26 +152,22 @@ describe("arguments", () => {
 
   test("a fixed text value is written as a literal row named for the argument", async () => {
     await ready();
-    fireEvent.click(within(argument("path")).getByRole("button", { name: "Value" }));
-    fireEvent.change(within(argument("path")).getByPlaceholderText("a value written here"), { target: { value: "/tmp/x.txt" } });
+    type("path", "/tmp/x.txt");
     expect(tool().config.execution.inputs).toStrictEqual([literal("path", "/tmp/x.txt")]);
   });
 
   test("an integer is written as a number; text that is not one is held and never written", async () => {
     await ready([literal("path", "/tmp/x.txt")]);
-    fireEvent.click(within(argument("offset")).getByRole("button", { name: "Value" }));
-    const box = within(argument("offset")).getByPlaceholderText("a value written here");
-    fireEvent.change(box, { target: { value: "5x" } });
-    expect(screen.getByTestId("tool-call-argument-offset-value-problem")).toHaveTextContent("Enter a whole number.");
+    type("offset", "5x");
+    expect(screen.getByTestId("tool-call-argument-offset-problem")).toHaveTextContent("Enter a whole number.");
     expect(tool().config.execution.inputs).toStrictEqual([literal("path", "/tmp/x.txt")]);
-    fireEvent.change(box, { target: { value: "5" } });
+    type("offset", "5");
     expect(tool().config.execution.inputs).toStrictEqual([literal("path", "/tmp/x.txt"), literal("offset", 5)]);
   });
 
   test("a variable binds an upstream export, kept in schema order", async () => {
     await ready([literal("limit", 3)]);
-    fireEvent.click(within(argument("path")).getByRole("button", { name: "Variable" }));
-    fireEvent.change(within(argument("path")).getAllByTestId("select")[0], { target: { value: `start${SEP}message` } });
+    pick("path", "start · message");
     expect(tool().config.execution.inputs).toStrictEqual([
       { name: "path", value: { kind: "ref", node_id: "start", path: ["message"] }, missing: "error" },
       literal("limit", 3),
@@ -170,8 +176,15 @@ describe("arguments", () => {
 
   test("an optional argument can be unset again; the row disappears from what is sent", async () => {
     await ready([literal("path", "/x"), literal("limit", 3)]);
-    fireEvent.click(screen.getByRole("button", { name: "Unset limit" }));
+    fireEvent.focus(box("limit"));
+    fireEvent.click(screen.getByText("Unset", { exact: true }));
     expect(tool().config.execution.inputs).toStrictEqual([literal("path", "/x")]);
+  });
+
+  test("a required argument offers no Unset", async () => {
+    await ready([literal("path", "/x")]);
+    fireEvent.focus(box("path"));
+    expect(screen.queryByText("Unset", { exact: true })).toBeNull();
   });
 
   test("a stored row the tool does not declare is shown and can be removed, never dropped silently", async () => {
@@ -232,48 +245,33 @@ describe("when the library or the schema cannot be read", () => {
   });
 });
 
-/* R-352-01: a required argument has no Unset, so switching Value/Variable is
-   the only way to replace what is stored. Switching only opens the other
-   editor; the stored source stays in the document, shown, until the author
-   actually picks or types its replacement. */
+/* R-352-01: what an argument has stored stays in the document, shown in its
+   cell, until the author actually picks or types its replacement — focusing
+   the cell writes nothing. */
 describe("replacing what an argument has stored", () => {
   const ready = async (inputs) => {
     await show(graph(toolNode({ tool: { name: "read", on_error: "continue", approval_timeout_ms: 60000 }, execution: { inputs, outputs: [] } })));
     await act(async () => { await Promise.resolve(); });
   };
   const fromStart = (missing = "error") => ({ name: "path", value: { kind: "ref", node_id: "start", path: ["message"] }, missing });
-  const pickStart = () => fireEvent.change(within(argument("path")).getAllByTestId("select")[0], { target: { value: `start${SEP}message` } });
-  const kept = () => screen.queryByTestId("tool-call-argument-path-kept");
+  const pickStart = () => pick("path", "start · message");
 
-  test("a required value switched to Variable is kept until a variable is picked", async () => {
+  test("a stored value is kept until a variable is picked", async () => {
     await ready([literal("path", "/old.txt")]);
-    fireEvent.click(within(argument("path")).getByRole("button", { name: "Variable" }));
+    fireEvent.focus(box("path"));
     expect(writes).toHaveLength(0);
-    expect(kept()).toHaveTextContent("\"/old.txt\"");
+    expect(box("path")).toHaveValue("/old.txt");
     pickStart();
     expect(tool().config.execution.inputs).toStrictEqual([fromStart()]);
-    expect(kept()).toBeNull();
   });
 
-  test("a required variable switched to Value is kept until a value is typed", async () => {
+  test("a stored variable is kept until a value is typed", async () => {
     await ready([fromStart()]);
-    fireEvent.click(within(argument("path")).getByRole("button", { name: "Value" }));
+    expect(screen.getByTestId("tool-call-argument-path-value-selected")).toHaveAttribute("title", "start · message");
+    fireEvent.focus(box("path"));
     expect(writes).toHaveLength(0);
-    expect(kept()).toHaveTextContent("start");
-    const box = within(argument("path")).getByPlaceholderText("a value written here");
-    expect(box).toHaveValue("");
-    fireEvent.change(box, { target: { value: "/new.txt" } });
+    type("path", "/new.txt");
     expect(tool().config.execution.inputs).toStrictEqual([literal("path", "/new.txt")]);
-    expect(kept()).toBeNull();
-  });
-
-  test("switching back before choosing anything shows the stored value again, untouched", async () => {
-    await ready([literal("path", "/old.txt")]);
-    fireEvent.click(within(argument("path")).getByRole("button", { name: "Variable" }));
-    fireEvent.click(within(argument("path")).getByRole("button", { name: "Value" }));
-    expect(within(argument("path")).getByPlaceholderText("a value written here")).toHaveValue("/old.txt");
-    expect(kept()).toBeNull();
-    expect(writes).toHaveLength(0);
   });
 
   test("a picked variable keeps the stored missing policy, its default included", async () => {
@@ -307,17 +305,14 @@ describe("replacing what an argument has stored", () => {
   test.each(UNREADABLE_REFS)("a stored variable naming %s opens, is kept and shown, and a picked variable replaces it", async (_label, node_id, path) => {
     await quietly(() => ready([{ name: "path", value: { kind: "ref", node_id, path }, missing: "error" }]));
     expect(writes).toHaveLength(0);
-    expect(kept()).toHaveTextContent("\"kind\":\"ref\"");
-    expect(within(argument("path")).getAllByTestId("select")[0]).toHaveValue("");
+    expect(box("path").value).toContain("\"kind\":\"ref\"");
     pickStart();
     expect(tool().config.execution.inputs).toStrictEqual([fromStart()]);
-    expect(kept()).toBeNull();
   });
   test.each(UNREADABLE_REFS)("a stored variable naming %s can be replaced by a typed value", async (_label, node_id, path) => {
     await quietly(() => ready([{ name: "path", value: { kind: "ref", node_id, path }, missing: "error" }]));
-    fireEvent.click(within(argument("path")).getByRole("button", { name: "Value" }));
     expect(writes).toHaveLength(0);
-    fireEvent.change(within(argument("path")).getByPlaceholderText("a value written here"), { target: { value: "/typed.txt" } });
+    type("path", "/typed.txt");
     expect(tool().config.execution.inputs).toStrictEqual([literal("path", "/typed.txt")]);
   });
 
@@ -327,17 +322,15 @@ describe("replacing what an argument has stored", () => {
   ];
   test.each(UNCOMPOSED)("a stored %s is kept and shown, and a picked variable replaces it", async (_label, value) => {
     await ready([{ name: "path", value, missing: "null" }]);
-    expect(kept()).toBeInTheDocument();
+    expect(box("path").value).not.toBe("");
     expect(writes).toHaveLength(0);
     pickStart();
     expect(tool().config.execution.inputs).toStrictEqual([fromStart("null")]);
   });
   test.each(UNCOMPOSED)("a stored %s is kept and shown, and a typed value replaces it", async (_label, value) => {
     await ready([{ name: "path", value, missing: "null" }]);
-    fireEvent.click(within(argument("path")).getByRole("button", { name: "Value" }));
     expect(writes).toHaveLength(0);
-    expect(kept()).toBeInTheDocument();
-    fireEvent.change(within(argument("path")).getByPlaceholderText("a value written here"), { target: { value: "/typed.txt" } });
+    type("path", "/typed.txt");
     expect(tool().config.execution.inputs).toStrictEqual([literal("path", "/typed.txt")]);
   });
 });

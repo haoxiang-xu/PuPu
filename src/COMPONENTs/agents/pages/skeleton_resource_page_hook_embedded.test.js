@@ -147,7 +147,6 @@ test("open a hook's own Workflow on the canvas, edit its Code, go back, Save: on
   const store = makeStore([base]);
   await open("import-owned-hook");
   await openHook();
-  expect(screen.getByTestId("hook-row-0")).toHaveTextContent("its own Workflow · Owned Hook");
   expect(screen.getByTestId("hook-0-own")).toHaveTextContent("Owned Hook · owned-hook");
   await waitFor(() => expect(source().getByRole("button", { name: "Open the Workflow of hook policy" })).not.toBeDisabled());
   fireEvent.click(source().getByRole("button", { name: "Open the Workflow of hook policy" }));
@@ -213,16 +212,17 @@ test("a hook's own Workflow keeps its text through a reorder of the run and a di
   await open("import-owned-hook");
   await openHook();
   /* Off: kept, with its text. */
-  fireEvent.click(within(screen.getByTestId("hook-0-runs")).getByText("Off"));
+  fireEvent.click(screen.getByTestId("hook-0-runs"));
   let edit = await save(store);
   expect(edit.document.nodes[3].config.hooks[0].enabled).toBe(false);
   expect(textOf(edit, HOOK_CODE)).toBe(original);
-  /* Order: a write of its order, the text stays where it is. A Save hands
-     the panel the stored version, so the editor is opened again. */
+  /* Another key of the hook written: the text stays where it is. A Save
+     hands the panel the stored version, so the editor is opened again. */
   await openHook();
-  fireEvent.change(within(screen.getByTestId("hook-0-editor")).getByPlaceholderText("0 … 1,000,000"), { target: { value: "9" } });
+  const asked = edit.document.nodes[3].config.hooks[0].force_approval;
+  fireEvent.click(within(screen.getByTestId("hook-0-approval")).getByRole("switch"));
   edit = await save(store);
-  expect(edit.document.nodes[3].config.hooks[0].order).toBe(9);
+  expect(edit.document.nodes[3].config.hooks[0].force_approval).toBe(!asked);
   expect(textOf(edit, HOOK_CODE)).toBe(original);
   /* Removed: nothing of it is sent any more. */
   await openHook();
@@ -237,12 +237,14 @@ test("a pinned hook stays pinned until the author chooses its own Workflow; then
   const store = makeStore([pinned]);
   await open("agent-tool-every");
   await openHook();
-  await waitFor(() => expect(source().getByText("Its own Workflow")).toBeInTheDocument());
+  /* "Its own Workflow" is a choice of the Workflow picker, beside the
+     library's; opening the picker writes nothing. */
+  await waitFor(() => expect(within(screen.getByTestId("hook-0-workflow-picker")).getByRole("combobox")).not.toBeDisabled());
+  fireEvent.click(within(screen.getByTestId("hook-0-workflow-picker")).getByRole("combobox"));
   saved();
-  /* Looking at the pin control writes nothing. */
-  fireEvent.click(source().getByText("A pinned Workflow"));
-  saved();
-  fireEvent.click(source().getByText("Its own Workflow"));
+  const lists = screen.getAllByRole("listbox", { hidden: true });
+  await waitFor(() => expect(within(lists[lists.length - 1]).getByText("Its own Workflow")).toBeInTheDocument());
+  fireEvent.click(within(lists[lists.length - 1]).getByText("Its own Workflow"));
   expect(screen.getByTestId("skeleton-save-state")).toHaveTextContent("Unsaved changes");
   const edit = await save(store);
   const hook = edit.document.nodes.find((node) => node.id === "hooks").config.hooks[0];

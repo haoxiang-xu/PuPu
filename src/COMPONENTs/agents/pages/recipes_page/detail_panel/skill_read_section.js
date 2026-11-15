@@ -1,10 +1,13 @@
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { agentEnglishText } from "../agents_i18n";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import Select from "./panel_select";
 import { api } from "../../../../../SERVICEs/api";
 import { readSkillsIncludeUserDirsSetting } from "../../../../../SERVICEs/plugin_skill_sync";
+import { SKILL_INVENTORY_ICON, skillSourceAttribution } from "../../../../../SERVICEs/skill_source_attribution";
+import { buildSkillPickerTree } from "../../../../../SERVICEs/skill_picker_tree";
+import CommandTree from "../../../../chat-input/components/command_tree";
 import { safe_text } from "../document_values";
 import { node_bindings } from "../skeleton_document";
 import {
@@ -17,7 +20,7 @@ import {
   with_skill,
   without_inputs,
 } from "../skill_read_config";
-import { addButtonStyle, note, problem as problemOf, Region } from "./panel_style";
+import { addButtonStyle, note, problem as problemOf, Region, pickerSelectProps, pickerSlotStyle } from "./panel_style";
 import { Block } from "./process_timeline";
 
 /* A Skill Read node: one skill, read by the runtime when the run reaches it
@@ -37,7 +40,6 @@ import { Block } from "./process_timeline";
 
 const MONO = { fontFamily: "ui-monospace, Menlo, monospace" };
 const ROW = { display: "flex", alignItems: "center", gap: 6 };
-const FIELD = { width: "100%", fontSize: 12, paddingVertical: 4, paddingHorizontal: 6 };
 const SMALL_BUTTON = { fontSize: 11.5, paddingVertical: 1, paddingHorizontal: 6 };
 const STORED = "\u0000stored";
 const IDENTITY_KEYS = ["source", "source_id", "name"];
@@ -127,11 +129,43 @@ export default function SkillReadSection({ document, node, isDark, onChange }) {
     ...(identity && at === -1 && list.status === "ready"
       ? [{
         value: STORED,
+        pinned: true,
         label: exact ? t("agents.execution.skill.unlisted_option", { name: safe_text(identity.name) || t("agents.execution.skill.unnamed") }) : t("agents.execution.skill.unreadable_option", { name: safe_text(identity.name) || t("agents.execution.skill.unnamed") }),
       }]
       : []),
-    ...rows.map((row, index) => ({ value: String(index), label: `${row.identity.name} · ${source_label(row.identity.source, t)}` })),
+    ...rows.map((row, index) => ({
+      value: String(index),
+      label: `${row.identity.name} · ${source_label(row.identity.source, t)}`,
+      /* the skill as the slash palette lists it: its icon, and the command
+         shape that files it in the palette's folders */
+      icon: SKILL_INVENTORY_ICON,
+      command: { name: `/${row.identity.name}`, ...skillSourceAttribution(row.identity) },
+    })),
   ];
+  /* Browsing is the slash palette's tree (see skill_picker_tree); typing a
+     query searches every skill, flat. The folders are re-read with the list. */
+  const optionsKey = options.map((option) => option.value + "\u0001" + option.label).join("\u0000");
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const skillTree = useMemo(() => buildSkillPickerTree({ choices: options }), [optionsKey]);
+  const renderSkillTree = ({ highlighted_value, render_option, on_hover_row, on_visible_change }) => (
+    <CommandTree
+      data={skillTree.data}
+      root={skillTree.root}
+      activeNodeId={highlighted_value ?? null}
+      onHover={on_hover_row}
+      onVisibleChange={on_visible_change} defaultExpanded={false}
+      isDark={isDark}
+      bare
+      width="100%"
+      renderRow={({ node: row, depth }) =>
+        render_option(
+          row.inOwnPackFolder ? { ...row.option, label: row.option.command.name.slice(1) } : row.option,
+          { depth },
+        )
+      }
+    />
+  );
+
   const selected = !identity ? null : at === -1 ? STORED : String(at);
   const listed = at === -1 ? null : rows[at];
   const problems = skill_read_problems(node, list.status === "ready" ? list.rows : null, t);
@@ -165,13 +199,13 @@ export default function SkillReadSection({ document, node, isDark, onChange }) {
       </div>
 
       <Block section="skill-read-skill" title={t("agents.execution.skill.skill")} isDark={isDark} help={
-            <span style={note(isDark)}>
+            <span>
               {includeUserDirs
               ? t("agents.execution.skill.all_sources_note")
               : t("agents.execution.skill.packs_only_note")}
             {" "}{t("agents.execution.skill.project_sources_note")}</span>
       }>
-        <span data-testid="skill-read-picker">
+        <span data-testid="skill-read-picker" style={pickerSlotStyle}>
           <Select
             options={options}
             value={selected}
@@ -181,10 +215,11 @@ export default function SkillReadSection({ document, node, isDark, onChange }) {
               if (row && (!exact || !same_identity(row.identity, identity))) commit(with_skill(document, node.id, row.identity));
             }}
             filterable
+            palette_tree={renderSkillTree}
             placeholder={list.status === "loading" ? t("agents.execution.skill.reading_list") : t("agents.execution.skill.pick_skill")}
             disabled={!editable}
             dropdown_style={{ maxHeight: "min(280px, 40vh)" }}
-            style={FIELD}
+            {...pickerSelectProps}
           />
         </span>
         {list.status === "error" && (
@@ -207,7 +242,7 @@ export default function SkillReadSection({ document, node, isDark, onChange }) {
       {complete && (
         <div data-testid="skill-read-preview" style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
           <Block section="skill-read-preview" title={t("agents.execution.skill.preview")} isDark={isDark}
-            help={<span style={note(isDark)}>{t("agents.execution.skill.preview_note")}</span>}
+            help={<span>{t("agents.execution.skill.preview_note")}</span>}
             aside={preview.status === "ready" ? (
               <span data-testid="skill-read-preview-size">{size_text(preview.preview.bytes, t)}</span>
             ) : undefined}>

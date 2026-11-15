@@ -1,6 +1,6 @@
 /* eslint-disable testing-library/no-node-access -- the run-order rows are dragged with native drag events on the actual panel. */
 import React from "react";
-import { createEvent, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { createEvent, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import SkeletonResourcePage from "./skeleton_resource_page";
 import { api } from "../../../SERVICEs/api";
@@ -84,17 +84,21 @@ const save = async (store) => {
   return store.save.mock.calls.at(-1)[0];
 };
 const hooksOf = (document, id = "hooks") => document.nodes.find((node) => node.id === id).config.hooks;
-const runs = (index) => within(screen.getByTestId(`hook-${index}-runs`));
-const scopeIds = (document) => hook_scope_entries(document, "kernel").map((item) => item.id);
-const drag = (fromTestId, toTestId) => {
-  const source = screen.getByTestId(fromTestId);
-  const target = screen.getByTestId(toTestId);
+/* A hook's on/off is the switch on its row. */
+const runs = (index) => screen.getByTestId(`hook-${index}-runs`);
+/* This pool's hooks as the list draws them: top to bottom is the run order. */
+const own = () => screen.getAllByTestId(/^hook-row-\d+$/).map((node) => node.getAttribute("data-hook-id"));
+const rowOf = (id) => screen.getAllByTestId(/^hook-row-\d+$/).find((node) => node.getAttribute("data-hook-id") === id);
+const dragRow = (fromId, toId) => {
+  const source = rowOf(fromId);
+  const target = toId === null ? screen.getByTestId("hooks-run-end-kernel") : rowOf(toId);
   const transfer = { effectAllowed: "", setData() {}, getData() { return ""; } };
   fireEvent(source, Object.assign(createEvent.dragStart(source), { dataTransfer: transfer }));
   fireEvent.dragOver(target);
   fireEvent.drop(target);
   fireEvent.dragEnd(source);
 };
+const scopeIds = (document) => hook_scope_entries(document, "kernel").map((item) => item.id);
 
 beforeEach(() => {
   localStorage.clear();
@@ -112,29 +116,25 @@ test("turn one hook off: only its enabled is written, it leaves the run order; S
   const base = row("enabled_missing_get").reply.resource.document;
   await open("agent-enabled-missing");
   await openPool();
-  fireEvent.click(screen.getByRole("button", { name: "Edit hook 1" }));
-  await waitFor(() => expect(screen.getByTestId("hook-0-runs-note")).toHaveTextContent("a hook without this setting runs"));
-  /* Choosing On for a hook that already runs writes nothing. */
-  fireEvent.click(runs(0).getByText("On"));
+  /* A hook without the setting runs: its switch is on, and nothing is written. */
+  await waitFor(() => expect(runs(0)).toHaveAttribute("aria-checked", "true"));
   expect(screen.getByTestId("skeleton-save-state")).toHaveTextContent(/^Saved$/);
 
-  fireEvent.click(runs(0).getByText("Off"));
+  fireEvent.click(runs(0));
   expect(screen.getByTestId("skeleton-save-state")).not.toHaveTextContent(/^Saved$/);
-  expect(screen.getByTestId("hooks-pool-order-kernel")).toHaveTextContent(/run by order, then id: audit\./);
-  expect(screen.getByTestId("hook-row-0")).toHaveTextContent("· off");
+  expect(runs(0)).toHaveAttribute("aria-checked", "false");
   const edit = await save(store);
   expect(hooksOf(edit.document)).toEqual([{ ...hooksOf(base)[0], enabled: false }, hooksOf(base)[1]]);
   expect(edit.document.nodes.filter((node) => node.id !== "hooks")).toEqual(base.nodes.filter((node) => node.id !== "hooks"));
   expect(edit.document.edges).toEqual(base.edges);
+  expect(scopeIds(edit.document)).toContain("guard");
   exportPayload("01-off", "enabled_missing_get", edit);
 
   view.unmount();
   await open("agent-enabled-missing");
   await openPool();
-  expect(screen.getByTestId("hook-row-0")).toHaveTextContent("· off");
-  fireEvent.click(screen.getByRole("button", { name: "Edit hook 1" }));
-  await waitFor(() => expect(screen.getByTestId("hook-0-runs-note")).toHaveTextContent("is not run"));
-  fireEvent.click(runs(0).getByText("On"));
+  await waitFor(() => expect(runs(0)).toHaveAttribute("aria-checked", "false"));
+  fireEvent.click(runs(0));
   const again = await save(store);
   expect(hooksOf(again.document)[0]).toEqual({ ...hooksOf(base)[0], enabled: true });
   expect(hooksOf(again.document)[1]).toEqual(hooksOf(base)[1]);
@@ -148,11 +148,12 @@ test("a malformed stored on/off is shown raw, refused in words, and replaced onl
   expect(screen.getByTestId("hook-row-0")).toHaveTextContent("1 to fix");
   fireEvent.click(screen.getByRole("button", { name: "Edit hook 1" }));
   await waitFor(() => expect(screen.getByTestId("hook-0-problems")).toHaveTextContent('On/off is stored as "yes"'));
-  expect(screen.getByTestId("hook-0-runs")).toHaveTextContent('Stored: "yes"');
   expect(screen.getByTestId("skeleton-save-state")).toHaveTextContent(/^Saved$/);
-  fireEvent.click(runs(0).getByText("Off"));
+  /* "yes" is neither: the switch shows off, and flipping it writes On. */
+  expect(runs(0)).toHaveAttribute("aria-checked", "false");
+  fireEvent.click(runs(0));
   const edit = await save(store);
-  expect(hooksOf(edit.document)[0].enabled).toBe(false);
+  expect(hooksOf(edit.document)[0].enabled).toBe(true);
   exportPayload("03-fix-malformed", "enabled_string_get", edit);
 });
 
@@ -162,11 +163,10 @@ test("when the runtime's Hook contract is unavailable nothing is guessed and not
   await open("agent-enabled-false");
   await openPool();
   fireEvent.click(screen.getByRole("button", { name: "Edit hook 1" }));
-  await waitFor(() => expect(screen.getByTestId("hook-0-runs-note")).toHaveTextContent("has not confirmed it can turn hooks off (skeleton_hook_enable_unavailable)"));
-  expect(screen.getByTestId("hook-0-problems")).toHaveTextContent("Whether the run accepts it cannot be checked here");
+  await waitFor(() => expect(screen.getByTestId("hook-0-problems")).toHaveTextContent("Whether the run accepts it cannot be checked here"));
+  /* No switch is offered on a runtime that has not confirmed it reads one. */
+  expect(screen.queryByTestId("hook-0-runs")).toBeNull();
   expect(screen.getByTestId("hook-0-extra-enabled")).toHaveTextContent("false");
-  fireEvent.click(runs(0).getByText("On"));
-  fireEvent.click(runs(0).getByText("Off"));
   expect(screen.getByTestId("skeleton-save-state")).toHaveTextContent(/^Saved$/);
   expect(store.save).not.toHaveBeenCalled();
 });
@@ -176,22 +176,18 @@ test("dragging a hook writes real order values; sibling pools, ties and off hook
   const base = row("siblings_same_order_get").reply.resource.document;
   await open("agent-siblings");
   await openPool();
-  const list = () => within(screen.getByTestId("hooks-run-list-kernel")).getAllByTestId(/^hooks-run-row-/).map((node) => node.getAttribute("data-testid").replace("hooks-run-row-kernel-", ""));
-  expect(list()).toEqual(["more-d", "hooks-e", "hooks-a", "more-b", "hooks-c"]);
-  expect(screen.getByTestId("hooks-run-row-kernel-hooks-a")).toHaveTextContent("off, not run");
-  /* Another pool's hook is listed but cannot be dragged. */
-  expect(screen.getByTestId("hooks-run-row-kernel-more-d")).not.toHaveAttribute("draggable", "true");
+  /* The list is this pool's hooks in the Agent's run order; the other pool's
+     hooks are named in the order line under it. */
+  expect(own()).toEqual(["e", "a", "c"]);
+  expect(screen.getByTestId("hooks-pool-order-kernel")).toHaveTextContent("d (more) → e → b (more) → c.");
 
   /* e to the end: only e's order moves. */
-  drag("hooks-run-row-kernel-hooks-e", "hooks-run-end-kernel");
-  expect(list()).toEqual(["more-d", "hooks-a", "more-b", "hooks-c", "hooks-e"]);
-  /* e before d: d is another pool's hook at order 0 and e sorts after it. */
-  drag("hooks-run-row-kernel-hooks-e", "hooks-run-row-kernel-more-d");
-  expect(screen.getByTestId("hooks-run-problem-kernel")).toHaveTextContent("A hook from another pool on this Agent sits where this one would go");
-  expect(list()).toEqual(["more-d", "hooks-a", "more-b", "hooks-c", "hooks-e"]);
+  dragRow("e", null);
+  expect(own()).toEqual(["a", "c", "e"]);
   /* c one earlier with its arrow: past b (same order, smaller id). */
+  fireEvent.click(screen.getByRole("button", { name: `Edit hook ${Number(rowOf("c").getAttribute("data-testid").replace("hook-row-", "")) + 1}` }));
   fireEvent.click(screen.getByRole("button", { name: "Move c earlier on kernel" }));
-  expect(list()).toEqual(["more-d", "hooks-a", "hooks-c", "more-b", "hooks-e"]);
+  expect(own()).toEqual(["a", "c", "e"]);
   expect(screen.getByTestId("hooks-pool-order-kernel")).toHaveTextContent("d (more) → c → b (more) → e.");
 
   const edit = await save(store);
@@ -207,7 +203,7 @@ test("dragging a hook writes real order values; sibling pools, ties and off hook
   view.unmount();
   await open("agent-siblings");
   await openPool();
-  expect(list()).toEqual(["more-d", "hooks-a", "hooks-c", "more-b", "hooks-e"]);
+  expect(own()).toEqual(["a", "c", "e"]);
 });
 
 /* R-HUI-01: dropping a hook back on its own row writes nothing and does not
@@ -216,16 +212,15 @@ test("a drop on the hook's own row is not a move", async () => {
   const store = makeStore(["enabled_missing"]);
   await open("agent-enabled-missing");
   await openPool();
-  const list = () => within(screen.getByTestId("hooks-run-list-kernel")).getAllByTestId(/^hooks-run-row-/).map((node) => node.getAttribute("data-testid").replace("hooks-run-row-kernel-", ""));
-  expect(list()).toEqual(["hooks-guard", "hooks-audit"]);
+  expect(own()).toEqual(["guard", "audit"]);
   for (const id of ["audit", "guard"]) {
-    drag(`hooks-run-row-kernel-hooks-${id}`, `hooks-run-row-kernel-hooks-${id}`);
-    expect(list()).toEqual(["hooks-guard", "hooks-audit"]);
+    dragRow(id, id);
+    expect(own()).toEqual(["guard", "audit"]);
     expect(screen.getByTestId("skeleton-save-state")).toHaveTextContent(/^Saved$/);
     expect(screen.queryByTestId("hooks-run-problem-kernel")).toBeNull();
   }
-  drag("hooks-run-row-kernel-hooks-audit", "hooks-run-row-kernel-hooks-guard");
-  expect(list()).toEqual(["hooks-audit", "hooks-guard"]);
+  dragRow("audit", "guard");
+  expect(own()).toEqual(["audit", "guard"]);
   const edit = await save(store);
   expect(hooksOf(edit.document).map((entry) => entry.id)).toEqual(["guard", "audit"]);
   exportPayload("05-self-drop-then-move", "enabled_missing_get", edit);

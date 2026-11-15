@@ -77,18 +77,9 @@ import {
   unwind_drill_stack,
   with_embedded_document,
 } from "./recipes_page/skeleton_drill";
-import { read_workflow_revision_view } from "./recipes_page/skeleton_resources";
 import LegacyUpgradeWizard from "./recipes_page/legacy_upgrade/legacy_upgrade_wizard";
 import { is_legacy_upgrade_candidate } from "./recipes_page/legacy_upgrade/legacy_upgrade_plan";
 import { emitSkeletonLibraryRefresh } from "../../../SERVICEs/skeleton_library_refresh";
-import {
-  pin_still_held,
-  pinned_open_failed_message,
-  pinned_view_caption,
-  pinned_view_crumbs,
-  pinned_view_key,
-  pinned_view_label,
-} from "./recipes_page/pinned_workflow_view";
 import { drill_level_icon, drill_trail_segments, graph_icon } from "./recipes_page/drill_trail";
 import { usePublishAgentsDrillTrail } from "../../../SERVICEs/agents_drill_trail";
 
@@ -124,15 +115,7 @@ import { usePublishAgentsDrillTrail } from "../../../SERVICEs/agents_drill_trail
  * way back would throw them away. A reference step did, and its frame carries
  * the whole sitting — the unsaved document, the token, the dirty flag, the
  * selection — because going back is navigation and must not re-read.
- *
- * ── Looking at a pinned Workflow revision ───────────────────────────────
- *
- * A Workflow Call runs one published revision, and the author can open it to
- * see what will run (#357). That is neither kind of frame above: a revision
- * is not editable anywhere, so nothing is restored on the way back and there
- * is no session to keep. The view is laid over this sitting instead — the
- * session, the drill steps, the selection and the panel stay exactly as they
- * were, merely not shown — and going back simply stops laying it over. */
+ */
 
 /* The page is the canvas: everything else floats over it (see canvas_chrome). */
 const PAGE = (isDark) => ({
@@ -234,9 +217,6 @@ export default function SkeletonResourcePage({
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const pageRef = useRef(null);
   const dirtyRef = useRef(false);
-  /* The pinned revision on screen, read-only, or null: `{pin, node_id,
-     version, sources}`. */
-  const [pinned, setPinned] = useState(null);
   /* How many times each resource has been written in this sitting. The same
      Agent can sit at two depths — a graph referencing an Agent that references
      it back — so saving deeper can write the very resource a frame below holds
@@ -281,7 +261,6 @@ export default function SkeletonResourcePage({
     setDrillStack([]);
     setSteps([]);
     setNotices([]);
-    setPinned(null);
   }, [resourceId, newDraft, create, load, navigate]);
 
   const resource_document = session.document;
@@ -341,7 +320,6 @@ export default function SkeletonResourcePage({
 
   useEffect(() => {
     if (lost === null) return;
-    setPinned(null);
     setSteps([]);
     setDrillStack((frames) => closed_embedded_frames(frames));
     setSelectedNodeId(null);
@@ -565,6 +543,57 @@ export default function SkeletonResourcePage({
     ],
   );
 
+  /* Opening the Workflow a Workflow Call runs, to edit it — the way a
+     referenced subagent opens: that resource's own draft on the canvas,
+     saved as itself, with the breadcrumb back. The call stays on the version
+     it took until the author updates it there. */
+  const open_called_workflow = useCallback(
+    async ({ workflow_id }) => {
+      const request = navigate();
+      setNotices([]);
+      const blocked = drill_blocked_reason(session, agentMessage);
+      if (blocked) {
+        setNotices([blocked]);
+        return;
+      }
+      if (typeof workflow_id !== "string" || !workflow_id) return;
+      const opened_from = steps;
+      const answer = await openAnother(
+        workflow_id,
+        (data) => (!data || data.kind !== "workflow"
+          ? agentMessage("agents.workflow.not_a_workflow")
+          : data.id === session.resource_id ? agentMessage("agents.eligibility.self") : null),
+        (current) =>
+          navigationRef.current === request &&
+          drill_lost_reason(current.document, opened_from, current.document_revision) === null,
+      );
+      if (navigationRef.current !== request) return;
+      if (!answer.ok) {
+        const blocked_now = drill_obsolete_reason(answer.blocked, agentMessage);
+        if (answer.obsolete && !blocked_now) return;
+        setNotices([
+          blocked_now || answer.refused || open_failed_message(workflow_id, answer.result && answer.result.error, agentMessage),
+        ]);
+        return;
+      }
+      setDrillStack((frames) =>
+        push_drill_frame(
+          frames,
+          { ...frame_for_resource_step({
+            label: resource_label,
+            steps,
+            selected_node_id: selectedNodeId,
+            session: answer.left,
+            saved_version: saved_version_of(answer.left.resource_id),
+          }), via_label: agentMessage("agents.nodes.workflow_call") },
+        ),
+      );
+      setSteps([]);
+      setSelectedNodeId(null);
+    },
+    [navigate, openAnother, resource_label, saved_version_of, selectedNodeId, session, steps],
+  );
+
   /* Opening a hook's own Workflow (#357). It is part of this resource, so it
      is opened exactly as an embedded subagent is — a step into the document
      already loaded, edited in the live session and saved with this Agent —
@@ -685,55 +714,10 @@ export default function SkeletonResourcePage({
   const latestRef = useRef(null);
   latestRef.current = { session, steps, revision };
 
-  /* Opening the revision a Workflow Call is pinned to. The read is the v2
-     revision read with its Code text; nothing else is read (not the
-     Workflow's draft, not its latest revision) and nothing is written. Its
-     answer is adopted only by the navigation that asked for it, and only
-     while the node on screen still holds that very pin. */
-  const open_pinned_workflow = useCallback(
-    async ({ node_id, workflow_id, revision_id }) => {
-      const request = navigate();
-      const pin = { workflow_id, revision_id };
-      const asked = { open_id: session.open_id, steps };
-      setNotices([]);
-      const result = await read_workflow_revision_view(workflow_id, revision_id);
-      if (navigationRef.current !== request) return { ok: false, obsolete: true };
-      const now = latestRef.current;
-      if (now.session.open_id !== asked.open_id || now.steps !== asked.steps) {
-        return { ok: false, obsolete: true };
-      }
-      const shown = now.steps.length === 0
-        ? now.session.document
-        : embedded_document(now.session.document, now.steps, now.revision);
-      if (!pin_still_held(shown, node_id, pin)) {
-        setNotices([agentMessage("agents.pinned.changed")]);
-        return { ok: false };
-      }
-      if (!result.ok) {
-        setNotices([pinned_open_failed_message(result, agentMessage)]);
-        return { ok: false };
-      }
-      setRunOpen(false);
-      setPinned({ pin, node_id, version: result.data.version, sources: result.data.sources });
-      return { ok: true };
-    },
-    [navigate, session.open_id, steps],
-  );
-
-  /* Going back from the revision is only that: the sitting under it never
-     moved. A read still in flight for another open is no longer wanted. */
-  const close_pinned = useCallback(() => {
-    if (!pinned) return false;
-    navigate();
-    setPinned(null);
-    setNotices([]);
-    return true;
-  }, [navigate, pinned]);
 
   /* Another resource, or another document version taken over this one, is
      not the sitting the view was opened from. */
   useEffect(() => {
-    setPinned(null);
     setRunViewScope(null);
   }, [session.open_id, revision]);
 
@@ -760,7 +744,7 @@ export default function SkeletonResourcePage({
        - a dialog above the Builder (the import dialog) is not ours to answer;
        - a key something nearer already answered (preventDefault) stops here;
        - the Code viewer and an open list close themselves;
-       - the pinned read-only revision, then the Run menu;
+       - the Run menu;
        - a text field of this page with focus is left, its text as typed
          (a field elsewhere keeps Escape, as before);
        - one drill level up;
@@ -797,11 +781,6 @@ export default function SkeletonResourcePage({
         take();
         return;
       }
-      /* A pinned revision on screen is the nearest graph to leave. */
-      if (close_pinned() === true) {
-        take();
-        return;
-      }
       /* An open Run menu is the nearest thing to close. */
       if (runOpen) {
         setRunOpen(false);
@@ -828,7 +807,7 @@ export default function SkeletonResourcePage({
     };
     window.document.addEventListener("keydown", onKey);
     return () => window.document.removeEventListener("keydown", onKey);
-  }, [close_pinned, drill_up, runOpen, runViewScope]);
+  }, [drill_up, runOpen, runViewScope]);
   dirtyRef.current = Boolean(session.dirty);
   useEffect(() => {
     if (!session.dirty) setEscapeHeld(false);
@@ -841,8 +820,8 @@ export default function SkeletonResourcePage({
       const active = window.document.activeElement;
       const tag = active?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || active?.isContentEditable) return;
-      /* The editor is not on screen under a pinned revision. */
-      if (pinned || runViewScope) return;
+      /* The editor is not on screen under the run view. */
+      if (runViewScope) return;
       if (!(event.metaKey || event.ctrlKey) || event.altKey) return;
       const key = typeof event.key === "string" ? event.key.toLowerCase() : "";
       if (key === "z" && !event.shiftKey) {
@@ -855,7 +834,7 @@ export default function SkeletonResourcePage({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [pinned, runViewScope, undo, redo]);
+  }, [runViewScope, undo, redo]);
 
   /* What the control center says belongs to the graph on screen: another
      resource or another graph inside this one starts without it. */
@@ -869,29 +848,20 @@ export default function SkeletonResourcePage({
   const editor_crumbs = drilled
     ? drill_crumbs(stack, shown_label, t)
     : [{ label: shown_label, depth: null, navigable: false }];
-  const crumbs = pinned
-    ? pinned_view_crumbs(editor_crumbs, stack.length, pinned.node_id, pinned_view_label(pinned.version, t), t)
-    : drilled ? editor_crumbs : [];
-  /* From over a pinned revision, the graph it was opened from is at
-     `stack.length`; anything further up is a drill frame, left as usual. */
-  const navigate_crumb = (depth) => {
-    if (!pinned) return drill_to(depth);
-    close_pinned();
-    return depth === stack.length ? true : drill_to(depth);
-  };
+  const navigate_crumb = (depth) => drill_to(depth);
   /* The open graph and the path to it are shown in the side menu's
      breadcrumb, above its search field, where they can be clicked: the
      canvas's top edge is the window's drag region. Each graph is its icon and
      its name; with nothing drilled it is the one open, which leads nowhere.
      Under the run view nothing on it leads anywhere either. */
   const trail_segments =
-    session.status === SESSION_STATUS.READY || drilled || pinned
+    session.status === SESSION_STATUS.READY || drilled
       ? drill_trail_segments(
-          pinned ? crumbs : editor_crumbs,
+          editor_crumbs,
           (depth) => depth === stack.length
             ? graph_icon(document, steps.length > 0)
             : drill_level_icon(stack, session, depth),
-          pinned ? { icon: "workflow" } : graph_icon(document, steps.length > 0),
+          graph_icon(document, steps.length > 0),
           t,
         )
       : [];
@@ -927,7 +897,7 @@ export default function SkeletonResourcePage({
       : null,
   ].filter(Boolean);
   const showRun = runOpen && ready;
-  const upgradeCandidate = ready && steps.length === 0 && !pinned && !runViewScope
+  const upgradeCandidate = ready && steps.length === 0 && !runViewScope
     && is_legacy_upgrade_candidate(session.document);
   // First-hop migration carries its source on the root graph. Its old pool
   // converter must not bypass the explicit, source-kind-preserving upgrade.
@@ -962,21 +932,7 @@ export default function SkeletonResourcePage({
           flex column that fills the page to grow into. Without it the graph
           was drawn 0px tall. */}
       {ready && runViewScope && <SkeletonRunView scope={runViewScope} isDark={isDark} onClose={() => setRunViewScope(null)} />}
-      {ready && pinned && !runViewScope && (
-        <div style={CANVAS_FRAME} data-testid="workflow-pinned-view">
-        <SkeletonCanvas
-          resourceId={pinned_view_key(pinned.pin)}
-          document={pinned.version.document}
-          commandScope="pinned"
-          onSelectNode={() => {}}
-          managedSources={pinned.sources}
-          homeToken={homeToken}
-          onProblem={setCanvasProblem}
-          isDark={isDark}
-        />
-        </div>
-      )}
-      {ready && !pinned && !runViewScope && (
+      {ready && !runViewScope && (
         <div style={CANVAS_FRAME}>
         <SkeletonCanvas
           resourceId={drill_layout_key(
@@ -990,6 +946,7 @@ export default function SkeletonResourcePage({
           onGraphCommand={(document?.kind === "agent" || document?.kind === "workflow") && document?.schema_version === 1 ? graphCommand : undefined}
           onSelectNode={id=>{setSelectedNodeId(id);if(id){setRunOpen(false);setPanelClosed(false);}}}
           onOpenSubagent={open_subagent}
+          onOpenWorkflow={open_called_workflow}
           managedSources={session.sources}
           homeToken={homeToken}
           onProblem={setCanvasProblem}
@@ -1023,7 +980,7 @@ export default function SkeletonResourcePage({
           menu); not under the run view, which Esc closes instead. */}
       <EscapeBackHint
         isDark={isDark}
-        visible={!runViewScope && Boolean(drilled || pinned)}
+        visible={!runViewScope && drilled}
         top={(chrome && chrome.crumbTop) ?? DEFAULT_CHROME.crumbTop}
         left={(chrome && chrome.crumbLeft) ?? DEFAULT_CHROME.crumbLeft}
         testId="skeleton-escape-hint"
@@ -1032,12 +989,7 @@ export default function SkeletonResourcePage({
           otherwise read as "nothing is wrong" here, and it is not what it
           means: measured on the real store, the draft check answers the same
           `[]` for an embedded child with no End as for a healthy one. */}
-      {!runViewScope && pinned && (
-        <CanvasCaptionChip isDark={isDark} testId="workflow-pinned-caption">
-          <span>{pinned_view_caption(pinned.version, t)}</span>
-        </CanvasCaptionChip>
-      )}
-      {!runViewScope && !pinned && drilled && steps.length > 0 && (
+      {!runViewScope && drilled && steps.length > 0 && (
         <CanvasCaptionChip isDark={isDark} testId="skeleton-drill-caption">
           <span data-testid="skeleton-drill-save-target">
             {save_target_caption(resource_label, t)}
@@ -1102,7 +1054,7 @@ export default function SkeletonResourcePage({
         </AboveControls>
       )}
 
-      {ready && !pinned && !runViewScope && (
+      {ready && !runViewScope && (
         <CanvasControlCenter
           isDark={isDark}
           testId="skeleton-control-center"
@@ -1140,13 +1092,13 @@ export default function SkeletonResourcePage({
         <div data-testid="skeleton-editor-detail-boundary" inert={Boolean(runViewScope)} aria-hidden={runViewScope ? "true" : undefined} style={{ display: "contents" }}>
         <FloatingDetailShell
           isDark={isDark}
-          open={(Boolean(selectedNodeId)||runOpen) && !panelClosed && !pinned && !runViewScope}
+          open={(Boolean(selectedNodeId)||runOpen) && !panelClosed && !runViewScope}
           width={detail.width}
           minWidth={detail.minWidth}
           resizing={Boolean(detail.resizing)}
           testId="skeleton-detail-panel-shell"
           onClose={() => {if(runOpen)setPanelClosed(true);else setSelectedNodeId(null);}}
-          onOpen={(reopenTarget||runOpen) && !pinned && !runViewScope ? () => {setPanelClosed(false);if(!runOpen)setSelectedNodeId(reopenTarget);} : undefined}
+          onOpen={(reopenTarget||runOpen) && !runViewScope ? () => {setPanelClosed(false);if(!runOpen)setSelectedNodeId(reopenTarget);} : undefined}
           handle={
             typeof detail.onDragStart === "function"
               ? {
@@ -1178,7 +1130,7 @@ export default function SkeletonResourcePage({
             managedSources={session.sources}
             onOpenSubagent={open_subagent}
             onOpenEmbeddedHook={open_embedded_hook}
-            onOpenPinnedWorkflow={open_pinned_workflow}
+            onOpenWorkflow={open_called_workflow}
             onEntryIdRepaired={entry_id_repaired}
             embedded={steps.length > 0}
             onConvertLegacy={migratedLegacy ? () => {
@@ -1191,7 +1143,7 @@ export default function SkeletonResourcePage({
           />
           </div>
           <BuilderTestPanel key={session.document?.id}
-            active={showRun&&!panelClosed&&!pinned&&!runViewScope&&steps.length===0}
+            active={showRun&&!panelClosed&&!runViewScope&&steps.length===0}
             session={session} isDark={isDark} onSave={handleSave} onCheck={preflight}
             onDetails={()=>setRunOpen(false)}
             onViewChatRun={open_run_view}

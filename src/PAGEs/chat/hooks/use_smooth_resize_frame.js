@@ -190,8 +190,14 @@ const useSmoothResizeFrame = ({
     liveRef.current = live;
     clearSampleTimer();
     clearSettleTimer();
-    /* Settle on the final size without easing towards it. */
-    if (!live) {
+    /* The stored size goes stale the moment the drag starts. Drop it, so the
+       release render lays out with the container (inset) rather than the
+       pre-drag size, which the re-measure's forced reflow would otherwise
+       start easing towards and back. Then settle on the final size. */
+    if (live) {
+      latestFrameRef.current = null;
+      setFrame(null);
+    } else {
       commitFrameValue(measureFrame());
     }
   }, [live, clearSampleTimer, clearSettleTimer, commitFrameValue, measureFrame]);

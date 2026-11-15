@@ -548,7 +548,8 @@
     "chats": "Chats",
     "home": "Startseite",
     "no_chats_found": "Keine Chats gefunden",
-    "models": "Modelle"
+    "models": "Modelle",
+    "new": "Neu"
   },
   "context_menu": {
     "new_chat": "Neuer Chat",
@@ -575,6 +576,8 @@
     "no_results": "Keine Ergebnisse"
   },
   "chat": {
+    "pin_model": "Modell anheften",
+    "unpin_model": "Modell lösen",
     "placeholder": "Nachricht an PuPu...",
     "settlement": {
       "waiting": "Warten, bis der vorherige Durchlauf abgeschlossen ist…",
@@ -1000,7 +1003,14 @@
         "object": "Objekt",
         "array": "Liste",
         "null": "Null"
-      }
+      },
+      "help": "Was ein Aufrufer beim Ausführen dieses Workflows übergibt. Jeder Parameter ist erforderlich oder fällt auf seinen Standardwert zurück; spätere Knoten lesen ihn aus Start.",
+      "default_short": "Standard",
+      "invalid_number": "Keine Zahl.",
+      "invalid_integer": "Keine ganze Zahl.",
+      "invalid_json": "Kein gültiges JSON.",
+      "name_short": "Name",
+      "type": "Typ"
     },
     "missing": {
       "if_missing": "Wenn der Wert fehlt",
@@ -1807,7 +1817,16 @@
       "revision_failed": "Die fixierte Revision konnte nicht gelesen werden: {message}.",
       "missing_input": "Start des aufgerufenen Workflows liest „{key}“. Ohne diesen Wert scheitert der Aufruf, sobald der Lauf hier ankommt.",
       "unknown_output": "„{name}“ wird von End der fixierten Revision nicht exportiert. Diese Ausgabe würde fehlen, sobald der Lauf hier ankommt.",
-      "reads_nothing": "{name} liest nichts aus seiner Laufeingabe."
+      "reads_nothing": "{name} liest nichts aus seiner Laufeingabe.",
+      "not_a_workflow": "Das ist kein Workflow.",
+      "locking": "Aktuelle Version wird übernommen…",
+      "uses_version": "Verwendet Version {ordinal}",
+      "changed_since": "{name} wurde seit Version {ordinal} geändert",
+      "update": "Aktualisieren",
+      "update_label": "Aktuelle Version von {name} verwenden",
+      "edit": "Bearbeiten",
+      "edit_label": "{name} zum Bearbeiten öffnen",
+      "lock_failed": "Die aktuelle Version konnte nicht übernommen werden: {message}"
     },
     "toolkit": {
       "remove": "Entfernen",
@@ -2004,7 +2023,14 @@
         "unreadable_condition_part": "Dieser Bedingungsteil hat keine Form, die der Editor zerlegen kann. Er bleibt exakt wie gespeichert erhalten.",
         "unreadable_operand": "Diese Seite hat keine Form, die der Editor zerlegen kann. Sie bleibt exakt wie gespeichert erhalten.",
         "unreadable_settings": "Die Einstellungen dieser Verzweigung haben keine für den Editor lesbare Form. Sie bleiben exakt wie gespeichert erhalten.",
-        "use_an_input": "Stattdessen eine Eingabe verwenden"
+        "use_an_input": "Stattdessen eine Eingabe verwenden",
+        "branches": "Zweige",
+        "when": "wenn",
+        "otherwise": "sonst",
+        "value_text": "Text",
+        "value_number": "Zahl",
+        "value_input": "Eingabe {name}",
+        "read_inside_option": "Darin lesen…"
       },
       "code": {
         "a_named_python": "ein benanntes Python",
@@ -2245,7 +2271,8 @@
         "unset_default": "Nicht gesetzt. {toolName} verwendet seinen eigenen Standardwert.",
         "unsupported_setting": "Nicht unterstützte Einstellung: {key}",
         "value_mode": "Wert",
-        "variable_mode": "Variable"
+        "variable_mode": "Variable",
+        "when_it_runs": "Beim Ausführen"
       }
     },
     "pinned": {
@@ -2810,7 +2837,13 @@
       "workflow_embedded_shape": "Der gespeicherte Workflow ist nicht genau {kind: embedded, document}; der Lauf lehnt ihn ab.",
       "workflow_missing": "Heften Sie den veröffentlichten Workflow an, den dieser Hook ausführt.",
       "workflow_reference_shape": "Der gespeicherte Workflow-Verweis ist nicht genau {workflow_id, revision_id}, beide benannt; der Lauf lehnt ihn ab.",
-      "workflow_revision": "{name} · Rev. {ordinal}"
+      "workflow_revision": "{name} · Rev. {ordinal}",
+      "tools": "Tools",
+      "add_tool": "Tool hinzufügen",
+      "remove_tool": "{name} entfernen",
+      "runs_named": "{id} läuft",
+      "list_is_order": "Hooks laufen von oben nach unten; ziehen, um die Reihenfolge zu ändern.",
+      "place_last": "Ans Ende setzen"
     },
     "legacy_tools": {
       "installed": "Installiert",

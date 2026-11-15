@@ -1,90 +1,40 @@
-import React from "react";
-import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
-import { ConfigContext } from "../../../../../CONTAINERs/config/context";
-import PanelHelp from "./panel_help";
-import MissingPolicySelect from "./missing_policy_select";
-import OutputRow from "./output_row";
-import InputVariablesSection from "./input_variables_section";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 
-const show = (children, dark = false) => render(
-  <ConfigContext.Provider value={{ theme: {}, onThemeMode: dark ? "dark_mode" : "light_mode" }}>
-    {children}
-  </ConfigContext.Provider>,
-);
+import PanelHelp, { PANEL_HELP_OPEN_DELAY } from "./panel_help";
 
-// jsdom has no bubble dimensions; native preview verifies the positioned hint.
-test.each([false, true])("guidance waits for keyboard focus in theme dark=%s", async (dark) => {
-  show(<PanelHelp label="Model">Choose a model before running.</PanelHelp>, dark);
-  expect(screen.queryByText("Choose a model before running.")).not.toBeInTheDocument();
-  fireEvent.focus(screen.getByRole("button", { name: "Model · About" }));
-  expect(await screen.findByText("Choose a model before running.")).toBeInTheDocument();
-  fireEvent.blur(screen.getByRole("button", { name: "Model · About" }));
-  await waitFor(() => expect(screen.queryByText("Choose a model before running.")).not.toBeInTheDocument());
-});
+/* Section help waits for the pointer to rest on the ⓘ before it appears;
+   passing over it must not flash a paragraph of guidance. */
+const shown = () => {
+  const bubble = document.querySelector('[role="tooltip"]');
+  return Boolean(bubble && bubble.textContent.includes("guidance"));
+};
 
-test("mouse users can ask for guidance without a persistent paragraph", async () => {
-  show(<PanelHelp label="Result">Only declared fields are accepted.</PanelHelp>);
-  fireEvent.click(screen.getByRole("button", { name: "Result · About" }));
-  expect(await screen.findByText("Only declared fields are accepted.")).toBeInTheDocument();
-});
+describe("PanelHelp", () => {
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
 
-test("a binding shows the selected policy, without a repeated explanation or a write", async () => {
-  const write = jest.fn();
-  show(<MissingPolicySelect binding={{ name: "images", value: { kind: "ref", node_id: "start", path: ["images"] }, missing: "null" }} onChange={write} />);
-  expect(screen.getByText("Use null if missing")).toBeVisible();
-  expect(screen.queryByTestId("missing-policy-description")).not.toBeInTheDocument();
-  fireEvent.focus(screen.getByRole("button", { name: "If missing · About" }));
-  expect(await screen.findByTestId("missing-policy-description")).toHaveTextContent("never an empty string");
-  expect(write).not.toHaveBeenCalled();
-});
+  test("hover opens only after the help delay", () => {
+    render(<PanelHelp label="Section"><span>guidance</span></PanelHelp>);
+    const trigger = screen.getByRole("button").parentElement;
+    fireEvent.mouseEnter(trigger);
+    act(() => { jest.advanceTimersByTime(PANEL_HELP_OPEN_DELAY - 100); });
+    expect(shown()).toBe(false);
+    act(() => { jest.advanceTimersByTime(200); });
+    expect(shown()).toBe(true);
+  });
 
-test("a stored JSON default remains directly visible while general guidance is tucked away", () => {
-  show(<MissingPolicySelect binding={{ missing: "default", default: { count: 3 } }} onChange={jest.fn()} />);
-  expect(screen.getByTestId("stored-json-default")).toHaveTextContent('{"count":3}');
-  expect(screen.queryByTestId("missing-policy-description")).not.toBeInTheDocument();
-});
+  test("a pointer that leaves before the delay never opens it", () => {
+    render(<PanelHelp label="Section"><span>guidance</span></PanelHelp>);
+    const trigger = screen.getByRole("button").parentElement;
+    fireEvent.mouseEnter(trigger);
+    act(() => { jest.advanceTimersByTime(PANEL_HELP_OPEN_DELAY / 2); });
+    /* The tooltip tracks the pointer on the window, not mouseleave. */
+    fireEvent.mouseMove(window, { clientX: 500, clientY: 500 });
+    act(() => { jest.advanceTimersByTime(PANEL_HELP_OPEN_DELAY * 2); });
+    expect(shown()).toBe(false);
+  });
 
-test("output rows use a short source label and keep actual errors visible", () => {
-  const write = jest.fn();
-  show(<OutputRow mapping={{ name: "answer", source: { kind: "result", path: ["message"] } }} index={0}
-    nodeType="agent" kinds={["input", "result"]} inputNames={["question"]}
-    resultRoots={{ known: true, closed: true, roots: ["message", "context"] }}
-    problems={[{ message: "An actual output error" }]} onChange={write} onRemove={jest.fn()} />);
-  expect(screen.getByText("Result.message")).toBeVisible();
-  expect(screen.queryByText("Read from the node's own result once it has run.")).not.toBeInTheDocument();
-  expect(screen.getByText("An actual output error")).toBeVisible();
-  expect(write).not.toHaveBeenCalled();
-});
-
-test("Start keeps caller fields visible and puts its explanation behind help", async () => {
-  const write = jest.fn();
-  const node = { id: "start", type: "start", config: { execution: { outputs: [] } } };
-  show(<InputVariablesSection document={{ nodes: [node], edges: [] }} node={node} onChange={write}
-    startContext={{ kind: "subagent", fields: [{ name: "message", type: "text" }], message: "Receives the delegated message." }} />);
-  expect(screen.getByText("message")).toBeVisible();
-  expect(screen.queryByText("Receives the delegated message.")).not.toBeInTheDocument();
-  fireEvent.focus(screen.getByRole("button", { name: "Input Variables · About" }));
-  expect(await screen.findByText("Receives the delegated message.")).toBeInTheDocument();
-  expect(write).not.toHaveBeenCalled();
-});
-
-test("an invalid caller stays visible without opening help", () => {
-  const node = { id: "start", type: "start", config: {} };
-  show(<InputVariablesSection document={{ nodes: [node], edges: [] }} node={node}
-    startContext={{ kind: "invalid", fields: [], message: "Caller fields contain duplicate names." }} />);
-  expect(screen.getByText("Caller fields contain duplicate names.")).toBeVisible();
-});
-
-test("result inventory guidance stays next to the field selector it describes", async () => {
-  const write = jest.fn();
-  show(<OutputRow mapping={{ name: "answer", source: { kind: "result", path: ["message"] } }} index={0}
-    nodeType="agent" kinds={["input", "result"]} inputNames={["question"]}
-    resultRoots={{ known: true, closed: false, roots: ["message", "context"], reason: "The result may contain extra fields." }}
-    problems={[]} onChange={write} onRemove={jest.fn()} />);
-  const source = screen.getByTestId("output-row-0-source");
-  const help = within(source).getByRole("button", { name: "Result · About", exact: true });
-  expect(within(source).getByRole("combobox")).not.toContainElement(help);
-  fireEvent.focus(help);
-  expect(await screen.findByText("The result may contain extra fields.")).toBeInTheDocument();
-  expect(write).not.toHaveBeenCalled();
+  test("the delay is longer than an ordinary tooltip's", () => {
+    expect(PANEL_HELP_OPEN_DELAY).toBeGreaterThan(80);
+  });
 });

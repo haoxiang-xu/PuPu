@@ -131,15 +131,19 @@ const save = async (store) => {
   return store.save.mock.calls.at(-1)[0];
 };
 const callOf = (document) => document.nodes.find((node) => node.type === "workflow_call");
+/* An input's value is one cell, as on an Input Variables row: typed in, or
+   picked from the sources the cell offers when it is focused. */
+const valueBox = (name) => within(screen.getByTestId(`workflow-call-input-${name}-value`)).getByRole("textbox");
 const setVariable = (name, label) => {
-  const argument = screen.getByTestId(`tool-call-argument-${name}`);
-  fireEvent.click(within(argument).getByText("Variable"));
-  choose(screen.getByTestId(`tool-call-argument-${name}`), label);
+  fireEvent.focus(valueBox(name));
+  const options = screen.getAllByTitle(label);
+  fireEvent.click(options[options.length - 1]);
 };
 const setValue = (name, text) => {
-  const argument = screen.getByTestId(`tool-call-argument-${name}`);
-  fireEvent.click(within(argument).getByText("Value"));
-  fireEvent.change(within(screen.getByTestId(`tool-call-argument-${name}`)).getByPlaceholderText("a value written here"), { target: { value: text } });
+  const box = valueBox(name);
+  fireEvent.focus(box);
+  fireEvent.change(box, { target: { value: text } });
+  fireEvent.blur(box);
 };
 
 beforeEach(() => {
@@ -158,22 +162,20 @@ afterAll(() => {
 test("choose a Workflow, publish its draft and pin that revision, fill the inputs its Start reads, export what its End gives, Save, reopen", async () => {
   const store = makeStore(["caller_seed_get", "wf_get_after_2"]);
   await open("caller-seed");
-  expect(screen.getByTestId("workflow-call-node-call-revision")).toHaveTextContent("pin a revision");
+  expect(screen.getByTestId("workflow-call-node-call-revision")).toHaveTextContent("pick a Workflow");
   await openCall();
   expect(screen.getByTestId("workflow-call-problems")).toHaveTextContent("Choose a Workflow and pin");
   await waitFor(() => expect(within(screen.getByTestId("workflow-call-picker")).getByRole("combobox")).not.toBeDisabled());
-  choose(screen.getByTestId("workflow-call-picker"), "Summarize · 2 published");
-  /* Choosing writes nothing: a reference is only ever a pinned revision. */
-  expect(screen.getByTestId("skeleton-save-state")).toHaveTextContent(/^Saved$/);
-  fireEvent.click(screen.getByRole("button", { name: "Publish its current draft and pin it" }));
-  await screen.findByText(/Pinned revision 2\./);
+  /* Picking is taking its current version: its draft is published and that
+     revision is the one the call runs. */
+  choose(screen.getByTestId("workflow-call-picker"), "Summarize");
+  await waitFor(() => expect(screen.getByTestId("workflow-call-pinned")).toHaveTextContent("Uses version 2"));
   expect(store.publish).toHaveBeenCalledTimes(1);
-  expect(screen.getByTestId("workflow-call-pinned")).toHaveTextContent(`revision 2 of Summarize · ${REV2}`);
 
   /* Its Start reads `message` and `limit`; both are required, nothing else is offered. */
   expect(screen.getByTestId("workflow-call-problems")).toHaveTextContent("reads “message”");
-  expect(screen.getByTestId("tool-call-argument-message")).toHaveTextContent("its Start reads it as text");
-  expect(screen.getByTestId("tool-call-argument-limit")).toHaveTextContent("its Start reads it as n");
+  expect(within(screen.getByTestId("workflow-call-input-message")).getByTitle(/its Start reads it as text/)).toBeInTheDocument();
+  expect(within(screen.getByTestId("workflow-call-input-limit")).getByTitle(/its Start reads it as n/)).toBeInTheDocument();
   setVariable("message", "start · message");
   setValue("limit", "3");
   expect(screen.queryByTestId("workflow-call-problems")).toBeNull();
@@ -184,7 +186,7 @@ test("choose a Workflow, publish its draft and pin that revision, fill the input
   typePath(screen.getByTestId("output-row-0"), "result.summary");
   fireEvent.change(within(screen.getByTestId("output-row-0")).getByPlaceholderText("name"), { target: { value: "summary" } });
 
-  expect(screen.getByTestId("workflow-call-node-call-revision")).toHaveTextContent("revision 2");
+  expect(screen.getByTestId("workflow-call-node-call-revision")).toHaveTextContent("version 2");
   expect(screen.getByTestId("workflow-call-node-call-exports")).toHaveTextContent("summary, count, echo");
   const edit = await save(store);
   expect(edit.expected_edit_token).toBe(row("caller_seed_get").reply.resource.edit_token);
@@ -203,39 +205,11 @@ test("choose a Workflow, publish its draft and pin that revision, fill the input
   view.unmount();
   forget_workflow_versions();
   await open("caller-seed");
-  await screen.findByText("revision 2", { exact: false });
+  await screen.findByText("version 2", { exact: false });
   await openCall();
-  expect(screen.getByTestId("workflow-call-pinned")).toHaveTextContent(`revision 2 of Summarize`);
+  expect(screen.getByTestId("workflow-call-pinned")).toHaveTextContent("Uses version 2");
   expect(store.version).toHaveBeenCalledWith("wf-summarize", REV2);
   expect(screen.queryByTestId("workflow-call-problems")).toBeNull();
-});
-
-test("a typed revision id is read back before it is pinned; one nobody published pins nothing", async () => {
-  const store = makeStore(["caller_seed_get"]);
-  await open("caller-seed");
-  await openCall();
-  await waitFor(() => expect(within(screen.getByTestId("workflow-call-picker")).getByRole("combobox")).not.toBeDisabled());
-  choose(screen.getByTestId("workflow-call-picker"), "Summarize · 2 published");
-  fireEvent.change(screen.getByPlaceholderText("or a revision id, e.g. rev-2-…"), { target: { value: "rev-9-0000000000000000" } });
-  fireEvent.click(screen.getByRole("button", { name: "Pin this revision" }));
-  await screen.findByText(/has no published revision “rev-9-0000000000000000”\. Nothing was pinned\./);
-  expect(screen.getByTestId("skeleton-save-state")).toHaveTextContent(/^Saved$/);
-
-  fireEvent.change(screen.getByPlaceholderText("or a revision id, e.g. rev-2-…"), { target: { value: ` ${REV1} ` } });
-  fireEvent.click(screen.getByRole("button", { name: "Pin this revision" }));
-  await screen.findByText(/Pinned revision 1\./);
-  expect(store.publish).not.toHaveBeenCalled();
-  expect(screen.getByTestId("workflow-call-exports")).toHaveTextContent("summary, count");
-  expect(screen.getByTestId("workflow-call-exports")).not.toHaveTextContent("echo");
-  setValue("message", "hello");
-  setValue("limit", "2");
-  /* End reads call.summary, so the call has to export it. */
-  fireEvent.click(screen.getByRole("button", { name: "+ Add output", exact: true }));
-  typePath(screen.getByTestId("output-row-0"), "result.summary");
-  fireEvent.change(within(screen.getByTestId("output-row-0")).getByPlaceholderText("name"), { target: { value: "summary" } });
-  const edit = await save(store);
-  expect(callOf(edit.document).config.workflow).toEqual({ workflow_id: "wf-summarize", revision_id: REV1 });
-  exportPayload("typed-pin", "caller_seed_get", edit);
 });
 
 test("stored rows the revision does not read are shown and removable; the missing ones are named", async () => {
@@ -266,10 +240,9 @@ test("a publication that answers after the author chose another Workflow pins no
   await open("caller-seed");
   await openCall();
   await waitFor(() => expect(within(screen.getByTestId("workflow-call-picker")).getByRole("combobox")).not.toBeDisabled());
-  choose(screen.getByTestId("workflow-call-picker"), "Summarize · 2 published");
-  fireEvent.click(screen.getByRole("button", { name: "Publish its current draft and pin it" }));
+  choose(screen.getByTestId("workflow-call-picker"), "Summarize");
   await waitFor(() => expect(store.publish).toHaveBeenCalledTimes(1));
-  choose(screen.getByTestId("workflow-call-picker"), "Draft only · never published");
+  choose(screen.getByTestId("workflow-call-picker"), "Draft only");
   await act(async () => {
     late.resolve(row("wf_publish_2").reply);
     await late.promise;
@@ -284,9 +257,8 @@ test("a stale publication is refused by the host and pins nothing", async () => 
   await open("caller-seed");
   await openCall();
   await waitFor(() => expect(within(screen.getByTestId("workflow-call-picker")).getByRole("combobox")).not.toBeDisabled());
-  choose(screen.getByTestId("workflow-call-picker"), "Summarize · 2 published");
-  fireEvent.click(screen.getByRole("button", { name: "Publish its current draft and pin it" }));
-  await screen.findByText(/Nothing was pinned: Workflow changed before publication\./);
+  choose(screen.getByTestId("workflow-call-picker"), "Summarize");
+  await screen.findByText(/current version could not be taken: Workflow changed before publication/);
   expect(screen.getByTestId("skeleton-save-state")).toHaveTextContent(/^Saved$/);
 });
 
@@ -307,7 +279,7 @@ test("a host without the v2 revision read says the pin cannot be read; nothing f
   delete api.unchain.getManagedSkeletonWorkflowVersion;
   api.unchain.getSkeletonWorkflowVersion = jest.fn();
   await open("caller-complete");
-  await waitFor(() => expect(screen.getByTestId("workflow-call-node-call-revision")).toHaveTextContent("revision unreadable"));
+  await waitFor(() => expect(screen.getByTestId("workflow-call-node-call-revision")).toHaveTextContent("version unreadable"));
   await openCall();
   expect(screen.getByTestId("workflow-call-problems")).toHaveTextContent("The pinned revision could not be read");
   expect(api.unchain.getSkeletonWorkflowVersion).not.toHaveBeenCalled();
@@ -325,13 +297,48 @@ test("a declared signature supplies caller rows, types and defaults without maki
   const call = callOf(store.held["caller-complete"].resource.document);
   call.config.execution.inputs = call.config.execution.inputs.filter((binding) => binding.name !== "limit");
   await open("caller-complete"); await openCall();
-  const optional = await screen.findByTestId("tool-call-argument-limit");
-  expect(within(optional).queryByLabelText("Required")).toBeNull();
-  expect(optional).toHaveTextContent("integer"); expect(optional).toHaveTextContent("5");
+  const optional = await screen.findByTestId("workflow-call-input-limit");
+  expect(within(optional).queryByLabelText("required")).toBeNull();
+  expect(within(screen.getByTestId("workflow-call-input-message")).getByLabelText("required")).toBeInTheDocument();
+  expect(optional).toHaveTextContent("Integer"); expect(within(optional).getByPlaceholderText("5")).toBeInTheDocument();
   expect(screen.queryByText(/reads “limit”/)).toBeNull();
   expect(screen.queryByRole("button", { name: "Add input" })).toBeNull();
   expect(store.save).not.toHaveBeenCalled();
   setValue("limit", "3");
   const edit = await save(store);
   expect(callOf(edit.document).config.execution.inputs.find((binding) => binding.name === "limit").value).toEqual({ kind: "literal", value: 3 });
+});
+
+/* The called Workflow opens to be edited, as a referenced subagent does: its
+   own draft on the canvas, the breadcrumb back to the call. */
+test("Edit opens the called Workflow's draft; Escape comes back to the call", async () => {
+  makeStore(["caller_complete_rev2_get", "wf_get_after_2"]);
+  await open("caller-complete-rev2");
+  await openCall();
+  await waitFor(() => expect(screen.getByTestId("workflow-call-pinned")).toHaveTextContent("Uses version 2"));
+  fireEvent.click(screen.getByRole("button", { name: "Open Summarize to edit it" }));
+  await waitFor(() => expect(screen.queryByTestId("skeleton-node-call")).toBeNull());
+  expect(screen.getByTestId("skeleton-node-start")).toBeInTheDocument();
+  expect(screen.getByTestId("skeleton-escape-hint")).toHaveAttribute("data-visible", "true");
+  fireEvent.keyDown(window.document, { key: "Escape" });
+  await screen.findByTestId("skeleton-node-call");
+});
+
+test("double-clicking the Workflow Call card opens the called Workflow", async () => {
+  makeStore(["caller_complete_rev2_get", "wf_get_after_2"]);
+  await open("caller-complete-rev2");
+  await screen.findByTestId("workflow-call-node-call");
+  fireEvent.doubleClick(screen.getByTestId("workflow-call-node-call-revision"));
+  await waitFor(() => expect(screen.queryByTestId("skeleton-node-call")).toBeNull());
+});
+
+test("a call on an older version than the Workflow's draft says so, and Update takes the current one", async () => {
+  const store = makeStore(["caller_complete_get", "wf_get_after_2"]);
+  await open("caller-complete");
+  await openCall();
+  await waitFor(() => expect(screen.getByTestId("workflow-call-pinned")).toHaveTextContent("Summarize has changed since version 1"));
+  fireEvent.click(screen.getByRole("button", { name: "Use the current version of Summarize" }));
+  await waitFor(() => expect(screen.getByTestId("workflow-call-pinned")).toHaveTextContent("Uses version 2"));
+  expect(store.publish).toHaveBeenCalledTimes(1);
+  expect(callOf((await save(store)).document).config.workflow).toEqual({ workflow_id: "wf-summarize", revision_id: REV2 });
 });

@@ -24,7 +24,8 @@ import ToolPoolNode from "./nodes/tool_pool_node";
 import { ports_for_type } from "./recipe_node_catalog";
 import { own } from "./document_values";
 import { NODE_TYPES, document_layout_positions, drawn_node } from "./skeleton_document";
-import { is_valid_node_label, node_display_title } from "./node_display_labels";
+import { is_valid_node_label } from "./node_display_labels";
+import { node_title } from "./node_title";
 import { useNodeLabelCapability } from "./node_label_capability";
 import RunNodeStatus from "./nodes/run_node_status";
 import { agentMessage, renderAgentMessage, agentProblemMessage, agentReasonPayload } from "./agents_i18n";
@@ -105,7 +106,7 @@ function renderNode(node, isDark, onOpenSubagent, view = {}) {
     return <BranchNode node={node} rows={node.branch.rows} summary={node.branch.summary} isDark={isDark} rename={rename} />;
   }
   if (node.type === "tool_call") return <ToolCallNode node={node} isDark={isDark} rename={rename} />;
-  if (node.type === "workflow_call") return <WorkflowCallNode node={node} isDark={isDark} rename={rename} />;
+  if (node.type === "workflow_call") return <WorkflowCallNode node={node} isDark={isDark} rename={rename} onOpen={view.onOpenWorkflow} />;
   if (node.type === "hooks_pool") return <HooksPoolNode node={node} isDark={isDark} rename={rename} />;
   if (node.type === "skill_read") return <SkillReadNode node={node} isDark={isDark} rename={rename} />;
   /* A Code node (#357) is a plain header node; its code is read in the panel. */
@@ -170,7 +171,8 @@ function finder_entries(graph, t = agentEnglishText) {
       return {
         key: node.id,
         type: typeof node.type === "string" ? node.type : "",
-        label: node_display_title(node, node.id),
+        /* The name the node's card and panel header show (#484). */
+        label: node_title(node, t).title,
         description: `${node.id} · ${known ? palette_entry_caption({ ...known, type: node.type }, t).label : typeof node.type === "string" ? node.type : t("agents.canvas.unknown_node")}`,
         icon: known ? known.icon : "circle",
       };
@@ -185,6 +187,7 @@ function GraphDrawing({
   observation = null,
   onSelectNode,
   onOpenSubagent,
+  onOpenWorkflow,
   onGraphCommand,
   /* Bumped by the page's Home control; Home centers this graph's own Start. */
   homeToken,
@@ -575,7 +578,7 @@ function GraphDrawing({
         render_node={(node) => (
           <div data-testid={`skeleton-node-${node.id}`} style={{ display: "contents" }}>
             <RunNodeStatus projection={["toolkit_pool", "subagent_pool", "hooks_pool"].includes(node.type) ? null : runNodes.get(node.id)} isDark={isDark}>
-              {renderNode(node, isDark, onOpenSubagent, { rename: renameFor(node) })}
+              {renderNode(node, isDark, onOpenSubagent, { rename: renameFor(node), onOpenWorkflow })}
             </RunNodeStatus>
           </div>
         )}

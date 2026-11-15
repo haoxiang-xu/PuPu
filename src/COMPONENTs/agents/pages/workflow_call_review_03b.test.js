@@ -40,25 +40,26 @@ const choose = (label) => {
   const lists = screen.getAllByRole("listbox", { hidden: true });
   fireEvent.click(within(lists.at(-1)).getByText(label, { exact: true }));
 };
+/* Picking a Workflow takes its current version (its publication). */
 const pin = async (label, revision) => {
   choose(label);
-  fireEvent.change(screen.getByPlaceholderText("or a revision id, e.g. rev-2-…"), { target: { value: revision } });
-  fireEvent.click(screen.getByRole("button", { name: "Pin this revision" }));
   await waitFor(() => expect(call(latest).config.workflow.revision_id).toBe(revision));
 };
 const add = (name) => {
   fireEvent.change(screen.getByPlaceholderText("another input name"), { target: { value: name } });
   fireEvent.click(screen.getByRole("button", { name: "Add input" }));
 };
+/* A value is written when it is entered; the cell keeps its focus. */
+const box = (name) => within(screen.getByTestId(`workflow-call-input-${name}-value`)).getByRole("textbox");
 const type = async (name, text) => {
-  const row = screen.getByTestId(`tool-call-argument-${name}`);
-  if (within(row).queryByPlaceholderText("a value written here") === null) fireEvent.click(within(row).getByText("Value"));
-  const box = within(screen.getByTestId(`tool-call-argument-${name}`)).getByPlaceholderText("a value written here");
-  await act(async () => { box.focus(); });
-  fireEvent.change(box, { target: { value: text } });
-  return box;
+  const cell = box(name);
+  await act(async () => { cell.focus(); });
+  fireEvent.change(cell, { target: { value: text } });
+  fireEvent.keyDown(cell, { key: "Enter" });
+  return cell;
 };
-const editors = (name) => screen.queryAllByTestId(`tool-call-argument-${name}`);
+const editors = (name) => screen.queryAllByTestId(`workflow-call-input-${name}`);
+const valueOf = (name) => within(editors(name)[0]).getByRole("textbox");
 
 beforeEach(() => {
   writes = [];
@@ -71,6 +72,10 @@ beforeEach(() => {
     throw Object.assign(new Error("Workflow version was not found."), { code: "resource_missing", path: ["revision_id"], status: 404 });
   });
   remember_workflow_version(admit_version_aggregate(of(review, "whole_publish").reply).version);
+  const created = { "wf-whole": of(review, "whole_create"), "wf-whole-extra": of(capture03, "whole_extra_create") };
+  const published = { "wf-whole": of(review, "whole_publish"), "wf-whole-extra": of(capture03, "whole_extra_publish") };
+  api.unchain.getManagedSkeletonResource = jest.fn(async (id) => copy(created[id].reply));
+  api.unchain.publishManagedSkeletonWorkflow = jest.fn(async (id) => copy(published[id].reply));
 });
 
 test("the real producer: the revision reads the whole input and names extra; the stored caller passes and runs", () => {
@@ -82,22 +87,22 @@ test("added and written, then pinned to a revision that names it: one editor, sh
   render(<Harness initial={of(review, "caller_whole_get").reply.resource.document} />);
   await ready();
   add("extra");
-  const box = await type("extra", "hello");
-  expect(within(screen.getByTestId("tool-call-argument-extra")).getByPlaceholderText("a value written here")).toBe(box);
-  expect(box).toHaveFocus();
+  const cell = await type("extra", "hello");
+  expect(box("extra")).toBe(cell);
+  expect(cell).toHaveFocus();
   const stored = copy(inputs(latest));
-  await pin("Whole and extra · 1 published", WHOLE_EXTRA);
+  await pin("Whole and extra", WHOLE_EXTRA);
   expect(editors("extra")).toHaveLength(1);
-  expect(within(editors("extra")[0]).getByPlaceholderText("a value written here")).toHaveValue("hello");
+  expect(valueOf("extra")).toHaveValue("hello");
   expect(screen.queryByTestId("workflow-call-added-extra")).toBeNull();
   /* The stored rows are exactly what they were: the pin changed, nothing else. */
   expect(inputs(latest)).toEqual(stored);
   expect(call(latest).config.workflow).toEqual({ workflow_id: "wf-whole-extra", revision_id: WHOLE_EXTRA });
 
   /* And back: one editor again, still the stored value. */
-  await pin("Whole · 1 published", WHOLE);
+  await pin("Whole", WHOLE);
   expect(editors("extra")).toHaveLength(1);
-  expect(within(editors("extra")[0]).getByPlaceholderText("a value written here")).toHaveValue("hello");
+  expect(valueOf("extra")).toHaveValue("hello");
   expect(inputs(latest)).toEqual(stored);
 });
 
@@ -106,7 +111,7 @@ test("added but not written, then pinned to a revision that names it: one (empty
   await ready();
   add("extra");
   expect(editors("extra")).toHaveLength(1);
-  await pin("Whole and extra · 1 published", WHOLE_EXTRA);
+  await pin("Whole and extra", WHOLE_EXTRA);
   expect(editors("extra")).toHaveLength(1);
   expect(screen.queryByTestId("workflow-call-added-extra")).toBeNull();
   expect(inputs(latest).map((item) => item.name)).toEqual(["message", "unlisted"]);
@@ -119,19 +124,20 @@ test("Unset removes the stored row and forgets it; a later pin does not bring an
   await ready();
   add("extra");
   await type("extra", "hello");
-  fireEvent.click(screen.getByRole("button", { name: "Unset extra" }));
+  fireEvent.focus(box("extra"));
+  fireEvent.click(screen.getByText("Unset", { exact: true }));
   expect(inputs(latest).map((item) => item.name)).toEqual(["message", "unlisted"]);
   expect(editors("extra")).toHaveLength(0);
-  await pin("Whole and extra · 1 published", WHOLE_EXTRA);
+  await pin("Whole and extra", WHOLE_EXTRA);
   expect(editors("extra")).toHaveLength(1);
-  expect(within(editors("extra")[0]).queryByPlaceholderText("a value written here")).toBeNull();
-  await pin("Whole · 1 published", WHOLE);
+  expect(valueOf("extra")).toHaveValue("");
+  await pin("Whole", WHOLE);
   expect(editors("extra")).toHaveLength(0);
   add("extra");
-  const box = await type("extra", "again");
-  fireEvent.change(box, { target: { value: "again!" } });
-  expect(within(screen.getByTestId("tool-call-argument-extra")).getByPlaceholderText("a value written here")).toBe(box);
-  expect(box).toHaveFocus();
+  const cell = await type("extra", "again");
+  fireEvent.change(cell, { target: { value: "again!" } });
+  expect(box("extra")).toBe(cell);
+  expect(cell).toHaveFocus();
   expect(editors("extra")).toHaveLength(1);
 });
 

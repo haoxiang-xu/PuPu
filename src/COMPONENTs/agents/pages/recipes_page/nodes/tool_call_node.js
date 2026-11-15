@@ -1,6 +1,6 @@
 import { agentEnglishText } from "../agents_i18n";
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
-import { node_display_title } from "../node_display_labels";
+import { node_title } from "../node_title";
 import React from "react";
 import PuzzleShape from "./puzzle_shape";
 import { node_caption } from "./node_caption";
@@ -53,8 +53,7 @@ export default function ToolCallNode({ node, isDark, rename }) {
   const text = "var(--pupu-text)";
   /* Unnamed, the node is titled by its tool in the code typeface; once the
      author names it, the tool moves to the line below. */
-  const named = node_display_title(node, "") !== "";
-  const title = node_display_title(node, name ? safe_text(name) : t("agents.nodes.tool_call"));
+  const { title, code_face } = node_title(node, t);
 
   return (
     <div data-testid={`tool-call-node-${node.id}`} style={{ width: 210 }}>
@@ -64,7 +63,7 @@ export default function ToolCallNode({ node, isDark, rename }) {
             src="tool"
             tile={{ background: "#ea7547" }}
             title={title}
-            titleStyle={name && !named ? { fontFamily: "ui-monospace, Menlo, monospace" } : undefined}
+            titleStyle={code_face ? { fontFamily: "ui-monospace, Menlo, monospace" } : undefined}
             subtitle={node_caption({ type: "tool_call", title, summary: name ? safe_text(name) : t("agents.nodes.pick_tool") }, t)}
             rename={rename}
           />

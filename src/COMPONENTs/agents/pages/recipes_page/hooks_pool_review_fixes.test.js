@@ -118,26 +118,26 @@ describe("R-HP-04: rows keep their editor and held text across this editor's own
     return document;
   };
 
+  /* Held text is the Id's: emptied, it is held and never written. */
+  const idBox = (index) => within(screen.getByTestId(`hook-${index}-editor`)).getAllByRole("textbox")[0];
   test("removing the bad first entry keeps the second row open with its refused text", () => {
     render(<Host initial={two()} />);
     fireEvent.click(screen.getByRole("button", { name: "Edit hook 2" }));
-    const box = within(screen.getByTestId("hook-1-editor")).getByDisplayValue("20");
-    fireEvent.change(box, { target: { value: "1.5" } });
-    expect(screen.getByTestId("hook-1-order-problem")).toBeInTheDocument();
+    fireEvent.change(idBox(1), { target: { value: " " } });
+    expect(screen.getByTestId("hook-1-id-problem")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Remove stored entry 1" }));
     expect(writes).toHaveLength(1);
-    const editor = screen.getByTestId("hook-0-editor");
-    expect(within(editor).getByDisplayValue("1.5")).toBeInTheDocument();
-    expect(screen.getByTestId("hook-0-order-problem")).toBeInTheDocument();
+    expect(idBox(0)).toHaveValue(" ");
+    expect(screen.getByTestId("hook-0-id-problem")).toBeInTheDocument();
     expect(pool_of(current).config.hooks.map((entry) => entry.order)).toEqual([20]);
   });
 
   test("a version from elsewhere still clears what was held", () => {
     render(<ExternalHost initial={two()} />);
     fireEvent.click(screen.getByRole("button", { name: "Edit hook 2" }));
-    fireEvent.change(within(screen.getByTestId("hook-1-editor")).getByDisplayValue("20"), { target: { value: "1.5" } });
+    fireEvent.change(idBox(1), { target: { value: " " } });
     fireEvent.click(screen.getByRole("button", { name: "replace from outside" }));
-    expect(screen.queryByDisplayValue("1.5")).toBeNull();
+    expect(screen.queryByTestId("hook-1-id-problem")).toBeNull();
     expect(screen.queryByTestId("hook-1-editor")).toBeNull();
   });
 });
