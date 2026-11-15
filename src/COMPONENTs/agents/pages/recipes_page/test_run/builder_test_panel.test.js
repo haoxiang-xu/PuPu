@@ -124,3 +124,65 @@ test('a transient status-read failure keeps read-only polling without resending'
     expect(builderTestCommand.mock.calls.filter(([request])=>request.op==='start')).toHaveLength(1);
   }finally{jest.useRealTimers();}
 });
+
+const workflowSession=(name='old',type='string')=>({...session,resource_id:'workflow-demo',document:{...document,id:'workflow-demo',kind:'workflow',
+  input_schema:{type:'object',properties:{[name]:{type}},required:[name],additionalProperties:false}}});
+const workflowOpened={...opened,session:{...opened.session,resource_id:'workflow-demo',kind:'workflow'}};
+
+test('changed Workflow parameters discard obsolete argument values before the next explicit test',async()=>{
+  builderTestCommand.mockResolvedValue(workflowOpened);
+  const before=workflowSession();
+  const {rerender}=render(<BuilderTestPanel active session={before} isDark={false}/>);
+  await waitFor(()=>expect(builderTestCommand).toHaveBeenCalledTimes(1));
+  fireEvent.change(screen.getByRole('textbox',{name:'old',exact:true}),{target:{value:'obsolete'}});
+  rerender(<BuilderTestPanel active session={{...workflowSession('fresh','integer'),edit_token:'edit-B'}} isDark={false}/>);
+  fireEvent.change(screen.getByRole('textbox',{name:'fresh',exact:true}),{target:{value:'7'}});
+  await waitFor(()=>expect(screen.getByRole('button',{name:'Run Workflow',exact:true})).toBeEnabled());
+  fireEvent.click(screen.getByRole('button',{name:'Run Workflow',exact:true}));
+  await waitFor(()=>expect(builderTestCommand).toHaveBeenLastCalledWith(expect.objectContaining({op:'start',expected_edit_token:'edit-B',inputs:{fresh:7}})));
+});
+
+test('an invalid draft for a removed Workflow parameter cannot disable its replacement form',async()=>{
+  builderTestCommand.mockResolvedValue(workflowOpened);
+  const {rerender}=render(<BuilderTestPanel active session={workflowSession('old','integer')} isDark={false}/>);
+  await waitFor(()=>expect(builderTestCommand).toHaveBeenCalledTimes(1));
+  fireEvent.change(screen.getByRole('textbox',{name:'old',exact:true}),{target:{value:'invalid'}});
+  expect(screen.getByRole('button',{name:'Run Workflow',exact:true})).toBeDisabled();
+  rerender(<BuilderTestPanel active session={{...workflowSession('fresh','integer'),edit_token:'edit-B'}} isDark={false}/>);
+  fireEvent.change(screen.getByRole('textbox',{name:'fresh',exact:true}),{target:{value:'7'}});
+  await waitFor(()=>expect(screen.getByRole('button',{name:'Run Workflow',exact:true})).toBeEnabled());
+  expect(builderTestCommand.mock.calls.some(([request])=>request.op==='start')).toBe(false);
+});
+
+test('non-parameter graph edits preserve typed test arguments and do not dispatch',async()=>{
+  builderTestCommand.mockResolvedValue(workflowOpened);
+  const before=workflowSession();
+  const {rerender}=render(<BuilderTestPanel active session={before} isDark={false}/>);
+  await waitFor(()=>expect(builderTestCommand).toHaveBeenCalledTimes(1));
+  fireEvent.change(screen.getByRole('textbox',{name:'old',exact:true}),{target:{value:'keep this'}});
+  rerender(<BuilderTestPanel active session={{...before,edit_token:'edit-B',document:{...before.document,name:'Changed Code'}}} isDark={false}/>);
+  expect(screen.getByRole('textbox',{name:'old',exact:true})).toHaveValue('keep this');
+  expect(builderTestCommand.mock.calls.some(([request])=>['start','respond','resume','cancel'].includes(request.op))).toBe(false);
+});
+
+test('reordered signature keys preserve test arguments across a save response',async()=>{
+  builderTestCommand.mockResolvedValue(workflowOpened);
+  const before=workflowSession();
+  const {rerender}=render(<BuilderTestPanel active session={before} isDark={false}/>);
+  await waitFor(()=>expect(builderTestCommand).toHaveBeenCalledTimes(1));
+  fireEvent.change(screen.getByRole('textbox',{name:'old',exact:true}),{target:{value:'keep this'}});
+  rerender(<BuilderTestPanel active session={{...before,edit_token:'edit-B',document:{...before.document,input_schema:{additionalProperties:false,required:['old'],properties:{old:{type:'string'}},type:'object'}}}} isDark={false}/>);
+  expect(screen.getByRole('textbox',{name:'old',exact:true})).toHaveValue('keep this');
+});
+
+test('a changed parameter interface leaves the admitted waiting run attached and sends no actor command',async()=>{
+  const waiting={...workflowOpened,runs:[{...completed.runs[0],id:'builder-run-A',status:'waiting',inputs:{old:'frozen A'},output:null}]};
+  builderTestCommand.mockResolvedValue(waiting);
+  const {rerender}=render(<BuilderTestPanel active session={workflowSession()} isDark={false}/>);
+  await screen.findByText('Waiting',{exact:true});
+  rerender(<BuilderTestPanel active session={{...workflowSession('fresh','integer'),edit_token:'edit-B'}} isDark={false}/>);
+  fireEvent.change(screen.getByRole('textbox',{name:'fresh',exact:true}),{target:{value:'7'}});
+  expect(screen.getByTestId('test-turn-builder-run-A')).toHaveTextContent('Waiting');
+  expect(waiting.runs[0].inputs).toEqual({old:'frozen A'});
+  expect(builderTestCommand.mock.calls.some(([request])=>['start','respond','resume','cancel','new'].includes(request.op))).toBe(false);
+});

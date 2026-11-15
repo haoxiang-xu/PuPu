@@ -9,7 +9,7 @@ import { projectTestTrace } from './test_trace';
 import { StreamingMessageStoreContext } from '../../../../chat-bubble/components/streaming_message_store_context';
 import { api } from '../../../../../SERVICEs/api';
 import { readWorkspaces } from '../../../../settings/runtime';
-import WorkflowTestInputs from './workflow_test_inputs';
+import WorkflowTestInputs, { workflow_test_interface_key } from './workflow_test_inputs';
 import useBuilderTest from './use_builder_test';
 import { can_preflight, preflight_message } from '../skeleton_resource_session';
 
@@ -40,13 +40,15 @@ export default function BuilderTestPanel({active,session,onSave,onCheck,onObserv
   const [optionsOpen,setOptionsOpen]=useState(false);
   const resource=session.resource_id||session.document?.id;
   const kind=session.document?.kind;
+  const inputContract=useMemo(()=>kind==='workflow'?workflow_test_interface_key(session.document):'', [kind,session.document]);
   const checked=useRef(null);
   useEffect(()=>{
     const version=`${resource}:${session.edit_token}`;
     if(!active||!onCheck||!can_preflight(session)||session.preflight||checked.current===version)return;
     checked.current=version;onCheck();
   },[active,onCheck,resource,session]);
-  useEffect(()=>{setMessage('');setValues({});setProblems([]);setWorkspace('');setToolkits([]);},[resource]);
+  useEffect(()=>{setMessage('');setWorkspace('');setToolkits([]);},[resource]);
+  useEffect(()=>{setValues({});setProblems([]);},[resource,inputContract]);
   useEffect(()=>{
     if(!active||!optionsOpen)return;
     let wanted=true;
@@ -104,7 +106,7 @@ export default function BuilderTestPanel({active,session,onSave,onCheck,onObserv
           {run.output!==null&&(kind==='agent'?<div data-testid="test-agent-reply" style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{typeof run.output.message==='string'?run.output.message:JSON.stringify(run.output,null,2)}</div>:
             <div><strong>{t('agents.test_run.output')}</strong><pre data-testid="test-workflow-output" style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere',fontSize:12}}>{JSON.stringify(run.output,null,2)}</pre></div>)}
         </section>)}
-        {kind==='workflow'&&<WorkflowTestInputs document={session.document} value={values} onChange={setValues} onValidityChange={setProblems}
+        {kind==='workflow'&&<WorkflowTestInputs key={inputContract} document={session.document} value={values} onChange={setValues} onValidityChange={setProblems}
           isDark={isDark} disabled={busy} errors={error?[error]:[]}/>}
         <Button label={t('agents.test_run.context')} prefix_icon={optionsOpen?'arrow_up':'arrow_down'} onClick={()=>setOptionsOpen(value=>!value)} style={themedButton}/>
         {optionsOpen&&<div style={{display:'flex',flexDirection:'column',gap:8}}>

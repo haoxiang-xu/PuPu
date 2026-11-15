@@ -24,6 +24,9 @@ The controller owns no normal-chat draft, message list, composer selection or
 execution. Closing, selecting a node/resource, or viewing the recorded graph only
 detaches its view. Explicit Refresh reattaches; New creates a separate conversation
 only when the previous one is idle. Stop uses the existing cancellation host.
+Changing a Workflow's parameter interface resets only its test arguments and
+unfinished field edits. Graph-only edits and JSON key reordering preserve those
+values. The controller and already admitted run keep their existing identities.
 Approvals, denials and human input use the canonical pending interaction, receipt
 and resume paths. The pending controller is the only interactive approval surface;
 raw durable requests remain recorded but are not adapted into duplicate tool cards.

@@ -13,6 +13,18 @@ const FIELD_STYLE = { width: "100%", minWidth: 0, fontSize: 12, paddingVertical:
 const muted = (isDark) => ({ color: isDark ? "#a1a1aa" : "#68686f" });
 const problemStyle = (isDark) => ({ color: isDark ? "#ff8c8c" : "#b02020", fontSize: 11.5, overflowWrap: "anywhere" });
 
+// A local form identity, never a Host digest. Ignore graph-only edits and JSON
+// key order, but do not carry arguments/drafts across a different interface.
+export function workflow_test_interface_key(document) {
+  const legacy = own(document, "input_schema") ? null : callee_interface(document);
+  const contract = own(document, "input_schema")
+    ? { declared: true, schema: document.input_schema }
+    : { declared: false, readable: legacy?.readable, whole: legacy?.whole,
+      keys: (legacy?.inputs || []).map(row => row.key).filter(key => typeof key === "string").sort() };
+  return JSON.stringify(contract, (_key, value) => record(value)
+    ? Object.fromEntries(Object.keys(value).sort().map(key => [key, value[key]])) : value);
+}
+
 function parse_input(text, type, mode, t) {
   if (type === "string" || (type === undefined && mode === "text")) return { ok: true, value: text };
   if (type === "number" || type === "integer") {
