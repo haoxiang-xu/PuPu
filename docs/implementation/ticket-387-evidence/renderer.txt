@@ -1,0 +1,10 @@
+PASS src/SERVICEs/reasoning_effort_prefs.test.js
+PASS src/SERVICEs/ticket_387_catalog.test.js
+PASS src/SERVICEs/api.modelCatalog.test.js
+PASS src/SERVICEs/september_provider_models.test.js
+
+Test Suites: 4 passed, 4 total
+Tests:       26 passed, 26 total
+Snapshots:   0 total
+Time:        1.628 s
+Ran all test suites within paths "src/SERVICEs/ticket_387_catalog.test.js", "src/SERVICEs/reasoning_effort_prefs.test.js", "src/SERVICEs/api.modelCatalog.test.js", "src/SERVICEs/september_provider_models.test.js".

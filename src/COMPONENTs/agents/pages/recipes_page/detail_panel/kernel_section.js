@@ -573,7 +573,7 @@ export default function KernelSection({
                   value={own(kernel, "history")}
                   set_value={(next) => store({ ...kernel, history: next })}
                   filterable={false}
-                  style={renderSections ? { ...select_style, fontSize: 12, paddingVertical: 5, paddingHorizontal: 8, width: 172, flexShrink: 0, ...fieldFill(isDark) } : { ...select_style, width: 168, flexShrink: 0 }}
+                  style={{ ...select_style, fontSize: 12, paddingVertical: 5, paddingHorizontal: 8, width: 172, flexShrink: 0, ...fieldFill(isDark) }}
                 />
                 </span>
                 </div>
@@ -588,7 +588,7 @@ export default function KernelSection({
                   value={own(kernel, "overflow")}
                   set_value={(next) => store({ ...kernel, overflow: next })}
                   filterable={false}
-                  style={renderSections ? { ...select_style, fontSize: 12, paddingVertical: 5, paddingHorizontal: 8, width: 172, flexShrink: 0, ...fieldFill(isDark) } : { ...select_style, width: 168, flexShrink: 0 }}
+                  style={{ ...select_style, fontSize: 12, paddingVertical: 5, paddingHorizontal: 8, width: 172, flexShrink: 0, ...fieldFill(isDark) }}
                 />
                 </span>
                 </div>
@@ -603,7 +603,7 @@ export default function KernelSection({
                   value={own(kernel, "history")}
                   set_value={(next) => store({ ...kernel, history: next })}
                   filterable={false}
-                  style={renderSections ? { ...select_style, fontSize: 12, paddingVertical: 5, paddingHorizontal: 8, width: 172, flexShrink: 0, ...fieldFill(isDark) } : { ...select_style, width: 168, flexShrink: 0 }}
+                  style={{ ...select_style, width: 168, flexShrink: 0 }}
                 />
                 </span>
                 <span style={{ ...CAPTION, flexShrink: 0 }}>{t("agents.execution.kernel.and_when_the_window_fills")}</span>
@@ -616,7 +616,7 @@ export default function KernelSection({
                   value={own(kernel, "overflow")}
                   set_value={(next) => store({ ...kernel, overflow: next })}
                   filterable={false}
-                  style={renderSections ? { ...select_style, fontSize: 12, paddingVertical: 5, paddingHorizontal: 8, width: 172, flexShrink: 0, ...fieldFill(isDark) } : { ...select_style, width: 168, flexShrink: 0 }}
+                  style={{ ...select_style, width: 168, flexShrink: 0 }}
                 />
                 </span>
               </div>}

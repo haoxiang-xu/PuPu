@@ -1,0 +1,158 @@
+{
+  "summary": {
+    "changed_count": 21,
+    "affected_count": 0,
+    "changed_files": 5,
+    "risk_level": "low"
+  },
+  "changed_symbols": [
+    {
+      "id": "Function:tests/test_september_native_models.py:test_new_openai_models_prepare_exact_responses_payload_without_sampling",
+      "name": "test_new_openai_models_prepare_exact_responses_payload_without_sampling",
+      "type": "Function",
+      "filePath": "tests/test_september_native_models.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Variable:tests/test_ticket_387_catalog.py:OPENAI_MODELS",
+      "name": "OPENAI_MODELS",
+      "type": "Variable",
+      "filePath": "tests/test_ticket_387_catalog.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Variable:tests/test_ticket_387_catalog.py:CLAUDE_MODELS",
+      "name": "CLAUDE_MODELS",
+      "type": "Variable",
+      "filePath": "tests/test_ticket_387_catalog.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Variable:tests/test_ticket_387_catalog.py:CLAUDE_EFFORTS",
+      "name": "CLAUDE_EFFORTS",
+      "type": "Variable",
+      "filePath": "tests/test_ticket_387_catalog.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_ticket_387_catalog.py:_expected_capabilities",
+      "name": "_expected_capabilities",
+      "type": "Function",
+      "filePath": "tests/test_ticket_387_catalog.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_ticket_387_catalog.py:test_ticket_387_models_have_exact_capability_and_default_records",
+      "name": "test_ticket_387_models_have_exact_capability_and_default_records",
+      "type": "Function",
+      "filePath": "tests/test_ticket_387_catalog.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_ticket_387_catalog.py:test_ticket_387_models_prepare_only_allowed_effort_payload",
+      "name": "test_ticket_387_models_prepare_only_allowed_effort_payload",
+      "type": "Function",
+      "filePath": "tests/test_ticket_387_catalog.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Variable:tests/test_ticket_387_replay.py:MODELS",
+      "name": "MODELS",
+      "type": "Variable",
+      "filePath": "tests/test_ticket_387_replay.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_ticket_387_replay.py:_outputs",
+      "name": "_outputs",
+      "type": "Function",
+      "filePath": "tests/test_ticket_387_replay.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_ticket_387_replay.py:test_new_model_cold_resume_second_tool_and_second_message",
+      "name": "test_new_model_cold_resume_second_tool_and_second_message",
+      "type": "Function",
+      "filePath": "tests/test_ticket_387_replay.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_ticket_387_replay.py:test_new_model_cold_resume_second_tool_and_second_message.demo_tool@55:4",
+      "name": "demo_tool",
+      "type": "Function",
+      "filePath": "tests/test_ticket_387_replay.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_ticket_387_replay.py:test_new_model_cold_resume_second_tool_and_second_message.agent@59:4",
+      "name": "agent",
+      "type": "Function",
+      "filePath": "tests/test_ticket_387_replay.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_ticket_387_replay.py:test_new_model_cold_resume_second_tool_and_second_message.agent@59:4.factory@62:8",
+      "name": "factory",
+      "type": "Function",
+      "filePath": "tests/test_ticket_387_replay.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_ticket_387_replay.py:test_new_model_cold_resume_second_tool_and_second_message.agent@59:4.factory@62:8.strict_send@68:12",
+      "name": "strict_send",
+      "type": "Function",
+      "filePath": "tests/test_ticket_387_replay.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_ticket_387_replay.py:test_new_claude_sdk_blocks_survive_two_tool_interactions",
+      "name": "test_new_claude_sdk_blocks_survive_two_tool_interactions",
+      "type": "Function",
+      "filePath": "tests/test_ticket_387_replay.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_ticket_387_replay.py:test_pinned_openai_sdk_serializes_documented_efforts_without_typing_rejection",
+      "name": "test_pinned_openai_sdk_serializes_documented_efforts_without_typing_rejection",
+      "type": "Function",
+      "filePath": "tests/test_ticket_387_replay.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_ticket_387_replay.py:test_pinned_openai_sdk_serializes_documented_efforts_without_typing_rejection.handle@127:4",
+      "name": "handle",
+      "type": "Function",
+      "filePath": "tests/test_ticket_387_replay.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_ticket_387_replay.py:_process_phase",
+      "name": "_process_phase",
+      "type": "Function",
+      "filePath": "tests/test_ticket_387_replay.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_ticket_387_replay.py:_process_phase.demo_tool@149:4",
+      "name": "demo_tool",
+      "type": "Function",
+      "filePath": "tests/test_ticket_387_replay.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_ticket_387_replay.py:test_installed_model_checkpoint_survives_interpreter_restart",
+      "name": "test_installed_model_checkpoint_survives_interpreter_restart",
+      "type": "Function",
+      "filePath": "tests/test_ticket_387_replay.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_ticket_387_replay.py:test_catalog_identity_and_defaults_reach_verified_durable_wire",
+      "name": "test_catalog_identity_and_defaults_reach_verified_durable_wire",
+      "type": "Function",
+      "filePath": "tests/test_ticket_387_replay.py",
+      "change_type": "touched"
+    }
+  ],
+  "affected_processes": []
+}

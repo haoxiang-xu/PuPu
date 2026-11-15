@@ -11,10 +11,15 @@ import { PANEL_SWITCH } from "./panel_style";
 
 const MODEL_OPTIONS = [
   { value: "", label: "(use recipe default)" },
+  { value: "openai:gpt-6.1-sol", label: "openai:gpt-6.1-sol" },
+  { value: "openai:gpt-6.1-terra", label: "openai:gpt-6.1-terra" },
   { value: "openai:gpt-6-sol", label: "openai:gpt-6-sol" },
   { value: "openai:gpt-6-luna", label: "openai:gpt-6-luna" },
   { value: "anthropic:claude-opus-5-5", label: "anthropic:claude-opus-5-5" },
   { value: "anthropic:claude-sonnet-5", label: "anthropic:claude-sonnet-5" },
+  { value: "anthropic:claude-sonnet-5-5", label: "anthropic:claude-sonnet-5-5" },
+  { value: "anthropic:claude-haiku-5-5", label: "anthropic:claude-haiku-5-5" },
+  { value: "anthropic:claude-fable-5-2", label: "anthropic:claude-fable-5-2" },
   { value: "gemini:gemini-3.7-flash", label: "gemini:gemini-3.7-flash" },
   { value: "gemini:gemini-3.8-flash", label: "gemini:gemini-3.8-flash" },
   { value: "gemini:gemini-4-argon", label: "gemini:gemini-4-argon" },

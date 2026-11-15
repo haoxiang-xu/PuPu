@@ -99,11 +99,6 @@ const dragRow = (fromId, toId) => {
   fireEvent.dragEnd(source);
 };
 const scopeIds = (document) => hook_scope_entries(document, "kernel").map((item) => item.id);
-  fireEvent(source, Object.assign(createEvent.dragStart(source), { dataTransfer: transfer }));
-  fireEvent.dragOver(target);
-  fireEvent.drop(target);
-  fireEvent.dragEnd(source);
-};
 
 beforeEach(() => {
   localStorage.clear();

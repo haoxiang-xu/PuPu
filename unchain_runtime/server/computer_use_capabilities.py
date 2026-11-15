@@ -20,6 +20,13 @@ OPENAI_PROTOCOL = "openai.responses.computer.v1"
 LOCAL_PROTOCOL = "pupu.local.click3.v1"
 
 OPENAI_COMPUTER_MODEL_PREFIXES = ("gpt-5.6",)
+# These models require computer_toolset_20260801 on the native Claude API.
+# In particular Sonnet 5.5 must not inherit the Sonnet 5 legacy-tool prefix.
+_ANTHROPIC_TOOLSET_ONLY_MODEL_PREFIXES = (
+    "claude-sonnet-5-5",
+    "claude-haiku-5-5",
+    "claude-fable-5-2",
+)
 LOCAL_COMPUTER_MODEL_PREFIXES = (
     "qwen3.5:4b",
     "llama3.2-vision:11b",
@@ -63,6 +70,8 @@ def resolve_computer_use_capability(provider: str, model: str) -> Dict[str, Any]
         return _unsupported("provider_disabled")
 
     if normalized_provider == "anthropic":
+        if _matches_prefix(normalized_model, _ANTHROPIC_TOOLSET_ONLY_MODEL_PREFIXES):
+            return _unsupported()
         if not _matches_prefix(normalized_model, COMPUTER_USE_MODEL_PREFIXES):
             return _unsupported()
         return {

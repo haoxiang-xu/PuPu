@@ -1,0 +1,97 @@
+Full original log SHA-256: 1a83647ae1051a09a0940b0ee0dd6c814b1b7a06510da504d0761d10c71e5c6c
+Full original log preserved at: /Users/red/Desktop/GITRepo/ticket-387-artifacts/ac4065ae1cb3/audit/catalog-red.txt
+Excerpt: first 65 and last 26 lines; repeated diagnostics omitted.
+
+FFFFFFFFFFFFFFFF.....FFFFFFFFFF                                          [100%]
+=================================== FAILURES ===================================
+_ test_ticket_387_models_have_exact_capability_and_default_records[gpt-6.1-sol-provider_efforts_default0] _
+
+model = 'gpt-6.1-sol'
+provider_efforts_default = ('openai', ['low', 'medium', 'high', 'xhigh', 'max'], 'medium')
+
+    @pytest.mark.parametrize(
+        "model,provider_efforts_default",
+        [*OPENAI_MODELS.items(), *((model, ("anthropic", CLAUDE_EFFORTS, effort))
+                                  for model, effort in CLAUDE_MODELS.items())],
+    )
+    def test_ticket_387_models_have_exact_capability_and_default_records(
+        model, provider_efforts_default
+    ):
+        provider, efforts, default_effort = provider_efforts_default
+>       capabilities = load_model_capabilities()[model]
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'gpt-6.1-sol'
+
+tests/test_ticket_387_catalog.py:80: KeyError
+_ test_ticket_387_models_have_exact_capability_and_default_records[gpt-6.1-terra-provider_efforts_default1] _
+
+model = 'gpt-6.1-terra'
+provider_efforts_default = ('openai', ['none', 'low', 'medium', 'high', 'xhigh', 'max'], 'medium')
+
+    @pytest.mark.parametrize(
+        "model,provider_efforts_default",
+        [*OPENAI_MODELS.items(), *((model, ("anthropic", CLAUDE_EFFORTS, effort))
+                                  for model, effort in CLAUDE_MODELS.items())],
+    )
+    def test_ticket_387_models_have_exact_capability_and_default_records(
+        model, provider_efforts_default
+    ):
+        provider, efforts, default_effort = provider_efforts_default
+>       capabilities = load_model_capabilities()[model]
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'gpt-6.1-terra'
+
+tests/test_ticket_387_catalog.py:80: KeyError
+_ test_ticket_387_models_have_exact_capability_and_default_records[claude-sonnet-5-5-provider_efforts_default2] _
+
+model = 'claude-sonnet-5-5'
+provider_efforts_default = ('anthropic', ['low', 'medium', 'high', 'xhigh', 'max'], 'high')
+
+    @pytest.mark.parametrize(
+        "model,provider_efforts_default",
+        [*OPENAI_MODELS.items(), *((model, ("anthropic", CLAUDE_EFFORTS, effort))
+                                  for model, effort in CLAUDE_MODELS.items())],
+    )
+    def test_ticket_387_models_have_exact_capability_and_default_records(
+        model, provider_efforts_default
+    ):
+        provider, efforts, default_effort = provider_efforts_default
+>       capabilities = load_model_capabilities()[model]
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'claude-sonnet-5-5'
+
+tests/test_ticket_387_catalog.py:80: KeyError
+_ test_ticket_387_models_have_exact_capability_and_default_records[claude-haiku-5-5-provider_efforts_default3] _
+
+model = 'claude-haiku-5-5'
+provider_efforts_default = ('anthropic', ['low', 'medium', 'high', 'xhigh', 'max'], 'medium')
+
+    @pytest.mark.parametrize(
+
+[repeated output omitted]
+FAILED tests/test_ticket_387_catalog.py::test_ticket_387_models_have_exact_capability_and_default_records[gpt-6.1-terra-provider_efforts_default1]
+FAILED tests/test_ticket_387_catalog.py::test_ticket_387_models_have_exact_capability_and_default_records[claude-sonnet-5-5-provider_efforts_default2]
+FAILED tests/test_ticket_387_catalog.py::test_ticket_387_models_have_exact_capability_and_default_records[claude-haiku-5-5-provider_efforts_default3]
+FAILED tests/test_ticket_387_catalog.py::test_ticket_387_models_have_exact_capability_and_default_records[claude-fable-5-2-provider_efforts_default4]
+FAILED tests/test_ticket_387_catalog.py::test_ticket_387_models_prepare_only_allowed_effort_payload[gpt-6.1-sol-low]
+FAILED tests/test_ticket_387_catalog.py::test_ticket_387_models_prepare_only_allowed_effort_payload[gpt-6.1-sol-medium]
+FAILED tests/test_ticket_387_catalog.py::test_ticket_387_models_prepare_only_allowed_effort_payload[gpt-6.1-sol-high]
+FAILED tests/test_ticket_387_catalog.py::test_ticket_387_models_prepare_only_allowed_effort_payload[gpt-6.1-sol-xhigh]
+FAILED tests/test_ticket_387_catalog.py::test_ticket_387_models_prepare_only_allowed_effort_payload[gpt-6.1-sol-max]
+FAILED tests/test_ticket_387_catalog.py::test_ticket_387_models_prepare_only_allowed_effort_payload[gpt-6.1-terra-none]
+FAILED tests/test_ticket_387_catalog.py::test_ticket_387_models_prepare_only_allowed_effort_payload[gpt-6.1-terra-low]
+FAILED tests/test_ticket_387_catalog.py::test_ticket_387_models_prepare_only_allowed_effort_payload[gpt-6.1-terra-medium]
+FAILED tests/test_ticket_387_catalog.py::test_ticket_387_models_prepare_only_allowed_effort_payload[gpt-6.1-terra-high]
+FAILED tests/test_ticket_387_catalog.py::test_ticket_387_models_prepare_only_allowed_effort_payload[gpt-6.1-terra-xhigh]
+FAILED tests/test_ticket_387_catalog.py::test_ticket_387_models_prepare_only_allowed_effort_payload[gpt-6.1-terra-max]
+FAILED tests/test_ticket_387_catalog.py::test_ticket_387_models_prepare_only_allowed_effort_payload[claude-haiku-5-5-low]
+FAILED tests/test_ticket_387_catalog.py::test_ticket_387_models_prepare_only_allowed_effort_payload[claude-haiku-5-5-medium]
+FAILED tests/test_ticket_387_catalog.py::test_ticket_387_models_prepare_only_allowed_effort_payload[claude-haiku-5-5-high]
+FAILED tests/test_ticket_387_catalog.py::test_ticket_387_models_prepare_only_allowed_effort_payload[claude-haiku-5-5-xhigh]
+FAILED tests/test_ticket_387_catalog.py::test_ticket_387_models_prepare_only_allowed_effort_payload[claude-haiku-5-5-max]
+FAILED tests/test_ticket_387_catalog.py::test_ticket_387_models_prepare_only_allowed_effort_payload[claude-fable-5-2-low]
+FAILED tests/test_ticket_387_catalog.py::test_ticket_387_models_prepare_only_allowed_effort_payload[claude-fable-5-2-medium]
+FAILED tests/test_ticket_387_catalog.py::test_ticket_387_models_prepare_only_allowed_effort_payload[claude-fable-5-2-high]
+FAILED tests/test_ticket_387_catalog.py::test_ticket_387_models_prepare_only_allowed_effort_payload[claude-fable-5-2-xhigh]
+FAILED tests/test_ticket_387_catalog.py::test_ticket_387_models_prepare_only_allowed_effort_payload[claude-fable-5-2-max]
+26 failed, 5 passed in 0.64s
