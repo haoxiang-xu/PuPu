@@ -45,6 +45,7 @@ def workspace_check(root,effects):
     require(Counter(row['name'] for row in effects)==Counter({key:1 for key in expected}),'effects_not_exactly_once')
 def main():
     functional=read('functional-result.json');require(functional['verdict']=='APP_486_FUNCTIONAL_RECORDED','functional_incomplete')
+    require(functional.get('product_findings')==[],'product_findings_unresolved')
     require(read('fixture-errors.json')==[],'fixture_error')
     wires=read('provider-wires.json');require(len(wires)==9,'provider_request_count')
     for i,row in enumerate(wires):
