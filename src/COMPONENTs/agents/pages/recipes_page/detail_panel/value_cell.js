@@ -5,7 +5,7 @@ import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use
 import { expression_is_editable, expression_summary, literal_expression, ref_expression } from "../skeleton_io";
 import { literal_from_text, literal_to_text } from "../tool_call_config";
 import { VariablePillValue, variablePillField } from "./variable_pill";
-import { CONTROL_HEIGHT, CONTROL_RADIUS, fieldBackground, text as textColor } from "./panel_style";
+import { CONTROL_HEIGHT, CONTROL_RADIUS, text as textColor } from "./panel_style";
 
 /* One value of a known type, in one cell: typed in, or picked from what the
  * steps upstream export — the Input Variables pill's single slot, without
@@ -102,7 +102,7 @@ export default function ValueCell({
 
   return (
     <div ref={cellRef} data-testid={testid} style={{ position: "relative", minWidth: 0, height: CONTROL_HEIGHT,
-      display: "flex", alignItems: "center", borderRadius: CONTROL_RADIUS, background: fieldBackground(isDark),
+      display: "flex", alignItems: "center", borderRadius: CONTROL_RADIUS,
       boxSizing: "border-box", border: "1px solid transparent" }}>
       <div onClick={open} style={{ flex: 1, minWidth: 0 }}>
         <Input aria_label={isRef && !editing ? `${ariaLabel} · ${nodeLabel} · ${path}` : ariaLabel}
