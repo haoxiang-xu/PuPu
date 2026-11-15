@@ -26,6 +26,22 @@ TRANSIENT_FIELDS={'skeleton_credentials','skeleton_credential_scope','openaiApiK
     'anthropicApiKey','anthropic_api_key','geminiApiKey','gemini_api_key'}
 
 
+def runtime_import_observation(manifest):
+    """Diagnostic evidence only; never a compatibility or admission decision."""
+    import sys
+    modules={}
+    for name in ('unchain','unchain.runtime.runtime_protocol'):
+        module=sys.modules.get(name)
+        origin=getattr(module,'__file__','') or ''
+        loader=getattr(module,'__loader__',None)
+        modules[name]={'file':str(Path(origin).resolve()) if type(origin) is str and origin else '',
+            'loader':type(loader).__module__+'.'+type(loader).__qualname__ if loader is not None else ''}
+    return {'schema':'pupu.runtime-import-observation.v1','pid':os.getpid(),
+        'executable':str(Path(sys.executable).resolve()),'frozen':bool(getattr(sys,'frozen',False)),
+        'bundle_root':str(getattr(sys,'_MEIPASS','') or ''),'modules':modules,
+        'manifest_digest':manifest['manifest_digest']}
+
+
 def _fail(code, message, path=(), status=409):
     raise SkeletonResourceError(code, path, message, status=status)
 

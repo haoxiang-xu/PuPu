@@ -58,6 +58,20 @@ unconfirmed and requires readback. Only read-only status polling retries, with
 bounded backoff; stale generations/replies cannot replace a newer resource/view.
 Maps to AC-001/002/003/008/009; SEQ-001/003/005.
 
+Opt-in verification (`PUPU_VERIFY_RUNTIME_IMPORTS=1`) records
+`pupu.runtime-import-observation.v1` through the existing capability handler's
+log, without adding an endpoint or changing its reply. Its closed fields are
+schema, pid, executable, frozen, bundle_root, modules, manifest_digest. The two
+module records contain the actual imported `unchain` and runtime-protocol
+file/loader. These are telemetry, never admission or compatibility inputs.
+The QA consumer binds that PID/executable to the owned sidecar process tree,
+checks frozen bundle origins/loaders and compares the digest to the independently
+validated live capability manifest and retained artifact. CI's real producer
+also retains actual root/protocol origins, imported-module bytes and test argv
+in its existing test-log artifact. Missing origins are INCOMPLETE, not inferred
+from environment settings or a fresh shell import.
+
+
 ## BC-002 — saved graph / admission / durable runtime
 
 CLOSED admission freezes one managed-v2 Store revision and exact edit token,
@@ -103,7 +117,8 @@ existing durable receipt/resume. Stop uses cancel_chat_execution so parked sessi
 guards are released as well as the graph. Repeated start/answer/resume/Stop cannot
 repeat an effect. No terminal status is inferred from an SSE ending, button position,
 parent text, or composer selection. Recorded graph viewing stays read-only and Back
-restores Test mode and the editable resource.
+restores Test mode and the editable resource. Native run-view controls clear the existing
+Electron title-bar drag band; browser presentation keeps its compact spacing.
 Maps to AC-005/006/007/008/010; SEQ-001/003/004/005.
 
 ## Verification and artifact identity

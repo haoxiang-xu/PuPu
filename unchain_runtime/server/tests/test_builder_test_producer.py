@@ -10,8 +10,9 @@ from flask import Flask
 from test_skeleton_production_chat import production  # noqa: F401
 
 
-def test_real_test_run_producer_capture(production,monkeypatch,tmp_path):
+def test_real_test_run_producer_capture(production,monkeypatch,tmp_path,caplog):
     import routes
+    monkeypatch.setenv("PUPU_VERIFY_RUNTIME_IMPORTS","1")
     import route_skeleton_resources  # noqa: F401
     import skeleton_builder_tests
     from route_blueprint import api_blueprint
@@ -31,6 +32,21 @@ def test_real_test_run_producer_capture(production,monkeypatch,tmp_path):
         assert response.status_code==200,response.json
         return response.json
     packets={'capabilities':command('capabilities')}
+    observations=[json.loads(record.getMessage().removeprefix('PUPU_RUNTIME_IMPORT '))
+        for record in caplog.records if record.getMessage().startswith('PUPU_RUNTIME_IMPORT ')]
+    assert observations, 'Actual consumer import evidence is missing'
+    observed=observations[-1]
+    assert observed['pid']==os.getpid()
+    assert observed['manifest_digest']==packets['capabilities']['runtime_manifest']['manifest_digest']
+    for name in ('unchain','unchain.runtime.runtime_protocol'):
+        assert observed['modules'][name]['file']==str(Path(sys.modules[name].__file__).resolve())
+    caplog.clear()
+    monkeypatch.delenv('PUPU_VERIFY_RUNTIME_IMPORTS')
+    assert command('capabilities')==packets['capabilities']
+    assert not any(record.getMessage().startswith('PUPU_RUNTIME_IMPORT ') for record in caplog.records)
+    monkeypatch.setenv('PUPU_VERIFY_RUNTIME_IMPORTS','1')
+
+
     store,options,calls=production
     saved=store.get_resource('production-agent')
     saved['document']['nodes'][1]['config']['kernel']['profile'].update(id='official',credential_ref='openai',endpoint='https://api.openai.com/v1')
@@ -87,15 +103,18 @@ def test_real_test_run_producer_capture(production,monkeypatch,tmp_path):
         wheel=available[0]
     with zipfile.ZipFile(wheel) as archive:
         for name,module in sorted(sys.modules.items()):
-            if not name.startswith('unchain.') or not getattr(module,'__file__',None):continue
+            if (name!='unchain' and not name.startswith('unchain.')) or not getattr(module,'__file__',None):continue
             path=Path(module.__file__).resolve()
             if path.suffix!='.py':continue
             relative=path.relative_to(installed).as_posix()
             assert path.read_bytes()==archive.read(relative)
-            imported.append({'module':name,'member':relative,'sha256':hashlib.sha256(path.read_bytes()).hexdigest()})
+            imported.append({'module':name,'member':relative,'origin':str(path),'sha256':hashlib.sha256(path.read_bytes()).hexdigest()})
     assert len(imported)>250
     capture=os.environ.get('BUILDER_TEST_CAPTURE')
+    if not capture and os.environ.get('GITHUB_ACTIONS')=='true':
+        capture=str(Path(__file__).resolve().parents[3]/'release-qa-test-logs'/'builder-test-runtime-consumer.json')
+        Path(capture).parent.mkdir(parents=True,exist_ok=True)
     if capture:
         Path(capture).write_text(json.dumps({'schema':'pupu.builder-test-producer.v1','packets':packets,
             'runtime_manifest':require_skeleton_runtime(),'wheel_sha256':hashlib.sha256(wheel.read_bytes()).hexdigest(),
-            'imported_modules':imported},ensure_ascii=False,indent=2)+'\n')
+            'imported_modules':imported,'consumer':observed,'consumer_argv':sys.argv},ensure_ascii=False,indent=2)+'\n')

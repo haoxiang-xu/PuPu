@@ -63,8 +63,14 @@ def builder_test_command():
             raise SkeletonResourceError('invalid_type',('approved',),'An explicit interaction response is required.')
         if op=='capabilities':
             from skeleton_runtime_capability import require_skeleton_runtime
+            manifest=require_skeleton_runtime()
+            import os
+            if os.environ.get('PUPU_VERIFY_RUNTIME_IMPORTS')=='1':
+                import json
+                from skeleton_builder_tests import runtime_import_observation
+                _logger.warning('PUPU_RUNTIME_IMPORT %s',json.dumps(runtime_import_observation(manifest),sort_keys=True,separators=(',',':')))
             return {'schema':SCHEMA,'contract':'agent-workflow-test-v1','kinds':['agent','workflow'],
-                'input_bytes':2*1024*1024,'trace_bytes':2*1024*1024,'runtime_manifest':require_skeleton_runtime()}
+                'input_bytes':2*1024*1024,'trace_bytes':2*1024*1024,'runtime_manifest':manifest}
         tests=BuilderTestSessions()
         resource=body['resource_id']; session=body.get('session_id'); run=body.get('run_id')
         try:

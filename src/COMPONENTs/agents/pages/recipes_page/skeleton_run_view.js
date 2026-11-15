@@ -8,6 +8,8 @@ import SkeletonCanvas from "./skeleton_canvas";
 import { overlay_tokens } from "./canvas_chrome";
 import { run_status_caption } from "./nodes/run_node_status";
 import useSkeletonRunObservation from "./use_skeleton_run_observation";
+import { TOP_BAR_HEIGHT } from "../../../../BUILTIN_COMPONENTs/electron/title_bar";
+import { windowStateBridge } from "../../../../SERVICEs/bridges/window_state_bridge";
 
 const NO_SOURCES = Object.freeze({});
 
@@ -25,6 +27,7 @@ export default function SkeletonRunView({ scope, isDark, onClose }) {
   const graph = graphs.find((item) => item.graph_id === graphId) || graphs[0] || null;
   const node = selected && graph && selected.graph_id === graph.graph_id ? graph.nodes.find((item) => item.node_id === selected.node_id) : null;
   const tokens = overlay_tokens(isDark);
+  const titleBarInset = typeof window !== "undefined" && window.runtime?.isElectron === true && windowStateBridge.isActionAvailable() ? TOP_BAR_HEIGHT : 0;
   const layoutKey = graph ? JSON.stringify(["run-observation", scope.owner_chat_id, scope.execution_id,
     observed.run.generation_id, observed.run.root_run_id, graph.graph_id]) : null;
   return (
@@ -32,7 +35,7 @@ export default function SkeletonRunView({ scope, isDark, onClose }) {
       {graph && <div style={{ flex: 1, minHeight: 0, position: "relative", display: "flex", order: 1 }}><SkeletonCanvas resourceId={layoutKey} commandScope="run-observation" document={graph.document}
         readOnly observation={graph} isDark={isDark} managedSources={NO_SOURCES} homeToken={homeToken}
         onSelectNode={(node_id) => setSelected({ graph_id: graph.graph_id, node_id })} /></div>}
-      <div style={{ position: "relative", margin: "16px 14px 8px", maxHeight: "45%", overflowY: "auto", flexShrink: 0, order: 0, zIndex: AGENTS_MODAL_Z.PANEL_CONTROL,
+      <div style={{ position: "relative", margin: `${titleBarInset + 16}px 14px 8px`, maxHeight: "45%", overflowY: "auto", flexShrink: 0, order: 0, zIndex: AGENTS_MODAL_Z.PANEL_CONTROL,
         display: "flex", flexDirection: "column", gap: 7, padding: 12, borderRadius: 10,
         background: tokens.background, border: tokens.border, backdropFilter: tokens.backdrop, boxShadow: tokens.shadow }}>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
