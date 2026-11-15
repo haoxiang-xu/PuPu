@@ -958,7 +958,9 @@
         "running": "正在运行…",
         "waiting": "在等你回应，见下方。",
         "conflict": "它在别处被保存过，请先在画布上方处理冲突。",
-        "uncertain": "上一次请求没有得到确认。先刷新看看记录，再决定要不要重发。"
+        "uncertain": "上一次请求没有得到确认。先刷新看看记录，再决定要不要重发。",
+        "uses_chosen_model": "「{node}」没有自己的模型，这次测试用下面选的模型。",
+        "pick_model": "「{node}」没有自己的模型，在下面选一个模型就能测试。"
       },
       "problem": {
         "no_model": "「{node}」还没选模型。",
@@ -992,12 +994,10 @@
       "no_tools": "不加工具",
       "real_tools": "测试会真的调用这些工具，权限和聊天里一样。",
       "view_chat_run": "查看它在聊天中的运行",
-      "message": "测试消息",
       "message_placeholder": "给这个智能体发一条消息…",
-      "send": "发送",
+      "message_placeholder_unsaved": "给这个智能体发一条消息…（会先保存修改）",
       "run": "运行",
       "save_and_run": "保存并运行",
-      "save_and_send": "保存并发送",
       "stop": "停止",
       "you": "你",
       "text_mode": "文本",

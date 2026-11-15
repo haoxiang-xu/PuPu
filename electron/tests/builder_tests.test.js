@@ -217,3 +217,20 @@ test('preload preserves producer refusal code, path, message and HTTP status', a
   await expect(bridge.builderTestCommand({ op: 'read', resource_id: 'workflow', session_id: 'builder-test-session' }))
     .rejects.toMatchObject({ code: 'missing_value', path: ['inputs', 'city'], message: 'Parameter was refused', status: 422 });
 });
+
+test('an Agent start may name one model for unconfigured Agent nodes; only its identity crosses to the runtime', async () => {
+  const prepared = packet('workflow-prepare');
+  const post = jest.fn()
+    .mockResolvedValueOnce(packet('capabilities'))
+    .mockResolvedValueOnce(prepared)
+    .mockResolvedValueOnce(packet('workflow-completed'));
+  const request = { ...startRequest(prepared.resource_id, prepared.session_id), fallback_model: 'openai:gpt-4.1' };
+  await runBuilderTestCommand(request, { post, resolveCredentials: jest.fn(), resolveWorkspace: jest.fn() });
+  expect(post.mock.calls[1][0]).toMatchObject({ op: 'prepare', fallback_model: 'openai:gpt-4.1' });
+  expect(post.mock.calls[2][0]).not.toHaveProperty('fallback_model');
+  for (const bad of ['', 'gpt-4.1', 'openai:', 'openai:has space', { provider: 'openai' }]) {
+    expect(() => checkBuilderTestCommand({ ...request, fallback_model: bad })).toThrow(expect.objectContaining({ code: 'builder_test_protocol_error' }));
+  }
+  expect(() => checkBuilderTestCommand({ op: 'read', resource_id: 'r', session_id: 's', fallback_model: 'openai:gpt-4.1' }))
+    .toThrow(expect.objectContaining({ code: 'builder_test_protocol_error' }));
+});

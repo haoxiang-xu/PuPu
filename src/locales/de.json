@@ -958,7 +958,9 @@
         "running": "Läuft…",
         "waiting": "Wartet unten auf deine Antwort.",
         "conflict": "Dies wurde anderswo gespeichert. Löse das zuerst über der Zeichenfläche.",
-        "uncertain": "Die letzte Anfrage wurde nicht bestätigt. Aktualisiere, um das Protokoll zu sehen, bevor du erneut sendest."
+        "uncertain": "Die letzte Anfrage wurde nicht bestätigt. Aktualisiere, um das Protokoll zu sehen, bevor du erneut sendest.",
+        "uses_chosen_model": "„{node}“ hat kein eigenes Modell, daher nutzt dieser Test das unten gewählte.",
+        "pick_model": "„{node}“ hat kein eigenes Modell. Wähle unten eines, um es zu testen."
       },
       "problem": {
         "no_model": "„{node}“ hat kein Modell ausgewählt.",
@@ -992,12 +994,10 @@
       "no_tools": "Keine zusätzlichen Tools",
       "real_tools": "Tests rufen echte Tools mit ihren üblichen Berechtigungen auf.",
       "view_chat_run": "Lauf im Chat ansehen",
-      "message": "Testnachricht",
       "message_placeholder": "Nachricht an diesen Agent…",
-      "send": "Senden",
+      "message_placeholder_unsaved": "Nachricht an diesen Agent… (Änderungen werden zuerst gespeichert)",
       "run": "Ausführen",
       "save_and_run": "Speichern und ausführen",
-      "save_and_send": "Speichern und senden",
       "stop": "Stoppen",
       "you": "Du",
       "text_mode": "Text",

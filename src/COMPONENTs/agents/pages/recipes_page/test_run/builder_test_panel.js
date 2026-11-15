@@ -1,13 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
-import TextField from "../../../../../BUILTIN_COMPONENTs/input/textfield";
+import ChatInput from "../../../../chat-input/chat_input";
 import PanelSelect from "../detail_panel/panel_select";
 import PanelHeader from "../detail_panel/panel_header";
 import { Block, FoldBlock } from "../detail_panel/process_timeline";
 import {
   Region, SettingRow, hairline, note, pickerSelectProps, pickerSlotStyle, primaryButtonStyle, problem as problemOf,
-  statusColor, text as textColor, textFieldFill,
+  statusColor, text as textColor,
 } from "../detail_panel/panel_style";
 import { StreamingMessageStoreContext } from "../../../../chat-bubble/components/streaming_message_store_context";
 import { api } from "../../../../../SERVICEs/api";
@@ -16,7 +16,7 @@ import { can_preflight } from "../skeleton_resource_session";
 import { safe_text } from "../document_values";
 import WorkflowTestInputs, { workflow_test_interface_key } from "./workflow_test_inputs";
 import useBuilderTest from "./use_builder_test";
-import { LIVE_STATUSES, panel_state } from "./test_status";
+import { LIVE_STATUSES, own_model_id, panel_state, unconfigured_agents } from "./test_status";
 import { AgentTurn, StatusDot, WorkflowRun, secondaryButtonStyle } from "./test_result";
 
 /* The Test panel: try the Agent or Workflow on screen without leaving the
@@ -30,8 +30,13 @@ import { AgentTurn, StatusDot, WorkflowRun, secondaryButtonStyle } from "./test_
  *   3. what came back: an Agent as a conversation, a Workflow as its latest
  *      result with the earlier ones folded under it;
  *   4. the run's settings (workspace, extra tools), folded;
- *   5. at the bottom, always in view, the one thing to press: Send for an
- *      Agent, Run for a Workflow, Stop while it runs.
+ *   5. at the bottom, always in view: for an Agent, the chat's own composer
+ *      (its model, tools and workspace in the same attach row); for a
+ *      Workflow, Run. Stop while it runs.
+ *
+ * An Agent node the author left with no model runs with the model picked in
+ * that composer, as a chat would; a node with its own model keeps it, and the
+ * composer's model pill then shows that model and cannot be changed.
  *
  * The run itself belongs to `useBuilderTest`: this file only draws it. */
 
@@ -125,6 +130,10 @@ export default function BuilderTestPanel({ active, session, onSave, onCheck, onO
   const [problems, setProblems] = useState([]);
   const [workspace, setWorkspace] = useState("");
   const [toolkits, setToolkits] = useState([]);
+  /* The Agent composer's own choices, as the chat keeps them. */
+  const [workspaceIds, setWorkspaceIds] = useState([]);
+  const [modelCatalog, setModelCatalog] = useState(null);
+  const [pickedModel, setPickedModel] = useState("");
   const resource = session.resource_id || session.document?.id;
   const kind = session.document?.kind;
   const inputContract = useMemo(() => (kind === "workflow" ? workflow_test_interface_key(session.document) : ""), [kind, session.document]);
@@ -137,14 +146,29 @@ export default function BuilderTestPanel({ active, session, onSave, onCheck, onO
     checked.current = version;
     onCheck();
   }, [active, onCheck, resource, session]);
-  useEffect(() => { setMessage(""); setWorkspace(""); setToolkits([]); }, [resource]);
+  useEffect(() => { setMessage(""); setWorkspace(""); setToolkits([]); setWorkspaceIds([]); }, [resource]);
+  useEffect(() => {
+    if (!active || kind !== "agent") return undefined;
+    let wanted = true;
+    api.unchain.getModelCatalog?.()
+      .then((catalog) => {
+        if (!wanted || !catalog) return;
+        setModelCatalog(catalog);
+        setPickedModel((picked) => picked || catalog.activeModel || "");
+      })
+      .catch(() => {});
+    return () => { wanted = false; };
+  }, [active, kind]);
+  const needsModel = kind === "agent" && unconfigured_agents(session.document).length > 0;
+  const ownModel = kind === "agent" ? own_model_id(session.document) : null;
+  const fallbackModel = needsModel && pickedModel ? pickedModel : null;
   useEffect(() => { setValues({}); setProblems([]); }, [resource, inputContract]);
 
   const current = view?.session.resource_id === resource ? view : null;
   const runs = current?.runs || [];
   const last = runs.at(-1);
   const running = Boolean(last && LIVE_STATUSES.has(last.status));
-  const state = panel_state({ session, kind, last, uncertain }, t);
+  const state = panel_state({ session, kind, last, uncertain, fallbackModel }, t);
   const traceContext = useMemo(() => ({ chatId: current?.session.id || "", store: null, notifyStreamingContentCommitted: null }), [current?.session.id]);
 
   /* An Agent's conversation reads downwards: keep its newest turn in view. */
@@ -159,7 +183,9 @@ export default function BuilderTestPanel({ active, session, onSave, onCheck, onO
     || (kind === "workflow" && problems.length > 0) || Boolean(state.blocks);
   const unsaved = session.dirty || !session.edit_token;
   const start = async () => {
-    const result = await controller.start({ values: kind === "agent" ? { message } : values, toolkits, workspace_id: workspace });
+    const result = await controller.start(kind === "agent"
+      ? { values: { message }, toolkits, workspace_id: workspaceIds[0] || "", fallback_model: fallbackModel }
+      : { values, toolkits, workspace_id: workspace });
     if (result && kind === "agent") setMessage("");
   };
   const observe = (run) => onObserve && onObserve({
@@ -236,36 +262,41 @@ export default function BuilderTestPanel({ active, session, onSave, onCheck, onO
               </Block>
             )}
 
-            <RunSettings active={active} busy={busy} running={running} workspace={workspace} setWorkspace={setWorkspace}
-              toolkits={toolkits} setToolkits={setToolkits} isDark={isDark} />
+            {kind === "workflow" && (
+              <RunSettings active={active} busy={busy} running={running} workspace={workspace} setWorkspace={setWorkspace}
+                toolkits={toolkits} setToolkits={setToolkits} isDark={isDark} />
+            )}
           </div>
 
-          <div style={{ padding: "10px 16px 14px", display: "flex", gap: 8, alignItems: "flex-end", flexShrink: 0,
-            borderTop: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}` }}>
-            {kind === "agent" && (
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <TextField value={message} set_value={setMessage} max_display_rows={5} aria_label={t("agents.test_run.message")} disabled={busy}
-                  placeholder={t("agents.test_run.message_placeholder")}
-                  on_key_down={(event) => {
-                    if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent?.isComposing) {
-                      event.preventDefault();
-                      if (!disabled && message.trim()) start();
-                    }
-                  }}
-                  style={{ ...textFieldFill(isDark), width: "100%", minWidth: 0, fontSize: 12.5, padding: 7 }} />
-              </div>
-            )}
-            {running ? (
-              <Button label={t("agents.test_run.stop")} prefix_icon="stop" onClick={() => controller.stop(last)} disabled={busy}
-                style={{ ...primaryButtonStyle(isDark), ...(kind === "workflow" ? { flex: 1 } : {}) }} />
-            ) : (
-              <Button prefix_icon={kind === "agent" ? undefined : "play"} onClick={start} disabled={Boolean(disabled || (kind === "agent" && !message.trim()))}
-                label={t(kind === "agent"
-                  ? unsaved ? "agents.test_run.save_and_send" : "agents.test_run.send"
-                  : unsaved ? "agents.test_run.save_and_run" : "agents.test_run.run")}
-                style={{ ...primaryButtonStyle(isDark), ...(kind === "workflow" ? { flex: 1 } : {}) }} />
-            )}
-          </div>
+          {kind === "agent" ? (
+            <div data-testid="test-run-composer" style={{ padding: "6px 12px 12px", flexShrink: 0 }}>
+              <ChatInput compact value={message} onChange={setMessage}
+                onSend={() => { if (!disabled && message.trim()) start(); }}
+                onStop={() => controller.stop(last)} isStreaming={running}
+                sendDisabled={Boolean(disabled || !message.trim())}
+                placeholder={t(unsaved ? "agents.test_run.message_placeholder_unsaved" : "agents.test_run.message_placeholder")}
+                showAttachments attachmentsEnabled={false} onAttachFile={() => {}}
+                modelCatalog={modelCatalog || undefined}
+                selectedModelId={needsModel ? pickedModel : ownModel || pickedModel}
+                onSelectModel={setPickedModel}
+                modelSelectDisabled={!needsModel || busy || running}
+                showAgentSelector={false}
+                selectedToolkits={toolkits} onToolkitsChange={setToolkits} toolSelectDisabled={busy || running}
+                selectedWorkspaceIds={workspaceIds} onWorkspaceIdsChange={setWorkspaceIds} />
+            </div>
+          ) : (
+            <div style={{ padding: "10px 16px 14px", display: "flex", gap: 8, alignItems: "flex-end", flexShrink: 0,
+              borderTop: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}` }}>
+              {running ? (
+                <Button label={t("agents.test_run.stop")} prefix_icon="stop" onClick={() => controller.stop(last)} disabled={busy}
+                  style={{ ...primaryButtonStyle(isDark), flex: 1 }} />
+              ) : (
+                <Button prefix_icon="play" onClick={start} disabled={Boolean(disabled)}
+                  label={t(unsaved ? "agents.test_run.save_and_run" : "agents.test_run.run")}
+                  style={{ ...primaryButtonStyle(isDark), flex: 1 }} />
+              )}
+            </div>
+          )}
         </div>
       </div>
     </StreamingMessageStoreContext.Provider>

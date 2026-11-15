@@ -612,6 +612,7 @@ const AttachPanel = forwardRef(({
      resource and a legacy Recipe can carry one spelling, and two resources can
      too, so the name is only ever a label here. */
   skeletonAgentOptions = [],
+  showAgentSelector: agentSelectorWanted = true,
   selectedSkeletonAgentId = "",
   onSelectSkeletonAgent,
   queueItems = [],
@@ -855,7 +856,7 @@ const AttachPanel = forwardRef(({
      that can be opened is the smaller price. A character chat is excluded: it
      runs its character, the store forces its Agent id to "", and the model
      pill beside this row is hidden there too. */
-  const showAgentSelector = isAgentsFeatureEnabled && showModelSelector;
+  const showAgentSelector = isAgentsFeatureEnabled && showModelSelector && agentSelectorWanted;
 
   const handleAgentSelect = useCallback(
     (next) => {

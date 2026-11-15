@@ -958,7 +958,9 @@
         "running": "Ejecutando…",
         "waiting": "Esperando tu respuesta abajo.",
         "conflict": "Se guardó en otro lugar. Resuélvelo primero encima del lienzo.",
-        "uncertain": "La última solicitud no se confirmó. Actualiza para ver lo registrado antes de volver a enviar."
+        "uncertain": "La última solicitud no se confirmó. Actualiza para ver lo registrado antes de volver a enviar.",
+        "uses_chosen_model": "«{node}» no tiene modelo propio, así que esta prueba usa el modelo elegido abajo.",
+        "pick_model": "«{node}» no tiene modelo propio. Elige uno abajo para probarlo."
       },
       "problem": {
         "no_model": "«{node}» no tiene modelo seleccionado.",
@@ -992,12 +994,10 @@
       "no_tools": "Sin herramientas extra",
       "real_tools": "Las pruebas usan herramientas reales con sus permisos habituales.",
       "view_chat_run": "Ver su ejecución en el chat",
-      "message": "Mensaje de prueba",
       "message_placeholder": "Escribe a este agente…",
-      "send": "Enviar",
+      "message_placeholder_unsaved": "Escribe a este agente… (los cambios se guardan primero)",
       "run": "Ejecutar",
       "save_and_run": "Guardar y ejecutar",
-      "save_and_send": "Guardar y enviar",
       "stop": "Detener",
       "you": "Tú",
       "text_mode": "Texto",

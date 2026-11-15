@@ -10,7 +10,7 @@ from skeleton_resource_store import SkeletonResourceStore, _resource_id, _digest
 from skeleton_workflow_snapshot import freeze_skeleton_workflow_dependencies
 
 
-def prepare_test_execution_material(resource_id, expected_edit_token, kind, *, store=None):
+def prepare_test_execution_material(resource_id, expected_edit_token, kind, *, store=None, draft_kernel=None):
     """Freeze a Builder test's exact saved root and closure in one read snapshot.
 
     Ordinary chat retains its Agent-only resolver. Only this explicit test
@@ -26,7 +26,7 @@ def prepare_test_execution_material(resource_id, expected_edit_token, kind, *, s
     with closing(store._connect()) as connection, connection:
         connection.execute('BEGIN')
         snapshot = _AdmissionStore(store, connection)
-        admitted = snapshot.preflight(resource_id)
+        admitted = snapshot.preflight(resource_id, draft_kernel=draft_kernel)
         if admitted['kind'] != kind:
             raise SkeletonResourceError("wrong_kind", ("kind",), "The saved resource has a different kind.")
         if admitted['edit_token'] != expected_edit_token:
@@ -66,9 +66,10 @@ class _AdmissionStore(SkeletonResourceStore):
         return self._record(frame, kind='resource', identity=row['resource_id'],
                             revision=row['edit_token'], managed=managed)
 
-    def preflight(self, resource_id, *, legacy_kernel=None):
+    def preflight(self, resource_id, *, legacy_kernel=None, draft_kernel=None):
         identity = _resource_id(resource_id, ('resource_id',))
-        return self._preflight_in_connection(self.connection, identity, legacy_kernel=legacy_kernel)
+        return self._preflight_in_connection(self.connection, identity, legacy_kernel=legacy_kernel,
+                                             draft_kernel=draft_kernel)
 
     def _published_row(self, connection, workflow_id, revision_id):
         row = connection.execute('''SELECT v.*,r.archived,r.kind FROM workflow_versions v

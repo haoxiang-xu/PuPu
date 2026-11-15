@@ -958,7 +958,9 @@
         "running": "Running…",
         "waiting": "Waiting for your answer below.",
         "conflict": "This was saved somewhere else. Resolve that above the canvas first.",
-        "uncertain": "The last request was not confirmed. Refresh to see what was recorded before sending again."
+        "uncertain": "The last request was not confirmed. Refresh to see what was recorded before sending again.",
+        "uses_chosen_model": "“{node}” has no model of its own, so this test uses the model picked below.",
+        "pick_model": "“{node}” has no model of its own. Pick one below to test it."
       },
       "problem": {
         "no_model": "“{node}” has no model selected.",
@@ -992,12 +994,10 @@
       "no_tools": "No extra tools",
       "real_tools": "Tests call real tools with their usual permissions.",
       "view_chat_run": "Watch it running in chat",
-      "message": "Test message",
       "message_placeholder": "Message this Agent…",
-      "send": "Send",
+      "message_placeholder_unsaved": "Message this Agent… (unsaved changes are saved first)",
       "run": "Run",
       "save_and_run": "Save and run",
-      "save_and_send": "Save and send",
       "stop": "Stop",
       "you": "You",
       "text_mode": "Text",

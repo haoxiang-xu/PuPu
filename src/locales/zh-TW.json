@@ -958,7 +958,9 @@
         "running": "正在執行…",
         "waiting": "正在等你回應，見下方。",
         "conflict": "它已在別處儲存，請先在畫布上方處理衝突。",
-        "uncertain": "上一次請求沒有得到確認。先重新整理查看記錄，再決定要不要重送。"
+        "uncertain": "上一次請求沒有得到確認。先重新整理查看記錄，再決定要不要重送。",
+        "uses_chosen_model": "「{node}」沒有自己的模型，這次測試用下方選的模型。",
+        "pick_model": "「{node}」沒有自己的模型，在下方選一個模型就能測試。"
       },
       "problem": {
         "no_model": "「{node}」還沒選模型。",
@@ -992,12 +994,10 @@
       "no_tools": "不加工具",
       "real_tools": "測試會真的呼叫這些工具，權限和聊天中相同。",
       "view_chat_run": "檢視它在聊天中的執行",
-      "message": "測試訊息",
       "message_placeholder": "傳一則訊息給這個智慧體…",
-      "send": "送出",
+      "message_placeholder_unsaved": "傳一則訊息給這個智慧體…（會先儲存修改）",
       "run": "執行",
       "save_and_run": "儲存並執行",
-      "save_and_send": "儲存並送出",
       "stop": "停止",
       "you": "你",
       "text_mode": "文字",

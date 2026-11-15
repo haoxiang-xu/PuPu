@@ -96,8 +96,10 @@ export const useChatInputModels = ({ model_catalog, selected_model_id }) => {
 
   useEffect(() => {
     let cancelled = false;
-    api.ollama
-      .listChatModels()
+    /* A host without the Ollama bridge (a page that mounts this composer
+       outside the chat) simply lists no local models. */
+    Promise.resolve()
+      .then(() => api.ollama.listChatModels())
       .then((models) => {
         if (!cancelled) {
           setLiveOllamaModels(models.map((m) => m.name));

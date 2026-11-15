@@ -11,14 +11,18 @@ const opened={schema:'pupu.builder-test.v1',session:{id:'builder-test-demo',reso
 const completed={...opened,runs:[{id:'builder-run-one',request_id:'req-1',edit_token:'edit-A',definition_digest:'a'.repeat(64),
   inputs:{message:'hello'},status:'completed',output:{message:'reply'},error:null,pending:null,graphs:[],events:[],trace_complete:true}]};
 beforeEach(()=>{builderTestCommand.mockReset();builderTestCommand.mockResolvedValue(opened);});
+/* The Agent composer is the chat's own: its text box is named by its
+   placeholder, and Enter sends. */
+const composer=()=>screen.getByRole('textbox',{name:/^Message this Agent…/});
+const send=()=>fireEvent.keyDown(composer(),{key:'Enter'});
 
 test('opening only reads; explicit send uses a dedicated session and exact saved token',async()=>{
   render(<BuilderTestPanel active session={session} isDark={false} onSave={jest.fn()} />);
   await waitFor(()=>expect(builderTestCommand).toHaveBeenCalledWith({op:'open',resource_id:'agent-demo',kind:'agent'}));
   expect(builderTestCommand.mock.calls.filter(([request])=>request.op==='start')).toHaveLength(0);
-  fireEvent.change(screen.getByRole('textbox',{name:'Test message'}),{target:{value:'hello'}});
+  fireEvent.change(composer(),{target:{value:'hello'}});
   builderTestCommand.mockResolvedValue(completed);
-  fireEvent.click(screen.getByRole('button',{name:'Send'}));
+  send();
   await screen.findByText('reply');
   expect(builderTestCommand).toHaveBeenLastCalledWith(expect.objectContaining({op:'start',session_id:'builder-test-demo',resource_id:'agent-demo',
     expected_edit_token:'edit-A',inputs:{message:'hello'}}));
@@ -27,12 +31,12 @@ test('opening only reads; explicit send uses a dedicated session and exact saved
 test('save conflict preserves arguments and never starts the old draft',async()=>{
   const onSave=jest.fn().mockResolvedValue({...session,dirty:true,conflict:{code:'edit_conflict'}});
   render(<BuilderTestPanel active session={{...session,dirty:true}} isDark={false} onSave={onSave} />);
-  await screen.findByRole('textbox',{name:'Test message'});
-  fireEvent.change(screen.getByRole('textbox',{name:'Test message'}),{target:{value:'keep this'}});
-  fireEvent.click(screen.getByRole('button',{name:'Save and send'}));
+  await screen.findByRole('textbox',{name:/^Message this Agent…/});
+  fireEvent.change(composer(),{target:{value:'keep this'}});
+  send();
   await waitFor(()=>expect(onSave).toHaveBeenCalledTimes(1));
   expect(builderTestCommand.mock.calls.some(([request])=>request.op==='start')).toBe(false);
-  expect(screen.getByRole('textbox',{name:'Test message'})).toHaveValue('keep this');
+  expect(composer()).toHaveValue('keep this');
 });
 
 test('closing detaches without Stop and reopens the same completed session',async()=>{
@@ -62,8 +66,8 @@ test('saving a new draft continues the same explicit test action after the save 
     return <BuilderTestPanel active session={editor} isDark={false} onSave={save}/>;
   }
   render(<NewDraft/>);
-  fireEvent.change(screen.getByRole('textbox',{name:'Test message'}),{target:{value:'new draft'}});
-  fireEvent.click(screen.getByRole('button',{name:'Save and send'}));
+  fireEvent.change(composer(),{target:{value:'new draft'}});
+  send();
   await screen.findByText('reply');
   expect(builderTestCommand.mock.calls.filter(([request])=>request.op==='start')).toHaveLength(1);
 });
@@ -71,11 +75,12 @@ test('saving a new draft continues the same explicit test action after the save 
 test('an unconfirmed start is looked up, never automatically sent again',async()=>{
   render(<BuilderTestPanel active session={session} isDark={false}/>);
   await waitFor(()=>expect(builderTestCommand).toHaveBeenCalledTimes(1));
-  fireEvent.change(screen.getByRole('textbox',{name:'Test message'}),{target:{value:'send once'}});
+  fireEvent.change(composer(),{target:{value:'send once'}});
   builderTestCommand.mockRejectedValueOnce(Object.assign(new Error('unconfirmed'),{code:'builder_test_unconfirmed'}));
-  fireEvent.click(screen.getByRole('button',{name:'Send'}));
+  send();
   await screen.findByRole('alert');
-  expect(screen.getByRole('button',{name:'Send'})).toBeDisabled();
+  send();
+  expect(builderTestCommand.mock.calls.filter(([request])=>request.op==='start')).toHaveLength(1);
   builderTestCommand.mockResolvedValue(completed);
   fireEvent.click(screen.getByRole('button',{name:'Refresh'}));
   await screen.findByText('reply');
@@ -87,7 +92,8 @@ test('an unconfirmed start is looked up, never automatically sent again',async()
 test('the real v1 toolkit catalog name is submitted as the toolkit identity',async()=>{
   const catalog=jest.spyOn(api.unchain,'getToolkitCatalog').mockResolvedValue({toolkits:[{name:'core',tools:[]}],artifactKinds:[],count:1,source:'unchain'});
   try{
-    render(<BuilderTestPanel active session={session} isDark={false}/>);
+    builderTestCommand.mockResolvedValue(workflowOpened);
+    render(<BuilderTestPanel active session={workflowSession()} isDark={false}/>);
     await waitFor(()=>expect(builderTestCommand).toHaveBeenCalledTimes(1));
     fireEvent.click(screen.getByRole('button',{name:'Run settings'}));
     await act(async()=>{await Promise.resolve();});
@@ -97,9 +103,9 @@ test('the real v1 toolkit catalog name is submitted as the toolkit identity',asy
     fireEvent.keyDown(screen.getAllByRole('combobox')[1],{key:'ArrowDown'});
     fireEvent.keyDown(screen.getAllByRole('combobox')[1],{key:'Enter'});
     fireEvent.keyDown(screen.getAllByRole('combobox')[1],{key:'Escape'});
-    fireEvent.change(screen.getByRole('textbox',{name:'Test message'}),{target:{value:'tool scope'}});
-    builderTestCommand.mockResolvedValue(completed);
-    fireEvent.click(screen.getByRole('button',{name:'Send'}));
+    fireEvent.change(screen.getByRole('textbox',{name:'old',exact:true}),{target:{value:'tool scope'}});
+    builderTestCommand.mockResolvedValue(workflowOpened);
+    fireEvent.click(screen.getByRole('button',{name:'Run',exact:true}));
     await waitFor(()=>expect(builderTestCommand).toHaveBeenLastCalledWith(expect.objectContaining({op:'start',toolkits:['core']})));
   }finally{catalog.mockRestore();}
 });
@@ -114,8 +120,8 @@ test('a transient status-read failure keeps read-only polling without resending'
       .mockResolvedValue(completed);
     render(<BuilderTestPanel active session={session} isDark={false}/>);
     await act(async()=>{await Promise.resolve();});
-    fireEvent.change(screen.getByRole('textbox',{name:'Test message'}),{target:{value:'poll me'}});
-    fireEvent.click(screen.getByRole('button',{name:'Send'}));
+    fireEvent.change(composer(),{target:{value:'poll me'}});
+    send();
     await act(async()=>{await Promise.resolve();});
     await act(async()=>{jest.advanceTimersByTime(700);});
     expect(screen.getByRole('alert')).toHaveTextContent('temporary read race');
@@ -205,15 +211,58 @@ test('a Workflow result is its End outputs as a Name / Value table, and a failur
   expect(screen.getByTestId('test-workflow-output-count')).toHaveTextContent('3');
 });
 
-test('a refused check says which node to fix, blocks Run, and Go to node opens that node',async()=>{
-  const doc={...document,nodes:[{id:'start',type:'start',config:{execution:{outputs:[]}}},
-    {id:'agent',type:'agent',config:{execution:{inputs:[],outputs:[]},kernel_draft:{model:null,prompt:'p',max_iterations:null}}}]};
+const noModel={...document,nodes:[{id:'start',type:'start',config:{execution:{outputs:[]}}},
+  {id:'agent',type:'agent',config:{execution:{inputs:[],outputs:[]},kernel_draft:{model:null,prompt:'p',max_iterations:null}}}]};
+const noModelRefusal={ok:false,error:{code:'invalid_shape',path:['document','nodes',1,'config'],message:'Agent node requires execution and kernel configuration'}};
+
+test('an Agent with no model waits for one to be picked in the composer, and sends nothing until then',async()=>{
+  const models=jest.spyOn(api.unchain,'getModelCatalog').mockResolvedValue({activeModel:null,providers:{},modelCapabilities:{}});
+  try{
+    render(<BuilderTestPanel active isDark={false} session={{...session,document:noModel,preflight:noModelRefusal}}/>);
+    expect(await screen.findByTestId('skeleton-preflight-state')).toHaveTextContent('“Agent” has no model of its own. Pick one below to test it.');
+    fireEvent.change(composer(),{target:{value:'hello'}});
+    send();
+    expect(builderTestCommand.mock.calls.some(([request])=>request.op==='start')).toBe(false);
+  }finally{models.mockRestore();}
+});
+
+test('an Agent with no model runs with the composer model, which is sent as its identity only',async()=>{
+  const models=jest.spyOn(api.unchain,'getModelCatalog').mockResolvedValue({activeModel:'openai:gpt-test',providers:{openai:['gpt-test']},modelCapabilities:{}});
+  try{
+    render(<BuilderTestPanel active isDark={false} session={{...session,document:noModel,preflight:noModelRefusal}}/>);
+    await waitFor(()=>expect(screen.getByTestId('skeleton-preflight-state')).toHaveTextContent('“Agent” has no model of its own, so this test uses the model picked below.'));
+    fireEvent.change(composer(),{target:{value:'hello'}});
+    builderTestCommand.mockResolvedValue(completed);
+    send();
+    await waitFor(()=>expect(builderTestCommand).toHaveBeenLastCalledWith(expect.objectContaining({op:'start',fallback_model:'openai:gpt-test',inputs:{message:'hello'}})));
+  }finally{models.mockRestore();}
+});
+
+test('an Agent with its own model never sends the composer model',async()=>{
+  const models=jest.spyOn(api.unchain,'getModelCatalog').mockResolvedValue({activeModel:'openai:gpt-test',providers:{openai:['gpt-test']},modelCapabilities:{}});
+  const configured={...noModel,nodes:[noModel.nodes[0],{...noModel.nodes[1],config:{execution:{inputs:[],outputs:[]},
+    kernel:{profile:{id:'anthropic:claude-test',provider:'anthropic',model:'claude-test'}}}}]};
+  try{
+    render(<BuilderTestPanel active isDark={false} session={{...session,document:configured,preflight:{ok:true}}}/>);
+    await act(async()=>{await Promise.resolve();});
+    fireEvent.change(composer(),{target:{value:'hello'}});
+    builderTestCommand.mockResolvedValue(completed);
+    send();
+    await waitFor(()=>expect(builderTestCommand.mock.calls.some(([request])=>request.op==='start')).toBe(true));
+    expect(builderTestCommand.mock.calls.find(([request])=>request.op==='start')[0]).not.toHaveProperty('fallback_model');
+  }finally{models.mockRestore();}
+});
+
+test('any other refused check says which node to fix, blocks Run, and Go to node opens that node',async()=>{
   const onFix=jest.fn();
-  render(<BuilderTestPanel active isDark={false} onFix={onFix} session={{...session,document:doc,preflight:{ok:false,
-    error:{code:'invalid_shape',path:['document','nodes',1,'config'],message:'Agent node requires execution and kernel configuration'}}}}/>);
-  expect(await screen.findByTestId('skeleton-preflight-state')).toHaveTextContent('Can’t run yet: “Agent” has no model selected.');
-  fireEvent.change(screen.getByRole('textbox',{name:'Test message'}),{target:{value:'hello'}});
-  expect(screen.getByRole('button',{name:'Send'})).toBeDisabled();
+  const doc={...workflowSession().document,nodes:[{id:'start',type:'start',config:{execution:{outputs:[]}}},
+    {id:'switch',type:'switch_case',label:'Route',config:{execution:{cases:[],inputs:[]}}}]};
+  builderTestCommand.mockResolvedValue(workflowOpened);
+  render(<BuilderTestPanel active isDark={false} onFix={onFix} session={{...workflowSession(),document:doc,preflight:{ok:false,
+    error:{code:'invalid_shape',path:['document','nodes',1,'config','execution'],message:'execution config fields are invalid'}}}}/>);
+  expect(await screen.findByTestId('skeleton-preflight-state')).toHaveTextContent('Can’t run yet: “Route” has no value to switch on.');
+  fireEvent.change(screen.getByRole('textbox',{name:'old',exact:true}),{target:{value:'x'}});
+  expect(screen.getByRole('button',{name:'Run',exact:true})).toBeDisabled();
   fireEvent.click(screen.getByRole('button',{name:'Go to node'}));
-  expect(onFix).toHaveBeenCalledWith('agent');
+  expect(onFix).toHaveBeenCalledWith('switch');
 });

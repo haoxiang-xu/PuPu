@@ -92,6 +92,10 @@ const ChatInput = ({
   turnMutationHold = null,
   onTurnMutationRetry,
   onTurnMutationDiscard,
+  /* The Builder's Test panel borrows this composer for one Agent: there is
+     no other Agent to switch to, and the panel is narrow. */
+  showAgentSelector = true,
+  compact = false,
 }) => {
   const { t } = useTranslation();
   const placeholder = placeholderProp || t("chat.placeholder");
@@ -479,7 +483,7 @@ const ChatInput = ({
     <div
       style={{
         flexShrink: 0,
-        padding: "0px 20px 16px",
+        padding: compact ? 0 : "0px 20px 16px",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -489,7 +493,7 @@ const ChatInput = ({
         style={{
           width: "100%",
           maxWidth: 780,
-          padding: "0 20px",
+          padding: compact ? 0 : "0 20px",
           boxSizing: "border-box",
         }}
       >
@@ -534,8 +538,8 @@ const ChatInput = ({
             textarea_ref={inputRef}
             aria_label={placeholder}
             value={value}
-            min_rows={5}
-            max_display_rows={9}
+            min_rows={compact ? 3 : 5}
+            max_display_rows={compact ? 7 : 9}
             set_value={handleValueChange}
             placeholder={placeholder}
             overlay_render={renderCommandOverlay}
@@ -616,6 +620,7 @@ const ChatInput = ({
                       onSelectRecipe={onSelectRecipe}
                       recipeOptions={recipeOptions}
                       skeletonAgentOptions={skeletonAgentOptions}
+                      showAgentSelector={showAgentSelector}
                       selectedSkeletonAgentId={selectedSkeletonAgentId}
                       onSelectSkeletonAgent={onSelectSkeletonAgent}
                       queueItems={interjectState?.queueItems || []}

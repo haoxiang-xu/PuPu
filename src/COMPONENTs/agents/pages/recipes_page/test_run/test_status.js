@@ -51,7 +51,7 @@ export function explain_problem(error, document, t) {
     return { node_id: null, text: message };
   }
   const name = node_title(node, t).title;
-  if (lacks_model(node)) return { node_id: node.id, text: t("agents.test_run.problem.no_model", { node: name }) };
+  if (lacks_model(node)) return { node_id: node.id, name, no_model: true, text: t("agents.test_run.problem.no_model", { node: name }) };
   if (lacks_switch_value(node)) return { node_id: node.id, text: t("agents.test_run.problem.switch_value", { node: name }) };
   return {
     node_id: node.id,
@@ -62,7 +62,25 @@ export function explain_problem(error, document, t) {
 /* The one sentence at the top of the panel, its tone, and the one thing to do
    about it. Ordered by what the author has to deal with first.
    tone: "bad" | "wait" | "busy" | "good" | "idle". */
-export function panel_state({ session, kind, last, uncertain }, t) {
+/* The Agent nodes of a document that carry no model of their own. A test
+   runs them with the model picked in its composer. */
+export function unconfigured_agents(document) {
+  if (!record(document) || document.kind !== "agent" || !Array.isArray(document.nodes)) return [];
+  return document.nodes.filter((node) => record(node) && lacks_model(node));
+}
+
+/* The model an Agent document already names for itself: its first Agent
+   node's Kernel profile, as the composer's "provider:model" id. */
+export function own_model_id(document) {
+  if (!record(document) || !Array.isArray(document.nodes)) return null;
+  const node = document.nodes.find((item) => record(item) && item.type === "agent" && record(item.config) && record(item.config.kernel));
+  const profile = node && record(node.config.kernel.profile) ? node.config.kernel.profile : null;
+  if (!profile) return null;
+  if (typeof profile.id === "string" && profile.id) return profile.id;
+  return typeof profile.provider === "string" && typeof profile.model === "string" ? `${profile.provider}:${profile.model}` : null;
+}
+
+export function panel_state({ session, kind, last, uncertain, fallbackModel }, t) {
   if (session.conflict) return { tone: "bad", text: t("agents.test_run.state.conflict") };
   if (uncertain) return { tone: "bad", text: t("agents.test_run.state.uncertain"), action: "refresh" };
   if (last && last.status === "waiting") return { tone: "wait", text: t("agents.test_run.state.waiting") };
@@ -72,6 +90,13 @@ export function panel_state({ session, kind, last, uncertain }, t) {
   if (preflight && preflight.stale) return { tone: "bad", text: t("agents.save.preflight_stale"), action: "recheck" };
   if (preflight && !preflight.ok) {
     const problem = explain_problem(preflight.error, session.document, t);
+    /* An Agent with no model of its own runs with the model picked in the
+       composer, as a chat does; with none picked it waits for one. */
+    if (problem && problem.no_model && kind === "agent") {
+      return fallbackModel
+        ? { tone: "good", text: t("agents.test_run.state.uses_chosen_model", { node: problem.name }) }
+        : { tone: "wait", text: t("agents.test_run.state.pick_model", { node: problem.name }), blocks: true };
+    }
     return {
       tone: "bad",
       text: t("agents.test_run.state.not_ready", { problem: problem ? problem.text : t("agents.save.not_ready_to_run") }),

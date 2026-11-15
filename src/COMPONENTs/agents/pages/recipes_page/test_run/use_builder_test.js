@@ -83,6 +83,9 @@ export default function useBuilderTest({active,session,onSave}){
     const request={op:'start',session_id:held.session.id,resource_id:resource,expected_edit_token:target.edit_token,
       request_id:`builder-request-${window.crypto?.randomUUID?.()||`${Date.now()}-${Math.random().toString(36).slice(2)}`}`,
       inputs:inputs.values,toolkits:inputs.toolkits,workspace_id:inputs.workspace_id};
+    // The model picked in the composer, for Agent nodes the author left with
+    // no model. Only its identity is sent; the runtime builds its profile.
+    if(kind==='agent'&&typeof inputs.fallback_model==='string'&&inputs.fallback_model)request.fallback_model=inputs.fallback_model;
     if(kind==='agent'){
       const settings=readMemoryAgentSettings();
       request.memory_agent_config={displayName:settings.displayName,additionalInstructions:settings.additionalInstructions,

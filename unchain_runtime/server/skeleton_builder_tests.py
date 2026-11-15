@@ -10,6 +10,7 @@ from hashlib import sha256
 import json
 import os
 from pathlib import Path
+import re
 import sqlite3
 import threading
 from uuid import uuid4
@@ -25,6 +26,28 @@ CONTEXT_FIELDS={'toolkits','skills','workspace_root','workspace_roots','disable_
 TRANSIENT_FIELDS={'skeleton_credentials','skeleton_credential_scope','openaiApiKey','openai_api_key',
     'anthropicApiKey','anthropic_api_key','geminiApiKey','gemini_api_key'}
 _TRACE_REDACTION_POLICY = 'registered-secrets-v1'
+_MODEL_ID = re.compile(r'[a-z0-9][a-z0-9_.-]{0,63}:[^\s]{1,200}')
+# The editor's own defaults for a Kernel it writes when a model is picked
+# (kernel_config.js `new_kernel_config`), so a test's fallback is the Kernel
+# the author would get by picking the same model on the node.
+_DEFAULT_MAX_ITERATIONS = 12
+
+
+def fallback_kernel(model_id):
+    """The Kernel an unconfigured Agent runs with in a test, for one model.
+
+    Only a model identity crosses from the renderer. The profile — endpoint,
+    protocol, credential reference, window and output cap — is this host's
+    own catalog entry, the same one the node's model picker offers, so a
+    test can never carry a provider endpoint or a secret.
+    """
+    from skeleton_kernel_profiles import kernel_profiles
+    profile=next((row for row in kernel_profiles()['profiles'] if row.get('id')==model_id),None)
+    if profile is None:
+        _fail('test_model_unavailable','This model cannot run an Agent here. Pick another one.',('fallback_model',),409)
+    window=profile['context_window']; limit=profile['output_limit']
+    return {'schema_version':1,'profile':deepcopy(profile),'prompt':'','max_iterations':_DEFAULT_MAX_ITERATIONS,
+        'output_tokens':max(1,min(limit,window-1)),'history':'root','overflow':'error','json_schema':None}
 
 
 def runtime_import_observation(manifest):
@@ -166,7 +189,7 @@ class BuilderTestSessions:
             if status not in _TERMINAL and status!='ready':
                 _fail('test_already_active','Resume or stop the current test first.',('session_id',))
 
-    def prepare(self, session, resource, token, inputs, request_id, *, memory_agent_config=None, context=None):
+    def prepare(self, session, resource, token, inputs, request_id, *, memory_agent_config=None, context=None, fallback_model=None):
         from skeleton_code_admission import prepare_test_execution_material
         from unchain.skeleton.workflow_inputs import bind_workflow_inputs
         from route_chat import _sanitize_memory_agent_config
@@ -179,7 +202,12 @@ class BuilderTestSessions:
         if type(inputs) is not dict:
             _fail('invalid_type','Test arguments must be an object.',('inputs',),400)
         context=freeze_test_context(context or {})
-        fingerprint=sha256(_json({'resource':resource,'token':token,'inputs':inputs,'memory_agent_config':memory_config,'context':context}).encode()).hexdigest()
+        if fallback_model is not None and (type(fallback_model) is not str or not _MODEL_ID.fullmatch(fallback_model)):
+            _fail('invalid_value','The chosen model is not a model identity.',('fallback_model',),400)
+        identity={'resource':resource,'token':token,'inputs':inputs,'memory_agent_config':memory_config,'context':context}
+        if fallback_model is not None:
+            identity['fallback_model']=fallback_model
+        fingerprint=sha256(_json(identity).encode()).hexdigest()
         with _LOCK, self._db() as db:
             db.execute('BEGIN IMMEDIATE')
             owner=self._session(db,session,resource)
@@ -192,7 +220,10 @@ class BuilderTestSessions:
                 self._assert_idle(db,session,resource)
                 if db.execute('SELECT count(*) FROM runs WHERE session_id=?',(session,)).fetchone()[0]>=100:
                     _fail('test_session_full','Start a new test conversation.',('session_id',))
-                selected,deps=prepare_test_execution_material(resource,token,owner['kind'])
+                if fallback_model is not None and owner['kind']!='agent':
+                    _fail('invalid_value','Only an Agent test takes a model.',('fallback_model',),400)
+                draft=fallback_kernel(fallback_model) if fallback_model is not None else None
+                selected,deps=prepare_test_execution_material(resource,token,owner['kind'],draft_kernel=draft)
                 if owner['kind']=='workflow':
                     normalized=bind_workflow_inputs(selected.to_dict()['document'],inputs)
                 else:

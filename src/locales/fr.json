@@ -958,7 +958,9 @@
         "running": "Exécution…",
         "waiting": "En attente de votre réponse ci-dessous.",
         "conflict": "Enregistré ailleurs. Réglez d’abord le conflit au-dessus du canevas.",
-        "uncertain": "La dernière requête n’a pas été confirmée. Actualisez pour voir ce qui a été enregistré avant de renvoyer."
+        "uncertain": "La dernière requête n’a pas été confirmée. Actualisez pour voir ce qui a été enregistré avant de renvoyer.",
+        "uses_chosen_model": "« {node} » n’a pas de modèle propre ; ce test utilise donc celui choisi ci-dessous.",
+        "pick_model": "« {node} » n’a pas de modèle propre. Choisissez-en un ci-dessous pour le tester."
       },
       "problem": {
         "no_model": "« {node} » n’a pas de modèle sélectionné.",
@@ -992,12 +994,10 @@
       "no_tools": "Aucun outil supplémentaire",
       "real_tools": "Les tests appellent de vrais outils avec leurs permissions habituelles.",
       "view_chat_run": "Voir son exécution dans le chat",
-      "message": "Message de test",
       "message_placeholder": "Écrire à cet agent…",
-      "send": "Envoyer",
+      "message_placeholder_unsaved": "Écrire à cet agent… (les modifications sont enregistrées d’abord)",
       "run": "Exécuter",
       "save_and_run": "Enregistrer et exécuter",
-      "save_and_send": "Enregistrer et envoyer",
       "stop": "Arrêter",
       "you": "Vous",
       "text_mode": "Texte",

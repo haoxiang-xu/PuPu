@@ -1,11 +1,15 @@
 // Main is the only credential injector. Public commands contain no secrets,
-// model override, owner/attempt alias or provider endpoint.
+// owner/attempt alias or provider endpoint. An Agent start may name one model
+// (`fallback_model`, "provider:model") for Agent nodes the author left with no
+// model; the runtime derives that model's profile from its own catalog and
+// never applies it to a node that has its own Kernel.
 const SCHEMA = 'pupu.builder-test.v1';
 const isRecord=value=>value!==null && typeof value==='object' && !Array.isArray(value);
 const closed=(value,fields)=>isRecord(value) && Reflect.ownKeys(value).length===fields.length && fields.every(key=>
   Object.prototype.hasOwnProperty.call(value,key) && Object.prototype.hasOwnProperty.call(Object.getOwnPropertyDescriptor(value,key),'value'));
 const fail=()=>{ throw Object.assign(new Error('Invalid Builder test command or response'),{code:'builder_test_protocol_error'}); };
 const id=value=>typeof value==='string' && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/.test(value);
+const modelId=value=>typeof value==='string' && /^[a-z0-9][a-z0-9_.-]{0,63}:\S{1,200}$/.test(value);
 const FIELDS={open:['resource_id','kind'],new:['resource_id','kind'],read:['resource_id','session_id'],
   start:['resource_id','session_id','expected_edit_token','request_id','inputs','toolkits','workspace_id'],
   respond:['resource_id','session_id','run_id','interaction_id','approved','answer'],
@@ -31,7 +35,10 @@ const copyJson=(value,seen=new Set(),depth=0)=>{
 const checkBuilderTestCommand=value=>{
   value=copyJson(value);
   const config=value?.op==='start'&&Object.prototype.hasOwnProperty.call(value,'memory_agent_config');
-  if (!isRecord(value) || !Object.prototype.hasOwnProperty.call(FIELDS,value.op) || !closed(value,['op',...FIELDS[value.op],...(config?['memory_agent_config']:[])])) fail();
+  const fallback=value?.op==='start'&&Object.prototype.hasOwnProperty.call(value,'fallback_model');
+  if (!isRecord(value) || !Object.prototype.hasOwnProperty.call(FIELDS,value.op) ||
+    !closed(value,['op',...FIELDS[value.op],...(config?['memory_agent_config']:[]),...(fallback?['fallback_model']:[])])) fail();
+  if(fallback&&!modelId(value.fallback_model))fail();
   if(config&&(!closed(value.memory_agent_config,['displayName','additionalInstructions','provider','modelId'])||
     Object.values(value.memory_agent_config).some(field=>typeof field!=='string')))fail();
   for(const key of ['resource_id','session_id','run_id','interaction_id','request_id']) if(key in value && !id(value[key])) fail();
@@ -100,7 +107,8 @@ const runBuilderTestCommand=async(payload,{post,resolveCredentials,resolveWorksp
   await capable();
   const prepared=await send(request.op==='start'
     ? {op:'prepare',session_id:request.session_id,resource_id:request.resource_id,expected_edit_token:request.expected_edit_token,
-      request_id:request.request_id,inputs:request.inputs,context,...(request.memory_agent_config?{memory_agent_config:request.memory_agent_config}:{})}
+      request_id:request.request_id,inputs:request.inputs,context,...(request.memory_agent_config?{memory_agent_config:request.memory_agent_config}:{}),
+      ...(request.fallback_model?{fallback_model:request.fallback_model}:{})}
     : {op:'resume_requirements',session_id:request.session_id,resource_id:request.resource_id,run_id:request.run_id,interaction_id:request.interaction_id});
   if(!closed(prepared,['schema','session_id','resource_id','run_id','credential_query','requirements']) || prepared.schema!==SCHEMA ||
     prepared.session_id!==request.session_id || prepared.resource_id!==request.resource_id || !id(prepared.run_id) ||
