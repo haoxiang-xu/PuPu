@@ -958,14 +958,16 @@
         "running": "正在运行…",
         "waiting": "在等你回应，见下方。",
         "conflict": "它在别处被保存过，请先在画布上方处理冲突。",
-        "uncertain": "上一次请求没有得到确认。先刷新看看记录，再决定要不要重发。",
+        "uncertain": "没收到回应，不确定这条消息有没有发出去。点「刷新」看看记录，没有的话再发一次。",
         "uses_chosen_model": "「{node}」没有自己的模型，这次测试用下面选的模型。",
-        "pick_model": "「{node}」没有自己的模型，在下面选一个模型就能测试。"
+        "pick_model": "「{node}」没有自己的模型，在下面选一个模型就能测试。",
+        "uncertain_restart": "如果刚更新过 PuPu，先完全退出再打开。"
       },
       "problem": {
         "no_model": "「{node}」还没选模型。",
         "switch_value": "「{node}」还没选要判断的值。",
-        "node": "「{node}」：{message}"
+        "node": "「{node}」：{message}",
+        "version_mismatch": "PuPu 的界面和后台不是同一个版本，请求被拒了，什么都没运行。完全退出 PuPu 再打开，然后重试。"
       },
       "inputs": "输入",
       "result": "结果",

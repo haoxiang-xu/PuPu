@@ -8,6 +8,10 @@ const isRecord=value=>value!==null && typeof value==='object' && !Array.isArray(
 const closed=(value,fields)=>isRecord(value) && Reflect.ownKeys(value).length===fields.length && fields.every(key=>
   Object.prototype.hasOwnProperty.call(value,key) && Object.prototype.hasOwnProperty.call(Object.getOwnPropertyDescriptor(value,key),'value'));
 const fail=()=>{ throw Object.assign(new Error('Invalid Builder test command or response'),{code:'builder_test_protocol_error'}); };
+// A command this Main refuses before anything is sent: definitive, never an
+// "it may have started" — the renderer must not ask the author to look it up.
+// The usual cause is a renderer newer than the Main it talks to.
+const refuse=()=>{ throw Object.assign(new Error('This version of PuPu does not accept that Test Run request'),{code:'builder_test_command_refused',status:400}); };
 const id=value=>typeof value==='string' && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/.test(value);
 const modelId=value=>typeof value==='string' && /^[a-z0-9][a-z0-9_.-]{0,63}:\S{1,200}$/.test(value);
 const FIELDS={open:['resource_id','kind'],new:['resource_id','kind'],read:['resource_id','session_id'],
@@ -18,15 +22,15 @@ const FIELDS={open:['resource_id','kind'],new:['resource_id','kind'],read:['reso
 const copyJson=(value,seen=new Set(),depth=0)=>{
   if(value===null||typeof value==='string'||typeof value==='boolean')return value;
   if(typeof value==='number'&&Number.isFinite(value))return value;
-  if(depth>64||typeof value!=='object'||seen.has(value))fail();
-  if(!Array.isArray(value)&&(!isRecord(value)||![Object.prototype,null].includes(Object.getPrototypeOf(value))))fail();
+  if(depth>64||typeof value!=='object'||seen.has(value))refuse();
+  if(!Array.isArray(value)&&(!isRecord(value)||![Object.prototype,null].includes(Object.getPrototypeOf(value))))refuse();
   seen.add(value);
   const output=Array.isArray(value)?[]:{};
-  if(Array.isArray(value)&&Reflect.ownKeys(value).length!==value.length+1)fail();
+  if(Array.isArray(value)&&Reflect.ownKeys(value).length!==value.length+1)refuse();
   for(const key of Reflect.ownKeys(value)){
     if(Array.isArray(value)&&key==='length')continue;
     const descriptor=Object.getOwnPropertyDescriptor(value,key);
-    if(typeof key!=='string'||!descriptor.enumerable||!Object.prototype.hasOwnProperty.call(descriptor,'value'))fail();
+    if(typeof key!=='string'||!descriptor.enumerable||!Object.prototype.hasOwnProperty.call(descriptor,'value'))refuse();
     Object.defineProperty(output,key,{value:copyJson(descriptor.value,seen,depth+1),enumerable:true,writable:true,configurable:true});
   }
   seen.delete(value);return output;
@@ -37,17 +41,17 @@ const checkBuilderTestCommand=value=>{
   const config=value?.op==='start'&&Object.prototype.hasOwnProperty.call(value,'memory_agent_config');
   const fallback=value?.op==='start'&&Object.prototype.hasOwnProperty.call(value,'fallback_model');
   if (!isRecord(value) || !Object.prototype.hasOwnProperty.call(FIELDS,value.op) ||
-    !closed(value,['op',...FIELDS[value.op],...(config?['memory_agent_config']:[]),...(fallback?['fallback_model']:[])])) fail();
-  if(fallback&&!modelId(value.fallback_model))fail();
+    !closed(value,['op',...FIELDS[value.op],...(config?['memory_agent_config']:[]),...(fallback?['fallback_model']:[])])) refuse();
+  if(fallback&&!modelId(value.fallback_model))refuse();
   if(config&&(!closed(value.memory_agent_config,['displayName','additionalInstructions','provider','modelId'])||
-    Object.values(value.memory_agent_config).some(field=>typeof field!=='string')))fail();
-  for(const key of ['resource_id','session_id','run_id','interaction_id','request_id']) if(key in value && !id(value[key])) fail();
-  if(['open','new'].includes(value.op) && !['agent','workflow'].includes(value.kind)) fail();
+    Object.values(value.memory_agent_config).some(field=>typeof field!=='string')))refuse();
+  for(const key of ['resource_id','session_id','run_id','interaction_id','request_id']) if(key in value && !id(value[key])) refuse();
+  if(['open','new'].includes(value.op) && !['agent','workflow'].includes(value.kind)) refuse();
   if(value.op==='start' && (typeof value.expected_edit_token!=='string' || !value.expected_edit_token ||
     !isRecord(value.inputs) || !Array.isArray(value.toolkits) || value.toolkits.some(tool=>typeof tool!=='string'||!tool.trim()) ||
-    new Set(value.toolkits).size!==value.toolkits.length || typeof value.workspace_id!=='string' || (value.workspace_id!==''&&!id(value.workspace_id)))) fail();
-  if(value.op==='respond' && (typeof value.approved!=='boolean' || (value.answer!==null && !isRecord(value.answer)))) fail();
-  if(Buffer.byteLength(JSON.stringify(value),'utf8')>2097152)fail();
+    new Set(value.toolkits).size!==value.toolkits.length || typeof value.workspace_id!=='string' || (value.workspace_id!==''&&!id(value.workspace_id)))) refuse();
+  if(value.op==='respond' && (typeof value.approved!=='boolean' || (value.answer!==null && !isRecord(value.answer)))) refuse();
+  if(Buffer.byteLength(JSON.stringify(value),'utf8')>2097152)refuse();
   return value;
 };
 

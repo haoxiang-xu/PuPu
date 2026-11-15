@@ -80,9 +80,25 @@ export function own_model_id(document) {
   return typeof profile.provider === "string" && typeof profile.model === "string" ? `${profile.provider}:${profile.model}` : null;
 }
 
-export function panel_state({ session, kind, last, uncertain, fallbackModel }, t) {
+/* What a refused or unanswered request says, for the line under the
+   status. A code the panel knows is said in words; anything else keeps the
+   host's own sentence. */
+export function request_problem_text(error, t) {
+  if (!record(error)) return "";
+  if (error.code === "builder_test_command_refused") return t("agents.test_run.problem.version_mismatch");
+  return error.message || error.code || "";
+}
+
+export function panel_state({ session, kind, last, uncertain, fallbackModel, error }, t) {
   if (session.conflict) return { tone: "bad", text: t("agents.test_run.state.conflict") };
-  if (uncertain) return { tone: "bad", text: t("agents.test_run.state.uncertain"), action: "refresh" };
+  /* Nothing came back for a request that may have gone out. Saying so, and
+     what to do: look first, send again only if nothing was recorded. A reply
+     PuPu could not read is most often a half-updated install. */
+  if (uncertain) {
+    const text = t("agents.test_run.state.uncertain");
+    return { tone: "bad", action: "refresh",
+      text: record(error) && error.code === "builder_test_protocol_error" ? `${text} ${t("agents.test_run.state.uncertain_restart")}` : text };
+  }
   if (last && last.status === "waiting") return { tone: "wait", text: t("agents.test_run.state.waiting") };
   if (last && LIVE_STATUSES.has(last.status)) return { tone: "busy", text: t("agents.test_run.state.running") };
   if (session.dirty || !session.edit_token) return { tone: "idle", text: t("agents.test_run.state.unsaved") };

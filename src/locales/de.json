@@ -958,14 +958,16 @@
         "running": "Läuft…",
         "waiting": "Wartet unten auf deine Antwort.",
         "conflict": "Dies wurde anderswo gespeichert. Löse das zuerst über der Zeichenfläche.",
-        "uncertain": "Die letzte Anfrage wurde nicht bestätigt. Aktualisiere, um das Protokoll zu sehen, bevor du erneut sendest.",
+        "uncertain": "Es kam keine Antwort, daher ist unklar, ob die Nachricht gesendet wurde. Klicke auf Aktualisieren, um das Protokoll zu sehen; sende nur erneut, wenn nichts da ist.",
         "uses_chosen_model": "„{node}“ hat kein eigenes Modell, daher nutzt dieser Test das unten gewählte.",
-        "pick_model": "„{node}“ hat kein eigenes Modell. Wähle unten eines, um es zu testen."
+        "pick_model": "„{node}“ hat kein eigenes Modell. Wähle unten eines, um es zu testen.",
+        "uncertain_restart": "Falls du PuPu gerade aktualisiert hast, beende es zuerst und öffne es neu."
       },
       "problem": {
         "no_model": "„{node}“ hat kein Modell ausgewählt.",
         "switch_value": "„{node}“ hat keinen Wert zum Verzweigen.",
-        "node": "„{node}“: {message}"
+        "node": "„{node}“: {message}",
+        "version_mismatch": "Dieses PuPu-Fenster und sein Hintergrunddienst haben verschiedene Versionen, daher wurde die Anfrage abgelehnt und nichts lief. Beende PuPu, öffne es neu und versuche es erneut."
       },
       "inputs": "Eingaben",
       "result": "Ergebnis",

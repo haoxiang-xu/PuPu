@@ -958,14 +958,16 @@
         "running": "Ejecutando…",
         "waiting": "Esperando tu respuesta abajo.",
         "conflict": "Se guardó en otro lugar. Resuélvelo primero encima del lienzo.",
-        "uncertain": "La última solicitud no se confirmó. Actualiza para ver lo registrado antes de volver a enviar.",
+        "uncertain": "No llegó respuesta, así que no se sabe si el mensaje se envió. Pulsa Actualizar para ver lo registrado; vuelve a enviar solo si no aparece.",
         "uses_chosen_model": "«{node}» no tiene modelo propio, así que esta prueba usa el modelo elegido abajo.",
-        "pick_model": "«{node}» no tiene modelo propio. Elige uno abajo para probarlo."
+        "pick_model": "«{node}» no tiene modelo propio. Elige uno abajo para probarlo.",
+        "uncertain_restart": "Si acabas de actualizar PuPu, ciérralo y vuelve a abrirlo primero."
       },
       "problem": {
         "no_model": "«{node}» no tiene modelo seleccionado.",
         "switch_value": "«{node}» no tiene un valor para comparar.",
-        "node": "«{node}»: {message}"
+        "node": "«{node}»: {message}",
+        "version_mismatch": "Esta ventana de PuPu y su servicio en segundo plano son de versiones distintas, así que la solicitud se rechazó y no se ejecutó nada. Cierra y vuelve a abrir PuPu, e inténtalo de nuevo."
       },
       "inputs": "Entradas",
       "result": "Resultado",

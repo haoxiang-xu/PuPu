@@ -16,7 +16,7 @@ import { can_preflight } from "../skeleton_resource_session";
 import { safe_text } from "../document_values";
 import WorkflowTestInputs, { workflow_test_interface_key } from "./workflow_test_inputs";
 import useBuilderTest from "./use_builder_test";
-import { LIVE_STATUSES, own_model_id, panel_state, unconfigured_agents } from "./test_status";
+import { LIVE_STATUSES, own_model_id, panel_state, request_problem_text, unconfigured_agents } from "./test_status";
 import { AgentTurn, StatusDot, WorkflowRun, secondaryButtonStyle } from "./test_result";
 
 /* The Test panel: try the Agent or Workflow on screen without leaving the
@@ -68,9 +68,10 @@ function StatusLine({ state, isDark, onAction }) {
 
 /* A request the panel made and the store refused: what it said, in red. */
 function ControllerProblem({ error, isDark }) {
+  const { t } = useTranslation();
   return (
     <div role="alert" data-testid="test-run-request-problem" style={{ ...problemOf(isDark), display: "flex", flexDirection: "column", gap: 2 }}>
-      <span>{error.message || error.code}</span>
+      <span>{request_problem_text(error, t)}</span>
       {error.message && error.code && <span style={{ ...note(isDark), fontFamily: "ui-monospace, Menlo, monospace", fontSize: 10.5 }}>{error.code}</span>}
     </div>
   );
@@ -168,7 +169,7 @@ export default function BuilderTestPanel({ active, session, onSave, onCheck, onO
   const runs = current?.runs || [];
   const last = runs.at(-1);
   const running = Boolean(last && LIVE_STATUSES.has(last.status));
-  const state = panel_state({ session, kind, last, uncertain, fallbackModel }, t);
+  const state = panel_state({ session, kind, last, uncertain, fallbackModel, error }, t);
   const traceContext = useMemo(() => ({ chatId: current?.session.id || "", store: null, notifyStreamingContentCommitted: null }), [current?.session.id]);
 
   /* An Agent's conversation reads downwards: keep its newest turn in view. */

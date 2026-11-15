@@ -64,7 +64,7 @@ export default function useBuilderTest({active,session,onSave}){
     try{return await action(ticket);}
     catch(problem){
       if(ticket===generation.current){setError(problem);if(problem.code==='builder_test_unconfirmed'||(problem.status==null&&
-        !['test_save_required','provider_missing_api_key','invalid_workspace_root'].includes(problem.code))||problem.status>=500){setUncertain(true);setConfirmed(false);}}
+        !['test_save_required','provider_missing_api_key','invalid_workspace_root','builder_test_command_refused'].includes(problem.code))||problem.status>=500){setUncertain(true);setConfirmed(false);}}
       return null;
     }finally{if(ticket===generation.current){pending.current=false;setBusy(false);}}
   },[]);

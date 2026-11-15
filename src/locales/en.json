@@ -958,14 +958,16 @@
         "running": "Running…",
         "waiting": "Waiting for your answer below.",
         "conflict": "This was saved somewhere else. Resolve that above the canvas first.",
-        "uncertain": "The last request was not confirmed. Refresh to see what was recorded before sending again.",
+        "uncertain": "No answer came back, so PuPu can’t tell whether this message was sent. Press Refresh to see what was recorded; send again only if it isn’t there.",
         "uses_chosen_model": "“{node}” has no model of its own, so this test uses the model picked below.",
-        "pick_model": "“{node}” has no model of its own. Pick one below to test it."
+        "pick_model": "“{node}” has no model of its own. Pick one below to test it.",
+        "uncertain_restart": "If you just updated PuPu, quit and reopen it first."
       },
       "problem": {
         "no_model": "“{node}” has no model selected.",
         "switch_value": "“{node}” has no value to switch on.",
-        "node": "“{node}”: {message}"
+        "node": "“{node}”: {message}",
+        "version_mismatch": "This PuPu window and its background service are different versions, so the request was refused and nothing ran. Quit and reopen PuPu, then try again."
       },
       "inputs": "Inputs",
       "result": "Result",

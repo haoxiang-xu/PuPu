@@ -229,8 +229,8 @@ test('an Agent start may name one model for unconfigured Agent nodes; only its i
   expect(post.mock.calls[1][0]).toMatchObject({ op: 'prepare', fallback_model: 'openai:gpt-4.1' });
   expect(post.mock.calls[2][0]).not.toHaveProperty('fallback_model');
   for (const bad of ['', 'gpt-4.1', 'openai:', 'openai:has space', { provider: 'openai' }]) {
-    expect(() => checkBuilderTestCommand({ ...request, fallback_model: bad })).toThrow(expect.objectContaining({ code: 'builder_test_protocol_error' }));
+    expect(() => checkBuilderTestCommand({ ...request, fallback_model: bad })).toThrow(expect.objectContaining({ code: 'builder_test_command_refused' }));
   }
   expect(() => checkBuilderTestCommand({ op: 'read', resource_id: 'r', session_id: 's', fallback_model: 'openai:gpt-4.1' }))
-    .toThrow(expect.objectContaining({ code: 'builder_test_protocol_error' }));
+    .toThrow(expect.objectContaining({ code: 'builder_test_command_refused' }));
 });

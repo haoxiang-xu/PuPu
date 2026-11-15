@@ -266,3 +266,26 @@ test('any other refused check says which node to fix, blocks Run, and Go to node
   fireEvent.click(screen.getByRole('button',{name:'Go to node'}));
   expect(onFix).toHaveBeenCalledWith('switch');
 });
+
+test('a request this PuPu refuses before sending says so in words and does not ask to look it up',async()=>{
+  render(<BuilderTestPanel active session={session} isDark={false}/>);
+  await waitFor(()=>expect(builderTestCommand).toHaveBeenCalledTimes(1));
+  fireEvent.change(composer(),{target:{value:'hello'}});
+  builderTestCommand.mockRejectedValueOnce(Object.assign(new Error('This version of PuPu does not accept that Test Run request'),{code:'builder_test_command_refused',status:400}));
+  send();
+  expect(await screen.findByTestId('test-run-request-problem')).toHaveTextContent('different versions, so the request was refused and nothing ran. Quit and reopen PuPu');
+  expect(screen.getByTestId('skeleton-preflight-state')).not.toHaveTextContent('No answer came back');
+  expect(screen.queryByRole('button',{name:'Refresh'})).toBeNull();
+});
+
+test('an unreadable reply asks to look before resending, and to restart a just-updated PuPu',async()=>{
+  render(<BuilderTestPanel active session={session} isDark={false}/>);
+  await waitFor(()=>expect(builderTestCommand).toHaveBeenCalledTimes(1));
+  fireEvent.change(composer(),{target:{value:'hello'}});
+  builderTestCommand.mockRejectedValueOnce(Object.assign(new Error('Invalid Builder test command or response'),{code:'builder_test_protocol_error'}));
+  send();
+  const line=await screen.findByRole('alert');
+  expect(line).toHaveTextContent('No answer came back, so PuPu can’t tell whether this message was sent. Press Refresh');
+  expect(line).toHaveTextContent('If you just updated PuPu, quit and reopen it first.');
+  expect(screen.getByRole('button',{name:'Refresh'})).toBeInTheDocument();
+});
