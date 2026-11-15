@@ -1,14 +1,16 @@
 # #486 — Agent and Workflow Test Run
 
 Issue: https://github.com/haoxiang-xu/PuPu/issues/486
-Workspace: `/Users/red/Desktop/GITRepo/pupu-486`
-Branch: `codex/ticket-486-builder-test-run`
-Base: dev `3cdc274ad0273dee3f69cfc0681e318a5df0417c`
+Frozen A: `/Users/red/Desktop/GITRepo/pupu-486` (`codex/ticket-486-builder-test-run`).
+Delivery workspace: `/Users/red/Desktop/GITRepo/pupu-486-delivery`
+Delivery branch: `codex/ticket-486-test-run-delivery`
+Research base: dev `3cdc274ad0273dee3f69cfc0681e318a5df0417c`; delivery includes dev `2bd04acf`.
 
 The issue contains the approved scope and full AC-001..010. The two review points
 are A: both integrated modes and development verification; B: packaged acceptance,
 CI and user-requested delivery. This plan records implementation contracts, not
-permission to close. No commit, push, PR, merge or close during the start phase.
+permission to close. Checkpoint B authorizes commits, push, CI, audit and PR;
+merge/closure remain outside this delivery instruction.
 The original PuPu/Claude checkout and frozen candidates are outside this work.
 
 ## Delivered behavior
@@ -93,7 +95,8 @@ The thin root adapter requires the genuine bridge, shared durable runtime/store 
 execution guard. It reuses DurableWorkflowRunner, existing handlers and receipt
 resume; it never wraps the Workflow in a fabricated Agent or calls Memory Agent.
 Pure Workflow execution makes no provider call. Existing Agent-only public chat
-selection is still Agent-only. No Core source change or dependency update.
+selection is still Agent-only. The required Core Human Input bug fix is BC-004;
+no runtime engine is copied into Host and no third-party dependency is changed.
 Maps to AC-002/003/004/006/007/009; SEQ-001/002/003/004/005.
 
 ## BC-003 — canonical execution / interactions / display
@@ -121,10 +124,39 @@ restores Test mode and the editable resource. Native run-view controls clear the
 Electron title-bar drag band; browser presentation keeps its compact spacing.
 Maps to AC-005/006/007/008/010; SEQ-001/003/004/005.
 
-## Verification and artifact identity
+## BC-004 — Kernel Human Input / graph wait / durable restore
+
+The real App exposed an existing Core adapter bug: Kernel wrote a genuine
+`human_input` interaction and returned `awaiting_human_input`, while its graph
+handler accepted only child markers for that status and rejected the direct
+question. Restoring the same checkpoint also recognized only
+`awaiting_interaction`. Core companion `032245edcfbd0238ce84298ab29c8e51aceec034`
+fixes these two conversions; the Host release-QA selection pins that exact source.
+
+CLOSED existing contracts are unchanged: a direct durable question becomes
+`WorkflowNodeWaiting("interaction", interaction_id, InteractionRequest.to_dict())`.
+A restored `awaiting_human_input` checkpoint must contain a `human_input` request;
+all existing session, node attempt/invocation, model/provider, prompt digest,
+checkpoint/ref/digest and canonical expected-wait checks remain. Subagent-marker
+priority is unchanged, as are nondurable/incomplete-result refusals. This is a
+compatible fix of the existing durable-interaction behavior, with no new wire
+keys, protocol version, feature flag or Git-based admission shortcut. The runtime
+manifest remains independently validated; the changed artifact is selected and
+verified by its exact wheel/package identities.
+
+SEQ-006 (AC-006/007/009/010): real Kernel question -> durable graph waiting ->
+disk-stack reconstruction -> exact answer -> one final provider request -> graph
+End. A relabelled tool-approval checkpoint is refused before model/tool effects;
+normal approval still works afterwards. The source regression has 64 passing
+cases and three independently reverted mutations turn red. Final acceptance must
+rebuild once from the new retained wheel and execute the actual App Human Input
+path, alongside the full existing Agent/Workflow matrix. Source tests do not
+replace installed/packaged-consumer provenance or exact-pair verification.
+
+## Frozen A development verification and artifact identity
 
 Evidence: `/Users/red/.codex/artifacts/ticket-486-implementation-20261114/`.
-One reused wheel from Core `2458c3c6e142b6996b33bc34a14487f554f8eb87`:
+Checkpoint A reused one wheel from Core `2458c3c6e142b6996b33bc34a14487f554f8eb87`:
 `0a8f3690db6dbefb16dbb71bd5c2298f485b9eb56d1571cc3e45e1eca5dfee18`.
 Actual manifest `sha256:8bb1c7d474eed7bd82f906ac6cd88a6b7e073a23f46319cf500ebbd6b50ff17b`.
 Producer capture checks 332 imported Python modules against that wheel, rather than
