@@ -20,6 +20,22 @@ out=Path(os.environ['QA_OUT'])
 def read(name):return json.loads((out/name).read_text())
 def require(ok,reason):
     if not ok:raise AssertionError(reason)
+def sidecar_processes(g):
+    rows=[p for p in g['processes_at_ready'] if Path(p['exe']).name=='unchain-server']
+    require(bool(rows),'sidecar_identity')
+    by_pid={p['pid']:p for p in rows}
+    require(len(by_pid)==len(rows),'sidecar_duplicate_pid')
+    roots=[p for p in rows if p['parent'] not in by_pid]
+    # PyInstaller --onefile has a bootloader and a runtime child. They must
+    # form one owned tree rooted directly in this Electron Main, not two hosts.
+    require(len(roots)==1 and roots[0]['parent']==g['main']['pid'],'sidecar_root_identity')
+    root=roots[0]['pid']
+    for row in rows:
+        seen=set();current=row
+        while current['pid']!=root:
+            require(current['pid'] not in seen and current['parent'] in by_pid,'sidecar_process_chain')
+            seen.add(current['pid']);current=by_pid[current['parent']]
+    return rows
 def workspace_check(root,effects):
     expected={'a-first.txt','b-first.txt','b-second.txt','hook.txt'}
     require({p.name for p in root.iterdir()}==expected,'workspace_extra_or_missing')
@@ -42,7 +58,7 @@ def main():
     for i,g in enumerate(generations):
         require(g['all_owned_dead'],'processes_alive')
         require(g['sidecar_owned'],'sidecar_not_owned')
-        sidecars=[p for p in g['processes_at_ready'] if Path(p['exe']).name=='unchain-server'];require(len(sidecars)==1,'sidecar_identity')
+        sidecars=sidecar_processes(g)
         require(all(sha256(Path(p['exe']).read_bytes()).hexdigest()==os.environ['QA_BINARY_SHA'] for p in sidecars),'sidecar_binary_hash')
         if i:require(int(generations[i-1]['stopped_ns'])<int(g['started_ns']),'cold_order')
     require(len({g['main']['pid'] for g in generations})==3,'main_pid_reused')
