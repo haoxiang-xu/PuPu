@@ -130,7 +130,7 @@ The real App exposed an existing Core adapter bug: Kernel wrote a genuine
 `human_input` interaction and returned `awaiting_human_input`, while its graph
 handler accepted only child markers for that status and rejected the direct
 question. Restoring the same checkpoint also recognized only
-`awaiting_interaction`. Core companion `032245edcfbd0238ce84298ab29c8e51aceec034`
+`awaiting_interaction`. Core companion `9af29599b4e93f36eb2b93fefd1abb51907dfff9`
 fixes these two conversions; the Host release-QA selection pins that exact source.
 
 CLOSED existing contracts are unchanged: a direct durable question becomes
