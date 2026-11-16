@@ -21,6 +21,8 @@ from skeleton_production_state import canonical, load_launch
 SCHEMA = 'pupu.builder-test.v1'
 _LOCK = threading.RLock()
 _WORKERS = {}
+# Projections of settled runs, by (database, run id); see _project.
+_SETTLED = {}
 _TERMINAL = {'completed', 'failed', 'cancelled', 'outcome_unknown'}
 CONTEXT_FIELDS={'toolkits','skills','workspace_root','workspace_roots','disable_workspace_root'}
 TRANSIENT_FIELDS={'skeleton_credentials','skeleton_credential_scope','openaiApiKey','openai_api_key',
@@ -410,8 +412,19 @@ class BuilderTestSessions:
             result['trace_complete']=db.execute('''SELECT 1 FROM trace_limits WHERE run_id=?
                 UNION ALL SELECT 1 FROM trace_omissions WHERE run_id=?''',(row['id'],row['id'])).fetchone() is None
         if row['phase'] in ('ready','cancelled'): return result
+        key=(str(self.path),row['id'])
+        # A settled run never changes again. Reading it once keeps later reads
+        # of the conversation from re-reading its artifacts from the session
+        # journal while a newer run of the same session is appending to it,
+        # which can briefly find them unreadable.
+        settled=_SETTLED.get(key)
+        if settled is not None and key not in _WORKERS:
+            return deepcopy(settled)
         try:
-            return self._project_launch(row,result,material,selected,_recheck=_recheck,_cache_db=_cache_db)
+            projected=self._project_launch(row,result,material,selected,_recheck=_recheck,_cache_db=_cache_db)
+            if projected['status'] in _TERMINAL and projected['status']!='outcome_unknown' and key not in _WORKERS:
+                _SETTLED[key]=deepcopy(projected)
+            return projected
         except Exception as error:
             # A read that races the worker writing the run can find an
             # artifact listed but not yet readable. While the worker is alive
@@ -423,6 +436,13 @@ class BuilderTestSessions:
             if isinstance(getattr(error,'code',None),str) and (str(self.path),row['id']) in _WORKERS:
                 result['status']='running'
                 return result
+            # A settled run read for the first time while another run of the
+            # session appends: look again shortly instead of failing the read.
+            if getattr(error,'code',None)=='artifact_unavailable' and _recheck and any(
+                    owner==str(self.path) for owner,_ in list(_WORKERS)):
+                import time
+                time.sleep(0.15)
+                return self._project(row,_recheck=False,_cache_db=_cache_db)
             raise
 
     def _project_launch(self,row,result,material,selected,*,_recheck,_cache_db):

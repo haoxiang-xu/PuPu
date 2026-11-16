@@ -143,3 +143,25 @@ def test_a_read_racing_a_resume_reports_running_instead_of_a_guard_error(tmp_pat
         tests._WORKERS.pop((str(sessions.path), "builder-run-y"), None)
     with pytest.raises(DurableInteractionHostError):
         sessions._project(row)
+
+
+def test_a_settled_run_is_read_once_and_not_reread_while_a_newer_run_writes(tmp_path, monkeypatch):
+    import json
+    import skeleton_builder_tests as tests
+    monkeypatch.setenv("UNCHAIN_DATA_DIR", str(tmp_path))
+    sessions = tests.BuilderTestSessions(background=False)
+    row = {"id": "builder-run-z", "session_id": "s", "request_id": "r", "phase": "started", "error": None,
+           "material": json.dumps({"selection": {"edit_token": "e", "definition_digest": "d" * 64}, "inputs": {"message": "hi"}})}
+    calls = []
+    def settled(_row, result, *_args, **_kwargs):
+        calls.append(1)
+        if len(calls) > 1:
+            raise SkeletonResourceError("artifact_unavailable", ("ref",), "artifact cannot be read and verified")
+        return {**result, "status": "completed", "output": {"message": "done"}}
+    monkeypatch.setattr(sessions, "_project_launch", settled)
+    try:
+        assert sessions._project(row)["output"] == {"message": "done"}
+        assert sessions._project(row)["output"] == {"message": "done"}
+        assert len(calls) == 1
+    finally:
+        tests._SETTLED.pop((str(sessions.path), "builder-run-z"), None)
