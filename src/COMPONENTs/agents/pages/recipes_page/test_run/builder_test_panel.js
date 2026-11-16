@@ -44,6 +44,8 @@ import ChatMessages from "../../../../chat-messages/chat_messages";
  * The run itself belongs to `useBuilderTest`: this file only draws it. */
 
 const TINT = "#2f9a68";
+/* The panel toggle's own measure (canvas_chrome's fitted glyph). */
+const toggleRowButtonStyle = { fontSize: 14, color: "var(--pupu-text)", borderRadius: 7, iconOnlyPaddingVertical: 5, iconOnlyPaddingHorizontal: 5 };
 const headerIconStyle = (isDark) => ({
   ...secondaryButtonStyle(isDark), backgroundColor: "transparent", iconOnlyPaddingVertical: 5, iconOnlyPaddingHorizontal: 5, content: { icon: { width: 14, height: 14 } },
 });
@@ -273,16 +275,16 @@ export default function BuilderTestPanel({ active, session, onSave, onCheck, onF
         <div data-testid="builder-test-panel" style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, color: textColor(isDark), fontSize: 12 }}>
           <PanelHeader testid="test-run-header" icon="play" tint={TINT} title={t("agents.test_run.title")} isDark={isDark}
             subtitle={t(kind === "agent" ? "agents.test_run.subtitle_agent" : "agents.test_run.subtitle_workflow", { name })}
-            actions={(runs.length > 0 || (kind === "agent" && onViewChatRun)) ? <>
-              {kind === "agent" && onViewChatRun && (
-                <Button ariaLabel={t("agents.test_run.view_chat_run")} title={t("agents.test_run.view_chat_run")} prefix_icon="eye_open"
-                  onClick={onViewChatRun} style={headerIconStyle(isDark)} />
-              )}
-              {runs.length > 0 && (
-                <Button ariaLabel={t("agents.test_run.start_over")} title={t("agents.test_run.start_over")} prefix_icon="add"
-                  onClick={controller.newConversation} disabled={busy || running || !session.edit_token} style={headerIconStyle(isDark)} />
-              )}
-            </> : null} />
+            actions={kind === "agent" && onViewChatRun ? (
+              <Button ariaLabel={t("agents.test_run.view_chat_run")} title={t("agents.test_run.view_chat_run")} prefix_icon="eye_open"
+                onClick={onViewChatRun} style={headerIconStyle(isDark)} />
+            ) : null}
+            /* Starting over is the chat's "new chat": the same glyph, on the
+               row of the panel's own toggle. */
+            toggleRowAction={runs.length > 0 ? (
+              <Button ariaLabel={t("agents.test_run.start_over")} title={t("agents.test_run.start_over")} prefix_icon="chat_new"
+                onClick={controller.newConversation} disabled={busy || running || !session.edit_token} style={toggleRowButtonStyle} />
+            ) : null} />
 
           {kind === "agent" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0, padding: "14px 16px 0", flexShrink: 0 }}>
