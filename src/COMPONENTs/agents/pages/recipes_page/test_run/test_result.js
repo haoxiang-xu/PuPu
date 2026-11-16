@@ -4,6 +4,7 @@ import Markdown from "../../../../../BUILTIN_COMPONENTs/markdown/markdown";
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import TraceChain from "../../../../chat-bubble/trace_chain";
 import InteractWrapper from "../../../../chat-bubble/interact/interact_wrapper";
+import ChatBubble from "../../../../chat-bubble/chat_bubble";
 import { TableHeads, TableRow } from "../detail_panel/parameter_table";
 import {
   CONTROL_RADIUS, REGION_RADIUS, Region, fill, fillStrong, note, problem as problemOf, statusColor, text as textColor,
@@ -215,25 +216,61 @@ export function WorkflowRun({ run, document, controller, busy, confirmed, onObse
 
 /* One Agent turn: what was sent, on the right, as the chat shows yours; then
    the steps and the answer, full width. */
+/* One Agent turn, drawn by the chat's own bubbles: what was sent, then the
+   answer with its trace chain (thinking, tool calls, results) and, while the
+   run waits, the chat's own approval or question controls inside that trace.
+   Message actions that change a chat (edit, resend, delete) do not apply to
+   a test and are not offered. */
 export function AgentTurn({ run, document, controller, busy, confirmed, onObserve, onFix, answered, answerProblem, onAnswer, isDark }) {
   const { t } = useTranslation();
-  const settled = !LIVE_STATUSES.has(run.status);
+  const projection = useMemo(() => projectTestTrace(run), [run]);
+  const live = LIVE_STATUSES.has(run.status);
+  const userMessage = useMemo(() => ({ id: `${run.id}:sent`, role: "user", content: run.inputs.message }), [run.id, run.inputs.message]);
+  const reply = typeof run.output?.message === "string" ? run.output.message : run.output ? JSON.stringify(run.output, null, 2) : "";
+  const assistantMessage = useMemo(() => ({
+    id: run.id, role: "assistant", content: reply,
+    status: live ? "streaming" : run.status === "failed" ? "error" : run.status === "cancelled" ? "cancelled" : "done",
+    subagentFrames: projection.subagentFrames, subagentMetaByRunId: projection.subagentMetaByRunId,
+  }), [run.id, run.status, reply, live, projection]);
+  const pending = run.pending && run.pending.status === "awaiting_response" ? run.pending : null;
+  const requests = useMemo(() => (pending
+    ? { [pending.interaction_id]: { ...(pending.presentation.tool_call || {}), confirmationId: pending.interaction_id } } : {}), [pending]);
+  const said = answered && pending && answered.interaction_id === pending.interaction_id ? answered : null;
+  /* The chat's own confirmation state: idle offers the buttons, submitting
+     shows "Submitting..." the moment one is pressed; a refused answer goes
+     back to idle with the reason, so it can be answered again. */
+  const uiState = useMemo(() => {
+    if (!pending) return {};
+    const id = pending.interaction_id;
+    if (said && !said.failed) return { [id]: { status: "submitting", error: "" } };
+    return { [id]: { status: "idle", error: said?.failed ? answerProblem || "" : "" } };
+  }, [pending, said, answerProblem]);
+  const decide = ({ confirmationId, approved, userResponse }) => {
+    if (!pending || confirmationId !== pending.interaction_id) return;
+    onAnswer(run, pending.kind === "human_input" ? true : Boolean(approved), userResponse ?? null);
+  };
   return (
-    <section data-testid={`test-turn-${run.id}`} style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }}>
-      <div aria-label={t("agents.test_run.you")} style={{ alignSelf: "flex-end", maxWidth: "85%", padding: "7px 11px", borderRadius: REGION_RADIUS,
-        background: fillStrong(isDark), whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontSize: 13, color: textColor(isDark) }}>
-        {run.inputs.message}
+    <section data-testid={`test-turn-${run.id}`} style={{ display: "flex", flexDirection: "column", gap: 10, minWidth: 0 }}>
+      <ChatBubble message={userMessage} disableActionButtons />
+      <div data-testid="test-agent-reply" style={{ minWidth: 0 }}>
+        <ChatBubble message={assistantMessage} traceFrames={projection.frames} disableActionButtons
+          pendingToolConfirmationRequests={requests} toolConfirmationUiStateById={uiState} onToolConfirmationDecision={decide}
+          onStopStream={() => controller.stop(run)} allowSessionApprovals={false} />
       </div>
-      <RunSteps run={run} />
+      {said && !said.failed && <span data-testid="test-pending-answered" role="status" style={note(isDark)}>
+        {t(pending.kind === "human_input" ? "agents.test_run.answered_continuing"
+          : said.approved ? "agents.test_run.approved_continuing" : "agents.test_run.denied_continuing")}
+      </span>}
+      {said?.failed && answerProblem && <span role="alert" style={problemOf(isDark)}>{answerProblem}</span>}
+      {run.pending && run.pending.status === "receipt_recorded" && (
+        <PendingInteraction run={run} busy={busy} confirmed={confirmed} isDark={isDark}
+          onRespond={(approved, value) => onAnswer(run, approved, value ?? null)} onResume={() => controller.resume(run)} />
+      )}
       {!run.trace_complete && <span style={note(isDark)}>{t("agents.test_run.trace_limit")}</span>}
-      {run.pending && <PendingInteraction run={run} busy={busy} confirmed={confirmed} isDark={isDark}
-        answered={answered} problem={answerProblem}
-        onRespond={(approved, answer) => onAnswer(run, approved, answer ?? null)} onResume={() => controller.resume(run)} />}
       {run.error && <RunError error={run.error} document={document} isDark={isDark} onFix={onFix} canShowOnCanvas={run.graphs.length > 0 && Boolean(onObserve)} />}
-      {run.output !== null && <AgentReply output={run.output} isDark={isDark} />}
-      {(!settled || run.status !== "completed" || (run.graphs.length > 0 && onObserve)) && (
+      {(run.status !== "completed" || (run.graphs.length > 0 && onObserve)) && (
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {(run.status !== "completed") && <RunStatus status={run.status} isDark={isDark} />}
+          {run.status !== "completed" && <RunStatus status={said && !said.failed ? "running" : run.status} isDark={isDark} />}
           <span style={{ flex: 1 }} />
           {run.graphs.length > 0 && onObserve && (
             <Button label={t("agents.test_run.view_run")} prefix_icon="eye_open" onClick={() => onObserve(run)} style={secondaryButtonStyle(isDark)} />

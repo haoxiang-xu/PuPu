@@ -25,6 +25,7 @@ const ChatBubble = ({
   onContinuationDecision,
   onStopStream,
   resendPresentation = null,
+  allowSessionApprovals = true,
 }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
@@ -146,6 +147,7 @@ const ChatBubble = ({
           pendingContinuationRequest={pendingContinuationRequest}
           onContinuationDecision={onContinuationDecision}
           onStopStream={onStopStream}
+          allowSessionApprovals={allowSessionApprovals}
           bundle={message.meta?.bundle}
           completionDiagnostics={completionDiagnostics}
           subagentFrames={confirmationTraceState.subagentFrames}
@@ -283,6 +285,7 @@ const areChatBubblePropsEqual = (previousProps, nextProps) =>
     nextProps.pendingContinuationRequest &&
   previousProps.onContinuationDecision === nextProps.onContinuationDecision &&
   previousProps.onStopStream === nextProps.onStopStream &&
-  previousProps.resendPresentation === nextProps.resendPresentation;
+  previousProps.resendPresentation === nextProps.resendPresentation &&
+  previousProps.allowSessionApprovals === nextProps.allowSessionApprovals;
 
 export default memo(ChatBubble, areChatBubblePropsEqual);

@@ -920,6 +920,9 @@ const TraceChain = ({
   bubbleOwnsLiveText = false,
   compact = false,
   hideTrack = false,
+  /* A host where "Always allow" cannot be remembered (the Builder's Test
+     panel) offers only once / deny. */
+  allowSessionApprovals = true,
   _depth = 0,
 }) => {
   const { chatId, store } = useStreamingMessageStoreContext();
@@ -2195,7 +2198,7 @@ const TraceChain = ({
                   uiState={effectiveConfirmationUiState}
                   isDark={isDark}
                   disabled={false}
-                  allowSessionApproval={isToolConfirmationCacheable(
+                  allowSessionApproval={allowSessionApprovals && isToolConfirmationCacheable(
                     frame.payload?.toolkit_id,
                     frame.payload?.tool_name,
                   )}
@@ -2621,6 +2624,7 @@ const TraceChain = ({
     providerRetryGroups,
     isRetryWaiting,
     onStopStream,
+    allowSessionApprovals,
     isStreaming,
     isCancelled,
     cancelledApprovalIds,
