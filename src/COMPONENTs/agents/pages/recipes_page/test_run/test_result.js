@@ -4,7 +4,6 @@ import Markdown from "../../../../../BUILTIN_COMPONENTs/markdown/markdown";
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import TraceChain from "../../../../chat-bubble/trace_chain";
 import InteractWrapper from "../../../../chat-bubble/interact/interact_wrapper";
-import ChatBubble from "../../../../chat-bubble/chat_bubble";
 import { TableHeads, TableRow } from "../detail_panel/parameter_table";
 import {
   CONTROL_RADIUS, REGION_RADIUS, Region, fill, fillStrong, note, problem as problemOf, statusColor, text as textColor,
@@ -102,23 +101,20 @@ export function AgentReply({ output, isDark }) {
 
 /* What went wrong, in the panel's red, with the node it happened at when the
    path names one, and the engineer's code underneath for a bug report. */
-export function RunError({ error, document, isDark, onFix, canShowOnCanvas }) {
+export function RunError({ error, document, isDark }) {
   const { t } = useTranslation();
   const node = node_at_path(document, error.path);
   const name = node ? node_title(node, t).title : null;
   const said = run_error_text(error, t);
   return (
-    /* The engineer's code is on the tooltip, for a bug report. */
+    /* The engineer's code is on the tooltip, for a bug report; the node it
+       happened at is marked on the canvas. */
     <div role="alert" data-testid="test-run-error" title={error.code || undefined} style={{ display: "flex", flexDirection: "column", gap: 4, padding: "8px 10px",
       borderRadius: REGION_RADIUS, background: isDark ? "rgba(255,120,120,0.08)" : "rgba(176,32,32,0.05)", minWidth: 0 }}>
       <span style={{ ...problemOf(isDark), fontWeight: 600 }}>
         {name ? t("agents.test_run.failed_at", { node: name }) : t("agents.test_run.error_title")}
       </span>
       {said && <span style={{ ...problemOf(isDark), color: textColor(isDark) }}>{said}</span>}
-      {canShowOnCanvas && <span style={note(isDark)}>{t("agents.test_run.problem.see_canvas")}</span>}
-      {node && onFix && (
-        <Button label={t("agents.test_run.fix")} onClick={() => onFix(node.id)} style={{ ...secondaryButtonStyle(isDark), alignSelf: "flex-start" }} />
-      )}
     </div>
   );
 }
@@ -190,7 +186,7 @@ export function PendingInteraction({ run, busy, confirmed, onRespond, onResume, 
 }
 
 /* One Workflow run: a Region headed by how it went, then its parts. */
-export function WorkflowRun({ run, document, controller, busy, confirmed, onObserve, onFix, answered, answerProblem, onAnswer, isDark }) {
+export function WorkflowRun({ run, document, controller, busy, confirmed, answered, answerProblem, onAnswer, isDark }) {
   const { t } = useTranslation();
   const line = inputs_line(run.inputs);
   return (
@@ -198,17 +194,14 @@ export function WorkflowRun({ run, document, controller, busy, confirmed, onObse
       <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
         <RunStatus status={run.status} isDark={isDark} />
         <span title={line} style={{ ...note(isDark), flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{line}</span>
-        {run.graphs.length > 0 && onObserve && (
-          <Button label={t("agents.test_run.view_run")} prefix_icon="eye_open" onClick={() => onObserve(run)} style={secondaryButtonStyle(isDark)} />
-        )}
       </div>
-      {run.status === "outcome_unknown" && <span style={note(isDark)}>{t("agents.test_run.outcome_unknown_note")}</span>}
+      {run.status === "outcome_unknown" && !run.error && <span style={note(isDark)}>{t("agents.test_run.outcome_unknown_note")}</span>}
       <RunSteps run={run} />
       {!run.trace_complete && <span style={note(isDark)}>{t("agents.test_run.trace_limit")}</span>}
       {run.pending && <PendingInteraction run={run} busy={busy} confirmed={confirmed} isDark={isDark}
         answered={answered} problem={answerProblem}
         onRespond={(approved, answer) => onAnswer(run, approved, answer ?? null)} onResume={() => controller.resume(run)} />}
-      {run.error && <RunError error={run.error} document={document} isDark={isDark} onFix={onFix} canShowOnCanvas={run.graphs.length > 0 && Boolean(onObserve)} />}
+      {run.error && <RunError error={run.error} document={document} isDark={isDark} />}
       {run.output !== null && <WorkflowOutput output={run.output} isDark={isDark} />}
     </section>
   );
@@ -216,82 +209,34 @@ export function WorkflowRun({ run, document, controller, busy, confirmed, onObse
 
 /* One Agent turn: what was sent, on the right, as the chat shows yours; then
    the steps and the answer, full width. */
-/* One Agent turn, drawn by the chat's own bubbles: what was sent, then the
-   answer with its trace chain (thinking, tool calls, results) and, while the
-   run waits, the chat's own approval or question controls inside that trace.
-   Message actions that change a chat (edit, resend, delete) do not apply to
-   a test and are not offered. */
-export function AgentTurn({ run, document, controller, busy, confirmed, onObserve, onFix, answered, answerProblem, onAnswer, isDark }) {
-  const { t } = useTranslation();
-  const projection = useMemo(() => projectTestTrace(run), [run]);
-  const live = LIVE_STATUSES.has(run.status);
-  const userMessage = useMemo(() => ({ id: `${run.id}:sent`, role: "user", content: run.inputs.message }), [run.id, run.inputs.message]);
-  const reply = typeof run.output?.message === "string" ? run.output.message : run.output ? JSON.stringify(run.output, null, 2) : "";
-  /* A run that failed is said once, the way the chat says it: an error
-     reply carrying the reason, in words. */
-  const failure = run.error ? run_error_text(run.error, t) : "";
-  const assistantMessage = useMemo(() => ({
-    id: run.id, role: "assistant", content: failure ? "" : reply,
-    status: live ? "streaming" : failure || run.status === "failed" ? "error" : run.status === "cancelled" ? "cancelled" : "done",
-    ...(failure ? { meta: { error: { message: failure } } } : {}),
-    subagentFrames: projection.subagentFrames, subagentMetaByRunId: projection.subagentMetaByRunId,
-  }), [run.id, run.status, reply, failure, live, projection]);
-  const failedNode = run.error ? node_at_path(document, run.error.path) : null;
-  const pending = run.pending && run.pending.status === "awaiting_response" ? run.pending : null;
-  const requests = useMemo(() => (pending
-    ? { [pending.interaction_id]: { ...(pending.presentation.tool_call || {}), confirmationId: pending.interaction_id } } : {}), [pending]);
-  const said = answered && pending && answered.interaction_id === pending.interaction_id ? answered : null;
-  /* The chat's own confirmation state: idle offers the buttons, submitting
-     shows "Submitting..." the moment one is pressed; a refused answer goes
-     back to idle with the reason, so it can be answered again. */
-  const uiState = useMemo(() => {
-    if (!pending) return {};
-    const id = pending.interaction_id;
-    if (said && !said.failed) return { [id]: { status: "submitting", error: "" } };
-    return { [id]: { status: "idle", error: said?.failed ? answerProblem || "" : "" } };
-  }, [pending, said, answerProblem]);
-  const decide = ({ confirmationId, approved, userResponse }) => {
-    if (!pending || confirmationId !== pending.interaction_id) return;
-    onAnswer(run, pending.kind === "human_input" ? true : Boolean(approved), userResponse ?? null);
-  };
-  return (
-    <section data-testid={`test-turn-${run.id}`} style={{ display: "flex", flexDirection: "column", gap: 10, minWidth: 0 }}>
-      <ChatBubble message={userMessage} disableActionButtons />
-      <div data-testid="test-agent-reply" style={{ minWidth: 0 }}>
-        <ChatBubble message={assistantMessage} traceFrames={projection.frames} disableActionButtons
-          pendingToolConfirmationRequests={requests} toolConfirmationUiStateById={uiState} onToolConfirmationDecision={decide}
-          onStopStream={() => controller.stop(run)} allowSessionApprovals={false} />
-      </div>
-      {said && !said.failed && <span data-testid="test-pending-answered" role="status" style={note(isDark)}>
-        {t(pending.kind === "human_input" ? "agents.test_run.answered_continuing"
-          : said.approved ? "agents.test_run.approved_continuing" : "agents.test_run.denied_continuing")}
-      </span>}
-      {said?.failed && answerProblem && <span role="alert" style={problemOf(isDark)}>{answerProblem}</span>}
-      {run.pending && run.pending.status === "receipt_recorded" && (
-        <PendingInteraction run={run} busy={busy} confirmed={confirmed} isDark={isDark}
-          onRespond={(approved, value) => onAnswer(run, approved, value ?? null)} onResume={() => controller.resume(run)} />
-      )}
-      {!run.trace_complete && <span style={note(isDark)}>{t("agents.test_run.trace_limit")}</span>}
-      {(run.status !== "completed" || failedNode || (run.graphs.length > 0 && onObserve)) && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          {/* A recorded error is a failure, whatever the journal could not
-              settle about it; only a run with no error is "unknown". */}
-          {run.status !== "completed" && <RunStatus status={said && !said.failed ? "running" : failure ? "failed" : run.status} isDark={isDark} />}
-          <span style={{ flex: 1 }} />
-          {failedNode && onFix && (
-            <Button label={t("agents.test_run.fix")} onClick={() => onFix(failedNode.id)} style={secondaryButtonStyle(isDark)} />
-          )}
-          {run.graphs.length > 0 && onObserve && (
-            <Button label={t("agents.test_run.view_run")} prefix_icon="eye_open" onClick={() => onObserve(run)} style={secondaryButtonStyle(isDark)} />
-          )}
-        </div>
-      )}
-      {run.status === "outcome_unknown" && !failure && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ ...note(isDark), flex: 1 }}>{t("agents.test_run.outcome_unknown_note")}</span>
-          <Button label={t("agents.test_run.refresh")} prefix_icon="refresh" onClick={() => controller.refresh()} style={secondaryButtonStyle(isDark)} />
-        </div>
-      )}
-    </section>
-  );
+/* An Agent test conversation as the chat's own messages, for the chat's own
+   message list: each run is the message sent and the reply, the reply
+   carrying the run's trace (thinking, tools, results) and, when the run
+   failed, the reason in words as the chat's error reply. */
+export function agent_messages(runs, t) {
+  const messages = [];
+  for (const run of runs) {
+    const projection = projectTestTrace(run);
+    const live = LIVE_STATUSES.has(run.status);
+    const reply = typeof run.output?.message === "string" ? run.output.message : run.output ? JSON.stringify(run.output, null, 2) : "";
+    const failure = run.error ? run_error_text(run.error, t)
+      : run.status === "outcome_unknown" ? t("agents.test_run.outcome_unknown_note") : "";
+    messages.push({ id: `${run.id}:sent`, role: "user", content: run.inputs.message });
+    messages.push({
+      id: run.id, role: "assistant", content: failure ? "" : reply,
+      status: live ? "streaming" : failure || run.status === "failed" ? "error" : run.status === "cancelled" ? "cancelled" : "done",
+      ...(failure ? { meta: { error: { message: failure } } } : {}),
+      traceFrames: projection.frames,
+      subagentFrames: projection.subagentFrames, subagentMetaByRunId: projection.subagentMetaByRunId,
+    });
+  }
+  return messages;
+}
+
+/* The run's wait, as the chat's pending confirmation request, owned by its
+   reply. Only an interaction still owed an answer is offered. */
+export function pending_requests(run) {
+  const pending = run?.pending && run.pending.status === "awaiting_response" ? run.pending : null;
+  if (!pending) return {};
+  return { [pending.interaction_id]: { ...(pending.presentation.tool_call || {}), confirmationId: pending.interaction_id, ownerMessageId: run.id } };
 }

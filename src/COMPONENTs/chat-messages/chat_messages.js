@@ -35,6 +35,8 @@ const ChatMessages = ({
   bootVisibleCount = 3,
   bottomViewportInset = 0,
   maxMountedCount = 40,
+  /* A host that cannot remember "Always allow" (the Builder's Test panel). */
+  allowSessionApprovals = true,
 }) => {
   const { onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
@@ -279,6 +281,7 @@ const ChatMessages = ({
                   ) : (
                     <ChatBubble
                       message={msg}
+                      allowSessionApprovals={allowSessionApprovals}
                       onStopStream={
                         messageIndex === messages.length - 1 &&
                         msg.status === "streaming"

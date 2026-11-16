@@ -205,8 +205,8 @@ test('a Workflow result is its End outputs as a Name / Value table, and a failur
   const failure=await screen.findByTestId('test-run-error');
   expect(failure).toHaveTextContent('Failed at “Summarize”');
   expect(failure).toHaveTextContent('division by zero');
-  fireEvent.click(screen.getByRole('button',{name:'Go to node'}));
-  expect(onFix).toHaveBeenCalledWith('code');
+  /* The node it failed at is marked on the canvas; the card has no buttons. */
+  expect(screen.queryByRole('button',{name:'Go to node'})).toBeNull();
   /* The earlier, successful run is folded under the latest one. */
   fireEvent.click(screen.getByRole('button',{name:'Earlier runs'}));
   expect(screen.getByTestId('test-workflow-output-summary')).toHaveTextContent('short text');
@@ -337,9 +337,9 @@ test('a run that needed a workspace says so in words, with no bare code', async(
   builderTestCommand.mockResolvedValue({...opened,runs:[{...completed.runs[0],status:'failed',output:null,
     error:{code:'workspace_unavailable',path:['toolkits','core'],message:'The test did not complete. Check the recorded run.'}}]});
   render(<BuilderTestPanel active session={session} isDark={false}/>);
-  const card=await screen.findByTestId('test-turn-builder-run-one');
-  expect(card).toHaveTextContent('This Agent uses file tools, which need a workspace.');
-  expect(card).not.toHaveTextContent('workspace_unavailable');
+  const card=await screen.findByText('This Agent uses file tools, which need a workspace. Pick one with the folder button below, or set a default workspace in Settings.');
+  expect(card).toBeInTheDocument();
+  expect(screen.queryByText(/workspace_unavailable/)).toBeNull();
 });
 
 test('while the last message waits for an approval, the composer says why Send does nothing', async()=>{
@@ -356,7 +356,8 @@ test('Allow once is answered at once: the buttons go, the card says it continues
   const allow=await screen.findByRole('button',{name:'Allow once'});
   let settle; builderTestCommand.mockImplementationOnce(()=>new Promise(done=>{settle=done;}));
   fireEvent.click(allow);
-  expect(await screen.findByTestId('test-pending-answered')).toHaveTextContent('Allowed. The run is continuing…');
+  /* The chat's own confirmation: "Submitting..." the moment it is pressed. */
+  expect(await screen.findByText('Submitting...')).toBeInTheDocument();
   expect(screen.queryByRole('button',{name:'Allow once'})).toBeNull();
   expect(screen.getByTestId('test-run-composer-hint')).toHaveTextContent('still running');
   expect(builderTestCommand.mock.calls.filter(([request])=>request.op==='respond')).toHaveLength(1);
@@ -368,10 +369,20 @@ test('an Agent run that failed says one thing, in the chat error reply, and is F
   builderTestCommand.mockResolvedValue({...opened,runs:[{...completed.runs[0],status:'outcome_unknown',output:null,
     error:{code:'handler_error',path:['execution','nodes',1],message:'The recorded test failed.'}}]});
   render(<BuilderTestPanel active session={session} isDark={false}/>);
-  const turn=await screen.findByTestId('test-turn-builder-run-one');
-  expect(turn).toHaveTextContent('The step stopped with an error before it could answer');
-  expect(turn).toHaveTextContent('Failed');
-  expect(turn).not.toHaveTextContent('Outcome unknown');
-  expect(turn).not.toHaveTextContent('The connection dropped');
-  expect(turn).not.toHaveTextContent('handler_error');
+  expect(await screen.findByText(/The step stopped with an error before it could answer/)).toBeInTheDocument();
+  expect(screen.queryByText('Outcome unknown')).toBeNull();
+  expect(screen.queryByText(/The connection dropped/)).toBeNull();
+  expect(screen.queryByText(/handler_error/)).toBeNull();
+});
+
+
+test('the latest run of the version on screen is handed to the canvas, node by node; an older save is not', async()=>{
+  const ran={...completed.runs[0],graphs:[{id:'g',attempt_id:'builder-run-one',name:'Demo',status:'completed',nodes:[{id:'start',status:'succeeded'},{id:'agent',status:'failed'}]}]};
+  const doc={...document,nodes:[{id:'start',type:'start'},{id:'agent',type:'agent'}]};
+  builderTestCommand.mockResolvedValue({...opened,runs:[ran]});
+  const onRunStates=jest.fn();
+  const {rerender}=render(<BuilderTestPanel active session={{...session,document:doc}} isDark={false} onRunStates={onRunStates}/>);
+  await waitFor(()=>expect(onRunStates).toHaveBeenLastCalledWith([{node_id:'start',state:'succeeded'},{node_id:'agent',state:'failed'}]));
+  rerender(<BuilderTestPanel active session={{...session,document:doc,edit_token:'edit-B'}} isDark={false} onRunStates={onRunStates}/>);
+  await waitFor(()=>expect(onRunStates).toHaveBeenLastCalledWith(null));
 });

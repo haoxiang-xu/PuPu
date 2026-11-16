@@ -61,3 +61,14 @@ test("recorded Code is the plain header card: no path, no request to reopen, nev
   expect(screen.queryByText(/new B source must not appear/)).toBeNull();
   expect(screen.queryByTestId("code-node-code-expand")).toBeNull();
 });
+
+test("the Test panel's run states are drawn on the editable canvas: ring and glyph per the design, editing stays on", () => {
+  const document = JSON.parse(JSON.stringify(graph.document));
+  show({ document, onGraphCommand: () => {}, runStates: [{ node_id: "start", state: "succeeded" }, { node_id: "kernel", state: "failed" }] });
+  expect(screen.getByTestId("run-node-state-start")).toHaveAttribute("data-run-state", "succeeded");
+  const failed = screen.getByTestId("run-node-state-kernel");
+  expect(failed).toHaveAttribute("aria-label", "Failed");
+  expect(failed.parentElement.style.boxShadow).toMatch(/0 0 0 2px var\(--pupu-danger\)/);
+  expect(screen.getByTestId("run-node-state-start").parentElement.style.boxShadow).toBe("none");
+  expect(screen.queryByTestId("run-node-state-end")).toBeNull();
+});

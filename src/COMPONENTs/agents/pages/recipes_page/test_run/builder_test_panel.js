@@ -19,7 +19,8 @@ import useBuilderTest from "./use_builder_test";
 import { LIVE_STATUSES, model_unusable, own_model_id, panel_state, request_problem_text, unconfigured_agents } from "./test_status";
 import { kernel_profiles } from "../skeleton_resources";
 import { readMemoryAgentSettings } from "../../../../../SERVICEs/memory_agent_settings";
-import { AgentTurn, StatusDot, WorkflowRun, secondaryButtonStyle } from "./test_result";
+import { StatusDot, WorkflowRun, agent_messages, pending_requests, secondaryButtonStyle } from "./test_result";
+import ChatMessages from "../../../../chat-messages/chat_messages";
 
 /* The Test panel: try the Agent or Workflow on screen without leaving the
  * Builder. It takes the detail panel's place and wears its clothes — the
@@ -126,7 +127,7 @@ function RunSettings({ active, busy, running, workspace, setWorkspace, toolkits,
   );
 }
 
-export default function BuilderTestPanel({ active, session, onSave, onCheck, onObserve, onFix, onViewChatRun, scopeNote, isDark }) {
+export default function BuilderTestPanel({ active, session, onSave, onCheck, onFix, onRunStates, onViewChatRun, scopeNote, isDark }) {
   const { t } = useTranslation();
   const controller = useBuilderTest({ active, session, onSave });
   const { view, busy, error, uncertain, confirmed } = controller;
@@ -185,7 +186,7 @@ export default function BuilderTestPanel({ active, session, onSave, onCheck, onO
   useEffect(() => { setValues({}); setProblems([]); }, [resource, inputContract]);
 
   const current = view?.session.resource_id === resource ? view : null;
-  const runs = current?.runs || [];
+  const runs = useMemo(() => current?.runs || [], [current]);
   const last = runs.at(-1);
   const running = Boolean(last && LIVE_STATUSES.has(last.status));
   /* An approval or answer just given: shown at once, and held until the
@@ -202,13 +203,42 @@ export default function BuilderTestPanel({ active, session, onSave, onCheck, onO
   const state = panel_state({ session, kind, last: shownLast, uncertain, fallbackModel, fallbackProblem, error }, t);
   const traceContext = useMemo(() => ({ chatId: current?.session.id || "", store: null, notifyStreamingContentCommitted: null }), [current?.session.id]);
 
-  /* An Agent's conversation reads downwards: keep its newest turn in view. */
-  const bodyRef = useRef(null);
-  const tail = `${runs.length}:${last?.status}:${last?.pending ? 1 : 0}`;
+  /* The latest run's node states, for the canvas to draw on the graph the
+     author is looking at. Only a run of the version on screen is drawn: a
+     run of an older save, or under unsaved edits, would mark nodes that are
+     no longer what ran. */
+  const runStates = useMemo(() => {
+    if (!active || !last || session.dirty || last.edit_token !== session.edit_token) return null;
+    const ids = new Set((session.document?.nodes || []).map((node) => node?.id));
+    const graph = last.graphs.find((item) => item.nodes.length > 0 && item.nodes.every((node) => ids.has(node.id))) || null;
+    if (!graph) return null;
+    const held = answeredNow && !answeredNow.failed;
+    return graph.nodes.map((node) => ({ node_id: node.id,
+      state: held && /^waiting/.test(node.status) ? "running" : node.status === "outcome_unknown" && last.error ? "failed" : node.status }));
+  }, [active, last, session.dirty, session.edit_token, session.document, answeredNow]);
+  const statesKey = JSON.stringify(runStates);
   useEffect(() => {
-    if (kind !== "agent" || !bodyRef.current) return;
-    bodyRef.current.scrollTop = bodyRef.current.scrollHeight;
-  }, [kind, tail]);
+    if (onRunStates) onRunStates(runStates);
+    // The key is the states' content: a new array with the same states is
+    // not a change on the canvas.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statesKey, onRunStates]);
+  useEffect(() => () => { if (onRunStates) onRunStates(null); }, [onRunStates]);
+  const messages = useMemo(() => (kind === "agent" ? agent_messages(runs, t) : []), [kind, runs, t]);
+  const requests = useMemo(() => pending_requests(last), [last]);
+  /* The chat's confirmation state for the run's wait: idle offers the
+     buttons, submitting shows the moment one is pressed; a refused answer
+     goes back to idle with the reason. */
+  const confirmationUi = useMemo(() => {
+    const pending = requests && Object.keys(requests)[0];
+    if (!pending) return {};
+    if (answeredNow && !answeredNow.failed) return { [pending]: { status: "submitting", error: "" } };
+    return { [pending]: { status: "idle", error: answeredNow?.failed && error ? request_problem_text(error, t) : "" } };
+  }, [requests, answeredNow, error, t]);
+  const decide = ({ confirmationId, approved, userResponse }) => {
+    if (!last?.pending || confirmationId !== last.pending.interaction_id) return;
+    answer(last, last.pending.kind === "human_input" ? true : Boolean(approved), userResponse ?? null);
+  };
 
   const disabled = busy || running || uncertain || Boolean(error && !confirmed) || session.saving || Boolean(session.conflict)
     || (kind === "workflow" && problems.length > 0) || Boolean(state.blocks);
@@ -219,9 +249,6 @@ export default function BuilderTestPanel({ active, session, onSave, onCheck, onO
       : { values, toolkits, workspace_id: workspace });
     if (result && kind === "agent") setMessage("");
   };
-  const observe = (run) => onObserve && onObserve({
-    owner_chat_id: current.session.id, execution_id: current.session.id, root_run_id: run.id, resource_id: resource,
-  });
   const act = () => {
     if (state.action === "fix" && state.node_id && onFix) onFix(state.node_id);
     else if (state.action === "refresh") controller.refresh();
@@ -230,7 +257,13 @@ export default function BuilderTestPanel({ active, session, onSave, onCheck, onO
 
   if (!active) return null;
   const name = safe_text(session.document?.name) || resource || "";
-  const runProps = { document: session.document, controller, busy, confirmed, onObserve: onObserve ? observe : null, onFix, isDark,
+  const status = <>
+    <StatusLine state={state} isDark={isDark} onAction={act} />
+    {scopeNote && <span style={note(isDark)}>{scopeNote}</span>}
+    {error && !uncertain && !(fallbackProblem && error.code === "test_model_unavailable")
+      && <ControllerProblem error={error} model={fallbackModel || ""} isDark={isDark} />}
+  </>;
+  const runProps = { document: session.document, controller, busy, confirmed, isDark,
     answered: answeredNow, answerProblem: answered && error ? request_problem_text(error, t) : "", onAnswer: answer };
   const earlier = kind === "workflow" ? runs.slice(0, -1).reverse() : [];
 
@@ -251,14 +284,25 @@ export default function BuilderTestPanel({ active, session, onSave, onCheck, onO
               )}
             </> : null} />
 
-          <div ref={bodyRef} className="scrollable" data-sb-wall="4" data-sb-edge="2" data-sb-edge-top="4" data-sb-edge-bottom="12"
-            style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", padding: kind === "agent" ? "14px 16px 58px" : "14px 16px",
+          {kind === "agent" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0, padding: "14px 16px 0", flexShrink: 0 }}>
+              {status}
+            </div>
+          )}
+          {kind === "agent" && (
+            /* The chat's own message list: bubbles, trace chain, the chat's
+               approval and question controls, scrolling and its way back to
+               the newest message. */
+            <ChatMessages chatId={current?.session.id || ""} messages={messages} isStreaming={running} disableActionButtons
+              pendingToolConfirmationRequests={requests} toolConfirmationUiStateById={confirmationUi}
+              onToolConfirmationDecision={decide} onStopStream={() => controller.stop(last)} allowSessionApprovals={false}
+              bottomViewportInset={8} />
+          )}
+          {kind === "workflow" && <div className="scrollable" data-sb-wall="4" data-sb-edge="2" data-sb-edge-top="4" data-sb-edge-bottom="12"
+            style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", padding: "14px 16px",
               display: "flex", flexDirection: "column", gap: 20 }}>
             <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
-              <StatusLine state={state} isDark={isDark} onAction={act} />
-              {scopeNote && <span style={note(isDark)}>{scopeNote}</span>}
-              {error && !uncertain && !(fallbackProblem && error.code === "test_model_unavailable")
-                && <ControllerProblem error={error} model={fallbackModel || ""} isDark={isDark} />}
+              {status}
             </div>
 
             {kind === "workflow" && (
@@ -286,21 +330,9 @@ export default function BuilderTestPanel({ active, session, onSave, onCheck, onO
               </FoldBlock>
             )}
 
-            {kind === "agent" && (
-              <Block section="test-run-conversation" title={t("agents.test_run.conversation")} isDark={isDark}>
-                {runs.length === 0
-                  ? <span style={note(isDark)}>{t("agents.test_run.empty_agent")}</span>
-                  : <div style={{ display: "flex", flexDirection: "column", gap: 18, minWidth: 0 }}>
-                    {runs.map((run) => <AgentTurn key={run.id} run={run} {...runProps} />)}
-                  </div>}
-              </Block>
-            )}
-
-            {kind === "workflow" && (
-              <RunSettings active={active} busy={busy} running={running} workspace={workspace} setWorkspace={setWorkspace}
-                toolkits={toolkits} setToolkits={setToolkits} isDark={isDark} />
-            )}
-          </div>
+            <RunSettings active={active} busy={busy} running={running} workspace={workspace} setWorkspace={setWorkspace}
+              toolkits={toolkits} setToolkits={setToolkits} isDark={isDark} />
+          </div>}
 
           {kind === "agent" ? (
             /* The composer's attach row (model, tools, workspace) floats
@@ -313,6 +345,12 @@ export default function BuilderTestPanel({ active, session, onSave, onCheck, onO
                 <div data-testid="test-run-composer-hint" role="status" style={{ ...note(isDark), display: "flex", alignItems: "center", gap: 6, padding: "0 4px 6px" }}>
                   <StatusDot tone={shownLast?.status === "waiting" ? "wait" : "busy"} isDark={isDark} />
                   {t(shownLast?.status === "waiting" ? "agents.test_run.composer_waiting" : "agents.test_run.composer_running")}
+                </div>
+              )}
+              {last?.pending?.status === "receipt_recorded" && (
+                <div style={{ ...note(isDark), display: "flex", alignItems: "center", gap: 8, padding: "0 4px 6px" }}>
+                  <span style={{ flex: 1 }}>{t("agents.test_run.receipt")}</span>
+                  <Button label={t("agents.test_run.resume")} onClick={() => controller.resume(last)} disabled={busy || !confirmed} style={secondaryButtonStyle(isDark)} />
                 </div>
               )}
               {running && <div style={{ height: 44 }} aria-hidden="true" />}

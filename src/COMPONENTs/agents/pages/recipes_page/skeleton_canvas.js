@@ -185,6 +185,10 @@ function GraphDrawing({
   document: graph,
   readOnly = false,
   observation = null,
+  /* The Test panel's latest run, as [{node_id, state}], drawn on the graph
+     the author is editing. The panel only hands it over for the saved
+     version this canvas shows. */
+  runStates = null,
   onSelectNode,
   onOpenSubagent,
   onOpenWorkflow,
@@ -303,7 +307,8 @@ function GraphDrawing({
   /* Run A must never paint the editor's draft B. Only the frozen document
      object supplied by the read-only run view carries this projection. */
   const observed = readOnly && observation?.document === graph ? observation : null;
-  const runNodes = useMemo(() => new Map((observed?.nodes || []).map((node) => [node.node_id, node])), [observed]);
+  const runNodes = useMemo(() => new Map((observed?.nodes || (Array.isArray(runStates) ? runStates : [])).map((node) => [node.node_id, node])),
+    [observed, runStates]);
   const edges = useMemo(() => {
     const list = (graph && graph.edges) || [];
     const skipped = new Set(observed?.skipped_edges || []);

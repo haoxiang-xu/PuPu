@@ -200,6 +200,9 @@ export default function SkeletonResourcePage({
      while hidden, so its conversation and typed inputs are still there when
      Run brings it back. */
   const [testOpen, setTestOpen] = useState(false);
+  /* What the Test panel's latest run did, node by node, drawn on this
+     canvas while the panel is open. */
+  const [runStates, setRunStates] = useState(null);
   const [runViewScope, setRunViewScope] = useState(null);
   const [canvasProblem, setCanvasProblem] = useState(null);
   /* The graphs left behind, outermost first. */
@@ -957,6 +960,7 @@ export default function SkeletonResourcePage({
           document={document}
           commandScope={`${session.open_id}:${revision}`}
           onGraphCommand={(document?.kind === "agent" || document?.kind === "workflow") && document?.schema_version === 1 ? graphCommand : undefined}
+          runStates={testOpen && steps.length === 0 ? runStates : null}
           onSelectNode={(id) => {
             setSelectedNodeId(id);
             if (id) setTestOpen(false);
@@ -1165,9 +1169,9 @@ export default function SkeletonResourcePage({
             active={showRun && !runViewScope}
             session={session} isDark={isDark} onSave={handleSave} onCheck={preflight}
             onFix={fix_node}
+            onRunStates={setRunStates}
             scopeNote={steps.length > 0 ? t("agents.test_run.embedded_note", { name: resource_label }) : null}
-            onViewChatRun={open_run_view}
-            onObserve={(scope) => setRunViewScope(scope)} />
+            onViewChatRun={open_run_view} />
         </FloatingDetailShell>
         </div>
       )}
