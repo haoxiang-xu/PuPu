@@ -4667,6 +4667,13 @@ const createUnchainService = ({
             ? trustedCustomProviders(settingsStorageService?.readModelProviderRegistry?.() || {status:'unavailable'}) : [],
           readSecret: readProviderSecretForInjection,
         }),
+        // The same catalog the node's model picker reads: the runtime's own
+        // profiles plus Main's custom providers.
+        resolveKernelCatalog: async () => withConfiguredKernelProfiles(
+          await readSkeletonResourceResponse(await fetch(`http://${UNCHAIN_HOST}:${unchainPort}/skeleton_kernel_profiles`, {
+            method:'GET',headers:{'x-unchain-auth':unchainAuthToken},
+          })),
+          () => settingsStorageService?.readModelProviderRegistry?.()),
         post: async body => readSkeletonResourceResponse(await fetch(`http://${UNCHAIN_HOST}:${unchainPort}/skeleton_tests/command`, {
           method:'POST',headers:{'Content-Type':'application/json','x-unchain-auth':unchainAuthToken},body:JSON.stringify(body),
         })),

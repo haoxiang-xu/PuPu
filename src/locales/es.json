@@ -967,7 +967,10 @@
         "no_model": "«{node}» no tiene modelo seleccionado.",
         "switch_value": "«{node}» no tiene un valor para comparar.",
         "node": "«{node}»: {message}",
-        "version_mismatch": "Esta ventana de PuPu y su servicio en segundo plano son de versiones distintas, así que la solicitud se rechazó y no se ejecutó nada. Cierra y vuelve a abrir PuPu, e inténtalo de nuevo."
+        "version_mismatch": "Esta ventana de PuPu y su servicio en segundo plano son de versiones distintas, así que la solicitud se rechazó y no se ejecutó nada. Cierra y vuelve a abrir PuPu, e inténtalo de nuevo.",
+        "model_not_offered": "«{model}» no puede ejecutar una prueba de agente: el entorno de agentes no conoce este modelo. Elige otro modelo.",
+        "model_no_limits": "«{model}» aún no puede ejecutar una prueba de agente: falta su ventana de contexto o su salida máxima. Añade ambas en Ajustes → Proveedores de modelos o elige otro modelo.",
+        "model_refused": "«{model}» no puede ejecutar una prueba de agente: la configuración de su proveedor (dirección o método de acceso) no pasó la comprobación. Revísala en Ajustes → Proveedores de modelos o elige otro modelo."
       },
       "inputs": "Entradas",
       "result": "Resultado",

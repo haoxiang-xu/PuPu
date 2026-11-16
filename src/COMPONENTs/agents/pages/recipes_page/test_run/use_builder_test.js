@@ -108,7 +108,10 @@ export default function useBuilderTest({active,session,onSave}){
     const timer=setTimeout(read,Math.min(700*2**Math.min(readFailures,3),5000));
     return()=>clearTimeout(timer);
   },[active,latest,read,readFailures]);
-  return {view,error,busy,confirmed,uncertain,start,refresh:read,newConversation,
+  // The author changed what the refused request would carry (another model):
+  // its refusal no longer describes anything on screen.
+  const dismiss=useCallback(()=>{if(!pending.current)setError(null);},[]);
+  return {view,error,busy,confirmed,uncertain,start,refresh:read,newConversation,dismiss,
     stop:run=>control('cancel',run),
     respond:(run,approved,answer=null)=>control('respond',run,{interaction_id:run.pending.interaction_id,approved,answer}),
     resume:run=>control('resume',run,{interaction_id:run.pending.interaction_id})};

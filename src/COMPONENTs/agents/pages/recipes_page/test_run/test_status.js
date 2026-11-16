@@ -83,13 +83,40 @@ export function own_model_id(document) {
 /* What a refused or unanswered request says, for the line under the
    status. A code the panel knows is said in words; anything else keeps the
    host's own sentence. */
-export function request_problem_text(error, t) {
+export function request_problem_text(error, t, model = "") {
   if (!record(error)) return "";
   if (error.code === "builder_test_command_refused") return t("agents.test_run.problem.version_mismatch");
+  if (error.code === "test_model_unavailable") {
+    return model_problem_text(Array.isArray(error.path) ? error.path[1] : null, model, t);
+  }
   return error.message || error.code || "";
 }
 
-export function panel_state({ session, kind, last, uncertain, fallbackModel, error }, t) {
+/* A model as the composer shows it: "custom.kimi:kimi-k2.6" is kimi-k2.6. */
+export function model_label(id) {
+  if (typeof id !== "string") return "";
+  const at = id.indexOf(":");
+  return at >= 0 ? id.slice(at + 1) : id;
+}
+
+/* Why a model cannot run an Agent test, from the Kernel catalog's reason. */
+export function model_problem_text(reason, model, t) {
+  const key = reason === "context_window_unknown" || reason === "output_limit_unknown" ? "model_no_limits"
+    : reason === "profile_refused" ? "model_refused" : "model_not_offered";
+  return t(`agents.test_run.problem.${key}`, { model: model_label(model) });
+}
+
+/* Whether the Kernel catalog (the one the node's model picker reads) can run
+   this model: null when it can or the catalog is not read yet, else the
+   reason it cannot. */
+export function model_unusable(catalog, model) {
+  if (!record(catalog) || !Array.isArray(catalog.profiles) || typeof model !== "string" || !model) return null;
+  if (catalog.profiles.some((profile) => record(profile) && profile.id === model)) return null;
+  const known = Array.isArray(catalog.unavailable) ? catalog.unavailable.find((row) => record(row) && row.id === model) : null;
+  return known && typeof known.reason === "string" ? known.reason : "not_offered";
+}
+
+export function panel_state({ session, kind, last, uncertain, fallbackModel, fallbackProblem, error }, t) {
   if (session.conflict) return { tone: "bad", text: t("agents.test_run.state.conflict") };
   /* Nothing came back for a request that may have gone out. Saying so, and
      what to do: look first, send again only if nothing was recorded. A reply
@@ -109,6 +136,9 @@ export function panel_state({ session, kind, last, uncertain, fallbackModel, err
     /* An Agent with no model of its own runs with the model picked in the
        composer, as a chat does; with none picked it waits for one. */
     if (problem && problem.no_model && kind === "agent") {
+      if (fallbackModel && fallbackProblem) {
+        return { tone: "bad", text: model_problem_text(fallbackProblem, fallbackModel, t), blocks: true };
+      }
       return fallbackModel
         ? { tone: "good", text: t("agents.test_run.state.uses_chosen_model", { node: problem.name }) }
         : { tone: "wait", text: t("agents.test_run.state.pick_model", { node: problem.name }), blocks: true };

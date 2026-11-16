@@ -26,28 +26,33 @@ CONTEXT_FIELDS={'toolkits','skills','workspace_root','workspace_roots','disable_
 TRANSIENT_FIELDS={'skeleton_credentials','skeleton_credential_scope','openaiApiKey','openai_api_key',
     'anthropicApiKey','anthropic_api_key','geminiApiKey','gemini_api_key'}
 _TRACE_REDACTION_POLICY = 'registered-secrets-v1'
-_MODEL_ID = re.compile(r'[a-z0-9][a-z0-9_.-]{0,63}:[^\s]{1,200}')
 # The editor's own defaults for a Kernel it writes when a model is picked
 # (kernel_config.js `new_kernel_config`), so a test's fallback is the Kernel
 # the author would get by picking the same model on the node.
 _DEFAULT_MAX_ITERATIONS = 12
 
 
-def fallback_kernel(model_id):
-    """The Kernel an unconfigured Agent runs with in a test, for one model.
+def fallback_kernel(profile):
+    """The Kernel an unconfigured Agent runs with in a test.
 
-    Only a model identity crosses from the renderer. The profile — endpoint,
-    protocol, credential reference, window and output cap — is this host's
-    own catalog entry, the same one the node's model picker offers, so a
-    test can never carry a provider endpoint or a secret.
+    ``profile`` is the catalog entry Main resolved for the model picked in the
+    test composer — the same entries the node's model picker offers (this
+    runtime's profiles plus Main's custom providers). The renderer only ever
+    names a model; credentials are still injected by Main per run. The Kernel
+    is the editor's default for a newly picked model and passes the runtime's
+    own validator before anything is admitted.
     """
-    from skeleton_kernel_profiles import kernel_profiles
-    profile=next((row for row in kernel_profiles()['profiles'] if row.get('id')==model_id),None)
-    if profile is None:
-        _fail('test_model_unavailable','This model cannot run an Agent here. Pick another one.',('fallback_model',),409)
+    from unchain.skeleton.errors import SkeletonValidationError
+    from unchain.skeleton.kernel_config import validate_kernel_config
+    if type(profile) is not dict or type(profile.get('context_window')) is not int or type(profile.get('output_limit')) is not int:
+        _fail('invalid_shape','The chosen model profile is incomplete.',('fallback_profile',),400)
     window=profile['context_window']; limit=profile['output_limit']
-    return {'schema_version':1,'profile':deepcopy(profile),'prompt':'','max_iterations':_DEFAULT_MAX_ITERATIONS,
+    kernel={'schema_version':1,'profile':deepcopy(profile),'prompt':'','max_iterations':_DEFAULT_MAX_ITERATIONS,
         'output_tokens':max(1,min(limit,window-1)),'history':'root','overflow':'error','json_schema':None}
+    try:
+        return validate_kernel_config(kernel)
+    except SkeletonValidationError as error:
+        _fail('test_model_unavailable','This model cannot run an Agent test: its profile was refused.',('fallback_model','profile_refused'),409)
 
 
 def runtime_import_observation(manifest):
@@ -189,7 +194,7 @@ class BuilderTestSessions:
             if status not in _TERMINAL and status!='ready':
                 _fail('test_already_active','Resume or stop the current test first.',('session_id',))
 
-    def prepare(self, session, resource, token, inputs, request_id, *, memory_agent_config=None, context=None, fallback_model=None):
+    def prepare(self, session, resource, token, inputs, request_id, *, memory_agent_config=None, context=None, fallback_profile=None):
         from skeleton_code_admission import prepare_test_execution_material
         from unchain.skeleton.workflow_inputs import bind_workflow_inputs
         from route_chat import _sanitize_memory_agent_config
@@ -202,11 +207,11 @@ class BuilderTestSessions:
         if type(inputs) is not dict:
             _fail('invalid_type','Test arguments must be an object.',('inputs',),400)
         context=freeze_test_context(context or {})
-        if fallback_model is not None and (type(fallback_model) is not str or not _MODEL_ID.fullmatch(fallback_model)):
-            _fail('invalid_value','The chosen model is not a model identity.',('fallback_model',),400)
+        if fallback_profile is not None and type(fallback_profile) is not dict:
+            _fail('invalid_type','The chosen model profile must be an object.',('fallback_profile',),400)
         identity={'resource':resource,'token':token,'inputs':inputs,'memory_agent_config':memory_config,'context':context}
-        if fallback_model is not None:
-            identity['fallback_model']=fallback_model
+        if fallback_profile is not None:
+            identity['fallback_profile']=fallback_profile
         fingerprint=sha256(_json(identity).encode()).hexdigest()
         with _LOCK, self._db() as db:
             db.execute('BEGIN IMMEDIATE')
@@ -220,9 +225,9 @@ class BuilderTestSessions:
                 self._assert_idle(db,session,resource)
                 if db.execute('SELECT count(*) FROM runs WHERE session_id=?',(session,)).fetchone()[0]>=100:
                     _fail('test_session_full','Start a new test conversation.',('session_id',))
-                if fallback_model is not None and owner['kind']!='agent':
-                    _fail('invalid_value','Only an Agent test takes a model.',('fallback_model',),400)
-                draft=fallback_kernel(fallback_model) if fallback_model is not None else None
+                if fallback_profile is not None and owner['kind']!='agent':
+                    _fail('invalid_value','Only an Agent test takes a model.',('fallback_profile',),400)
+                draft=fallback_kernel(fallback_profile) if fallback_profile is not None else None
                 selected,deps=prepare_test_execution_material(resource,token,owner['kind'],draft_kernel=draft)
                 if owner['kind']=='workflow':
                     normalized=bind_workflow_inputs(selected.to_dict()['document'],inputs)

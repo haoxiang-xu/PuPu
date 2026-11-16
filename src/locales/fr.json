@@ -967,7 +967,10 @@
         "no_model": "« {node} » n’a pas de modèle sélectionné.",
         "switch_value": "« {node} » n’a pas de valeur à comparer.",
         "node": "« {node} » : {message}",
-        "version_mismatch": "Cette fenêtre de PuPu et son service d’arrière-plan n’ont pas la même version : la requête a été refusée et rien n’a été lancé. Quittez puis rouvrez PuPu et réessayez."
+        "version_mismatch": "Cette fenêtre de PuPu et son service d’arrière-plan n’ont pas la même version : la requête a été refusée et rien n’a été lancé. Quittez puis rouvrez PuPu et réessayez.",
+        "model_not_offered": "« {model} » ne peut pas lancer de test d’agent : l’environnement des agents ne connaît pas ce modèle. Choisissez-en un autre.",
+        "model_no_limits": "« {model} » ne peut pas encore lancer de test d’agent : sa fenêtre de contexte ou sa sortie maximale n’est pas renseignée. Ajoutez-les dans Réglages → Fournisseurs de modèles ou choisissez un autre modèle.",
+        "model_refused": "« {model} » ne peut pas lancer de test d’agent : les réglages de son fournisseur (adresse ou mode de connexion) n’ont pas passé la vérification. Vérifiez-les dans Réglages → Fournisseurs de modèles ou choisissez un autre modèle."
       },
       "inputs": "Entrées",
       "result": "Résultat",

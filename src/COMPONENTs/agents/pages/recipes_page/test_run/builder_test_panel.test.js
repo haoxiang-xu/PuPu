@@ -4,13 +4,15 @@ import BuilderTestPanel from './builder_test_panel';
 import {api} from '../../../../../SERVICEs/api';
 import { builderTestCommand } from '../../../../../SERVICEs/builder_test_api';
 jest.mock('../../../../../SERVICEs/builder_test_api',()=>({builderTestCommand:jest.fn()}));
+jest.mock('../skeleton_resources',()=>({...jest.requireActual('../skeleton_resources'),kernel_profiles:jest.fn()}));
+const {kernel_profiles}=require('../skeleton_resources');
 
 const document={schema_version:1,id:'agent-demo',kind:'agent',name:'Demo',nodes:[],edges:[]};
 const session={document,resource_id:'agent-demo',edit_token:'edit-A',open_id:1,dirty:false,status:'ready',saving:false};
 const opened={schema:'pupu.builder-test.v1',session:{id:'builder-test-demo',resource_id:'agent-demo',kind:'agent'},runs:[]};
 const completed={...opened,runs:[{id:'builder-run-one',request_id:'req-1',edit_token:'edit-A',definition_digest:'a'.repeat(64),
   inputs:{message:'hello'},status:'completed',output:{message:'reply'},error:null,pending:null,graphs:[],events:[],trace_complete:true}]};
-beforeEach(()=>{builderTestCommand.mockReset();builderTestCommand.mockResolvedValue(opened);});
+beforeEach(()=>{builderTestCommand.mockReset();builderTestCommand.mockResolvedValue(opened);kernel_profiles.mockReset();kernel_profiles.mockResolvedValue({ok:false});});
 /* The Agent composer is the chat's own: its text box is named by its
    placeholder, and Enter sends. */
 const composer=()=>screen.getByRole('textbox',{name:/^Message this Agent…/});
@@ -288,4 +290,33 @@ test('an unreadable reply asks to look before resending, and to restart a just-u
   expect(line).toHaveTextContent('No answer came back, so PuPu can’t tell whether this message was sent. Press Refresh');
   expect(line).toHaveTextContent('If you just updated PuPu, quit and reopen it first.');
   expect(screen.getByRole('button',{name:'Refresh'})).toBeInTheDocument();
+});
+
+test('a picked model the Agent runtime cannot use is said with its reason before Send, and nothing is sent',async()=>{
+  const models=jest.spyOn(api.unchain,'getModelCatalog').mockResolvedValue({activeModel:'custom.kimi:kimi-k2.6',providers:{},modelCapabilities:{}});
+  kernel_profiles.mockResolvedValue({ok:true,data:{profiles:[],unavailable:[{id:'custom.kimi:kimi-k2.6',reason:'output_limit_unknown'}]}});
+  try{
+    render(<BuilderTestPanel active isDark={false} session={{...session,document:noModel,preflight:noModelRefusal}}/>);
+    await waitFor(()=>expect(screen.getByTestId('skeleton-preflight-state')).toHaveTextContent('“kimi-k2.6” can’t run an Agent test yet: its context window or maximum output isn’t set.'));
+    fireEvent.change(composer(),{target:{value:'hello'}});
+    send();
+    expect(builderTestCommand.mock.calls.some(([request])=>request.op==='start')).toBe(false);
+  }finally{models.mockRestore();}
+});
+
+test('a model refused at Send is explained in words, with no bare error code, and the typed message is kept',async()=>{
+  const models=jest.spyOn(api.unchain,'getModelCatalog').mockResolvedValue({activeModel:'custom.kimi:kimi-k2.6',providers:{},modelCapabilities:{}});
+  try{
+    render(<BuilderTestPanel active isDark={false} session={{...session,document:noModel,preflight:noModelRefusal}}/>);
+    await waitFor(()=>expect(builderTestCommand).toHaveBeenCalledTimes(1));
+    await waitFor(()=>expect(screen.getByTestId('skeleton-preflight-state')).toHaveTextContent('uses the model picked below'));
+    fireEvent.change(composer(),{target:{value:'hello'}});
+    builderTestCommand.mockRejectedValueOnce(Object.assign(new Error('custom.kimi:kimi-k2.6 cannot run an Agent test'),
+      {code:'test_model_unavailable',status:409,path:['fallback_model','not_offered']}));
+    send();
+    const problem=await screen.findByTestId('test-run-request-problem');
+    expect(problem).toHaveTextContent('“kimi-k2.6” can’t run an Agent test: the Agent runtime doesn’t know this model. Pick another model.');
+    expect(problem).not.toHaveTextContent('test_model_unavailable');
+    expect(composer()).toHaveValue('hello');
+  }finally{models.mockRestore();}
 });

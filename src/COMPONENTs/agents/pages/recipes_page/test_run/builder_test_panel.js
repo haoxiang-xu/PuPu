@@ -16,7 +16,8 @@ import { can_preflight } from "../skeleton_resource_session";
 import { safe_text } from "../document_values";
 import WorkflowTestInputs, { workflow_test_interface_key } from "./workflow_test_inputs";
 import useBuilderTest from "./use_builder_test";
-import { LIVE_STATUSES, own_model_id, panel_state, request_problem_text, unconfigured_agents } from "./test_status";
+import { LIVE_STATUSES, model_unusable, own_model_id, panel_state, request_problem_text, unconfigured_agents } from "./test_status";
+import { kernel_profiles } from "../skeleton_resources";
 import { AgentTurn, StatusDot, WorkflowRun, secondaryButtonStyle } from "./test_result";
 
 /* The Test panel: try the Agent or Workflow on screen without leaving the
@@ -67,12 +68,14 @@ function StatusLine({ state, isDark, onAction }) {
 }
 
 /* A request the panel made and the store refused: what it said, in red. */
-function ControllerProblem({ error, isDark }) {
+/* The engineer's code stays out of the sentence: it is on the line's
+   tooltip, for a bug report. */
+function ControllerProblem({ error, model, isDark }) {
   const { t } = useTranslation();
   return (
-    <div role="alert" data-testid="test-run-request-problem" style={{ ...problemOf(isDark), display: "flex", flexDirection: "column", gap: 2 }}>
-      <span>{request_problem_text(error, t)}</span>
-      {error.message && error.code && <span style={{ ...note(isDark), fontFamily: "ui-monospace, Menlo, monospace", fontSize: 10.5 }}>{error.code}</span>}
+    <div role="alert" data-testid="test-run-request-problem" title={error.code || undefined}
+      style={{ ...problemOf(isDark), display: "flex", flexDirection: "column", gap: 2 }}>
+      <span>{request_problem_text(error, t, model)}</span>
     </div>
   );
 }
@@ -135,6 +138,9 @@ export default function BuilderTestPanel({ active, session, onSave, onCheck, onO
   const [workspaceIds, setWorkspaceIds] = useState([]);
   const [modelCatalog, setModelCatalog] = useState(null);
   const [pickedModel, setPickedModel] = useState("");
+  /* The Kernel catalog the node's model picker reads, so a model that cannot
+     run an Agent is said before Send, with the reason. */
+  const [kernelCatalog, setKernelCatalog] = useState(null);
   const resource = session.resource_id || session.document?.id;
   const kind = session.document?.kind;
   const inputContract = useMemo(() => (kind === "workflow" ? workflow_test_interface_key(session.document) : ""), [kind, session.document]);
@@ -158,18 +164,24 @@ export default function BuilderTestPanel({ active, session, onSave, onCheck, onO
         setPickedModel((picked) => picked || catalog.activeModel || "");
       })
       .catch(() => {});
+    kernel_profiles().then((result) => { if (wanted && result?.ok) setKernelCatalog(result.data); }).catch(() => {});
     return () => { wanted = false; };
   }, [active, kind]);
   const needsModel = kind === "agent" && unconfigured_agents(session.document).length > 0;
   const ownModel = kind === "agent" ? own_model_id(session.document) : null;
   const fallbackModel = needsModel && pickedModel ? pickedModel : null;
+  const fallbackProblem = fallbackModel ? model_unusable(kernelCatalog, fallbackModel) : null;
+  const pickModel = (next) => {
+    setPickedModel(next);
+    controller.dismiss();
+  };
   useEffect(() => { setValues({}); setProblems([]); }, [resource, inputContract]);
 
   const current = view?.session.resource_id === resource ? view : null;
   const runs = current?.runs || [];
   const last = runs.at(-1);
   const running = Boolean(last && LIVE_STATUSES.has(last.status));
-  const state = panel_state({ session, kind, last, uncertain, fallbackModel, error }, t);
+  const state = panel_state({ session, kind, last, uncertain, fallbackModel, fallbackProblem, error }, t);
   const traceContext = useMemo(() => ({ chatId: current?.session.id || "", store: null, notifyStreamingContentCommitted: null }), [current?.session.id]);
 
   /* An Agent's conversation reads downwards: keep its newest turn in view. */
@@ -225,7 +237,8 @@ export default function BuilderTestPanel({ active, session, onSave, onCheck, onO
             <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
               <StatusLine state={state} isDark={isDark} onAction={act} />
               {scopeNote && <span style={note(isDark)}>{scopeNote}</span>}
-              {error && !uncertain && <ControllerProblem error={error} isDark={isDark} />}
+              {error && !uncertain && !(fallbackProblem && error.code === "test_model_unavailable")
+                && <ControllerProblem error={error} model={fallbackModel || ""} isDark={isDark} />}
             </div>
 
             {kind === "workflow" && (
@@ -279,7 +292,7 @@ export default function BuilderTestPanel({ active, session, onSave, onCheck, onO
                 showAttachments attachmentsEnabled={false} onAttachFile={() => {}}
                 modelCatalog={modelCatalog || undefined}
                 selectedModelId={needsModel ? pickedModel : ownModel || pickedModel}
-                onSelectModel={setPickedModel}
+                onSelectModel={pickModel}
                 modelSelectDisabled={!needsModel || busy || running}
                 showAgentSelector={false}
                 selectedToolkits={toolkits} onToolkitsChange={setToolkits} toolSelectDisabled={busy || running}

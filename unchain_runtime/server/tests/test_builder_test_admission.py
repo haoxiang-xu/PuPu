@@ -77,18 +77,19 @@ def test_an_authored_kernel_is_never_replaced_by_the_test_model(tmp_path):
     assert selected.to_dict()["document"] == saved["document"]
 
 
-def test_the_test_model_is_read_from_the_host_catalog_and_refused_when_absent(monkeypatch):
+def test_the_main_resolved_profile_becomes_the_editor_default_kernel_and_a_bad_one_is_refused():
     import skeleton_builder_tests as tests
-    import skeleton_kernel_profiles as profiles
-    row = {"id": "openai:gpt-test", "provider": "openai", "model": "gpt-test", "protocol": "openai-responses",
-           "endpoint": "https://api.openai.com/v1", "credential_ref": "openai", "context_window": 1000,
-           "output_limit": 4000, "capabilities": {"json_schema": True, "images": False, "files": False}}
-    monkeypatch.setattr(profiles, "kernel_profiles", lambda: {"profiles": [row], "unavailable": []})
-    kernel = tests.fallback_kernel("openai:gpt-test")
-    assert kernel["profile"] == row and kernel["output_tokens"] == 999 and kernel["max_iterations"] == 12
+    row = {"id": "custom.kimi:kimi-k2.6", "provider": "custom.kimi", "model": "kimi-k2.6", "protocol": "anthropic",
+           "endpoint": "https://api.example.test/anthropic", "credential_ref": "custom.kimi", "context_window": 262144,
+           "output_limit": 32768, "capabilities": {"json_schema": False, "images": False, "files": False}}
+    kernel = tests.fallback_kernel(row)
+    assert kernel["profile"] == row and kernel["output_tokens"] == 32768 and kernel["max_iterations"] == 12
     with pytest.raises(SkeletonResourceError) as error:
-        tests.fallback_kernel("openai:not-offered")
-    assert error.value.code == "test_model_unavailable"
+        tests.fallback_kernel({**row, "protocol": "smoke-signals"})
+    assert error.value.code == "test_model_unavailable" and list(error.value.path) == ["fallback_model", "profile_refused"]
+    with pytest.raises(SkeletonResourceError) as error:
+        tests.fallback_kernel({**row, "context_window": None})
+    assert error.value.code == "invalid_shape"
 
 
 def test_a_referenced_subagent_with_no_model_runs_with_the_same_chosen_kernel(tmp_path):

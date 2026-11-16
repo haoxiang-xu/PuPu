@@ -37,14 +37,14 @@ def builder_test_command():
             'cancel': {'session_id','resource_id','run_id'},
         }
         body=_payload('schema','op','resource_id','kind','session_id','expected_edit_token','inputs','request_id',
-            'run_id','options','interaction_id','approved','answer','memory_agent_config','context','fallback_model')
+            'run_id','options','interaction_id','approved','answer','memory_agent_config','context','fallback_profile')
         op=body.get('op')
         if op=='prepare' and 'memory_agent_config' in body:
             fields['prepare']=fields['prepare']|{'memory_agent_config'}
         if op=='prepare':
             fields['prepare']=fields['prepare']|{'context'}
-        if op=='prepare' and 'fallback_model' in body:
-            fields['prepare']=fields['prepare']|{'fallback_model'}
+        if op=='prepare' and 'fallback_profile' in body:
+            fields['prepare']=fields['prepare']|{'fallback_profile'}
         if type(op) is not str or op not in fields or set(body)!={'schema','op'}|fields[op] or body.get('schema')!=SCHEMA:
             raise SkeletonResourceError('invalid_shape',('body',),'Unknown or incomplete Test Run command.')
         import re
@@ -80,7 +80,7 @@ def builder_test_command():
             if op=='read': return tests.read(session,resource)
             if op=='prepare': return tests.prepare(session,resource,body['expected_edit_token'],body['inputs'],body['request_id'],
                 memory_agent_config=body.get('memory_agent_config'),context=body['context'],
-                fallback_model=body.get('fallback_model'))
+                fallback_profile=body.get('fallback_profile'))
             if op=='execute': return tests.execute(session,resource,run,body['options'])
             if op=='resume_requirements': return tests.resume_requirements(session,resource,run,body['interaction_id'])
             if op=='respond': return tests.respond(session,resource,run,body['interaction_id'],body['approved'],body['options'],answer=body['answer'])

@@ -1,8 +1,10 @@
 // Main is the only credential injector. Public commands contain no secrets,
 // owner/attempt alias or provider endpoint. An Agent start may name one model
 // (`fallback_model`, "provider:model") for Agent nodes the author left with no
-// model; the runtime derives that model's profile from its own catalog and
-// never applies it to a node that has its own Kernel.
+// model. Main resolves it against the same Kernel catalog the node's model
+// picker offers (the runtime's own profiles plus Main's custom providers) and
+// hands the runtime that profile; the runtime never applies it to a node that
+// has its own Kernel.
 const SCHEMA = 'pupu.builder-test.v1';
 const isRecord=value=>value!==null && typeof value==='object' && !Array.isArray(value);
 const closed=(value,fields)=>isRecord(value) && Reflect.ownKeys(value).length===fields.length && fields.every(key=>
@@ -81,7 +83,11 @@ const checkBuilderTestReply=(value,request)=>{
   return value;
 };
 
-const runBuilderTestCommand=async(payload,{post,resolveCredentials,resolveWorkspace})=>{
+// Why a picked model cannot run an Agent test, as the catalog says it.
+const modelUnavailable=(id,reason)=>Object.assign(new Error(`${id} cannot run an Agent test`),
+  {code:'test_model_unavailable',status:409,path:['fallback_model',reason||'not_offered']});
+
+const runBuilderTestCommand=async(payload,{post,resolveCredentials,resolveWorkspace,resolveKernelCatalog})=>{
   const request=checkBuilderTestCommand(payload);
   const send=body=>post({schema:SCHEMA,...body});
   const capable=async()=>{
@@ -108,11 +114,21 @@ const runBuilderTestCommand=async(payload,{post,resolveCredentials,resolveWorksp
       context.disable_workspace_root=false;
     }
   }
+  let fallbackProfile=null;
+  if(request.op==='start'&&request.fallback_model){
+    const catalog=resolveKernelCatalog?await resolveKernelCatalog():null;
+    const profiles=Array.isArray(catalog?.profiles)?catalog.profiles:[];
+    fallbackProfile=profiles.find(profile=>isRecord(profile)&&profile.id===request.fallback_model)||null;
+    if(!fallbackProfile){
+      const known=(Array.isArray(catalog?.unavailable)?catalog.unavailable:[]).find(row=>isRecord(row)&&row.id===request.fallback_model);
+      throw modelUnavailable(request.fallback_model,typeof known?.reason==='string'&&/^[a-z_]+$/.test(known.reason)?known.reason:'not_offered');
+    }
+  }
   await capable();
   const prepared=await send(request.op==='start'
     ? {op:'prepare',session_id:request.session_id,resource_id:request.resource_id,expected_edit_token:request.expected_edit_token,
       request_id:request.request_id,inputs:request.inputs,context,...(request.memory_agent_config?{memory_agent_config:request.memory_agent_config}:{}),
-      ...(request.fallback_model?{fallback_model:request.fallback_model}:{})}
+      ...(fallbackProfile?{fallback_profile:JSON.parse(JSON.stringify(fallbackProfile))}:{})}
     : {op:'resume_requirements',session_id:request.session_id,resource_id:request.resource_id,run_id:request.run_id,interaction_id:request.interaction_id});
   if(!closed(prepared,['schema','session_id','resource_id','run_id','credential_query','requirements']) || prepared.schema!==SCHEMA ||
     prepared.session_id!==request.session_id || prepared.resource_id!==request.resource_id || !id(prepared.run_id) ||

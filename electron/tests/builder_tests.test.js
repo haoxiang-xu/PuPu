@@ -218,18 +218,32 @@ test('preload preserves producer refusal code, path, message and HTTP status', a
     .rejects.toMatchObject({ code: 'missing_value', path: ['inputs', 'city'], message: 'Parameter was refused', status: 422 });
 });
 
-test('an Agent start may name one model for unconfigured Agent nodes; only its identity crosses to the runtime', async () => {
+test('an Agent start may name one model for unconfigured Agent nodes; Main resolves its profile from the Kernel catalog', async () => {
+  const kimi = { id: 'custom.kimi:kimi-k2.6', provider: 'custom.kimi', model: 'kimi-k2.6', credential_ref: 'custom.kimi',
+    protocol: 'anthropic', endpoint: 'https://api.example.test/anthropic', auth_mode: undefined,
+    context_window: 262144, output_limit: 32768, capabilities: { json_schema: false, images: false, files: false } };
+  const catalog = { profiles: [kimi], unavailable: [{ id: 'custom.kimi:no-cap', provider: 'custom.kimi', model: 'no-cap', reason: 'output_limit_unknown' }] };
   const prepared = packet('workflow-prepare');
   const post = jest.fn()
     .mockResolvedValueOnce(packet('capabilities'))
     .mockResolvedValueOnce(prepared)
     .mockResolvedValueOnce(packet('workflow-completed'));
-  const request = { ...startRequest(prepared.resource_id, prepared.session_id), fallback_model: 'openai:gpt-4.1' };
-  await runBuilderTestCommand(request, { post, resolveCredentials: jest.fn(), resolveWorkspace: jest.fn() });
-  expect(post.mock.calls[1][0]).toMatchObject({ op: 'prepare', fallback_model: 'openai:gpt-4.1' });
-  expect(post.mock.calls[2][0]).not.toHaveProperty('fallback_model');
+  const base = startRequest(prepared.resource_id, prepared.session_id);
+  const resolveKernelCatalog = jest.fn(async () => catalog);
+  await runBuilderTestCommand({ ...base, fallback_model: kimi.id }, { post, resolveCredentials: jest.fn(), resolveWorkspace: jest.fn(), resolveKernelCatalog });
+  const sent = post.mock.calls[1][0];
+  expect(sent).not.toHaveProperty('fallback_model');
+  expect(sent.fallback_profile).toEqual(JSON.parse(JSON.stringify(kimi)));
+  expect(post.mock.calls[2][0]).not.toHaveProperty('fallback_profile');
+  // A model the catalog lists as unusable, or does not list, is refused with its reason before anything is sent.
+  const quiet = jest.fn();
+  await expect(runBuilderTestCommand({ ...base, fallback_model: 'custom.kimi:no-cap' }, { post: quiet, resolveKernelCatalog }))
+    .rejects.toMatchObject({ code: 'test_model_unavailable', status: 409, path: ['fallback_model', 'output_limit_unknown'] });
+  await expect(runBuilderTestCommand({ ...base, fallback_model: 'openai:gone' }, { post: quiet, resolveKernelCatalog }))
+    .rejects.toMatchObject({ code: 'test_model_unavailable', path: ['fallback_model', 'not_offered'] });
+  expect(quiet).not.toHaveBeenCalled();
   for (const bad of ['', 'gpt-4.1', 'openai:', 'openai:has space', { provider: 'openai' }]) {
-    expect(() => checkBuilderTestCommand({ ...request, fallback_model: bad })).toThrow(expect.objectContaining({ code: 'builder_test_command_refused' }));
+    expect(() => checkBuilderTestCommand({ ...base, fallback_model: bad })).toThrow(expect.objectContaining({ code: 'builder_test_command_refused' }));
   }
   expect(() => checkBuilderTestCommand({ op: 'read', resource_id: 'r', session_id: 's', fallback_model: 'openai:gpt-4.1' }))
     .toThrow(expect.objectContaining({ code: 'builder_test_command_refused' }));
