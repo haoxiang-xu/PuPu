@@ -17,7 +17,7 @@ const NO_SOURCES = Object.freeze({});
  * by invocation identity, never by a definition/node label shared by siblings.
  * Managed source text is deliberately absent: the editor may already hold B
  * while this immutable run uses A. The frozen source path/digest is still shown. */
-export default function SkeletonRunView({ scope, isDark, onClose }) {
+export default function SkeletonRunView({ scope, isDark, onClose, leftInset = 14 }) {
   const { t } = useTranslation();
   const observed = useSkeletonRunObservation(scope);
   const [graphId, setGraphId] = useState(null);
@@ -30,51 +30,50 @@ export default function SkeletonRunView({ scope, isDark, onClose }) {
   const titleBarInset = typeof window !== "undefined" && window.runtime?.isElectron === true && windowStateBridge.isActionAvailable() ? TOP_BAR_HEIGHT : 0;
   const layoutKey = graph ? JSON.stringify(["run-observation", scope.owner_chat_id, scope.execution_id,
     observed.run.generation_id, observed.run.root_run_id, graph.graph_id]) : null;
+  /* The ids that name this run are for a bug report, not for reading: they
+     sit on the title's tooltip. */
+  const identity = observed.run
+    ? t("agents.run_view.identity_with_root", { chat: scope.owner_chat_id, execution: scope.execution_id, root: observed.run.root_run_id })
+    : t("agents.run_view.identity", { chat: scope.owner_chat_id, execution: scope.execution_id });
+  const small = { fontSize: 11, paddingVertical: 4, paddingHorizontal: 8, borderRadius: 6 };
   return (
-    <div data-testid="skeleton-run-observation-view" style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column" }}>
-      {graph && <div style={{ flex: 1, minHeight: 0, position: "relative", display: "flex", order: 1 }}><SkeletonCanvas resourceId={layoutKey} commandScope="run-observation" document={graph.document}
+    /* The graph takes the whole page, as the editor's canvas does; the card
+       floats over its top-left, past the open side menu, so nothing of it is
+       hidden underneath. */
+    <div data-testid="skeleton-run-observation-view" style={{ position: "absolute", inset: 0 }}>
+      {graph && <div style={{ position: "absolute", inset: 0, display: "flex" }}><SkeletonCanvas resourceId={layoutKey} commandScope="run-observation" document={graph.document}
         readOnly observation={graph} isDark={isDark} managedSources={NO_SOURCES} homeToken={homeToken}
         onSelectNode={(node_id) => setSelected({ graph_id: graph.graph_id, node_id })} /></div>}
-      <div style={{ position: "relative", margin: `${titleBarInset + 16}px 14px 8px`, maxHeight: "45%", overflowY: "auto", flexShrink: 0, order: 0, zIndex: AGENTS_MODAL_Z.PANEL_CONTROL,
-        display: "flex", flexDirection: "column", gap: 7, padding: 12, borderRadius: 10,
+      <div data-testid="run-observation-card" style={{ position: "absolute", top: 0, left: leftInset, margin: `${titleBarInset + 16}px 0 0`,
+        width: 380, maxWidth: "calc(100% - 28px)", maxHeight: "45%", overflowY: "auto", zIndex: AGENTS_MODAL_Z.PANEL_CONTROL,
+        display: "flex", flexDirection: "column", gap: 7, padding: 12, borderRadius: 10, boxSizing: "border-box",
         background: tokens.background, border: tokens.border, backdropFilter: tokens.backdrop, boxShadow: tokens.shadow }}>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <Button label={t("agents.run_view.back_to_editor")} prefix_icon="arrow_left" onClick={onClose}
             style={{ fontSize: 11.5, paddingVertical: 4, paddingHorizontal: 9, borderRadius: 6 }} />
-          <strong style={{ fontSize: 12 }}>{t("agents.run_view.title")}</strong>
-          <span style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
-            {graph && <Button label={t("agents.run_view.center_graph")} prefix_icon="target" onClick={() => setHomeToken((v) => v + 1)}
-              style={{ fontSize: 11, paddingVertical: 4, paddingHorizontal: 8, borderRadius: 6 }} />}
-            <Button label={observed.refreshing ? t("agents.run_view.reading") : t("agents.run_view.refresh")} prefix_icon="refresh"
-              disabled={observed.refreshing} onClick={observed.refresh}
-              style={{ fontSize: 11, paddingVertical: 4, paddingHorizontal: 8, borderRadius: 6 }} />
-          </span>
+          <strong title={identity} style={{ fontSize: 12.5, flex: 1, minWidth: 0 }}>{t("agents.run_view.title")}</strong>
+          {graph && <Button ariaLabel={t("agents.run_view.center_graph")} title={t("agents.run_view.center_graph")} prefix_icon="target"
+            onClick={() => setHomeToken((v) => v + 1)} style={small} />}
+          <Button ariaLabel={observed.refreshing ? t("agents.run_view.reading") : t("agents.run_view.refresh")}
+            title={t("agents.run_view.refresh")} prefix_icon="refresh" disabled={observed.refreshing} onClick={observed.refresh} style={small} />
         </div>
-        <span style={{ fontSize: 11, lineHeight: 1.45 }}>{t("agents.run_view.recorded_state_notice")}</span>
-        <span style={{ fontSize: 10.5, color: "var(--pupu-text-muted)", overflowWrap: "anywhere" }}>
-          {observed.run
-            ? t("agents.run_view.identity_with_root", { chat: scope.owner_chat_id, execution: scope.execution_id, root: observed.run.root_run_id })
-            : t("agents.run_view.identity", { chat: scope.owner_chat_id, execution: scope.execution_id })}
-        </span>
+        <span style={{ fontSize: 11.5, lineHeight: 1.5 }}>{t("agents.run_view.explain")}</span>
         {observed.error && <div data-testid="run-observation-error" role="alert" style={{ fontSize: 11, lineHeight: 1.45 }}>
           {renderAgentMessage(observed.errorCaption || observed.error, t)}{graph ? t("agents.run_view.last_snapshot_notice") : ""}
         </div>}
-        {observed.phase === "loading" && <span role="status">{t("agents.run_view.reading_run")}</span>}
-        {observed.phase === "empty" && <span role="status">{t("agents.run_view.no_matching_run")}</span>}
+        {observed.phase === "loading" && <span role="status" style={{ fontSize: 11 }}>{t("agents.run_view.reading_run")}</span>}
+        {observed.phase === "empty" && <span role="status" style={{ fontSize: 11 }}>{t("agents.run_view.no_matching_run")}</span>}
         {graph && <>
-          <div data-testid="run-observation-graph-picker" style={{ maxWidth: 560, width: "100%" }}>
+          {/* Only a run that went into a subagent or a called Workflow has
+              more than one graph to choose from. */}
+          {graphs.length > 1 && <div data-testid="run-observation-graph-picker" style={{ width: "100%" }}>
             <Select value={graph.graph_id} set_value={(id) => { if (graphs.some((item) => item.graph_id === id)) { setGraphId(id); setSelected(null); } }}
               filterable={false} placeholder={t("agents.run_view.graph_invocation")} options={graphs.map((item) => ({ value: item.graph_id,
                 label: item.caller_node_id === null
                   ? t("agents.run_view.graph_root_option", { name: item.document.name, graph: item.graph_id })
                   : t("agents.run_view.graph_child_option", { name: item.document.name, caller: item.caller_node_id, graph: item.graph_id }) }))}
               style={{ height: 28, fontSize: 11 }} />
-          </div>
-          <span data-testid="run-observation-graph-state" style={{ fontSize: 11 }}>
-            {t("agents.run_view.graph_state", { status: graph.status, revision: graph.revision, journal: observed.run.high_watermark })}
-            {graph.parent_graph_id === null ? graph.root_committed ? t("agents.run_view.root_committed") : t("agents.run_view.root_not_committed") : ""}
-          </span>
-          <span style={{ fontSize: 10.5, color: "var(--pupu-text-muted)" }}>{t("agents.run_view.frozen_code_notice")}</span>
+          </div>}
           {graph.error && <span role="alert" style={{ fontSize: 11 }}>{graph.error.code} · {graph.error.path.join(".")}</span>}
           {graph.skipped_edges.length > 0 && <span data-testid="run-observation-skipped" style={{ fontSize: 11, opacity: 0.65 }}>
             {t("agents.run_view.skipped_paths", { paths: graph.skipped_edges.join(", ") })}

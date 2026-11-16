@@ -986,7 +986,7 @@
       "output_value": "Valeur",
       "no_output": "Terminé sans sortie.",
       "steps": "Étapes",
-      "view_run": "Afficher sur le canevas",
+      "view_run": "Voir les étapes sur le graphe",
       "failed_at": "Échec à « {node} »",
       "error_title": "Échec de l’exécution",
       "outcome_unknown_note": "La connexion a été coupée avant le résultat. Actualisez pour savoir si elle s’est terminée.",
@@ -1022,7 +1022,9 @@
         "failed": "Échec",
         "cancelled": "Annulé",
         "outcome_unknown": "Résultat inconnu"
-      }
+      },
+      "composer_waiting": "Le dernier message vous attend plus haut (autorisez ou répondez). Vous pourrez renvoyer ensuite.",
+      "composer_running": "Le dernier message est encore en cours. Renvoyez quand il a fini, ou appuyez sur ■ pour l’arrêter."
     },
     "parameters": {
       "title": "Paramètres",
@@ -1202,12 +1204,12 @@
       "view_chat_run": "Voir l’exécution de la conversation actuelle"
     },
     "run_view": {
-      "back_to_editor": "Revenir à l’éditeur",
-      "title": "Instantané d’exécution en lecture seule",
+      "back_to_editor": "Retour",
+      "title": "Exécution sur le graphe",
+      "explain": "Les étapes de cette exécution sur le graphe : chaque nœud indique comment il s’est terminé. Lecture seule : rien n’est modifiable ici.",
       "center_graph": "Centrer le graphe",
       "reading": "Lecture…",
       "refresh": "Actualiser l’état enregistré",
-      "recorded_state_notice": "État enregistré ; l’activité en direct n’est pas confirmée. Approuvez, reprenez ou annulez dans la conversation.",
       "identity": "Conversation {chat} · exécution {execution}",
       "identity_with_root": "Conversation {chat} · exécution {execution} · racine {root}",
       "last_snapshot_notice": " Le dernier instantané enregistré reste affiché ; son actualité n’est pas confirmée.",
@@ -1216,10 +1218,6 @@
       "graph_invocation": "Invocation de graphe enregistrée",
       "graph_root_option": "{name} · racine · {graph}",
       "graph_child_option": "{name} · depuis {caller} · {graph}",
-      "graph_state": "{status} · révision {revision} · journal {journal}",
-      "root_committed": " · racine finalisée",
-      "root_not_committed": " · racine non finalisée",
-      "frozen_code_notice": "Les aperçus de Code affichent uniquement le chemin figé ; le texte source de l’éditeur n’est pas utilisé.",
       "skipped_paths": "Chemins ignorés (pointillés) : {paths}. Les nœuds non visités restent en attente."
     },
     "path": {

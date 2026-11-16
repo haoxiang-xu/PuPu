@@ -417,7 +417,10 @@ class BuilderTestSessions:
             # artifact listed but not yet readable. While the worker is alive
             # the run is still in progress; read it again on the next poll
             # instead of failing the request that only asked to look.
-            if getattr(error,'code',None)=='artifact_unavailable' and (str(self.path),row['id']) in _WORKERS:
+            # The same holds for a wait the worker is settling right now (an
+            # approval just recorded, a resume starting): its guard and
+            # pending record change between independent reads.
+            if isinstance(getattr(error,'code',None),str) and (str(self.path),row['id']) in _WORKERS:
                 result['status']='running'
                 return result
             raise

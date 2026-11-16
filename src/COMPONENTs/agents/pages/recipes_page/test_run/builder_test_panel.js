@@ -240,7 +240,8 @@ export default function BuilderTestPanel({ active, session, onSave, onCheck, onO
             </> : null} />
 
           <div ref={bodyRef} className="scrollable" data-sb-wall="4" data-sb-edge="2" data-sb-edge-top="4" data-sb-edge-bottom="12"
-            style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", padding: "14px 16px", display: "flex", flexDirection: "column", gap: 20 }}>
+            style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", padding: kind === "agent" ? "14px 16px 58px" : "14px 16px",
+              display: "flex", flexDirection: "column", gap: 20 }}>
             <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
               <StatusLine state={state} isDark={isDark} onAction={act} />
               {scopeNote && <span style={note(isDark)}>{scopeNote}</span>}
@@ -290,7 +291,19 @@ export default function BuilderTestPanel({ active, session, onSave, onCheck, onO
           </div>
 
           {kind === "agent" ? (
+            /* The composer's attach row (model, tools, workspace) floats
+               above its box while it is in use (focused or holding text). The
+               conversation keeps that much room at its end, and the hint
+               below keeps its own, so the row never covers either. */
             <div data-testid="test-run-composer" style={{ padding: "6px 12px 12px", flexShrink: 0 }}>
+              {/* Why Send does nothing right now, said where Send is. */}
+              {running && (
+                <div data-testid="test-run-composer-hint" role="status" style={{ ...note(isDark), display: "flex", alignItems: "center", gap: 6, padding: "0 4px 6px" }}>
+                  <StatusDot tone={last?.status === "waiting" ? "wait" : "busy"} isDark={isDark} />
+                  {t(last?.status === "waiting" ? "agents.test_run.composer_waiting" : "agents.test_run.composer_running")}
+                </div>
+              )}
+              {running && <div style={{ height: 44 }} aria-hidden="true" />}
               <ChatInput compact value={message} onChange={setMessage}
                 onSend={() => { if (!disabled && message.trim()) start(); }}
                 onStop={() => controller.stop(last)} isStreaming={running}

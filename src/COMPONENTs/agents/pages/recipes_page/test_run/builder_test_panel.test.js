@@ -341,3 +341,9 @@ test('a run that needed a workspace says so in words, with no bare code', async(
   expect(card).toHaveTextContent('This Agent uses file tools, which need a workspace.');
   expect(card).not.toHaveTextContent('workspace_unavailable');
 });
+
+test('while the last message waits for an approval, the composer says why Send does nothing', async()=>{
+  builderTestCommand.mockResolvedValue({...opened,runs:[{...completed.runs[0],status:'running',output:null}]});
+  render(<BuilderTestPanel active session={session} isDark={false}/>);
+  expect(await screen.findByTestId('test-run-composer-hint')).toHaveTextContent('The last message is still running.');
+});

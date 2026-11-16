@@ -986,7 +986,7 @@
       "output_value": "Value",
       "no_output": "Finished with no output.",
       "steps": "Steps",
-      "view_run": "Show on canvas",
+      "view_run": "See steps on graph",
       "failed_at": "Failed at “{node}”",
       "error_title": "Run failed",
       "outcome_unknown_note": "The connection dropped before the result came back. Refresh to see whether it finished.",
@@ -1022,7 +1022,9 @@
         "failed": "Failed",
         "cancelled": "Cancelled",
         "outcome_unknown": "Outcome unknown"
-      }
+      },
+      "composer_waiting": "The last message is waiting for you above (approve or answer it). You can send again once it is done.",
+      "composer_running": "The last message is still running. Send again when it finishes, or press ■ to stop it."
     },
     "parameters": {
       "title": "Parameters",
@@ -1202,12 +1204,12 @@
       "view_chat_run": "View current chat run"
     },
     "run_view": {
-      "back_to_editor": "Back to editor",
-      "title": "Read-only run snapshot",
+      "back_to_editor": "Back",
+      "title": "Run on graph",
+      "explain": "The steps this run took, drawn on the graph: each node shows how it ended. Read-only: nothing here can be changed.",
       "center_graph": "Center graph",
       "reading": "Reading…",
       "refresh": "Refresh recorded state",
-      "recorded_state_notice": "Recorded state; live activity is unconfirmed. Approve, resume or cancel in chat.",
       "identity": "Chat {chat} · execution {execution}",
       "identity_with_root": "Chat {chat} · execution {execution} · root {root}",
       "last_snapshot_notice": " The last recorded snapshot remains on screen; it is not confirmed current.",
@@ -1216,10 +1218,6 @@
       "graph_invocation": "Recorded graph invocation",
       "graph_root_option": "{name} · root · {graph}",
       "graph_child_option": "{name} · from {caller} · {graph}",
-      "graph_state": "{status} · revision {revision} · journal {journal}",
-      "root_committed": " · root committed",
-      "root_not_committed": " · root not committed",
-      "frozen_code_notice": "Code previews show the frozen path only; the editor’s source text is not used.",
       "skipped_paths": "Skipped paths (dashed): {paths}. Unvisited nodes remain pending."
     },
     "path": {

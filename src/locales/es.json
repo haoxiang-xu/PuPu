@@ -986,7 +986,7 @@
       "output_value": "Valor",
       "no_output": "Terminó sin salida.",
       "steps": "Pasos",
-      "view_run": "Ver en el lienzo",
+      "view_run": "Ver pasos en el grafo",
       "failed_at": "Falló en «{node}»",
       "error_title": "La ejecución falló",
       "outcome_unknown_note": "La conexión se cortó antes del resultado. Actualiza para ver si terminó.",
@@ -1022,7 +1022,9 @@
         "failed": "Error",
         "cancelled": "Cancelado",
         "outcome_unknown": "Resultado desconocido"
-      }
+      },
+      "composer_waiting": "El último mensaje te espera arriba (aprueba o responde). Podrás enviar de nuevo cuando termines.",
+      "composer_running": "El último mensaje sigue ejecutándose. Envía de nuevo cuando termine o pulsa ■ para detenerlo."
     },
     "parameters": {
       "title": "Parámetros",
@@ -1202,12 +1204,12 @@
       "view_chat_run": "Ver la ejecución del chat actual"
     },
     "run_view": {
-      "back_to_editor": "Volver al editor",
-      "title": "Instantánea de ejecución de solo lectura",
+      "back_to_editor": "Volver",
+      "title": "Ejecución en el grafo",
+      "explain": "Los pasos de esta ejecución en el grafo: cada nodo muestra cómo terminó. Solo lectura: aquí no se puede cambiar nada.",
       "center_graph": "Centrar el grafo",
       "reading": "Leyendo…",
       "refresh": "Actualizar el estado registrado",
-      "recorded_state_notice": "Estado registrado; la actividad en tiempo real no está confirmada. Aprueba, reanuda o cancela desde el chat.",
       "identity": "Chat {chat} · ejecución {execution}",
       "identity_with_root": "Chat {chat} · ejecución {execution} · ejecución raíz {root}",
       "last_snapshot_notice": " La última instantánea registrada sigue en pantalla; no se ha confirmado que esté actualizada.",
@@ -1216,10 +1218,6 @@
       "graph_invocation": "Invocación de grafo registrada",
       "graph_root_option": "{name} · raíz · {graph}",
       "graph_child_option": "{name} · desde {caller} · {graph}",
-      "graph_state": "{status} · revisión {revision} · diario {journal}",
-      "root_committed": " · ejecución raíz confirmada de forma duradera",
-      "root_not_committed": " · ejecución raíz aún no confirmada de forma duradera",
-      "frozen_code_notice": "Las vistas previas de Code solo muestran la ruta congelada; no se usa el texto fuente del editor.",
       "skipped_paths": "Rutas omitidas (discontinuas): {paths}. Los nodos no visitados siguen pendientes."
     },
     "path": {

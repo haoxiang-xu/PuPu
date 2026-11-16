@@ -123,3 +123,23 @@ def test_a_read_racing_the_worker_reports_running_instead_of_failing(tmp_path, m
         tests._WORKERS.pop((str(sessions.path), "builder-run-x"), None)
     with pytest.raises(SkeletonResourceError):
         sessions._project(row)
+
+
+def test_a_read_racing_a_resume_reports_running_instead_of_a_guard_error(tmp_path, monkeypatch):
+    import json
+    import skeleton_builder_tests as tests
+    from durable_interaction_host import DurableInteractionHostError
+    monkeypatch.setenv("UNCHAIN_DATA_DIR", str(tmp_path))
+    sessions = tests.BuilderTestSessions(background=False)
+    row = {"id": "builder-run-y", "session_id": "s", "request_id": "r", "phase": "started", "error": None,
+           "material": json.dumps({"selection": {"edit_token": "e", "definition_digest": "d" * 64}, "inputs": {"message": "hi"}})}
+    def racing(*_args, **_kwargs):
+        raise DurableInteractionHostError("session_guard_active_lineage_mismatch", "guard moving", status_code=409, retryable=False)
+    monkeypatch.setattr(sessions, "_project_launch", racing)
+    tests._WORKERS[(str(sessions.path), "builder-run-y")] = object()
+    try:
+        assert sessions._project(row)["status"] == "running"
+    finally:
+        tests._WORKERS.pop((str(sessions.path), "builder-run-y"), None)
+    with pytest.raises(DurableInteractionHostError):
+        sessions._project(row)

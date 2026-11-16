@@ -943,7 +943,8 @@ export default function SkeletonResourcePage({
       {/* The canvas takes its height by growing (`flex: 1`), so it needs a
           flex column that fills the page to grow into. Without it the graph
           was drawn 0px tall. */}
-      {ready && runViewScope && <SkeletonRunView scope={runViewScope} isDark={isDark} onClose={() => setRunViewScope(null)} />}
+      {ready && runViewScope && <SkeletonRunView scope={runViewScope} isDark={isDark} onClose={() => setRunViewScope(null)}
+        leftInset={(chrome && chrome.crumbLeft) ?? DEFAULT_CHROME.crumbLeft} />}
       {ready && !runViewScope && (
         <div style={CANVAS_FRAME}>
         <SkeletonCanvas

@@ -89,7 +89,7 @@ test("closing a view with a pending read fences its late response", async () => 
   let answer;
   api.unchain.getSkeletonRunObservation.mockImplementation(() => new Promise((resolve) => { answer = resolve; }));
   show(); await screen.findByText("Editable Start B"); await openView();
-  fireEvent.click(screen.getByRole("button", { name: "Back to editor" }));
+  fireEvent.click(screen.getByRole("button", { name: "Back", exact: true }));
   await act(async () => { answer({ ok: true, data: completed }); });
   expect(screen.queryByTestId("skeleton-run-observation-view")).toBeNull();
   expect(screen.getByText("Editable Start B")).toBeInTheDocument();

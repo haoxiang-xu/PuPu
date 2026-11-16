@@ -986,7 +986,7 @@
       "output_value": "Valor",
       "no_output": "Terminou sem saída.",
       "steps": "Etapas",
-      "view_run": "Mostrar na tela",
+      "view_run": "Ver etapas no grafo",
       "failed_at": "Falhou em “{node}”",
       "error_title": "A execução falhou",
       "outcome_unknown_note": "A conexão caiu antes do resultado. Atualize para ver se terminou.",
@@ -1022,7 +1022,9 @@
         "failed": "Falhou",
         "cancelled": "Cancelado",
         "outcome_unknown": "Resultado desconhecido"
-      }
+      },
+      "composer_waiting": "A última mensagem está esperando por você acima (permita ou responda). Depois você pode enviar de novo.",
+      "composer_running": "A última mensagem ainda está rodando. Envie de novo quando terminar ou pressione ■ para parar."
     },
     "parameters": {
       "title": "Parâmetros",
@@ -1202,12 +1204,12 @@
       "view_chat_run": "Ver a execução do chat atual"
     },
     "run_view": {
-      "back_to_editor": "Voltar ao editor",
-      "title": "Instantâneo de execução somente leitura",
+      "back_to_editor": "Voltar",
+      "title": "Execução no grafo",
+      "explain": "As etapas desta execução no grafo: cada nó mostra como terminou. Somente leitura: nada aqui pode ser alterado.",
       "center_graph": "Centralizar o grafo",
       "reading": "Lendo…",
       "refresh": "Atualizar o estado registrado",
-      "recorded_state_notice": "Estado registrado; a atividade em tempo real não está confirmada. Aprove, retome ou cancele no chat.",
       "identity": "Chat {chat} · execução {execution}",
       "identity_with_root": "Chat {chat} · execução {execution} · raiz {root}",
       "last_snapshot_notice": " O último instantâneo registrado permanece na tela; não há confirmação de que esteja atualizado.",
@@ -1216,10 +1218,6 @@
       "graph_invocation": "Invocação de grafo registrada",
       "graph_root_option": "{name} · raiz · {graph}",
       "graph_child_option": "{name} · de {caller} · {graph}",
-      "graph_state": "{status} · revisão {revision} · diário {journal}",
-      "root_committed": " · raiz consolidada",
-      "root_not_committed": " · raiz ainda não consolidada",
-      "frozen_code_notice": "As prévias de Code mostram apenas o caminho congelado; o texto-fonte do editor não é usado.",
       "skipped_paths": "Caminhos ignorados (tracejados): {paths}. Nós não visitados permanecem pendentes."
     },
     "path": {

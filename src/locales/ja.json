@@ -986,7 +986,7 @@
       "output_value": "値",
       "no_output": "出力なしで完了しました。",
       "steps": "実行の過程",
-      "view_run": "キャンバスで表示",
+      "view_run": "グラフで流れを見る",
       "failed_at": "失敗した場所：「{node}」",
       "error_title": "実行に失敗しました",
       "outcome_unknown_note": "結果が返る前に接続が切れました。更新して完了したか確認してください。",
@@ -1022,7 +1022,9 @@
         "failed": "失敗",
         "cancelled": "キャンセル済み",
         "outcome_unknown": "結果不明"
-      }
+      },
+      "composer_waiting": "前のメッセージが上であなたの対応を待っています（許可または回答）。終わると再送信できます。",
+      "composer_running": "前のメッセージはまだ実行中です。終わってから送信するか、■ で停止してください。"
     },
     "parameters": {
       "title": "パラメーター",
@@ -1202,12 +1204,12 @@
       "view_chat_run": "現在のチャットの実行を表示"
     },
     "run_view": {
-      "back_to_editor": "エディターに戻る",
-      "title": "読み取り専用の実行スナップショット",
+      "back_to_editor": "戻る",
+      "title": "実行の流れ",
+      "explain": "この実行がたどった各ステップをグラフに表示します。各ノードに結果が付きます。閲覧のみで変更はできません。",
       "center_graph": "グラフを中央に表示",
       "reading": "読み取り中…",
       "refresh": "記録された状態を更新",
-      "recorded_state_notice": "記録された状態です。現在の動作状況は未確認です。承認、再開、キャンセルはチャットで行ってください。",
       "identity": "チャット {chat} · 実行 {execution}",
       "identity_with_root": "チャット {chat} · 実行 {execution} · ルート {root}",
       "last_snapshot_notice": " 最後に記録されたスナップショットを引き続き表示しています。現在の状態であることは確認されていません。",
@@ -1216,10 +1218,6 @@
       "graph_invocation": "記録されたグラフ呼び出し",
       "graph_root_option": "{name} · ルート · {graph}",
       "graph_child_option": "{name} · 呼び出し元 {caller} · {graph}",
-      "graph_state": "{status} · リビジョン {revision} · ジャーナル {journal}",
-      "root_committed": " · ルート確定済み",
-      "root_not_committed": " · ルート未確定",
-      "frozen_code_notice": "Code のプレビューには凍結されたパスのみを表示します。エディターのソーステキストは使用しません。",
       "skipped_paths": "スキップされた経路（破線）：{paths}。未訪問のノードは保留中のままです。"
     },
     "path": {

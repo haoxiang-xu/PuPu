@@ -986,7 +986,7 @@
       "output_value": "值",
       "no_output": "執行完成，沒有輸出。",
       "steps": "執行過程",
-      "view_run": "在畫布上檢視",
+      "view_run": "在圖上看過程",
       "failed_at": "出錯位置：「{node}」",
       "error_title": "執行失敗",
       "outcome_unknown_note": "結果傳回前連線中斷。重新整理看看它是否已完成。",
@@ -1022,7 +1022,9 @@
         "failed": "失敗",
         "cancelled": "已取消",
         "outcome_unknown": "結果未知"
-      }
+      },
+      "composer_waiting": "上一則在等你處理（在上方允許或回答），處理完才能再送。",
+      "composer_running": "上一則還在執行，跑完才能再送，或按 ■ 停止。"
     },
     "parameters": {
       "title": "參數",
@@ -1202,12 +1204,12 @@
       "view_chat_run": "查看目前聊天的執行"
     },
     "run_view": {
-      "back_to_editor": "返回編輯器",
-      "title": "唯讀執行快照",
+      "back_to_editor": "返回",
+      "title": "執行過程",
+      "explain": "這次執行在圖上走過的每一步，節點上標著它的結果。這裡只能看，不能改。",
       "center_graph": "置中顯示圖",
       "reading": "正在讀取…",
       "refresh": "重新整理已記錄的狀態",
-      "recorded_state_notice": "此處顯示已記錄的狀態；即時活動尚未確認。請在聊天中核准、恢復執行或取消。",
       "identity": "聊天 {chat} · 執行 {execution}",
       "identity_with_root": "聊天 {chat} · 執行 {execution} · 根執行 {root}",
       "last_snapshot_notice": " 上一次記錄的快照仍顯示在畫面上；尚未確認它是否為最新狀態。",
@@ -1216,10 +1218,6 @@
       "graph_invocation": "已記錄的圖呼叫",
       "graph_root_option": "{name} · 根呼叫 · {graph}",
       "graph_child_option": "{name} · 來自 {caller} · {graph}",
-      "graph_state": "{status} · 修訂 {revision} · 日誌 {journal}",
-      "root_committed": " · 根執行已提交",
-      "root_not_committed": " · 根執行尚未提交",
-      "frozen_code_notice": "Code 預覽僅顯示凍結的路徑；不會使用編輯器中的原始碼文字。",
       "skipped_paths": "已略過的路徑（虛線）：{paths}。未造訪的節點仍為待處理狀態。"
     },
     "path": {

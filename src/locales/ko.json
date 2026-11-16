@@ -986,7 +986,7 @@
       "output_value": "값",
       "no_output": "출력 없이 완료되었습니다.",
       "steps": "실행 과정",
-      "view_run": "캔버스에서 보기",
+      "view_run": "그래프에서 과정 보기",
       "failed_at": "실패 위치: “{node}”",
       "error_title": "실행 실패",
       "outcome_unknown_note": "결과가 오기 전에 연결이 끊어졌습니다. 새로고침해 완료되었는지 확인하세요.",
@@ -1022,7 +1022,9 @@
         "failed": "실패",
         "cancelled": "취소됨",
         "outcome_unknown": "결과 불명"
-      }
+      },
+      "composer_waiting": "이전 메시지가 위에서 응답을 기다립니다(허용 또는 답변). 처리한 뒤 다시 보낼 수 있습니다.",
+      "composer_running": "이전 메시지가 아직 실행 중입니다. 끝난 뒤 보내거나 ■로 멈추세요."
     },
     "parameters": {
       "title": "매개변수",
@@ -1202,12 +1204,12 @@
       "view_chat_run": "현재 채팅의 실행 보기"
     },
     "run_view": {
-      "back_to_editor": "편집기로 돌아가기",
-      "title": "읽기 전용 실행 스냅샷",
+      "back_to_editor": "뒤로",
+      "title": "실행 과정",
+      "explain": "이번 실행이 거친 단계를 그래프에 표시합니다. 각 노드에 결과가 붙습니다. 보기 전용이라 바꿀 수 없습니다.",
       "center_graph": "그래프 가운데 맞춤",
       "reading": "읽는 중…",
       "refresh": "기록된 상태 새로고침",
-      "recorded_state_notice": "기록된 상태이며 현재 활동은 확인되지 않았습니다. 승인, 재개 또는 취소는 채팅에서 하세요.",
       "identity": "채팅 {chat} · 실행 {execution}",
       "identity_with_root": "채팅 {chat} · 실행 {execution} · 루트 {root}",
       "last_snapshot_notice": " 마지막으로 기록된 스냅샷을 계속 표시하고 있으며, 현재 상태인지는 확인되지 않았습니다.",
@@ -1216,10 +1218,6 @@
       "graph_invocation": "기록된 그래프 호출",
       "graph_root_option": "{name} · 루트 · {graph}",
       "graph_child_option": "{name} · 호출 위치 {caller} · {graph}",
-      "graph_state": "{status} · 리비전 {revision} · 저널 {journal}",
-      "root_committed": " · 루트 확정됨",
-      "root_not_committed": " · 루트 아직 확정되지 않음",
-      "frozen_code_notice": "Code 미리보기에는 고정된 경로만 표시되며 편집기의 소스 텍스트는 사용되지 않습니다.",
       "skipped_paths": "건너뛴 경로(점선): {paths}. 방문하지 않은 노드는 대기 상태로 남습니다."
     },
     "path": {

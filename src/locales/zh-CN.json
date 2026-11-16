@@ -986,7 +986,7 @@
       "output_value": "值",
       "no_output": "运行完成，没有输出。",
       "steps": "运行过程",
-      "view_run": "在画布上查看",
+      "view_run": "在图上看过程",
       "failed_at": "出错位置：「{node}」",
       "error_title": "运行失败",
       "outcome_unknown_note": "结果返回前连接断了。刷新看看它有没有跑完。",
@@ -1022,7 +1022,9 @@
         "failed": "失败",
         "cancelled": "已取消",
         "outcome_unknown": "结果未知"
-      }
+      },
+      "composer_waiting": "上一条在等你处理（在上面允许或回答），处理完才能再发。",
+      "composer_running": "上一条还在运行，跑完才能再发，或点 ■ 停止。"
     },
     "parameters": {
       "title": "参数",
@@ -1202,12 +1204,12 @@
       "view_chat_run": "查看当前聊天的运行"
     },
     "run_view": {
-      "back_to_editor": "返回编辑器",
-      "title": "只读运行快照",
+      "back_to_editor": "返回",
+      "title": "运行过程",
+      "explain": "这次运行在图上走过的每一步，节点上标着它的结果。这里只能看，不能改。",
       "center_graph": "居中显示图",
       "reading": "正在读取…",
       "refresh": "刷新已记录的状态",
-      "recorded_state_notice": "此处显示已记录的状态；实时活动尚未确认。请在聊天中批准、恢复运行或取消。",
       "identity": "聊天 {chat} · 执行 {execution}",
       "identity_with_root": "聊天 {chat} · 执行 {execution} · 根运行 {root}",
       "last_snapshot_notice": " 上一次记录的快照仍显示在屏幕上；尚未确认它是否为最新状态。",
@@ -1216,10 +1218,6 @@
       "graph_invocation": "已记录的图调用",
       "graph_root_option": "{name} · 根调用 · {graph}",
       "graph_child_option": "{name} · 来自 {caller} · {graph}",
-      "graph_state": "{status} · 修订 {revision} · 日志 {journal}",
-      "root_committed": " · 根运行已提交",
-      "root_not_committed": " · 根运行尚未提交",
-      "frozen_code_notice": "Code 预览仅显示冻结的路径；不会使用编辑器中的源代码文本。",
       "skipped_paths": "已跳过的路径（虚线）：{paths}。未访问的节点仍为待处理状态。"
     },
     "path": {

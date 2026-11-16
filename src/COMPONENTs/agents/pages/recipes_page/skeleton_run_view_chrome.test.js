@@ -19,7 +19,7 @@ function show(isDark = false) {
     <TitleBar />
     <SkeletonRunView scope={{ owner_chat_id: 'test-chat', execution_id: 'test-chat', resource_id: 'test-workflow' }} isDark={isDark} onClose={onClose} />
   </ConfigContext.Provider>);
-  const back = screen.getByRole('button', { name: 'Back to editor' });
+  const back = screen.getByRole('button', { name: 'Back' });
   return { ...view, back, toolbar: back.parentElement.parentElement, onClose };
 }
 test.each([false, true])('native run controls clear the actual titlebar band (dark=%s)', isDark => {

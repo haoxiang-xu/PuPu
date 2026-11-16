@@ -986,7 +986,7 @@
       "output_value": "Wert",
       "no_output": "Ohne Ausgabe beendet.",
       "steps": "Schritte",
-      "view_run": "Auf der Zeichenfläche zeigen",
+      "view_run": "Schritte im Graphen",
       "failed_at": "Fehlgeschlagen bei „{node}“",
       "error_title": "Lauf fehlgeschlagen",
       "outcome_unknown_note": "Die Verbindung brach ab, bevor das Ergebnis kam. Aktualisiere, um zu sehen, ob er fertig wurde.",
@@ -1022,7 +1022,9 @@
         "failed": "Fehlgeschlagen",
         "cancelled": "Abgebrochen",
         "outcome_unknown": "Ergebnis unbekannt"
-      }
+      },
+      "composer_waiting": "Die letzte Nachricht wartet oben auf dich (erlauben oder antworten). Danach kannst du wieder senden.",
+      "composer_running": "Die letzte Nachricht läuft noch. Sende, wenn sie fertig ist, oder stoppe sie mit ■."
     },
     "parameters": {
       "title": "Parameter",
@@ -1202,12 +1204,12 @@
       "view_chat_run": "Ausführung des aktuellen Chats ansehen"
     },
     "run_view": {
-      "back_to_editor": "Zurück zum Editor",
-      "title": "Schreibgeschützter Ausführungsschnappschuss",
+      "back_to_editor": "Zurück",
+      "title": "Ablauf im Graphen",
+      "explain": "Die Schritte dieses Laufs im Graphen: Jeder Knoten zeigt, wie er endete. Nur lesen, hier lässt sich nichts ändern.",
       "center_graph": "Graph zentrieren",
       "reading": "Wird gelesen…",
       "refresh": "Erfassten Zustand aktualisieren",
-      "recorded_state_notice": "Erfasster Zustand; die aktuelle Aktivität ist unbestätigt. Genehmigen, fortsetzen oder abbrechen können Sie im Chat.",
       "identity": "Chat {chat} · Ausführung {execution}",
       "identity_with_root": "Chat {chat} · Ausführung {execution} · Wurzelausführung {root}",
       "last_snapshot_notice": " Der zuletzt erfasste Schnappschuss bleibt sichtbar; es ist nicht bestätigt, dass er aktuell ist.",
@@ -1216,10 +1218,6 @@
       "graph_invocation": "Erfasster Graphaufruf",
       "graph_root_option": "{name} · Wurzel · {graph}",
       "graph_child_option": "{name} · von {caller} · {graph}",
-      "graph_state": "{status} · Revision {revision} · Journal {journal}",
-      "root_committed": " · Wurzelausführung festgeschrieben",
-      "root_not_committed": " · Wurzelausführung noch nicht festgeschrieben",
-      "frozen_code_notice": "Code-Vorschauen zeigen nur den eingefrorenen Pfad; der Quelltext des Editors wird nicht verwendet.",
       "skipped_paths": "Übersprungene Pfade (gestrichelt): {paths}. Nicht besuchte Knoten bleiben ausstehend."
     },
     "path": {
