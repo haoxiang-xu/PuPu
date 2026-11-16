@@ -62,13 +62,52 @@ test("recorded Code is the plain header card: no path, no request to reopen, nev
   expect(screen.queryByTestId("code-node-code-expand")).toBeNull();
 });
 
-test("the Test panel's run states are drawn on the editable canvas: ring and glyph per the design, editing stays on", () => {
+test("the Test panel's run states are drawn on the editable canvas: a line on the node's outline and a glyph, editing stays on", () => {
   const document = JSON.parse(JSON.stringify(graph.document));
   show({ document, onGraphCommand: () => {}, runStates: [{ node_id: "start", state: "succeeded" }, { node_id: "kernel", state: "failed" }] });
   expect(screen.getByTestId("run-node-state-start")).toHaveAttribute("data-run-state", "succeeded");
   const failed = screen.getByTestId("run-node-state-kernel");
   expect(failed).toHaveAttribute("aria-label", "Failed");
-  expect(failed.parentElement.style.boxShadow).toMatch(/0 0 0 2px var\(--pupu-danger\)/);
-  expect(screen.getByTestId("run-node-state-start").parentElement.style.boxShadow).toBe("none");
+  /* no box ring around the puzzle piece any more: the line is the outline's */
+  expect(failed.parentElement.style.boxShadow).toBe("");
+  expect(failed.parentElement).toHaveAttribute("data-run-line", "solid");
+  expect(screen.getByTestId("run-node-state-start").parentElement).not.toHaveAttribute("data-run-line");
   expect(screen.queryByTestId("run-node-state-end")).toBeNull();
+  expect(typeof editor.on_connect).toBe("function");
+});
+
+test("running is the theme colour passing through, with no glyph, and the edge into it flows", () => {
+  const document = JSON.parse(JSON.stringify(graph.document));
+  const [first] = document.edges;
+  show({ document, onGraphCommand: () => {}, runStates: [{ node_id: first.source_node_id, state: "succeeded" }, { node_id: first.target_node_id, state: "running" }] });
+  const running = screen.getByTestId(`run-node-state-${first.target_node_id}`);
+  expect(running.getAttribute("aria-label")).toMatch(/running/i);
+  expect(running.parentElement).toHaveAttribute("data-run-line", "pass");
+  expect(running.querySelector("svg, img")).toBeNull();
+  const edge = editor.edges.find((e) => e.id === first.id);
+  expect(edge).toMatchObject({ color: "var(--pupu-accent)", flowing: true });
+  expect(document.edges.find((e) => e.id === first.id).flowing).toBeUndefined();
+});
+
+test("the path a run took stays tinted; a failure turns its way in red and its way out dashed", () => {
+  const document = JSON.parse(JSON.stringify(graph.document));
+  const drawn = (id) => editor.edges.find((e) => e.id === id);
+  const { unmount } = show({ document, onGraphCommand: () => {}, runStates: [
+    { node_id: "start", state: "succeeded" }, { node_id: "kernel", state: "succeeded" }, { node_id: "end", state: "failed" }] });
+  expect(drawn("a").color).toMatch(/--pupu-success/);
+  expect(drawn("b").color).toMatch(/--pupu-danger/);
+  unmount();
+  show({ document, onGraphCommand: () => {}, runStates: [{ node_id: "start", state: "succeeded" }, { node_id: "kernel", state: "failed" }] });
+  expect(drawn("a").color).toMatch(/--pupu-danger/);
+  expect(drawn("b")).toMatchObject({ style: "dashed" });
+  expect(drawn("b").color).toBeUndefined();
+});
+
+test("a configuration pool's link keeps its drawing during a run", () => {
+  const document = { ...graph.document, nodes: [...graph.document.nodes, { id: "pool", type: "toolkit_pool", config: {} }],
+    edges: [...graph.document.edges, { id: "pool-link", source_node_id: "pool", source_port_id: "out", target_node_id: "kernel", target_port_id: "in" }] };
+  show({ document, onGraphCommand: () => {}, runStates: [{ node_id: "pool", state: "succeeded" }, { node_id: "kernel", state: "running" }] });
+  const link = editor.edges.find((e) => e.id === "pool-link");
+  expect(link.color).toBeUndefined();
+  expect(link.flowing).toBeUndefined();
 });

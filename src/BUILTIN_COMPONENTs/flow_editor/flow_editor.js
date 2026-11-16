@@ -1158,6 +1158,11 @@ function FlowEditor({
           }}
           shapeRendering="geometricPrecision"
         >
+          {/* An edge may carry its own colour and a flow (dashes moving from
+              source to target), e.g. a run passing along it. */}
+          {edge_paths.some((ep) => ep.flowing) && (
+            <style>{"@keyframes flow-editor-edge-flow { to { stroke-dashoffset: -12; } } @media (prefers-reduced-motion: reduce) { [data-flow-edge-flowing] { animation: none !important; } }"}</style>
+          )}
           {edge_paths.map((ep) => (
             <g
               key={ep.id}
@@ -1186,21 +1191,23 @@ function FlowEditor({
                 }}
                 d={ep.d}
                 fill="none"
+                data-flow-edge-flowing={ep.flowing ? "" : undefined}
                 stroke={
                   selected_edge_id === ep.id
                     ? theme.edgeActiveColor
-                    : theme.edgeColor
+                    : ep.color || theme.edgeColor
                 }
                 strokeWidth={
                   selected_edge_id === ep.id
                     ? theme.edgeWidth + 1
                     : theme.edgeWidth
                 }
-                strokeDasharray={ep.style === "dashed" ? "5 4" : undefined}
+                strokeDasharray={ep.flowing ? "5 7" : ep.style === "dashed" ? "5 4" : undefined}
                 strokeLinecap="round"
                 style={{
                   pointerEvents: "none",
                   transition: "stroke 0.15s ease, stroke-width 0.15s ease",
+                  animation: ep.flowing ? "flow-editor-edge-flow 0.55s linear infinite" : undefined,
                 }}
               />
               {/* + button at midpoint */}

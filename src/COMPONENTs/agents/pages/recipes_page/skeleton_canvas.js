@@ -149,6 +149,26 @@ function renderNode(node, isDark, onOpenSubagent, view = {}) {
  * of FlowEditor's own state as well, which no prop of ours can reset; and the
  * viewport is written back on the way out by the instance that was panned, so
  * it lands under the graph it belonged to rather than the one now open. */
+/* A run drawn on the edges too (design B3): the edge into the node that is
+   running flows in the theme colour; the path the run took stays tinted
+   (green, or red into a failure); an edge into a person's wait holds still
+   in the warning colour; an edge into a skipped node, or out of a failed
+   one, goes dashed. A configuration pool's link is not a step of the run
+   and keeps its own drawing. Only the drawing changes, never the edge. */
+const RUN_POOL_TYPES = ["toolkit_pool", "subagent_pool", "hooks_pool"];
+const RUN_EDGE_TINT = (token) => `color-mix(in srgb, var(${token}) 75%, transparent)`;
+function run_edge(edge, runNodes) {
+  const from = runNodes.get(edge.source_node_id)?.state;
+  const to = runNodes.get(edge.target_node_id)?.state;
+  if (from === "failed" || to === "skipped") return { ...edge, style: "dashed" };
+  if (from !== "succeeded") return edge;
+  if (to === "running") return { ...edge, color: "var(--pupu-accent)", flowing: true };
+  if (to === "waiting" || to === "waiting_approval" || to === "outcome_unknown") return { ...edge, color: "var(--pupu-warning)", style: "dashed" };
+  if (to === "failed") return { ...edge, color: RUN_EDGE_TINT("--pupu-danger") };
+  if (to === "succeeded") return { ...edge, color: RUN_EDGE_TINT("--pupu-success") };
+  return edge;
+}
+
 export default function SkeletonCanvas(props) {
   return <GraphDrawing key={JSON.stringify([props.resourceId, props.commandScope])} {...props} />;
 }
@@ -312,8 +332,11 @@ function GraphDrawing({
   const edges = useMemo(() => {
     const list = (graph && graph.edges) || [];
     const skipped = new Set(observed?.skipped_edges || []);
-    return skipped.size ? list.map((edge) => skipped.has(edge.id) ? { ...edge, style: "dashed" } : edge) : list;
-  }, [graph, observed]);
+    const marked = skipped.size ? list.map((edge) => skipped.has(edge.id) ? { ...edge, style: "dashed" } : edge) : list;
+    if (!runNodes.size) return marked;
+    const pools = new Set(((graph && graph.nodes) || []).filter((node) => RUN_POOL_TYPES.includes(node.type)).map((node) => node.id));
+    return marked.map((edge) => (pools.has(edge.source_node_id) || pools.has(edge.target_node_id) ? edge : run_edge(edge, runNodes)));
+  }, [graph, observed, runNodes]);
 
   /* A drop. The editor reports every node with the dropped one moved, so the
      command carries the whole drawing and the stored layout is complete from
@@ -582,7 +605,7 @@ function GraphDrawing({
            adds no box and the editor measures the node exactly as before. */
         render_node={(node) => (
           <div data-testid={`skeleton-node-${node.id}`} style={{ display: "contents" }}>
-            <RunNodeStatus projection={["toolkit_pool", "subagent_pool", "hooks_pool"].includes(node.type) ? null : runNodes.get(node.id)} isDark={isDark}>
+            <RunNodeStatus projection={RUN_POOL_TYPES.includes(node.type) ? null : runNodes.get(node.id)} isDark={isDark}>
               {renderNode(node, isDark, onOpenSubagent, { rename: renameFor(node), onOpenWorkflow })}
             </RunNodeStatus>
           </div>
