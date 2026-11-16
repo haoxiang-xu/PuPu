@@ -248,3 +248,24 @@ test('an Agent start may name one model for unconfigured Agent nodes; Main resol
   expect(() => checkBuilderTestCommand({ op: 'read', resource_id: 'r', session_id: 's', fallback_model: 'openai:gpt-4.1' }))
     .toThrow(expect.objectContaining({ code: 'builder_test_command_refused' }));
 });
+
+test('a start with no workspace picked uses the default workspace a chat falls back to, when it is valid', async () => {
+  const prepared = packet('workflow-prepare');
+  const post = jest.fn()
+    .mockResolvedValueOnce(packet('capabilities'))
+    .mockResolvedValueOnce(prepared)
+    .mockResolvedValueOnce(packet('workflow-completed'));
+  await runBuilderTestCommand(startRequest(prepared.resource_id, prepared.session_id), {
+    post, resolveWorkspace: jest.fn(), resolveDefaultWorkspace: () => ({ valid: true, resolvedPath: '/Users/me/workspace' }),
+  });
+  expect(post.mock.calls[1][0].context).toEqual({ toolkits: [], skills: { include_user_dirs: true },
+    workspace_root: '/Users/me/workspace', workspace_roots: ['/Users/me/workspace'], disable_workspace_root: false });
+  const quiet = jest.fn()
+    .mockResolvedValueOnce(packet('capabilities'))
+    .mockResolvedValueOnce(prepared)
+    .mockResolvedValueOnce(packet('workflow-completed'));
+  await runBuilderTestCommand(startRequest(prepared.resource_id, prepared.session_id), {
+    post: quiet, resolveWorkspace: jest.fn(), resolveDefaultWorkspace: () => ({ valid: false }),
+  });
+  expect(quiet.mock.calls[1][0].context.disable_workspace_root).toBe(true);
+});

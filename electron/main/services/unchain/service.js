@@ -4656,6 +4656,11 @@ const createUnchainService = ({
         throw Object.assign(new Error(failure.message),{code:failure.code});
       }
       return runBuilderTestCommand(payload, {
+        resolveDefaultWorkspace: () => {
+          const snapshot=settingsStorageService?.getBootstrapSnapshot?.();
+          const root=snapshot?.available===true?snapshot.namespaces?.runtime?.workspace_root:null;
+          return typeof root==='string'&&root.trim()?runtimeService.validateWorkspaceRootPath(root.trim()):{valid:false};
+        },
         resolveWorkspace: id => {
           const snapshot=settingsStorageService?.getBootstrapSnapshot?.();
           const rows=snapshot?.available===true && Array.isArray(snapshot.namespaces?.runtime?.workspaces)

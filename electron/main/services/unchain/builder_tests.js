@@ -87,7 +87,7 @@ const checkBuilderTestReply=(value,request)=>{
 const modelUnavailable=(id,reason)=>Object.assign(new Error(`${id} cannot run an Agent test`),
   {code:'test_model_unavailable',status:409,path:['fallback_model',reason||'not_offered']});
 
-const runBuilderTestCommand=async(payload,{post,resolveCredentials,resolveWorkspace,resolveKernelCatalog})=>{
+const runBuilderTestCommand=async(payload,{post,resolveCredentials,resolveWorkspace,resolveKernelCatalog,resolveDefaultWorkspace})=>{
   const request=checkBuilderTestCommand(payload);
   const send=body=>post({schema:SCHEMA,...body});
   const capable=async()=>{
@@ -112,6 +112,16 @@ const runBuilderTestCommand=async(payload,{post,resolveCredentials,resolveWorksp
       context.workspace_root=checked.resolvedPath;
       context.workspace_roots=[checked.resolvedPath];
       context.disable_workspace_root=false;
+    }else{
+      // None picked: the default workspace a chat falls back to (Settings),
+      // when it is a real directory. Without one, tools that need a
+      // workspace say so when they are bound.
+      const fallback=resolveDefaultWorkspace?resolveDefaultWorkspace():null;
+      if(fallback?.valid&&typeof fallback.resolvedPath==='string'&&fallback.resolvedPath){
+        context.workspace_root=fallback.resolvedPath;
+        context.workspace_roots=[fallback.resolvedPath];
+        context.disable_workspace_root=false;
+      }
     }
   }
   let fallbackProfile=null;

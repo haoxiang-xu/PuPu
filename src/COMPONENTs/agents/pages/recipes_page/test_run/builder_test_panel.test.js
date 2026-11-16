@@ -305,18 +305,39 @@ test('a picked model the Agent runtime cannot use is said with its reason before
 });
 
 test('a model refused at Send is explained in words, with no bare error code, and the typed message is kept',async()=>{
-  const models=jest.spyOn(api.unchain,'getModelCatalog').mockResolvedValue({activeModel:'custom.kimi:kimi-k2.6',providers:{},modelCapabilities:{}});
+  const models=jest.spyOn(api.unchain,'getModelCatalog').mockResolvedValue({activeModel:'openai:gpt-gone',providers:{},modelCapabilities:{}});
   try{
     render(<BuilderTestPanel active isDark={false} session={{...session,document:noModel,preflight:noModelRefusal}}/>);
     await waitFor(()=>expect(builderTestCommand).toHaveBeenCalledTimes(1));
     await waitFor(()=>expect(screen.getByTestId('skeleton-preflight-state')).toHaveTextContent('uses the model picked below'));
     fireEvent.change(composer(),{target:{value:'hello'}});
-    builderTestCommand.mockRejectedValueOnce(Object.assign(new Error('custom.kimi:kimi-k2.6 cannot run an Agent test'),
+    builderTestCommand.mockRejectedValueOnce(Object.assign(new Error('openai:gpt-gone cannot run an Agent test'),
       {code:'test_model_unavailable',status:409,path:['fallback_model','not_offered']}));
     send();
     const problem=await screen.findByTestId('test-run-request-problem');
-    expect(problem).toHaveTextContent('“kimi-k2.6” can’t run an Agent test: the Agent runtime doesn’t know this model. Pick another model.');
+    expect(problem).toHaveTextContent('“gpt-gone” can’t run an Agent test: the Agent runtime doesn’t know this model. Pick another model.');
     expect(problem).not.toHaveTextContent('test_model_unavailable');
     expect(composer()).toHaveValue('hello');
   }finally{models.mockRestore();}
+});
+
+test('a custom-provider model with no Memory Agent provider set is stopped before Send, with the reason', async()=>{
+  const models=jest.spyOn(api.unchain,'getModelCatalog').mockResolvedValue({activeModel:'custom.kimi:kimi-k2.6',providers:{},modelCapabilities:{}});
+  kernel_profiles.mockResolvedValue({ok:true,data:{profiles:[{id:'custom.kimi:kimi-k2.6'}],unavailable:[]}});
+  try{
+    render(<BuilderTestPanel active isDark={false} session={{...session,document:noModel,preflight:noModelRefusal}}/>);
+    await waitFor(()=>expect(screen.getByTestId('skeleton-preflight-state')).toHaveTextContent('The Memory Agent can only use an OpenAI, Anthropic, Gemini or Ollama model'));
+    fireEvent.change(composer(),{target:{value:'hello'}});
+    send();
+    expect(builderTestCommand.mock.calls.some(([request])=>request.op==='start')).toBe(false);
+  }finally{models.mockRestore();}
+});
+
+test('a run that needed a workspace says so in words, with no bare code', async()=>{
+  builderTestCommand.mockResolvedValue({...opened,runs:[{...completed.runs[0],status:'failed',output:null,
+    error:{code:'workspace_unavailable',path:['toolkits','core'],message:'The test did not complete. Check the recorded run.'}}]});
+  render(<BuilderTestPanel active session={session} isDark={false}/>);
+  const card=await screen.findByTestId('test-run-error');
+  expect(card).toHaveTextContent('This Agent uses file tools, which need a workspace.');
+  expect(card).not.toHaveTextContent('workspace_unavailable');
 });

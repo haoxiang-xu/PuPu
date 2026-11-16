@@ -970,7 +970,11 @@
         "version_mismatch": "Dieses PuPu-Fenster und sein Hintergrunddienst haben verschiedene Versionen, daher wurde die Anfrage abgelehnt und nichts lief. Beende PuPu, öffne es neu und versuche es erneut.",
         "model_not_offered": "„{model}“ kann keinen Agent-Test ausführen: Die Agent-Laufzeit kennt dieses Modell nicht. Wähle ein anderes Modell.",
         "model_no_limits": "„{model}“ kann noch keinen Agent-Test ausführen: Kontextfenster oder maximale Ausgabe fehlen. Trage beides unter Einstellungen → Modellanbieter ein oder wähle ein anderes Modell.",
-        "model_refused": "„{model}“ kann keinen Agent-Test ausführen: Die Anbietereinstellungen (Adresse oder Anmeldeart) haben die Prüfung nicht bestanden. Prüfe sie unter Einstellungen → Modellanbieter oder wähle ein anderes Modell."
+        "model_refused": "„{model}“ kann keinen Agent-Test ausführen: Die Anbietereinstellungen (Adresse oder Anmeldeart) haben die Prüfung nicht bestanden. Prüfe sie unter Einstellungen → Modellanbieter oder wähle ein anderes Modell.",
+        "workspace_needed": "Dieser Agent nutzt Dateitools und braucht einen Arbeitsbereich. Wähle unten über den Ordner-Button einen oder lege in den Einstellungen einen Standard fest.",
+        "memory_provider": "Der Memory-Agent kann nur Modelle von OpenAI, Anthropic, Gemini oder Ollama nutzen, daher kann ein Test mit einem Modell eines eigenen Anbieters noch nicht starten. Wähle ein Modell eines dieser Anbieter.",
+        "run_incomplete": "Der Test hat vor dem Ende angehalten.",
+        "see_canvas": "„Auf der Zeichenfläche zeigen“ zeigt den Schritt, an dem er stehen blieb."
       },
       "inputs": "Eingaben",
       "result": "Ergebnis",

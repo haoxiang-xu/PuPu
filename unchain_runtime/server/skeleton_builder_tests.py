@@ -362,10 +362,14 @@ class BuilderTestSessions:
             except Exception as error:
                 code=getattr(error,'code','builder_test_failed')
                 if type(code) is not str: code='builder_test_failed'
+                # Host refusals carry sentences written here, never provider
+                # text; anything else keeps the generic one.
+                known=isinstance(error,SkeletonResourceError) and type(getattr(error,'message',None) or str(error)) is str
+                message=str(error) if known and str(error) else 'The test did not complete.'
                 with self._db() as db:
                     db.execute('UPDATE runs SET error=? WHERE id=?',
                         (json.dumps({'code':code,'path':list(getattr(error,'path',())),
-                            'message':'The test did not complete. Check the recorded run.'}),row['id']))
+                            'message':message}),row['id']))
             finally:
                 with _LOCK:
                     _WORKERS.pop(key,None)

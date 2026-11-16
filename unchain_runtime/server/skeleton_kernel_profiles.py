@@ -57,6 +57,11 @@ _DERIVABLE = ("openai", "anthropic", "gemini", "ollama")
 
 _OLLAMA_DEFAULT_ENDPOINT = "http://localhost:11434"
 _OLLAMA_LOCAL_OUTPUT_BUDGET = 4096
+#: The reply budget for a remote model whose catalog entry declares no output
+#: cap (most OpenAI entries do not). Chat sends these models no cap at all; a
+#: Kernel needs a number, so it takes one every listed model can produce,
+#: never above the model's own window. The author can lower it per node.
+_REMOTE_DEFAULT_OUTPUT_BUDGET = 16384
 
 
 def _ollama_endpoint() -> str:
@@ -194,6 +199,8 @@ def kernel_profiles() -> dict[str, Any]:
         output_limit = _positive_int(raw.get("max_output_tokens"))
         if output_limit is None and local_model:
             output_limit = min(_OLLAMA_LOCAL_OUTPUT_BUDGET, context_window - 1)
+        if output_limit is None and context_window > 1:
+            output_limit = min(_REMOTE_DEFAULT_OUTPUT_BUDGET, context_window - 1)
         if output_limit is None:
             unavailable.append(_unavailable(provider, model, "output_limit_unknown"))
             continue

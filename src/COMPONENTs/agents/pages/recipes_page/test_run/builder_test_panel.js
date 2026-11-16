@@ -18,6 +18,7 @@ import WorkflowTestInputs, { workflow_test_interface_key } from "./workflow_test
 import useBuilderTest from "./use_builder_test";
 import { LIVE_STATUSES, model_unusable, own_model_id, panel_state, request_problem_text, unconfigured_agents } from "./test_status";
 import { kernel_profiles } from "../skeleton_resources";
+import { readMemoryAgentSettings } from "../../../../../SERVICEs/memory_agent_settings";
 import { AgentTurn, StatusDot, WorkflowRun, secondaryButtonStyle } from "./test_result";
 
 /* The Test panel: try the Agent or Workflow on screen without leaving the
@@ -170,7 +171,13 @@ export default function BuilderTestPanel({ active, session, onSave, onCheck, onO
   const needsModel = kind === "agent" && unconfigured_agents(session.document).length > 0;
   const ownModel = kind === "agent" ? own_model_id(session.document) : null;
   const fallbackModel = needsModel && pickedModel ? pickedModel : null;
-  const fallbackProblem = fallbackModel ? model_unusable(kernelCatalog, fallbackModel) : null;
+  /* A custom-provider model has no Memory Agent to go with it unless one is
+     set: the Memory Agent defaults to the run's own provider, and only the
+     built-in providers can be given its credential. */
+  const memoryProvider = kind === "agent" ? readMemoryAgentSettings().provider : "";
+  const fallbackProblem = fallbackModel
+    ? model_unusable(kernelCatalog, fallbackModel) || (!memoryProvider && fallbackModel.startsWith("custom.") ? "memory_provider" : null)
+    : null;
   const pickModel = (next) => {
     setPickedModel(next);
     controller.dismiss();

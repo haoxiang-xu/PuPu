@@ -970,7 +970,11 @@
         "version_mismatch": "Esta ventana de PuPu y su servicio en segundo plano son de versiones distintas, así que la solicitud se rechazó y no se ejecutó nada. Cierra y vuelve a abrir PuPu, e inténtalo de nuevo.",
         "model_not_offered": "«{model}» no puede ejecutar una prueba de agente: el entorno de agentes no conoce este modelo. Elige otro modelo.",
         "model_no_limits": "«{model}» aún no puede ejecutar una prueba de agente: falta su ventana de contexto o su salida máxima. Añade ambas en Ajustes → Proveedores de modelos o elige otro modelo.",
-        "model_refused": "«{model}» no puede ejecutar una prueba de agente: la configuración de su proveedor (dirección o método de acceso) no pasó la comprobación. Revísala en Ajustes → Proveedores de modelos o elige otro modelo."
+        "model_refused": "«{model}» no puede ejecutar una prueba de agente: la configuración de su proveedor (dirección o método de acceso) no pasó la comprobación. Revísala en Ajustes → Proveedores de modelos o elige otro modelo.",
+        "workspace_needed": "Este agente usa herramientas de archivos, que necesitan un espacio de trabajo. Elige uno con el botón de carpeta de abajo o define uno predeterminado en Ajustes.",
+        "memory_provider": "El agente de memoria solo puede usar modelos de OpenAI, Anthropic, Gemini u Ollama, así que una prueba con un modelo de proveedor personalizado aún no puede empezar. Elige un modelo de esos proveedores.",
+        "run_incomplete": "La prueba se detuvo antes de terminar.",
+        "see_canvas": "«Ver en el lienzo» muestra el paso en que se detuvo."
       },
       "inputs": "Entradas",
       "result": "Resultado",

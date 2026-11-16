@@ -10,7 +10,7 @@ import {
 } from "../detail_panel/panel_style";
 import { node_title } from "../node_title";
 import { projectTestTrace } from "./test_trace";
-import { LIVE_STATUSES, node_at_path } from "./test_status";
+import { LIVE_STATUSES, node_at_path, run_error_text } from "./test_status";
 
 /* What one test run shows, in reading order: how it went, what it was given,
    the steps it took, anything it is waiting on, and what came out. Each part
@@ -101,21 +101,23 @@ export function AgentReply({ output, isDark }) {
 
 /* What went wrong, in the panel's red, with the node it happened at when the
    path names one, and the engineer's code underneath for a bug report. */
-export function RunError({ error, document, isDark, onFix }) {
+export function RunError({ error, document, isDark, onFix, canShowOnCanvas }) {
   const { t } = useTranslation();
   const node = node_at_path(document, error.path);
   const name = node ? node_title(node, t).title : null;
+  const said = run_error_text(error, t);
   return (
-    <div role="alert" data-testid="test-run-error" style={{ display: "flex", flexDirection: "column", gap: 4, padding: "8px 10px",
+    /* The engineer's code is on the tooltip, for a bug report. */
+    <div role="alert" data-testid="test-run-error" title={error.code || undefined} style={{ display: "flex", flexDirection: "column", gap: 4, padding: "8px 10px",
       borderRadius: REGION_RADIUS, background: isDark ? "rgba(255,120,120,0.08)" : "rgba(176,32,32,0.05)", minWidth: 0 }}>
       <span style={{ ...problemOf(isDark), fontWeight: 600 }}>
         {name ? t("agents.test_run.failed_at", { node: name }) : t("agents.test_run.error_title")}
       </span>
-      {error.message && <span style={{ ...problemOf(isDark), color: textColor(isDark) }}>{error.message}</span>}
-      <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
-        <span style={{ ...note(isDark), ...MONO, fontSize: 10.5, flex: 1 }}>{error.code}</span>
-        {node && onFix && <Button label={t("agents.test_run.fix")} onClick={() => onFix(node.id)} style={secondaryButtonStyle(isDark)} />}
-      </div>
+      {said && <span style={{ ...problemOf(isDark), color: textColor(isDark) }}>{said}</span>}
+      {canShowOnCanvas && <span style={note(isDark)}>{t("agents.test_run.problem.see_canvas")}</span>}
+      {node && onFix && (
+        <Button label={t("agents.test_run.fix")} onClick={() => onFix(node.id)} style={{ ...secondaryButtonStyle(isDark), alignSelf: "flex-start" }} />
+      )}
     </div>
   );
 }
@@ -193,7 +195,7 @@ export function WorkflowRun({ run, document, controller, busy, confirmed, onObse
       {!run.trace_complete && <span style={note(isDark)}>{t("agents.test_run.trace_limit")}</span>}
       {run.pending && <PendingInteraction run={run} busy={busy} confirmed={confirmed} isDark={isDark}
         onRespond={(approved, answer) => controller.respond(run, approved, answer ?? null)} onResume={() => controller.resume(run)} />}
-      {run.error && <RunError error={run.error} document={document} isDark={isDark} onFix={onFix} />}
+      {run.error && <RunError error={run.error} document={document} isDark={isDark} onFix={onFix} canShowOnCanvas={run.graphs.length > 0 && Boolean(onObserve)} />}
       {run.output !== null && <WorkflowOutput output={run.output} isDark={isDark} />}
     </section>
   );
@@ -214,7 +216,7 @@ export function AgentTurn({ run, document, controller, busy, confirmed, onObserv
       {!run.trace_complete && <span style={note(isDark)}>{t("agents.test_run.trace_limit")}</span>}
       {run.pending && <PendingInteraction run={run} busy={busy} confirmed={confirmed} isDark={isDark}
         onRespond={(approved, answer) => controller.respond(run, approved, answer ?? null)} onResume={() => controller.resume(run)} />}
-      {run.error && <RunError error={run.error} document={document} isDark={isDark} onFix={onFix} />}
+      {run.error && <RunError error={run.error} document={document} isDark={isDark} onFix={onFix} canShowOnCanvas={run.graphs.length > 0 && Boolean(onObserve)} />}
       {run.output !== null && <AgentReply output={run.output} isDark={isDark} />}
       {(!settled || run.status !== "completed" || (run.graphs.length > 0 && onObserve)) && (
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

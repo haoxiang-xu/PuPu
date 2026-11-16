@@ -970,7 +970,11 @@
         "version_mismatch": "This PuPu window and its background service are different versions, so the request was refused and nothing ran. Quit and reopen PuPu, then try again.",
         "model_not_offered": "“{model}” can’t run an Agent test: the Agent runtime doesn’t know this model. Pick another model.",
         "model_no_limits": "“{model}” can’t run an Agent test yet: its context window or maximum output isn’t set. Add both in Settings → Model providers, or pick another model.",
-        "model_refused": "“{model}” can’t run an Agent test: its provider settings (address or sign-in method) didn’t pass the check. Review them in Settings → Model providers, or pick another model."
+        "model_refused": "“{model}” can’t run an Agent test: its provider settings (address or sign-in method) didn’t pass the check. Review them in Settings → Model providers, or pick another model.",
+        "workspace_needed": "This Agent uses file tools, which need a workspace. Pick one with the folder button below, or set a default workspace in Settings.",
+        "memory_provider": "The Memory Agent can only use an OpenAI, Anthropic, Gemini or Ollama model, so a test with a custom-provider model can’t start yet. Pick a model from one of those providers.",
+        "run_incomplete": "The test stopped before it finished.",
+        "see_canvas": "Show on canvas shows the step it stopped at."
       },
       "inputs": "Inputs",
       "result": "Result",

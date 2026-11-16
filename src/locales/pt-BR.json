@@ -970,7 +970,11 @@
         "version_mismatch": "Esta janela do PuPu e o serviço em segundo plano estão em versões diferentes, então a solicitação foi recusada e nada foi executado. Feche e abra o PuPu de novo e tente outra vez.",
         "model_not_offered": "“{model}” não pode rodar um teste de agente: o runtime de agentes não conhece este modelo. Escolha outro modelo.",
         "model_no_limits": "“{model}” ainda não pode rodar um teste de agente: falta a janela de contexto ou a saída máxima. Preencha ambas em Configurações → Provedores de modelos ou escolha outro modelo.",
-        "model_refused": "“{model}” não pode rodar um teste de agente: as configurações do provedor (endereço ou forma de login) não passaram na verificação. Revise em Configurações → Provedores de modelos ou escolha outro modelo."
+        "model_refused": "“{model}” não pode rodar um teste de agente: as configurações do provedor (endereço ou forma de login) não passaram na verificação. Revise em Configurações → Provedores de modelos ou escolha outro modelo.",
+        "workspace_needed": "Este agente usa ferramentas de arquivos, que precisam de um espaço de trabalho. Escolha um no botão de pasta abaixo ou defina um padrão nas Configurações.",
+        "memory_provider": "O agente de memória só pode usar modelos da OpenAI, Anthropic, Gemini ou Ollama, então um teste com modelo de provedor personalizado ainda não pode começar. Escolha um modelo desses provedores.",
+        "run_incomplete": "O teste parou antes de terminar.",
+        "see_canvas": "“Mostrar na tela” mostra a etapa em que ele parou."
       },
       "inputs": "Entradas",
       "result": "Resultado",

@@ -89,7 +89,19 @@ export function request_problem_text(error, t, model = "") {
   if (error.code === "test_model_unavailable") {
     return model_problem_text(Array.isArray(error.path) ? error.path[1] : null, model, t);
   }
-  return error.message || error.code || "";
+  return run_error_text(error, t);
+}
+
+/* What a run that failed says. A refusal the panel knows is said in words;
+   the host's own sentence otherwise; and when the host only knows the run
+   did not finish, that. */
+export function run_error_text(error, t) {
+  if (!record(error)) return "";
+  if (error.code === "workspace_unavailable") return t("agents.test_run.problem.workspace_needed");
+  if (error.code === "skeleton_memory_provider_unsupported") return t("agents.test_run.problem.memory_provider");
+  const message = typeof error.message === "string" ? error.message : "";
+  if (!message || /^The test did not complete\./.test(message)) return t("agents.test_run.problem.run_incomplete");
+  return message;
 }
 
 /* A model as the composer shows it: "custom.kimi:kimi-k2.6" is kimi-k2.6. */
@@ -101,6 +113,7 @@ export function model_label(id) {
 
 /* Why a model cannot run an Agent test, from the Kernel catalog's reason. */
 export function model_problem_text(reason, model, t) {
+  if (reason === "memory_provider") return t("agents.test_run.problem.memory_provider");
   const key = reason === "context_window_unknown" || reason === "output_limit_unknown" ? "model_no_limits"
     : reason === "profile_refused" ? "model_refused" : "model_not_offered";
   return t(`agents.test_run.problem.${key}`, { model: model_label(model) });
