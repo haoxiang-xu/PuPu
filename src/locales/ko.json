@@ -997,7 +997,6 @@
       "tools": "도구",
       "no_tools": "추가 도구 없음",
       "real_tools": "테스트는 실제 도구를 평소 권한으로 호출합니다.",
-      "view_chat_run": "채팅에서 실행 중인 모습 보기",
       "message_placeholder": "이 에이전트에게 메시지…",
       "message_placeholder_unsaved": "이 에이전트에게 메시지…(변경 사항을 먼저 저장)",
       "run": "실행",
@@ -1160,7 +1159,6 @@
       "show_agents": "에이전트 표시",
       "show_details": "세부 정보 표시",
       "view_changed": "이 보기가 변경되었습니다. 현재 화면의 그래프에서 편집을 다시 시도하세요.",
-      "chat_required_for_observation": "먼저 이 에이전트와의 채팅을 여세요. 확인할 실행 식별 정보가 없습니다.",
       "escape_unsaved": "저장하지 않은 변경 사항이 있습니다. 저장하기 전에는 Escape로 빌더를 닫을 수 없습니다.",
       "upgrade_save_first": "먼저 편집 내용을 저장하거나 되돌리세요. 업그레이드는 저장된 에이전트를 읽습니다.",
       "upgrade_wait_write": "현재 쓰기 작업이 끝날 때까지 기다리세요.",
@@ -1191,31 +1189,8 @@
       "not_ready_to_run_detail": "아직 실행할 준비가 되지 않았습니다 — {message}"
     },
     "run_menu": {
-      "unavailable": "아직 여기서는 실행할 수 없습니다. 이 에이전트와 채팅을 시작하여 실행하세요.",
       "run": "실행",
-      "open": "실행 메뉴 열기",
-      "workflow_title": "이 워크플로 실행",
-      "agent_title": "이 에이전트 실행",
-      "checking": "확인 중…",
-      "not_checked": "아직 확인하지 않았습니다.",
-      "view_chat_run": "현재 채팅의 실행 보기"
-    },
-    "run_view": {
-      "back_to_editor": "뒤로",
-      "title": "실행 과정",
-      "explain": "이번 실행이 거친 단계를 그래프에 표시합니다. 각 노드에 결과가 붙습니다. 보기 전용이라 바꿀 수 없습니다.",
-      "center_graph": "그래프 가운데 맞춤",
-      "reading": "읽는 중…",
-      "refresh": "기록된 상태 새로고침",
-      "identity": "채팅 {chat} · 실행 {execution}",
-      "identity_with_root": "채팅 {chat} · 실행 {execution} · 루트 {root}",
-      "last_snapshot_notice": " 마지막으로 기록된 스냅샷을 계속 표시하고 있으며, 현재 상태인지는 확인되지 않았습니다.",
-      "reading_run": "기록된 실행을 읽는 중…",
-      "no_matching_run": "현재 채팅에 이 리소스와 일치하는 실행이 없습니다.",
-      "graph_invocation": "기록된 그래프 호출",
-      "graph_root_option": "{name} · 루트 · {graph}",
-      "graph_child_option": "{name} · 호출 위치 {caller} · {graph}",
-      "skipped_paths": "건너뛴 경로(점선): {paths}. 방문하지 않은 노드는 대기 상태로 남습니다."
+      "open": "실행 메뉴 열기"
     },
     "path": {
       "step_index": "단계 {step}은 목록 위치를 읽습니다. 필드 이름으로 전환",

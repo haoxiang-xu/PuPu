@@ -997,7 +997,6 @@
       "tools": "Herramientas",
       "no_tools": "Sin herramientas extra",
       "real_tools": "Las pruebas usan herramientas reales con sus permisos habituales.",
-      "view_chat_run": "Ver su ejecución en el chat",
       "message_placeholder": "Escribe a este agente…",
       "message_placeholder_unsaved": "Escribe a este agente… (los cambios se guardan primero)",
       "run": "Ejecutar",
@@ -1160,7 +1159,6 @@
       "show_agents": "Mostrar agentes",
       "show_details": "Mostrar detalles",
       "view_changed": "Esta vista ha cambiado. Reintenta la edición en el grafo que aparece ahora en pantalla.",
-      "chat_required_for_observation": "Abre primero un chat con este agente; no hay una identidad de ejecución que se pueda inspeccionar.",
       "escape_unsaved": "Hay cambios sin guardar. Escape no cierra el constructor hasta que se guarden.",
       "upgrade_save_first": "Guarda o deshaz primero los cambios: la actualización lee el agente guardado.",
       "upgrade_wait_write": "Espera a que termine la escritura actual.",
@@ -1191,31 +1189,8 @@
       "not_ready_to_run_detail": "Aún no está listo para ejecutarse — {message}"
     },
     "run_menu": {
-      "unavailable": "Aún no se puede ejecutar desde aquí. Inicia un chat con este agente para ejecutarlo.",
       "run": "Ejecutar",
-      "open": "Abrir el menú de ejecución",
-      "workflow_title": "Ejecutar este flujo de trabajo",
-      "agent_title": "Ejecutar este agente",
-      "checking": "Comprobando…",
-      "not_checked": "Aún no se ha comprobado.",
-      "view_chat_run": "Ver la ejecución del chat actual"
-    },
-    "run_view": {
-      "back_to_editor": "Volver",
-      "title": "Ejecución en el grafo",
-      "explain": "Los pasos de esta ejecución en el grafo: cada nodo muestra cómo terminó. Solo lectura: aquí no se puede cambiar nada.",
-      "center_graph": "Centrar el grafo",
-      "reading": "Leyendo…",
-      "refresh": "Actualizar el estado registrado",
-      "identity": "Chat {chat} · ejecución {execution}",
-      "identity_with_root": "Chat {chat} · ejecución {execution} · ejecución raíz {root}",
-      "last_snapshot_notice": " La última instantánea registrada sigue en pantalla; no se ha confirmado que esté actualizada.",
-      "reading_run": "Leyendo la ejecución registrada…",
-      "no_matching_run": "No hay ninguna ejecución de este recurso que coincida en el chat actual.",
-      "graph_invocation": "Invocación de grafo registrada",
-      "graph_root_option": "{name} · raíz · {graph}",
-      "graph_child_option": "{name} · desde {caller} · {graph}",
-      "skipped_paths": "Rutas omitidas (discontinuas): {paths}. Los nodos no visitados siguen pendientes."
+      "open": "Abrir el menú de ejecución"
     },
     "path": {
       "step_index": "El paso {step} lee una posición de lista; cambiar a un nombre de campo",

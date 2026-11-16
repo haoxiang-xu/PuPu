@@ -997,7 +997,6 @@
       "tools": "Outils",
       "no_tools": "Aucun outil supplémentaire",
       "real_tools": "Les tests appellent de vrais outils avec leurs permissions habituelles.",
-      "view_chat_run": "Voir son exécution dans le chat",
       "message_placeholder": "Écrire à cet agent…",
       "message_placeholder_unsaved": "Écrire à cet agent… (les modifications sont enregistrées d’abord)",
       "run": "Exécuter",
@@ -1160,7 +1159,6 @@
       "show_agents": "Afficher les agents",
       "show_details": "Afficher les détails",
       "view_changed": "Cette vue a changé. Réessayez la modification dans le graphe actuellement affiché.",
-      "chat_required_for_observation": "Ouvrez d’abord une conversation avec cet agent ; aucune identité d’exécution n’est disponible pour l’inspection.",
       "escape_unsaved": "Des modifications ne sont pas enregistrées. Échap ne ferme pas le générateur tant qu’elles ne sont pas enregistrées.",
       "upgrade_save_first": "Enregistrez ou annulez d’abord vos modifications : la mise à niveau lit l’agent enregistré.",
       "upgrade_wait_write": "Attendez la fin de l’écriture en cours.",
@@ -1191,31 +1189,8 @@
       "not_ready_to_run_detail": "Pas encore prêt à être exécuté — {message}"
     },
     "run_menu": {
-      "unavailable": "L’exécution depuis cet écran n’est pas encore disponible. Démarrez une conversation avec cet agent pour l’exécuter.",
       "run": "Exécuter",
-      "open": "Ouvrir le menu d’exécution",
-      "workflow_title": "Exécuter ce workflow",
-      "agent_title": "Exécuter cet agent",
-      "checking": "Vérification…",
-      "not_checked": "Pas encore vérifié.",
-      "view_chat_run": "Voir l’exécution de la conversation actuelle"
-    },
-    "run_view": {
-      "back_to_editor": "Retour",
-      "title": "Exécution sur le graphe",
-      "explain": "Les étapes de cette exécution sur le graphe : chaque nœud indique comment il s’est terminé. Lecture seule : rien n’est modifiable ici.",
-      "center_graph": "Centrer le graphe",
-      "reading": "Lecture…",
-      "refresh": "Actualiser l’état enregistré",
-      "identity": "Conversation {chat} · exécution {execution}",
-      "identity_with_root": "Conversation {chat} · exécution {execution} · racine {root}",
-      "last_snapshot_notice": " Le dernier instantané enregistré reste affiché ; son actualité n’est pas confirmée.",
-      "reading_run": "Lecture de l’exécution enregistrée…",
-      "no_matching_run": "Aucune exécution correspondante pour cette ressource dans la conversation actuelle.",
-      "graph_invocation": "Invocation de graphe enregistrée",
-      "graph_root_option": "{name} · racine · {graph}",
-      "graph_child_option": "{name} · depuis {caller} · {graph}",
-      "skipped_paths": "Chemins ignorés (pointillés) : {paths}. Les nœuds non visités restent en attente."
+      "open": "Ouvrir le menu d’exécution"
     },
     "path": {
       "step_index": "L’étape {step} lit une position de liste ; passer à un nom de champ",

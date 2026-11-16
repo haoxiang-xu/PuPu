@@ -997,7 +997,6 @@
       "tools": "Tools",
       "no_tools": "No extra tools",
       "real_tools": "Tests call real tools with their usual permissions.",
-      "view_chat_run": "Watch it running in chat",
       "message_placeholder": "Message this Agent…",
       "message_placeholder_unsaved": "Message this Agent… (unsaved changes are saved first)",
       "run": "Run",
@@ -1100,7 +1099,6 @@
       "show_agents": "Show agents",
       "show_details": "Show details",
       "view_changed": "This view changed. Try the edit in the graph now on screen.",
-      "chat_required_for_observation": "Open a chat with this Agent first; no execution identity is available to inspect.",
       "escape_unsaved": "Unsaved changes. Escape does not close the Builder until they are saved.",
       "upgrade_save_first": "Save or undo your edits first: the upgrade reads the stored Agent.",
       "upgrade_wait_write": "Wait for the current write to finish.",
@@ -1191,31 +1189,8 @@
       "not_ready_to_run_detail": "Not ready to run yet — {message}"
     },
     "run_menu": {
-      "unavailable": "Running from here is not available yet. Start a chat with this Agent to run it.",
       "run": "Run",
-      "open": "Open the run menu",
-      "workflow_title": "Run this workflow",
-      "agent_title": "Run this Agent",
-      "checking": "Checking…",
-      "not_checked": "Not checked yet.",
-      "view_chat_run": "View current chat run"
-    },
-    "run_view": {
-      "back_to_editor": "Back",
-      "title": "Run on graph",
-      "explain": "The steps this run took, drawn on the graph: each node shows how it ended. Read-only: nothing here can be changed.",
-      "center_graph": "Center graph",
-      "reading": "Reading…",
-      "refresh": "Refresh recorded state",
-      "identity": "Chat {chat} · execution {execution}",
-      "identity_with_root": "Chat {chat} · execution {execution} · root {root}",
-      "last_snapshot_notice": " The last recorded snapshot remains on screen; it is not confirmed current.",
-      "reading_run": "Reading the recorded run…",
-      "no_matching_run": "No matching run for this resource in the current chat.",
-      "graph_invocation": "Recorded graph invocation",
-      "graph_root_option": "{name} · root · {graph}",
-      "graph_child_option": "{name} · from {caller} · {graph}",
-      "skipped_paths": "Skipped paths (dashed): {paths}. Unvisited nodes remain pending."
+      "open": "Open the run menu"
     },
     "path": {
       "step_index": "Step {step} reads a list position; switch to a field name",

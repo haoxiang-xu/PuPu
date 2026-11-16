@@ -7,7 +7,6 @@ import { agentMessage, agentProblemMessage } from "./agents_i18n";
 import { connect_nodes, delete_node } from "./skeleton_graph_edits";
 import HookWorkflowSource from "./detail_panel/hook_workflow_source";
 import HooksPoolSection from "./detail_panel/hooks_pool_section";
-import SkeletonRunView from "./skeleton_run_view";
 import { list_resources, save_draft } from "./skeleton_resources";
 import { api } from "../../../../SERVICEs/api";
 
@@ -68,13 +67,3 @@ test.each([{ bad: 1 }, { toString: null }])("copy refusal retains safe raw-messa
   save_draft.mockClear();
 });
 
-test.each([{}, { message: { bad: 1 } }, { message: { toString: null } }, { message: 42 }, { message: false }])("run observation uses its original typed fallback for rejected %p", async (error) => {
-  api.unchain.getSkeletonRunObservation = jest.fn().mockRejectedValue(error);
-  const scope = { owner_chat_id: "raw-chat", execution_id: "raw-execution", resource_id: "raw-agent" };
-  const element = <SkeletonRunView scope={scope} isDark={false} onClose={jest.fn()} />;
-  const view = render(tree("en", element));
-  await waitFor(() => expect(screen.getByTestId("run-observation-error")).toHaveTextContent("The recorded run could not be read."));
-  view.rerender(tree("zh-CN", element));
-  expect(screen.getByTestId("run-observation-error")).not.toHaveTextContent("The recorded run could not be read.");
-  expect(api.unchain.getSkeletonRunObservation).toHaveBeenCalledTimes(1);
-});

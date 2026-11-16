@@ -997,7 +997,6 @@
       "tools": "工具",
       "no_tools": "不加工具",
       "real_tools": "测试会真的调用这些工具，权限和聊天里一样。",
-      "view_chat_run": "查看它在聊天中的运行",
       "message_placeholder": "给这个智能体发一条消息…",
       "message_placeholder_unsaved": "给这个智能体发一条消息…（会先保存修改）",
       "run": "运行",
@@ -1100,7 +1099,6 @@
       "show_agents": "显示智能体",
       "show_details": "显示详情",
       "view_changed": "此视图已更改。请在当前屏幕上的图中重试编辑。",
-      "chat_required_for_observation": "请先打开与此智能体的聊天；目前没有可供查看的执行标识。",
       "escape_unsaved": "有未保存的更改。保存前，Escape 不会关闭构建器。",
       "upgrade_save_first": "请先保存或撤销编辑：升级会读取已保存的智能体。",
       "upgrade_wait_write": "请等待当前写入完成。",
@@ -1191,31 +1189,8 @@
       "not_ready_to_run_detail": "暂时无法运行 — {message}"
     },
     "run_menu": {
-      "unavailable": "暂不支持从此处运行。请与此智能体开始聊天以运行它。",
       "run": "运行",
-      "open": "打开运行菜单",
-      "workflow_title": "运行此工作流",
-      "agent_title": "运行此智能体",
-      "checking": "正在检查…",
-      "not_checked": "尚未检查。",
-      "view_chat_run": "查看当前聊天的运行"
-    },
-    "run_view": {
-      "back_to_editor": "返回",
-      "title": "运行过程",
-      "explain": "这次运行在图上走过的每一步，节点上标着它的结果。这里只能看，不能改。",
-      "center_graph": "居中显示图",
-      "reading": "正在读取…",
-      "refresh": "刷新已记录的状态",
-      "identity": "聊天 {chat} · 执行 {execution}",
-      "identity_with_root": "聊天 {chat} · 执行 {execution} · 根运行 {root}",
-      "last_snapshot_notice": " 上一次记录的快照仍显示在屏幕上；尚未确认它是否为最新状态。",
-      "reading_run": "正在读取已记录的运行…",
-      "no_matching_run": "当前聊天中没有与此资源匹配的运行。",
-      "graph_invocation": "已记录的图调用",
-      "graph_root_option": "{name} · 根调用 · {graph}",
-      "graph_child_option": "{name} · 来自 {caller} · {graph}",
-      "skipped_paths": "已跳过的路径（虚线）：{paths}。未访问的节点仍为待处理状态。"
+      "open": "打开运行菜单"
     },
     "path": {
       "step_index": "第 {step} 步读取列表位置；切换为字段名",

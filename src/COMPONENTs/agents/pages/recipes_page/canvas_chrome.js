@@ -519,8 +519,9 @@ function DockedDetailPanel({
   /* `fitted`: the smaller backing that sits inside the open panel's corner.
      Without it, the button keeps the stock backing — the left side menu's —
      which is what the toggle shows while the panel is closed. */
+  /* No hint, as the left side menu's toggle has none: the glyph is the
+     toggle, and its name stays its accessible label. */
   const glyph = (icon, label, onClick, disabled, testid, fitted = true) => (
-    <ControlHint label={label} testId={`${testid}-hint`} position="bottom">
       <div style={{ transform: "scaleX(-1)", display: "flex" }}>
         <Button
           prefix_icon={icon}
@@ -532,7 +533,6 @@ function DockedDetailPanel({
             ...(fitted ? { borderRadius: DETAIL_TOGGLE_RADIUS, iconOnlyPaddingVertical: DETAIL_TOGGLE_PADDING, iconOnlyPaddingHorizontal: DETAIL_TOGGLE_PADDING } : null) }}
         />
       </div>
-    </ControlHint>
   );
   const pinnedShown = open ? canClose : canOpen;
   const pinnedToggle = pinnedRight && (canClose || canOpen) && (

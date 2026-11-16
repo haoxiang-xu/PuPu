@@ -997,7 +997,6 @@
       "tools": "Tools",
       "no_tools": "Keine zusätzlichen Tools",
       "real_tools": "Tests rufen echte Tools mit ihren üblichen Berechtigungen auf.",
-      "view_chat_run": "Lauf im Chat ansehen",
       "message_placeholder": "Nachricht an diesen Agent…",
       "message_placeholder_unsaved": "Nachricht an diesen Agent… (Änderungen werden zuerst gespeichert)",
       "run": "Ausführen",
@@ -1160,7 +1159,6 @@
       "show_agents": "Agenten anzeigen",
       "show_details": "Details anzeigen",
       "view_changed": "Diese Ansicht hat sich geändert. Versuchen Sie die Bearbeitung im jetzt angezeigten Graphen erneut.",
-      "chat_required_for_observation": "Öffnen Sie zuerst einen Chat mit diesem Agenten; es liegt keine Ausführungskennung zur Prüfung vor.",
       "escape_unsaved": "Ungespeicherte Änderungen. Escape schließt den Builder erst, wenn sie gespeichert sind.",
       "upgrade_save_first": "Speichern Sie zuerst Ihre Änderungen oder machen Sie sie rückgängig: Das Upgrade liest den gespeicherten Agenten.",
       "upgrade_wait_write": "Warten Sie, bis der aktuelle Schreibvorgang abgeschlossen ist.",
@@ -1191,31 +1189,8 @@
       "not_ready_to_run_detail": "Noch nicht bereit zur Ausführung — {message}"
     },
     "run_menu": {
-      "unavailable": "Die Ausführung von hier ist noch nicht verfügbar. Starten Sie einen Chat mit diesem Agenten, um ihn auszuführen.",
       "run": "Ausführen",
-      "open": "Ausführungsmenü öffnen",
-      "workflow_title": "Diesen Workflow ausführen",
-      "agent_title": "Diesen Agenten ausführen",
-      "checking": "Wird geprüft…",
-      "not_checked": "Noch nicht geprüft.",
-      "view_chat_run": "Ausführung des aktuellen Chats ansehen"
-    },
-    "run_view": {
-      "back_to_editor": "Zurück",
-      "title": "Ablauf im Graphen",
-      "explain": "Die Schritte dieses Laufs im Graphen: Jeder Knoten zeigt, wie er endete. Nur lesen, hier lässt sich nichts ändern.",
-      "center_graph": "Graph zentrieren",
-      "reading": "Wird gelesen…",
-      "refresh": "Erfassten Zustand aktualisieren",
-      "identity": "Chat {chat} · Ausführung {execution}",
-      "identity_with_root": "Chat {chat} · Ausführung {execution} · Wurzelausführung {root}",
-      "last_snapshot_notice": " Der zuletzt erfasste Schnappschuss bleibt sichtbar; es ist nicht bestätigt, dass er aktuell ist.",
-      "reading_run": "Erfasste Ausführung wird gelesen…",
-      "no_matching_run": "Im aktuellen Chat gibt es keine passende Ausführung für diese Ressource.",
-      "graph_invocation": "Erfasster Graphaufruf",
-      "graph_root_option": "{name} · Wurzel · {graph}",
-      "graph_child_option": "{name} · von {caller} · {graph}",
-      "skipped_paths": "Übersprungene Pfade (gestrichelt): {paths}. Nicht besuchte Knoten bleiben ausstehend."
+      "open": "Ausführungsmenü öffnen"
     },
     "path": {
       "step_index": "Schritt {step} liest eine Listenposition; zu einem Feldnamen wechseln",

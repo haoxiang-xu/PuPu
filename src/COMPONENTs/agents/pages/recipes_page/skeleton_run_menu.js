@@ -1,21 +1,9 @@
 import { useTranslation } from "../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
-import React, { useEffect, useRef } from "react";
+import React from "react";
 import Button from "../../../../BUILTIN_COMPONENTs/input/button";
-import { ControlHint, ControlPopover } from "./canvas_chrome";
-import { can_preflight, preflight_message } from "./skeleton_resource_session";
+import { ControlHint } from "./canvas_chrome";
 
-/* Run, in the control center (menu C of the unified design).
- *
- * Running from the builder is not wired yet — a native Agent runs from chat —
- * so this menu does what can be done today and says plainly what cannot: it
- * checks whether the saved version can run, says why not, and keeps the run
- * itself in place, disabled, with the reason beside it. A button that is drawn
- * and does nothing would claim a feature this build does not have.
- *
- * Opening the menu is the question "can it run?", so it asks the store once
- * when nothing current answers it. A check answers about the SAVED version,
- * so with unsaved edits it says to save first instead of answering about a
- * document the author is no longer looking at. */
+/* Run, in the control center: opens the Test panel. */
 
 export const RUN_UNAVAILABLE = "Running from here is not available yet. Start a chat with this Agent to run it.";
 
@@ -40,70 +28,5 @@ export function RunTrigger({ open, onToggle, testId }) {
         }}
       />
     </ControlHint>
-  );
-}
-
-export default function SkeletonRunMenu({ session, isDark, onCheck, onViewRun }) {
-  const { t } = useTranslation();
-  /* Asked once per saved version this menu has been open for: a save while
-     it is open is a new version, and the answer on screen is about the old. */
-  const asked = useRef(null);
-  const checkable = can_preflight(session);
-  const answer = preflight_message(session, t);
-  const saved_version = `${session.open_id}:${session.edit_token}`;
-  useEffect(() => {
-    if (asked.current === saved_version || !checkable || session.preflight) return;
-    asked.current = saved_version;
-    onCheck();
-  }, [checkable, saved_version, session.preflight, onCheck]);
-
-  const muted = "var(--pupu-text-muted)";
-  const title = session.document && session.document.kind === "workflow" ? t("agents.run_menu.workflow_title") : t("agents.run_menu.agent_title");
-  return (
-    <ControlPopover isDark={isDark} testId="skeleton-run-menu">
-      <span style={{ fontSize: 12, fontWeight: 600 }}>{title}</span>
-      {session.dirty && !session.conflict ? (
-        <span data-testid="skeleton-run-save-first" style={{ fontSize: 11, lineHeight: 1.45, color: muted }}>
-          {t("agents.save.save_before_check")}
-        </span>
-      ) : answer ? (
-        <span data-testid="skeleton-preflight-state" style={{ fontSize: 11, lineHeight: 1.45 }}>
-          {answer}
-        </span>
-      ) : (
-        <span style={{ fontSize: 11, lineHeight: 1.45, color: muted }}>
-          {checkable ? t("agents.run_menu.checking") : t("agents.run_menu.not_checked")}
-        </span>
-      )}
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <Button
-          label={t("agents.save.check_can_run")}
-          onClick={onCheck}
-          disabled={!checkable}
-          style={{ fontSize: 11.5, paddingVertical: 4, paddingHorizontal: 10, borderRadius: 6 }}
-        />
-      </div>
-      <div style={{ height: 1, backgroundColor: "var(--pupu-border-subtle)" }} />
-      {typeof onViewRun === "function" && <Button label={t("agents.run_menu.view_chat_run")} prefix_icon="eye_open" onClick={onViewRun}
-        style={{ fontSize: 11.5, paddingVertical: 4, paddingHorizontal: 10, borderRadius: 6 }} />}
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <span data-testid="skeleton-run-unavailable" style={{ flex: 1, fontSize: 11, lineHeight: 1.45, color: muted }}>
-          {t("agents.run_menu.unavailable")}
-        </span>
-        <Button
-          label={t("agents.run_menu.run")}
-          prefix_icon="play"
-          disabled
-          style={{
-            fontSize: 12,
-            paddingVertical: 5,
-            paddingHorizontal: 12,
-            borderRadius: 7,
-            opacity: 0.4,
-            content: { icon: { width: 11, height: 11 } },
-          }}
-        />
-      </div>
-    </ControlPopover>
   );
 }

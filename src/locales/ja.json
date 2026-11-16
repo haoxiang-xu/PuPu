@@ -997,7 +997,6 @@
       "tools": "ツール",
       "no_tools": "追加ツールなし",
       "real_tools": "テストは実際のツールを通常の権限で呼び出します。",
-      "view_chat_run": "チャットでの実行を表示",
       "message_placeholder": "このエージェントにメッセージ…",
       "message_placeholder_unsaved": "このエージェントにメッセージ…（未保存の変更は先に保存）",
       "run": "実行",
@@ -1100,7 +1099,6 @@
       "show_agents": "エージェントを表示",
       "show_details": "詳細を表示",
       "view_changed": "ビューが変わりました。現在表示されているグラフで編集をやり直してください。",
-      "chat_required_for_observation": "まずこのエージェントとのチャットを開いてください。確認できる実行識別情報がありません。",
       "escape_unsaved": "未保存の変更があります。保存するまで Escape キーではビルダーを閉じられません。",
       "upgrade_save_first": "先に編集を保存するか元に戻してください。アップグレードは保存済みのエージェントを読み取ります。",
       "upgrade_wait_write": "現在の書き込みが完了するまでお待ちください。",
@@ -1191,31 +1189,8 @@
       "not_ready_to_run_detail": "まだ実行できません — {message}"
     },
     "run_menu": {
-      "unavailable": "ここからの実行はまだ利用できません。このエージェントとのチャットを開始して実行してください。",
       "run": "実行",
-      "open": "実行メニューを開く",
-      "workflow_title": "このワークフローを実行",
-      "agent_title": "このエージェントを実行",
-      "checking": "確認中…",
-      "not_checked": "まだ確認していません。",
-      "view_chat_run": "現在のチャットの実行を表示"
-    },
-    "run_view": {
-      "back_to_editor": "戻る",
-      "title": "実行の流れ",
-      "explain": "この実行がたどった各ステップをグラフに表示します。各ノードに結果が付きます。閲覧のみで変更はできません。",
-      "center_graph": "グラフを中央に表示",
-      "reading": "読み取り中…",
-      "refresh": "記録された状態を更新",
-      "identity": "チャット {chat} · 実行 {execution}",
-      "identity_with_root": "チャット {chat} · 実行 {execution} · ルート {root}",
-      "last_snapshot_notice": " 最後に記録されたスナップショットを引き続き表示しています。現在の状態であることは確認されていません。",
-      "reading_run": "記録された実行を読み取っています…",
-      "no_matching_run": "現在のチャットに、このリソースに一致する実行はありません。",
-      "graph_invocation": "記録されたグラフ呼び出し",
-      "graph_root_option": "{name} · ルート · {graph}",
-      "graph_child_option": "{name} · 呼び出し元 {caller} · {graph}",
-      "skipped_paths": "スキップされた経路（破線）：{paths}。未訪問のノードは保留中のままです。"
+      "open": "実行メニューを開く"
     },
     "path": {
       "step_index": "ステップ {step} はリスト位置を読み取ります。フィールド名に切り替える",

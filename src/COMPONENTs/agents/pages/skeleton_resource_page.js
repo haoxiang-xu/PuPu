@@ -23,9 +23,6 @@ import {
 } from "./recipes_page/canvas_chrome";
 import { RunTrigger } from "./recipes_page/skeleton_run_menu";
 import BuilderTestPanel from './recipes_page/test_run/builder_test_panel';
-import SkeletonRunView from "./recipes_page/skeleton_run_view";
-import { getChatMessages, getChatsStore } from "../../../SERVICEs/chat_storage";
-import { run_observation_scope } from "./recipes_page/run_observation_scope";
 import useSkeletonResource from "./recipes_page/use_skeleton_resource";
 import SkeletonCanvas from "./recipes_page/skeleton_canvas";
 import { apply_graph_command } from "./recipes_page/skeleton_graph_commands";
@@ -203,7 +200,6 @@ export default function SkeletonResourcePage({
   /* What the Test panel's latest run did, node by node, drawn on this
      canvas while the panel is open. */
   const [runStates, setRunStates] = useState(null);
-  const [runViewScope, setRunViewScope] = useState(null);
   const [canvasProblem, setCanvasProblem] = useState(null);
   /* The graphs left behind, outermost first. */
   const [drillFrames, setDrillStack] = useState([]);
@@ -722,25 +718,6 @@ export default function SkeletonResourcePage({
   latestRef.current = { session, steps, revision };
 
 
-  /* Another resource, or another document version taken over this one, is
-     not the sitting the view was opened from. */
-  useEffect(() => {
-    setRunViewScope(null);
-  }, [session.open_id, revision]);
-
-  const open_run_view = useCallback(() => {
-    const chats = getChatsStore();
-    const scope = run_observation_scope(chats, chats?.activeChatId ? getChatMessages(chats.activeChatId) : [], session.resource_id);
-    if (!scope) {
-      setCanvasProblem(agentMessage("agents.editor.chat_required_for_observation"));
-      return;
-    }
-    if (pageRef.current?.contains(window.document.activeElement)) window.document.activeElement?.blur();
-    setTestOpen(false);
-    setCanvasProblem(null);
-    setRunViewScope(scope);
-  }, [session.resource_id]);
-
   /* Escape is answered by the nearest thing on top, once, and stops there; it
      reaches the Agents modal (a `window` listener, which closes the whole
      Builder) only when nothing here takes it. Registered on `document`, where
@@ -783,11 +760,6 @@ export default function SkeletonResourcePage({
         event.stopPropagation();
         return;
       }
-      if (runViewScope) {
-        setRunViewScope(null);
-        take();
-        return;
-      }
       /* An open Test panel is the nearest thing to close. */
       if (testOpen) {
         setTestOpen(false);
@@ -814,7 +786,7 @@ export default function SkeletonResourcePage({
     };
     window.document.addEventListener("keydown", onKey);
     return () => window.document.removeEventListener("keydown", onKey);
-  }, [drill_up, testOpen, runViewScope]);
+  }, [drill_up, testOpen]);
   dirtyRef.current = Boolean(session.dirty);
   useEffect(() => {
     if (!session.dirty) setEscapeHeld(false);
@@ -827,8 +799,6 @@ export default function SkeletonResourcePage({
       const active = window.document.activeElement;
       const tag = active?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || active?.isContentEditable) return;
-      /* The editor is not on screen under the run view. */
-      if (runViewScope) return;
       if (!(event.metaKey || event.ctrlKey) || event.altKey) return;
       const key = typeof event.key === "string" ? event.key.toLowerCase() : "";
       if (key === "z" && !event.shiftKey) {
@@ -841,7 +811,7 @@ export default function SkeletonResourcePage({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [runViewScope, undo, redo]);
+  }, [undo, redo]);
 
   /* What the control center says belongs to the graph on screen: another
      resource or another graph inside this one starts without it. */
@@ -859,8 +829,7 @@ export default function SkeletonResourcePage({
   /* The open graph and the path to it are shown in the side menu's
      breadcrumb, above its search field, where they can be clicked: the
      canvas's top edge is the window's drag region. Each graph is its icon and
-     its name; with nothing drilled it is the one open, which leads nowhere.
-     Under the run view nothing on it leads anywhere either. */
+     its name; with nothing drilled it is the one open, which leads nowhere. */
   const trail_segments =
     session.status === SESSION_STATUS.READY || drilled
       ? drill_trail_segments(
@@ -872,12 +841,7 @@ export default function SkeletonResourcePage({
           t,
         )
       : [];
-  usePublishAgentsDrillTrail(
-    runViewScope
-      ? trail_segments.map(({ ariaLabel, hint, ...segment }) => ({ ...segment, depth: null }))
-      : trail_segments,
-    navigate_crumb,
-  );
+  usePublishAgentsDrillTrail(trail_segments, navigate_crumb);
   /* The sentence for a graph that has just gone is said in the same render
      that stops showing it, rather than one commit later. */
   const shown_notices = notices_still_true(lost === null ? notices : [lost], session);
@@ -912,7 +876,7 @@ export default function SkeletonResourcePage({
     setTestOpen(false);
     setSelectedNodeId(node_id);
   };
-  const upgradeCandidate = ready && steps.length === 0 && !runViewScope
+  const upgradeCandidate = ready && steps.length === 0
     && is_legacy_upgrade_candidate(session.document);
   // First-hop migration carries its source on the root graph. Its old pool
   // converter must not bypass the explicit, source-kind-preserving upgrade.
@@ -946,9 +910,7 @@ export default function SkeletonResourcePage({
       {/* The canvas takes its height by growing (`flex: 1`), so it needs a
           flex column that fills the page to grow into. Without it the graph
           was drawn 0px tall. */}
-      {ready && runViewScope && <SkeletonRunView scope={runViewScope} isDark={isDark} onClose={() => setRunViewScope(null)}
-        leftInset={(chrome && chrome.crumbLeft) ?? DEFAULT_CHROME.crumbLeft} />}
-      {ready && !runViewScope && (
+      {ready && (
         <div style={CANVAS_FRAME}>
         <SkeletonCanvas
           resourceId={drill_layout_key(
@@ -1000,7 +962,7 @@ export default function SkeletonResourcePage({
           menu); not under the run view, which Esc closes instead. */}
       <EscapeBackHint
         isDark={isDark}
-        visible={!runViewScope && drilled}
+        visible={drilled}
         top={(chrome && chrome.crumbTop) ?? DEFAULT_CHROME.crumbTop}
         left={(chrome && chrome.crumbLeft) ?? DEFAULT_CHROME.crumbLeft}
         testId="skeleton-escape-hint"
@@ -1009,7 +971,7 @@ export default function SkeletonResourcePage({
           otherwise read as "nothing is wrong" here, and it is not what it
           means: measured on the real store, the draft check answers the same
           `[]` for an embedded child with no End as for a healthy one. */}
-      {!runViewScope && drilled && steps.length > 0 && (
+      {drilled && steps.length > 0 && (
         <CanvasCaptionChip isDark={isDark} testId="skeleton-drill-caption">
           <span data-testid="skeleton-drill-save-target">
             {save_target_caption(resource_label, t)}
@@ -1018,7 +980,7 @@ export default function SkeletonResourcePage({
         </CanvasCaptionChip>
       )}
 
-      {!runViewScope && (conflict || showRun || messages.length > 0 || upgradeCandidate) && (
+      {(conflict || showRun || messages.length > 0 || upgradeCandidate) && (
         <AboveControls testId="skeleton-above-controls">
           {upgradeCandidate && !conflict && (
             <ControlPopover isDark={isDark} testId="skeleton-legacy-upgrade-offer">
@@ -1074,7 +1036,7 @@ export default function SkeletonResourcePage({
         </AboveControls>
       )}
 
-      {ready && !runViewScope && (
+      {ready && (
         <CanvasControlCenter
           isDark={isDark}
           testId="skeleton-control-center"
@@ -1109,10 +1071,10 @@ export default function SkeletonResourcePage({
         />
       )}
       {ready && (
-        <div data-testid="skeleton-editor-detail-boundary" inert={Boolean(runViewScope)} aria-hidden={runViewScope ? "true" : undefined} style={{ display: "contents" }}>
+        <div data-testid="skeleton-editor-detail-boundary" style={{ display: "contents" }}>
         <FloatingDetailShell
           isDark={isDark}
-          open={(Boolean(selectedNodeId) || testOpen) && !runViewScope}
+          open={Boolean(selectedNodeId) || testOpen}
           width={detail.width}
           minWidth={detail.minWidth}
           resizing={Boolean(detail.resizing)}
@@ -1121,7 +1083,7 @@ export default function SkeletonResourcePage({
             setTestOpen(false);
             setSelectedNodeId(null);
           }}
-          onOpen={reopenTarget && !runViewScope ? () => setSelectedNodeId(reopenTarget) : undefined}
+          onOpen={reopenTarget ? () => setSelectedNodeId(reopenTarget) : undefined}
           handle={
             typeof detail.onDragStart === "function"
               ? {
@@ -1166,12 +1128,12 @@ export default function SkeletonResourcePage({
           />
           </div>
           <BuilderTestPanel key={session.document?.id}
-            active={showRun && !runViewScope}
+            active={showRun}
             session={session} isDark={isDark} onSave={handleSave} onCheck={preflight}
             onFix={fix_node}
             onRunStates={setRunStates}
             scopeNote={steps.length > 0 ? t("agents.test_run.embedded_note", { name: resource_label }) : null}
-            onViewChatRun={open_run_view} />
+ />
         </FloatingDetailShell>
         </div>
       )}

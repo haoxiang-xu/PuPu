@@ -4,6 +4,7 @@ import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import ChatInput from "../../../../chat-input/chat_input";
 import PanelSelect from "../detail_panel/panel_select";
 import PanelHeader from "../detail_panel/panel_header";
+import { ControlHint } from "../canvas_chrome";
 import { Block, FoldBlock } from "../detail_panel/process_timeline";
 import {
   Region, SettingRow, hairline, note, pickerSelectProps, pickerSlotStyle, primaryButtonStyle, problem as problemOf,
@@ -46,9 +47,6 @@ import ChatMessages from "../../../../chat-messages/chat_messages";
 const TINT = "#2f9a68";
 /* The panel toggle's own measure (canvas_chrome's fitted glyph). */
 const toggleRowButtonStyle = { fontSize: 14, color: "var(--pupu-text)", borderRadius: 7, iconOnlyPaddingVertical: 5, iconOnlyPaddingHorizontal: 5 };
-const headerIconStyle = (isDark) => ({
-  ...secondaryButtonStyle(isDark), backgroundColor: "transparent", iconOnlyPaddingVertical: 5, iconOnlyPaddingHorizontal: 5, content: { icon: { width: 14, height: 14 } },
-});
 
 /* The sentence at the top, and the one thing to do about it. */
 function StatusLine({ state, isDark, onAction }) {
@@ -129,7 +127,7 @@ function RunSettings({ active, busy, running, workspace, setWorkspace, toolkits,
   );
 }
 
-export default function BuilderTestPanel({ active, session, onSave, onCheck, onFix, onRunStates, onViewChatRun, scopeNote, isDark }) {
+export default function BuilderTestPanel({ active, session, onSave, onCheck, onFix, onRunStates, scopeNote, isDark }) {
   const { t } = useTranslation();
   const controller = useBuilderTest({ active, session, onSave });
   const { view, busy, error, uncertain, confirmed } = controller;
@@ -275,15 +273,13 @@ export default function BuilderTestPanel({ active, session, onSave, onCheck, onF
         <div data-testid="builder-test-panel" style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, color: textColor(isDark), fontSize: 12 }}>
           <PanelHeader testid="test-run-header" icon="play" tint={TINT} title={t("agents.test_run.title")} isDark={isDark}
             subtitle={t(kind === "agent" ? "agents.test_run.subtitle_agent" : "agents.test_run.subtitle_workflow", { name })}
-            actions={kind === "agent" && onViewChatRun ? (
-              <Button ariaLabel={t("agents.test_run.view_chat_run")} title={t("agents.test_run.view_chat_run")} prefix_icon="eye_open"
-                onClick={onViewChatRun} style={headerIconStyle(isDark)} />
-            ) : null}
             /* Starting over is the chat's "new chat": the same glyph, on the
-               row of the panel's own toggle. */
+               row of the panel's own toggle, with the toggle's own hint. */
             toggleRowAction={runs.length > 0 ? (
-              <Button ariaLabel={t("agents.test_run.start_over")} title={t("agents.test_run.start_over")} prefix_icon="chat_new"
-                onClick={controller.newConversation} disabled={busy || running || !session.edit_token} style={toggleRowButtonStyle} />
+              <ControlHint label={t("agents.test_run.start_over")} testId="test-run-start-over-hint" position="bottom">
+                <Button ariaLabel={t("agents.test_run.start_over")} prefix_icon="chat_new" dom_props={{ "data-testid": "test-run-start-over" }}
+                  onClick={controller.newConversation} disabled={busy || running || !session.edit_token} style={toggleRowButtonStyle} />
+              </ControlHint>
             ) : null} />
 
           {kind === "agent" && (

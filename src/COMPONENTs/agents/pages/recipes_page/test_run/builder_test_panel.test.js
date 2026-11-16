@@ -386,3 +386,14 @@ test('the latest run of the version on screen is handed to the canvas, node by n
   rerender(<BuilderTestPanel active session={{...session,document:doc,edit_token:'edit-B'}} isDark={false} onRunStates={onRunStates}/>);
   await waitFor(()=>expect(onRunStates).toHaveBeenLastCalledWith(null));
 });
+
+test('Start over is the chat new-chat glyph with a hint, and the panel has no eye button', async()=>{
+  builderTestCommand.mockResolvedValue(completed);
+  render(<BuilderTestPanel active session={session} isDark={false}/>);
+  const button=await screen.findByTestId('test-run-start-over');
+  expect(button).toHaveAttribute('aria-label','Start over');
+  // eslint-disable-next-line testing-library/no-node-access
+  fireEvent.mouseEnter(button.parentElement);
+  expect(await screen.findByTestId('test-run-start-over-hint')).toHaveTextContent('Start over');
+  expect(screen.queryByRole('button',{name:'Watch it running in chat'})).toBeNull();
+});
