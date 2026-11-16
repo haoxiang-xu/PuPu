@@ -137,6 +137,11 @@ def _unavailable(provider: str, model: str, reason: str, **extra: Any) -> dict[s
             "reason": reason, **extra}
 
 
+def _provider_model(raw: dict[str, Any], model: str) -> str:
+    pinned = raw.get("provider_model")
+    return pinned.strip() if isinstance(pinned, str) and pinned.strip() else model
+
+
 def _positive_int(value: Any) -> int | None:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
@@ -206,9 +211,14 @@ def kernel_profiles() -> dict[str, Any]:
             continue
 
         profile = {
+            # The id is the name PuPu offers the model under (the composer's
+            # "provider:model"); the model is the one the provider is asked
+            # for. The capability catalog pins some to a dated release
+            # (claude-sonnet-4 -> claude-sonnet-4-20250514) and chat sends that
+            # one; a Kernel binds `model` verbatim, so it has to as well.
             "id": f"{provider}:{model}",
             "provider": provider,
-            "model": model,
+            "model": _provider_model(raw, model),
             "protocol": protocol,
             "endpoint": endpoint,
             "credential_ref": provider,

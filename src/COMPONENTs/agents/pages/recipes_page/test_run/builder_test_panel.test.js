@@ -337,7 +337,7 @@ test('a run that needed a workspace says so in words, with no bare code', async(
   builderTestCommand.mockResolvedValue({...opened,runs:[{...completed.runs[0],status:'failed',output:null,
     error:{code:'workspace_unavailable',path:['toolkits','core'],message:'The test did not complete. Check the recorded run.'}}]});
   render(<BuilderTestPanel active session={session} isDark={false}/>);
-  const card=await screen.findByTestId('test-run-error');
+  const card=await screen.findByTestId('test-turn-builder-run-one');
   expect(card).toHaveTextContent('This Agent uses file tools, which need a workspace.');
   expect(card).not.toHaveTextContent('workspace_unavailable');
 });
@@ -362,4 +362,16 @@ test('Allow once is answered at once: the buttons go, the card says it continues
   expect(builderTestCommand.mock.calls.filter(([request])=>request.op==='respond')).toHaveLength(1);
   await act(async()=>settle({...opened,runs:[{...pendingRun,status:'running',pending:null}]}));
   expect(screen.queryByTestId('test-pending')).toBeNull();
+});
+
+test('an Agent run that failed says one thing, in the chat error reply, and is Failed rather than unknown', async()=>{
+  builderTestCommand.mockResolvedValue({...opened,runs:[{...completed.runs[0],status:'outcome_unknown',output:null,
+    error:{code:'handler_error',path:['execution','nodes',1],message:'The recorded test failed.'}}]});
+  render(<BuilderTestPanel active session={session} isDark={false}/>);
+  const turn=await screen.findByTestId('test-turn-builder-run-one');
+  expect(turn).toHaveTextContent('The step stopped with an error before it could answer');
+  expect(turn).toHaveTextContent('Failed');
+  expect(turn).not.toHaveTextContent('Outcome unknown');
+  expect(turn).not.toHaveTextContent('The connection dropped');
+  expect(turn).not.toHaveTextContent('handler_error');
 });

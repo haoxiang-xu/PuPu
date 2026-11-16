@@ -96,7 +96,7 @@ class KernelProfileProducerTest(unittest.TestCase):
         declared_by_id = _declared_by_model_id()
         rewritten = [
             entry for entry in self.result["profiles"] + self.result["unavailable"]
-            if entry["model"] == "claude-haiku-4-5"
+            if entry["id"] == "anthropic:claude-haiku-4-5"
         ]
         self.assertEqual(len(rewritten), 1)
         self.assertIn("anthropic:claude-haiku-4-5", declared_by_id)
@@ -106,9 +106,9 @@ class KernelProfileProducerTest(unittest.TestCase):
         self.assertEqual(len(ids), len(set(ids)))
         for profile in self.result["profiles"]:
             with self.subTest(profile=profile["id"]):
-                self.assertEqual(
-                    profile["id"], f"{profile['provider']}:{profile['model']}",
-                )
+                declared = _declared_by_model_id().get(profile["id"], {})
+                self.assertEqual(profile["model"], declared.get("provider_model") or profile["id"].split(":", 1)[1])
+                self.assertTrue(profile["id"].startswith(f"{profile['provider']}:"))
 
     def test_a_reservation_can_actually_be_chosen(self):
         """``output_tokens`` must be at least one and below the window, so a
@@ -322,3 +322,13 @@ class KernelProfileRouteTest(unittest.TestCase):
         response = authed.test_client().get("/skeleton_kernel_profiles")
         self.assertEqual(response.status_code, 401)
         self.assertEqual(response.get_json()["error"]["code"], "unauthorized")
+
+
+class KernelProfileProviderModelTest(unittest.TestCase):
+    def test_a_pinned_release_is_what_the_provider_is_asked_for(self):
+        """claude-sonnet-4 is offered under its catalog name but called as the
+        dated release chat sends; the undated name is refused by the API."""
+        from skeleton_kernel_profiles import kernel_profiles
+        profiles = {profile["id"]: profile for profile in kernel_profiles()["profiles"]}
+        self.assertEqual(profiles["anthropic:claude-sonnet-4"]["model"], "claude-sonnet-4-20250514")
+        self.assertEqual(profiles["anthropic:claude-sonnet-5"]["model"], "claude-sonnet-5")

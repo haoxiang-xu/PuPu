@@ -974,7 +974,8 @@
         "workspace_needed": "Este agente usa ferramentas de arquivos, que precisam de um espaço de trabalho. Escolha um no botão de pasta abaixo ou defina um padrão nas Configurações.",
         "memory_provider": "O agente de memória só pode usar modelos da OpenAI, Anthropic, Gemini ou Ollama, então um teste com modelo de provedor personalizado ainda não pode começar. Escolha um modelo desses provedores.",
         "run_incomplete": "O teste parou antes de terminar.",
-        "see_canvas": "“Mostrar na tela” mostra a etapa em que ele parou."
+        "see_canvas": "“Ver etapas no grafo” mostra a etapa em que ele parou.",
+        "handler_failed": "A etapa parou com um erro antes de responder e o runtime não guardou detalhes. Numa chamada ao modelo, costuma ser um nome de modelo que o provedor não aceita, problema de chave ou cota, ou o provedor fora do ar. Tente outro modelo ou verifique o provedor nas Configurações."
       },
       "inputs": "Entradas",
       "result": "Resultado",

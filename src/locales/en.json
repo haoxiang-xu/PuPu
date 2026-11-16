@@ -974,7 +974,8 @@
         "workspace_needed": "This Agent uses file tools, which need a workspace. Pick one with the folder button below, or set a default workspace in Settings.",
         "memory_provider": "The Memory Agent can only use an OpenAI, Anthropic, Gemini or Ollama model, so a test with a custom-provider model can’t start yet. Pick a model from one of those providers.",
         "run_incomplete": "The test stopped before it finished.",
-        "see_canvas": "Show on canvas shows the step it stopped at."
+        "see_canvas": "See steps on graph shows the step it stopped at.",
+        "handler_failed": "The step stopped with an error before it could answer, and the runtime kept no details. With a model call this is usually a model name the provider does not accept, a key or quota problem, or the provider being unreachable. Try another model, or check the provider in Settings."
       },
       "inputs": "Inputs",
       "result": "Result",

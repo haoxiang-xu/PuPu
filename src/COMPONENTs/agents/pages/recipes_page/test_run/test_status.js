@@ -99,8 +99,11 @@ export function run_error_text(error, t) {
   if (!record(error)) return "";
   if (error.code === "workspace_unavailable") return t("agents.test_run.problem.workspace_needed");
   if (error.code === "skeleton_memory_provider_unsupported") return t("agents.test_run.problem.memory_provider");
+  /* The runtime keeps no detail when a step's handler throws (the model call
+     itself, most often): say what is known and the usual causes. */
+  if (error.code === "handler_error") return t("agents.test_run.problem.handler_failed");
   const message = typeof error.message === "string" ? error.message : "";
-  if (!message || /^The test did not complete\./.test(message)) return t("agents.test_run.problem.run_incomplete");
+  if (!message || /^The test did not complete\./.test(message) || /^The recorded test failed\./.test(message)) return t("agents.test_run.problem.run_incomplete");
   return message;
 }
 

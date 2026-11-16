@@ -227,11 +227,16 @@ export function AgentTurn({ run, document, controller, busy, confirmed, onObserv
   const live = LIVE_STATUSES.has(run.status);
   const userMessage = useMemo(() => ({ id: `${run.id}:sent`, role: "user", content: run.inputs.message }), [run.id, run.inputs.message]);
   const reply = typeof run.output?.message === "string" ? run.output.message : run.output ? JSON.stringify(run.output, null, 2) : "";
+  /* A run that failed is said once, the way the chat says it: an error
+     reply carrying the reason, in words. */
+  const failure = run.error ? run_error_text(run.error, t) : "";
   const assistantMessage = useMemo(() => ({
-    id: run.id, role: "assistant", content: reply,
-    status: live ? "streaming" : run.status === "failed" ? "error" : run.status === "cancelled" ? "cancelled" : "done",
+    id: run.id, role: "assistant", content: failure ? "" : reply,
+    status: live ? "streaming" : failure || run.status === "failed" ? "error" : run.status === "cancelled" ? "cancelled" : "done",
+    ...(failure ? { meta: { error: { message: failure } } } : {}),
     subagentFrames: projection.subagentFrames, subagentMetaByRunId: projection.subagentMetaByRunId,
-  }), [run.id, run.status, reply, live, projection]);
+  }), [run.id, run.status, reply, failure, live, projection]);
+  const failedNode = run.error ? node_at_path(document, run.error.path) : null;
   const pending = run.pending && run.pending.status === "awaiting_response" ? run.pending : null;
   const requests = useMemo(() => (pending
     ? { [pending.interaction_id]: { ...(pending.presentation.tool_call || {}), confirmationId: pending.interaction_id } } : {}), [pending]);
@@ -267,17 +272,26 @@ export function AgentTurn({ run, document, controller, busy, confirmed, onObserv
           onRespond={(approved, value) => onAnswer(run, approved, value ?? null)} onResume={() => controller.resume(run)} />
       )}
       {!run.trace_complete && <span style={note(isDark)}>{t("agents.test_run.trace_limit")}</span>}
-      {run.error && <RunError error={run.error} document={document} isDark={isDark} onFix={onFix} canShowOnCanvas={run.graphs.length > 0 && Boolean(onObserve)} />}
-      {(run.status !== "completed" || (run.graphs.length > 0 && onObserve)) && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {run.status !== "completed" && <RunStatus status={said && !said.failed ? "running" : run.status} isDark={isDark} />}
+      {(run.status !== "completed" || failedNode || (run.graphs.length > 0 && onObserve)) && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          {/* A recorded error is a failure, whatever the journal could not
+              settle about it; only a run with no error is "unknown". */}
+          {run.status !== "completed" && <RunStatus status={said && !said.failed ? "running" : failure ? "failed" : run.status} isDark={isDark} />}
           <span style={{ flex: 1 }} />
+          {failedNode && onFix && (
+            <Button label={t("agents.test_run.fix")} onClick={() => onFix(failedNode.id)} style={secondaryButtonStyle(isDark)} />
+          )}
           {run.graphs.length > 0 && onObserve && (
             <Button label={t("agents.test_run.view_run")} prefix_icon="eye_open" onClick={() => onObserve(run)} style={secondaryButtonStyle(isDark)} />
           )}
         </div>
       )}
-      {run.status === "outcome_unknown" && <span style={note(isDark)}>{t("agents.test_run.outcome_unknown_note")}</span>}
+      {run.status === "outcome_unknown" && !failure && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ ...note(isDark), flex: 1 }}>{t("agents.test_run.outcome_unknown_note")}</span>
+          <Button label={t("agents.test_run.refresh")} prefix_icon="refresh" onClick={() => controller.refresh()} style={secondaryButtonStyle(isDark)} />
+        </div>
+      )}
     </section>
   );
 }

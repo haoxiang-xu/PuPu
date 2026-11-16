@@ -974,7 +974,8 @@
         "workspace_needed": "Este agente usa herramientas de archivos, que necesitan un espacio de trabajo. Elige uno con el botón de carpeta de abajo o define uno predeterminado en Ajustes.",
         "memory_provider": "El agente de memoria solo puede usar modelos de OpenAI, Anthropic, Gemini u Ollama, así que una prueba con un modelo de proveedor personalizado aún no puede empezar. Elige un modelo de esos proveedores.",
         "run_incomplete": "La prueba se detuvo antes de terminar.",
-        "see_canvas": "«Ver en el lienzo» muestra el paso en que se detuvo."
+        "see_canvas": "«Ver pasos en el grafo» muestra el paso en que se detuvo.",
+        "handler_failed": "El paso se detuvo con un error antes de responder y el entorno no guardó detalles. En una llamada al modelo suele deberse a un nombre de modelo que el proveedor no acepta, a un problema de clave o cuota, o a que el proveedor no responde. Prueba otro modelo o revisa el proveedor en Ajustes."
       },
       "inputs": "Entradas",
       "result": "Resultado",

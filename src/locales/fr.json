@@ -974,7 +974,8 @@
         "workspace_needed": "Cet agent utilise des outils de fichiers, qui ont besoin d’un espace de travail. Choisissez-en un avec le bouton dossier ci-dessous, ou définissez-en un par défaut dans les Réglages.",
         "memory_provider": "L’agent de mémoire ne peut utiliser qu’un modèle OpenAI, Anthropic, Gemini ou Ollama : un test avec un modèle de fournisseur personnalisé ne peut pas encore démarrer. Choisissez un modèle de l’un de ces fournisseurs.",
         "run_incomplete": "Le test s’est arrêté avant la fin.",
-        "see_canvas": "« Afficher sur le canevas » montre l’étape où il s’est arrêté."
+        "see_canvas": "« Voir les étapes sur le graphe » montre l’étape où il s’est arrêté.",
+        "handler_failed": "L’étape s’est arrêtée sur une erreur avant de répondre, sans détails conservés. Pour un appel de modèle, c’est souvent un nom de modèle refusé par le fournisseur, un problème de clé ou de quota, ou un fournisseur injoignable. Essayez un autre modèle ou vérifiez le fournisseur dans les Réglages."
       },
       "inputs": "Entrées",
       "result": "Résultat",
