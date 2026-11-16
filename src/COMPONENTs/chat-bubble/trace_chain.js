@@ -523,9 +523,16 @@ const KVPanel = ({ sections, isDark, color }) => {
 /* tag pill shown as the timeline title for tool_call */
 const ToolTag = ({ name, isDark, compact = false }) => (
   <span
+    title={typeof name === "string" ? name : undefined}
     style={{
-      display: "inline-flex",
-      alignItems: "center",
+      /* one token: in a narrow row it is cut with an ellipsis (full name on
+         hover) rather than broken across lines or run into "detail" */
+      display: "inline-block",
+      maxWidth: "100%",
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+      verticalAlign: "middle",
+      boxSizing: "border-box",
       padding: compact ? "1px 6px" : "1px 7px",
       borderRadius: compact ? 4 : 5,
       background: "var(--pupu-overlay-selected)",
@@ -535,6 +542,7 @@ const ToolTag = ({ name, isDark, compact = false }) => (
       fontSize: compact ? "0.74em" : "0.82em",
       letterSpacing: 0.1,
       color: "var(--pupu-text-secondary)",
+      whiteSpace: "nowrap",
       userSelect: "none",
       WebkitUserSelect: "none",
     }}
@@ -559,6 +567,8 @@ const CountBadge = ({ count, isDark }) => (
       fontFamily: "Menlo, Monaco, Consolas, monospace",
       fontSize: "0.72em",
       color: "var(--pupu-text-faint)",
+      whiteSpace: "nowrap",
+      flexShrink: 0,
       userSelect: "none",
       WebkitUserSelect: "none",
     }}
@@ -2505,7 +2515,8 @@ const TraceChain = ({
       return {
         key: firstCall.key,
         title: (
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+          /* the name gives way (ellipsis) before the count does */
+          <span style={{ display: "flex", alignItems: "center", gap: 5, minWidth: 0, maxWidth: "100%" }}>
             <ToolTag
               name={firstCall._toolName}
               isDark={isDark}

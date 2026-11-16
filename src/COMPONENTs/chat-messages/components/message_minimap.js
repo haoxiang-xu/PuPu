@@ -1072,4 +1072,7 @@ const MessageMinimap = ({
   );
 };
 
+/* The strip the minimap keeps at the list's right edge. */
+export const MINIMAP_STACK_WIDTH = STACK_W;
+
 export default MessageMinimap;

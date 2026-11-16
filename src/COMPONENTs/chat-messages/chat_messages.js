@@ -2,11 +2,16 @@ import { memo, useContext, useId, useMemo } from "react";
 import ChatBubble from "../chat-bubble/chat_bubble";
 import CharacterChatBubble from "../chat-bubble/character_chat_bubble";
 import { ConfigContext } from "../../CONTAINERs/config/context";
-import MessageMinimap from "./components/message_minimap";
+import MessageMinimap, { MINIMAP_STACK_WIDTH } from "./components/message_minimap";
 import { useMessageWindowScroll } from "./hooks/use_message_window_scroll";
 import { StreamingMessageStoreContext } from "../chat-bubble/components/streaming_message_store_context";
 
 const EMPTY_CONFIRMATION_STATE = Object.freeze({});
+
+const MESSAGE_COLUMN_WIDTH = 680;
+/* 20px, or what keeps the column off the minimap when the host is too
+   narrow for the centred column to clear it (percent: the host's width). */
+const COLUMN_RIGHT_PADDING = `max(20px, calc(${MINIMAP_STACK_WIDTH + 8}px - max(0px, (100% - ${MESSAGE_COLUMN_WIDTH}px) / 2)))`;
 
 const ChatMessages = ({
   chatId,
@@ -237,9 +242,12 @@ const ChatMessages = ({
                   }}
                   style={{
                     width: "100%",
-                    maxWidth: 680,
+                    maxWidth: MESSAGE_COLUMN_WIDTH,
                     margin: "0 auto",
-                    padding: "0 20px",
+                    /* Wide hosts centre the column well clear of the minimap;
+                       a narrow one (a side panel, a small window) would run
+                       its right edge, timestamps included, under it. */
+                    padding: `0 ${COLUMN_RIGHT_PADDING} 0 20px`,
                     boxSizing: "border-box",
                   }}
                 >

@@ -7,7 +7,7 @@ import PanelHeader from "../detail_panel/panel_header";
 import { ControlHint } from "../canvas_chrome";
 import { Block, FoldBlock } from "../detail_panel/process_timeline";
 import {
-  Region, SettingRow, hairline, note, pickerSelectProps, pickerSlotStyle, primaryButtonStyle, problem as problemOf,
+  REGION_RADIUS, Region, SettingRow, hairline, note, pickerSelectProps, pickerSlotStyle, primaryButtonStyle, problem as problemOf,
   statusColor, text as textColor,
 } from "../detail_panel/panel_style";
 import { StreamingMessageStoreContext } from "../../../../chat-bubble/components/streaming_message_store_context";
@@ -17,7 +17,7 @@ import { can_preflight } from "../skeleton_resource_session";
 import { safe_text } from "../document_values";
 import WorkflowTestInputs, { workflow_test_interface_key } from "./workflow_test_inputs";
 import useBuilderTest from "./use_builder_test";
-import { LIVE_STATUSES, model_unusable, own_model_id, panel_state, request_problem_text, unconfigured_agents } from "./test_status";
+import { LIVE_STATUSES, approval_problem_text, approval_refused_for_good, model_unusable, own_model_id, panel_state, request_problem_text, unconfigured_agents } from "./test_status";
 import { kernel_profiles } from "../skeleton_resources";
 import { readMemoryAgentSettings } from "../../../../../SERVICEs/memory_agent_settings";
 import { StatusDot, WorkflowRun, agent_messages, pending_requests, secondaryButtonStyle } from "./test_result";
@@ -47,6 +47,19 @@ import ChatMessages from "../../../../chat-messages/chat_messages";
 const TINT = "#2f9a68";
 /* The panel toggle's own measure (canvas_chrome's fitted glyph). */
 const toggleRowButtonStyle = { fontSize: 14, color: "var(--pupu-text)", borderRadius: 7, iconOnlyPaddingVertical: 5, iconOnlyPaddingHorizontal: 5 };
+
+/* The composer's bottom margin (its 12px padding): the conversation is
+   masked out there, so nothing scrolls visibly beneath the box. */
+const COMPOSER_EDGE_MASK = "linear-gradient(to top, transparent 0, transparent 12px, #000 12px)";
+/* Before the composer is measured: its compact box and margins. */
+const COMPOSER_MIN_HEIGHT = 120;
+/* A line floating over the conversation reads on the same frost as the
+   composer's attach row. */
+const frosted = (isDark) => ({
+  borderRadius: REGION_RADIUS,
+  backgroundColor: isDark ? "rgba(var(--pupu-surface-rgb),0.6)" : "rgba(var(--pupu-surface-rgb),0.72)",
+  backdropFilter: "blur(20px) saturate(130%)", WebkitBackdropFilter: "blur(20px) saturate(130%)",
+});
 
 /* The sentence at the top, and the one thing to do about it. */
 function StatusLine({ state, isDark, onAction }) {
@@ -200,7 +213,11 @@ export default function BuilderTestPanel({ active, session, onSave, onCheck, onF
     if (!result) setAnswered((held) => (held && held.interaction_id === run.pending.interaction_id ? { ...held, failed: true } : held));
   };
   const shownLast = answeredNow && !answeredNow.failed && last ? { ...last, status: "running" } : last;
-  const state = panel_state({ session, kind, last: shownLast, uncertain, fallbackModel, fallbackProblem, error }, t);
+  /* An approval refused for good: the card stops offering its buttons and
+     the status line says what to do instead of "waiting for you". */
+  const deadApproval = Boolean(answeredNow?.failed && approval_refused_for_good(error));
+  const state = deadApproval ? { tone: "bad", text: approval_problem_text(error, t) }
+    : panel_state({ session, kind, last: shownLast, uncertain, fallbackModel, fallbackProblem, error }, t);
   const traceContext = useMemo(() => ({ chatId: current?.session.id || "", store: null, notifyStreamingContentCommitted: null }), [current?.session.id]);
 
   /* The latest run's node states, for the canvas to draw on the graph the
@@ -233,8 +250,24 @@ export default function BuilderTestPanel({ active, session, onSave, onCheck, onF
     const pending = requests && Object.keys(requests)[0];
     if (!pending) return {};
     if (answeredNow && !answeredNow.failed) return { [pending]: { status: "submitting", error: "" } };
-    return { [pending]: { status: "idle", error: answeredNow?.failed && error ? request_problem_text(error, t) : "" } };
-  }, [requests, answeredNow, error, t]);
+    return { [pending]: { status: deadApproval ? "failed" : "idle", error: answeredNow?.failed && error ? approval_problem_text(error, t) : "" } };
+  }, [requests, answeredNow, error, t, deadApproval]);
+  /* The floating composer's live height: the conversation keeps that much
+     clear at its end. */
+  const composerRef = useRef(null);
+  const [composerHeight, setComposerHeight] = useState(COMPOSER_MIN_HEIGHT);
+  useEffect(() => {
+    const el = composerRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return undefined;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const next = Math.ceil(entry.contentRect.height + 18);
+        if (next > 0) setComposerHeight(next);
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [active, kind]);
   const decide = ({ confirmationId, approved, userResponse }) => {
     if (!last?.pending || confirmationId !== last.pending.interaction_id) return;
     answer(last, last.pending.kind === "human_input" ? true : Boolean(approved), userResponse ?? null);
@@ -260,11 +293,12 @@ export default function BuilderTestPanel({ active, session, onSave, onCheck, onF
   const status = <>
     <StatusLine state={state} isDark={isDark} onAction={act} />
     {scopeNote && <span style={note(isDark)}>{scopeNote}</span>}
-    {error && !uncertain && !(fallbackProblem && error.code === "test_model_unavailable")
+    {/* A refused answer is said on its own card, not a second time here. */}
+    {error && !uncertain && !answeredNow?.failed && !(fallbackProblem && error.code === "test_model_unavailable")
       && <ControllerProblem error={error} model={fallbackModel || ""} isDark={isDark} />}
   </>;
   const runProps = { document: session.document, controller, busy, confirmed, isDark,
-    answered: answeredNow, answerProblem: answered && error ? request_problem_text(error, t) : "", onAnswer: answer };
+    answered: answeredNow, answerProblem: answered && error ? approval_problem_text(error, t) : "", onAnswer: answer };
   const earlier = kind === "workflow" ? runs.slice(0, -1).reverse() : [];
 
   return (
@@ -291,10 +325,53 @@ export default function BuilderTestPanel({ active, session, onSave, onCheck, onF
             /* The chat's own message list: bubbles, trace chain, the chat's
                approval and question controls, scrolling and its way back to
                the newest message. */
-            <ChatMessages chatId={current?.session.id || ""} messages={messages} isStreaming={running} disableActionButtons
-              pendingToolConfirmationRequests={requests} toolConfirmationUiStateById={confirmationUi}
-              onToolConfirmationDecision={decide} onStopStream={() => controller.stop(last)} allowSessionApprovals={false}
-              bottomViewportInset={8} />
+            <div style={{ flex: 1, minHeight: 0, position: "relative", display: "flex", flexDirection: "column" }}>
+              {/* Under the composer's bottom margin nothing shows: the list
+                  stops at the box's lower edge, as the chat's cover does. */}
+              <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column",
+                maskImage: COMPOSER_EDGE_MASK, WebkitMaskImage: COMPOSER_EDGE_MASK }}>
+                <ChatMessages chatId={current?.session.id || ""} messages={messages} isStreaming={running} disableActionButtons
+                  pendingToolConfirmationRequests={requests} toolConfirmationUiStateById={confirmationUi}
+                  onToolConfirmationDecision={decide} onStopStream={() => controller.stop(last)} allowSessionApprovals={false}
+                  bottomViewportInset={composerHeight} />
+              </div>
+              {/* As in the chat, the composer floats over the conversation:
+                  the list scrolls on underneath it and keeps the composer's
+                  height clear at its end, so the frosted box and its attach
+                  row (model, tools, workspace; it rises above the box while in
+                  use) blur the messages passing behind them. The hint keeps
+                  its own room, so the risen row never covers it. */}
+            <div ref={composerRef} data-testid="test-run-composer"
+              style={{ position: "absolute", left: 0, right: 0, bottom: 0, zIndex: 5, padding: "6px 12px 12px" }}>
+              {/* Why Send does nothing right now, said where Send is. */}
+              {running && (
+                <div data-testid="test-run-composer-hint" role="status" style={{ ...note(isDark), display: "flex", alignItems: "center", gap: 6, padding: "5px 8px", marginBottom: 6, ...frosted(isDark) }}>
+                  <StatusDot tone={shownLast?.status === "waiting" ? "wait" : "busy"} isDark={isDark} />
+                  {t(shownLast?.status === "waiting" ? "agents.test_run.composer_waiting" : "agents.test_run.composer_running")}
+                </div>
+              )}
+              {last?.pending?.status === "receipt_recorded" && (
+                <div style={{ ...note(isDark), display: "flex", alignItems: "center", gap: 8, padding: "5px 8px", marginBottom: 6, ...frosted(isDark) }}>
+                  <span style={{ flex: 1 }}>{t("agents.test_run.receipt")}</span>
+                  <Button label={t("agents.test_run.resume")} onClick={() => controller.resume(last)} disabled={busy || !confirmed} style={secondaryButtonStyle(isDark)} />
+                </div>
+              )}
+              {running && <div style={{ height: 44 }} aria-hidden="true" />}
+              <ChatInput compact value={message} onChange={setMessage}
+                onSend={() => { if (!disabled && message.trim()) start(); }}
+                onStop={() => controller.stop(last)} isStreaming={running}
+                sendDisabled={Boolean(disabled || !message.trim())}
+                placeholder={t(unsaved ? "agents.test_run.message_placeholder_unsaved" : "agents.test_run.message_placeholder")}
+                showAttachments attachmentsEnabled={false} onAttachFile={() => {}}
+                modelCatalog={modelCatalog || undefined}
+                selectedModelId={needsModel ? pickedModel : ownModel || pickedModel}
+                onSelectModel={pickModel}
+                modelSelectDisabled={!needsModel || busy || running}
+                showAgentSelector={false}
+                selectedToolkits={toolkits} onToolkitsChange={setToolkits} toolSelectDisabled={busy || running}
+                selectedWorkspaceIds={workspaceIds} onWorkspaceIdsChange={setWorkspaceIds} />
+            </div>
+            </div>
           )}
           {kind === "workflow" && <div className="scrollable" data-sb-wall="4" data-sb-edge="2" data-sb-edge-top="4" data-sb-edge-bottom="12"
             style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", padding: "14px 16px",
@@ -332,41 +409,7 @@ export default function BuilderTestPanel({ active, session, onSave, onCheck, onF
               toolkits={toolkits} setToolkits={setToolkits} isDark={isDark} />
           </div>}
 
-          {kind === "agent" ? (
-            /* The composer's attach row (model, tools, workspace) floats
-               above its box while it is in use (focused or holding text). The
-               conversation keeps that much room at its end, and the hint
-               below keeps its own, so the row never covers either. */
-            <div data-testid="test-run-composer" style={{ padding: "6px 12px 12px", flexShrink: 0 }}>
-              {/* Why Send does nothing right now, said where Send is. */}
-              {running && (
-                <div data-testid="test-run-composer-hint" role="status" style={{ ...note(isDark), display: "flex", alignItems: "center", gap: 6, padding: "0 4px 6px" }}>
-                  <StatusDot tone={shownLast?.status === "waiting" ? "wait" : "busy"} isDark={isDark} />
-                  {t(shownLast?.status === "waiting" ? "agents.test_run.composer_waiting" : "agents.test_run.composer_running")}
-                </div>
-              )}
-              {last?.pending?.status === "receipt_recorded" && (
-                <div style={{ ...note(isDark), display: "flex", alignItems: "center", gap: 8, padding: "0 4px 6px" }}>
-                  <span style={{ flex: 1 }}>{t("agents.test_run.receipt")}</span>
-                  <Button label={t("agents.test_run.resume")} onClick={() => controller.resume(last)} disabled={busy || !confirmed} style={secondaryButtonStyle(isDark)} />
-                </div>
-              )}
-              {running && <div style={{ height: 44 }} aria-hidden="true" />}
-              <ChatInput compact value={message} onChange={setMessage}
-                onSend={() => { if (!disabled && message.trim()) start(); }}
-                onStop={() => controller.stop(last)} isStreaming={running}
-                sendDisabled={Boolean(disabled || !message.trim())}
-                placeholder={t(unsaved ? "agents.test_run.message_placeholder_unsaved" : "agents.test_run.message_placeholder")}
-                showAttachments attachmentsEnabled={false} onAttachFile={() => {}}
-                modelCatalog={modelCatalog || undefined}
-                selectedModelId={needsModel ? pickedModel : ownModel || pickedModel}
-                onSelectModel={pickModel}
-                modelSelectDisabled={!needsModel || busy || running}
-                showAgentSelector={false}
-                selectedToolkits={toolkits} onToolkitsChange={setToolkits} toolSelectDisabled={busy || running}
-                selectedWorkspaceIds={workspaceIds} onWorkspaceIdsChange={setWorkspaceIds} />
-            </div>
-          ) : (
+          {kind !== "agent" && (
             <div style={{ padding: "10px 16px 14px", display: "flex", gap: 8, alignItems: "flex-end", flexShrink: 0,
               borderTop: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}` }}>
               {running ? (

@@ -365,6 +365,23 @@ test('Allow once is answered at once: the buttons go, the card says it continues
   expect(screen.queryByTestId('test-pending')).toBeNull();
 });
 
+test('an approval the runtime refuses for good stops offering its buttons and says so in words', async()=>{
+  const pendingRun={...completed.runs[0],status:'waiting',output:null,pending:{interaction_id:'approval-2',kind:'tool_approval',status:'awaiting_response',
+    payload:{tool_name:'web_fetch'},subject:{},presentation:{trace_frame:null,tool_call:{confirmation_id:'approval-2',tool_display_name:'web_fetch',arguments:{url:'https://example.com/b'}}}}};
+  builderTestCommand.mockResolvedValue({...opened,runs:[pendingRun]});
+  render(<BuilderTestPanel active session={session} isDark={false}/>);
+  const allow=await screen.findByRole('button',{name:'Allow once'});
+  /* Measured 2026-11-16: every click on this wait met the same refusal. */
+  builderTestCommand.mockRejectedValueOnce(Object.assign(new Error('Skeleton approval no longer belongs to the current graph.'),
+    {code:'skeleton_interaction_request_missing',status:409}));
+  await act(async()=>{fireEvent.click(allow);});
+  expect((await screen.findAllByText(/This approval could not be accepted/)).length).toBeGreaterThan(0);
+  expect(screen.getByTestId('skeleton-preflight-state')).toHaveTextContent('Stop this run and send the message again.');
+  expect(screen.queryByText(/Skeleton approval/)).toBeNull();
+  expect(screen.queryByRole('button',{name:'Allow once'})).toBeNull();
+  expect(builderTestCommand.mock.calls.filter(([request])=>request.op==='respond')).toHaveLength(1);
+});
+
 test('an Agent run that failed says one thing, in the chat error reply, and is Failed rather than unknown', async()=>{
   builderTestCommand.mockResolvedValue({...opened,runs:[{...completed.runs[0],status:'outcome_unknown',output:null,
     error:{code:'handler_error',path:['execution','nodes',1],message:'The recorded test failed.'}}]});

@@ -1,4 +1,4 @@
-import { explain_problem, node_at_path, own_model_id, panel_state, unconfigured_agents } from "./test_status";
+import { approval_problem_text, approval_refused_for_good, explain_problem, node_at_path, own_model_id, panel_state, run_error_text, unconfigured_agents } from "./test_status";
 import { agentEnglishText } from "../agents_i18n";
 
 const t = agentEnglishText;
@@ -77,4 +77,27 @@ test("which Agent nodes need the composer's model, and which model a configured 
   const configured = { ...agent, nodes: [agent.nodes[0], { ...agent.nodes[1], config: { execution: {}, kernel: { profile: { provider: "openai", model: "gpt-x" } } } }] };
   expect(unconfigured_agents(configured)).toEqual([]);
   expect(own_model_id(configured)).toBe("openai:gpt-x");
+});
+
+describe("refused approvals", () => {
+  /* Measured 2026-11-16: the second web_fetch of one model turn was refused
+     on every click with this code and the runtime's engineer sentence. */
+  const missing = { code: "skeleton_interaction_request_missing", message: "Skeleton approval no longer belongs to the current graph." };
+
+  it("says what happened in words, not the runtime's sentence", () => {
+    const text = approval_problem_text(missing, t);
+    expect(text).toMatch(/tool did not run/);
+    expect(text).not.toMatch(/Skeleton|graph/);
+    expect(approval_problem_text({ code: "interaction_expired", message: "x" }, t)).toMatch(/expired/);
+    /* A run's own failure keeps its words: the mapping is for answers. */
+    expect(run_error_text({ code: "skeleton_interaction_invalid", message: "temporary read race" }, t)).toBe("temporary read race");
+  });
+
+  it("knows which refusals a second click cannot change", () => {
+    expect(approval_refused_for_good(missing)).toBe(true);
+    expect(approval_refused_for_good({ code: "interaction_not_found" })).toBe(true);
+    expect(approval_refused_for_good({ code: "builder_test_protocol_error" })).toBe(false);
+    expect(approval_refused_for_good({ code: "skeleton_interaction_invalid" })).toBe(false);
+    expect(approval_refused_for_good(null)).toBe(false);
+  });
 });

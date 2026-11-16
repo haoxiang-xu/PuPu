@@ -974,7 +974,9 @@
         "workspace_needed": "Questo agente usa strumenti per i file, che richiedono un’area di lavoro. Scegline una con il pulsante cartella qui sotto o impostane una predefinita nelle Impostazioni.",
         "memory_provider": "L’agente di memoria può usare solo modelli OpenAI, Anthropic, Gemini o Ollama, quindi una prova con un modello di un fornitore personalizzato non può ancora partire. Scegli un modello di questi fornitori.",
         "run_incomplete": "La prova si è fermata prima di finire.",
-        "handler_failed": "Il passaggio si è fermato con un errore prima di rispondere e il runtime non ha conservato dettagli. Per una chiamata al modello di solito è un nome di modello non accettato dal fornitore, un problema di chiave o quota, o il fornitore non è raggiungibile. Prova un altro modello o controlla il fornitore nelle Impostazioni."
+        "handler_failed": "Il passaggio si è fermato con un errore prima di rispondere e il runtime non ha conservato dettagli. Per una chiamata al modello di solito è un nome di modello non accettato dal fornitore, un problema di chiave o quota, o il fornitore non è raggiungibile. Prova un altro modello o controlla il fornitore nelle Impostazioni.",
+        "approval_refused": "Questa approvazione non è stata accettata: lo strumento non è stato eseguito e al modello non è stato inviato nulla. Interrompi questa esecuzione e invia di nuovo il messaggio.",
+        "approval_expired": "Questa approvazione è scaduta, lo strumento non è stato eseguito. Invia di nuovo il messaggio per riprovare."
       },
       "inputs": "Input",
       "result": "Risultato",

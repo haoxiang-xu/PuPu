@@ -92,6 +92,27 @@ export function request_problem_text(error, t, model = "") {
   return run_error_text(error, t);
 }
 
+/* A refused approval the run cannot take on a second try: the wait it
+   answered is gone, closed, or (a runtime fault) was never recorded. The
+   tool did not run; clicking again only meets the same refusal. */
+const FINAL_APPROVAL_CODES = new Set(["interaction_not_found", "interaction_expired", "interaction_canonical_conflict",
+  "interaction_receipt_conflict", "interaction_receipt_missing", "execution_cancelled"]);
+export function approval_refused_for_good(error) {
+  return record(error) && typeof error.code === "string"
+    && (FINAL_APPROVAL_CODES.has(error.code)
+      /* A read can meet skeleton_interaction_invalid in passing; a refused
+         answer's other skeleton_interaction_* codes are final. */
+      || error.code.startsWith("skeleton_interaction_") && error.code !== "skeleton_interaction_invalid");
+}
+
+/* What a refused approval says on its card and in the status line. */
+export function approval_problem_text(error, t) {
+  if (!record(error)) return "";
+  if (error.code === "interaction_expired") return t("agents.test_run.problem.approval_expired");
+  if (approval_refused_for_good(error)) return t("agents.test_run.problem.approval_refused");
+  return request_problem_text(error, t);
+}
+
 /* What a run that failed says. A refusal the panel knows is said in words;
    the host's own sentence otherwise; and when the host only knows the run
    did not finish, that. */

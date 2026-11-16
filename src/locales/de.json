@@ -974,7 +974,9 @@
         "workspace_needed": "Dieser Agent nutzt Dateitools und braucht einen Arbeitsbereich. Wähle unten über den Ordner-Button einen oder lege in den Einstellungen einen Standard fest.",
         "memory_provider": "Der Memory-Agent kann nur Modelle von OpenAI, Anthropic, Gemini oder Ollama nutzen, daher kann ein Test mit einem Modell eines eigenen Anbieters noch nicht starten. Wähle ein Modell eines dieser Anbieter.",
         "run_incomplete": "Der Test hat vor dem Ende angehalten.",
-        "handler_failed": "Der Schritt ist vor einer Antwort mit einem Fehler stehen geblieben, die Laufzeit hat keine Details behalten. Bei einem Modellaufruf liegt es meist an einem Modellnamen, den der Anbieter nicht annimmt, an Schlüssel oder Kontingent, oder der Anbieter ist nicht erreichbar. Probiere ein anderes Modell oder prüfe den Anbieter in den Einstellungen."
+        "handler_failed": "Der Schritt ist vor einer Antwort mit einem Fehler stehen geblieben, die Laufzeit hat keine Details behalten. Bei einem Modellaufruf liegt es meist an einem Modellnamen, den der Anbieter nicht annimmt, an Schlüssel oder Kontingent, oder der Anbieter ist nicht erreichbar. Probiere ein anderes Modell oder prüfe den Anbieter in den Einstellungen.",
+        "approval_refused": "Diese Freigabe konnte nicht angenommen werden: Das Werkzeug lief nicht, und an das Modell wurde nichts gesendet. Stoppe diesen Lauf und sende die Nachricht erneut.",
+        "approval_expired": "Diese Freigabe ist abgelaufen, das Werkzeug lief nicht. Sende die Nachricht erneut, um es noch einmal zu versuchen."
       },
       "inputs": "Eingaben",
       "result": "Ergebnis",
