@@ -411,6 +411,19 @@ class BuilderTestSessions:
                 UNION ALL SELECT 1 FROM trace_omissions WHERE run_id=?''',(row['id'],row['id'])).fetchone() is None
         if row['phase'] in ('ready','cancelled'): return result
         try:
+            return self._project_launch(row,result,material,selected,_recheck=_recheck,_cache_db=_cache_db)
+        except Exception as error:
+            # A read that races the worker writing the run can find an
+            # artifact listed but not yet readable. While the worker is alive
+            # the run is still in progress; read it again on the next poll
+            # instead of failing the request that only asked to look.
+            if getattr(error,'code',None)=='artifact_unavailable' and (str(self.path),row['id']) in _WORKERS:
+                result['status']='running'
+                return result
+            raise
+
+    def _project_launch(self,row,result,material,selected,*,_recheck,_cache_db):
+        try:
             launch=load_launch(row['session_id'],row['id'],expected_owner_chat_id=row['session_id'],allow_terminal_stale=True)
         except Exception:
             if (str(self.path),row['id']) in _WORKERS: return result

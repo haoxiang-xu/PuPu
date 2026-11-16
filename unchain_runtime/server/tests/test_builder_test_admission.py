@@ -104,3 +104,22 @@ def test_a_referenced_subagent_with_no_model_runs_with_the_same_chosen_kernel(tm
     assert set(sub) == {"execution", "kernel"} and sub["kernel"]["prompt"] == "Answer briefly."
     # The owner kept its own Kernel.
     assert selected.to_dict()["document"]["nodes"][1]["config"]["kernel"] == owner["nodes"][1]["config"]["kernel"]
+
+
+def test_a_read_racing_the_worker_reports_running_instead_of_failing(tmp_path, monkeypatch):
+    import json
+    import skeleton_builder_tests as tests
+    monkeypatch.setenv("UNCHAIN_DATA_DIR", str(tmp_path))
+    sessions = tests.BuilderTestSessions(background=False)
+    row = {"id": "builder-run-x", "session_id": "s", "request_id": "r", "phase": "started", "error": None,
+           "material": json.dumps({"selection": {"edit_token": "e", "definition_digest": "d" * 64}, "inputs": {"message": "hi"}})}
+    def racing(*_args, **_kwargs):
+        raise SkeletonResourceError("artifact_unavailable", ("ref",), "artifact cannot be read and verified")
+    monkeypatch.setattr(sessions, "_project_launch", racing)
+    tests._WORKERS[(str(sessions.path), "builder-run-x")] = object()
+    try:
+        assert sessions._project(row)["status"] == "running"
+    finally:
+        tests._WORKERS.pop((str(sessions.path), "builder-run-x"), None)
+    with pytest.raises(SkeletonResourceError):
+        sessions._project(row)
