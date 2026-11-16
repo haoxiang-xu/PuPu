@@ -347,3 +347,19 @@ test('while the last message waits for an approval, the composer says why Send d
   render(<BuilderTestPanel active session={session} isDark={false}/>);
   expect(await screen.findByTestId('test-run-composer-hint')).toHaveTextContent('The last message is still running.');
 });
+
+test('Allow once is answered at once: the buttons go, the card says it continues, and a second click cannot send again', async()=>{
+  const pendingRun={...completed.runs[0],status:'waiting',output:null,pending:{interaction_id:'approval-1',kind:'tool_approval',status:'awaiting_response',
+    payload:{tool_name:'web_fetch'},subject:{},presentation:{trace_frame:null,tool_call:{confirmation_id:'approval-1',tool_display_name:'web_fetch',arguments:{url:'https://example.com'}}}}};
+  builderTestCommand.mockResolvedValue({...opened,runs:[pendingRun]});
+  render(<BuilderTestPanel active session={session} isDark={false}/>);
+  const allow=await screen.findByRole('button',{name:'Allow once'});
+  let settle; builderTestCommand.mockImplementationOnce(()=>new Promise(done=>{settle=done;}));
+  fireEvent.click(allow);
+  expect(await screen.findByTestId('test-pending-answered')).toHaveTextContent('Allowed. The run is continuing…');
+  expect(screen.queryByRole('button',{name:'Allow once'})).toBeNull();
+  expect(screen.getByTestId('test-run-composer-hint')).toHaveTextContent('still running');
+  expect(builderTestCommand.mock.calls.filter(([request])=>request.op==='respond')).toHaveLength(1);
+  await act(async()=>settle({...opened,runs:[{...pendingRun,status:'running',pending:null}]}));
+  expect(screen.queryByTestId('test-pending')).toBeNull();
+});

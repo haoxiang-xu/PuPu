@@ -1024,7 +1024,10 @@
         "outcome_unknown": "Outcome unknown"
       },
       "composer_waiting": "The last message is waiting for you above (approve or answer it). You can send again once it is done.",
-      "composer_running": "The last message is still running. Send again when it finishes, or press ■ to stop it."
+      "composer_running": "The last message is still running. Send again when it finishes, or press ■ to stop it.",
+      "approved_continuing": "Allowed. The run is continuing…",
+      "denied_continuing": "Denied. The run is continuing without it…",
+      "answered_continuing": "Answer sent. The run is continuing…"
     },
     "parameters": {
       "title": "Parameters",

@@ -1024,7 +1024,10 @@
         "outcome_unknown": "結果不明"
       },
       "composer_waiting": "前のメッセージが上であなたの対応を待っています（許可または回答）。終わると再送信できます。",
-      "composer_running": "前のメッセージはまだ実行中です。終わってから送信するか、■ で停止してください。"
+      "composer_running": "前のメッセージはまだ実行中です。終わってから送信するか、■ で停止してください。",
+      "approved_continuing": "許可しました。実行を続けています…",
+      "denied_continuing": "拒否しました。これを除いて実行を続けます…",
+      "answered_continuing": "回答を送りました。実行を続けています…"
     },
     "parameters": {
       "title": "パラメーター",

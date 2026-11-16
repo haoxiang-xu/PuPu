@@ -188,7 +188,18 @@ export default function BuilderTestPanel({ active, session, onSave, onCheck, onO
   const runs = current?.runs || [];
   const last = runs.at(-1);
   const running = Boolean(last && LIVE_STATUSES.has(last.status));
-  const state = panel_state({ session, kind, last, uncertain, fallbackModel, fallbackProblem, error }, t);
+  /* An approval or answer just given: shown at once, and held until the
+     recorded run moves past that interaction, so a click never looks
+     ignored while the run picks up again. */
+  const [answered, setAnswered] = useState(null);
+  const answeredNow = answered && last?.pending?.interaction_id === answered.interaction_id ? answered : null;
+  const answer = async (run, approved, reply) => {
+    setAnswered({ interaction_id: run.pending.interaction_id, approved });
+    const result = await controller.respond(run, approved, reply);
+    if (!result) setAnswered((held) => (held && held.interaction_id === run.pending.interaction_id ? { ...held, failed: true } : held));
+  };
+  const shownLast = answeredNow && !answeredNow.failed && last ? { ...last, status: "running" } : last;
+  const state = panel_state({ session, kind, last: shownLast, uncertain, fallbackModel, fallbackProblem, error }, t);
   const traceContext = useMemo(() => ({ chatId: current?.session.id || "", store: null, notifyStreamingContentCommitted: null }), [current?.session.id]);
 
   /* An Agent's conversation reads downwards: keep its newest turn in view. */
@@ -219,7 +230,8 @@ export default function BuilderTestPanel({ active, session, onSave, onCheck, onO
 
   if (!active) return null;
   const name = safe_text(session.document?.name) || resource || "";
-  const runProps = { document: session.document, controller, busy, confirmed, onObserve: onObserve ? observe : null, onFix, isDark };
+  const runProps = { document: session.document, controller, busy, confirmed, onObserve: onObserve ? observe : null, onFix, isDark,
+    answered: answeredNow, answerProblem: answered && error ? request_problem_text(error, t) : "", onAnswer: answer };
   const earlier = kind === "workflow" ? runs.slice(0, -1).reverse() : [];
 
   return (
@@ -299,8 +311,8 @@ export default function BuilderTestPanel({ active, session, onSave, onCheck, onO
               {/* Why Send does nothing right now, said where Send is. */}
               {running && (
                 <div data-testid="test-run-composer-hint" role="status" style={{ ...note(isDark), display: "flex", alignItems: "center", gap: 6, padding: "0 4px 6px" }}>
-                  <StatusDot tone={last?.status === "waiting" ? "wait" : "busy"} isDark={isDark} />
-                  {t(last?.status === "waiting" ? "agents.test_run.composer_waiting" : "agents.test_run.composer_running")}
+                  <StatusDot tone={shownLast?.status === "waiting" ? "wait" : "busy"} isDark={isDark} />
+                  {t(shownLast?.status === "waiting" ? "agents.test_run.composer_waiting" : "agents.test_run.composer_running")}
                 </div>
               )}
               {running && <div style={{ height: 44 }} aria-hidden="true" />}

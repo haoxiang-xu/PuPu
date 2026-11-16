@@ -1024,7 +1024,10 @@
         "outcome_unknown": "Ergebnis unbekannt"
       },
       "composer_waiting": "Die letzte Nachricht wartet oben auf dich (erlauben oder antworten). Danach kannst du wieder senden.",
-      "composer_running": "Die letzte Nachricht läuft noch. Sende, wenn sie fertig ist, oder stoppe sie mit ■."
+      "composer_running": "Die letzte Nachricht läuft noch. Sende, wenn sie fertig ist, oder stoppe sie mit ■.",
+      "approved_continuing": "Erlaubt. Der Lauf geht weiter…",
+      "denied_continuing": "Abgelehnt. Der Lauf geht ohne diesen Schritt weiter…",
+      "answered_continuing": "Antwort gesendet. Der Lauf geht weiter…"
     },
     "parameters": {
       "title": "Parameter",

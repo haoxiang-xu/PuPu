@@ -1024,7 +1024,10 @@
         "outcome_unknown": "Resultado desconocido"
       },
       "composer_waiting": "El último mensaje te espera arriba (aprueba o responde). Podrás enviar de nuevo cuando termines.",
-      "composer_running": "El último mensaje sigue ejecutándose. Envía de nuevo cuando termine o pulsa ■ para detenerlo."
+      "composer_running": "El último mensaje sigue ejecutándose. Envía de nuevo cuando termine o pulsa ■ para detenerlo.",
+      "approved_continuing": "Permitido. La ejecución continúa…",
+      "denied_continuing": "Denegado. La ejecución continúa sin ello…",
+      "answered_continuing": "Respuesta enviada. La ejecución continúa…"
     },
     "parameters": {
       "title": "Parámetros",

@@ -1024,7 +1024,10 @@
         "outcome_unknown": "結果未知"
       },
       "composer_waiting": "上一則在等你處理（在上方允許或回答），處理完才能再送。",
-      "composer_running": "上一則還在執行，跑完才能再送，或按 ■ 停止。"
+      "composer_running": "上一則還在執行，跑完才能再送，或按 ■ 停止。",
+      "approved_continuing": "已允許，正在繼續執行…",
+      "denied_continuing": "已拒絕，執行會略過它繼續…",
+      "answered_continuing": "已回答，正在繼續執行…"
     },
     "parameters": {
       "title": "參數",

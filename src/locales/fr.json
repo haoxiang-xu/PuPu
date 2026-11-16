@@ -1024,7 +1024,10 @@
         "outcome_unknown": "Résultat inconnu"
       },
       "composer_waiting": "Le dernier message vous attend plus haut (autorisez ou répondez). Vous pourrez renvoyer ensuite.",
-      "composer_running": "Le dernier message est encore en cours. Renvoyez quand il a fini, ou appuyez sur ■ pour l’arrêter."
+      "composer_running": "Le dernier message est encore en cours. Renvoyez quand il a fini, ou appuyez sur ■ pour l’arrêter.",
+      "approved_continuing": "Autorisé. L’exécution continue…",
+      "denied_continuing": "Refusé. L’exécution continue sans cela…",
+      "answered_continuing": "Réponse envoyée. L’exécution continue…"
     },
     "parameters": {
       "title": "Paramètres",

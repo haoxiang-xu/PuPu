@@ -6,7 +6,7 @@ import TraceChain from "../../../../chat-bubble/trace_chain";
 import InteractWrapper from "../../../../chat-bubble/interact/interact_wrapper";
 import { TableHeads, TableRow } from "../detail_panel/parameter_table";
 import {
-  CONTROL_RADIUS, REGION_RADIUS, Region, fillStrong, note, problem as problemOf, statusColor, text as textColor,
+  CONTROL_RADIUS, REGION_RADIUS, Region, fill, fillStrong, note, problem as problemOf, statusColor, text as textColor,
 } from "../detail_panel/panel_style";
 import { node_title } from "../node_title";
 import { projectTestTrace } from "./test_trace";
@@ -138,19 +138,24 @@ export function RunSteps({ run }) {
 
 /* What a run is waiting on: a tool to allow, a question to answer, a budget
    to extend, or a recorded answer to resume from. The chat's own controls. */
-export function PendingInteraction({ run, busy, confirmed, onRespond, onResume, isDark }) {
+export function PendingInteraction({ run, busy, confirmed, onRespond, onResume, answered, problem, isDark }) {
   const { t } = useTranslation();
   const pending = run.pending;
+  /* The answer given here, held until the run moves on: the buttons go, and
+     the card says what was chosen and that the run goes on. */
+  const said = answered && answered.interaction_id === pending.interaction_id ? answered : null;
   const call = pending.presentation.tool_call || {};
   const tool = call.tool_display_name || pending.payload.tool_name || "";
   const args = call.arguments && typeof call.arguments === "object" ? call.arguments : null;
   const title = pending.kind === "human_input" ? t("agents.test_run.answer_title")
     : pending.kind === "max_budget" ? t("agents.test_run.budget_title") : t("agents.test_run.approval_title");
   return (
+    /* A region like every other in the panel; the dot says it needs you. */
     <div data-testid="test-pending" style={{ display: "flex", flexDirection: "column", gap: 8, padding: "10px 12px", minWidth: 0,
-      borderRadius: REGION_RADIUS, background: isDark ? "rgba(251,191,36,0.08)" : "rgba(194,122,5,0.06)",
-      border: `1px solid ${isDark ? "rgba(251,191,36,0.25)" : "rgba(194,122,5,0.22)"}` }}>
-      <span style={{ fontSize: 12.5, fontWeight: 600, color: textColor(isDark) }}>{title}</span>
+      borderRadius: REGION_RADIUS, background: fill(isDark) }}>
+      <span style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, fontWeight: 600, color: textColor(isDark) }}>
+        <StatusDot tone={said ? "busy" : "wait"} isDark={isDark} />{title}
+      </span>
       {pending.kind === "tool_approval" && tool && (
         <span style={{ fontSize: 12, color: textColor(isDark) }}>{t("agents.test_run.approval_tool", { tool })}</span>
       )}
@@ -159,7 +164,12 @@ export function PendingInteraction({ run, busy, confirmed, onRespond, onResume, 
           <ValueText value={args} isDark={isDark} />
         </div>
       )}
-      {pending.status === "receipt_recorded" ? (
+      {said ? (
+        <span data-testid="test-pending-answered" role="status" style={{ ...note(isDark), color: textColor(isDark) }}>
+          {t(pending.kind === "human_input" ? "agents.test_run.answered_continuing"
+            : said.approved ? "agents.test_run.approved_continuing" : "agents.test_run.denied_continuing")}
+        </span>
+      ) : pending.status === "receipt_recorded" ? (
         <>
           <span style={note(isDark)}>{t("agents.test_run.receipt")}</span>
           <Button label={t("agents.test_run.resume")} onClick={onResume} disabled={busy || !confirmed}
@@ -173,12 +183,13 @@ export function PendingInteraction({ run, busy, confirmed, onRespond, onResume, 
           onSubmit={(answer) => onRespond(Boolean(answer && answer.approved))} isDark={isDark} disabled={busy || !confirmed}
           allowSessionApproval={false} />
       )}
+      {problem && !said && <span role="alert" style={problemOf(isDark)}>{problem}</span>}
     </div>
   );
 }
 
 /* One Workflow run: a Region headed by how it went, then its parts. */
-export function WorkflowRun({ run, document, controller, busy, confirmed, onObserve, onFix, isDark }) {
+export function WorkflowRun({ run, document, controller, busy, confirmed, onObserve, onFix, answered, answerProblem, onAnswer, isDark }) {
   const { t } = useTranslation();
   const line = inputs_line(run.inputs);
   return (
@@ -194,7 +205,8 @@ export function WorkflowRun({ run, document, controller, busy, confirmed, onObse
       <RunSteps run={run} />
       {!run.trace_complete && <span style={note(isDark)}>{t("agents.test_run.trace_limit")}</span>}
       {run.pending && <PendingInteraction run={run} busy={busy} confirmed={confirmed} isDark={isDark}
-        onRespond={(approved, answer) => controller.respond(run, approved, answer ?? null)} onResume={() => controller.resume(run)} />}
+        answered={answered} problem={answerProblem}
+        onRespond={(approved, answer) => onAnswer(run, approved, answer ?? null)} onResume={() => controller.resume(run)} />}
       {run.error && <RunError error={run.error} document={document} isDark={isDark} onFix={onFix} canShowOnCanvas={run.graphs.length > 0 && Boolean(onObserve)} />}
       {run.output !== null && <WorkflowOutput output={run.output} isDark={isDark} />}
     </section>
@@ -203,7 +215,7 @@ export function WorkflowRun({ run, document, controller, busy, confirmed, onObse
 
 /* One Agent turn: what was sent, on the right, as the chat shows yours; then
    the steps and the answer, full width. */
-export function AgentTurn({ run, document, controller, busy, confirmed, onObserve, onFix, isDark }) {
+export function AgentTurn({ run, document, controller, busy, confirmed, onObserve, onFix, answered, answerProblem, onAnswer, isDark }) {
   const { t } = useTranslation();
   const settled = !LIVE_STATUSES.has(run.status);
   return (
@@ -215,7 +227,8 @@ export function AgentTurn({ run, document, controller, busy, confirmed, onObserv
       <RunSteps run={run} />
       {!run.trace_complete && <span style={note(isDark)}>{t("agents.test_run.trace_limit")}</span>}
       {run.pending && <PendingInteraction run={run} busy={busy} confirmed={confirmed} isDark={isDark}
-        onRespond={(approved, answer) => controller.respond(run, approved, answer ?? null)} onResume={() => controller.resume(run)} />}
+        answered={answered} problem={answerProblem}
+        onRespond={(approved, answer) => onAnswer(run, approved, answer ?? null)} onResume={() => controller.resume(run)} />}
       {run.error && <RunError error={run.error} document={document} isDark={isDark} onFix={onFix} canShowOnCanvas={run.graphs.length > 0 && Boolean(onObserve)} />}
       {run.output !== null && <AgentReply output={run.output} isDark={isDark} />}
       {(!settled || run.status !== "completed" || (run.graphs.length > 0 && onObserve)) && (
