@@ -169,6 +169,38 @@ function run_edge(edge, runNodes) {
   return edge;
 }
 
+/* Where a run is: a step running, or waiting on a person. */
+const ACTIVE_RUN_STATES = new Set(["running", "waiting", "waiting_approval"]);
+export function active_run_node_ids(runNodes, skip) {
+  const active = [];
+  if (!runNodes) return active;
+  runNodes.forEach((node, id) => {
+    if (node && ACTIVE_RUN_STATES.has(node.state) && !(skip && skip.has(id))) active.push(id);
+  });
+  return active;
+}
+/* Of the nodes now active, the one to follow: one that was not active the
+   last time (the run has just arrived there), the last such in run order if
+   several arrived at once; else the one already followed while it is still
+   active; else none. A configuration pool is never a step of the run. */
+export function next_followed_run_node(active, previousActive, previousFollowed) {
+  const before = new Set(previousActive || []);
+  const arrived = active.filter((id) => !before.has(id));
+  if (arrived.length > 0) return arrived[arrived.length - 1];
+  if (previousFollowed && active.includes(previousFollowed)) return previousFollowed;
+  return active.length > 0 ? active[active.length - 1] : null;
+}
+function useFollowedRunNode(runNodes, graph) {
+  const memory = useRef({ active: [], followed: null });
+  return useMemo(() => {
+    const pools = new Set(((graph && graph.nodes) || []).filter((node) => RUN_POOL_TYPES.includes(node?.type)).map((node) => node.id));
+    const active = active_run_node_ids(runNodes, pools);
+    const followed = next_followed_run_node(active, memory.current.active, memory.current.followed);
+    memory.current = { active, followed };
+    return followed;
+  }, [runNodes, graph]);
+}
+
 export default function SkeletonCanvas(props) {
   return <GraphDrawing key={JSON.stringify([props.resourceId, props.commandScope])} {...props} />;
 }
@@ -215,6 +247,9 @@ function GraphDrawing({
   onGraphCommand,
   /* Bumped by the page's Home control; Home centers this graph's own Start. */
   homeToken,
+  /* `(rect) => insets`: how far the side menus reach over this canvas. Home
+     and a running node are both centered between them, not in the canvas. */
+  viewArea,
   /* Where a refused edit is said. Without it the canvas says it itself. */
   onProblem,
   isDark,
@@ -329,6 +364,10 @@ function GraphDrawing({
   const observed = readOnly && observation?.document === graph ? observation : null;
   const runNodes = useMemo(() => new Map((observed?.nodes || (Array.isArray(runStates) ? runStates : [])).map((node) => [node.node_id, node])),
     [observed, runStates]);
+  /* The node a live run is on, for the canvas to keep in view. When the
+     run moves on, the node that has just become active is the one followed;
+     a run that has finished (nothing active) leaves the canvas where it is. */
+  const followNodeId = useFollowedRunNode(runNodes, graph);
   const edges = useMemo(() => {
     const list = (graph && graph.edges) || [];
     const skipped = new Set(observed?.skipped_edges || []);
@@ -616,6 +655,8 @@ function GraphDrawing({
         }
         reset_token={resetToken}
         reset_focus_node_id={focusNodeId || startNodeId}
+        view_area={viewArea}
+        follow_node_id={followNodeId}
         fit_token={fitToken}
         zoom_reset_token={zoomToken}
         select_all_token={selectToken}

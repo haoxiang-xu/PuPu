@@ -8,7 +8,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { ConfigContext } from "../../../CONTAINERs/config/context";
+import { ConfigContext, NavigationContext } from "../../../CONTAINERs/config/context";
 import DetailPanel from "./recipes_page/detail_panel/detail_panel";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import {
@@ -20,6 +20,8 @@ import {
   EscapeBackHint,
   FloatingDetailShell,
   VISUALLY_HIDDEN,
+  canvas_view_insets,
+  detail_panel_inner_edge,
 } from "./recipes_page/canvas_chrome";
 import { RunTrigger } from "./recipes_page/skeleton_run_menu";
 import BuilderTestPanel from './recipes_page/test_run/builder_test_panel';
@@ -849,6 +851,28 @@ export default function SkeletonResourcePage({
   const ready = session.status === SESSION_STATUS.READY;
   const conflict = conflict_message(session, t);
   const detail = (chrome && chrome.detail) || DEFAULT_CHROME.detail;
+  /* The canvas between the two side menus: what Home and a running node are
+     centered in. Read when the canvas centers, from what is current then. */
+  const nav = useContext(NavigationContext) || {};
+  const viewAreaInputs = useRef(null);
+  viewAreaInputs.current = {
+    leftEdge: chrome && typeof chrome.leftEdge === "function" ? chrome.leftEdge : null,
+    detailOpen: Boolean(selectedNodeId) || testOpen,
+    dockSlot: nav.agentsDetailSlot || null,
+    width: detail.width,
+    minWidth: detail.minWidth,
+  };
+  const viewArea = useCallback((rect) => {
+    const inputs = viewAreaInputs.current;
+    if (!inputs) return { left: 0, right: 0 };
+    return canvas_view_insets(rect, {
+      leftEdge: inputs.leftEdge ? inputs.leftEdge() : null,
+      rightEdge: inputs.detailOpen
+        ? detail_panel_inner_edge({ dockSlot: inputs.dockSlot, container: pageRef.current,
+          width: inputs.width, minWidth: inputs.minWidth })
+        : null,
+    });
+  }, []);
   const messages = [
     session.error
       ? { text: agentProblemMessage(session.error, t) || session.error.code, testId: "skeleton-save-error" }
@@ -931,6 +955,7 @@ export default function SkeletonResourcePage({
           onOpenWorkflow={open_called_workflow}
           managedSources={session.sources}
           homeToken={homeToken}
+          viewArea={viewArea}
           onProblem={setCanvasProblem}
           isDark={isDark}
         />

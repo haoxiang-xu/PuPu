@@ -427,6 +427,30 @@ export function CanvasCaptionChip({ isDark, children, testId }) {
   );
 }
 
+/* How far the two side menus reach over a canvas, in that canvas's pixels.
+   Edges are window x coordinates of each menu's inner edge as it is once it
+   has settled (null: that menu is closed), so a menu still sliding in or out
+   is counted where it is going, not where its animation happens to be. */
+export function canvas_view_insets(rect, { leftEdge = null, rightEdge = null } = {}) {
+  if (!rect) return { left: 0, right: 0 };
+  const finite = (value) => typeof value === "number" && Number.isFinite(value);
+  return {
+    left: finite(leftEdge) ? Math.max(0, leftEdge - rect.left) : 0,
+    right: finite(rightEdge) ? Math.max(0, rect.right - rightEdge) : 0,
+  };
+}
+
+/* Where the open right side menu's inner edge is, in window x: docked, one
+   ring (DETAIL_INSET) inside the window anchor; floating, PANEL_INSET inside
+   the page it floats over. The width is the committed one, never a slide's. */
+export function detail_panel_inner_edge({ dockSlot, container, width, minWidth }) {
+  const drawn = Math.max(Number(width) || 0, Number(minWidth) || 0);
+  const anchor = dockSlot || container;
+  if (!anchor || typeof anchor.getBoundingClientRect !== "function") return null;
+  const right = anchor.getBoundingClientRect().right;
+  return right - (dockSlot ? DETAIL_INSET : PANEL_INSET) - drawn;
+}
+
 /* The right side menu: a floating panel that slides in while a node is open,
    with the pill that drags its inner edge. The width is the page's, so both
    canvases share one remembered width. */

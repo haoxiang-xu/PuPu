@@ -4,7 +4,7 @@ import ShadowSurface from "../../../BUILTIN_COMPONENTs/material/shadow_surface";
 import { useSurfaceComposite } from "../../../BUILTIN_COMPONENTs/material/surface_composite";
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { NavigationContext } from "../../../CONTAINERs/config/context";
-import { SIDE_MENU_WIDTH, agentsSidebarWidthCss } from "../../../SERVICEs/side_menu_width";
+import { SIDE_MENU_WIDTH, agentsSidebarWidthCss, clampSideMenuWidth } from "../../../SERVICEs/side_menu_width";
 import { createLiveResizeWidth } from "../../../SERVICEs/live_resize_width";
 import { createPortal } from "react-dom";
 import { api } from "../../../SERVICEs/api";
@@ -484,6 +484,25 @@ export default function RecipesPage({
   /* Drilled in, the workflow list is not the graph you are editing — it would
      offer a switch that silently drops the parent frame's unsaved edits. */
   const listHidden = listCollapsed || drilled || skeletonDrilled;
+  /* The left side menu's inner edge in window x, as it is once settled
+     (null: closed), for the canvas to center things right of it. Docked it
+     is the app's side menu from the window's left edge; floating, the list
+     PANEL_INSET inside this page. Committed widths only: a live drag is not
+     a moment anything is centered in. */
+  const leftEdgeInputs = useRef(null);
+  leftEdgeInputs.current = {
+    docked: explorerDocked,
+    open: explorerDocked ? nav.onFragment === "side_menu" : !listHidden,
+    sideMenuWidth: nav.sideMenuWidth,
+    listWidth: panelWidths.list,
+  };
+  const leftEdge = useCallback(() => {
+    const inputs = leftEdgeInputs.current;
+    if (!inputs || !inputs.open) return null;
+    if (inputs.docked) return clampSideMenuWidth(inputs.sideMenuWidth || SIDE_MENU_WIDTH.DEFAULT);
+    const page = canvasRef.current?.getBoundingClientRect();
+    return page ? page.left + PANEL_INSET + inputs.listWidth : null;
+  }, []);
 
   /* Both at once rather than one masking the other: a drill-in can fail while
      an unsaved graph is still refusing to save. */
@@ -610,6 +629,7 @@ export default function RecipesPage({
             chrome={{
               crumbTop: topStripCenter,
               crumbLeft,
+              leftEdge,
               detail: {
                 width: panelWidths.detail,
                 minWidth: RECIPE_PANEL_LIMITS.detail.min,

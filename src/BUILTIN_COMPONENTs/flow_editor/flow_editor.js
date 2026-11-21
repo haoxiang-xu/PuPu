@@ -23,6 +23,8 @@ import {
   get_port_position,
   get_bezier_midpoint,
   opposite_side,
+  visible_area_center,
+  viewport_centering_node,
 } from "./utils";
 /* { Utilities } ------------------------------------------------------------------------------------------------------------- */
 
@@ -119,6 +121,14 @@ function FlowEditor({
   max_zoom = 3,
   reset_token,
   reset_focus_node_id,
+  /* `(rect) => ({ left, right, top, bottom })`: how far panels floating over
+     the canvas reach in, in canvas pixels. Centering a node means the middle
+     of what is left. Read at the moment of centering, so it can follow
+     panels that open, close or are dragged wider. */
+  view_area,
+  /* While set, the named node is kept in the middle of the visible area:
+     each time it changes the canvas glides there, keeping the zoom. */
+  follow_node_id,
   fit_token,
   zoom_reset_token,
   select_all_token,
@@ -221,32 +231,56 @@ function FlowEditor({
     [publish_viewport],
   );
 
+  /* ── Where a node goes when it is centered ─────────────── */
+  const view_area_ref = useRef(view_area);
+  view_area_ref.current = view_area;
+  const centering = useCallback((node_id, zoom) => {
+    const focus = node_id ? nodes_ref.current.find((n) => n.id === node_id) : null;
+    const focus_el = focus ? node_elements_ref.current[focus.id] : null;
+    if (!focus || !focus_el || !canvas_ref.current) return null;
+    const rect = canvas_ref.current.getBoundingClientRect();
+    const dims = node_dimensions_ref.current[focus.id] || {
+      width: focus_el.offsetWidth,
+      height: focus_el.offsetHeight,
+    };
+    const area = typeof view_area_ref.current === "function" ? view_area_ref.current(rect) : view_area_ref.current;
+    return viewport_centering_node(focus, dims, visible_area_center(rect.width, rect.height, area), zoom);
+  }, []);
+
+  /* A glide in flight (following a node). Any gesture of the person's ends
+     it where it is, so the canvas never fights a hand that is on it; where
+     it stopped is committed, so the next render does not jump back. */
+  const glide_ref = useRef(null);
+  const mounted_ref = useRef(true);
+  const stop_glide = useCallback(() => {
+    if (!glide_ref.current) return false;
+    cancelAnimationFrame(glide_ref.current.raf);
+    glide_ref.current = null;
+    if (mounted_ref.current) commit_viewport({ ...viewport_ref.current });
+    else publish_viewport({ ...viewport_ref.current });
+    return true;
+  }, [commit_viewport, publish_viewport]);
+
   /* ── Reset viewport (home button) ───────────────────────── */
   /*  With `reset_focus_node_id` the named node is centered in   */
-  /*  the canvas at zoom 1; otherwise (or if the node is not     */
-  /*  mounted) the viewport snaps back to the origin.            */
+  /*  the visible area at zoom 1; otherwise (or if the node is   */
+  /*  not mounted) the viewport snaps back to the origin.        */
   useEffect(() => {
     if (reset_token === undefined) return;
-    let next = { x: 0, y: 0, zoom: 1 };
-    const focus = reset_focus_node_id
-      ? nodes_ref.current.find((n) => n.id === reset_focus_node_id)
-      : null;
-    const focus_el = focus ? node_elements_ref.current[focus.id] : null;
-    if (focus && focus_el && canvas_ref.current) {
-      const rect = canvas_ref.current.getBoundingClientRect();
-      const dims = node_dimensions_ref.current[focus.id] || {
-        width: focus_el.offsetWidth,
-        height: focus_el.offsetHeight,
-      };
-      next = {
-        x: rect.width / 2 - (focus.x + dims.width / 2),
-        y: rect.height / 2 - (focus.y + dims.height / 2),
-        zoom: 1,
-      };
-    }
+    stop_glide();
+    const next = centering(reset_focus_node_id, 1) || { x: 0, y: 0, zoom: 1 };
     commit_viewport(next, `translate(${next.x}px, ${next.y}px) scale(1)`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reset_token]);
+
+  /* Leaving mid-glide: the viewport it reached is the one to keep. */
+  useEffect(() => {
+    mounted_ref.current = true;
+    return () => {
+      mounted_ref.current = false;
+      stop_glide();
+    };
+  }, [stop_glide]);
 
   /* ── Mirror the viewport out ────────────────────────────── */
   /*  Pull-based on purpose: a caller that swaps the graph out    */
@@ -278,6 +312,7 @@ function FlowEditor({
   /*  re-fitting or re-centering would only approximate.          */
   useEffect(() => {
     if (!restore_viewport || restore_viewport.token === undefined) return;
+    stop_glide();
     const next = {
       x: restore_viewport.x || 0,
       y: restore_viewport.y || 0,
@@ -287,11 +322,55 @@ function FlowEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restore_viewport && restore_viewport.token]);
 
+  /* ── Follow a node ──────────────────────────────────────── */
+  /*  Pans (never zooms) so the node sits in the middle of the   */
+  /*  visible area. After the restore above, so a canvas that    */
+  /*  opens on a live run glides from the viewport it reopened   */
+  /*  at. The frames are drawn straight on the DOM,              */
+  /*  the way a pan is, and committed once at the end.           */
+  useEffect(() => {
+    if (!follow_node_id) return undefined;
+    const target = centering(follow_node_id, viewport_ref.current.zoom);
+    if (!target) return undefined;
+    stop_glide();
+    const from = { x: viewport_ref.current.x, y: viewport_ref.current.y };
+    if (Math.abs(target.x - from.x) < 0.5 && Math.abs(target.y - from.y) < 0.5) return undefined;
+    const duration = 320;
+    const started = typeof performance !== "undefined" ? performance.now() : Date.now();
+    const draw = (x, y) => {
+      viewport_ref.current.x = x;
+      viewport_ref.current.y = y;
+      const zoom = viewport_ref.current.zoom;
+      if (viewport_div_ref.current) {
+        viewport_div_ref.current.style.transform = `translate(${x}px, ${y}px) scale(${zoom})`;
+      }
+      const gs = grid_size * zoom;
+      if (canvas_ref.current) canvas_ref.current.style.backgroundPosition = `${x % gs}px ${y % gs}px`;
+    };
+    const step = (now) => {
+      const glide = glide_ref.current;
+      if (!glide) return;
+      const t = Math.min(1, ((now || started) - started) / duration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      draw(from.x + (target.x - from.x) * eased, from.y + (target.y - from.y) * eased);
+      if (t < 1) {
+        glide.raf = requestAnimationFrame(step);
+        return;
+      }
+      glide_ref.current = null;
+      commit_viewport({ ...viewport_ref.current });
+    };
+    glide_ref.current = { raf: requestAnimationFrame(step) };
+    return undefined;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [follow_node_id]);
+
   /* ── Fit every node into view ───────────────────────────── */
   /*  Same token idiom as the home reset: the parent bumps the   */
   /*  number and the editor reacts once.                         */
   useEffect(() => {
     if (fit_token === undefined) return;
+    stop_glide();
     const list = nodes_ref.current;
     if (!list.length || !canvas_ref.current) return;
     const rect = canvas_ref.current.getBoundingClientRect();
@@ -334,6 +413,7 @@ function FlowEditor({
   /* ── Back to 1:1, keeping the canvas centre still ───────── */
   useEffect(() => {
     if (zoom_reset_token === undefined) return;
+    stop_glide();
     const vp = viewport_ref.current;
     if (vp.zoom === 1) return;
     const rect = canvas_ref.current?.getBoundingClientRect();
@@ -635,6 +715,7 @@ function FlowEditor({
   const handle_wheel = useCallback(
     (e) => {
       e.preventDefault();
+      stop_glide();
       const rect = canvas_ref.current.getBoundingClientRect();
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
@@ -659,7 +740,7 @@ function FlowEditor({
         commit_viewport({ ...viewport_ref.current });
       });
     },
-    [theme.gridColor, grid_size, min_zoom, max_zoom, commit_viewport, publish_viewport],
+    [theme.gridColor, grid_size, min_zoom, max_zoom, commit_viewport, publish_viewport, stop_glide],
   );
 
   /* ═══════════════════════════════════════════════════════════ */
@@ -1089,6 +1170,7 @@ function FlowEditor({
     <div
       ref={canvas_ref}
       style={canvas_style}
+      onMouseDownCapture={stop_glide}
       onMouseDown={handle_canvas_mouse_down}
       onContextMenu={(e) => {
         e.preventDefault();
