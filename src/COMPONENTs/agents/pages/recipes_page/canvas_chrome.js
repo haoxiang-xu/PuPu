@@ -596,11 +596,6 @@ function DockedDetailPanel({
              workspace's text colour: anything without its own colour fell
              back to the page default, black even in dark mode. */
           color: "var(--pupu-text)",
-          backgroundColor,
-          ...(!resizing && SURFACE_DITHER_STYLE),
-          backdropFilter,
-          WebkitBackdropFilter: backdropFilter,
-          ...surface.style,
           overflow: "hidden",
           display: "flex",
           flexDirection: "column",
@@ -611,6 +606,27 @@ function DockedDetailPanel({
           WebkitAppRegion: "no-drag",
         }}
       >
+        {/* The frost is a layer under the content, not the panel's own
+            backdrop-filter: an element with a backdrop filter becomes the
+            backdrop root of everything inside it, and a frosted control in
+            the panel (the Test panel's composer) then blurred nothing. Under
+            the content (z -1 in the panel's own stacking context, which its
+            transform makes) it still frosts the canvas behind. */}
+        <div
+          aria-hidden="true"
+          data-testid={`${testId}-glass`}
+          style={{
+            position: "absolute",
+            inset: 0,
+            zIndex: -1,
+            pointerEvents: "none",
+            backgroundColor,
+            ...(!resizing && SURFACE_DITHER_STYLE),
+            backdropFilter,
+            WebkitBackdropFilter: backdropFilter,
+            ...surface.style,
+          }}
+        />
         <div
           data-testid={`${testId}-band`}
           style={{
