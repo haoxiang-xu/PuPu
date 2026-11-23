@@ -77,12 +77,6 @@ jest.mock("../../../../BUILTIN_COMPONENTs/explorer/explorer", () => {
   };
 });
 
-jest.mock("./recipe_canvas", () => {
-  return function MockRecipeCanvas({ recipe }) {
-    return <div>Canvas {recipe?.name || ""}</div>;
-  };
-});
-
 jest.mock("./detail_panel/detail_panel", () => {
   return function MockDetailPanel() {
     return null;

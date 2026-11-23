@@ -93,11 +93,7 @@ def test_real_host_catalog_and_efforts_match_renderer_fixture():
     assert actual == json.loads(FIXTURE.read_text())
 
 
-def test_recipe_offers_new_models_without_removing_existing_defaults():
-    source = (ROOT / "src/COMPONENTs/agents/pages/recipes_page/detail_panel/agent_panel.js").read_text()
-    for model, (provider, _, _) in MODELS.items():
-        model_id = f"{provider}:{model}"
-        assert f'{{ value: "{model_id}", label: "{model_id}" }}' in source
+def test_provider_default_models_are_unchanged():
     assert adapter._provider_default_model("openai") == "gpt-5"
     assert adapter._provider_default_model("anthropic") == "claude-sonnet-4"
 

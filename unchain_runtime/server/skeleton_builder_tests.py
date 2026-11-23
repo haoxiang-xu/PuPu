@@ -10,7 +10,6 @@ from hashlib import sha256
 import json
 import os
 from pathlib import Path
-import re
 import sqlite3
 import threading
 from uuid import uuid4

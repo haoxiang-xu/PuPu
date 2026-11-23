@@ -1,6 +1,5 @@
 const { CHANNELS } = require("../../shared/channels");
 const { unwrapSkeletonResourceResponse } = require("../../shared/skeleton_resource_transport");
-const { createLegacyUpgradeBridge } = require("./legacy_upgrade_bridge");
 
 const invokeSkeletonResource = async (ipcRenderer, command) => {
   try {
@@ -23,7 +22,6 @@ const invokeSkeletonResource = async (ipcRenderer, command) => {
 const createMisoBridge = (ipcRenderer, streamClient) => ({
   builderTestCommand: payload => invokeSkeletonResource(ipcRenderer, { action: 'builder_test', payload }),
   getLegacyChatCatalog: () => invokeSkeletonResource(ipcRenderer, { action: "legacy_chat_catalog", payload: {} }),
-  ...createLegacyUpgradeBridge(command => invokeSkeletonResource(ipcRenderer, command)),
   getSkeletonRunObservation: request => invokeSkeletonResource(ipcRenderer, { action: "run_observation", payload: request }),
   getSkeletonWorkflowToolCapabilities: () => invokeSkeletonResource(ipcRenderer, { action: "workflow_tool_capabilities", payload: {} }),
   getManagedSkeletonTransferCapabilities: () => invokeSkeletonResource(ipcRenderer, { action: "code_transfer_capabilities", payload: {} }),

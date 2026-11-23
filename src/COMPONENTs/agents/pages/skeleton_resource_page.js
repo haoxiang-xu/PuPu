@@ -1071,10 +1071,7 @@ export default function SkeletonResourcePage({
           <div style={{ display: showRun ? "none" : "contents" }}>
           <DetailPanel
             key={`${session.open_id}:${session.history_epoch || 0}`}
-            recipe={null}
             selectedNodeId={selectedNodeId}
-            onChange={() => {}}
-            onChangeSilent={() => {}}
             document={document}
             startContext={startContext}
             documentRevision={session.document_revision}

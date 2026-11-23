@@ -2,11 +2,6 @@ import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use
 import React, { useContext } from "react";
 import { ConfigContext } from "../../../../../CONTAINERs/config/context";
 import PanelHeader from "./panel_header";
-import StartPanel from "./start_panel";
-import EndPanel from "./end_panel";
-import AgentPanel from "./agent_panel";
-import ToolPoolPanel from "./toolpool_panel";
-import SubagentPoolPanel from "./subagent_pool_panel";
 import { node_identity } from "./node_identity";
 import InputVariablesSection from "./input_variables_section";
 import ProcessTimeline, { Block, FoldBlock } from "./process_timeline";
@@ -36,7 +31,6 @@ import {
   node_takes_inputs,
 } from "../skeleton_document";
 import { route_diagnostics } from "../skeleton_diagnostics";
-import { is_toolkit_pool_type } from "../recipe_graph";
 import { safe_text } from "../document_values";
 
 /* The shell: a fixed identity header above a hairline, and a body that is the
@@ -49,20 +43,14 @@ function WiringBlock({ fold, defaultOpen = false, ...props }) {
 }
 
 export default function DetailPanel({
-  recipe,
   selectedNodeId,
-  onChange,
-  onChangeSilent,
   /* Converting a legacy Subagent Pool writes the stored resource rather than
      the document on screen, so the page that owns the session performs it. */
   onConvertLegacy,
   canConvertLegacy,
   convertingLegacy,
-  recipes,
-  onDrillIn,
-  /* The Skeleton drill-in: a pool row asks the page to open that subagent's
-     own graph. Kept apart from the legacy `onDrillIn`, which takes a recipe
-     entry — one name for two shapes is how a call silently stops arriving. */
+  /* The drill-in: a pool row asks the page to open that subagent's own
+     graph. */
   onOpenSubagent,
   /* Passed through: the pool panel writes the repaired entry, and the page
      fixes whatever navigation named the old id. */
@@ -71,7 +59,7 @@ export default function DetailPanel({
      the page holds the drill (#357). */
   onOpenEmbeddedHook,
   /* A Workflow Call asks the page to open the revision it is pinned to,
-     read-only (#357). Absent on the legacy recipe page: no button then. */
+     read-only (#357). Absent: no button then. */
   onOpenWorkflow,
   embedded,
   document,
@@ -84,9 +72,7 @@ export default function DetailPanel({
      can land on the same value, and the refused text then sat on a page that
      said Saved. So the identity those controls hold text against carries this
      too, and a document arriving from the store discards it.
-     Absent on the legacy recipe page, which has no store session; the
-     sections then see `undefined` for the life of the panel, which is what
-     they saw before this existed. */
+     Absent, the sections see `undefined` for the life of the panel. */
   documentRevision,
   diagnostics,
   /* Whether the diagnostics above describe the document on screen. The page
@@ -103,9 +89,8 @@ export default function DetailPanel({
   const { t } = useTranslation();
   const cfg = useContext(ConfigContext);
   const isDark = cfg?.onThemeMode === "dark_mode";
-  /* The same node as seen in the Skeleton document, when one is being edited.
-     `onDocumentChange` is what writes it back, so the legacy `onChange` path is
-     left exactly as it was. */
+  /* The node as seen in the Skeleton document, when one is being edited.
+     `onDocumentChange` is what writes it back. */
   const skeleton_node =
     document && typeof onDocumentChange === "function"
       ? (() => {
@@ -119,36 +104,30 @@ export default function DetailPanel({
   const call_pin = skeleton_node && skeleton_node.type === "workflow_call" ? pinned_reference(skeleton_node) : null;
   useWorkflowVersions(call_pin ? [call_pin] : []);
 
-  /* A Skeleton page has no legacy recipe at all, so the panel takes its node
-     from whichever model it was handed. Deriving it only from the recipe left
-     that page on the empty state with a document sitting right there. */
-  const legacy_node = recipe?.nodes?.find((n) => n.id === selectedNodeId);
-  const node = legacy_node || skeleton_node;
+  const node = skeleton_node;
   /* The header DRAWS a node: it reads the node's own name and model, which a
      Skeleton node does not have, so it is given the node the store defines
      and nothing the JSON holds beside it — `drawn_node` says what that cost
      us. Everything below keeps the stored node, because everything below
-     edits it. A legacy recipe node is drawn as it always was; its `label` and
-     `override.model` are its own. */
-  const identity = node_identity(legacy_node || drawn_node(skeleton_node), t);
-  // Native Agents run their stored Kernel; the legacy inheritance caption
-  // would promise a fallback that this unfinished new draft does not have.
-  const subtitle = !legacy_node && skeleton_node?.type === "agent"
+     edits it. */
+  const identity = node_identity(drawn_node(skeleton_node), t);
+  // Native Agents run their stored Kernel.
+  const subtitle = skeleton_node?.type === "agent"
     ? (skeleton_node.config?.kernel?.profile?.model
       ? safe_text(skeleton_node.config.kernel.profile.model) : t("agents.detail.no_model"))
-    : !legacy_node && skeleton_node?.type === "toolkit_pool"
+    : skeleton_node?.type === "toolkit_pool"
       ? Array.isArray(node_toolkit_refs(skeleton_node)) ? node_toolkit_refs(skeleton_node).length === 1
         ? t("agents.nodes.toolkit_count_one", { count: node_toolkit_refs(skeleton_node).length })
         : t("agents.nodes.toolkit_count_other", { count: node_toolkit_refs(skeleton_node).length }) : t("agents.nodes.tool_settings_incomplete")
-      : !legacy_node && skeleton_node?.type === "subagent_pool" && Array.isArray(skeleton_node.config?.subagents)
+      : skeleton_node?.type === "subagent_pool" && Array.isArray(skeleton_node.config?.subagents)
         /* A Skeleton pool keeps its entries under config, which the drawn
            node does not carry, so the header counted none. */
         ? skeleton_node.config.subagents.length === 0 ? t("agents.identity.no_subagents")
           : t(skeleton_node.config.subagents.length === 1 ? "agents.nodes.subagent_count_one" : "agents.nodes.subagent_count_other",
             { count: skeleton_node.config.subagents.length })
-      : !legacy_node && is_branch_type(skeleton_node?.type)
+      : is_branch_type(skeleton_node?.type)
         ? branch_summary(skeleton_node, t)
-        : !legacy_node && skeleton_node?.type === "code"
+        : skeleton_node?.type === "code"
           /* Code runs Python. The built-in one is simply "Python"; a node
              saved with another Python profile names it (#357). */
           ? (() => {
@@ -207,9 +186,7 @@ export default function DetailPanel({
      sections now draw a row per entry, so both counts are the real lengths —
      but the distinction still holds and still has to be kept: a count passed
      for a section nobody renders hands its diagnostics to rows that are never
-     drawn, and they are then reported nowhere at all. The legacy Start and End
-     panels read the old `node.outputs` / `outputs_schema` rather than Skeleton
-     mappings, and they are not what these counts describe. */
+     drawn, and they are then reported nowhere at all. */
   /* A Tool Call's or a Skill Read's inputs are not drawn as Input Variables
      rows — their own sections take that place and carry no row diagnostics —
      so none is counted, and a store diagnostic about one of them lands in the
@@ -226,16 +203,6 @@ export default function DetailPanel({
         },
       })
     : null;
-
-  const props = {
-    recipe,
-    node,
-    onChange,
-    onChangeSilent,
-    isDark,
-    recipes,
-    onDrillIn,
-  };
 
   return (
     <div style={shell_style} data-testid="recipe-detail-panel">
@@ -259,8 +226,7 @@ export default function DetailPanel({
         style={body_style}
       >
         {/* A Skeleton document carries its IO in each node's own config, so the
-            shared sections render from it. Without one — a legacy recipe, which
-            has no such config — nothing below changes. */}
+            shared sections render from it. */}
         {skeleton_node && (
           <>
             <SkeletonDiagnostics
@@ -384,11 +350,6 @@ export default function DetailPanel({
             </>}
           </>
         )}
-        {legacy_node && node.type === "start" && <StartPanel {...props} />}
-        {legacy_node && node.type === "end" && <EndPanel {...props} />}
-        {legacy_node && node.type === "agent" && <AgentPanel {...props} />}
-        {legacy_node && is_toolkit_pool_type(node.type) && <ToolPoolPanel {...props} />}
-        {legacy_node && node.type === "subagent_pool" && <SubagentPoolPanel {...props} />}
       </div>
     </div>
   );

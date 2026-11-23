@@ -1,6 +1,5 @@
 """Regression from the packaged App: native v2 Save before explicit upgrade."""
 from copy import deepcopy
-import sys
 
 import pytest
 
@@ -8,7 +7,6 @@ from skeleton_resource_store import SkeletonResourceError, SkeletonResourceStore
 from test_skeleton_legacy_upgrade_save import (
     apply, choices, kernel, migrate, recipe, tables,
 )
-from test_skeleton_legacy_upgrade_http import request_body, post, payload
 
 
 @pytest.fixture
@@ -26,54 +24,6 @@ def managed_legacy(store, name="Managed legacy"):
         "expected_edit_token": original["edit_token"], "managed_sources": [],
     })
     return saved["resource"], saved
-
-
-@pytest.mark.parametrize("operation", ["inventory", "preview", "apply"])
-def test_auth_upgrade_after_actual_v2_save_keeps_kernel_and_reopens(store, monkeypatch, operation):
-    from app import create_app
-    app = create_app()
-    monkeypatch.setattr(sys.modules["route_skeleton_code_sources"], "SkeletonResourceStore", lambda: store)
-    monkeypatch.setattr(sys.modules["route_skeleton_legacy_upgrade"], "SkeletonResourceStore", lambda: store)
-    app.config["UNCHAIN_AUTH_TOKEN"] = "offline-test-only"
-    client = app.test_client()
-    raw, _ = migrate(store, recipe())
-    document = deepcopy(raw["document"])
-    agent = next(n for n in document["nodes"] if n["type"] == "agent")
-    authored = kernel([], model="authored-model")["kernel"]
-    agent["config"]["kernel"] = authored
-    save = client.post("/skeleton_resources/v2", headers={"x-unchain-auth": "offline-test-only"}, json={
-        "schema": "pupu.skeleton-edit.v2", "document": document,
-        "expected_edit_token": raw["edit_token"], "managed_sources": [],
-    })
-    assert save.status_code == 200, save.get_json()
-    resource = save.get_json()["resource"]
-    before = tables(store)
-    body = request_body(resource, choices(), operation)
-    if operation == "apply":
-        preview = store.preview_legacy_upgrade(resource["id"], expected_edit_token=resource["edit_token"], choices=choices())
-        body["expected_projection_digest"] = preview["projection_digest"]
-    result, _ = payload(post(client, resource, operation, body), operation, resource)
-    if operation != "apply":
-        assert tables(store) == before
-        return
-    reopened = SkeletonResourceStore(store.root).get_managed_resource(resource["id"])
-    assert reopened["resource"] == result
-    assert reopened["sources_manifest"] == save.get_json()["sources_manifest"]
-    assert reopened["contents"] == []
-    with store._connect() as connection:
-        row = connection.execute("SELECT * FROM resources WHERE resource_id=?", (resource["id"],)).fetchone()
-    old_revision = int(resource["edit_token"].split("-")[1])
-    assert row["edit_revision"] == old_revision + 1
-    assert result["edit_token"] == store._token(row["edit_revision"], reopened["content_digest"])
-    assert next(n for n in result["document"]["nodes"] if n["type"] == "agent")["config"]["kernel"] == authored
-    assert result["source_identity"] == resource["source_identity"]
-    for name in before:
-        if name not in {"resources", "store_meta"}:
-            assert tables(store)[name] == before[name]
-    assert len(tables(store)["store_meta"]) == len(before["store_meta"]) + 2
-    with pytest.raises(SkeletonResourceError) as refused:
-        store.get_resource(resource["id"])
-    assert refused.value.code == "source_api_required"
 
 
 def test_managed_apply_stale_and_repeated_requests_do_not_write(store):
@@ -113,18 +63,15 @@ def test_managed_apply_response_refusal_rolls_back_resource_archive_and_receipt(
     assert store.get_managed_resource(resource["id"]) == frame
 
 
-@pytest.mark.parametrize("operation", ["inventory", "preview", "apply"])
+@pytest.mark.parametrize("operation", ["preview", "apply"])
 def test_corrupt_managed_metadata_is_not_bypassed_by_upgrade(store, operation):
-    from route_skeleton_legacy_upgrade import _inventory
     resource, _ = managed_legacy(store)
     with store._connect() as connection:
         connection.create_function("pupu_managed_write", 0, lambda: 1)
         connection.execute("UPDATE resources SET code_content_digest=? WHERE resource_id=?", ("0" * 64, resource["id"]))
     before = tables(store)
     with pytest.raises(SkeletonResourceError) as refused:
-        if operation == "inventory":
-            _inventory(store, resource["id"], resource["edit_token"])
-        elif operation == "preview":
+        if operation == "preview":
             store.preview_legacy_upgrade(resource["id"], expected_edit_token=resource["edit_token"], choices=choices())
         else:
             store.apply_legacy_upgrade(resource["id"], expected_edit_token=resource["edit_token"],

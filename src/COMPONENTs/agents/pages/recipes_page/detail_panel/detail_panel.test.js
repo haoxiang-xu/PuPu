@@ -12,13 +12,13 @@ const wrap = (ui, dark = false) => (
   </ConfigContext.Provider>
 );
 
-const show = (recipe, selectedNodeId, dark = false) =>
+const show = (document, selectedNodeId, dark = false) =>
   render(
     wrap(
       <DetailPanel
-        recipe={recipe}
+        document={document}
+        onDocumentChange={() => {}}
         selectedNodeId={selectedNodeId}
-        onChange={() => {}}
       />,
       dark,
     ),
@@ -29,14 +29,19 @@ const body = (c) => c.querySelector('[data-testid="recipe-detail-panel-body"]');
 const header = (c) =>
   c.querySelector('[data-testid="recipe-detail-panel-header"]');
 
-const one = (id, type, extra = {}) => ({
-  nodes: [{ id, type, ...extra }],
+/* One node in a native document; `config` is the node's own settings. */
+const one = (id, type, config = {}, extra = {}) => ({
+  schema_version: 1,
+  kind: "agent",
+  id: "d",
+  name: "D",
+  nodes: [{ id, type, config: { execution: { inputs: [], outputs: [] }, ...config }, ...extra }],
   edges: [],
 });
 
 describe("DetailPanel shell", () => {
   test("only the body scrolls — the shell itself does not", () => {
-    const { container } = show(one("start", "start", { outputs: [] }), "start");
+    const { container } = show(one("start", "start"), "start");
 
     /* The scroll plumbing moved off the outer element, because the outer
      * element is what keeps the header still. */
@@ -51,14 +56,14 @@ describe("DetailPanel shell", () => {
   });
 
   test("the header is a sibling of the body, not inside it", () => {
-    const { container } = show(one("start", "start", { outputs: [] }), "start");
+    const { container } = show(one("start", "start"), "start");
     expect(header(container)).toBeTruthy();
     expect(body(container).contains(header(container))).toBe(false);
     expect(header(container).style.flexShrink).toBe("0");
   });
 
   test("the empty state keeps the scroll plumbing and draws no header", () => {
-    const { container } = show({ nodes: [], edges: [] }, null);
+    const { container } = show(one("start", "start"), null);
     expect(screen.getByText(/select a node/i)).toBeInTheDocument();
     expect(header(container)).toBeNull();
     expect(body(container)).toHaveClass("scrollable");
@@ -73,7 +78,7 @@ describe("DetailPanel identity header", () => {
     [
       "tp_1",
       TOOLKIT_POOL_TYPE,
-      { toolkits: [{ id: "a" }] },
+      { toolkits: [{ id: "a", enabled_tools: null }] },
       "Toolkit Pool",
       "1 toolkit",
     ],
@@ -93,26 +98,17 @@ describe("DetailPanel identity header", () => {
     },
   );
 
-  test("an agent node is titled by its own label, falling back to its id", () => {
+  test("an agent node is titled by its own label and names its stored model", () => {
     const { container: named } = show(
-      one("agent_1", "agent", {
-        label: "triage",
-        override: { model: "gpt-4.1" },
-      }),
+      one("agent_1", "agent", { kernel: { profile: { model: "gpt-4.1" } } }, { label: "triage" }),
       "agent_1",
     );
     expect(within(header(named)).getByText("triage")).toBeInTheDocument();
     expect(within(header(named)).getByText("gpt-4.1")).toBeInTheDocument();
-
-    const { container: bare } = show(one("agent_2", "agent", {}), "agent_2");
-    expect(within(header(bare)).getByText("agent_2")).toBeInTheDocument();
-    expect(
-      within(header(bare)).getByText(/inherits the chat's model/i),
-    ).toBeInTheDocument();
   });
 
   test("the panel body no longer repeats the title", () => {
-    const { container } = show(one("start", "start", { outputs: [] }), "start");
+    const { container } = show(one("start", "start"), "start");
     expect(within(header(container)).getByText("Start")).toBeInTheDocument();
     expect(
       within(body(container)).queryByText("Start"),
@@ -127,11 +123,11 @@ describe("DetailPanel identity header", () => {
 
   test("the header keeps both theme branches", () => {
     const { container: light } = show(
-      one("start", "start", { outputs: [] }),
+      one("start", "start"),
       "start",
     );
     const { container: dark } = show(
-      one("start", "start", { outputs: [] }),
+      one("start", "start"),
       "start",
       true,
     );

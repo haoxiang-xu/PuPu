@@ -1,5 +1,4 @@
 import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
-import { agentMessage, agentProblemMessage, agentError } from "./recipes_page/agents_i18n";
 import ShadowSurface from "../../../BUILTIN_COMPONENTs/material/shadow_surface";
 import { useSurfaceComposite } from "../../../BUILTIN_COMPONENTs/material/surface_composite";
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
@@ -7,7 +6,6 @@ import { NavigationContext } from "../../../CONTAINERs/config/context";
 import { SIDE_MENU_WIDTH, agentsSidebarWidthCss, clampSideMenuWidth } from "../../../SERVICEs/side_menu_width";
 import { createLiveResizeWidth } from "../../../SERVICEs/live_resize_width";
 import { createPortal } from "react-dom";
-import { api } from "../../../SERVICEs/api";
 import {
   RECIPE_PANEL_LIMITS,
   clampPanelWidth,
@@ -22,42 +20,36 @@ import {
 import AgentExplorer from "./recipes_page/agent_explorer";
 import { RECIPE_PANEL_HEADER } from "./recipes_page/recipe_list";
 import SkeletonResourcePage from "./skeleton_resource_page";
-import RecipeCanvas from "./recipes_page/recipe_canvas";
-import DetailPanel from "./recipes_page/detail_panel/detail_panel";
+import { FlowEditor } from "../../../BUILTIN_COMPONENTs/flow_editor";
 import PanelResizeHandle from "./recipes_page/panel_resize_handle";
 import {
-  CanvasMessageStrip,
   DETAIL_WIDTH_VAR,
-  EscapeBackHint,
-  FloatingDetailShell,
   HANDLE_GAP,
   PANEL_INSET,
 } from "./recipes_page/canvas_chrome";
-import { to_save_payload } from "./recipes_page/recipe_save_payload";
-import useRecipeHistory from "./recipes_page/use_recipe_history";
-import { drill_trail_segments } from "./recipes_page/drill_trail";
-import { usePublishAgentsDrillTrail } from "../../../SERVICEs/agents_drill_trail";
-import {
-  DRILL,
-  drill_crumbs,
-  drill_target,
-  frame_is_stale,
-  library_unavailable_message,
-  left_behind_message,
-  stale_frame_message,
-  drill_unavailable_reason,
-  missing_reference_message,
-  push_drill_frame,
-  read_failure_message,
-  reference_exists,
-  unwind_drill_stack,
-} from "./recipes_page/subagent_drill";
 
 const LIST_WIDTH_VAR = "--pupu-agents-list-drag-width";
 
+/* Nothing open yet (the explorer is still choosing the default Agent, or the
+   open one was deleted): the bare canvas, without a graph or its controls. */
+function EmptyCanvas({ isDark }) {
+  return (
+    <div data-testid="agents-empty-canvas" style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
+      <FlowEditor
+        style={{ width: "100%", height: "100%", borderRadius: 0 }}
+        theme={{
+          canvasBackground: isDark ? "var(--pupu-background, #1a1a1a)" : "var(--pupu-background, #fafafb)",
+          gridColor: "var(--pupu-overlay-ghost)",
+        }}
+        nodes={[]}
+        edges={[]}
+      />
+    </div>
+  );
+}
+
 export default function RecipesPage({
   isDark,
-  selectedNodeId,
   onSelectNode,
   fullscreen,
   /* Docked: the agent list renders into `explorerSlot` (the side menu's
@@ -90,27 +82,10 @@ export default function RecipesPage({
     : PANEL_INSET + RECIPE_PANEL_HEADER.INSET;
   const headerLeadingPad =
     headerLeft - (PANEL_INSET + RECIPE_PANEL_HEADER.INSET);
-  const [recipes, setRecipes] = useState([]);
-  const [activeName, setActiveName] = useState(null);
-  const {
-    recipe: activeRecipe,
-    setRecipe: setActiveRecipe,
-    setRecipeSilent: setActiveRecipeSilent,
-    undo,
-    redo,
-    canUndo,
-    canRedo,
-    exportHistory,
-    importHistory,
-  } = useRecipeHistory(activeName);
-  const [dirty, setDirty] = useState(false);
   const [listCollapsed, setListCollapsed] = useState(false);
-  const [saveError, setSaveError] = useState("");
 
-  /* A Skeleton resource is addressed by id and a legacy recipe by name, so
-     they are held in two different pieces of state. Selecting one clears the
-     other rather than overwriting a single "current thing", which is what
-     would let a name be used as an id. */
+  /* The open Agent, addressed by its resource id (a name is a label: it is
+     renamed and may repeat). */
   const [skeletonResourceId, setSkeletonResourceId] = useState(null);
   const skeletonResourceIdRef = useRef(skeletonResourceId);
   skeletonResourceIdRef.current = skeletonResourceId;
@@ -126,25 +101,6 @@ export default function RecipesPage({
      says when it is open. */
   const [skeletonDrilled, setSkeletonDrilled] = useState(false);
 
-  /* ── Drilling into a subagent ──────────────────────────────────────────
-     A referenced subagent is the shared Agent resource, not a copy living in
-     its parent, so drilling in switches the editor to that resource by
-     identity. Undo history and the dirty flag are keyed on the resource being
-     edited, so they isolate themselves; the stack carries what they cannot —
-     the graph left behind, with its unsaved edits, its selection and its
-     viewport. */
-  const [drillStack, setDrillStack] = useState([]);
-  const [notices, setNotices] = useState([]);
-  const [restoreViewport, setRestoreViewport] = useState(undefined);
-  const viewportOutRef = useRef({ x: 0, y: 0, zoom: 1 });
-  const handedFrameRef = useRef(null);
-  const restoreTokenRef = useRef(0);
-  const recipesRef = useRef([]);
-  /* How many times each resource has been written in this editing session.
-     A frame taken before a write is holding an older copy, and its history
-     describes content that is no longer what the file says. */
-  const savedVersionsRef = useRef({});
-  const drilled = drillStack.length > 0;
 
   // Panel widths: the original fixed 200 / 300 are now the minimums; the user
   // drags the inner edge to widen either panel. Live width is React state so
@@ -201,9 +157,6 @@ export default function RecipesPage({
   useEffect(() => {
     containerWidthRef.current = containerWidth;
   }, [containerWidth]);
-  useEffect(() => {
-    recipesRef.current = recipes;
-  }, [recipes]);
 
   const panelWidthsRef = useRef(panelWidths);
   useEffect(() => {
@@ -245,220 +198,6 @@ export default function RecipesPage({
     ? `var(${LIST_WIDTH_VAR}, ${panelWidths.list}px)`
     : panelWidths.list;
 
-  /* An unreachable bridge — the sidecar not up yet — used to throw inside this
-     effect with nothing catching it, so the page stayed blank and the reason
-     only existed in the console. */
-  useEffect(() => {
-    (async () => {
-      try {
-        const { recipes: list } = await api.unchain.listRecipes();
-        const known = Array.isArray(list) ? list : [];
-        setRecipes(known);
-        /* With a native library the explorer opens the chat's default Agent;
-           only a build without one falls back to the first legacy recipe. */
-        const nativeLibrary = typeof api?.unchain?.listSkeletonResources === "function";
-        if (known.length > 0 && !nativeLibrary) setActiveName(known[0].name);
-      } catch (error) {
-        setNotices([library_unavailable_message(error, agentMessage)]);
-      }
-    })();
-  }, []);
-
-  useEffect(() => {
-    if (!activeName) return;
-    /* Entering or leaving a sub-graph hands the definition over directly. A
-       drill-in already read it before navigating, so a failed read never
-       strands the user on some other graph; a drill-up carries the parent's
-       unsaved edits, and re-reading here would discard them — going back is
-       not a save. */
-    const handed = handedFrameRef.current;
-    if (handed && handed.name === activeName) {
-      handedFrameRef.current = null;
-      setActiveRecipeSilent(handed.recipe);
-      setDirty(Boolean(handed.dirty));
-      onSelectNode(handed.selectedNodeId || null);
-      /* An undo history is only meaningful against the content it was recorded
-         on. If this resource was written while the frame was held, replaying
-         that history would rewind into states the file never had, so it is
-         dropped and said out loud rather than quietly applied. */
-      const stale = frame_is_stale(handed, savedVersionsRef.current);
-      importHistory(stale ? null : handed.history);
-      if (stale) {
-        setNotices((prev) => [...prev, stale_frame_message(handed.name, agentMessage)]);
-      }
-      restoreTokenRef.current += 1;
-      setRestoreViewport({
-        ...(handed.viewport || { x: 0, y: 0, zoom: 1 }),
-        token: restoreTokenRef.current,
-      });
-      return;
-    }
-    (async () => {
-      try {
-        const r = await api.unchain.getRecipe(activeName);
-        if (!r) throw agentError("agents.graph.definition_empty");
-        setActiveRecipeSilent(r);
-        onSelectNode(null);
-        setDirty(false);
-      } catch (error) {
-        setNotices([read_failure_message(activeName, error, agentMessage)]);
-      }
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeName]);
-
-  const handleDrillIn = useCallback(
-    async (entry) => {
-      setNotices([]);
-      const target = drill_target(entry);
-      if (target.kind !== DRILL.REFERENCE) {
-        setNotices([drill_unavailable_reason(entry, agentMessage)].filter(Boolean));
-        return;
-      }
-      /* Read before navigating, and say which reference broke. Landing on the
-         library's first entry would read as the subagent having been replaced
-         by a different one. */
-      if (!reference_exists(entry, recipesRef.current)) {
-        setNotices([missing_reference_message(target.name, agentMessage)]);
-        return;
-      }
-      let loaded = null;
-      try {
-        loaded = await api.unchain.getRecipe(target.name);
-      } catch (error) {
-        setNotices([read_failure_message(target.name, error, agentMessage)]);
-        return;
-      }
-      if (!loaded) {
-        setNotices([read_failure_message(target.name, null, agentMessage)]);
-        return;
-      }
-      setDrillStack((stack) =>
-        push_drill_frame(stack, {
-          name: activeName,
-          label: activeRecipe?.name || activeName,
-          via_label: agentMessage("agents.nodes.subagent_pool"),
-          recipe: activeRecipe,
-          dirty,
-          selectedNodeId,
-          viewport: { ...viewportOutRef.current },
-          history: exportHistory(),
-          saved_version: savedVersionsRef.current[activeName] || 0,
-        }),
-      );
-      /* A graph opened for the first time starts at the origin; Home centers
-         its own Start. */
-      handedFrameRef.current = {
-        name: target.name,
-        recipe: loaded,
-        dirty: false,
-        selectedNodeId: null,
-        viewport: { x: 0, y: 0, zoom: 1 },
-      };
-      setActiveName(target.name);
-    },
-    [activeName, activeRecipe, dirty, selectedNodeId, exportHistory],
-  );
-
-  const handleDrillTo = useCallback(
-    (depth) => {
-      /* Going up is not a save, so a dirty graph is left as it was on disk.
-         That has to be visible — one keypress is a light gesture for losing
-         work without a word. */
-      setNotices(
-        dirty && activeName ? [left_behind_message(activeName, agentMessage)] : [],
-      );
-      const { frame, stack } = unwind_drill_stack(drillStack, depth);
-      if (!frame) return;
-      handedFrameRef.current = frame;
-      setDrillStack(stack);
-      setActiveName(frame.name);
-    },
-    [drillStack, dirty, activeName],
-  );
-
-  /* Returns whether Escape was used, so the canvas knows to stop it before it
-     closes the Agents modal. */
-  const handleDrillUp = useCallback(() => {
-    if (drillStack.length === 0) return false;
-    handleDrillTo(drillStack.length - 1);
-    return true;
-  }, [drillStack, handleDrillTo]);
-
-  const crumbs = drill_crumbs(
-    drillStack,
-    activeRecipe?.name || activeName || "",
-    t,
-  );
-  /* The open recipe and the path to it are shown in the side menu's
-     breadcrumb, above its search field, where they can be clicked. A legacy
-     recipe has no icon of its own. */
-  const BOT = { icon: "bot" };
-  usePublishAgentsDrillTrail(
-    activeName && !skeletonResourceId ? drill_trail_segments(crumbs, () => BOT, BOT, t) : [],
-    handleDrillTo,
-  );
-
-  const handleRecipeChange = (next) => {
-    setActiveRecipe(next);
-    setDirty(true);
-    setSaveError("");
-  };
-
-  const handleRecipeChangeSilent = (next) => {
-    setActiveRecipeSilent(next);
-    setDirty(true);
-    setSaveError("");
-  };
-
-  const handleSelectRecipe = (name) => {
-    setActiveName(name);
-  };
-
-  useEffect(() => {
-    /* The legacy history only while its canvas is the one on screen: with a
-       native Agent open these keys are that editor's, and answering here too
-       stepped a recipe nobody was looking at. */
-    if (!activeRecipe || skeletonResourceId) return undefined;
-    const onKey = (e) => {
-      const tag = document.activeElement?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA") return;
-      const meta = e.metaKey || e.ctrlKey;
-      if (!meta) return;
-      if (e.key === "z" && !e.shiftKey) {
-        e.preventDefault();
-        undo();
-      } else if (e.key === "z" && e.shiftKey) {
-        e.preventDefault();
-        redo();
-      } else if (e.ctrlKey && e.key === "y") {
-        e.preventDefault();
-        redo();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [activeRecipe, skeletonResourceId, undo, redo]);
-
-  const handleSave = async () => {
-    if (!activeRecipe) return;
-    try {
-      setSaveError("");
-      await api.unchain.saveRecipe(to_save_payload(activeRecipe));
-      savedVersionsRef.current[activeName] =
-        (savedVersionsRef.current[activeName] || 0) + 1;
-      const { recipes: list } = await api.unchain.listRecipes();
-      setRecipes(list);
-      setDirty(false);
-    } catch (error) {
-      const message =
-        error && typeof error.message === "string"
-          ? agentProblemMessage(error, agentMessage)
-          : agentMessage("agents.graph.legacy_invalid");
-      setSaveError(message);
-    }
-  };
-
   const headerButtonStyle = {
     paddingVertical:
       (RECIPE_PANEL_HEADER.HEIGHT - RECIPE_PANEL_HEADER.ICON) / 2,
@@ -483,7 +222,7 @@ export default function RecipesPage({
   };
   /* Drilled in, the workflow list is not the graph you are editing — it would
      offer a switch that silently drops the parent frame's unsaved edits. */
-  const listHidden = listCollapsed || drilled || skeletonDrilled;
+  const listHidden = listCollapsed || skeletonDrilled;
   /* The left side menu's inner edge in window x, as it is once settled
      (null: closed), for the canvas to center things right of it. Docked it
      is the app's side menu from the window's left edge; floating, the list
@@ -503,10 +242,6 @@ export default function RecipesPage({
     const page = canvasRef.current?.getBoundingClientRect();
     return page ? page.left + PANEL_INSET + inputs.listWidth : null;
   }, []);
-
-  /* Both at once rather than one masking the other: a drill-in can fail while
-     an unsaved graph is still refusing to save. */
-  const messages = [saveError, ...notices].filter(Boolean);
 
   const overlayBg = isDark
     ? "rgba(var(--pupu-surface-rgb, 20, 20, 20), 0.72)"
@@ -539,20 +274,13 @@ export default function RecipesPage({
 
   const explorerElement = (
     <AgentExplorer
-      recipes={recipes}
       activeId={skeletonResourceId}
-      activeLegacyName={skeletonResourceId ? null : activeName}
       newDraft={newSkeletonDraft}
       activeDirty={skeletonDirty}
-      autoSelectDefault={!skeletonResourceId && !activeName}
+      autoSelectDefault={!skeletonResourceId}
       onSelect={(id) => {
         setNewSkeletonDraft(null);
         setSkeletonResourceId(id);
-      }}
-      onSelectLegacy={(name) => {
-        setNewSkeletonDraft(null);
-        setSkeletonResourceId(null);
-        handleSelectRecipe(name);
       }}
       onCreate={(args) => {
         setNewSkeletonDraft(args);
@@ -575,7 +303,7 @@ export default function RecipesPage({
       headerLeadingPad={explorerDocked ? 0 : headerLeadingPad}
       docked={explorerDocked}
       onBack={explorerDocked ? onExplorerBack : undefined}
-      locked={explorerDocked && (drilled || skeletonDrilled)}
+      locked={explorerDocked && skeletonDrilled}
     />
   );
 
@@ -616,9 +344,9 @@ export default function RecipesPage({
         }}
       >
         {skeletonResourceId ? (
-          /* Full-bleed like the legacy canvas: the library, the detail panel
-             and the control center float over the graph, and nothing of the
-             native page sits outside them. */
+          /* Full-bleed: the library, the detail panel and the control center
+             float over the graph, and nothing of the native page sits outside
+             them. */
           <div data-testid="skeleton-workspace" style={{ position: "absolute", inset: 0 }}>
           <SkeletonResourcePage
             key={skeletonReload}
@@ -642,25 +370,7 @@ export default function RecipesPage({
           />
           </div>
         ) : (
-        <RecipeCanvas
-          recipe={activeRecipe}
-          selectedNodeId={selectedNodeId}
-          onSelectNode={onSelectNode}
-          onRecipeChange={handleRecipeChange}
-          onRecipeChangeSilent={handleRecipeChangeSilent}
-          onSave={handleSave}
-          dirty={dirty}
-          isDark={isDark}
-          onUndo={undo}
-          onRedo={redo}
-          canUndo={canUndo}
-          canRedo={canRedo}
-          recipes={recipes}
-          onDrillIn={handleDrillIn}
-          onEscape={handleDrillUp}
-          viewportOutRef={viewportOutRef}
-          restoreViewport={restoreViewport}
-        />
+        <EmptyCanvas isDark={isDark} />
         )}
       </div>
 
@@ -713,7 +423,7 @@ export default function RecipesPage({
       )}
 
       {/* ── Expand button (only when list is collapsed) ── */}
-      {!explorerDocked && listCollapsed && !drilled && !skeletonDrilled && (
+      {!explorerDocked && listCollapsed && !skeletonDrilled && (
         <Button
           prefix_icon="side_menu_left"
           onClick={() => setListCollapsed(false)}
@@ -729,55 +439,6 @@ export default function RecipesPage({
         />
       )}
 
-      {/* Esc goes back up a drill level; the breadcrumb is in the side menu. */}
-      {!skeletonResourceId && (
-        <EscapeBackHint
-          isDark={isDark}
-          visible={drilled}
-          top={topStripCenter}
-          left={crumbLeft}
-          testId="recipe-escape-hint"
-        />
-      )}
-
-      <CanvasMessageStrip
-        isDark={isDark}
-        items={messages}
-        testId="recipe-message-banner"
-        standalone
-      />
-
-      {/* ── Floating inspector (right detail panel) ── */}
-      {/* The legacy inspector belongs to the recipe canvas. With a Skeleton
-          Agent open it was still mounted and still editable behind the new
-          page, so a click there wrote to a recipe the author had left. */}
-      {!skeletonResourceId && (
-        <FloatingDetailShell
-          isDark={isDark}
-          open={Boolean(selectedNodeId)}
-          width={panelWidths.detail}
-          minWidth={RECIPE_PANEL_LIMITS.detail.min}
-          resizing={resizingPanel === "detail"}
-          testId="recipe-detail-panel-shell"
-          onClose={() => onSelectNode(null)}
-          handle={{
-            testId: "recipe-detail-resize-handle",
-            pillTestId: "recipe-detail-resize-pill",
-            onDragStart: () => beginResize("detail"),
-            onDrag: moveResize,
-            onDragEnd: () => endResize("detail"),
-          }}
-        >
-          <DetailPanel
-            recipe={activeRecipe}
-            selectedNodeId={selectedNodeId}
-            onChange={handleRecipeChange}
-            onChangeSilent={handleRecipeChangeSilent}
-            recipes={recipes}
-            onDrillIn={handleDrillIn}
-          />
-        </FloatingDetailShell>
-      )}
     </div>
   );
 }
