@@ -102,7 +102,7 @@ export function approval_refused_for_good(error) {
     && (FINAL_APPROVAL_CODES.has(error.code)
       /* A read can meet skeleton_interaction_invalid in passing; a refused
          answer's other skeleton_interaction_* codes are final. */
-      || error.code.startsWith("skeleton_interaction_") && error.code !== "skeleton_interaction_invalid");
+      || (error.code.startsWith("skeleton_interaction_") && error.code !== "skeleton_interaction_invalid"));
 }
 
 /* What a refused approval says on its card and in the status line. */

@@ -219,6 +219,9 @@ def test_completed_graph_keeps_polling_until_the_root_result_is_committed(produc
     tests=sessions();resource='production-agent';session=tests.open(resource,'agent')['session']['id']
     run=tests.prepare(session,resource,store.get_resource(resource)['edit_token'],{'message':'commit fence'},'commit-fence',context=options)['run_id']
     tests.execute(session,resource,run,options)
+    # Model a first read that comes before the root result is committed: a
+    # projection kept from an earlier settled read would answer for it.
+    monkeypatch.setattr(module,'_SETTLED',{})
     original=module.load_launch
     class BeforeRootCommit:
         def __init__(self,real):self.real=real
