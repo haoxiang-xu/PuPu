@@ -17,6 +17,13 @@ import {
 } from "./recipes_page/skeleton_resource_capture";
 
 jest.mock("../../../SERVICEs/api", () => ({ api: { unchain: {} } }));
+// These page tests exercise graph preflight, with an available read-only
+// Test Run host. Dispatch is outside this fixture's contract.
+jest.mock("../../../SERVICEs/builder_test_api", () => ({ builderTestCommand: jest.fn(async (request) => {
+  if (request.op !== "open") throw new Error("Unexpected Test Run dispatch in graph-page fixture");
+  return { schema: "pupu.builder-test.v1", session: { id: `builder-test-${request.resource_id}`,
+    resource_id: request.resource_id, kind: request.kind }, runs: [] };
+}) }));
 /* The editor speaks v2 only (#357 G1); these mocks are graph-only. */
 install_legacy_store_bridge(api.unchain);
 
