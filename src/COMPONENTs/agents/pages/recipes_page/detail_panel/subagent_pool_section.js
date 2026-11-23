@@ -52,7 +52,7 @@ import { subscribeSkeletonLibraryRefresh } from "../../../../../SERVICEs/skeleto
 import PanelHelp from "./panel_help";
 import AgentAvatar from "../../../agent_avatar";
 import PanelInput from "./panel_input";
-import { fieldFill, fillStrong, hairline, muted as mutedOf, note as noteStyle, PANEL_SWITCH, problem as problemOf, Region, removeButtonStyle, SettingRow, text, textFieldFill, CONTROL_RADIUS } from "./panel_style";
+import { fieldFill, fillStrong, hairline, muted as mutedOf, note as noteStyle, PANEL_SWITCH, problem as problemOf, Region, removeButtonStyle, SettingRow, text, textFieldFill, CONTROL_HEIGHT, CONTROL_RADIUS } from "./panel_style";
 
 /* The Subagent Pool: which Agents this one may call, and how.
  *
@@ -1402,7 +1402,7 @@ export default function SubagentPoolSection({
                   placeholder={t("agents.subagents.search")}
                   value={search}
                   set_value={setSearch}
-                  style={{ width: "100%", fontSize: 12.5, height: 32, paddingVertical: 0, paddingHorizontal: 10 }}
+                  style={{ width: "100%", fontSize: 12.5, height: CONTROL_HEIGHT, paddingVertical: 0, paddingHorizontal: 10 }}
                 />
               )}
               {/* The library's rows are the Toolkit library's: the mark, the

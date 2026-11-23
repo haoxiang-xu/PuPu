@@ -1,6 +1,6 @@
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import PanelHelp from "./panel_help";
-import { fieldFill, hairline as hairlineOf, textFieldFill, CONTROL_HEIGHT, CONTROL_RADIUS, REGION_RADIUS } from "./panel_style";
+import { fieldFill, hairline as hairlineOf, textFieldFill, CONTROL_HEIGHT, REGION_RADIUS } from "./panel_style";
 import React, { useEffect, useState } from "react";
 import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
 import Select from "./panel_select";
@@ -211,7 +211,6 @@ function CountRow({ label, stored, ceiling, caption, onStore, about, isDark, tes
             ...fieldFill(isDark),
             height: CONTROL_HEIGHT,
             boxSizing: "border-box",
-            borderRadius: CONTROL_RADIUS,
           }}
         />
         <span style={{ ...CAPTION, flexShrink: 0 }}>{caption}</span>
