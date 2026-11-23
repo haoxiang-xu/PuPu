@@ -26,7 +26,7 @@ const host_reason = (result, fallback) => {
    machine has it, the built-in one when it does not. */
 export function default_import_choices(occurrences, profiles) {
   const known = new Set((Array.isArray(profiles) ? profiles : [])
-    .filter((profile) => profile && typeof profile.id === "string")
+    .filter((profile) => profile && typeof profile.id === "string" && profile.available !== false)
     .map((profile) => profile.id));
   const choices = Object.create(null);
   for (const occurrence of Array.isArray(occurrences) ? occurrences : []) {

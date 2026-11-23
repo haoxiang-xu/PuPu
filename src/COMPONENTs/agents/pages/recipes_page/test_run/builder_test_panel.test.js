@@ -18,6 +18,54 @@ beforeEach(()=>{builderTestCommand.mockReset();builderTestCommand.mockResolvedVa
 const composer=()=>screen.getByRole('textbox',{name:/^Message this Agent…/});
 const send=()=>fireEvent.keyDown(composer(),{key:'Enter'});
 
+test('an incomplete Agent trace retains its disclosure', async()=>{
+  builderTestCommand.mockResolvedValue({...completed,runs:[{...completed.runs[0],trace_complete:false}]});
+  render(<BuilderTestPanel active session={session} isDark={false}/>);
+  expect(await screen.findByText(/Trace display limit reached/)).toBeInTheDocument();
+});
+
+test('an initial read failure offers a retry without reopening',async()=>{
+  builderTestCommand.mockRejectedValueOnce({code:'host_not_ready',message:'temporarily unavailable',status:503});
+  render(<BuilderTestPanel active session={session} isDark={false}/>);
+  const refresh=await screen.findByRole('button',{name:'Refresh'});
+  builderTestCommand.mockResolvedValue(opened);
+  fireEvent.click(refresh);
+  await waitFor(()=>expect(builderTestCommand).toHaveBeenCalledTimes(2));
+  fireEvent.change(composer(),{target:{value:'try again'}});
+  builderTestCommand.mockResolvedValue(completed);
+  send();
+  await screen.findByText('reply');
+});
+
+test('a final refusal survives a successful poll of the same pending interaction',async()=>{
+  jest.useFakeTimers();
+  const pendingRun={...completed.runs[0],status:'waiting',output:null,pending:{interaction_id:'approval-poll',kind:'tool_approval',status:'awaiting_response',
+    payload:{tool_name:'web_fetch'},subject:{},presentation:{trace_frame:null,tool_call:{confirmation_id:'approval-poll',tool_display_name:'web_fetch',arguments:{url:'https://example.test'}}}}};
+  const waiting={...opened,runs:[pendingRun]};
+  builderTestCommand.mockImplementation(async request=>{
+    if(request.op==='respond')throw {code:'skeleton_interaction_request_missing',message:'Request missing',status:409};
+    return JSON.parse(JSON.stringify(waiting));
+  });
+  const rendered=render(<BuilderTestPanel active session={session} isDark={false}/>);
+  try{
+    fireEvent.click(await screen.findByRole('button',{name:'Allow once'}));
+    await waitFor(()=>expect(screen.queryByRole('button',{name:'Allow once'})).not.toBeInTheDocument());
+    await act(async()=>{jest.advanceTimersByTime(750);});
+    expect(builderTestCommand.mock.calls.some(([request])=>request.op==='read')).toBe(true);
+    expect(screen.queryByRole('button',{name:'Allow once'})).not.toBeInTheDocument();
+    builderTestCommand.mockRejectedValueOnce({code:'host_not_ready',message:'temporary read failure',status:503});
+    await act(async()=>{jest.advanceTimersByTime(750);});
+    expect(builderTestCommand.mock.calls.filter(([request])=>request.op==='read').length).toBeGreaterThanOrEqual(2);
+    expect(screen.queryByRole('button',{name:'Allow once'})).not.toBeInTheDocument();
+    await act(async()=>{jest.advanceTimersByTime(1500);});
+    expect(screen.queryByRole('button',{name:'Allow once'})).not.toBeInTheDocument();
+    builderTestCommand.mockResolvedValue(completed);
+    await act(async()=>{jest.advanceTimersByTime(750);});
+    expect(screen.getByText('reply')).toBeInTheDocument();
+    expect(screen.queryByTestId('test-run-request-problem')).not.toBeInTheDocument();
+  }finally{rendered.unmount();jest.useRealTimers();}
+});
+
 test('opening only reads; explicit send uses a dedicated session and exact saved token',async()=>{
   render(<BuilderTestPanel active session={session} isDark={false} onSave={jest.fn()} />);
   await waitFor(()=>expect(builderTestCommand).toHaveBeenCalledWith({op:'open',resource_id:'agent-demo',kind:'agent'}));

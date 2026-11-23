@@ -88,3 +88,13 @@ test("no file chosen does nothing", async () => {
   expect(await import_resource_file(null)).toEqual({ ok: false, message: null });
   expect(bridge.getManagedSkeletonTransferCapabilities).not.toHaveBeenCalled();
 });
+
+test('an unavailable saved Python falls back without bypassing changed-environment admission', async () => {
+  bridge.importManagedSkeletonResource.mockResolvedValue(JSON.parse(JSON.stringify(producer.resource).split('local-python').join('builtin')));
+  bridge.listSkeletonPythonProfiles.mockResolvedValue({profiles:[copy(codeCapture.profiles.list_before[0]),
+    {...profile('foreign-python'),available:false,changed:false}]});
+  expect((await import_resource_file(file(producer.export.source_json))).ok).toBe(true);
+  expect(binding()).toEqual([{node_path:['nodes',1],environment_profile_id:'builtin'}]);
+  expect(default_import_choices(occurrences,[{...profile('foreign-python'),available:true,changed:true}]))
+    .toEqual({[occurrences[0].key]:'foreign-python'});
+});

@@ -1,5 +1,49 @@
 # Agent detail Timeline — 交互语言
 
+## PR #489 gatekeeper corrections — BC-005 / SEQ-005 / AC-005
+
+**BC-005 (VERSIONED closed Main command):** `pupu.builder-test.v1` start keeps
+the existing required identities and context fields. Optional
+`use_default_workspace` is a boolean, interpreted only by Main. Blank
+`workspace_id` without an explicit true opt-in means no workspace. The Agent
+composer opts in when it has no selected folder; the Workflow's displayed
+“No workspace” remains disabled. Explicit registered workspace IDs still use
+the existing Main resolver and take precedence. The flag never enters Host
+options: Main sends only the existing exact frozen context shape. An older Main
+rejects the additional field before dispatch rather than suggesting a run may
+have started. No caller path, endpoint or credential authority is added.
+
+**SEQ-005:** open/read failure → visible Refresh → read succeeds without
+resubmitting an actor operation. A definitive approval refusal is retained for
+the exact session/run/interaction across both successful and failed polls;
+settlement, a different pending interaction or resource clears that refusal.
+Closing still detaches. Worker completion can append trace rows after a read's
+first snapshot; settled journal projections retain fresh sanitized display rows
+and completeness, including cache purges, without replaying execution. Agent
+and Workflow both disclose incomplete traces. Imported Code keeps an available
+local Python, falls back to builtin for an unavailable executable, and still
+lets Host refuse a changed environment rather than weakening its admission.
+
+**AC-005:** red-before-green regressions cover explicit no-workspace with a
+configured default, valid opt-in and invalid flag type; completion/read cache
+race; unavailable exported Python and changed-environment preservation; Agent
+trace disclosure; initial read retry; final refusal through successful and failed
+polls. Focused Main, frontend and genuine runtime tests run before new-head full
+CI. Original PR200-file review includes deleted producer/consumer paths;
+startup legacy migration and migrated chat remain in scope. Parent #484 stays
+open as previously instructed; this is not full feature acceptance or release
+certification.
+
+Retained runtime pair for these corrections: Unchain wheel SHA-256
+`27aa85e3af2accfe162c625c27a2c708d10412eefffb5889c36442570e074fba`
+from CI45275771718; actual pytest consumer PID3607 imports338 modules whose
+bytes match that wheel, including root/protocol/Kernel. Observed protocol digest
+`8bb1c7d474eed7bd82f906ac6cd88a6b7e073a23f46319cf500ebbd6b50ff17b`.
+The temporary installed-artifact root is selected explicitly, so a sibling
+source checkout cannot silently shadow it. No real provider calls or user
+profile launch. Python changes need a fresh sidecar process; this test used a
+fresh consumer, and no existing user instance was restarted.
+
 当前落地范围：Process（原生 Agent）详情页。一列到底，只有一种标题。模型与指令是 Agent 的身份，始终展开在最上方；其下是输入、输出两个可折叠配置区；少有人动的上限放在最底部的 Advanced。不再使用 Timeline 的点与连线：两项内容用不着一条轨道，缩进还会挤掉变量行的宽度。
 
 ## 分组与交互

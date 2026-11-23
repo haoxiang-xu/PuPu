@@ -418,10 +418,23 @@ class BuilderTestSessions:
         # which can briefly find them unreadable.
         settled=_SETTLED.get(key)
         if settled is not None and key not in _WORKERS:
-            return deepcopy(settled)
+            cached=deepcopy(settled)
+            # Journal state is immutable, but display rows may have arrived
+            # after the prior snapshot or been purged by provenance checks.
+            cached.update({field:result[field] for field in ('events','trace_complete')})
+            return cached
         try:
             projected=self._project_launch(row,result,material,selected,_recheck=_recheck,_cache_db=_cache_db)
             if projected['status'] in _TERMINAL and projected['status']!='outcome_unknown' and key not in _WORKERS:
+                # Worker removal happens after its final cache/error commit.
+                # Refresh these fields only now, before freezing the launch.
+                with self._db(_cache_db) as db:
+                    projected['events']=self._cached_events(db,row['id'])
+                    projected['trace_complete']=db.execute('''SELECT 1 FROM trace_limits WHERE run_id=?
+                        UNION ALL SELECT 1 FROM trace_omissions WHERE run_id=?''',(row['id'],row['id'])).fetchone() is None
+                    updated=db.execute('SELECT error FROM runs WHERE id=?',(row['id'],)).fetchone()
+                    if updated and updated['error']:
+                        projected['error']=json.loads(updated['error'])
                 _SETTLED[key]=deepcopy(projected)
             return projected
         except Exception as error:

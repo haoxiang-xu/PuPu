@@ -42,8 +42,10 @@ const checkBuilderTestCommand=value=>{
   value=copyJson(value);
   const config=value?.op==='start'&&Object.prototype.hasOwnProperty.call(value,'memory_agent_config');
   const fallback=value?.op==='start'&&Object.prototype.hasOwnProperty.call(value,'fallback_model');
+  const defaultWorkspace=value?.op==='start'&&Object.prototype.hasOwnProperty.call(value,'use_default_workspace');
   if (!isRecord(value) || !Object.prototype.hasOwnProperty.call(FIELDS,value.op) ||
-    !closed(value,['op',...FIELDS[value.op],...(config?['memory_agent_config']:[]),...(fallback?['fallback_model']:[])])) refuse();
+    !closed(value,['op',...FIELDS[value.op],...(config?['memory_agent_config']:[]),...(fallback?['fallback_model']:[]),...(defaultWorkspace?['use_default_workspace']:[])])) refuse();
+  if(defaultWorkspace&&typeof value.use_default_workspace!=='boolean')refuse();
   if(fallback&&!modelId(value.fallback_model))refuse();
   if(config&&(!closed(value.memory_agent_config,['displayName','additionalInstructions','provider','modelId'])||
     Object.values(value.memory_agent_config).some(field=>typeof field!=='string')))refuse();
@@ -112,7 +114,7 @@ const runBuilderTestCommand=async(payload,{post,resolveCredentials,resolveWorksp
       context.workspace_root=checked.resolvedPath;
       context.workspace_roots=[checked.resolvedPath];
       context.disable_workspace_root=false;
-    }else{
+    }else if(request.use_default_workspace===true){
       // None picked: the default workspace a chat falls back to (Settings),
       // when it is a real directory. Without one, tools that need a
       // workspace say so when they are bound.

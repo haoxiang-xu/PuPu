@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { builderTestCommand } from '../../../../../SERVICEs/builder_test_api';
 import { readMemoryAgentSettings } from '../../../../../SERVICEs/memory_agent_settings';
+import { approval_refused_for_good } from './test_status';
 
 const terminal=new Set(['completed','failed','cancelled','outcome_unknown','ready']);
 export default function useBuilderTest({active,session,onSave}){
@@ -19,9 +20,14 @@ export default function useBuilderTest({active,session,onSave}){
   const readRevision=useRef(0);
   const wasSaved=useRef(saved);
   const previousResource=useRef(resource);
+  const refusedApproval=useRef(null);
   const adopt=useCallback((value,ticket)=>{
     if(ticket!==generation.current)return null;
-    setView(value);setConfirmed(true);setUncertain(false);setError(null);setReadFailures(0);
+    const refused=refusedApproval.current;
+    const stillPending=refused&&value.session.id===refused.session_id&&value.runs.some(run=>
+      run.id===refused.run_id&&run.pending?.interaction_id===refused.interaction_id);
+    if(!stillPending)refusedApproval.current=null;
+    setView(value);setConfirmed(true);setUncertain(false);setError(stillPending?refused.problem:null);setReadFailures(0);
     current.current.view=value;
     return value;
   },[]);
@@ -33,12 +39,13 @@ export default function useBuilderTest({active,session,onSave}){
     const request=held?.session.resource_id===resource
       ? {op:'read',resource_id:resource,session_id:held.session.id}:{op:'open',resource_id:resource,kind};
     try{const value=await builderTestCommand(request);return revision===readRevision.current?adopt(value,ticket):null;}
-    catch(problem){if(ticket===generation.current&&revision===readRevision.current){setError(problem);setConfirmed(false);setReadFailures(count=>count+1);}return null;}
+    catch(problem){if(ticket===generation.current&&revision===readRevision.current){setError(refusedApproval.current?.problem||problem);setConfirmed(false);setReadFailures(count=>count+1);}return null;}
   },[adopt,resource,kind]);
   useEffect(()=>{
     const ticket=++generation.current;
     setBusy(false);pending.current=false;
     if(previousResource.current!==resource){
+      refusedApproval.current=null;
       previousResource.current=resource;setView(null);current.current.view=null;setError(null);setUncertain(false);setBusy(false);pending.current=false;
     }
     if(!active||!saved||!resource)return;
@@ -87,6 +94,9 @@ export default function useBuilderTest({active,session,onSave}){
     // no model. Only its identity is sent; the runtime builds its profile.
     if(kind==='agent'&&typeof inputs.fallback_model==='string'&&inputs.fallback_model)request.fallback_model=inputs.fallback_model;
     if(kind==='agent'){
+      // Blank in the chat composer means use Settings; the Workflow's
+      // explicit No workspace choice remains disabled unless it opts in.
+      if(!request.workspace_id)request.use_default_workspace=true;
       const settings=readMemoryAgentSettings();
       request.memory_agent_config={displayName:settings.displayName,additionalInstructions:settings.additionalInstructions,
         provider:settings.provider,modelId:settings.modelId};
@@ -97,7 +107,14 @@ export default function useBuilderTest({active,session,onSave}){
   const control=useCallback((op,run,extra={})=>command(async ticket=>{
     const held=current.current.view;
     if(!held||held.session.resource_id!==resource||!held.runs.some(row=>row.id===run.id))return null;
-    return adopt(await builderTestCommand({op,resource_id:resource,session_id:held.session.id,run_id:run.id,...extra}),ticket);
+    try{
+      return adopt(await builderTestCommand({op,resource_id:resource,session_id:held.session.id,run_id:run.id,...extra}),ticket);
+    }catch(problem){
+      if(ticket===generation.current&&['respond','resume'].includes(op)&&approval_refused_for_good(problem)){
+        refusedApproval.current={session_id:held.session.id,run_id:run.id,interaction_id:run.pending?.interaction_id,problem};
+      }
+      throw problem;
+    }
   }),[command,resource,adopt]);
   const newConversation=useCallback(()=>command(async ticket=>adopt(await builderTestCommand({op:'new',resource_id:resource,kind}),ticket)),[command,resource,kind,adopt]);
   // A start can become active after the opening read has already reached idle.

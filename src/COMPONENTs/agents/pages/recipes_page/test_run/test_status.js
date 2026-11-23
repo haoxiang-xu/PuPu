@@ -153,7 +153,7 @@ export function model_unusable(catalog, model) {
   return known && typeof known.reason === "string" ? known.reason : "not_offered";
 }
 
-export function panel_state({ session, kind, last, uncertain, fallbackModel, fallbackProblem, error }, t) {
+export function panel_state({ session, kind, last, uncertain, confirmed, fallbackModel, fallbackProblem, error }, t) {
   if (session.conflict) return { tone: "bad", text: t("agents.test_run.state.conflict") };
   /* Nothing came back for a request that may have gone out. Saying so, and
      what to do: look first, send again only if nothing was recorded. A reply
@@ -162,6 +162,9 @@ export function panel_state({ session, kind, last, uncertain, fallbackModel, fal
     const text = t("agents.test_run.state.uncertain");
     return { tone: "bad", action: "refresh",
       text: record(error) && error.code === "builder_test_protocol_error" ? `${text} ${t("agents.test_run.state.uncertain_restart")}` : text };
+  }
+  if (!confirmed && error && !last) {
+    return { tone: "bad", action: "refresh", text: request_problem_text(error,t,fallbackModel), blocks: true };
   }
   if (last && last.status === "waiting") return { tone: "wait", text: t("agents.test_run.state.waiting") };
   if (last && LIVE_STATUSES.has(last.status)) return { tone: "busy", text: t("agents.test_run.state.running") };

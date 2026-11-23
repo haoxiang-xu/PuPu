@@ -217,7 +217,7 @@ export default function BuilderTestPanel({ active, session, onSave, onCheck, onF
      the status line says what to do instead of "waiting for you". */
   const deadApproval = Boolean(answeredNow?.failed && approval_refused_for_good(error));
   const state = deadApproval ? { tone: "bad", text: approval_problem_text(error, t) }
-    : panel_state({ session, kind, last: shownLast, uncertain, fallbackModel, fallbackProblem, error }, t);
+    : panel_state({ session, kind, last: shownLast, uncertain, confirmed, fallbackModel, fallbackProblem, error }, t);
   const traceContext = useMemo(() => ({ chatId: current?.session.id || "", store: null, notifyStreamingContentCommitted: null }), [current?.session.id]);
 
   /* The latest run's node states, for the canvas to draw on the graph the
@@ -330,6 +330,7 @@ export default function BuilderTestPanel({ active, session, onSave, onCheck, onF
                   stops at the box's lower edge, as the chat's cover does. */}
               <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column",
                 maskImage: COMPOSER_EDGE_MASK, WebkitMaskImage: COMPOSER_EDGE_MASK }}>
+                {runs.some(run=>!run.trace_complete) && <div role="status" style={{...note(isDark),padding:"6px 16px"}}>{t("agents.test_run.trace_limit")}</div>}
                 <ChatMessages chatId={current?.session.id || ""} messages={messages} isStreaming={running} disableActionButtons
                   pendingToolConfirmationRequests={requests} toolConfirmationUiStateById={confirmationUi}
                   onToolConfirmationDecision={decide} onStopStream={() => controller.stop(last)} allowSessionApprovals={false}

@@ -20,6 +20,26 @@ const streamClient = () => ({
   startStreamV2: jest.fn(), startStreamV4: jest.fn(), attachStreamV4: jest.fn(),
 });
 
+test('explicit no workspace never resolves the configured default directory', async () => {
+  const prepared=packet('workflow-prepare');
+  const post=jest.fn().mockResolvedValueOnce(packet('capabilities')).mockResolvedValueOnce(prepared)
+    .mockResolvedValueOnce(packet('workflow-completed'));
+  const resolveDefaultWorkspace=jest.fn(()=>({valid:true,resolvedPath:'/private/default-project'}));
+  await runBuilderTestCommand(startRequest(prepared.resource_id,prepared.session_id),{post,resolveDefaultWorkspace});
+  expect(resolveDefaultWorkspace).not.toHaveBeenCalled();
+  expect(post.mock.calls[1][0].context).toMatchObject({workspace_root:null,workspace_roots:[],disable_workspace_root:true});
+});
+
+test('default workspace is an explicit Main-resolved opt-in', async () => {
+  const prepared=packet('workflow-prepare');
+  const post=jest.fn().mockResolvedValueOnce(packet('capabilities')).mockResolvedValueOnce(prepared)
+    .mockResolvedValueOnce(packet('workflow-completed'));
+  await runBuilderTestCommand({...startRequest(prepared.resource_id,prepared.session_id),use_default_workspace:true},{post,
+    resolveDefaultWorkspace:()=>({valid:true,resolvedPath:'/private/default-project'})});
+  expect(post.mock.calls[1][0].context).toMatchObject({workspace_root:'/private/default-project',disable_workspace_root:false});
+  expect(()=>checkBuilderTestCommand({...startRequest('demo','session'),use_default_workspace:'yes'})).toThrow();
+});
+
 // Every real Main/Store/runtime resource reply is admitted by the production validator.
 test.each(publicReplies)('production reply %s passes checkBuilderTestReply', (_name, reply) => {
   expect(checkBuilderTestReply(reply, resourceRequest(reply))).toBe(reply);
@@ -255,7 +275,7 @@ test('a start with no workspace picked uses the default workspace a chat falls b
     .mockResolvedValueOnce(packet('capabilities'))
     .mockResolvedValueOnce(prepared)
     .mockResolvedValueOnce(packet('workflow-completed'));
-  await runBuilderTestCommand(startRequest(prepared.resource_id, prepared.session_id), {
+  await runBuilderTestCommand({...startRequest(prepared.resource_id, prepared.session_id),use_default_workspace:true}, {
     post, resolveWorkspace: jest.fn(), resolveDefaultWorkspace: () => ({ valid: true, resolvedPath: '/Users/me/workspace' }),
   });
   expect(post.mock.calls[1][0].context).toEqual({ toolkits: [], skills: { include_user_dirs: true },
@@ -264,7 +284,7 @@ test('a start with no workspace picked uses the default workspace a chat falls b
     .mockResolvedValueOnce(packet('capabilities'))
     .mockResolvedValueOnce(prepared)
     .mockResolvedValueOnce(packet('workflow-completed'));
-  await runBuilderTestCommand(startRequest(prepared.resource_id, prepared.session_id), {
+  await runBuilderTestCommand({...startRequest(prepared.resource_id, prepared.session_id),use_default_workspace:true}, {
     post: quiet, resolveWorkspace: jest.fn(), resolveDefaultWorkspace: () => ({ valid: false }),
   });
   expect(quiet.mock.calls[1][0].context.disable_workspace_root).toBe(true);
