@@ -2,6 +2,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { test, expect } = require("./fixtures/pupu_app");
 const documents = require("./fixtures/skeleton_step_documents.json");
+const testRunText = require("../src/locales/en.json").agents.test_run.state;
 
 // This probe must run on a disposable hosted user with no external route.
 // Local macOS HOME redirection does not isolate CFPreferences.
@@ -93,7 +94,8 @@ test("Tool Call and Skill Read edits persist through real bridges, Store and res
     expect(after.edit_token).not.toBe(row.token);
     expect(after.diagnostics).toEqual([]);
     await page.getByRole("button", { name: "Open the run menu", exact: true }).click();
-    await expect(page.getByTestId("skeleton-preflight-state")).toHaveText("Ready to run.");
+    await expect(page.getByTestId("skeleton-preflight-state"))
+      .toHaveText(row.document.kind === "agent" ? testRunText.ready_agent : testRunText.ready_workflow);
     row.expected = after;
     await testInfo.attach(`steps-${row.kind}-saved`, {
       body: Buffer.from(JSON.stringify({ before, after }, null, 2)), contentType: "application/json",
