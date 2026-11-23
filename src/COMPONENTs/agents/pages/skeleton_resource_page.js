@@ -76,11 +76,9 @@ import {
   unwind_drill_stack,
   with_embedded_document,
 } from "./recipes_page/skeleton_drill";
-import LegacyUpgradeWizard from "./recipes_page/legacy_upgrade/legacy_upgrade_wizard";
-import { is_legacy_upgrade_candidate } from "./recipes_page/legacy_upgrade/legacy_upgrade_plan";
-import { emitSkeletonLibraryRefresh } from "../../../SERVICEs/skeleton_library_refresh";
 import { drill_level_icon, drill_trail_segments, graph_icon } from "./recipes_page/drill_trail";
 import { usePublishAgentsDrillTrail } from "../../../SERVICEs/agents_drill_trail";
+import { CONTROL_RADIUS } from "./recipes_page/detail_panel/panel_style";
 
 /* One Skeleton resource, open for editing.
  *
@@ -214,12 +212,6 @@ export default function SkeletonResourcePage({
   /* Escape was pressed with nothing above the graph to close and an unsaved
      edit: the Builder stayed open, and says why, until the edit is saved. */
   const [escapeHeld, setEscapeHeld] = useState(false);
-  /* The explicit legacy upgrade (#473 CP2): offered while the resource's own
-     graph still carries first-hop provenance, opened by the author, and a
-     write only through the host's compare-and-set apply. The offer is read
-     from the stored document, so a draft with unsaved edits is told to save
-     first rather than upgraded under the author's typing. */
-  const [upgradeOpen, setUpgradeOpen] = useState(false);
   const pageRef = useRef(null);
   const dirtyRef = useRef(false);
   /* How many times each resource has been written in this sitting. The same
@@ -900,29 +892,12 @@ export default function SkeletonResourcePage({
     setTestOpen(false);
     setSelectedNodeId(node_id);
   };
-  const upgradeCandidate = ready && steps.length === 0
-    && is_legacy_upgrade_candidate(session.document);
-  // First-hop migration carries its source on the root graph. Its old pool
-  // converter must not bypass the explicit, source-kind-preserving upgrade.
-  // Native graphs with a legacy pool but no migration source keep their route.
+  // A first-hop migration carries its source on the root graph, and its old
+  // pool converter must not rewrite that source. The upgrade that used to
+  // handle it was never shipped, so such a pool is left as it is; a native
+  // graph with a legacy pool but no migration source keeps its converter.
   const migratedLegacy = ready && session.document.nodes.some((node) => node?.config
     && Object.prototype.hasOwnProperty.call(node.config, "legacy_source"));
-  const upgradeBlocked = session.dirty
-    ? t("agents.editor.upgrade_save_first")
-    : session.saving || session.converting
-      ? t("agents.editor.upgrade_wait_write")
-      : session.conflict
-        ? t("agents.editor.upgrade_resolve_conflict")
-        : null;
-  const upgradeResource = upgradeCandidate && session.resource_id
-    ? { id: session.resource_id, edit_token: session.edit_token, document: session.document, name: typeof session.document?.name === "string" ? session.document.name : "" }
-    : null;
-  const reopen_after_upgrade = () => {
-    emitSkeletonLibraryRefresh({ reason: "resource_saved", resource_id: session.resource_id || "" });
-    setUpgradeOpen(false);
-    setSelectedNodeId(null);
-    load(session.resource_id);
-  };
 
   const shownNodes = Array.isArray(document?.nodes) ? document.nodes : [];
   const reopenTarget = shownNodes.some((node) => node?.id === lastShownNodeRef.current)
@@ -1005,28 +980,8 @@ export default function SkeletonResourcePage({
         </CanvasCaptionChip>
       )}
 
-      {(conflict || showRun || messages.length > 0 || upgradeCandidate) && (
+      {(conflict || showRun || messages.length > 0) && (
         <AboveControls testId="skeleton-above-controls">
-          {upgradeCandidate && !conflict && (
-            <ControlPopover isDark={isDark} testId="skeleton-legacy-upgrade-offer">
-              <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: 0.3 }}>
-                {t("agents.editor.legacy_agent")}
-              </span>
-              <span style={{ fontSize: 11, lineHeight: 1.45 }}>
-                {t("agents.editor.legacy_upgrade_description")}
-              </span>
-              {upgradeBlocked && <span style={{ fontSize: 11, lineHeight: 1.45, opacity: 0.8 }}>{upgradeBlocked}</span>}
-              <div style={{ display: "flex", gap: 6 }}>
-                <Button
-                  label={t("agents.editor.upgrade")}
-                  disabled={Boolean(upgradeBlocked)}
-                  onClick={() => setUpgradeOpen(true)}
-                  dom_props={{ "data-testid": "skeleton-legacy-upgrade-open" }}
-                  style={{ fontSize: 11.5, paddingVertical: 4, paddingHorizontal: 10, borderRadius: 6, color: upgradeBlocked ? undefined : (isDark ? "#60a5fa" : "#4a5bd8") }}
-                />
-              </div>
-            </ControlPopover>
-          )}
           {/* A conflict is not offered as "retry". Retrying at the same token
               fails identically, and retrying at the newer one replaces the
               other person's work without anyone seeing it happen. The two
@@ -1041,7 +996,7 @@ export default function SkeletonResourcePage({
                 <Button
                   label={t("agents.save.look_at_theirs")}
                   onClick={takeTheirs}
-                  style={{ fontSize: 11.5, paddingVertical: 4, paddingHorizontal: 10, borderRadius: 6 }}
+                  style={{ fontSize: 11.5, paddingVertical: 4, paddingHorizontal: 10, borderRadius: CONTROL_RADIUS }}
                 />
                 <Button
                   label={t("agents.save.keep_mine")}
@@ -1050,7 +1005,7 @@ export default function SkeletonResourcePage({
                     fontSize: 11.5,
                     paddingVertical: 4,
                     paddingHorizontal: 10,
-                    borderRadius: 6,
+                    borderRadius: CONTROL_RADIUS,
                     color: "#4a5bd8",
                   }}
                 />
@@ -1085,16 +1040,6 @@ export default function SkeletonResourcePage({
           </span>
         )}
 
-      {upgradeResource && (
-        <LegacyUpgradeWizard
-          open={upgradeOpen}
-          resource={upgradeResource}
-          isDark={isDark}
-          onClose={() => setUpgradeOpen(false)}
-          onUpgraded={reopen_after_upgrade}
-          onReopen={reopen_after_upgrade}
-        />
-      )}
       {ready && (
         <div data-testid="skeleton-editor-detail-boundary" style={{ display: "contents" }}>
         <FloatingDetailShell
@@ -1143,12 +1088,8 @@ export default function SkeletonResourcePage({
             onOpenWorkflow={open_called_workflow}
             onEntryIdRepaired={entry_id_repaired}
             embedded={steps.length > 0}
-            onConvertLegacy={migratedLegacy ? () => {
-              if (upgradeCandidate && !upgradeBlocked) setUpgradeOpen(true);
-            } : convertLegacyPools}
-            canConvertLegacy={migratedLegacy
-              ? Boolean(upgradeCandidate && !upgradeBlocked)
-              : can_convert_legacy_pools(session) && steps.length === 0}
+            onConvertLegacy={migratedLegacy ? undefined : convertLegacyPools}
+            canConvertLegacy={!migratedLegacy && can_convert_legacy_pools(session) && steps.length === 0}
             convertingLegacy={session.converting}
           />
           </div>
