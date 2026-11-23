@@ -17,7 +17,7 @@ import { binding_problems, expression_is_editable, make_binding, ref_expression 
 import { conditional_sources } from "../skeleton_branch_config";
 import { node_display_title } from "../node_display_labels";
 import { start_context_for_view } from "../start_context";
-import { CAPTION_TEXT, CONTROL_RADIUS, Region } from "./panel_style";
+import { CAPTION_TEXT, CONTROL_RADIUS, Region, REGION_RADIUS } from "./panel_style";
 import { is_system_context_output, visible_input_rows } from "./system_context_visibility";
 
 /* Input Variables: what this node reads, and from where.
@@ -63,7 +63,7 @@ function StartCallerInputs({ context, isDark }) {
       </span>}
       {fields.map((field) => (
         <div key={field.name} style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0,
-          padding: "7px 8px", borderRadius: 5, background: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)" }}>
+          padding: "7px 8px", borderRadius: REGION_RADIUS, background: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)" }}>
           <span aria-label={t("agents.io.read_only_caller_input")} style={{ width: 12, height: 12, flexShrink: 0 }}>
             <Icon src="lock" />
           </span>

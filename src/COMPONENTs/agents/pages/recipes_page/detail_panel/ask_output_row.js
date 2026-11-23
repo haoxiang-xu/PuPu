@@ -6,7 +6,7 @@ import VariablePill, { variablePillField } from "./variable_pill";
 import useTakenName from "./taken_name";
 import { identity_of } from "../document_values";
 import { ASK_TYPES, ask_type_key } from "../agent_asks";
-import { muted, problem as problemStyle } from "./panel_style";
+import { muted, problem as problemStyle, CONTROL_RADIUS } from "./panel_style";
 
 /* One "Ask the agent for…" output: the name both the output and the schema
    field go by, the kind of value, and what the agent should put there. The
@@ -39,7 +39,7 @@ export default function AskOutputRow({ field, index, taken, revision, nodeId, is
           value={field.description || ""}
           set_value={(next) => onChange({ description: next })}
           placeholder={t("agents.io.ask.description_placeholder")}
-          style={{ width: "100%", fontSize: 11.5, paddingVertical: 3, paddingHorizontal: 6, borderRadius: 5, color: muted(isDark) }}
+          style={{ width: "100%", fontSize: 11.5, paddingVertical: 3, paddingHorizontal: 6, borderRadius: CONTROL_RADIUS, color: muted(isDark) }}
         />
       </div>
       {name.held !== null && name.taken && (

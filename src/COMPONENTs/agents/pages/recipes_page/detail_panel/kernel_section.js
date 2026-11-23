@@ -1,6 +1,6 @@
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import PanelHelp from "./panel_help";
-import { fieldFill, hairline as hairlineOf, textFieldFill } from "./panel_style";
+import { fieldFill, hairline as hairlineOf, textFieldFill, CONTROL_HEIGHT, CONTROL_RADIUS, REGION_RADIUS } from "./panel_style";
 import React, { useEffect, useState } from "react";
 import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
 import Select from "./panel_select";
@@ -208,7 +208,10 @@ function CountRow({ label, stored, ceiling, caption, onStore, about, isDark, tes
             ...MONO,
             paddingVertical: 4,
             paddingHorizontal: 6,
-            borderRadius: 5,
+            ...fieldFill(isDark),
+            height: CONTROL_HEIGHT,
+            boxSizing: "border-box",
+            borderRadius: CONTROL_RADIUS,
           }}
         />
         <span style={{ ...CAPTION, flexShrink: 0 }}>{caption}</span>
@@ -365,7 +368,6 @@ export default function KernelSection({
     fontSize: 11.5,
     paddingVertical: 4,
     paddingHorizontal: 6,
-    borderRadius: 5,
     gap: 4,
   };
   const modelReasons = unavailable.slice(0, 6).map((entry) => {
@@ -460,7 +462,7 @@ export default function KernelSection({
           placeholder={t("agents.execution.kernel.prompt_placeholder")}
           min_rows={3}
           max_display_rows={12}
-          style={{ fontSize: 12.5, lineHeight: 1.55, ...(renderSections ? textFieldFill(isDark) : { borderRadius: 8 }) }}
+          style={{ fontSize: 12.5, lineHeight: 1.55, ...(renderSections ? textFieldFill(isDark) : { borderRadius: REGION_RADIUS }) }}
         />
         {kernel && unbound.length > 0 && (
           <span data-testid="kernel-prompt-unbound" style={refused_style(isDark)}>

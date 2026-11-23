@@ -52,7 +52,7 @@ import { subscribeSkeletonLibraryRefresh } from "../../../../../SERVICEs/skeleto
 import PanelHelp from "./panel_help";
 import AgentAvatar from "../../../agent_avatar";
 import PanelInput from "./panel_input";
-import { fieldFill, fillStrong, hairline, muted as mutedOf, note as noteStyle, PANEL_SWITCH, problem as problemOf, Region, removeButtonStyle, SettingRow, text, textFieldFill } from "./panel_style";
+import { fieldFill, fillStrong, hairline, muted as mutedOf, note as noteStyle, PANEL_SWITCH, problem as problemOf, Region, removeButtonStyle, SettingRow, text, textFieldFill, CONTROL_RADIUS } from "./panel_style";
 
 /* The Subagent Pool: which Agents this one may call, and how.
  *
@@ -404,7 +404,7 @@ function ModeRow({ mode, on, onToggle, isDark }) {
       onClick={onToggle}
       style={{
         font: "inherit", display: "flex", alignItems: "baseline", gap: 8, width: "100%", minHeight: 26,
-        boxSizing: "border-box", padding: 4, margin: 0, border: "none", borderRadius: 6,
+        boxSizing: "border-box", padding: 4, margin: 0, border: "none", borderRadius: CONTROL_RADIUS,
         background: "transparent", cursor: "pointer", textAlign: "left", color: text(isDark),
       }}
     >
@@ -640,7 +640,7 @@ function EntryRow({
                       label={t("agents.subagents.repair_id")}
                       ariaLabel={typeof entry.name === "string" && entry.name ? t("agents.subagents.repair_named", { name: entry.name }) : t("agents.subagents.repair_entry", { index: index + 1 })}
                       onClick={onRepairId}
-                      style={{ flexShrink: 0, fontSize: 11.5, paddingVertical: 3, paddingHorizontal: 7, borderRadius: 5, color: text(isDark) }}
+                      style={{ flexShrink: 0, fontSize: 11.5, paddingVertical: 3, paddingHorizontal: 7, borderRadius: CONTROL_RADIUS, color: text(isDark) }}
                     />
                   </div>
                 )}
@@ -707,7 +707,7 @@ function EntryRow({
                     placeholder={t("agents.subagents.description_placeholder")}
                     min_rows={3}
                     max_display_rows={8}
-                    style={{ fontSize: 12.5, lineHeight: 1.55, borderRadius: 8, ...textFieldFill(isDark) }}
+                    style={{ fontSize: 12.5, lineHeight: 1.55, ...textFieldFill(isDark) }}
                   />
                 </div>
               ) : (
@@ -1418,7 +1418,7 @@ export default function SubagentPoolSection({
                     label={t("agents.legacy_tools.add")}
                     ariaLabel={t("agents.subagents.reference", { value1: resource_label(resource) })}
                     onClick={() => add(resource)}
-                    style={{ flexShrink: 0, fontSize: 11.5, paddingVertical: 4, paddingHorizontal: 7, borderRadius: 6, gap: 3, color: text(isDark), content: { icon: { width: 11, height: 11 } } }}
+                    style={{ flexShrink: 0, fontSize: 11.5, paddingVertical: 4, paddingHorizontal: 7, borderRadius: CONTROL_RADIUS, gap: 3, color: text(isDark), content: { icon: { width: 11, height: 11 } } }}
                   />
                 </div>
               ))}</Region>

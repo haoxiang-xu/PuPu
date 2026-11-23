@@ -139,7 +139,7 @@ export default function ToolCallSection({ document, node, isDark, onChange }) {
           {home && <span style={{ ...note(isDark), minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{home.toolkitName || home.toolkitId}</span>}
         </div>
         {library.status === "error" && (
-          <span data-testid="tool-call-library-error" style={problemOf(isDark)}>{t("agents.execution.tool.library_failed")}<Button label={t("agents.explorer.try_again")} onClick={reloadLibrary} style={{ fontSize: 11.5, paddingVertical: 1, paddingHorizontal: 6 }} />
+          <span data-testid="tool-call-library-error" style={problemOf(isDark)}>{t("agents.execution.tool.library_failed")}<Button label={t("agents.explorer.try_again")} onClick={reloadLibrary} style={{ fontSize: 11.5, paddingVertical: 1, paddingHorizontal: 6, borderRadius: CONTROL_RADIUS }} />
           </span>
         )}
         {listed && listed.description && <span style={note(isDark)}>{listed.description}</span>}
@@ -166,7 +166,7 @@ export default function ToolCallSection({ document, node, isDark, onChange }) {
         {name && home && schemas.status === "error" && (
           <span data-testid="tool-call-schema-error" style={problemOf(isDark)}>
             {safe_text((schemas.error && schemas.error.message) || t("agents.execution.tool.arguments_failed"))}{" "}
-            <Button label={t("agents.explorer.try_again")} onClick={reloadSchemas} style={{ fontSize: 11.5, paddingVertical: 1, paddingHorizontal: 6 }} />
+            <Button label={t("agents.explorer.try_again")} onClick={reloadSchemas} style={{ fontSize: 11.5, paddingVertical: 1, paddingHorizontal: 6, borderRadius: CONTROL_RADIUS }} />
           </span>
         )}
         {name && home && schemas.status === "ready" && !schema && (

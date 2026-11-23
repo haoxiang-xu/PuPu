@@ -15,7 +15,7 @@ import { identity_of } from "../document_values";
 import { output_schema_problems } from "../output_schema";
 import usePendingText from "./pending_text";
 import useTakenName from "./taken_name";
-import { CONTROL_RADIUS, fill, PANEL_SWITCH, textFieldFill } from "./panel_style";
+import { CONTROL_RADIUS, fill, PANEL_SWITCH, textFieldFill, REGION_RADIUS } from "./panel_style";
 import useListIdentities from "./list_identity";
 import {
   BOUND_LABEL,
@@ -246,7 +246,7 @@ export function FieldRow({ field, index, taken, revision, isDark, onChange, onRe
         flexDirection: "column",
         gap: 6,
         padding: "8px 10px",
-        borderRadius: 8,
+        borderRadius: REGION_RADIUS,
         background: fill(isDark),
       }}
     >

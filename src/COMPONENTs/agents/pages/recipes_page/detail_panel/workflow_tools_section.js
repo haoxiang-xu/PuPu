@@ -14,7 +14,7 @@ import { python_strip } from "../kernel_config";
 import useListIdentities from "./list_identity";
 import usePendingText from "./pending_text";
 import WorkflowPinControl from "./workflow_pin_control";
-import { addButtonStyle, muted, note as noteOf, problem as problemOf, Region, removeButtonStyle, text } from "./panel_style";
+import { addButtonStyle, muted, note as noteOf, problem as problemOf, Region, removeButtonStyle, text, CONTROL_RADIUS } from "./panel_style";
 
 const record = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 const has = (value, key) => record(value) && Object.prototype.hasOwnProperty.call(value, key);
@@ -92,7 +92,8 @@ function WorkflowToolRow({ entry, index, identity, canEdit, canRemove, onSet, on
         isDark={isDark} testid={`native-workflow-tool-pin-${identity}`} />
       {extra.map((key) => <div key={key} style={ROW}>
         <span style={problem}>{t("agents.workflow_tools.unsupported", { key, value: safe_text(entry[key]) })}</span>
-        <Button label={t("agents.workflow_tools.remove_setting")} ariaLabel={t("agents.workflow_tools.remove_setting_key", { key })} disabled={!canEdit} onClick={() => onSet((current) => { const next = { ...current }; delete next[key]; return next; })} />
+        <Button label={t("agents.workflow_tools.remove_setting")} ariaLabel={t("agents.workflow_tools.remove_setting_key", { key })} disabled={!canEdit} onClick={() => onSet((current) => { const next = { ...current }; delete next[key]; return next; })}
+          style={{ fontSize: 11, paddingVertical: 4, paddingHorizontal: 6, borderRadius: CONTROL_RADIUS }} />
       </div>)}
     </>}
     </div>

@@ -4,7 +4,7 @@ import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import ChatInput from "../../../../chat-input/chat_input";
 import PanelSelect from "../detail_panel/panel_select";
 import PanelHeader from "../detail_panel/panel_header";
-import { ControlHint } from "../canvas_chrome";
+import { ControlHint, CHROME_BUTTON_RADIUS } from "../canvas_chrome";
 import { Block, FoldBlock } from "../detail_panel/process_timeline";
 import {
   REGION_RADIUS, Region, SettingRow, hairline, note, pickerSelectProps, pickerSlotStyle, primaryButtonStyle, problem as problemOf,
@@ -46,7 +46,7 @@ import ChatMessages from "../../../../chat-messages/chat_messages";
 
 const TINT = "#2f9a68";
 /* The panel toggle's own measure (canvas_chrome's fitted glyph). */
-const toggleRowButtonStyle = { fontSize: 14, color: "var(--pupu-text)", borderRadius: 7, iconOnlyPaddingVertical: 5, iconOnlyPaddingHorizontal: 5 };
+const toggleRowButtonStyle = { fontSize: 14, color: "var(--pupu-text)", borderRadius: CHROME_BUTTON_RADIUS, iconOnlyPaddingVertical: 5, iconOnlyPaddingHorizontal: 5 };
 
 /* The composer's bottom margin (its 12px padding): the conversation is
    masked out there, so nothing scrolls visibly beneath the box. */

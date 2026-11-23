@@ -16,6 +16,7 @@ import useReducedMotion from "../../../../BUILTIN_COMPONENTs/mini_react/use_redu
 import { TOP_BAR_HEIGHT } from "../../../../BUILTIN_COMPONENTs/electron/title_bar";
 import WindowControls, { windowControlsInset } from "../../../../BUILTIN_COMPONENTs/electron/window_controls";
 import { windowStateBridge } from "../../../../SERVICEs/bridges/window_state_bridge";
+import { CONTROL_RADIUS, REGION_RADIUS } from "./detail_panel/panel_style";
 
 const hasWindowControls = () =>
   typeof window !== "undefined" &&
@@ -43,6 +44,15 @@ export const PANEL_INSET = 6;
 export const HANDLE_GAP = 2;
 /* The docked right side menu floats one ring inside the window: this far
    from the window's top, right and bottom edges, with these corners. */
+/* The chrome's corners, in named steps — use these, not a number.
+   - CHROME_CARD_RADIUS: a glass card that floats over the canvas — the
+     control center, its popovers, the message strip, the caption chip.
+   - CHROME_BUTTON_RADIUS: a button inside that glass, the app's own button
+     corner, so a bare Button and a chrome button agree.
+   The floating detail panel is a region (REGION_RADIUS); the docked one
+   follows DETAIL_RADIUS below. */
+export const CHROME_CARD_RADIUS = 12;
+export const CHROME_BUTTON_RADIUS = 7;
 export const DETAIL_INSET = 8;
 export const DETAIL_RADIUS = 14;
 /* The docked panel's toggle: the same icon at the same centre as the left
@@ -92,7 +102,7 @@ const ICON_CONTROL = (enabled) => ({
   fontSize: 12,
   paddingVertical: 5,
   paddingHorizontal: 8,
-  borderRadius: 7,
+  borderRadius: CHROME_BUTTON_RADIUS,
   opacity: enabled ? 0.85 : 0.35,
   /* A disabled button keeps the pointer to itself; letting it through to
      the hint's wrapper is what keeps the hint on a control that is off. */
@@ -169,7 +179,7 @@ export function CanvasControlCenter({
         alignItems: "center",
         gap: 8,
         padding: 6,
-        borderRadius: 12,
+        borderRadius: CHROME_CARD_RADIUS,
         ...glass(tokens),
         boxShadow: tokens.controlShadow,
         color: "var(--pupu-text)",
@@ -205,7 +215,7 @@ export function CanvasControlCenter({
             fontSize: 12,
             paddingVertical: 5,
             paddingHorizontal: 8,
-            borderRadius: 7,
+            borderRadius: CHROME_BUTTON_RADIUS,
             opacity: 0.7,
             content: { icon: { width: 13, height: 13 } },
           }}
@@ -228,7 +238,7 @@ export function CanvasControlCenter({
             fontSize: 12,
             paddingVertical: 5,
             paddingHorizontal: 14,
-            borderRadius: 7,
+            borderRadius: CHROME_BUTTON_RADIUS,
             backgroundColor: saveActive ? "var(--pupu-accent)" : "transparent",
             color: saveActive ? "#fff" : "var(--pupu-text)",
             opacity: saveActive ? 1 : 0.5,
@@ -276,7 +286,7 @@ export function ControlPopover({ isDark, testId, children, width = 320 }) {
         maxWidth: "100%",
         boxSizing: "border-box",
         padding: 12,
-        borderRadius: 12,
+        borderRadius: CHROME_CARD_RADIUS,
         ...glass(tokens),
         boxShadow: tokens.shadow,
         color: "var(--pupu-text)",
@@ -314,7 +324,7 @@ export function CanvasMessageStrip({ isDark, items, testId, role, standalone = f
             }
           : {}),
         padding: "8px 12px",
-        borderRadius: 8,
+        borderRadius: CHROME_CARD_RADIUS,
         background: isDark ? "rgba(90, 30, 30, 0.92)" : "#fff2f0",
         border: isDark ? "1px solid rgba(255,120,120,0.28)" : "1px solid rgba(220,70,70,0.22)",
         color: isDark ? "#ffd6d6" : "#9f1d1d",
@@ -385,7 +395,7 @@ export function EscapeBackHint({ isDark, visible, top, left, testId = "canvas-es
           fontSize: 10.5,
           fontWeight: 500,
           padding: "3px 6px",
-          borderRadius: 6,
+          borderRadius: CONTROL_RADIUS,
           color: "var(--pupu-text)",
           backgroundColor: `rgba(var(--pupu-text-rgb, ${isDark ? "255,255,255" : "0,0,0"}), ${isDark ? 0.12 : 0.07})`,
           boxShadow: `inset 0 0 0 1px rgba(var(--pupu-text-rgb, ${isDark ? "255,255,255" : "0,0,0"}), ${isDark ? 0.1 : 0.08})`,
@@ -414,7 +424,7 @@ export function CanvasCaptionChip({ isDark, children, testId }) {
         flexDirection: "column",
         gap: 2,
         padding: "6px 10px",
-        borderRadius: 8,
+        borderRadius: CHROME_CARD_RADIUS,
         ...glass(tokens),
         boxShadow: tokens.shadow,
         fontSize: 11,
@@ -733,7 +743,7 @@ function FloatingDetailCard({
         style={{
           position: "absolute",
           zIndex: AGENTS_MODAL_Z.PANEL,
-          borderRadius: 10,
+          borderRadius: REGION_RADIUS,
           ...glass(tokens),
           ...(resizing && {
             backgroundColor: "var(--pupu-surface)",

@@ -8,7 +8,7 @@ import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use
 import { agentError, agentMessage, renderAgentMessage } from "../agents_i18n";
 import { is_unavailable, list_resources, load_resource, publish_workflow } from "../skeleton_resources";
 import { remember_workflow_version, request_workflow_version, useWorkflowVersions, workflow_version_state } from "../workflow_versions";
-import { CAPTION_TEXT, addButtonStyle, note, problem } from "./panel_style";
+import { CAPTION_TEXT, addButtonStyle, note, problem, CONTROL_RADIUS } from "./panel_style";
 
 /* Choosing and pinning one published Workflow revision (#357 Hooks Pool).
  *
@@ -173,7 +173,7 @@ export default function WorkflowPinControl({ pin, stored, editable, onPin, isDar
       {library.status === "error" && (
         <span style={problem(isDark)}>
           {t("agents.workflow.library_failed", { message: renderAgentMessage(refusal_text(library.error, agentMessage("agents.workflow.store_refused")), t) })}{" "}
-          <Button label={t("agents.explorer.try_again")} onClick={reloadLibrary} style={{ fontSize: 11.5, paddingVertical: 1, paddingHorizontal: 6 }} />
+          <Button label={t("agents.explorer.try_again")} onClick={reloadLibrary} style={{ fontSize: 11.5, paddingVertical: 1, paddingHorizontal: 6, borderRadius: CONTROL_RADIUS }} />
         </span>
       )}
       {record(stored) && !pin && (

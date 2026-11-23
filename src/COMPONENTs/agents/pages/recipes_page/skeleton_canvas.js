@@ -35,6 +35,8 @@ import {
   writeSkeletonNodePositions,
   writeSkeletonViewport,
 } from "../../../../SERVICEs/skeleton_layout";
+import { CHROME_CARD_RADIUS } from "./canvas_chrome";
+import { REGION_RADIUS } from "./detail_panel/panel_style";
 
 /* The graph, drawn.
  *
@@ -119,7 +121,7 @@ function renderNode(node, isDark, onOpenSubagent, view = {}) {
     <div
       style={{
         padding: "10px 14px",
-        borderRadius: 8,
+        borderRadius: REGION_RADIUS,
         fontSize: 11.5,
         fontFamily: "ui-monospace, Menlo, monospace",
         border: isDark ? "1px dashed rgba(255,255,255,0.25)" : "1px dashed rgba(0,0,0,0.2)",
@@ -661,7 +663,7 @@ function GraphDrawing({
         zoom_reset_token={zoomToken}
         select_all_token={selectToken}
       />
-      {problem && <div data-testid="skeleton-graph-problem" role="alert" style={{ position: "absolute", bottom: 8, left: 8, right: 8, padding: "8px 12px", borderRadius: 8, background: "var(--pupu-surface)", fontSize: 12 }}>{renderAgentMessage(problem, t)}</div>}
+      {problem && <div data-testid="skeleton-graph-problem" role="alert" style={{ position: "absolute", bottom: 8, left: 8, right: 8, padding: "8px 12px", borderRadius: CHROME_CARD_RADIUS, background: "var(--pupu-surface)", fontSize: 12 }}>{renderAgentMessage(problem, t)}</div>}
       <RecipeNodePalette visible={canEdit && !!palette} x={palette?.x || 0} y={palette?.y || 0}
         allowedTypes={addableTypes} entries={paletteEntries} onPick={pickNode} onClose={() => setPalette(null)} isDark={isDark} />
       <ContextMenu visible={canEdit && !!menu} x={menu?.client_x || 0} y={menu?.client_y || 0}

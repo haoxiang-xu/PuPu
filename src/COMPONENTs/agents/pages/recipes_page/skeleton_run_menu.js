@@ -1,7 +1,7 @@
 import { useTranslation } from "../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import React from "react";
 import Button from "../../../../BUILTIN_COMPONENTs/input/button";
-import { ControlHint } from "./canvas_chrome";
+import { ControlHint, CHROME_BUTTON_RADIUS } from "./canvas_chrome";
 
 /* Run, in the control center: opens the Test panel. */
 
@@ -22,7 +22,7 @@ export function RunTrigger({ open, onToggle, testId }) {
           fontSize: 12,
           paddingVertical: 5,
           paddingHorizontal: 8,
-          borderRadius: 7,
+          borderRadius: CHROME_BUTTON_RADIUS,
           opacity: open ? 1 : 0.7,
           content: { icon: { width: 13, height: 13 } },
         }}

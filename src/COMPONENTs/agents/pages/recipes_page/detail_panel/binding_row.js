@@ -13,6 +13,7 @@ import {
   literal_expression,
   ref_expression,
 } from "../skeleton_io";
+import { CONTROL_RADIUS } from "./panel_style";
 
 /* One input: `[local name] ← [source]`, plus what happens when the source has
  * nothing to give.
@@ -83,7 +84,7 @@ export function RefPicker({ value, sources, onChange, testid, compact = false })
         fontSize: 12,
         paddingVertical: 4,
         paddingHorizontal: 6,
-        borderRadius: 8,
+        borderRadius: CONTROL_RADIUS,
         gap: 4,
       }}
     />
@@ -140,7 +141,7 @@ export default function BindingRow({
         <Input value={(binding && binding.name) || ""}
           set_value={(next) => onChange({ ...binding, name: next })}
           placeholder={t("agents.io.name_placeholder")}
-          style={{ width: "100%", minWidth: 0, fontSize: 12, ...MONO, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 8 }} />
+          style={{ width: "100%", minWidth: 0, fontSize: 12, ...MONO, paddingVertical: 4, paddingHorizontal: 6, borderRadius: CONTROL_RADIUS }} />
         <span aria-hidden="true" style={CAPTION}>←</span>
         <div data-testid={`binding-row-${index}-source`} style={{ display: "flex", minWidth: 0 }}>
           {editable && kind === "ref" ? (
@@ -149,31 +150,31 @@ export default function BindingRow({
             <Input value={typeof value.value === "string" ? value.value : JSON.stringify(value.value)}
               set_value={(next) => set_value(literal_expression(next))}
               placeholder={t("agents.io.a_value_written_here_not_read_from_the_graph")}
-              style={{ width: "100%", minWidth: 0, fontSize: 12, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 8 }} />
+              style={{ width: "100%", minWidth: 0, fontSize: 12, paddingVertical: 4, paddingHorizontal: 6, borderRadius: CONTROL_RADIUS }} />
           ) : (
             <Button label={editable ? t("agents.io.source.first_present") : "—"}
               onClick={() => setExpanded(true)}
-              style={{ minWidth: 0, maxWidth: "100%", fontSize: 12, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 8 }} />
+              style={{ minWidth: 0, maxWidth: "100%", fontSize: 12, paddingVertical: 4, paddingHorizontal: 6, borderRadius: CONTROL_RADIUS }} />
           )}
         </div>
         <Button prefix_icon="more" ariaLabel={`${binding?.name || t("agents.io.input_variables")} · ${t("chat.attach.more")}`}
           dom_props={{ "aria-expanded": expanded, "aria-controls": settingsId }}
           onClick={() => setExpanded(!expanded)}
-          style={{ width: 24, height: 24, iconOnlyPaddingVertical: 0, iconOnlyPaddingHorizontal: 0, borderRadius: 8, color: "#86868b", content: { icon: { width: 15, height: 15 } } }} />
+          style={{ width: 24, height: 24, iconOnlyPaddingVertical: 0, iconOnlyPaddingHorizontal: 0, borderRadius: CONTROL_RADIUS, color: "#86868b", content: { icon: { width: 15, height: 15 } } }} />
       </div>
       {/* Keep editors mounted: closing settings must not discard unfinished text. */}
       <VariableSettings id={settingsId} testid={`binding-row-${index}-settings`} expanded={expanded} isDark={isDark}
         footer={(
           <Button prefix_icon="delete" label={binding?.name ? t("agents.io.remove_input", { name: binding.name }) : t("agents.io.remove_input_unnamed")}
           ariaLabel={binding?.name ? t("agents.io.remove_input", { name: binding.name }) : t("agents.io.remove_input_unnamed")}
-          onClick={onRemove} style={{ alignSelf: "flex-start", fontSize: 11.5, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 8 }} />
+          onClick={onRemove} style={{ alignSelf: "flex-start", fontSize: 11.5, paddingVertical: 4, paddingHorizontal: 6, borderRadius: CONTROL_RADIUS }} />
         )}>
 
         <VariableSettingRow label={t("model_providers.custom.import_source")}>
           <Select options={SOURCE_KINDS.map((source) => ({ ...source, label: source.value === "ref"
           ? t("agents.io.source.ref") : source.value === "literal" ? t("agents.io.source.literal") : t("agents.io.source.first_present") }))}
           value={kind} set_value={set_kind} filterable={false} trigger_wrapper_style={{ width: "100%", minWidth: 0 }}
-          style={{ width: "100%", boxSizing: "border-box", justifyContent: "flex-start", minWidth: 0, fontSize: 12, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 8, gap: 4 }} />
+          style={{ width: "100%", boxSizing: "border-box", justifyContent: "flex-start", minWidth: 0, fontSize: 12, paddingVertical: 4, paddingHorizontal: 6, borderRadius: CONTROL_RADIUS, gap: 4 }} />
         </VariableSettingRow>
       {editable && kind === "first_present" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -210,7 +211,7 @@ export default function BindingRow({
                 style={{
                   paddingVertical: 4,
                   paddingHorizontal: 4,
-                  borderRadius: 8,
+                  borderRadius: CONTROL_RADIUS,
                   content: { icon: { width: 11, height: 11 } },
                 }}
               />
@@ -233,7 +234,7 @@ export default function BindingRow({
               fontSize: 11.5,
               paddingVertical: 3,
               paddingHorizontal: 8,
-              borderRadius: 8,
+              borderRadius: CONTROL_RADIUS,
               color: "var(--pupu-text-muted)",
             }}
           />

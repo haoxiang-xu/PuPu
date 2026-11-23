@@ -10,6 +10,7 @@ import {
   missing_policy,
   with_missing_policy,
 } from "../skeleton_io";
+import { CONTROL_RADIUS } from "./panel_style";
 
 /* What a binding does when its upstream value is not there.
  *
@@ -83,7 +84,7 @@ export default function MissingPolicySelect({ binding, onChange, isDark, labelWi
             fontSize: 12,
             paddingVertical: 4,
             paddingHorizontal: 6,
-            borderRadius: 8,
+            borderRadius: CONTROL_RADIUS,
             gap: 4,
           }}
         />
@@ -107,7 +108,7 @@ export default function MissingPolicySelect({ binding, onChange, isDark, labelWi
               fontSize: 12,
               paddingVertical: 4,
               paddingHorizontal: 6,
-              borderRadius: 8,
+              borderRadius: CONTROL_RADIUS,
             }}
           />
         </div>

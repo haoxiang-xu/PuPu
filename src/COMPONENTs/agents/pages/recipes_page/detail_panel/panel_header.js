@@ -2,6 +2,7 @@ import React, { useContext } from "react";
 import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
 import { DETAIL_INSET, DetailChromeContext } from "../canvas_chrome";
 import { TOP_BAR_HEIGHT } from "../../../../../BUILTIN_COMPONENTs/electron/title_bar";
+import { NODE_ICON_RADIUS } from "../nodes/node_metrics";
 
 /* From the toggle's centre to the next button's, the left side menu's step. */
 const TOGGLE_ROW_STEP = 30;
@@ -36,7 +37,7 @@ export default function PanelHeader({ icon, tint, title, subtitle, actions, togg
         position: "relative", flexShrink: 0, display: "flex", alignItems: "center", gap: 10, padding: "14px 16px 12px", borderBottom: rule,
       }}
     >
-      <div style={{ width: 26, height: 26, borderRadius: 7, background: tint, display: "flex",
+      <div style={{ width: 26, height: 26, borderRadius: NODE_ICON_RADIUS, background: tint, display: "flex",
         alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
         <Icon src={icon} color="#fff" style={{ width: 14, height: 14 }} />
       </div>

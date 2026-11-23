@@ -7,6 +7,7 @@ import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import PathEditor from "./path_editor";
 import PanelHelp from "./panel_help";
 import { output_mapping_is_editable } from "../skeleton_io";
+import { CONTROL_RADIUS } from "./panel_style";
 
 /* One exported value: `[name] ← [this node's inputs | its result] [path]`.
  *
@@ -136,7 +137,7 @@ function RootPicker({ roots, wholeLabel, open, choice, path, onPath, prefix, sum
         fontSize: 12,
         paddingVertical: 4,
         paddingHorizontal: 6,
-        borderRadius: 8,
+        borderRadius: CONTROL_RADIUS,
         gap: 4,
       }}
     />
@@ -219,7 +220,7 @@ export default function OutputRow({
         <Input value={(mapping && mapping.name) || ""}
           set_value={(next) => onChange({ ...mapping, name: next })}
           placeholder={t("agents.io.name_placeholder")}
-          style={{ width: "100%", minWidth: 0, fontSize: 12, ...MONO, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 8 }} />
+          style={{ width: "100%", minWidth: 0, fontSize: 12, ...MONO, paddingVertical: 4, paddingHorizontal: 6, borderRadius: CONTROL_RADIUS }} />
         <span aria-hidden="true" style={CAPTION}>←</span>
         <div data-testid={`output-row-${index}-source`} title={sourceLabel} style={{ display: "flex", alignItems: "center", gap: 4, minWidth: 0 }}>
           {editable && roots !== null ? (
@@ -228,7 +229,7 @@ export default function OutputRow({
               onPath={(next) => set_source({ path: next })} />
           ) : (
             <Button label={sourceLabel} onClick={() => setExpanded(true)}
-              style={{ minWidth: 0, maxWidth: "100%", fontSize: 12, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 8 }} />
+              style={{ minWidth: 0, maxWidth: "100%", fontSize: 12, paddingVertical: 4, paddingHorizontal: 6, borderRadius: CONTROL_RADIUS }} />
           )}
           {editable && roots !== null && open && resultRoots.reason && <PanelHelp label={t("agents.execution.code.result")}>
             <span data-testid={`output-row-${index}-result-open`}>{resultRoots.reason}</span>
@@ -237,14 +238,14 @@ export default function OutputRow({
         <Button prefix_icon="more" ariaLabel={`${mapping?.name || t("agents.io.output_variables")} · ${t("chat.attach.more")}`}
           dom_props={{ "aria-expanded": expanded, "aria-controls": settingsId }}
           onClick={() => setExpanded(!expanded)}
-          style={{ width: 24, height: 24, iconOnlyPaddingVertical: 0, iconOnlyPaddingHorizontal: 0, borderRadius: 8, color: "#86868b", content: { icon: { width: 15, height: 15 } } }} />
+          style={{ width: 24, height: 24, iconOnlyPaddingVertical: 0, iconOnlyPaddingHorizontal: 0, borderRadius: CONTROL_RADIUS, color: "#86868b", content: { icon: { width: 15, height: 15 } } }} />
       </div>
       {/* Preserve path-editor identity and refused text while settings are closed. */}
       <VariableSettings id={settingsId} testid={`output-row-${index}-settings`} expanded={expanded} isDark={isDark}
         footer={(
           <Button prefix_icon="delete" label={mapping?.name ? t("agents.io.remove_output", { name: mapping.name }) : t("agents.io.remove_output_unnamed")}
           ariaLabel={mapping?.name ? t("agents.io.remove_output", { name: mapping.name }) : t("agents.io.remove_output_unnamed")}
-          onClick={onRemove} style={{ alignSelf: "flex-start", fontSize: 11.5, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 8 }} />
+          onClick={onRemove} style={{ alignSelf: "flex-start", fontSize: 11.5, paddingVertical: 4, paddingHorizontal: 6, borderRadius: CONTROL_RADIUS }} />
         )}>
 
         <VariableSettingRow label={t("model_providers.custom.import_source")}>
@@ -252,7 +253,7 @@ export default function OutputRow({
           <Select options={kinds.map((value) => ({ value, label: value === "input" ? t("agents.workflow.inputs")
             : value === "result" ? t("agents.execution.code.result") : KIND_LABEL[value] }))}
             value={kind} set_value={set_kind} filterable={false} trigger_wrapper_style={{ width: "100%", minWidth: 0 }}
-            style={{ width: "100%", boxSizing: "border-box", justifyContent: "flex-start", minWidth: 0, fontSize: 12, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 8, gap: 4 }} />
+            style={{ width: "100%", boxSizing: "border-box", justifyContent: "flex-start", minWidth: 0, fontSize: 12, paddingVertical: 4, paddingHorizontal: 6, borderRadius: CONTROL_RADIUS, gap: 4 }} />
         ) : (
           <span data-testid={`output-row-${index}-fixed-kind`} title={single_kind_caption} style={CAPTION}>{prefix}</span>
         )}
