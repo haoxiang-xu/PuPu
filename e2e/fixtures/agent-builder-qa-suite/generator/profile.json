@@ -1,0 +1,1 @@
+{"id": "openai:gpt-4.1-mini", "provider": "openai", "model": "gpt-4.1-mini", "protocol": "openai-responses", "endpoint": "https://api.openai.com/v1", "credential_ref": "openai", "context_window": 1047576, "output_limit": 16384, "capabilities": {"json_schema": true, "images": true, "files": true}}
