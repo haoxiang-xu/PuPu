@@ -914,14 +914,16 @@ const Tooltip = ({
   };
   /* A focused control can lose focus without a blur: it is unmounted (a Run
      button that becomes Stop) or disabled, and the browser moves focus to
-     the body silently. Without this check the bubble stays open for good. */
+     the body silently. Without this check the bubble stays open for good.
+     Checked whenever the trigger's children are rendered anew, which is when
+     a control can be swapped out or disabled. */
   useEffect(() => {
     if (!isFocused) return;
     const focused = focused_ref.current;
     if (focused && trigger_ref.current?.contains(focused) && !focused.disabled) return;
     focused_ref.current = null;
     setIsFocused(false);
-  });
+  }, [isFocused, children]);
 
   const handle_trigger_click = () => {
     if (!isClickEnabled) return;
