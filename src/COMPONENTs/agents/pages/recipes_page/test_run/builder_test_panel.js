@@ -426,6 +426,13 @@ export default function BuilderTestPanel({ active, session, onSave, onCheck, onF
           {kind !== "agent" && (
             <div style={{ padding: "10px 16px 14px", display: "flex", gap: 8, alignItems: "flex-end", flexShrink: 0,
               borderTop: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}` }}>
+              {/* History is durable and bounded. Keep a new-session action
+                  even when an oversized history refused the opening read. */}
+              {kind === "workflow" && (runs.length > 0 || error) && (
+                <Button label={t("agents.test_run.start_over")} prefix_icon="refresh"
+                  dom_props={{ "data-testid": "test-run-reset-history" }} onClick={controller.newConversation}
+                  disabled={busy || running || !session.edit_token} style={secondaryButtonStyle(isDark)} />
+              )}
               {running ? (
                 <Button label={t("agents.test_run.stop")} prefix_icon="stop" onClick={() => controller.stop(last)} disabled={busy}
                   style={{ ...primaryButtonStyle(isDark), flex: 1 }} />

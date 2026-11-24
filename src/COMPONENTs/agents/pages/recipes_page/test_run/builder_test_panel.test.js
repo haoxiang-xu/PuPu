@@ -483,5 +483,32 @@ test('a Workflow has no conversation to start over: its corner is Run, then Stop
   const stops=await screen.findAllByRole('button',{name:'Stop',exact:true});
   expect(stops).toHaveLength(2);
   expect(stops[0]).toHaveAttribute('data-testid','test-run-corner-run');
+  expect(screen.getByTestId('test-run-reset-history')).toBeDisabled();
   expect(screen.queryAllByRole('button',{name:'Run',exact:true})).toHaveLength(0);
+});
+
+test.each([false,true])('Workflow history can be reset and tested again after its limit (oversized opening read: %s)',async oversized=>{
+  const full={...workflowOpened,runs:Array.from({length:100},(_,index)=>({...completed.runs[0],id:`history-${index}`,inputs:{old:'previous'},output:{value:index}}))};
+  const fresh={...workflowOpened,session:{...workflowOpened.session,id:'builder-test-fresh'},runs:[]};
+  builderTestCommand.mockImplementation(async request=>{
+    require('../../../../../../electron/main/services/unchain/builder_tests').checkBuilderTestCommand(request);
+    if(request.op==='open'){
+      if(oversized)throw {code:'test_result_too_large',message:'Start a new test conversation.',status:413};
+      return full;
+    }
+    if(request.op==='new')return fresh;
+    if(request.op==='start'){
+      if(request.session_id!==fresh.session.id)throw {code:'test_session_full',status:409};
+      return {...fresh,runs:[{...completed.runs[0],id:'after-reset',inputs:request.inputs,output:{value:'fresh result'}}]};
+    }
+    throw new Error(`Unexpected history command: ${request.op}`);
+  });
+  render(<BuilderTestPanel active session={workflowSession()} isDark={false}/>);
+  fireEvent.click(await screen.findByTestId('test-run-reset-history'));
+  await waitFor(()=>expect(builderTestCommand).toHaveBeenCalledWith({op:'new',resource_id:'workflow-demo',kind:'workflow'}));
+  fireEvent.change(screen.getByRole('textbox',{name:'old',exact:true}),{target:{value:'after reset'}});
+  await waitFor(()=>runButtons().forEach(button=>expect(button).toBeEnabled()));
+  fireEvent.click(screen.getByTestId('test-run-corner-run'));
+  await waitFor(()=>expect(builderTestCommand).toHaveBeenCalledWith(expect.objectContaining({op:'start',session_id:'builder-test-fresh',inputs:{old:'after reset'}})));
+  expect(await screen.findByText('fresh result')).toBeInTheDocument();
 });
