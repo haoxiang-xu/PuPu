@@ -99,6 +99,44 @@ def test_prepared_workflow_uses_a_after_save_b_and_never_calls_model(production)
         tests.prepare(session,saved['id'],saved['edit_token'],{'city':'B'},'request-B',context=options)
 
 
+@pytest.mark.parametrize('oversized', [False, True])
+def test_workflow_history_limit_can_be_reset_and_run_again(production, oversized):
+    store, options, calls = production
+    options = dict(options, skeleton_credentials={})
+    saved = store.save_draft(workflow())
+    tests = sessions()
+    resource = saved['id']
+    session = tests.open(resource, 'workflow')['session']['id']
+    # Ready runs are idle but count toward the same persisted history limit.
+    for index in range(100):
+        tests.prepare(session, resource, saved['edit_token'],
+                      {'city': 'x' * 200000 if oversized else 'before'},
+                      f'history-{index}', context=options)
+    with pytest.raises(SkeletonResourceError, match='Start a new test conversation'):
+        tests.prepare(session, resource, saved['edit_token'], {'city': 'blocked'},
+                      'history-full', context=options)
+    cold = sessions()
+    if oversized:
+        with pytest.raises(SkeletonResourceError, match='Recorded test history'):
+            cold.open(resource, 'workflow')
+    else:
+        assert cold.open(resource, 'workflow')['session']['id'] == session
+    fresh = cold.open(resource, 'workflow', new=True)
+    assert fresh['session']['id'] != session and fresh['runs'] == []
+    if oversized:
+        with pytest.raises(SkeletonResourceError, match='Recorded test history'):
+            cold.read(session, resource)
+    else:
+        assert len(cold.read(session, resource)['runs']) == 100
+    next_session = fresh['session']['id']
+    prepared = cold.prepare(next_session, resource, saved['edit_token'],
+                            {'city': 'after'}, 'after-reset', context=options)
+    result = cold.execute(next_session, resource, prepared['run_id'], options)
+    assert result['runs'][0]['status'] == 'completed'
+    assert result['runs'][0]['output'] == {'args': {'city': 'after', 'days': 1}}
+    assert calls == []
+
+
 def test_request_identity_also_freezes_authorized_tool_and_workspace_context(production,tmp_path):
     store,options,calls=production
     saved=store.save_draft(workflow());tests=sessions()

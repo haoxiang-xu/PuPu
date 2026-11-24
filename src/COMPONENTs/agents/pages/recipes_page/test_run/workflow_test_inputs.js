@@ -5,7 +5,7 @@ import TextField from "../../../../../BUILTIN_COMPONENTs/input/textfield";
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { callee_interface } from "../workflow_call_config";
 import { workflow_parameters, workflow_signature_problems, parameter_type_matches, PARAMETER_TYPES } from "../workflow_parameters";
-import { TableHeads, TableRow, TABLE_CONTROL_INSET } from "../detail_panel/parameter_table";
+import { TableHeads, TableRow } from "../detail_panel/parameter_table";
 import { typed_input_template } from "../detail_panel/typed_input_row";
 import {
   CONTROL_HEIGHT, CONTROL_RADIUS, REGION_RADIUS, Region, fieldBackground, muted, note, problem as problemOf, removeButtonStyle,
@@ -19,8 +19,18 @@ const ELLIPSIS = { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", wh
 /* One value cell: the panel's white field, one line high for a scalar and a
    region-cornered box for JSON, growing with what is typed. Its 4px inset
    puts a line of 12px text at the panel's control height. */
+const CELL_PAD = 4;
+/* Where the typed text starts inside a cell: its 1px border and its inset.
+   The Value head sits over the text, not over the field's edge. */
+const VALUE_TEXT_INSET = 1 + CELL_PAD;
+/* Every row keeps the clear button's slot, so a value is cleared without
+   narrowing its field: all the fields end on one right edge. */
+const CLEAR_COLUMN = 22;
+/* A row's name, type and clear button stand level with the field's first
+   line: centred on a one-line field, at the top of a multi-line box. */
+const FIRST_LINE = { alignSelf: "start", lineHeight: `${CONTROL_HEIGHT}px` };
 const cellStyle = (isDark, json) => ({
-  width: "100%", minWidth: 0, fontSize: 12, padding: 4, minHeight: CONTROL_HEIGHT,
+  width: "100%", minWidth: 0, fontSize: 12, padding: CELL_PAD, minHeight: CONTROL_HEIGHT,
   borderRadius: json ? REGION_RADIUS : CONTROL_RADIUS, restFill: fieldBackground(isDark), restBorder: "1px solid transparent",
   ...(json ? MONO : {}),
 });
@@ -144,7 +154,7 @@ export default function WorkflowTestInputs({ document, value, onChange, onValidi
     {t("agents.parameters.invalid", { path: "input_schema" })}
   </div>;
 
-  const template = typed_input_template(rows.map((row) => row.name));
+  const template = `${typed_input_template(rows.map((row) => row.name))} ${CLEAR_COLUMN}px`;
   const renderRow = (row) => {
     const key = row.name;
     const draft = drafts[key];
@@ -176,23 +186,23 @@ export default function WorkflowTestInputs({ document, value, onChange, onValidi
         {error && <span role="status" style={{ ...problemOf(isDark), padding: "0 10px 6px" }}>{error.message || error.code || t("agents.execution.tool.arguments_failed")}</span>}
       </>}>
         <label htmlFor={`workflow-test-input-control-${encodeURIComponent(key)}`} title={[key, row.description].filter(Boolean).join(" — ")}
-          style={{ ...ELLIPSIS, ...MONO, fontSize: 11.5 }}>
+          style={{ ...ELLIPSIS, ...MONO, ...FIRST_LINE, fontSize: 11.5 }}>
           {key}{row.required && <span aria-label={t("agents.schema.required")} style={{ color: problemOf(isDark).color, marginLeft: 2 }}>*</span>}
         </label>
-        <span title={word} style={{ ...ELLIPSIS, fontSize: 11.5, color: muted(isDark) }}>{word}</span>
-        <div style={{ display: "flex", alignItems: "flex-start", gap: 2, minWidth: 0 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <TextField aria_label={key} textarea_ref={(element) => {
-              if (element) {
-                element.id = `workflow-test-input-control-${encodeURIComponent(key)}`;
-                element.dataset.testid = `workflow-test-input-control-${key}`;
-              }
-            }} value={text} disabled={disabled} min_rows={1} max_display_rows={json ? 8 : 4} placeholder={placeholder}
-              set_value={(next) => update(key, parse_input(next, row.type, mode, t), next)} style={cellStyle(isDark, json)} />
-          </div>
-          {own(supplied, key) && <Button ariaLabel={t("agents.parameters.remove", { name: key })} label={null} prefix_icon="close" disabled={disabled}
-            onClick={() => remove(key)} style={{ ...removeButtonStyle(isDark), marginTop: 2 }} />}
+        <span title={word} style={{ ...ELLIPSIS, ...FIRST_LINE, fontSize: 11.5, color: muted(isDark) }}>{word}</span>
+        <div style={{ minWidth: 0 }}>
+          <TextField aria_label={key} textarea_ref={(element) => {
+            if (element) {
+              element.id = `workflow-test-input-control-${encodeURIComponent(key)}`;
+              element.dataset.testid = `workflow-test-input-control-${key}`;
+            }
+          }} value={text} disabled={disabled} min_rows={1} max_display_rows={json ? 8 : 4} placeholder={placeholder}
+            set_value={(next) => update(key, parse_input(next, row.type, mode, t), next)} style={cellStyle(isDark, json)} />
         </div>
+        <span style={{ ...FIRST_LINE, display: "flex", height: CONTROL_HEIGHT, alignItems: "center" }}>
+          {own(supplied, key) && <Button ariaLabel={t("agents.parameters.remove", { name: key })} label={null} prefix_icon="close" disabled={disabled}
+            onClick={() => remove(key)} style={removeButtonStyle(isDark)} />}
+        </span>
       </TableRow>
     );
   };
@@ -209,7 +219,7 @@ export default function WorkflowTestInputs({ document, value, onChange, onValidi
       <Region isDark={isDark}>
         <TableHeads key="heads" testid="workflow-test-input-heads" isDark={isDark} template={template}
           columns={[{ label: t("agents.parameters.name_short") }, { label: t("agents.parameters.type") },
-            { label: t("agents.execution.tool.value_mode"), inset: TABLE_CONTROL_INSET }]} />
+            { label: t("agents.execution.tool.value_mode"), inset: VALUE_TEXT_INSET }, { label: "" }]} />
         {rows.map(renderRow)}
       </Region>
     )}

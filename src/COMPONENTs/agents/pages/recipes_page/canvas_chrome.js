@@ -122,6 +122,8 @@ export function ControlHint({ label, testId, position = "top", blocked = false, 
       position={position}
       trigger={HINT_TRIGGER}
       close_delay={0}
+      /* A click leaves the button focused; the hint goes with the pointer. */
+      focus_visible_only
       style={{ whiteSpace: "nowrap" }}
       wrapper_style={{ display: "inline-flex", cursor: blocked ? "not-allowed" : undefined }}
     >

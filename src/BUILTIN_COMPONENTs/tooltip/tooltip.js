@@ -339,6 +339,14 @@ const buildTooltipPath = ({
     arrowOnTop: false,
   });
 };
+function is_focus_visible(element) {
+  try {
+    return element.matches(":focus-visible");
+  } catch (_) {
+    return true;
+  }
+}
+
 const Tooltip = ({
   children,
   label = "",
@@ -348,6 +356,10 @@ const Tooltip = ({
   trigger = default_trigger,
   open_delay = 80,
   close_delay = 80,
+  /* Opt-in: with the "focus" trigger, open only for focus the user can see
+     (keyboard, or a text field), not for the focus a button keeps after a
+     click — the pointer already answered that with the hover. */
+  focus_visible_only = false,
   show_arrow = true,
   align = "center",
   arrow_size = 8,
@@ -396,6 +408,7 @@ const Tooltip = ({
   const [isHoveringTooltip, setIsHoveringTooltip] = useState(false);
   const [isHoverPending, setIsHoverPending] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
+  const focused_ref = useRef(null);
   const [isClickOpen, setIsClickOpen] = useState(false);
   const [activePosition, setActivePosition] = useState(position);
   const [bubbleSize, setBubbleSize] = useState({ width: 0, height: 0 });
@@ -888,8 +901,10 @@ const Tooltip = ({
       setIsHoverPending(false);
     });
   };
-  const handle_trigger_focus = () => {
+  const handle_trigger_focus = (e) => {
     if (!isFocusEnabled) return;
+    if (focus_visible_only && !is_focus_visible(e.target)) return;
+    focused_ref.current = e.target;
     setIsFocused(true);
   };
   const handle_trigger_blur = (e) => {
@@ -897,6 +912,19 @@ const Tooltip = ({
     if (tooltip_ref.current?.contains(e.relatedTarget)) return;
     setIsFocused(false);
   };
+  /* A focused control can lose focus without a blur: it is unmounted (a Run
+     button that becomes Stop) or disabled, and the browser moves focus to
+     the body silently. Without this check the bubble stays open for good.
+     Checked whenever the trigger's children are rendered anew, which is when
+     a control can be swapped out or disabled. */
+  useEffect(() => {
+    if (!isFocused) return;
+    const focused = focused_ref.current;
+    if (focused && trigger_ref.current?.contains(focused) && !focused.disabled) return;
+    focused_ref.current = null;
+    setIsFocused(false);
+  }, [isFocused, children]);
+
   const handle_trigger_click = () => {
     if (!isClickEnabled) return;
     clear_open_timer();

@@ -22,7 +22,7 @@ const NAME_CHAR = 6.95;
 const TYPE_COLUMN = 46;
 /* A longer name ends in an ellipsis and is read whole on hover, so the value
    keeps room for a source's tag in the panel's default width. */
-const name_column = (names) => Math.round(Math.min(84, Math.max(40, Math.max(0, ...names.map((name) => name.length)) * NAME_CHAR + 10)));
+export const name_column = (names) => Math.round(Math.min(84, Math.max(40, Math.max(0, ...names.map((name) => name.length)) * NAME_CHAR + 10)));
 export const typed_input_template = (names) => `${name_column(names)}px ${TYPE_COLUMN}px minmax(0, 1fr)`;
 const ELLIPSIS = { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
 

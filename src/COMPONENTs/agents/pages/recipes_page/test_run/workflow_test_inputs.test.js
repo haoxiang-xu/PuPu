@@ -195,3 +195,17 @@ test("Any chooses JSON for an existing non-string value without coercing hostile
   expect(anyModeButton("payload")).toHaveAttribute("aria-pressed", "true");
   expect(screen.getByLabelText("payload")).toHaveValue(JSON.stringify(hostile, null, 2));
 });
+
+test("every row keeps the clear button's slot, so a cleared and an empty field end on one edge", () => {
+  renderForm({ value: { city: "Paris" } });
+  const grid = (key) => screen.getByTestId(`workflow-test-input-${key}`).firstChild;
+  const heads = screen.getByTestId("workflow-test-input-heads");
+  /* Name / Type / Value / clear: one template for the heads and both rows. */
+  expect(grid("city").style.gridTemplateColumns).toMatch(/ 22px$/);
+  expect(grid("days").style.gridTemplateColumns).toBe(grid("city").style.gridTemplateColumns);
+  expect(heads.style.gridTemplateColumns).toBe(grid("city").style.gridTemplateColumns);
+  expect(grid("city").children).toHaveLength(4);
+  expect(grid("days").children).toHaveLength(4);
+  expect(within(grid("city").children[3]).getByRole("button", { name: /city/ })).toBeInTheDocument();
+  expect(grid("days").children[3]).toBeEmptyDOMElement();
+});

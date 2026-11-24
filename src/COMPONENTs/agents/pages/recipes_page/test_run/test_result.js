@@ -5,6 +5,7 @@ import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use
 import TraceChain from "../../../../chat-bubble/trace_chain";
 import InteractWrapper from "../../../../chat-bubble/interact/interact_wrapper";
 import { TableHeads, TableRow } from "../detail_panel/parameter_table";
+import { name_column } from "../detail_panel/typed_input_row";
 import {
   CONTROL_RADIUS, REGION_RADIUS, Region, fill, fillStrong, note, problem as problemOf, statusColor, text as textColor,
 } from "../detail_panel/panel_style";
@@ -65,22 +66,27 @@ function inputs_line(inputs) {
   return parts.join(", ");
 }
 
-const OUTPUT_TEMPLATE = "minmax(56px, auto) minmax(0, 1fr)";
+/* Every row is its own grid, so the name column is measured once from the
+   longest name (as on the Inputs table) and every value starts on one line. */
+const output_template = (names) => `${name_column(names)}px minmax(0, 1fr)`;
+/* A name and its value share one first baseline, mono or not; the 4px
+   above and below fill a row's control height, so a one-line row is centred. */
+const OUTPUT_CELL = { alignSelf: "baseline", minWidth: 0, fontSize: 11.5, lineHeight: "18px", padding: "4px 0" };
 
 /* A Workflow's End outputs: one row a name. */
 export function WorkflowOutput({ output, isDark, testid = "test-workflow-output" }) {
   const { t } = useTranslation();
   const entries = Object.entries(output || {});
   if (entries.length === 0) return <span data-testid={testid} style={note(isDark)}>{t("agents.test_run.no_output")}</span>;
+  const template = output_template(entries.map(([name]) => name));
   return (
     <Region isDark={isDark} testid={testid}>
-      <TableHeads key="heads" isDark={isDark} template={OUTPUT_TEMPLATE}
+      <TableHeads key="heads" isDark={isDark} template={template}
         columns={[{ label: t("agents.test_run.output_name") }, { label: t("agents.test_run.output_value") }]} />
       {entries.map(([name, value]) => (
-        <TableRow key={name} template={OUTPUT_TEMPLATE} testid={`${testid}-${name}`}>
-          <span title={name} style={{ ...MONO, fontSize: 11.5, alignSelf: "start", lineHeight: "18px", minWidth: 0,
-            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
-          <span style={{ minWidth: 0, lineHeight: "18px" }}><ValueText value={value} isDark={isDark} /></span>
+        <TableRow key={name} template={template} testid={`${testid}-${name}`}>
+          <span title={name} style={{ ...MONO, ...OUTPUT_CELL, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
+          <span style={{ ...OUTPUT_CELL, display: "block" }}><ValueText value={value} isDark={isDark} /></span>
         </TableRow>
       ))}
     </Region>

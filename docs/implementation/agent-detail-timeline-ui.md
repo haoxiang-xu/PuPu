@@ -1,5 +1,46 @@
 # Agent detail Timeline — 交互语言
 
+## PR #490 Workflow history recovery — BC-006 / SEQ-006 / AC-006
+
+**BC-006 (existing CLOSED command, no wire change):** the Workflow footer
+retains an explicit Start over action alongside Run/Stop. It sends the existing
+`{op: "new", resource_id, kind: "workflow"}` through `useBuilderTest` and Main's
+`checkBuilderTestCommand`. Main's existing `pupu.builder-test.v1` transport and
+the sidecar's `open(..., new=True)` remain unchanged. The sidecar validates the
+resource kind and refuses reset while the prior session has active work; an
+accepted reset creates a new session identity and updates its persisted panel
+locator without deleting the old history or editing the resource. Existing
+error, credential, manifest and identity admission rules remain authoritative.
+
+**SEQ-006:** admit idle history up to the 100-run limit / exceed the 16 MiB
+display limit → a cold manager still reopens that persisted session (or refuses
+the oversized read) → explicitly reset from the Workflow footer → adopt an
+empty, different session ID → Run from the header with current arguments →
+native Workflow completes. Reset stays reachable when the first read fails,
+and stays disabled during busy/running/unsaved state. Both Run/Stop affordances
+keep the same handlers and disabled state. Reset is user-initiated; no automatic
+retry, execution, resume, credential grant or history deletion is introduced.
+
+- **AC-006a:** `builder_test_panel.test.js` covers 100 completed runs and a
+  refused oversized initial read, requiring the real Main command validator,
+  an exact reset command, a changed session ID, and a subsequent successful
+  header Run. Both cases fail before the footer action is restored. The
+  running-state case verifies reset is disabled; existing save, uncertainty,
+  conflict, preflight and approval regressions remain in the related suites.
+- **AC-006b:** `test_builder_test_sessions.py` uses the real Store and native
+  `BuilderTestSessions` to fill the same persisted limit with 100 idle-ready
+  admissions, verify refusal, recreate the manager, reset, retain old history,
+  and complete another native Workflow with zero model calls. Its oversized
+  variant creates a real history beyond 16 MiB and verifies reset can recover
+  after the refused opening read.
+- **AC-006c:** local and final-head CI results must bind the actual pytest
+  consumer imports/manifest to the retained immutable Unchain wheel. Evidence
+  and final candidate identity are recorded in the PR and gatekeeper report.
+  This recovery does not modify an executing run or interaction: normal message,
+  second message, approval/resume/replay and provider-specific behavior are
+  unchanged and remain covered by existing full-suite gates. No real-provider
+  or packaged release acceptance is claimed by these recovery tests.
+
 ## PR #489 gatekeeper corrections — BC-005 / SEQ-005 / AC-005
 
 **BC-005 (VERSIONED closed Main command):** `pupu.builder-test.v1` start keeps
