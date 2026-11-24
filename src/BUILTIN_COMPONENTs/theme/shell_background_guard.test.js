@@ -10,7 +10,6 @@ const SHELL_FILES = [
   "src/COMPONENTs/chat-input/components/attach_panel.js",
   // P1 — verified real paths (2026-06-20)
   "src/COMPONENTs/agents/pages/characters_page.js",
-  "src/COMPONENTs/agents/pages/recipes_page/recipe_canvas.js",
   "src/COMPONENTs/agents/pages/recipes_page/recipe_list.js",
   // P3 — settings + init-setup shells (2026-07-13)
   "src/COMPONENTs/settings/settings_modal.js",
@@ -24,7 +23,6 @@ const SHELL_FILES = [
   "src/COMPONENTs/init-setup/steps/completion.js",
   // P4 Task 1 — modal card background migration (2026-07-14)
   "src/COMPONENTs/workspace/workspace_modal.js",
-  "src/COMPONENTs/agents/pages/recipes_page/subagent_picker.js",
   "src/COMPONENTs/settings/dev/components/mcp_registries_modal.js",
   "src/COMPONENTs/settings/model_providers/components/confirm_delete_api_key_modal.js",
   "src/COMPONENTs/settings/settings_modal_content.js",

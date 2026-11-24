@@ -80,9 +80,12 @@ test("an empty reachable library creates a real three-node canvas without readin
   expect(view.container.querySelectorAll("[data-flow-node-id]")).toHaveLength(3);
   expect(screen.getByTestId("skeleton-save-state")).toHaveTextContent("Unsaved changes");
   openRunMenu();
-  expect(screen.getByRole("button", { name: "Check it can run" })).toBeDisabled();
   expect(screen.getByTestId("builder-test-panel")).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Save and test" })).toBeDisabled();
+  /* An unsaved draft is not checked; the panel says it is saved on Send. */
+  expect(screen.getByTestId("skeleton-preflight-state")).toHaveTextContent("You have unsaved changes. They are saved first when you run.");
+  /* The Agent is tested from the chat's own composer, which says the draft
+     is saved first. */
+  expect(screen.getByRole("textbox", { name: "Message this Agent… (unsaved changes are saved first)" })).toBeInTheDocument();
   expect(screen.queryByTestId("skeleton-diagnostics-stale")).toBeNull();
   expect(screen.queryByText("Inherits the chat's model")).toBeNull();
   expect(screen.getByText("No model configured")).toBeInTheDocument();

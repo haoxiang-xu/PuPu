@@ -1,5 +1,6 @@
 const { test, expect } = require("./fixtures/pupu_app");
 const documents = require("./fixtures/skeleton_branch_documents.json");
+const testRunText = require("../src/locales/en.json").agents.test_run.state;
 
 // The real desktop probe belongs on an isolated CI user. Running this fixture
 // on the developer's macOS account can write CFPreferences outside its HOME.
@@ -76,7 +77,8 @@ test("Branch conditions persist through real preload/Main/Store and an app resta
     expect(after.edit_token).not.toBe(row.token);
     expect(after.diagnostics).toEqual([]);
     await page.getByRole("button", { name: "Open the run menu", exact: true }).click();
-    await expect(page.getByTestId("skeleton-preflight-state")).toHaveText("Ready to run.");
+    await expect(page.getByTestId("skeleton-preflight-state"))
+      .toHaveText(row.document.kind === "agent" ? testRunText.ready_agent : testRunText.ready_workflow);
     row.expected = after;
     row.fieldId = fieldId;
     row.value = value;

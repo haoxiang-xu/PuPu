@@ -1,7 +1,9 @@
-import React, { useContext } from "react";
+import React, { useContext, useLayoutEffect, useRef, useState } from "react";
 import { ConfigContext } from "../../../../../CONTAINERs/config/context";
 import { PORT_ANCHOR_EDGE_INSET } from "../../../../../BUILTIN_COMPONENTs/flow_editor/utils";
 import useNodeSizeMotion from "./use_node_size_motion";
+import { PUZZLE_NOTCH_RADIUS, PUZZLE_TAB } from "./puzzle_outline";
+import RunOutline, { RunOutlineContext } from "./run_outline";
 
 /* Render a puzzle-piece shape: body with optional radial cutouts + round tabs.
  * Goo filter lives in FlowEditor (PuzzleDefs). This component renders
@@ -15,21 +17,45 @@ import useNodeSizeMotion from "./use_node_size_motion";
  * editor puts on the port dot and the edge end — so a new outlet's bump rides
  * the growing edge down to its row instead of floating below the body. */
 
+/* Sizes are shared with puzzle_outline, which draws this same outline. */
 const TAB_GEOM = {
-  right: { size: 22, offset: -9, transform: "translateY(-50%)" },
-  left: { size: 22, offset: -9, transform: "translateY(-50%)" },
-  top: { size: 18, offset: -7, transform: "translateX(-50%)" },
-  bottom: { size: 18, offset: -7, transform: "translateX(-50%)" },
+  right: { ...PUZZLE_TAB.side, transform: "translateY(-50%)" },
+  left: { ...PUZZLE_TAB.side, transform: "translateY(-50%)" },
+  top: { ...PUZZLE_TAB.end, transform: "translateX(-50%)" },
+  bottom: { ...PUZZLE_TAB.end, transform: "translateX(-50%)" },
 };
+const SIDE_NOTCH = `${PUZZLE_NOTCH_RADIUS.side}px`;
+const END_NOTCH = `${PUZZLE_NOTCH_RADIUS.end}px`;
 
 /* `y` is where a left/right cutout centres: "50%" by default, or the
    node's port anchor in px so the notch sits under the in port. */
 const CUTOUT_GEOM = {
-  left: (y) => `radial-gradient(circle 12px at 0%   ${y},  transparent 98%, black 99%)`,
-  right: (y) => `radial-gradient(circle 12px at 100% ${y},  transparent 98%, black 99%)`,
-  top: () => "radial-gradient(circle 10px at 50% 0%,    transparent 98%, black 99%)",
-  bottom: () => "radial-gradient(circle 10px at 50% 100%,  transparent 98%, black 99%)",
+  left: (y) => `radial-gradient(circle ${SIDE_NOTCH} at 0%   ${y},  transparent 98%, black 99%)`,
+  right: (y) => `radial-gradient(circle ${SIDE_NOTCH} at 100% ${y},  transparent 98%, black 99%)`,
+  top: () => `radial-gradient(circle ${END_NOTCH} at 50% 0%,    transparent 98%, black 99%)`,
+  bottom: () => `radial-gradient(circle ${END_NOTCH} at 50% 100%,  transparent 98%, black 99%)`,
 };
+
+/* The node's laid-out size (not its on-screen size, which the canvas zoom
+   scales), followed while a run state is drawn on its outline: the frame's
+   height springs, and the outline rides it. */
+function useOutlineSize(ref, active) {
+  const [size, setSize] = useState(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!active || !el) return undefined;
+    const read = () => setSize((prev) => {
+      const next = { width: el.offsetWidth, height: el.offsetHeight };
+      return prev && prev.width === next.width && prev.height === next.height ? prev : next;
+    });
+    read();
+    if (typeof ResizeObserver === "undefined") return undefined;
+    const observer = new ResizeObserver(read);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [ref, active]);
+  return active ? size : null;
+}
 
 /* A tab is a side name ("right", "top"…), placed at the shared port line, or
    `{ side, y }` with its own distance from the top in px — for a node with
@@ -46,6 +72,9 @@ export default function PuzzleShape({
 }) {
   const { frameRef, contentRef, moving } = useNodeSizeMotion();
   const cfg = useContext(ConfigContext);
+  const run = useContext(RunOutlineContext);
+  const boxRef = useRef(null);
+  const size = useOutlineSize(boxRef, Boolean(run && run.line));
   const isDark =
     isDarkOverride !== undefined
       ? isDarkOverride
@@ -65,7 +94,7 @@ export default function PuzzleShape({
     : "none";
 
   return (
-    <div style={{ position: "relative", width: "100%", height: "100%" }}>
+    <div ref={boxRef} style={{ position: "relative", width: "100%", height: "100%" }}>
       <div
         data-puzzle-shape=""
         style={{
@@ -128,6 +157,10 @@ export default function PuzzleShape({
           );
         })}
       </div>
+      {size && (
+        <RunOutline run={run} width={size.width} height={size.height}
+          tabs={tabs} cutouts={cutouts} anchor={anchor} isDark={isDark} />
+      )}
       {/* The frame's height is the node's height (set by the motion hook, in
           px, never by React); the content inside keeps its natural height.
           While growing, the content's new bottom is clipped at the frame's —

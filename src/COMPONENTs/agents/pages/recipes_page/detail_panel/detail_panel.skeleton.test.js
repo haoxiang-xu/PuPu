@@ -42,16 +42,6 @@ beforeEach(() => {
 
 const cfg = { theme: {}, onThemeMode: "light_mode" };
 
-const legacy_recipe = {
-  name: "R",
-  nodes: [
-    { id: "start", type: "start", outputs: [{ name: "text", type: "string" }] },
-    { id: "a1", type: "agent", override: { model: "", prompt: "" }, outputs: [] },
-    { id: "end", type: "end" },
-  ],
-  edges: [],
-};
-
 const flow = (id, a, b) => ({
   id,
   kind: "flow",
@@ -83,19 +73,14 @@ const show = (props) =>
   render(
     <ConfigContext.Provider value={cfg}>
       <DetailPanel
-        recipe={legacy_recipe}
         selectedNodeId="end"
-        onChange={() => {}}
-        onChangeSilent={() => {}}
         {...props}
       />
     </ConfigContext.Provider>,
   );
 
-describe("a legacy recipe is left exactly as it was", () => {
+describe("without a writable document nothing is editable", () => {
   test("no Skeleton section appears without a document", () => {
-    /* The two models are not merged here: a recipe has no node config, and the
-     * migration between them is not this ticket's. */
     show({});
     expect(screen.queryByText("Input Variables")).not.toBeInTheDocument();
   });
@@ -114,7 +99,7 @@ describe("a Skeleton node gets its IO sections", () => {
     expect(screen.getByText("Input Variables")).toBeInTheDocument();
   });
 
-  test("a node the document does not have falls back to the legacy panels", () => {
+  test("a node the document does not have shows the empty state", () => {
     show({
       document: { ...skeleton_document, nodes: [skeleton_document.nodes[0]] },
       onDocumentChange: () => {},
@@ -353,7 +338,6 @@ describe("the Output Variables section in the panel", () => {
   test("a standalone Workflow draws one parameter section without the legacy outputs editor", () => {
     const change = jest.fn();
     show({
-      recipe: undefined,
       document: skeleton_document,
       onDocumentChange: change,
       selectedNodeId: "start",
@@ -365,11 +349,6 @@ describe("the Output Variables section in the panel", () => {
     expect(change).not.toHaveBeenCalled();
   });
 
-  test("a legacy recipe page draws the legacy section and none of mine", () => {
-    show({ selectedNodeId: "start" });
-    expect(screen.getAllByText("Output Variables")).toHaveLength(1);
-    expect(screen.queryByTestId("skeleton-output-variables")).not.toBeInTheDocument();
-  });
 });
 
 /* Start and End now draw their rows as the Agent panel's pills, which show a
@@ -420,11 +399,8 @@ describe("UI-L1 — refused text belongs to one node, one row, one step", () => 
     const view = render(
       <ConfigContext.Provider value={cfg}>
         <PathHost
-          recipe={legacy_recipe}
           document={two_ends}
           selectedNodeId="endA"
-          onChange={() => {}}
-          onChangeSilent={() => {}}
           onDocumentChange={() => {}}
         />
       </ConfigContext.Provider>,
@@ -435,11 +411,8 @@ describe("UI-L1 — refused text belongs to one node, one row, one step", () => 
     view.rerender(
       <ConfigContext.Provider value={cfg}>
         <PathHost
-          recipe={legacy_recipe}
           document={two_ends}
           selectedNodeId="endB"
-          onChange={() => {}}
-          onChangeSilent={() => {}}
           onDocumentChange={() => {}}
         />
       </ConfigContext.Provider>,
@@ -479,11 +452,8 @@ describe("UI-L1 — refused text belongs to one node, one row, one step", () => 
       return (
         <ConfigContext.Provider value={cfg}>
           <PathHost
-            recipe={legacy_recipe}
             document={doc}
             selectedNodeId="end"
-            onChange={() => {}}
-            onChangeSilent={() => {}}
             onDocumentChange={setDoc}
           />
         </ConfigContext.Provider>
@@ -535,11 +505,8 @@ describe("UI-L1 — refused text belongs to one node, one row, one step", () => 
       return (
         <ConfigContext.Provider value={cfg}>
           <PathHost
-            recipe={legacy_recipe}
             document={doc}
             selectedNodeId="end"
-            onChange={() => {}}
-            onChangeSilent={() => {}}
             onDocumentChange={setDoc}
           />
         </ConfigContext.Provider>
@@ -563,11 +530,8 @@ describe("UI-L1 — refused text belongs to one node, one row, one step", () => 
     const panel = (selected) => (
       <ConfigContext.Provider value={cfg}>
         <PathHost
-          recipe={legacy_recipe}
           document={same}
           selectedNodeId={selected}
-          onChange={() => {}}
-          onChangeSilent={() => {}}
           onDocumentChange={() => {}}
         />
       </ConfigContext.Provider>
@@ -586,11 +550,8 @@ describe("UI-L1 — refused text belongs to one node, one row, one step", () => 
     const view = render(
       <ConfigContext.Provider value={cfg}>
         <PathHost
-          recipe={legacy_recipe}
           document={two_ends}
           selectedNodeId="endA"
-          onChange={() => {}}
-          onChangeSilent={() => {}}
           onDocumentChange={() => {}}
           diagnostics={[]}
         />
@@ -600,11 +561,8 @@ describe("UI-L1 — refused text belongs to one node, one row, one step", () => 
     view.rerender(
       <ConfigContext.Provider value={cfg}>
         <PathHost
-          recipe={legacy_recipe}
           document={two_ends}
           selectedNodeId="endA"
-          onChange={() => {}}
-          onChangeSilent={() => {}}
           onDocumentChange={() => {}}
           diagnostics={[
             { code: "end_count", path: ["document", "nodes"], message: "needs one end" },
@@ -1128,38 +1086,6 @@ describe("the panel header draws a node, not everything stored beside it", () =>
     expect(screen.getByTestId("recipe-detail-panel-header")).toHaveTextContent("stored-model");
   });
 
-  test("legacy nodes without an override still inherit the chat model", () => {
-    show({ recipe: { name: "R", nodes: [{ id: "a1", type: "agent" }], edges: [] }, selectedNodeId: "a1" });
-    expect(screen.getByText("Inherits the chat's model")).toBeInTheDocument();
-  });
-
-  test("a legacy recipe node keeps its own label and model, through a text guard", () => {
-    /* The same table draws the legacy canvas's nodes, where both fields are
-       the node's own. A value that refuses to become text is drawn as what it
-       is rather than thrown. */
-    show({
-      recipe: {
-        name: "R",
-        nodes: [{ id: "a1", type: "agent", label: "Summarizer", override: { model: "gpt" } }],
-        edges: [],
-      },
-      selectedNodeId: "a1",
-    });
-    expect(screen.getByText("Summarizer")).toBeInTheDocument();
-    expect(screen.getByText("gpt")).toBeInTheDocument();
-  });
-
-  test("and a legacy label that cannot become text says so instead of throwing", () => {
-    show({
-      recipe: {
-        name: "R",
-        nodes: [{ id: "a1", type: "agent", label: { toString: null } }],
-        edges: [],
-      },
-      selectedNodeId: "a1",
-    });
-    expect(screen.getByText("an unreadable value")).toBeInTheDocument();
-  });
 });
 
 describe("a node type the identity table does not own", () => {
@@ -1233,7 +1159,7 @@ describe("in the docked macOS panel the header sits at the panel's top", () => {
       render(
         <ConfigContext.Provider value={{ ...cfg, onThemeMode: mode }}>
           <DetailChromeContext.Provider value={{ headerInTitleRow: true, toggleReserve: 44 }}>
-            <DetailPanel recipe={legacy_recipe} selectedNodeId="end" onChange={() => {}} onChangeSilent={() => {}} />
+            <DetailPanel document={skeleton_document} onDocumentChange={() => {}} selectedNodeId="end" />
           </DetailChromeContext.Provider>
         </ConfigContext.Provider>,
       );
@@ -1246,7 +1172,7 @@ describe("in the docked macOS panel the header sits at the panel's top", () => {
   );
 
   test("without the docked panel's word the header keeps its usual padding and rule", () => {
-    show();
+    show({ document: skeleton_document, onDocumentChange: () => {} });
     const header = screen.getByTestId("recipe-detail-panel-header");
     expect(header.style.padding).toBe("14px 16px 12px");
     expect(header.style.borderBottom).toMatch(/^1px solid/);

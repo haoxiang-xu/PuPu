@@ -1,8 +1,6 @@
 import React from "react";
-import { fireEvent, render, renderHook, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { ConfigContext, LocaleContext } from "../../../../CONTAINERs/config/context";
-import { useTranslation } from "../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
-import { buildRecipeCanvasContextMenuItems } from "./recipe_canvas_context_menu_items";
 import StartNode from "./nodes/start_node";
 import ToolCallNode from "./nodes/tool_call_node";
 import CodeNode from "./nodes/code_node";
@@ -20,16 +18,6 @@ const config = { theme: {}, onThemeMode: "light_mode" };
 const localized = (locale, children) => <ConfigContext.Provider value={config}>
   <LocaleContext.Provider value={{ locale }}>{children}</LocaleContext.Provider>
 </ConfigContext.Provider>;
-
-test("canvas actions translate their captions while keeping commands, shortcuts, guards and callback identities", () => {
-  const t = renderHook(() => useTranslation(), { wrapper: ({ children }) => localized("zh-CN", children) }).result.current.t;
-  const onPaste = jest.fn();
-  const items = buildRecipeCanvasContextMenuItems({ onPaste, canPaste: false, isMac: true }, t);
-  const paste = items.find((item) => item.id === "paste");
-  expect(paste).toMatchObject({ label: "粘贴", disabled: true, trail_icon: "command", trail: "V", onClick: onPaste });
-  expect(onPaste).not.toHaveBeenCalled();
-  expect(buildRecipeCanvasContextMenuItems({}).find((item) => item.id === "paste").label).toBe("Paste");
-});
 
 test("tool captions translate without interpreting an authored label, parameter name or literal that resembles a key", () => {
   const raw = "agents.nodes.tool_call {count} · é";

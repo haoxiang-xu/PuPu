@@ -32,3 +32,10 @@ if (!window.ResizeObserver) {
   }
   window.ResizeObserver = MockResizeObserver;
 }
+
+// jsdom has no Element.scrollTo. The chat's message list scrolls itself (it
+// is also mounted by the Agent Builder's Test panel); a no-op keeps those
+// mounts quiet. Suites that assert scrolling install their own.
+if (typeof window !== "undefined" && typeof window.Element?.prototype?.scrollTo !== "function") {
+  window.Element.prototype.scrollTo = function scrollTo() {};
+}

@@ -1,7 +1,7 @@
 import { agentEnglishText } from "./agents_i18n";
 /* The Agents explorer's right-click menu, by target.
  *
- * Same shape as the legacy recipe list's menu (recipe_list_context_menu_items)
+ * Same shape as the legacy recipe list's menu (now removed)
  * so the author sees the same groups. Resources use permanent deletion,
  * including items left archived by an earlier build. */
 

@@ -16,6 +16,7 @@ import useReducedMotion from "../../../../BUILTIN_COMPONENTs/mini_react/use_redu
 import { TOP_BAR_HEIGHT } from "../../../../BUILTIN_COMPONENTs/electron/title_bar";
 import WindowControls, { windowControlsInset } from "../../../../BUILTIN_COMPONENTs/electron/window_controls";
 import { windowStateBridge } from "../../../../SERVICEs/bridges/window_state_bridge";
+import { CONTROL_RADIUS, REGION_RADIUS } from "./detail_panel/panel_style";
 
 const hasWindowControls = () =>
   typeof window !== "undefined" &&
@@ -43,6 +44,15 @@ export const PANEL_INSET = 6;
 export const HANDLE_GAP = 2;
 /* The docked right side menu floats one ring inside the window: this far
    from the window's top, right and bottom edges, with these corners. */
+/* The chrome's corners, in named steps — use these, not a number.
+   - CHROME_CARD_RADIUS: a glass card that floats over the canvas — the
+     control center, its popovers, the message strip, the caption chip.
+   - CHROME_BUTTON_RADIUS: a button inside that glass, the app's own button
+     corner, so a bare Button and a chrome button agree.
+   The floating detail panel is a region (REGION_RADIUS); the docked one
+   follows DETAIL_RADIUS below. */
+export const CHROME_CARD_RADIUS = 12;
+export const CHROME_BUTTON_RADIUS = 7;
 export const DETAIL_INSET = 8;
 export const DETAIL_RADIUS = 14;
 /* The docked panel's toggle: the same icon at the same centre as the left
@@ -92,7 +102,7 @@ const ICON_CONTROL = (enabled) => ({
   fontSize: 12,
   paddingVertical: 5,
   paddingHorizontal: 8,
-  borderRadius: 7,
+  borderRadius: CHROME_BUTTON_RADIUS,
   opacity: enabled ? 0.85 : 0.35,
   /* A disabled button keeps the pointer to itself; letting it through to
      the hint's wrapper is what keeps the hint on a control that is off. */
@@ -169,7 +179,7 @@ export function CanvasControlCenter({
         alignItems: "center",
         gap: 8,
         padding: 6,
-        borderRadius: 12,
+        borderRadius: CHROME_CARD_RADIUS,
         ...glass(tokens),
         boxShadow: tokens.controlShadow,
         color: "var(--pupu-text)",
@@ -205,7 +215,7 @@ export function CanvasControlCenter({
             fontSize: 12,
             paddingVertical: 5,
             paddingHorizontal: 8,
-            borderRadius: 7,
+            borderRadius: CHROME_BUTTON_RADIUS,
             opacity: 0.7,
             content: { icon: { width: 13, height: 13 } },
           }}
@@ -228,7 +238,7 @@ export function CanvasControlCenter({
             fontSize: 12,
             paddingVertical: 5,
             paddingHorizontal: 14,
-            borderRadius: 7,
+            borderRadius: CHROME_BUTTON_RADIUS,
             backgroundColor: saveActive ? "var(--pupu-accent)" : "transparent",
             color: saveActive ? "#fff" : "var(--pupu-text)",
             opacity: saveActive ? 1 : 0.5,
@@ -276,7 +286,7 @@ export function ControlPopover({ isDark, testId, children, width = 320 }) {
         maxWidth: "100%",
         boxSizing: "border-box",
         padding: 12,
-        borderRadius: 12,
+        borderRadius: CHROME_CARD_RADIUS,
         ...glass(tokens),
         boxShadow: tokens.shadow,
         color: "var(--pupu-text)",
@@ -314,7 +324,7 @@ export function CanvasMessageStrip({ isDark, items, testId, role, standalone = f
             }
           : {}),
         padding: "8px 12px",
-        borderRadius: 8,
+        borderRadius: CHROME_CARD_RADIUS,
         background: isDark ? "rgba(90, 30, 30, 0.92)" : "#fff2f0",
         border: isDark ? "1px solid rgba(255,120,120,0.28)" : "1px solid rgba(220,70,70,0.22)",
         color: isDark ? "#ffd6d6" : "#9f1d1d",
@@ -385,7 +395,7 @@ export function EscapeBackHint({ isDark, visible, top, left, testId = "canvas-es
           fontSize: 10.5,
           fontWeight: 500,
           padding: "3px 6px",
-          borderRadius: 6,
+          borderRadius: CONTROL_RADIUS,
           color: "var(--pupu-text)",
           backgroundColor: `rgba(var(--pupu-text-rgb, ${isDark ? "255,255,255" : "0,0,0"}), ${isDark ? 0.12 : 0.07})`,
           boxShadow: `inset 0 0 0 1px rgba(var(--pupu-text-rgb, ${isDark ? "255,255,255" : "0,0,0"}), ${isDark ? 0.1 : 0.08})`,
@@ -414,7 +424,7 @@ export function CanvasCaptionChip({ isDark, children, testId }) {
         flexDirection: "column",
         gap: 2,
         padding: "6px 10px",
-        borderRadius: 8,
+        borderRadius: CHROME_CARD_RADIUS,
         ...glass(tokens),
         boxShadow: tokens.shadow,
         fontSize: 11,
@@ -425,6 +435,30 @@ export function CanvasCaptionChip({ isDark, children, testId }) {
       {children}
     </ShadowSurface>
   );
+}
+
+/* How far the two side menus reach over a canvas, in that canvas's pixels.
+   Edges are window x coordinates of each menu's inner edge as it is once it
+   has settled (null: that menu is closed), so a menu still sliding in or out
+   is counted where it is going, not where its animation happens to be. */
+export function canvas_view_insets(rect, { leftEdge = null, rightEdge = null } = {}) {
+  if (!rect) return { left: 0, right: 0 };
+  const finite = (value) => typeof value === "number" && Number.isFinite(value);
+  return {
+    left: finite(leftEdge) ? Math.max(0, leftEdge - rect.left) : 0,
+    right: finite(rightEdge) ? Math.max(0, rect.right - rightEdge) : 0,
+  };
+}
+
+/* Where the open right side menu's inner edge is, in window x: docked, one
+   ring (DETAIL_INSET) inside the window anchor; floating, PANEL_INSET inside
+   the page it floats over. The width is the committed one, never a slide's. */
+export function detail_panel_inner_edge({ dockSlot, container, width, minWidth }) {
+  const drawn = Math.max(Number(width) || 0, Number(minWidth) || 0);
+  const anchor = dockSlot || container;
+  if (!anchor || typeof anchor.getBoundingClientRect !== "function") return null;
+  const right = anchor.getBoundingClientRect().right;
+  return right - (dockSlot ? DETAIL_INSET : PANEL_INSET) - drawn;
 }
 
 /* The right side menu: a floating panel that slides in while a node is open,
@@ -519,8 +553,9 @@ function DockedDetailPanel({
   /* `fitted`: the smaller backing that sits inside the open panel's corner.
      Without it, the button keeps the stock backing — the left side menu's —
      which is what the toggle shows while the panel is closed. */
+  /* No hint, as the left side menu's toggle has none: the glyph is the
+     toggle, and its name stays its accessible label. */
   const glyph = (icon, label, onClick, disabled, testid, fitted = true) => (
-    <ControlHint label={label} testId={`${testid}-hint`} position="bottom">
       <div style={{ transform: "scaleX(-1)", display: "flex" }}>
         <Button
           prefix_icon={icon}
@@ -532,7 +567,6 @@ function DockedDetailPanel({
             ...(fitted ? { borderRadius: DETAIL_TOGGLE_RADIUS, iconOnlyPaddingVertical: DETAIL_TOGGLE_PADDING, iconOnlyPaddingHorizontal: DETAIL_TOGGLE_PADDING } : null) }}
         />
       </div>
-    </ControlHint>
   );
   const pinnedShown = open ? canClose : canOpen;
   const pinnedToggle = pinnedRight && (canClose || canOpen) && (
@@ -596,11 +630,6 @@ function DockedDetailPanel({
              workspace's text colour: anything without its own colour fell
              back to the page default, black even in dark mode. */
           color: "var(--pupu-text)",
-          backgroundColor,
-          ...(!resizing && SURFACE_DITHER_STYLE),
-          backdropFilter,
-          WebkitBackdropFilter: backdropFilter,
-          ...surface.style,
           overflow: "hidden",
           display: "flex",
           flexDirection: "column",
@@ -611,6 +640,27 @@ function DockedDetailPanel({
           WebkitAppRegion: "no-drag",
         }}
       >
+        {/* The frost is a layer under the content, not the panel's own
+            backdrop-filter: an element with a backdrop filter becomes the
+            backdrop root of everything inside it, and a frosted control in
+            the panel (the Test panel's composer) then blurred nothing. Under
+            the content (z -1 in the panel's own stacking context, which its
+            transform makes) it still frosts the canvas behind. */}
+        <div
+          aria-hidden="true"
+          data-testid={`${testId}-glass`}
+          style={{
+            position: "absolute",
+            inset: 0,
+            zIndex: -1,
+            pointerEvents: "none",
+            backgroundColor,
+            ...(!resizing && SURFACE_DITHER_STYLE),
+            backdropFilter,
+            WebkitBackdropFilter: backdropFilter,
+            ...surface.style,
+          }}
+        />
         <div
           data-testid={`${testId}-band`}
           style={{
@@ -693,7 +743,7 @@ function FloatingDetailCard({
         style={{
           position: "absolute",
           zIndex: AGENTS_MODAL_Z.PANEL,
-          borderRadius: 10,
+          borderRadius: REGION_RADIUS,
           ...glass(tokens),
           ...(resizing && {
             backgroundColor: "var(--pupu-surface)",

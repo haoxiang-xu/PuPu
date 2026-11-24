@@ -8,7 +8,20 @@ import pytest
 
 from recipe_seeds import DEFAULT_RECIPE, EXPLORE_RECIPE
 from skeleton_resource_store import SkeletonResourceError, SkeletonResourceStore
-from test_skeleton_legacy_upgrade import kernel_config
+
+
+def kernel_config():
+    return {
+        "schema_version": 1,
+        "profile": {
+            "id": "author-choice", "provider": "openai", "model": "test-model",
+            "protocol": "openai-responses", "endpoint": "https://example.test/v1",
+            "credential_ref": "test.key", "context_window": 8192, "output_limit": 2048,
+            "capabilities": {"json_schema": True, "images": False, "files": False},
+        },
+        "prompt": "author prompt", "max_iterations": 8, "output_tokens": 512,
+        "history": "root", "overflow": "error", "json_schema": None,
+    }
 
 
 def choices():

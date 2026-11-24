@@ -5,6 +5,7 @@ import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use
 import { first_present_expression, ref_expression } from "../skeleton_io";
 import VariablePill, { VariablePillValue, variablePillField } from "./variable_pill";
 import usePillMissingPolicy from "./pill_missing_policy";
+import { CONTROL_RADIUS } from "./panel_style";
 
 /* A row that reads the first of several sources, in the pill's language: the
    row names it, and the sources follow in the order they are tried, each one
@@ -79,7 +80,7 @@ export default function FirstPresentPill({ binding, index, sources, sourceTag, p
             </Button>
             <Button prefix_icon="close" ariaLabel={t("agents.io.remove_source", { position: i + 1 })}
               disabled={values.length <= 2} onClick={() => setValues(values.filter((_, j) => j !== i))}
-              style={{ flexShrink: 0, width: 22, height: 22, borderRadius: 6, backgroundColor: "transparent",
+              style={{ flexShrink: 0, width: 22, height: 22, borderRadius: CONTROL_RADIUS, backgroundColor: "transparent",
                 color: muted(isDark), opacity: values.length <= 2 ? 0.3 : 0.75,
                 iconOnlyPaddingVertical: 0, iconOnlyPaddingHorizontal: 0, content: { icon: { width: 12, height: 12 } } }} />
           </div>
@@ -88,7 +89,7 @@ export default function FirstPresentPill({ binding, index, sources, sourceTag, p
       <Button label={t("agents.io.add_a_source")}
         dom_props={{ type: "button", "aria-haspopup": "menu", onBlur: () => setMenu(null) }}
         onClick={(event) => open(event, values.length)}
-        style={{ alignSelf: "flex-start", fontSize: 11, paddingVertical: 5, paddingHorizontal: 6, borderRadius: 5,
+        style={{ alignSelf: "flex-start", fontSize: 11, paddingVertical: 5, paddingHorizontal: 6, borderRadius: CONTROL_RADIUS,
           marginLeft: 14, marginBottom: 4, color: muted(isDark) }} />
       {policy.settings}
       <div onMouseDown={(event) => event.preventDefault()}>

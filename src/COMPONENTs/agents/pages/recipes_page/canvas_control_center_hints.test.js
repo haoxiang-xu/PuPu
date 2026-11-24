@@ -92,7 +92,7 @@ test("hints and names follow the locale", async () => {
   expect(await screen.findByTestId("cc-start-hint")).toHaveTextContent("回到开始节点");
 });
 
-test("the docked detail panel's close toggle has a hint too", async () => {
+test("the docked detail panel's toggle shows no hint, like the side menu's (project owner, 2026-11-16)", async () => {
   const slot = document.createElement("div");
   document.body.appendChild(slot);
   try {
@@ -107,7 +107,8 @@ test("the docked detail panel's close toggle has a hint too", async () => {
     expect(close).toHaveAttribute("aria-label", "Close");
     // eslint-disable-next-line testing-library/no-node-access
     fireEvent.mouseEnter(close.parentElement.parentElement);
-    expect(await screen.findByTestId("detail-close-hint")).toHaveTextContent("Close");
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.queryByTestId("detail-close-hint")).toBeNull();
   } finally {
     slot.remove();
   }

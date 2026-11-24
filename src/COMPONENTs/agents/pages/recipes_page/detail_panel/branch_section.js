@@ -29,7 +29,7 @@ import {
   remove_case,
   with_branch_execution,
 } from "../skeleton_branch_config";
-import { PANEL_SWITCH, Region, SettingRow, addButtonStyle, errorColor, fillStrong, hairline, muted, note, problem as problemStyle, removeButtonStyle, text as textColor } from "./panel_style";
+import { PANEL_SWITCH, Region, SettingRow, addButtonStyle, errorColor, fillStrong, hairline, muted, note, problem as problemStyle, removeButtonStyle, text as textColor, CONTROL_RADIUS } from "./panel_style";
 import { Block } from "./process_timeline";
 import AddButton from "./add_button";
 import { SemiSwitch } from "../../../../../BUILTIN_COMPONENTs/input/switch";
@@ -52,7 +52,7 @@ import { node_identity } from "./node_identity";
 const MONO = { fontFamily: "ui-monospace, Menlo, monospace" };
 const ROW = { display: "flex", alignItems: "center", gap: 6, minWidth: 0 };
 /* A secondary action that is not an add-at-the-end (replace, remove, keep). */
-const SMALL_BUTTON = { fontSize: 11.5, paddingVertical: 3, paddingHorizontal: 8, borderRadius: 8 };
+const SMALL_BUTTON = { fontSize: 11.5, paddingVertical: 3, paddingHorizontal: 8, borderRadius: CONTROL_RADIUS };
 const FIELD_TEXT = { width: "100%", fontSize: 12, paddingVertical: 4, paddingHorizontal: 6 };
 
 const is_record = (value) => value !== null && typeof value === "object" && !Array.isArray(value);

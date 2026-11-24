@@ -7,6 +7,7 @@ import NodeHeader, { NodeBody } from "./node_header";
 import { safe_text } from "../document_values";
 import { hook_pin, hooks_list } from "../hooks_pool_config";
 import { cached_workflow_version, useWorkflowVersions } from "../workflow_versions";
+import { NODE_TAG_RADIUS } from "../detail_panel/node_tag";
 
 /* A Hooks Pool on the canvas (#357): an attach node, like the other pools,
  * listing its hooks in the order they run within this pool — by (order, id),
@@ -66,7 +67,7 @@ export default function HooksPoolNode({ node, isDark, rename }) {
                 const tool = entry.tool_name === null ? t("agents.nodes.every_tool") : typeof entry.tool_name === "string" && entry.tool_name ? entry.tool_name : "?";
                 return (
                   <div key={index} data-testid={`hooks-pool-node-${node.id}-row-${index}`} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: text, minWidth: 0 }}>
-                    <span style={{ fontSize: 9.5, padding: "0 4px", borderRadius: 4, background: "var(--pupu-overlay-hover)", color: muted, flexShrink: 0 }}>{when}</span>
+                    <span style={{ fontSize: 9.5, padding: "0 4px", borderRadius: NODE_TAG_RADIUS, background: "var(--pupu-overlay-hover)", color: muted, flexShrink: 0 }}>{when}</span>
                     <span style={{ fontFamily: "ui-monospace, Menlo, monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{safe_text(tool)}</span>
                     <span style={{ marginLeft: "auto", fontSize: 10.5, color: muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {version ? t("agents.nodes.hook_workflow_revision", { name: safe_text(version.document.name || pin.workflow_id), revision: version.ordinal }) : pin ? safe_text(pin.workflow_id) : t("agents.nodes.no_workflow")}

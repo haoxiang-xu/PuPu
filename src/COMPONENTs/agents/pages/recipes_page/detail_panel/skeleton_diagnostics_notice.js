@@ -4,6 +4,7 @@ import {
   diagnostic_location_label,
   route_diagnostics,
 } from "../skeleton_diagnostics";
+import { REGION_RADIUS } from "./panel_style";
 
 /* The problems that no row could show.
  *
@@ -22,7 +23,7 @@ const BOX = (isDark) => ({
   flexDirection: "column",
   gap: 4,
   padding: "8px 10px",
-  borderRadius: 8,
+  borderRadius: REGION_RADIUS,
   background: isDark ? "rgba(120,90,20,0.22)" : "rgba(255,244,214,0.9)",
   border: isDark
     ? "1px solid rgba(220,180,80,0.28)"

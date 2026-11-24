@@ -4,6 +4,7 @@ import useListIdentities from "./list_identity";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import Input from "./panel_input";
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
+import { CONTROL_RADIUS } from "./panel_style";
 
 /* Where inside a value to read.
  *
@@ -100,7 +101,7 @@ function Step({ segment, index, testid, onReplace, onRemove }) {
             ...MONO,
             paddingVertical: 3,
             paddingHorizontal: 6,
-            borderRadius: 8,
+            borderRadius: CONTROL_RADIUS,
           }}
         />
         <Input
@@ -114,7 +115,7 @@ function Step({ segment, index, testid, onReplace, onRemove }) {
             ...MONO,
             paddingVertical: 4,
             paddingHorizontal: 6,
-            borderRadius: 8,
+            borderRadius: CONTROL_RADIUS,
           }}
         />
         <Button
@@ -125,7 +126,7 @@ function Step({ segment, index, testid, onReplace, onRemove }) {
             flexShrink: 0,
             paddingVertical: 4,
             paddingHorizontal: 4,
-            borderRadius: 8,
+            borderRadius: CONTROL_RADIUS,
             content: { icon: { width: 11, height: 11 } },
           }}
         />
@@ -205,7 +206,7 @@ export default function PathEditor({
           fontSize: 11.5,
           paddingVertical: 3,
           paddingHorizontal: 8,
-          borderRadius: 8,
+          borderRadius: CONTROL_RADIUS,
           color: "var(--pupu-text-muted)",
         }}
       />

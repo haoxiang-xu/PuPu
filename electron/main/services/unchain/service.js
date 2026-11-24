@@ -7,7 +7,6 @@ const { CHANNELS } = require("../../../shared/channels");
 const { readSkeletonResourceResponse } = require("./skeleton_resource_response");
 const { buildManagedCodeRequest, validateManagedCodeReply, isManagedCodeAction } = require("./managed_code_transport");
 const { buildManagedTransferRequest, isManagedTransferAction, runManagedTransferCommand } = require("./managed_transfer_transport");
-const { prepareLegacyUpgradeRequest, isLegacyUpgradeAction, runLegacyUpgradeCommand } = require("./legacy_upgrade_transport");
 const {
   buildSkeletonCredentialQuery,
   resolveSkeletonCredentials,
@@ -4644,7 +4643,6 @@ const createUnchainService = ({
   };
 
   const runMisoSkeletonResourceCommand = async (action, payload = {}) => {
-    const upgrade = isLegacyUpgradeAction(action) ? prepareLegacyUpgradeRequest(action, payload) : null;
     // Snapshot the validated scalar request synchronously, before any await.
     const observationScope = action === "run_observation"
       ? Object.freeze({ ...checkSkeletonRunObservationRequest(payload) }) : null;
@@ -4656,6 +4654,11 @@ const createUnchainService = ({
         throw Object.assign(new Error(failure.message),{code:failure.code});
       }
       return runBuilderTestCommand(payload, {
+        resolveDefaultWorkspace: () => {
+          const snapshot=settingsStorageService?.getBootstrapSnapshot?.();
+          const root=snapshot?.available===true?snapshot.namespaces?.runtime?.workspace_root:null;
+          return typeof root==='string'&&root.trim()?runtimeService.validateWorkspaceRootPath(root.trim()):{valid:false};
+        },
         resolveWorkspace: id => {
           const snapshot=settingsStorageService?.getBootstrapSnapshot?.();
           const rows=snapshot?.available===true && Array.isArray(snapshot.namespaces?.runtime?.workspaces)
@@ -4667,15 +4670,18 @@ const createUnchainService = ({
             ? trustedCustomProviders(settingsStorageService?.readModelProviderRegistry?.() || {status:'unavailable'}) : [],
           readSecret: readProviderSecretForInjection,
         }),
+        // The same catalog the node's model picker reads: the runtime's own
+        // profiles plus Main's custom providers.
+        resolveKernelCatalog: async () => withConfiguredKernelProfiles(
+          await readSkeletonResourceResponse(await fetch(`http://${UNCHAIN_HOST}:${unchainPort}/skeleton_kernel_profiles`, {
+            method:'GET',headers:{'x-unchain-auth':unchainAuthToken},
+          })),
+          () => settingsStorageService?.readModelProviderRegistry?.()),
         post: async body => readSkeletonResourceResponse(await fetch(`http://${UNCHAIN_HOST}:${unchainPort}/skeleton_tests/command`, {
           method:'POST',headers:{'Content-Type':'application/json','x-unchain-auth':unchainAuthToken},body:JSON.stringify(body),
         })),
       });
     }
-    if (upgrade) return runLegacyUpgradeCommand(upgrade, {
-      baseUrl: `http://${UNCHAIN_HOST}:${unchainPort}`, authToken: unchainAuthToken,
-      fetchImpl: (...args) => fetch(...args), readResponse: readSkeletonResourceResponse,
-    });
     if (isManagedTransferAction(action)) {
       return runManagedTransferCommand(action, payload, {
         baseUrl: `http://${UNCHAIN_HOST}:${unchainPort}`, authToken: unchainAuthToken,

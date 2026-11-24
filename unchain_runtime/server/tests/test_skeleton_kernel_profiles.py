@@ -95,8 +95,8 @@ class KernelProfileProducerTest(unittest.TestCase):
         the provider as an unknown model."""
         declared_by_id = _declared_by_model_id()
         rewritten = [
-            entry for entry in self.result["unavailable"]
-            if entry["model"] == "claude-haiku-4-5"
+            entry for entry in self.result["profiles"] + self.result["unavailable"]
+            if entry["id"] == "anthropic:claude-haiku-4-5"
         ]
         self.assertEqual(len(rewritten), 1)
         self.assertIn("anthropic:claude-haiku-4-5", declared_by_id)
@@ -106,9 +106,9 @@ class KernelProfileProducerTest(unittest.TestCase):
         self.assertEqual(len(ids), len(set(ids)))
         for profile in self.result["profiles"]:
             with self.subTest(profile=profile["id"]):
-                self.assertEqual(
-                    profile["id"], f"{profile['provider']}:{profile['model']}",
-                )
+                declared = _declared_by_model_id().get(profile["id"], {})
+                self.assertEqual(profile["model"], declared.get("provider_model") or profile["id"].split(":", 1)[1])
+                self.assertTrue(profile["id"].startswith(f"{profile['provider']}:"))
 
     def test_a_reservation_can_actually_be_chosen(self):
         """``output_tokens`` must be at least one and below the window, so a
@@ -151,19 +151,22 @@ class KernelProfileProducerTest(unittest.TestCase):
         # something: gpt-6-sol declares text and image only, Claude declares pdf.
         self.assertEqual(seen, {True, False})
 
-    def test_a_model_with_no_declared_output_cap_is_not_given_one(self):
-        reasons = {entry["reason"] for entry in self.result["unavailable"]}
-        self.assertIn("output_limit_unknown", reasons)
-        offered = {profile["id"] for profile in self.result["profiles"]}
+    def test_a_remote_model_with_no_declared_output_cap_gets_the_bounded_default(self):
+        """Chat runs these models with no cap; a Kernel needs one, so they take
+        a budget every listed model can produce, inside their own window
+        (the project owner's rule, 2026-11-15: a model chat can run, a test
+        can run)."""
+        from skeleton_kernel_profiles import _REMOTE_DEFAULT_OUTPUT_BUDGET
         declared_by_id = _declared_by_model_id()
-        for entry in self.result["unavailable"]:
-            if entry["reason"] != "output_limit_unknown":
-                continue
-            with self.subTest(model=entry["id"]):
-                self.assertNotIn(entry["id"], offered)
-                self.assertIsNone(
-                    declared_by_id[entry["id"]].get("max_output_tokens"),
-                )
+        undeclared = [profile for profile in self.result["profiles"]
+                      if profile["provider"] != "ollama"
+                      and declared_by_id.get(profile["id"], {}).get("max_output_tokens") is None]
+        self.assertGreater(len(undeclared), 0)
+        for profile in undeclared:
+            with self.subTest(model=profile["id"]):
+                self.assertEqual(profile["output_limit"],
+                                 min(_REMOTE_DEFAULT_OUTPUT_BUDGET, profile["context_window"] - 1))
+        self.assertNotIn("output_limit_unknown", {entry["reason"] for entry in self.result["unavailable"]})
 
     def test_nothing_is_both_offered_and_unavailable(self):
         offered = {profile["id"] for profile in self.result["profiles"]}
@@ -319,3 +322,13 @@ class KernelProfileRouteTest(unittest.TestCase):
         response = authed.test_client().get("/skeleton_kernel_profiles")
         self.assertEqual(response.status_code, 401)
         self.assertEqual(response.get_json()["error"]["code"], "unauthorized")
+
+
+class KernelProfileProviderModelTest(unittest.TestCase):
+    def test_a_pinned_release_is_what_the_provider_is_asked_for(self):
+        """claude-sonnet-4 is offered under its catalog name but called as the
+        dated release chat sends; the undated name is refused by the API."""
+        from skeleton_kernel_profiles import kernel_profiles
+        profiles = {profile["id"]: profile for profile in kernel_profiles()["profiles"]}
+        self.assertEqual(profiles["anthropic:claude-sonnet-4"]["model"], "claude-sonnet-4-20250514")
+        self.assertEqual(profiles["anthropic:claude-sonnet-5"]["model"], "claude-sonnet-5")

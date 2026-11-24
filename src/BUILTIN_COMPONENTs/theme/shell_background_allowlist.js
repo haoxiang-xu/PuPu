@@ -13,10 +13,6 @@ export const SHELL_BACKGROUND_ALLOWLIST = [
     file: "src/COMPONENTs/agents/pages/characters_page.js",
     anchor: 'background: "#22c55e"',
   }, // green status badge
-  {
-    file: "src/COMPONENTs/agents/pages/recipes_page/subagent_picker.js",
-    anchor: 'inlineName.trim() ? "#4a5bd8"',
-  }, // brand "Add" button, same accent as recipe_canvas
   // Asymmetric input-surface overlay, NOT the modal card — textarea highlight
   // (translucent dark tint / solid light backing), left for a future
   // input-surface pass.

@@ -112,6 +112,36 @@ def _require_graph_only_row(row) -> None:
               "this resource requires the managed-source API", status=409)
 
 
+def with_draft_kernels(document: dict[str, Any], kernel: dict[str, Any]) -> dict[str, Any]:
+    """Give each top-level Agent node with no model the Kernel a test chose.
+
+    Only a Builder test passes ``kernel`` (built by the host from the model
+    picked in its composer). An Agent node the author configured keeps its
+    own Kernel untouched; one with no Kernel takes this one, with the
+    author's drafted prompt and iteration limit when they wrote them. The
+    stored draft is not changed: this is the document one run is admitted
+    with, and its digest says so.
+    """
+    if document.get("kind") != "agent" or not isinstance(document.get("nodes"), list):
+        return document
+    result = deepcopy(document)
+    for node in result["nodes"]:
+        config = node.get("config") if isinstance(node, dict) else None
+        if node.get("type") != "agent" or not isinstance(config, dict) or "kernel" in config:
+            continue
+        draft = config.get("kernel_draft") if isinstance(config.get("kernel_draft"), dict) else {}
+        prompt = draft.get("prompt")
+        limit = draft.get("max_iterations")
+        chosen = deepcopy(kernel)
+        if isinstance(prompt, str):
+            chosen["prompt"] = prompt
+        if type(limit) is int and limit >= 1:
+            chosen["max_iterations"] = limit
+        node["config"] = {key: value for key, value in config.items() if key != "kernel_draft"}
+        node["config"]["kernel"] = chosen
+    return result
+
+
 class SkeletonResourceStore:
     def __init__(self, root: Path | None = None):
         self.root = Path(root) if root is not None else Path.home() / ".pupu" / "skeletons"
@@ -733,7 +763,7 @@ class SkeletonResourceStore:
             connection.execute("BEGIN")
             return self._preflight_in_connection(connection, resource_id, legacy_kernel=legacy_kernel)
 
-    def _preflight_in_connection(self, connection, resource_id, *, legacy_kernel=None):
+    def _preflight_in_connection(self, connection, resource_id, *, legacy_kernel=None, draft_kernel=None):
         """Shared graph algorithm; caller owns its real SQLite read snapshot."""
         resource = connection.execute(
             "SELECT * FROM resources WHERE resource_id=?", (resource_id,),
@@ -745,6 +775,8 @@ class SkeletonResourceStore:
             _fail("resource_archived", ("resource_id",),
                   "archived resource cannot start a new execution", status=409)
         source_document = self._document(resource)
+        if draft_kernel is not None:
+            source_document = with_draft_kernels(source_document, draft_kernel)
         document = self._expand_legacy_subagent_pools(
             connection, source_document, legacy_kernel,
         )
@@ -770,6 +802,7 @@ class SkeletonResourceStore:
             legacy_kernel=legacy_kernel,
             source_document=source_document,
             prepared_identities={document["id"]: execution_definition_digest(plan)},
+            draft_kernel=draft_kernel,
         )
         dependencies = self._resolve_closure(
             connection, document, resource_id, subagents=subagents,
@@ -789,7 +822,8 @@ class SkeletonResourceStore:
                                   legacy_kernel: dict[str, Any] | None,
                                   source_document: dict[str, Any] | None = None,
                                   prepared_identities: dict[str, str] | None = None,
-                                  path_prefix: tuple[str | int, ...] = ("document",)) -> list[dict[str, Any]]:
+                                  path_prefix: tuple[str | int, ...] = ("document",),
+                                  draft_kernel: dict[str, Any] | None = None) -> list[dict[str, Any]]:
         if depth > 6:
             _fail("limit_depth", path_prefix, "Subagent depth exceeds 6")
         resolved: list[dict[str, Any]] = []
@@ -837,6 +871,10 @@ class SkeletonResourceStore:
                 else:
                     _fail("unknown_variant", path + ("kind",),
                           "Subagent source must be agent_ref or embedded")
+                if draft_kernel is not None:
+                    # A subagent with no model of its own runs a Builder test
+                    # with the same chosen model as its owner.
+                    child_document = with_draft_kernels(child_document, draft_kernel)
                 child_source_document = child_document
                 child_document, child_context = self._prepare_legacy_child(
                     connection, child_source_document, owner_document=source_document,
@@ -873,6 +911,7 @@ class SkeletonResourceStore:
                     source_document=child_source_document,
                     prepared_identities=prepared_identities,
                     path_prefix=path + ("document",),
+                    draft_kernel=draft_kernel,
                 )
                 for _, owner in owners:
                     resolved.append({

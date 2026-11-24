@@ -8,7 +8,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { ConfigContext } from "../../../CONTAINERs/config/context";
+import { ConfigContext, NavigationContext } from "../../../CONTAINERs/config/context";
 import DetailPanel from "./recipes_page/detail_panel/detail_panel";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import {
@@ -20,12 +20,11 @@ import {
   EscapeBackHint,
   FloatingDetailShell,
   VISUALLY_HIDDEN,
+  canvas_view_insets,
+  detail_panel_inner_edge,
 } from "./recipes_page/canvas_chrome";
 import { RunTrigger } from "./recipes_page/skeleton_run_menu";
 import BuilderTestPanel from './recipes_page/test_run/builder_test_panel';
-import SkeletonRunView from "./recipes_page/skeleton_run_view";
-import { getChatMessages, getChatsStore } from "../../../SERVICEs/chat_storage";
-import { run_observation_scope } from "./recipes_page/run_observation_scope";
 import useSkeletonResource from "./recipes_page/use_skeleton_resource";
 import SkeletonCanvas from "./recipes_page/skeleton_canvas";
 import { apply_graph_command } from "./recipes_page/skeleton_graph_commands";
@@ -77,11 +76,9 @@ import {
   unwind_drill_stack,
   with_embedded_document,
 } from "./recipes_page/skeleton_drill";
-import LegacyUpgradeWizard from "./recipes_page/legacy_upgrade/legacy_upgrade_wizard";
-import { is_legacy_upgrade_candidate } from "./recipes_page/legacy_upgrade/legacy_upgrade_plan";
-import { emitSkeletonLibraryRefresh } from "../../../SERVICEs/skeleton_library_refresh";
 import { drill_level_icon, drill_trail_segments, graph_icon } from "./recipes_page/drill_trail";
 import { usePublishAgentsDrillTrail } from "../../../SERVICEs/agents_drill_trail";
+import { CONTROL_RADIUS } from "./recipes_page/detail_panel/panel_style";
 
 /* One Skeleton resource, open for editing.
  *
@@ -194,9 +191,15 @@ export default function SkeletonResourcePage({
   if (selectedNodeId) lastShownNodeRef.current = selectedNodeId;
   /* The control center's: Home, the Run menu, and an edit the canvas refused. */
   const [homeToken, setHomeToken] = useState(0);
-  const [runOpen, setRunOpen] = useState(false);
-  const [panelClosed, setPanelClosed] = useState(false);
-  const [runViewScope, setRunViewScope] = useState(null);
+  /* The right panel shows either the selected node or the Test panel. One
+     flag decides which: Run opens Test, picking a node (or Escape, or the
+     panel's own close) goes back to the node. The Test panel stays mounted
+     while hidden, so its conversation and typed inputs are still there when
+     Run brings it back. */
+  const [testOpen, setTestOpen] = useState(false);
+  /* What the Test panel's latest run did, node by node, drawn on this
+     canvas while the panel is open. */
+  const [runStates, setRunStates] = useState(null);
   const [canvasProblem, setCanvasProblem] = useState(null);
   /* The graphs left behind, outermost first. */
   const [drillFrames, setDrillStack] = useState([]);
@@ -209,12 +212,6 @@ export default function SkeletonResourcePage({
   /* Escape was pressed with nothing above the graph to close and an unsaved
      edit: the Builder stayed open, and says why, until the edit is saved. */
   const [escapeHeld, setEscapeHeld] = useState(false);
-  /* The explicit legacy upgrade (#473 CP2): offered while the resource's own
-     graph still carries first-hop provenance, opened by the author, and a
-     write only through the host's compare-and-set apply. The offer is read
-     from the stored document, so a draft with unsaved edits is told to save
-     first rather than upgraded under the author's typing. */
-  const [upgradeOpen, setUpgradeOpen] = useState(false);
   const pageRef = useRef(null);
   const dirtyRef = useRef(false);
   /* How many times each resource has been written in this sitting. The same
@@ -715,25 +712,6 @@ export default function SkeletonResourcePage({
   latestRef.current = { session, steps, revision };
 
 
-  /* Another resource, or another document version taken over this one, is
-     not the sitting the view was opened from. */
-  useEffect(() => {
-    setRunViewScope(null);
-  }, [session.open_id, revision]);
-
-  const open_run_view = useCallback(() => {
-    const chats = getChatsStore();
-    const scope = run_observation_scope(chats, chats?.activeChatId ? getChatMessages(chats.activeChatId) : [], session.resource_id);
-    if (!scope) {
-      setCanvasProblem(agentMessage("agents.editor.chat_required_for_observation"));
-      return;
-    }
-    if (pageRef.current?.contains(window.document.activeElement)) window.document.activeElement?.blur();
-    setRunOpen(false);
-    setCanvasProblem(null);
-    setRunViewScope(scope);
-  }, [session.resource_id]);
-
   /* Escape is answered by the nearest thing on top, once, and stops there; it
      reaches the Agents modal (a `window` listener, which closes the whole
      Builder) only when nothing here takes it. Registered on `document`, where
@@ -776,14 +754,9 @@ export default function SkeletonResourcePage({
         event.stopPropagation();
         return;
       }
-      if (runViewScope) {
-        setRunViewScope(null);
-        take();
-        return;
-      }
-      /* An open Run menu is the nearest thing to close. */
-      if (runOpen) {
-        setRunOpen(false);
+      /* An open Test panel is the nearest thing to close. */
+      if (testOpen) {
+        setTestOpen(false);
         take();
         return;
       }
@@ -807,7 +780,7 @@ export default function SkeletonResourcePage({
     };
     window.document.addEventListener("keydown", onKey);
     return () => window.document.removeEventListener("keydown", onKey);
-  }, [drill_up, runOpen, runViewScope]);
+  }, [drill_up, testOpen]);
   dirtyRef.current = Boolean(session.dirty);
   useEffect(() => {
     if (!session.dirty) setEscapeHeld(false);
@@ -820,8 +793,6 @@ export default function SkeletonResourcePage({
       const active = window.document.activeElement;
       const tag = active?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || active?.isContentEditable) return;
-      /* The editor is not on screen under the run view. */
-      if (runViewScope) return;
       if (!(event.metaKey || event.ctrlKey) || event.altKey) return;
       const key = typeof event.key === "string" ? event.key.toLowerCase() : "";
       if (key === "z" && !event.shiftKey) {
@@ -834,12 +805,12 @@ export default function SkeletonResourcePage({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [runViewScope, undo, redo]);
+  }, [undo, redo]);
 
   /* What the control center says belongs to the graph on screen: another
      resource or another graph inside this one starts without it. */
   useEffect(() => {
-    setRunOpen(false);
+    setTestOpen(false);
   }, [session.open_id]);
   useEffect(() => {
     setCanvasProblem(null);
@@ -852,8 +823,7 @@ export default function SkeletonResourcePage({
   /* The open graph and the path to it are shown in the side menu's
      breadcrumb, above its search field, where they can be clicked: the
      canvas's top edge is the window's drag region. Each graph is its icon and
-     its name; with nothing drilled it is the one open, which leads nowhere.
-     Under the run view nothing on it leads anywhere either. */
+     its name; with nothing drilled it is the one open, which leads nowhere. */
   const trail_segments =
     session.status === SESSION_STATUS.READY || drilled
       ? drill_trail_segments(
@@ -865,12 +835,7 @@ export default function SkeletonResourcePage({
           t,
         )
       : [];
-  usePublishAgentsDrillTrail(
-    runViewScope
-      ? trail_segments.map(({ ariaLabel, hint, ...segment }) => ({ ...segment, depth: null }))
-      : trail_segments,
-    navigate_crumb,
-  );
+  usePublishAgentsDrillTrail(trail_segments, navigate_crumb);
   /* The sentence for a graph that has just gone is said in the same render
      that stops showing it, rather than one commit later. */
   const shown_notices = notices_still_true(lost === null ? notices : [lost], session);
@@ -878,6 +843,28 @@ export default function SkeletonResourcePage({
   const ready = session.status === SESSION_STATUS.READY;
   const conflict = conflict_message(session, t);
   const detail = (chrome && chrome.detail) || DEFAULT_CHROME.detail;
+  /* The canvas between the two side menus: what Home and a running node are
+     centered in. Read when the canvas centers, from what is current then. */
+  const nav = useContext(NavigationContext) || {};
+  const viewAreaInputs = useRef(null);
+  viewAreaInputs.current = {
+    leftEdge: chrome && typeof chrome.leftEdge === "function" ? chrome.leftEdge : null,
+    detailOpen: Boolean(selectedNodeId) || testOpen,
+    dockSlot: nav.agentsDetailSlot || null,
+    width: detail.width,
+    minWidth: detail.minWidth,
+  };
+  const viewArea = useCallback((rect) => {
+    const inputs = viewAreaInputs.current;
+    if (!inputs) return { left: 0, right: 0 };
+    return canvas_view_insets(rect, {
+      leftEdge: inputs.leftEdge ? inputs.leftEdge() : null,
+      rightEdge: inputs.detailOpen
+        ? detail_panel_inner_edge({ dockSlot: inputs.dockSlot, container: pageRef.current,
+          width: inputs.width, minWidth: inputs.minWidth })
+        : null,
+    });
+  }, []);
   const messages = [
     session.error
       ? { text: agentProblemMessage(session.error, t) || session.error.code, testId: "skeleton-save-error" }
@@ -896,30 +883,21 @@ export default function SkeletonResourcePage({
         }
       : null,
   ].filter(Boolean);
-  const showRun = runOpen && ready;
-  const upgradeCandidate = ready && steps.length === 0 && !runViewScope
-    && is_legacy_upgrade_candidate(session.document);
-  // First-hop migration carries its source on the root graph. Its old pool
-  // converter must not bypass the explicit, source-kind-preserving upgrade.
-  // Native graphs with a legacy pool but no migration source keep their route.
+  const showRun = testOpen && ready;
+  /* "Go to node" from the Test panel: the node it names is in this
+     resource's own graph, so an embedded child open on the canvas is left
+     for it first (one drill frame per embedded step). */
+  const fix_node = (node_id) => {
+    if (steps.length > 0) drill_to(stack.length - steps.length);
+    setTestOpen(false);
+    setSelectedNodeId(node_id);
+  };
+  // A first-hop migration carries its source on the root graph, and its old
+  // pool converter must not rewrite that source. The upgrade that used to
+  // handle it was never shipped, so such a pool is left as it is; a native
+  // graph with a legacy pool but no migration source keeps its converter.
   const migratedLegacy = ready && session.document.nodes.some((node) => node?.config
     && Object.prototype.hasOwnProperty.call(node.config, "legacy_source"));
-  const upgradeBlocked = session.dirty
-    ? t("agents.editor.upgrade_save_first")
-    : session.saving || session.converting
-      ? t("agents.editor.upgrade_wait_write")
-      : session.conflict
-        ? t("agents.editor.upgrade_resolve_conflict")
-        : null;
-  const upgradeResource = upgradeCandidate && session.resource_id
-    ? { id: session.resource_id, edit_token: session.edit_token, document: session.document, name: typeof session.document?.name === "string" ? session.document.name : "" }
-    : null;
-  const reopen_after_upgrade = () => {
-    emitSkeletonLibraryRefresh({ reason: "resource_saved", resource_id: session.resource_id || "" });
-    setUpgradeOpen(false);
-    setSelectedNodeId(null);
-    load(session.resource_id);
-  };
 
   const shownNodes = Array.isArray(document?.nodes) ? document.nodes : [];
   const reopenTarget = shownNodes.some((node) => node?.id === lastShownNodeRef.current)
@@ -931,8 +909,7 @@ export default function SkeletonResourcePage({
       {/* The canvas takes its height by growing (`flex: 1`), so it needs a
           flex column that fills the page to grow into. Without it the graph
           was drawn 0px tall. */}
-      {ready && runViewScope && <SkeletonRunView scope={runViewScope} isDark={isDark} onClose={() => setRunViewScope(null)} />}
-      {ready && !runViewScope && (
+      {ready && (
         <div style={CANVAS_FRAME}>
         <SkeletonCanvas
           resourceId={drill_layout_key(
@@ -944,11 +921,16 @@ export default function SkeletonResourcePage({
           document={document}
           commandScope={`${session.open_id}:${revision}`}
           onGraphCommand={(document?.kind === "agent" || document?.kind === "workflow") && document?.schema_version === 1 ? graphCommand : undefined}
-          onSelectNode={id=>{setSelectedNodeId(id);if(id){setRunOpen(false);setPanelClosed(false);}}}
+          runStates={testOpen && steps.length === 0 ? runStates : null}
+          onSelectNode={(id) => {
+            setSelectedNodeId(id);
+            if (id) setTestOpen(false);
+          }}
           onOpenSubagent={open_subagent}
           onOpenWorkflow={open_called_workflow}
           managedSources={session.sources}
           homeToken={homeToken}
+          viewArea={viewArea}
           onProblem={setCanvasProblem}
           isDark={isDark}
         />
@@ -980,7 +962,7 @@ export default function SkeletonResourcePage({
           menu); not under the run view, which Esc closes instead. */}
       <EscapeBackHint
         isDark={isDark}
-        visible={!runViewScope && drilled}
+        visible={drilled}
         top={(chrome && chrome.crumbTop) ?? DEFAULT_CHROME.crumbTop}
         left={(chrome && chrome.crumbLeft) ?? DEFAULT_CHROME.crumbLeft}
         testId="skeleton-escape-hint"
@@ -989,7 +971,7 @@ export default function SkeletonResourcePage({
           otherwise read as "nothing is wrong" here, and it is not what it
           means: measured on the real store, the draft check answers the same
           `[]` for an embedded child with no End as for a healthy one. */}
-      {!runViewScope && drilled && steps.length > 0 && (
+      {drilled && steps.length > 0 && (
         <CanvasCaptionChip isDark={isDark} testId="skeleton-drill-caption">
           <span data-testid="skeleton-drill-save-target">
             {save_target_caption(resource_label, t)}
@@ -998,28 +980,8 @@ export default function SkeletonResourcePage({
         </CanvasCaptionChip>
       )}
 
-      {!runViewScope && (conflict || showRun || messages.length > 0 || upgradeCandidate) && (
+      {(conflict || showRun || messages.length > 0) && (
         <AboveControls testId="skeleton-above-controls">
-          {upgradeCandidate && !conflict && (
-            <ControlPopover isDark={isDark} testId="skeleton-legacy-upgrade-offer">
-              <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: 0.3 }}>
-                {t("agents.editor.legacy_agent")}
-              </span>
-              <span style={{ fontSize: 11, lineHeight: 1.45 }}>
-                {t("agents.editor.legacy_upgrade_description")}
-              </span>
-              {upgradeBlocked && <span style={{ fontSize: 11, lineHeight: 1.45, opacity: 0.8 }}>{upgradeBlocked}</span>}
-              <div style={{ display: "flex", gap: 6 }}>
-                <Button
-                  label={t("agents.editor.upgrade")}
-                  disabled={Boolean(upgradeBlocked)}
-                  onClick={() => setUpgradeOpen(true)}
-                  dom_props={{ "data-testid": "skeleton-legacy-upgrade-open" }}
-                  style={{ fontSize: 11.5, paddingVertical: 4, paddingHorizontal: 10, borderRadius: 6, color: upgradeBlocked ? undefined : (isDark ? "#60a5fa" : "#4a5bd8") }}
-                />
-              </div>
-            </ControlPopover>
-          )}
           {/* A conflict is not offered as "retry". Retrying at the same token
               fails identically, and retrying at the newer one replaces the
               other person's work without anyone seeing it happen. The two
@@ -1034,7 +996,7 @@ export default function SkeletonResourcePage({
                 <Button
                   label={t("agents.save.look_at_theirs")}
                   onClick={takeTheirs}
-                  style={{ fontSize: 11.5, paddingVertical: 4, paddingHorizontal: 10, borderRadius: 6 }}
+                  style={{ fontSize: 11.5, paddingVertical: 4, paddingHorizontal: 10, borderRadius: CONTROL_RADIUS }}
                 />
                 <Button
                   label={t("agents.save.keep_mine")}
@@ -1043,7 +1005,7 @@ export default function SkeletonResourcePage({
                     fontSize: 11.5,
                     paddingVertical: 4,
                     paddingHorizontal: 10,
-                    borderRadius: 6,
+                    borderRadius: CONTROL_RADIUS,
                     color: "#4a5bd8",
                   }}
                 />
@@ -1054,7 +1016,7 @@ export default function SkeletonResourcePage({
         </AboveControls>
       )}
 
-      {ready && !runViewScope && (
+      {ready && (
         <CanvasControlCenter
           isDark={isDark}
           testId="skeleton-control-center"
@@ -1067,8 +1029,8 @@ export default function SkeletonResourcePage({
           saveLabel={session.saving ? t("agents.save.saving") : t("agents.save.save")}
           saveDisabled={!can_save(session)}
           saveActive={Boolean(session.dirty && !session.conflict)}
-          run={steps.length===0?<RunTrigger testId="skeleton-control-center-run" open={runOpen&&!panelClosed}
-            onToggle={()=>{setPanelClosed(false);setRunOpen(open=>panelClosed?true:!open);}}/>:null}
+          run={<RunTrigger testId="skeleton-control-center-run" open={testOpen}
+            onToggle={() => setTestOpen((open) => !open)} />}
         />
       )}
       {session.status !== SESSION_STATUS.EMPTY &&
@@ -1078,27 +1040,20 @@ export default function SkeletonResourcePage({
           </span>
         )}
 
-      {upgradeResource && (
-        <LegacyUpgradeWizard
-          open={upgradeOpen}
-          resource={upgradeResource}
-          isDark={isDark}
-          onClose={() => setUpgradeOpen(false)}
-          onUpgraded={reopen_after_upgrade}
-          onReopen={reopen_after_upgrade}
-        />
-      )}
       {ready && (
-        <div data-testid="skeleton-editor-detail-boundary" inert={Boolean(runViewScope)} aria-hidden={runViewScope ? "true" : undefined} style={{ display: "contents" }}>
+        <div data-testid="skeleton-editor-detail-boundary" style={{ display: "contents" }}>
         <FloatingDetailShell
           isDark={isDark}
-          open={(Boolean(selectedNodeId)||runOpen) && !panelClosed && !runViewScope}
+          open={Boolean(selectedNodeId) || testOpen}
           width={detail.width}
           minWidth={detail.minWidth}
           resizing={Boolean(detail.resizing)}
           testId="skeleton-detail-panel-shell"
-          onClose={() => {if(runOpen)setPanelClosed(true);else setSelectedNodeId(null);}}
-          onOpen={(reopenTarget||runOpen) && !runViewScope ? () => {setPanelClosed(false);if(!runOpen)setSelectedNodeId(reopenTarget);} : undefined}
+          onClose={() => {
+            setTestOpen(false);
+            setSelectedNodeId(null);
+          }}
+          onOpen={reopenTarget ? () => setSelectedNodeId(reopenTarget) : undefined}
           handle={
             typeof detail.onDragStart === "function"
               ? {
@@ -1113,13 +1068,10 @@ export default function SkeletonResourcePage({
         >
           {/* Remounted by undo and redo: the document under a field was
               replaced, not typed into, so text it was holding has to go. */}
-          <div style={{display:showRun&&!panelClosed?'none':'contents'}}>
+          <div style={{ display: showRun ? "none" : "contents" }}>
           <DetailPanel
             key={`${session.open_id}:${session.history_epoch || 0}`}
-            recipe={null}
             selectedNodeId={selectedNodeId}
-            onChange={() => {}}
-            onChangeSilent={() => {}}
             document={document}
             startContext={startContext}
             documentRevision={session.document_revision}
@@ -1133,21 +1085,18 @@ export default function SkeletonResourcePage({
             onOpenWorkflow={open_called_workflow}
             onEntryIdRepaired={entry_id_repaired}
             embedded={steps.length > 0}
-            onConvertLegacy={migratedLegacy ? () => {
-              if (upgradeCandidate && !upgradeBlocked) setUpgradeOpen(true);
-            } : convertLegacyPools}
-            canConvertLegacy={migratedLegacy
-              ? Boolean(upgradeCandidate && !upgradeBlocked)
-              : can_convert_legacy_pools(session) && steps.length === 0}
+            onConvertLegacy={migratedLegacy ? undefined : convertLegacyPools}
+            canConvertLegacy={!migratedLegacy && can_convert_legacy_pools(session) && steps.length === 0}
             convertingLegacy={session.converting}
           />
           </div>
           <BuilderTestPanel key={session.document?.id}
-            active={showRun&&!panelClosed&&!runViewScope&&steps.length===0}
+            active={showRun}
             session={session} isDark={isDark} onSave={handleSave} onCheck={preflight}
-            onDetails={()=>setRunOpen(false)}
-            onViewChatRun={open_run_view}
-            onObserve={scope=>setRunViewScope(scope)}/>
+            onFix={fix_node}
+            onRunStates={setRunStates}
+            scopeNote={steps.length > 0 ? t("agents.test_run.embedded_note", { name: resource_label }) : null}
+ />
         </FloatingDetailShell>
         </div>
       )}

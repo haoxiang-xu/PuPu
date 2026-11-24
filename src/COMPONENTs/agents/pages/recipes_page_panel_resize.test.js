@@ -64,7 +64,7 @@ async function mount(selectedNodeId = null) {
     />,
   );
   await waitFor(() => {
-    expect(api.unchain.getRecipe).toHaveBeenCalled();
+    expect(screen.getByTestId("flow-editor")).toBeTruthy();
   });
 }
 
@@ -102,7 +102,6 @@ function release(at) {
 describe("RecipesPage panel resize", () => {
   test.each([
     ["list", 200, 1, 240],
-    ["detail", 700, -1, 340],
   ])("dragging the %s edge does not render the canvas on pointer moves", async (panel, start, direction, width) => {
     await mount("start");
     const handle = screen.getByTestId(`recipe-${panel}-resize-handle`);
@@ -129,15 +128,12 @@ describe("RecipesPage panel resize", () => {
   test("panels start at their stored widths (defaults = minimums)", async () => {
     await mount("start");
     expect(screen.getByTestId("recipe-list-panel-shell").style.width).toBe("200px");
-    expect(screen.getByTestId("recipe-detail-panel-shell").style.width).toBe("300px");
   });
 
   test("a previously stored width is restored on mount", async () => {
     writeRecipePanelWidth("list", 260);
-    writeRecipePanelWidth("detail", 420);
     await mount("start");
     expect(screen.getByTestId("recipe-list-panel-shell").style.width).toBe("260px");
-    expect(screen.getByTestId("recipe-detail-panel-shell").style.width).toBe("420px");
   });
 
   test("dragging the list handle right widens the list and persists on release", async () => {
@@ -151,16 +147,6 @@ describe("RecipesPage panel resize", () => {
     expect(readRecipePanelWidths().list).toBe(240);
     expect(screen.getByTestId("recipe-list-panel-shell").style.width).toBe("240px");
     expect(liveWidth("list")).toBeUndefined();
-  });
-
-  test("dragging the detail handle left widens the detail panel", async () => {
-    await mount("start");
-    const handle = screen.getByTestId("recipe-detail-resize-handle");
-    drag(handle, 700, 640);
-    expect(liveWidth("detail")).toBe("360px");
-    release(640);
-    expect(readRecipePanelWidths().detail).toBe(360);
-    expect(screen.getByTestId("recipe-detail-panel-shell").style.width).toBe("360px");
   });
 
   test("widths never go below the minimum or above the panel's share", async () => {
@@ -195,14 +181,10 @@ describe("RecipesPage resize indicator placement", () => {
     await mount("start");
     const listPanel = screen.getByTestId("recipe-list-panel-shell");
     const listHandle = screen.getByTestId("recipe-list-resize-handle");
-    const detailPanel = screen.getByTestId("recipe-detail-panel-shell");
-    const detailHandle = screen.getByTestId("recipe-detail-resize-handle");
 
     expect(listPanel.contains(listHandle)).toBe(false);
-    expect(detailPanel.contains(detailHandle)).toBe(false);
     // panel inset 6 + width 200 → handle hit area begins just past the edge
     expect(listHandle.style.left).toBe("208px");
-    expect(detailHandle.style.right).toBe("308px");
 
     drag(listHandle, 200, 240);
     release(240);
@@ -243,12 +225,6 @@ describe("RecipesPage resize indicator placement", () => {
     expect(pill.style.backgroundColor).toBe("rgba(255, 255, 255, 0.12)");
   });
 
-  test("the detail handle hides with its panel", async () => {
-    await mount(null);
-    const detailHandle = screen.getByTestId("recipe-detail-resize-handle");
-    expect(detailHandle.style.pointerEvents).toBe("none");
-    expect(detailHandle.style.opacity).toBe("0");
-  });
 });
 
 describe("RecipesPage resize pill hover", () => {
@@ -288,16 +264,6 @@ describe("RecipesPage panel widths are capped by share of the canvas", () => {
     expect(cap).toBe(420); // 35% of 1200
     expect(liveWidth("list")).toBe(`${cap}px`);
     release(200 + CONTAINER);
-  });
-
-  test("the detail panel gets the larger share", async () => {
-    await mount("start");
-    const handle = screen.getByTestId("recipe-detail-resize-handle");
-    drag(handle, 900, 900 - CONTAINER);
-    const cap = panelMaxWidth("detail", CONTAINER);
-    expect(cap).toBe(600); // 50% of 1200
-    expect(liveWidth("detail")).toBe(`${cap}px`);
-    release(900 - CONTAINER);
   });
 
   test("a width stored when the window was wider comes back clamped", async () => {

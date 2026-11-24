@@ -20,11 +20,40 @@ from skeleton_production_state import canonical, load_launch
 SCHEMA = 'pupu.builder-test.v1'
 _LOCK = threading.RLock()
 _WORKERS = {}
+# Projections of settled runs, by (database, run id); see _project.
+_SETTLED = {}
 _TERMINAL = {'completed', 'failed', 'cancelled', 'outcome_unknown'}
 CONTEXT_FIELDS={'toolkits','skills','workspace_root','workspace_roots','disable_workspace_root'}
 TRANSIENT_FIELDS={'skeleton_credentials','skeleton_credential_scope','openaiApiKey','openai_api_key',
     'anthropicApiKey','anthropic_api_key','geminiApiKey','gemini_api_key'}
 _TRACE_REDACTION_POLICY = 'registered-secrets-v1'
+# The editor's own defaults for a Kernel it writes when a model is picked
+# (kernel_config.js `new_kernel_config`), so a test's fallback is the Kernel
+# the author would get by picking the same model on the node.
+_DEFAULT_MAX_ITERATIONS = 12
+
+
+def fallback_kernel(profile):
+    """The Kernel an unconfigured Agent runs with in a test.
+
+    ``profile`` is the catalog entry Main resolved for the model picked in the
+    test composer — the same entries the node's model picker offers (this
+    runtime's profiles plus Main's custom providers). The renderer only ever
+    names a model; credentials are still injected by Main per run. The Kernel
+    is the editor's default for a newly picked model and passes the runtime's
+    own validator before anything is admitted.
+    """
+    from unchain.skeleton.errors import SkeletonValidationError
+    from unchain.skeleton.kernel_config import validate_kernel_config
+    if type(profile) is not dict or type(profile.get('context_window')) is not int or type(profile.get('output_limit')) is not int:
+        _fail('invalid_shape','The chosen model profile is incomplete.',('fallback_profile',),400)
+    window=profile['context_window']; limit=profile['output_limit']
+    kernel={'schema_version':1,'profile':deepcopy(profile),'prompt':'','max_iterations':_DEFAULT_MAX_ITERATIONS,
+        'output_tokens':max(1,min(limit,window-1)),'history':'root','overflow':'error','json_schema':None}
+    try:
+        return validate_kernel_config(kernel)
+    except SkeletonValidationError as error:
+        _fail('test_model_unavailable','This model cannot run an Agent test: its profile was refused.',('fallback_model','profile_refused'),409)
 
 
 def runtime_import_observation(manifest):
@@ -166,7 +195,7 @@ class BuilderTestSessions:
             if status not in _TERMINAL and status!='ready':
                 _fail('test_already_active','Resume or stop the current test first.',('session_id',))
 
-    def prepare(self, session, resource, token, inputs, request_id, *, memory_agent_config=None, context=None):
+    def prepare(self, session, resource, token, inputs, request_id, *, memory_agent_config=None, context=None, fallback_profile=None):
         from skeleton_code_admission import prepare_test_execution_material
         from unchain.skeleton.workflow_inputs import bind_workflow_inputs
         from route_chat import _sanitize_memory_agent_config
@@ -179,7 +208,12 @@ class BuilderTestSessions:
         if type(inputs) is not dict:
             _fail('invalid_type','Test arguments must be an object.',('inputs',),400)
         context=freeze_test_context(context or {})
-        fingerprint=sha256(_json({'resource':resource,'token':token,'inputs':inputs,'memory_agent_config':memory_config,'context':context}).encode()).hexdigest()
+        if fallback_profile is not None and type(fallback_profile) is not dict:
+            _fail('invalid_type','The chosen model profile must be an object.',('fallback_profile',),400)
+        identity={'resource':resource,'token':token,'inputs':inputs,'memory_agent_config':memory_config,'context':context}
+        if fallback_profile is not None:
+            identity['fallback_profile']=fallback_profile
+        fingerprint=sha256(_json(identity).encode()).hexdigest()
         with _LOCK, self._db() as db:
             db.execute('BEGIN IMMEDIATE')
             owner=self._session(db,session,resource)
@@ -192,7 +226,10 @@ class BuilderTestSessions:
                 self._assert_idle(db,session,resource)
                 if db.execute('SELECT count(*) FROM runs WHERE session_id=?',(session,)).fetchone()[0]>=100:
                     _fail('test_session_full','Start a new test conversation.',('session_id',))
-                selected,deps=prepare_test_execution_material(resource,token,owner['kind'])
+                if fallback_profile is not None and owner['kind']!='agent':
+                    _fail('invalid_value','Only an Agent test takes a model.',('fallback_profile',),400)
+                draft=fallback_kernel(fallback_profile) if fallback_profile is not None else None
+                selected,deps=prepare_test_execution_material(resource,token,owner['kind'],draft_kernel=draft)
                 if owner['kind']=='workflow':
                     normalized=bind_workflow_inputs(selected.to_dict()['document'],inputs)
                 else:
@@ -326,10 +363,14 @@ class BuilderTestSessions:
             except Exception as error:
                 code=getattr(error,'code','builder_test_failed')
                 if type(code) is not str: code='builder_test_failed'
+                # Host refusals carry sentences written here, never provider
+                # text; anything else keeps the generic one.
+                known=isinstance(error,SkeletonResourceError) and type(getattr(error,'message',None) or str(error)) is str
+                message=str(error) if known and str(error) else 'The test did not complete.'
                 with self._db() as db:
                     db.execute('UPDATE runs SET error=? WHERE id=?',
                         (json.dumps({'code':code,'path':list(getattr(error,'path',())),
-                            'message':'The test did not complete. Check the recorded run.'}),row['id']))
+                            'message':message}),row['id']))
             finally:
                 with _LOCK:
                     _WORKERS.pop(key,None)
@@ -370,6 +411,53 @@ class BuilderTestSessions:
             result['trace_complete']=db.execute('''SELECT 1 FROM trace_limits WHERE run_id=?
                 UNION ALL SELECT 1 FROM trace_omissions WHERE run_id=?''',(row['id'],row['id'])).fetchone() is None
         if row['phase'] in ('ready','cancelled'): return result
+        key=(str(self.path),row['id'])
+        # A settled run never changes again. Reading it once keeps later reads
+        # of the conversation from re-reading its artifacts from the session
+        # journal while a newer run of the same session is appending to it,
+        # which can briefly find them unreadable.
+        settled=_SETTLED.get(key)
+        if settled is not None and key not in _WORKERS:
+            cached=deepcopy(settled)
+            # Journal state is immutable, but display rows may have arrived
+            # after the prior snapshot or been purged by provenance checks.
+            cached.update({field:result[field] for field in ('events','trace_complete')})
+            return cached
+        try:
+            projected=self._project_launch(row,result,material,selected,_recheck=_recheck,_cache_db=_cache_db)
+            if projected['status'] in _TERMINAL and projected['status']!='outcome_unknown' and key not in _WORKERS:
+                # Worker removal happens after its final cache/error commit.
+                # Refresh these fields only now, before freezing the launch.
+                with self._db(_cache_db) as db:
+                    projected['events']=self._cached_events(db,row['id'])
+                    projected['trace_complete']=db.execute('''SELECT 1 FROM trace_limits WHERE run_id=?
+                        UNION ALL SELECT 1 FROM trace_omissions WHERE run_id=?''',(row['id'],row['id'])).fetchone() is None
+                    updated=db.execute('SELECT error FROM runs WHERE id=?',(row['id'],)).fetchone()
+                    if updated and updated['error']:
+                        projected['error']=json.loads(updated['error'])
+                _SETTLED[key]=deepcopy(projected)
+            return projected
+        except Exception as error:
+            # A read that races the worker writing the run can find an
+            # artifact listed but not yet readable. While the worker is alive
+            # the run is still in progress; read it again on the next poll
+            # instead of failing the request that only asked to look.
+            # The same holds for a wait the worker is settling right now (an
+            # approval just recorded, a resume starting): its guard and
+            # pending record change between independent reads.
+            if isinstance(getattr(error,'code',None),str) and (str(self.path),row['id']) in _WORKERS:
+                result['status']='running'
+                return result
+            # A settled run read for the first time while another run of the
+            # session appends: look again shortly instead of failing the read.
+            if getattr(error,'code',None)=='artifact_unavailable' and _recheck and any(
+                    owner==str(self.path) for owner,_ in list(_WORKERS)):
+                import time
+                time.sleep(0.15)
+                return self._project(row,_recheck=False,_cache_db=_cache_db)
+            raise
+
+    def _project_launch(self,row,result,material,selected,*,_recheck,_cache_db):
         try:
             launch=load_launch(row['session_id'],row['id'],expected_owner_chat_id=row['session_id'],allow_terminal_stale=True)
         except Exception:

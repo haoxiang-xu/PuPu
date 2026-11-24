@@ -35,6 +35,8 @@ import {
   writeSkeletonNodePositions,
   writeSkeletonViewport,
 } from "../../../../SERVICEs/skeleton_layout";
+import { CHROME_CARD_RADIUS } from "./canvas_chrome";
+import { REGION_RADIUS } from "./detail_panel/panel_style";
 
 /* The graph, drawn.
  *
@@ -119,7 +121,7 @@ function renderNode(node, isDark, onOpenSubagent, view = {}) {
     <div
       style={{
         padding: "10px 14px",
-        borderRadius: 8,
+        borderRadius: REGION_RADIUS,
         fontSize: 11.5,
         fontFamily: "ui-monospace, Menlo, monospace",
         border: isDark ? "1px dashed rgba(255,255,255,0.25)" : "1px dashed rgba(0,0,0,0.2)",
@@ -149,6 +151,58 @@ function renderNode(node, isDark, onOpenSubagent, view = {}) {
  * of FlowEditor's own state as well, which no prop of ours can reset; and the
  * viewport is written back on the way out by the instance that was panned, so
  * it lands under the graph it belonged to rather than the one now open. */
+/* A run drawn on the edges too (design B3): the edge into the node that is
+   running flows in the theme colour; the path the run took stays tinted
+   (green, or red into a failure); an edge into a person's wait holds still
+   in the warning colour; an edge into a skipped node, or out of a failed
+   one, goes dashed. A configuration pool's link is not a step of the run
+   and keeps its own drawing. Only the drawing changes, never the edge. */
+const RUN_POOL_TYPES = ["toolkit_pool", "subagent_pool", "hooks_pool"];
+const RUN_EDGE_TINT = (token) => `color-mix(in srgb, var(${token}) 75%, transparent)`;
+function run_edge(edge, runNodes) {
+  const from = runNodes.get(edge.source_node_id)?.state;
+  const to = runNodes.get(edge.target_node_id)?.state;
+  if (from === "failed" || to === "skipped") return { ...edge, style: "dashed" };
+  if (from !== "succeeded") return edge;
+  if (to === "running") return { ...edge, color: "var(--pupu-accent)", flowing: true };
+  if (to === "waiting" || to === "waiting_approval" || to === "outcome_unknown") return { ...edge, color: "var(--pupu-warning)", style: "dashed" };
+  if (to === "failed") return { ...edge, color: RUN_EDGE_TINT("--pupu-danger") };
+  if (to === "succeeded") return { ...edge, color: RUN_EDGE_TINT("--pupu-success") };
+  return edge;
+}
+
+/* Where a run is: a step running, or waiting on a person. */
+const ACTIVE_RUN_STATES = new Set(["running", "waiting", "waiting_approval"]);
+export function active_run_node_ids(runNodes, skip) {
+  const active = [];
+  if (!runNodes) return active;
+  runNodes.forEach((node, id) => {
+    if (node && ACTIVE_RUN_STATES.has(node.state) && !(skip && skip.has(id))) active.push(id);
+  });
+  return active;
+}
+/* Of the nodes now active, the one to follow: one that was not active the
+   last time (the run has just arrived there), the last such in run order if
+   several arrived at once; else the one already followed while it is still
+   active; else none. A configuration pool is never a step of the run. */
+export function next_followed_run_node(active, previousActive, previousFollowed) {
+  const before = new Set(previousActive || []);
+  const arrived = active.filter((id) => !before.has(id));
+  if (arrived.length > 0) return arrived[arrived.length - 1];
+  if (previousFollowed && active.includes(previousFollowed)) return previousFollowed;
+  return active.length > 0 ? active[active.length - 1] : null;
+}
+function useFollowedRunNode(runNodes, graph) {
+  const memory = useRef({ active: [], followed: null });
+  return useMemo(() => {
+    const pools = new Set(((graph && graph.nodes) || []).filter((node) => RUN_POOL_TYPES.includes(node?.type)).map((node) => node.id));
+    const active = active_run_node_ids(runNodes, pools);
+    const followed = next_followed_run_node(active, memory.current.active, memory.current.followed);
+    memory.current = { active, followed };
+    return followed;
+  }, [runNodes, graph]);
+}
+
 export default function SkeletonCanvas(props) {
   return <GraphDrawing key={JSON.stringify([props.resourceId, props.commandScope])} {...props} />;
 }
@@ -185,12 +239,19 @@ function GraphDrawing({
   document: graph,
   readOnly = false,
   observation = null,
+  /* The Test panel's latest run, as [{node_id, state}], drawn on the graph
+     the author is editing. The panel only hands it over for the saved
+     version this canvas shows. */
+  runStates = null,
   onSelectNode,
   onOpenSubagent,
   onOpenWorkflow,
   onGraphCommand,
   /* Bumped by the page's Home control; Home centers this graph's own Start. */
   homeToken,
+  /* `(rect) => insets`: how far the side menus reach over this canvas. Home
+     and a running node are both centered between them, not in the canvas. */
+  viewArea,
   /* Where a refused edit is said. Without it the canvas says it itself. */
   onProblem,
   isDark,
@@ -303,12 +364,20 @@ function GraphDrawing({
   /* Run A must never paint the editor's draft B. Only the frozen document
      object supplied by the read-only run view carries this projection. */
   const observed = readOnly && observation?.document === graph ? observation : null;
-  const runNodes = useMemo(() => new Map((observed?.nodes || []).map((node) => [node.node_id, node])), [observed]);
+  const runNodes = useMemo(() => new Map((observed?.nodes || (Array.isArray(runStates) ? runStates : [])).map((node) => [node.node_id, node])),
+    [observed, runStates]);
+  /* The node a live run is on, for the canvas to keep in view. When the
+     run moves on, the node that has just become active is the one followed;
+     a run that has finished (nothing active) leaves the canvas where it is. */
+  const followNodeId = useFollowedRunNode(runNodes, graph);
   const edges = useMemo(() => {
     const list = (graph && graph.edges) || [];
     const skipped = new Set(observed?.skipped_edges || []);
-    return skipped.size ? list.map((edge) => skipped.has(edge.id) ? { ...edge, style: "dashed" } : edge) : list;
-  }, [graph, observed]);
+    const marked = skipped.size ? list.map((edge) => skipped.has(edge.id) ? { ...edge, style: "dashed" } : edge) : list;
+    if (!runNodes.size) return marked;
+    const pools = new Set(((graph && graph.nodes) || []).filter((node) => RUN_POOL_TYPES.includes(node.type)).map((node) => node.id));
+    return marked.map((edge) => (pools.has(edge.source_node_id) || pools.has(edge.target_node_id) ? edge : run_edge(edge, runNodes)));
+  }, [graph, observed, runNodes]);
 
   /* A drop. The editor reports every node with the dropped one moved, so the
      command carries the whole drawing and the stored layout is complete from
@@ -577,7 +646,7 @@ function GraphDrawing({
            adds no box and the editor measures the node exactly as before. */
         render_node={(node) => (
           <div data-testid={`skeleton-node-${node.id}`} style={{ display: "contents" }}>
-            <RunNodeStatus projection={["toolkit_pool", "subagent_pool", "hooks_pool"].includes(node.type) ? null : runNodes.get(node.id)} isDark={isDark}>
+            <RunNodeStatus projection={RUN_POOL_TYPES.includes(node.type) ? null : runNodes.get(node.id)} isDark={isDark}>
               {renderNode(node, isDark, onOpenSubagent, { rename: renameFor(node), onOpenWorkflow })}
             </RunNodeStatus>
           </div>
@@ -588,11 +657,13 @@ function GraphDrawing({
         }
         reset_token={resetToken}
         reset_focus_node_id={focusNodeId || startNodeId}
+        view_area={viewArea}
+        follow_node_id={followNodeId}
         fit_token={fitToken}
         zoom_reset_token={zoomToken}
         select_all_token={selectToken}
       />
-      {problem && <div data-testid="skeleton-graph-problem" role="alert" style={{ position: "absolute", bottom: 8, left: 8, right: 8, padding: "8px 12px", borderRadius: 8, background: "var(--pupu-surface)", fontSize: 12 }}>{renderAgentMessage(problem, t)}</div>}
+      {problem && <div data-testid="skeleton-graph-problem" role="alert" style={{ position: "absolute", bottom: 8, left: 8, right: 8, padding: "8px 12px", borderRadius: CHROME_CARD_RADIUS, background: "var(--pupu-surface)", fontSize: 12 }}>{renderAgentMessage(problem, t)}</div>}
       <RecipeNodePalette visible={canEdit && !!palette} x={palette?.x || 0} y={palette?.y || 0}
         allowedTypes={addableTypes} entries={paletteEntries} onPick={pickNode} onClose={() => setPalette(null)} isDark={isDark} />
       <ContextMenu visible={canEdit && !!menu} x={menu?.client_x || 0} y={menu?.client_y || 0}

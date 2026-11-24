@@ -32,7 +32,11 @@ export function kernel_model_options(profiles, stored, collapsed, t, definitions
       });
     }
     const id = own(profile, "id");
-    const modelLabel = definition?.models?.find(({ id }) => id === model)?.display_name || model;
+    /* Named as offered (the id's model part), not as the provider is called:
+       a pinned release such as claude-sonnet-4-20250514 reads as
+       claude-sonnet-4, the name chat shows. */
+    const offeredName = typeof id === "string" && id.startsWith(`${provider}:`) ? id.slice(provider.length + 1) : model;
+    const modelLabel = definition?.models?.find(({ id: defined }) => defined === model)?.display_name || offeredName;
     const label = unlisted ? t("agents.execution.kernel.unlisted_model_option", { stored_profile: `${provider} · ${model}` }) : modelLabel;
     groups.get(key).options.push({
       value: typeof id === "string" ? id : "__stored__",

@@ -57,6 +57,11 @@ _DERIVABLE = ("openai", "anthropic", "gemini", "ollama")
 
 _OLLAMA_DEFAULT_ENDPOINT = "http://localhost:11434"
 _OLLAMA_LOCAL_OUTPUT_BUDGET = 4096
+#: The reply budget for a remote model whose catalog entry declares no output
+#: cap (most OpenAI entries do not). Chat sends these models no cap at all; a
+#: Kernel needs a number, so it takes one every listed model can produce,
+#: never above the model's own window. The author can lower it per node.
+_REMOTE_DEFAULT_OUTPUT_BUDGET = 16384
 
 
 def _ollama_endpoint() -> str:
@@ -132,6 +137,11 @@ def _unavailable(provider: str, model: str, reason: str, **extra: Any) -> dict[s
             "reason": reason, **extra}
 
 
+def _provider_model(raw: dict[str, Any], model: str) -> str:
+    pinned = raw.get("provider_model")
+    return pinned.strip() if isinstance(pinned, str) and pinned.strip() else model
+
+
 def _positive_int(value: Any) -> int | None:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
@@ -194,14 +204,21 @@ def kernel_profiles() -> dict[str, Any]:
         output_limit = _positive_int(raw.get("max_output_tokens"))
         if output_limit is None and local_model:
             output_limit = min(_OLLAMA_LOCAL_OUTPUT_BUDGET, context_window - 1)
+        if output_limit is None and context_window > 1:
+            output_limit = min(_REMOTE_DEFAULT_OUTPUT_BUDGET, context_window - 1)
         if output_limit is None:
             unavailable.append(_unavailable(provider, model, "output_limit_unknown"))
             continue
 
         profile = {
+            # The id is the name PuPu offers the model under (the composer's
+            # "provider:model"); the model is the one the provider is asked
+            # for. The capability catalog pins some to a dated release
+            # (claude-sonnet-4 -> claude-sonnet-4-20250514) and chat sends that
+            # one; a Kernel binds `model` verbatim, so it has to as well.
             "id": f"{provider}:{model}",
             "provider": provider,
-            "model": model,
+            "model": _provider_model(raw, model),
             "protocol": protocol,
             "endpoint": endpoint,
             "credential_ref": provider,

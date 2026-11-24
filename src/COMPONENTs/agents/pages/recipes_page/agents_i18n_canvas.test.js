@@ -2,9 +2,7 @@ import React from "react";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { ConfigContext, LocaleContext } from "../../../../CONTAINERs/config/context";
 import SkeletonCanvas from "./skeleton_canvas";
-import RecipeCanvas from "./recipe_canvas";
 import { new_agent_document } from "./skeleton_graph_edits";
-import { migrate_recipe } from "./recipe_migration";
 import { CanvasControlCenter, CanvasMessageStrip, EscapeBackHint } from "./canvas_chrome";
 import { agentMessage } from "./agents_i18n";
 
@@ -55,20 +53,6 @@ test("native canvas menu repaints in place without issuing its semantic commands
   view.rerender(tree("zh-CN"));
   expect(within(screen.getByTestId("locale-canvas-menu")).getByRole("button", { name: "查找节点…" })).toBeInTheDocument();
   expect(onGraphCommand).not.toHaveBeenCalled();
-});
-
-test("legacy canvas forwards the current translator to its owned menu while preserving its document", () => {
-  const recipe = migrate_recipe({ name: "Raw legacy name", agent: { prompt: "agents.canvas.menu.paste" } });
-  const onRecipeChange = jest.fn();
-  const before = JSON.stringify(recipe);
-  const tree = (locale) => localized(locale, <RecipeCanvas recipe={recipe} recipes={[]} onRecipeChange={onRecipeChange} />);
-  const view = render(tree("en"));
-  fireEvent.contextMenu(screen.getByTestId("flow-editor-viewport"), { clientX: 40, clientY: 50 });
-  expect(within(screen.getByTestId("locale-canvas-menu")).getByRole("button", { name: "Paste" })).toBeInTheDocument();
-  view.rerender(tree("zh-CN"));
-  expect(within(screen.getByTestId("locale-canvas-menu")).getByRole("button", { name: "粘贴" })).toBeInTheDocument();
-  expect(onRecipeChange).not.toHaveBeenCalled();
-  expect(JSON.stringify(recipe)).toBe(before);
 });
 
 test("a persistent owned notice repaints inside the real message strip while unbranded backend text stays exact", () => {

@@ -22,7 +22,7 @@ import { buildAgentExplorerMenuItems } from "./agent_explorer_menu_items";
 import { new_agent_document, new_workflow_document } from "./skeleton_graph_edits";
 import { safe_text } from "./document_values";
 import { useAgentsSidebarSearch } from "../../../../SERVICEs/agents_sidebar_search";
-import ImportResourceModal from "./import_resource_modal";
+import { import_resource_file } from "./import_resource_file";
 import AgentAvatar from "../../agent_avatar";
 import AgentIconPicker from "../../agent_icon_picker";
 import { PRESENTATION_SUPPORTED, usePresentationCapability } from "../../use_presentation_capability";
@@ -30,6 +30,7 @@ import { normalize_presentation, presentation_to_store, set_presentation } from 
 import { writeResourcePresentation } from "../../../../SERVICEs/agent_resource_presentation_store";
 import { load_resource, save_draft } from "./skeleton_resources";
 import { toast } from "../../../../SERVICEs/toast";
+import { CONTROL_RADIUS } from "./detail_panel/panel_style";
 
 /* The Agents side menu: the original explorer, listing native Agents.
  *
@@ -106,7 +107,7 @@ function ConfirmModal({ open, title, body, action, onClose, onConfirm, isDark })
         {body}
       </div>
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-        <Button label={t("agents.explorer.cancel")} onClick={onClose} style={{ fontSize: 12, paddingVertical: 6, paddingHorizontal: 14, borderRadius: 6, opacity: 0.65 }} />
+        <Button label={t("agents.explorer.cancel")} onClick={onClose} style={{ fontSize: 12, paddingVertical: 6, paddingHorizontal: 14, borderRadius: CONTROL_RADIUS, opacity: 0.65 }} />
         <Button
           label={action}
           onClick={onConfirm}
@@ -114,7 +115,7 @@ function ConfirmModal({ open, title, body, action, onClose, onConfirm, isDark })
             fontSize: 12,
             paddingVertical: 6,
             paddingHorizontal: 14,
-            borderRadius: 6,
+            borderRadius: CONTROL_RADIUS,
             backgroundColor: isDark ? "rgba(220,50,50,0.40)" : "rgba(220,50,50,0.12)",
             hoverBackgroundColor: isDark ? "rgba(220,50,50,0.58)" : "rgba(220,50,50,0.22)",
             color: isDark ? "rgba(255,140,140,1)" : "rgba(180,30,30,1)",
@@ -205,7 +206,9 @@ export default function AgentExplorer({
   const [renaming, setRenaming] = useState({ nodeId: null, value: "" });
   const [pending, setPending] = useState(null);
   const [confirm, setConfirm] = useState({ open: false, kind: null, node: null });
-  const [importOpen, setImportOpen] = useState(false);
+  /* Import goes straight to the system file picker: the file chosen is
+     imported as it is, and only a refusal is said. */
+  const importInputRef = useRef(null);
   const noticeToastRef = useRef(null);
   const setNotice = useCallback((message) => {
     if (noticeToastRef.current) toast.dismiss(noticeToastRef.current);
@@ -397,6 +400,24 @@ export default function AgentExplorer({
       onCreate(workflow ? { id, name, kind: "workflow" } : { id, name });
     },
     [pending, refreshFolders, onCreate, setNotice],
+  );
+
+  const handleImportFile = useCallback(
+    async (event) => {
+      const input = event.target;
+      const picked = input.files && input.files[0];
+      input.value = "";
+      if (!picked) return;
+      const result = await import_resource_file(picked);
+      if (!result.ok) {
+        if (result.message) setNotice(result.message);
+        return;
+      }
+      setNotice("");
+      await load();
+      if (result.resource && typeof result.resource.id === "string") onSelect(result.resource.id);
+    },
+    [load, onSelect, setNotice],
   );
 
   const handleDuplicate = useCallback(
@@ -690,7 +711,10 @@ export default function AgentExplorer({
         onNewFolder: handleNewFolder,
         onImport: () => {
           closeContextMenu();
-          setImportOpen(true);
+          const input = importInputRef.current;
+          if (!input) return;
+          input.value = "";
+          input.click();
         },
         onStartRename: handleStartRename,
         onDuplicate: handleDuplicate,
@@ -726,7 +750,7 @@ export default function AgentExplorer({
       value={searchQuery}
       set_value={setSearchQuery}
       placeholder={t("side_menu.search")}
-      style={{ width: "100%", height: 32, fontSize: 12, borderRadius: 6, color: isDark ? "#CCC" : "#222", boxShadow: "none" }}
+      style={{ width: "100%", height: 32, fontSize: 12, borderRadius: CONTROL_RADIUS, color: isDark ? "#CCC" : "#222", boxShadow: "none" }}
     />
   );
   const searchLabel = (
@@ -743,7 +767,7 @@ export default function AgentExplorer({
               label={t("side_menu.chats")}
               onClick={onBack}
               /* A small way back, sized to its label, not a full nav row. */
-              style={{ alignSelf: "flex-start", fontSize: 12, padding: "3px 8px 3px 4px", borderRadius: 6, marginBottom: 4, WebkitAppRegion: "no-drag", iconSize: 14, flexShrink: 0, opacity: 0.75 }}
+              style={{ alignSelf: "flex-start", fontSize: 12, padding: "3px 8px 3px 4px", borderRadius: CONTROL_RADIUS, marginBottom: 4, WebkitAppRegion: "no-drag", iconSize: 14, flexShrink: 0, opacity: 0.75 }}
             />
           )}
           {/* No search field of its own: the side menu's, above both
@@ -784,7 +808,7 @@ export default function AgentExplorer({
               ? t("agents.explorer.library_read_failed_detail", { message: safe_text(library.error.message) })
               : t("agents.explorer.library_read_failed")}
           </span>
-          <Button label={t("agents.explorer.try_again")} onClick={load} style={{ alignSelf: "flex-start", fontSize: 11, paddingVertical: 3, paddingHorizontal: 8 }} />
+          <Button label={t("agents.explorer.try_again")} onClick={load} style={{ alignSelf: "flex-start", fontSize: 11, paddingVertical: 3, paddingHorizontal: 8, borderRadius: CONTROL_RADIUS }} />
         </div>
       )}
       {library.status === "ready" && active.length === 0 && !draftRow && !pending && (
@@ -829,11 +853,16 @@ export default function AgentExplorer({
         testid="agent-explorer-icon-picker"
       />
 
-      {/* Its own sitting: what it reads and chooses is nothing until Import,
-          and closing it voids every answer still on its way. */}
-      {importOpen && (
-        <ImportResourceModal open={importOpen} isDark={isDark} onClose={() => setImportOpen(false)} />
-      )}
+      <input
+        ref={importInputRef}
+        type="file"
+        accept=".json,application/json"
+        data-testid="agent-explorer-import-input"
+        tabIndex={-1}
+        aria-hidden="true"
+        style={{ display: "none" }}
+        onChange={handleImportFile}
+      />
 
       <ConfirmModal
         open={confirm.open}

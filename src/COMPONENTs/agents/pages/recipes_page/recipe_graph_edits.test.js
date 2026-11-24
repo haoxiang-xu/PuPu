@@ -4,8 +4,7 @@ import {
   insert_node_into_edge,
   is_flow_step_type,
 } from "./recipe_graph_edits";
-import { build_node, ports_for_type } from "./recipe_node_catalog";
-import { validate_recipe_connection } from "./recipe_connection_rules";
+import { build_node } from "./recipe_node_catalog";
 import { TOOLKIT_POOL_TYPE } from "./recipe_graph";
 
 const flow_edge = (id, src, tgt) => ({
@@ -90,32 +89,6 @@ describe("insert_node_into_edge", () => {
     });
     expect(incoming.id).not.toBe(outgoing.id);
     expect(new Set(next.edges.map((e) => e.id)).size).toBe(next.edges.length);
-  });
-
-  test("both new connections pass the existing connection rules", () => {
-    const r = chain();
-    const next = insert_node_into_edge(r, "e_2", fresh_agent("agent_2"));
-    const with_ports = (id) => {
-      const n = next.nodes.find((x) => x.id === id);
-      return { ...n, ports: ports_for_type(n.type) };
-    };
-    const others = (id) => next.edges.filter((e) => e.id !== id);
-    const incoming = next.edges.find((e) => e.target_node_id === "agent_2");
-    const outgoing = next.edges.find((e) => e.source_node_id === "agent_2");
-    expect(
-      validate_recipe_connection(
-        { node: with_ports("agent_1"), port: "out" },
-        { node: with_ports("agent_2"), port: "in" },
-        { edges: others(incoming.id) },
-      ),
-    ).toBe(true);
-    expect(
-      validate_recipe_connection(
-        { node: with_ports("agent_2"), port: "out" },
-        { node: with_ports("end"), port: "in" },
-        { edges: others(outgoing.id) },
-      ),
-    ).toBe(true);
   });
 
   test("refuses an attach connection, an unknown edge and a node that cannot sit in the flow", () => {

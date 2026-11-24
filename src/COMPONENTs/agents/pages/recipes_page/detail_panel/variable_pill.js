@@ -4,6 +4,7 @@ import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
 import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { NodeRefTag } from "./node_tag";
 import { node_identity } from "./node_identity";
+import { CONTROL_RADIUS } from "./panel_style";
 
 const HEIGHT = 32;
 const SEGMENT = {
@@ -74,12 +75,12 @@ export default function VariablePill({
           lineHeight: 1, color: mutedColor(isDark), opacity: 0.7, userSelect: "none", pointerEvents: "none" }}>=</span>
         <div ref={sourceRef} data-testid={`${testid}-source`} style={{ ...SEGMENT, padding: "0 4px 0 6px" }}>
           <div style={{ display: "flex", alignItems: "center", flex: 1, minWidth: 0, height: 26, boxSizing: "border-box",
-            borderRadius: 6, border: "1px solid transparent" }}>{children}</div>
+            borderRadius: CONTROL_RADIUS, border: "1px solid transparent" }}>{children}</div>
         </div>
       </div>
       {actions}
       <Button prefix_icon="close" ariaLabel={removeLabel} onClick={onRemove}
-        style={{ flexShrink: 0, width: 22, height: 22, marginRight: 5, borderRadius: 6, backgroundColor: "transparent", color: mutedColor(isDark), opacity: 0.75,
+        style={{ flexShrink: 0, width: 22, height: 22, marginRight: 5, borderRadius: CONTROL_RADIUS, backgroundColor: "transparent", color: mutedColor(isDark), opacity: 0.75,
           iconOnlyPaddingVertical: 0, iconOnlyPaddingHorizontal: 0,
           content: { icon: { width: 13, height: 13 } } }} />
     </div>

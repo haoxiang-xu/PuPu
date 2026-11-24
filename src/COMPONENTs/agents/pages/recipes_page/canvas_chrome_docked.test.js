@@ -72,7 +72,13 @@ test("with the shell's anchor present, the panel is a rounded side menu one ring
   expect([DETAIL_INSET, DETAIL_RADIUS]).toEqual([8, 14]);
   expect(panel.style.top).toBe("8px");
   expect(screen.getByTestId("detail-shell-band").style.height).toBe("42px");
-  expect(panel.firstChild).toBe(screen.getByTestId("detail-shell-band"));
+  /* first the frost layer under the content, then the band: the panel
+     itself carries no backdrop filter, so a frosted control inside it (the
+     Test panel's composer) still blurs what passes behind it */
+  expect(panel.firstChild).toBe(screen.getByTestId("detail-shell-glass"));
+  expect(panel.firstChild.nextSibling).toBe(screen.getByTestId("detail-shell-band"));
+  expect(panel.getAttribute("style")).not.toContain("backdrop-filter");
+  expect(screen.getByTestId("detail-shell-glass").style.zIndex).toBe("-1");
   expect(panel.style.bottom).toBe("8px");
   expect(panel.style.right).toBe("8px");
   expect(panel.style.borderRadius).toBe("14px");

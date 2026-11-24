@@ -6,6 +6,7 @@ import { node_caption } from "./node_caption";
 import NodeHeader from "./node_header";
 import { BRANCH_ROW_HEIGHT, NODE_PADDING_X, NODE_PADDING_Y, NODE_PORT_ANCHOR, branch_layout } from "./node_metrics";
 import { safe_text } from "../document_values";
+import { NODE_TAG_RADIUS } from "../detail_panel/node_tag";
 
 /* If / Else and Switch / Case on the canvas (#351).
  *
@@ -62,7 +63,7 @@ export default function BranchNode({ node, rows, summary, isDark, rename }) {
                 title={row.declared ? undefined : t("agents.nodes.outlet_undeclared")}
                 style={{ height: BRANCH_ROW_HEIGHT, display: "flex", alignItems: "center", justifyContent: "flex-end", paddingRight: 10, minWidth: 0 }}>
                 <span style={{
-                  fontSize: 10.5, lineHeight: "16px", padding: "0 7px", borderRadius: 8, maxWidth: 94,
+                  fontSize: 10.5, lineHeight: "16px", padding: "0 7px", borderRadius: NODE_TAG_RADIUS, maxWidth: 94,
                   overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                   color: row.declared ? "var(--pupu-text)" : "var(--pupu-danger)",
                   background: row.declared ? "var(--pupu-overlay-hover)" : "transparent",

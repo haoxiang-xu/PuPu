@@ -1,12 +1,10 @@
 import React from "react";
-import { fireEvent, render, renderHook, screen } from "@testing-library/react";
-import { ConfigContext, LocaleContext } from "../../../../CONTAINERs/config/context";
+import { renderHook } from "@testing-library/react";
+import { LocaleContext } from "../../../../CONTAINERs/config/context";
 import { useTranslation } from "../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { buildAgentExplorerMenuItems } from "./agent_explorer_menu_items";
-import { conflict_message, preflight_message, SESSION_STATUS } from "./skeleton_resource_session";
-import SkeletonSaveBar from "./skeleton_save_bar";
+import { conflict_message, preflight_message } from "./skeleton_resource_session";
 
-const cfg = { theme: {}, onThemeMode: "light_mode" };
 const chineseTranslator = () => renderHook(() => useTranslation(), {
   wrapper: ({ children }) => <LocaleContext.Provider value={{ locale: "zh-CN" }}>{children}</LocaleContext.Provider>,
 }).result.current.t;
@@ -64,26 +62,4 @@ test("a translated preflight caption retains the complete raw backend message an
   expect(JSON.stringify(session)).toBe(before);
   expect(preflight_message({ preflight: { ok: true } }, t)).toBe("可以运行。");
   expect(preflight_message({ preflight: { ok: true } })).toBe("Ready to run.");
-});
-
-test("localized save controls keep the same unsaved session and only call save after an explicit click", () => {
-  const session = { status: SESSION_STATUS.READY, dirty: true, saving: false, conflict: null,
-    edit_token: "edit-original", document: { id: "agent-original", name: "Saved somewhere else" } };
-  const before = JSON.stringify(session);
-  const onSave = jest.fn();
-  const show = (locale) => <ConfigContext.Provider value={cfg}><LocaleContext.Provider value={{ locale }}>
-    <SkeletonSaveBar session={session} onSave={onSave} onPreflight={jest.fn()}
-      onKeepMine={jest.fn()} onTakeTheirs={jest.fn()} />
-  </LocaleContext.Provider></ConfigContext.Provider>;
-  const { rerender } = render(show("zh-CN"));
-  expect(screen.getByRole("button", { name: "保存" })).toBeEnabled();
-  expect(screen.getByTestId("skeleton-save-state")).toHaveTextContent("有未保存的更改");
-  expect(onSave).not.toHaveBeenCalled();
-  rerender(show("en"));
-  expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
-  expect(JSON.stringify(session)).toBe(before);
-  expect(onSave).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole("button", { name: "Save" }));
-  expect(onSave).toHaveBeenCalledTimes(1);
-  expect(JSON.stringify(session)).toBe(before);
 });

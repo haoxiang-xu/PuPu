@@ -16,6 +16,37 @@ def sessions():
     return BuilderTestSessions(background=False)
 
 
+def test_settled_cache_keeps_trace_updates_when_worker_finishes_during_read(production, monkeypatch):
+    import skeleton_builder_tests as module
+    tests=sessions(); resource='production-agent'
+    session=tests.open(resource,'agent')['session']['id']
+    saved=production[0].get_resource(resource)
+    run=tests.prepare(session,resource,saved['edit_token'],{'message':'cache race'},'cache-race',context=production[1])['run_id']
+    assert tests.execute(session,resource,run,production[1])['runs'][0]['status']=='completed'
+    key=(str(tests.path),run)
+    module._SETTLED.pop(key,None)
+    module._WORKERS[key]=object()
+    original=tests._cached_events
+    first=True
+    def finish_after_snapshot(db,identity):
+        nonlocal first
+        events=original(db,identity)
+        if first:
+            first=False
+            tests._record_event({'id':run},{'schema_version':'v4','type':'message.final','event_id':'late-observation',
+                'session_id':session,'run_id':run,'payload':{'final_text':'last safe observation'}})
+            module._WORKERS.pop(key,None)
+        return events
+    monkeypatch.setattr(tests,'_cached_events',finish_after_snapshot)
+    try:
+        tests.read(session,resource)
+        again=tests.read(session,resource)['runs'][0]
+        assert any(event['event_id']=='late-observation' for event in again['events'])
+        assert again['status']=='completed' and len(production[2])==1
+    finally:
+        module._WORKERS.pop(key,None)
+
+
 def test_open_detaches_and_reopens_without_execution(production):
     store, _options, calls = production
     tests = sessions()
@@ -219,6 +250,9 @@ def test_completed_graph_keeps_polling_until_the_root_result_is_committed(produc
     tests=sessions();resource='production-agent';session=tests.open(resource,'agent')['session']['id']
     run=tests.prepare(session,resource,store.get_resource(resource)['edit_token'],{'message':'commit fence'},'commit-fence',context=options)['run_id']
     tests.execute(session,resource,run,options)
+    # Model a first read that comes before the root result is committed: a
+    # projection kept from an earlier settled read would answer for it.
+    monkeypatch.setattr(module,'_SETTLED',{})
     original=module.load_launch
     class BeforeRootCommit:
         def __init__(self,real):self.real=real

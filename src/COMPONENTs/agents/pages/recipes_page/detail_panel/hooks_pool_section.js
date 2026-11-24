@@ -384,7 +384,7 @@ function HookEditor({ entry, index, rowId, nodeId, parentId, siblings, scopeDupl
 
 /* The six dots a row is dragged by. */
 function Grip({ isDark, active }) {
-  const dot = { width: 2.5, height: 2.5, borderRadius: 2, background: muted(isDark) };
+  const dot = { width: 2.5, height: 2.5, borderRadius: 999, background: muted(isDark) };
   return (
     <span aria-hidden="true" style={{ display: "grid", gridTemplateColumns: "2.5px 2.5px", gap: 2, padding: "2px 1px", flexShrink: 0,
       opacity: active ? 0.75 : 0.25, cursor: active ? "grab" : "default" }}>

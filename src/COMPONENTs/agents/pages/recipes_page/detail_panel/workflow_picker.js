@@ -14,7 +14,7 @@ import {
   useWorkflowVersions,
   workflow_version_state,
 } from "../workflow_versions";
-import { addButtonStyle, note, pickerSelectProps, pickerSlotStyle, problem as problemOf } from "./panel_style";
+import { addButtonStyle, note, pickerSelectProps, pickerSlotStyle, problem as problemOf, CONTROL_RADIUS } from "./panel_style";
 
 /* Which Workflow something runs, as one control (#357, #484): the Workflows
  * as the Agents page files them in the panel's explorer Select; picking one
@@ -285,7 +285,7 @@ export default function WorkflowPicker({ pin, stored, editable, isDark, testid, 
         {library.status === "error" && (
           <span data-testid={`${testid}-library-error`} style={problemOf(isDark)}>
             {t("agents.workflow.library_failed", { message: renderAgentMessage(refusal_text(library.error, agentMessage("agents.workflow.store_refused")), t) })}{" "}
-            <Button label={t("agents.explorer.try_again")} onClick={reloadLibrary} style={{ fontSize: 11.5, paddingVertical: 1, paddingHorizontal: 6 }} />
+            <Button label={t("agents.explorer.try_again")} onClick={reloadLibrary} style={{ fontSize: 11.5, paddingVertical: 1, paddingHorizontal: 6, borderRadius: CONTROL_RADIUS }} />
           </span>
         )}
         {library.status === "ready" && library.rows.length === 0 && (

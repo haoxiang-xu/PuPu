@@ -208,3 +208,33 @@ export function get_bezier_midpoint(source, target) {
 
   return { x, y };
 }
+
+/* ── The part of the canvas a person can actually see ────────────────
+   Panels can float over the canvas (a side menu on either edge). The
+   caller says how far each one reaches in, as insets in canvas pixels;
+   what is left is the visible area, and its middle is where "centre a
+   node" means. An inset that would leave nothing (a panel wider than the
+   canvas) is ignored on that axis, so the canvas middle still applies. */
+const inset_of = (area, side) => {
+  const value = area && area[side];
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : 0;
+};
+
+export function visible_area_center(width, height, area) {
+  const left = inset_of(area, "left");
+  const right = inset_of(area, "right");
+  const top = inset_of(area, "top");
+  const bottom = inset_of(area, "bottom");
+  const x = width - left - right > 0 ? left + (width - left - right) / 2 : width / 2;
+  const y = height - top - bottom > 0 ? top + (height - top - bottom) / 2 : height / 2;
+  return { x, y };
+}
+
+/* The viewport that puts a node's middle on `center` at `zoom`. */
+export function viewport_centering_node(node, dims, center, zoom) {
+  return {
+    x: center.x - (node.x + dims.width / 2) * zoom,
+    y: center.y - (node.y + dims.height / 2) * zoom,
+    zoom,
+  };
+}

@@ -1,11 +1,21 @@
 // Main is the only credential injector. Public commands contain no secrets,
-// model override, owner/attempt alias or provider endpoint.
+// owner/attempt alias or provider endpoint. An Agent start may name one model
+// (`fallback_model`, "provider:model") for Agent nodes the author left with no
+// model. Main resolves it against the same Kernel catalog the node's model
+// picker offers (the runtime's own profiles plus Main's custom providers) and
+// hands the runtime that profile; the runtime never applies it to a node that
+// has its own Kernel.
 const SCHEMA = 'pupu.builder-test.v1';
 const isRecord=value=>value!==null && typeof value==='object' && !Array.isArray(value);
 const closed=(value,fields)=>isRecord(value) && Reflect.ownKeys(value).length===fields.length && fields.every(key=>
   Object.prototype.hasOwnProperty.call(value,key) && Object.prototype.hasOwnProperty.call(Object.getOwnPropertyDescriptor(value,key),'value'));
 const fail=()=>{ throw Object.assign(new Error('Invalid Builder test command or response'),{code:'builder_test_protocol_error'}); };
+// A command this Main refuses before anything is sent: definitive, never an
+// "it may have started" — the renderer must not ask the author to look it up.
+// The usual cause is a renderer newer than the Main it talks to.
+const refuse=()=>{ throw Object.assign(new Error('This version of PuPu does not accept that Test Run request'),{code:'builder_test_command_refused',status:400}); };
 const id=value=>typeof value==='string' && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/.test(value);
+const modelId=value=>typeof value==='string' && /^[a-z0-9][a-z0-9_.-]{0,63}:\S{1,200}$/.test(value);
 const FIELDS={open:['resource_id','kind'],new:['resource_id','kind'],read:['resource_id','session_id'],
   start:['resource_id','session_id','expected_edit_token','request_id','inputs','toolkits','workspace_id'],
   respond:['resource_id','session_id','run_id','interaction_id','approved','answer'],
@@ -14,15 +24,15 @@ const FIELDS={open:['resource_id','kind'],new:['resource_id','kind'],read:['reso
 const copyJson=(value,seen=new Set(),depth=0)=>{
   if(value===null||typeof value==='string'||typeof value==='boolean')return value;
   if(typeof value==='number'&&Number.isFinite(value))return value;
-  if(depth>64||typeof value!=='object'||seen.has(value))fail();
-  if(!Array.isArray(value)&&(!isRecord(value)||![Object.prototype,null].includes(Object.getPrototypeOf(value))))fail();
+  if(depth>64||typeof value!=='object'||seen.has(value))refuse();
+  if(!Array.isArray(value)&&(!isRecord(value)||![Object.prototype,null].includes(Object.getPrototypeOf(value))))refuse();
   seen.add(value);
   const output=Array.isArray(value)?[]:{};
-  if(Array.isArray(value)&&Reflect.ownKeys(value).length!==value.length+1)fail();
+  if(Array.isArray(value)&&Reflect.ownKeys(value).length!==value.length+1)refuse();
   for(const key of Reflect.ownKeys(value)){
     if(Array.isArray(value)&&key==='length')continue;
     const descriptor=Object.getOwnPropertyDescriptor(value,key);
-    if(typeof key!=='string'||!descriptor.enumerable||!Object.prototype.hasOwnProperty.call(descriptor,'value'))fail();
+    if(typeof key!=='string'||!descriptor.enumerable||!Object.prototype.hasOwnProperty.call(descriptor,'value'))refuse();
     Object.defineProperty(output,key,{value:copyJson(descriptor.value,seen,depth+1),enumerable:true,writable:true,configurable:true});
   }
   seen.delete(value);return output;
@@ -31,16 +41,21 @@ const copyJson=(value,seen=new Set(),depth=0)=>{
 const checkBuilderTestCommand=value=>{
   value=copyJson(value);
   const config=value?.op==='start'&&Object.prototype.hasOwnProperty.call(value,'memory_agent_config');
-  if (!isRecord(value) || !Object.prototype.hasOwnProperty.call(FIELDS,value.op) || !closed(value,['op',...FIELDS[value.op],...(config?['memory_agent_config']:[])])) fail();
+  const fallback=value?.op==='start'&&Object.prototype.hasOwnProperty.call(value,'fallback_model');
+  const defaultWorkspace=value?.op==='start'&&Object.prototype.hasOwnProperty.call(value,'use_default_workspace');
+  if (!isRecord(value) || !Object.prototype.hasOwnProperty.call(FIELDS,value.op) ||
+    !closed(value,['op',...FIELDS[value.op],...(config?['memory_agent_config']:[]),...(fallback?['fallback_model']:[]),...(defaultWorkspace?['use_default_workspace']:[])])) refuse();
+  if(defaultWorkspace&&typeof value.use_default_workspace!=='boolean')refuse();
+  if(fallback&&!modelId(value.fallback_model))refuse();
   if(config&&(!closed(value.memory_agent_config,['displayName','additionalInstructions','provider','modelId'])||
-    Object.values(value.memory_agent_config).some(field=>typeof field!=='string')))fail();
-  for(const key of ['resource_id','session_id','run_id','interaction_id','request_id']) if(key in value && !id(value[key])) fail();
-  if(['open','new'].includes(value.op) && !['agent','workflow'].includes(value.kind)) fail();
+    Object.values(value.memory_agent_config).some(field=>typeof field!=='string')))refuse();
+  for(const key of ['resource_id','session_id','run_id','interaction_id','request_id']) if(key in value && !id(value[key])) refuse();
+  if(['open','new'].includes(value.op) && !['agent','workflow'].includes(value.kind)) refuse();
   if(value.op==='start' && (typeof value.expected_edit_token!=='string' || !value.expected_edit_token ||
     !isRecord(value.inputs) || !Array.isArray(value.toolkits) || value.toolkits.some(tool=>typeof tool!=='string'||!tool.trim()) ||
-    new Set(value.toolkits).size!==value.toolkits.length || typeof value.workspace_id!=='string' || (value.workspace_id!==''&&!id(value.workspace_id)))) fail();
-  if(value.op==='respond' && (typeof value.approved!=='boolean' || (value.answer!==null && !isRecord(value.answer)))) fail();
-  if(Buffer.byteLength(JSON.stringify(value),'utf8')>2097152)fail();
+    new Set(value.toolkits).size!==value.toolkits.length || typeof value.workspace_id!=='string' || (value.workspace_id!==''&&!id(value.workspace_id)))) refuse();
+  if(value.op==='respond' && (typeof value.approved!=='boolean' || (value.answer!==null && !isRecord(value.answer)))) refuse();
+  if(Buffer.byteLength(JSON.stringify(value),'utf8')>2097152)refuse();
   return value;
 };
 
@@ -70,7 +85,11 @@ const checkBuilderTestReply=(value,request)=>{
   return value;
 };
 
-const runBuilderTestCommand=async(payload,{post,resolveCredentials,resolveWorkspace})=>{
+// Why a picked model cannot run an Agent test, as the catalog says it.
+const modelUnavailable=(id,reason)=>Object.assign(new Error(`${id} cannot run an Agent test`),
+  {code:'test_model_unavailable',status:409,path:['fallback_model',reason||'not_offered']});
+
+const runBuilderTestCommand=async(payload,{post,resolveCredentials,resolveWorkspace,resolveKernelCatalog,resolveDefaultWorkspace})=>{
   const request=checkBuilderTestCommand(payload);
   const send=body=>post({schema:SCHEMA,...body});
   const capable=async()=>{
@@ -95,12 +114,33 @@ const runBuilderTestCommand=async(payload,{post,resolveCredentials,resolveWorksp
       context.workspace_root=checked.resolvedPath;
       context.workspace_roots=[checked.resolvedPath];
       context.disable_workspace_root=false;
+    }else if(request.use_default_workspace===true){
+      // None picked: the default workspace a chat falls back to (Settings),
+      // when it is a real directory. Without one, tools that need a
+      // workspace say so when they are bound.
+      const fallback=resolveDefaultWorkspace?resolveDefaultWorkspace():null;
+      if(fallback?.valid&&typeof fallback.resolvedPath==='string'&&fallback.resolvedPath){
+        context.workspace_root=fallback.resolvedPath;
+        context.workspace_roots=[fallback.resolvedPath];
+        context.disable_workspace_root=false;
+      }
+    }
+  }
+  let fallbackProfile=null;
+  if(request.op==='start'&&request.fallback_model){
+    const catalog=resolveKernelCatalog?await resolveKernelCatalog():null;
+    const profiles=Array.isArray(catalog?.profiles)?catalog.profiles:[];
+    fallbackProfile=profiles.find(profile=>isRecord(profile)&&profile.id===request.fallback_model)||null;
+    if(!fallbackProfile){
+      const known=(Array.isArray(catalog?.unavailable)?catalog.unavailable:[]).find(row=>isRecord(row)&&row.id===request.fallback_model);
+      throw modelUnavailable(request.fallback_model,typeof known?.reason==='string'&&/^[a-z_]+$/.test(known.reason)?known.reason:'not_offered');
     }
   }
   await capable();
   const prepared=await send(request.op==='start'
     ? {op:'prepare',session_id:request.session_id,resource_id:request.resource_id,expected_edit_token:request.expected_edit_token,
-      request_id:request.request_id,inputs:request.inputs,context,...(request.memory_agent_config?{memory_agent_config:request.memory_agent_config}:{})}
+      request_id:request.request_id,inputs:request.inputs,context,...(request.memory_agent_config?{memory_agent_config:request.memory_agent_config}:{}),
+      ...(fallbackProfile?{fallback_profile:JSON.parse(JSON.stringify(fallbackProfile))}:{})}
     : {op:'resume_requirements',session_id:request.session_id,resource_id:request.resource_id,run_id:request.run_id,interaction_id:request.interaction_id});
   if(!closed(prepared,['schema','session_id','resource_id','run_id','credential_query','requirements']) || prepared.schema!==SCHEMA ||
     prepared.session_id!==request.session_id || prepared.resource_id!==request.resource_id || !id(prepared.run_id) ||
