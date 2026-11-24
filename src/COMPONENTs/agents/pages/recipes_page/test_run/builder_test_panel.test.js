@@ -9,6 +9,10 @@ const {kernel_profiles}=require('../skeleton_resources');
 
 const document={schema_version:1,id:'agent-demo',kind:'agent',name:'Demo',nodes:[],edges:[]};
 const session={document,resource_id:'agent-demo',edit_token:'edit-A',open_id:1,dirty:false,status:'ready',saving:false};
+/* A Workflow's Run is offered twice, in the header's corner and at the
+   panel's foot: the two are one action in one state. */
+const runButtons=()=>{const buttons=screen.getAllByRole('button',{name:'Run',exact:true});expect(buttons).toHaveLength(2);return buttons;};
+const bottomRun=()=>runButtons()[1];
 const opened={schema:'pupu.builder-test.v1',session:{id:'builder-test-demo',resource_id:'agent-demo',kind:'agent'},runs:[]};
 const completed={...opened,runs:[{id:'builder-run-one',request_id:'req-1',edit_token:'edit-A',definition_digest:'a'.repeat(64),
   inputs:{message:'hello'},status:'completed',output:{message:'reply'},error:null,pending:null,graphs:[],events:[],trace_complete:true}]};
@@ -155,7 +159,7 @@ test('the real v1 toolkit catalog name is submitted as the toolkit identity',asy
     fireEvent.keyDown(screen.getAllByRole('combobox')[1],{key:'Escape'});
     fireEvent.change(screen.getByRole('textbox',{name:'old',exact:true}),{target:{value:'tool scope'}});
     builderTestCommand.mockResolvedValue(workflowOpened);
-    fireEvent.click(screen.getByRole('button',{name:'Run',exact:true}));
+    fireEvent.click(bottomRun());
     await waitFor(()=>expect(builderTestCommand).toHaveBeenLastCalledWith(expect.objectContaining({op:'start',toolkits:['core']})));
   }finally{catalog.mockRestore();}
 });
@@ -193,8 +197,8 @@ test('changed Workflow parameters discard obsolete argument values before the ne
   fireEvent.change(screen.getByRole('textbox',{name:'old',exact:true}),{target:{value:'obsolete'}});
   rerender(<BuilderTestPanel active session={{...workflowSession('fresh','integer'),edit_token:'edit-B'}} isDark={false}/>);
   fireEvent.change(screen.getByRole('textbox',{name:'fresh',exact:true}),{target:{value:'7'}});
-  await waitFor(()=>expect(screen.getByRole('button',{name:'Run',exact:true})).toBeEnabled());
-  fireEvent.click(screen.getByRole('button',{name:'Run',exact:true}));
+  await waitFor(()=>runButtons().forEach(button=>expect(button).toBeEnabled()));
+  fireEvent.click(bottomRun());
   await waitFor(()=>expect(builderTestCommand).toHaveBeenLastCalledWith(expect.objectContaining({op:'start',expected_edit_token:'edit-B',inputs:{fresh:7}})));
 });
 
@@ -203,10 +207,10 @@ test('an invalid draft for a removed Workflow parameter cannot disable its repla
   const {rerender}=render(<BuilderTestPanel active session={workflowSession('old','integer')} isDark={false}/>);
   await waitFor(()=>expect(builderTestCommand).toHaveBeenCalledTimes(1));
   fireEvent.change(screen.getByRole('textbox',{name:'old',exact:true}),{target:{value:'invalid'}});
-  expect(screen.getByRole('button',{name:'Run',exact:true})).toBeDisabled();
+  runButtons().forEach(button=>expect(button).toBeDisabled());
   rerender(<BuilderTestPanel active session={{...workflowSession('fresh','integer'),edit_token:'edit-B'}} isDark={false}/>);
   fireEvent.change(screen.getByRole('textbox',{name:'fresh',exact:true}),{target:{value:'7'}});
-  await waitFor(()=>expect(screen.getByRole('button',{name:'Run',exact:true})).toBeEnabled());
+  await waitFor(()=>runButtons().forEach(button=>expect(button).toBeEnabled()));
   expect(builderTestCommand.mock.calls.some(([request])=>request.op==='start')).toBe(false);
 });
 
@@ -312,7 +316,7 @@ test('any other refused check says which node to fix, blocks Run, and Go to node
     error:{code:'invalid_shape',path:['document','nodes',1,'config','execution'],message:'execution config fields are invalid'}}}}/>);
   expect(await screen.findByTestId('skeleton-preflight-state')).toHaveTextContent('Can’t run yet: “Route” has no value to switch on.');
   fireEvent.change(screen.getByRole('textbox',{name:'old',exact:true}),{target:{value:'x'}});
-  expect(screen.getByRole('button',{name:'Run',exact:true})).toBeDisabled();
+  runButtons().forEach(button=>expect(button).toBeDisabled());
   fireEvent.click(screen.getByRole('button',{name:'Go to node'}));
   expect(onFix).toHaveBeenCalledWith('switch');
 });
@@ -461,4 +465,23 @@ test('Start over is the chat new-chat glyph with a hint, and the panel has no ey
   fireEvent.mouseEnter(button.parentElement);
   expect(await screen.findByTestId('test-run-start-over-hint')).toHaveTextContent('Start over');
   expect(screen.queryByRole('button',{name:'Watch it running in chat'})).toBeNull();
+  expect(screen.queryByTestId('test-run-corner-run')).toBeNull();
+});
+
+test('a Workflow has no conversation to start over: its corner is Run, then Stop, as at the foot',async()=>{
+  builderTestCommand.mockResolvedValue(workflowOpened);
+  render(<BuilderTestPanel active session={workflowSession()} isDark={false}/>);
+  await waitFor(()=>expect(builderTestCommand).toHaveBeenCalledTimes(1));
+  expect(screen.queryByTestId('test-run-start-over')).toBeNull();
+  const [corner]=runButtons();
+  expect(corner).toHaveAttribute('data-testid','test-run-corner-run');
+  fireEvent.change(screen.getByRole('textbox',{name:'old',exact:true}),{target:{value:'from the corner'}});
+  await waitFor(()=>expect(corner).toBeEnabled());
+  builderTestCommand.mockResolvedValue({...workflowOpened,runs:[{...completed.runs[0],id:'builder-run-corner',status:'running',inputs:{old:'from the corner'},output:null}]});
+  fireEvent.click(corner);
+  await waitFor(()=>expect(builderTestCommand).toHaveBeenCalledWith(expect.objectContaining({op:'start',inputs:{old:'from the corner'}})));
+  const stops=await screen.findAllByRole('button',{name:'Stop',exact:true});
+  expect(stops).toHaveLength(2);
+  expect(stops[0]).toHaveAttribute('data-testid','test-run-corner-run');
+  expect(screen.queryAllByRole('button',{name:'Run',exact:true})).toHaveLength(0);
 });

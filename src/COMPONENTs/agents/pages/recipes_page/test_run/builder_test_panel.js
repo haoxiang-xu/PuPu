@@ -307,9 +307,22 @@ export default function BuilderTestPanel({ active, session, onSave, onCheck, onF
         <div data-testid="builder-test-panel" style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, color: textColor(isDark), fontSize: 12 }}>
           <PanelHeader testid="test-run-header" icon="play" tint={TINT} title={t("agents.test_run.title")} isDark={isDark}
             subtitle={t(kind === "agent" ? "agents.test_run.subtitle_agent" : "agents.test_run.subtitle_workflow", { name })}
-            /* Starting over is the chat's "new chat": the same glyph, on the
-               row of the panel's own toggle, with the toggle's own hint. */
-            toggleRowAction={runs.length > 0 ? (
+            /* A Workflow has no conversation to start over: its corner runs it,
+               the same action and state as the Run / Stop button below. An
+               Agent's corner starts over, the chat's "new chat": the same glyph,
+               on the row of the panel's own toggle, with the toggle's own hint. */
+            toggleRowAction={kind === "workflow" ? (
+              <ControlHint label={t(running ? "agents.test_run.stop" : unsaved ? "agents.test_run.save_and_run" : "agents.test_run.run")}
+                testId="test-run-corner-run-hint" position="bottom">
+                {running ? (
+                  <Button ariaLabel={t("agents.test_run.stop")} prefix_icon="stop" dom_props={{ "data-testid": "test-run-corner-run" }}
+                    onClick={() => controller.stop(last)} disabled={busy} style={toggleRowButtonStyle} />
+                ) : (
+                  <Button ariaLabel={t(unsaved ? "agents.test_run.save_and_run" : "agents.test_run.run")} prefix_icon="play"
+                    dom_props={{ "data-testid": "test-run-corner-run" }} onClick={start} disabled={Boolean(disabled)} style={toggleRowButtonStyle} />
+                )}
+              </ControlHint>
+            ) : runs.length > 0 ? (
               <ControlHint label={t("agents.test_run.start_over")} testId="test-run-start-over-hint" position="bottom">
                 <Button ariaLabel={t("agents.test_run.start_over")} prefix_icon="chat_new" dom_props={{ "data-testid": "test-run-start-over" }}
                   onClick={controller.newConversation} disabled={busy || running || !session.edit_token} style={toggleRowButtonStyle} />
