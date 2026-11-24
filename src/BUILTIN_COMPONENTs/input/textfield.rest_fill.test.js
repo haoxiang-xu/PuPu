@@ -31,3 +31,15 @@ test("restFill paints the field and keeps it still under the pointer and in focu
   expect(main.style.border).toBe("1px solid rgb(1, 2, 3)");
   expect(main.style.backgroundColor).toBe("rgb(255, 255, 255)");
 });
+
+test("a padding in style insets the text only, never the field inside its own wrapper", () => {
+  const { container } = render(wrap(
+    <TextField value="x" set_value={() => {}} style={{ width: "100%", padding: 4, restFill: "rgb(255, 255, 255)" }} />,
+  ));
+  const wrapper = container.firstChild;
+  const { main } = parts(container);
+  /* On the wrapper too, a 100%-wide field ran past its cell by twice this. */
+  expect(wrapper.style.padding).toBe("");
+  expect(main.parentElement).toBe(wrapper);
+  expect(container.querySelector("textarea").style.paddingLeft).toBe("4px");
+});

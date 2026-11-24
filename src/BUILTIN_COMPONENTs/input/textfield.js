@@ -565,7 +565,10 @@ const TextField = ({
      outline. Kept off the wrapper, which takes the rest of `style`.
      `restFill` gives the field a solid background and keeps it still: no
      fill and no border change on hover or focus (the caret marks focus). */
-  const { restBorder, restFill, ...outerStyle } = style || {};
+  /* `padding` is the textarea's inner padding (read into `padding` below), as
+     in FloatingTextField: on the wrapper too it inset the field and pushed a
+     full-width field past its container's right edge by twice the padding. */
+  const { restBorder, restFill, padding: _outer_padding_ignored, ...outerStyle } = style || {};
 
   const lineHeightPx = Math.round(fontSize * lineHeight);
 
