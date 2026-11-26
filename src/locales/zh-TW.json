@@ -1128,6 +1128,8 @@
         "chat_default": "聊天預設"
       },
       "cancel": "取消",
+      "discard_changes": "捨棄變更",
+      "discard_before_switch": "切換圖表會捨棄目前圖表中未儲存的變更。",
       "rename_conflict": "「{name}」已在別處變更，因此未重新命名。清單現已更新，請重試。",
       "rename_failed": "無法重新命名「{name}」：{message}",
       "store_refused": "儲存服務拒絕了請求",

@@ -14,10 +14,27 @@ const job = workflow.jobs.deterministic;
 const steps = job.steps;
 
 test("deterministic tests stop well before the job limit and retain diagnostics", () => {
-  assert.equal(job["timeout-minutes"], 65);
-  for (const [id, limit] of [["frontend", 10], ["electron", 5], ["python", 50]]) {
+  const runnerSource = fs.readFileSync(path.join(ROOT, "scripts/release-qa/run-python-tests.py"), "utf8");
+  const limit = runnerSource.match(/^EXECUTION_LIMIT_SECONDS = ([\d.]+)$/m);
+  assert.ok(limit, "the production runner must retain a fixed execution limit");
+  const hardSeconds = Number(limit[1]);
+  // The 4,257-case CI run exhausted 3,000 seconds at 85%; the prior passing
+  // run already took 45 minutes. Retain useful margin without an unbounded run.
+  assert.ok(hardSeconds >= 60 * 60 && hardSeconds <= 90 * 60,
+    "the complete backend suite needs a bounded 60–90 minute execution budget");
+  const stepSeconds = (id) => {
     const step = steps.find((entry) => entry.id === id);
-    assert.equal(step["timeout-minutes"], limit);
+    assert.ok(step && Number.isFinite(step["timeout-minutes"]), `${id} needs an explicit timeout`);
+    return step["timeout-minutes"] * 60;
+  };
+  const backendSeconds = stepSeconds("python");
+  assert.ok(backendSeconds >= hardSeconds + 60,
+    "the runner must stop and drain owned children before the Actions step can kill it");
+  assert.ok(job["timeout-minutes"] * 60 >=
+    backendSeconds + stepSeconds("frontend") + stepSeconds("electron") + 15 * 60,
+  "the job must also retain setup, contract, build and final-report headroom");
+  for (const id of ["frontend", "electron", "python"]) {
+    const step = steps.find((entry) => entry.id === id);
     assert.equal(step["continue-on-error"], true);
     assert.equal(step.shell, "bash");
   }

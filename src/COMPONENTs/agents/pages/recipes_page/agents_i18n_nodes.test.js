@@ -58,6 +58,30 @@ test("the hook empty-state caption translates without changing its stored list o
   expect(JSON.stringify(node)).toBe(before);
 });
 
+test("the hook card identifies its embedded Workflow, including disabled and unnamed hooks", () => {
+  const name = "agents.nodes.no_workflow {name} · 中文";
+  const hook = {
+    id: "hook-1", order: 0, event: "before_tool_call", tool_name: null, enabled: false,
+    workflow: { kind: "embedded", document: { kind: "workflow", name } },
+  };
+  const node = { id: "hooks-raw", type: "hooks_pool", config: { hooks: [
+    hook,
+    { ...hook, id: "hook-2", workflow: { kind: "embedded", document: { kind: "workflow" } } },
+    { ...hook, id: "hook-3", workflow: null },
+    { ...hook, id: "hook-4", workflow: { ...hook.workflow, unexpected: true } },
+  ] } };
+  const before = JSON.stringify(node);
+  render(localized("zh-CN", <HooksPoolNode node={node} isDark={false} />));
+
+  const named = screen.getByTestId("hooks-pool-node-hooks-raw-row-0");
+  expect(within(named).getByText(name)).toHaveAttribute("title", `自有工作流 · ${name}`);
+  expect(within(named).queryByText("无工作流")).not.toBeInTheDocument();
+  expect(screen.getByTestId("hooks-pool-node-hooks-raw-row-1")).toHaveTextContent("自有工作流");
+  expect(screen.getByTestId("hooks-pool-node-hooks-raw-row-2")).toHaveTextContent("无工作流");
+  expect(screen.getByTestId("hooks-pool-node-hooks-raw-row-3")).toHaveTextContent("无工作流");
+  expect(JSON.stringify(node)).toBe(before);
+});
+
 test("an in-place rename survives a locale change without committing or closing", () => {
   const rename = { enabled: true, editing: true, problem: null, begin: jest.fn(), commit: jest.fn(), cancel: jest.fn() };
   const node = { id: "start", type: "start", label: "agents.nodes.start {name}", config: {} };

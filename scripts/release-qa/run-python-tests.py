@@ -14,7 +14,9 @@ import time
 
 
 DIAGNOSTIC_SECONDS = 60.0
-EXECUTION_LIMIT_SECONDS = 3000.0
+# Whole-suite bound, separate from the per-test 60 second diagnostic. The
+# 4,257-case suite can exceed 50 minutes while continuing to make progress.
+EXECUTION_LIMIT_SECONDS = 4500.0
 TEST_HARD_LIMIT_ENV = "PUPU_PYTEST_SELFTEST_TIMEOUT_SECONDS"
 TEST_MODE_ENV = "PUPU_PYTEST_SELFTEST"
 

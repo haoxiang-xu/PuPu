@@ -1104,6 +1104,8 @@
         "chat_default": "padrão do chat"
       },
       "cancel": "Cancelar",
+      "discard_changes": "Descartar alterações",
+      "discard_before_switch": "Ao trocar de grafo, você perderá as alterações não salvas no grafo atual.",
       "rename_conflict": "“{name}” foi alterado em outro lugar, então não foi renomeado. A lista está atualizada; tente novamente.",
       "rename_failed": "Não foi possível renomear “{name}”: {message}",
       "store_refused": "o armazenamento recusou a solicitação",

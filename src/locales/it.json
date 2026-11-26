@@ -1104,6 +1104,8 @@
         "chat_default": "predefinito della chat"
       },
       "cancel": "Annulla",
+      "discard_changes": "Scarta modifiche",
+      "discard_before_switch": "Cambiando grafico, le modifiche non salvate al grafico attuale andranno perse.",
       "rename_conflict": "“{name}” è stato modificato altrove, quindi non è stato rinominato. L’elenco è aggiornato; riprova.",
       "rename_failed": "Impossibile rinominare “{name}”: {message}",
       "store_refused": "l’archivio ha rifiutato la richiesta",

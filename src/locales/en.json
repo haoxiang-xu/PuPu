@@ -1128,6 +1128,8 @@
         "chat_default": "chat default"
       },
       "cancel": "Cancel",
+      "discard_changes": "Discard changes",
+      "discard_before_switch": "Switching graphs will discard the unsaved changes to this graph.",
       "rename_conflict": "“{name}” changed elsewhere, so it was not renamed. The list is up to date now; try again.",
       "rename_failed": "Could not rename “{name}”: {message}",
       "store_refused": "the store refused it",

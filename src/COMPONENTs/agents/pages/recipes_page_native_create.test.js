@@ -6,7 +6,7 @@ import { ConfigContext } from "../../../CONTAINERs/config/context";
 import { api } from "../../../SERVICEs/api";
 import { EDIT_CONFLICT_ERROR, RESOURCE_RESULT_KEYS } from "./recipes_page/skeleton_resource_capture";
 import { new_agent_document } from "./recipes_page/skeleton_graph_edits";
-import { openRunMenu } from "./recipes_page/skeleton_canvas_test_helpers";
+import { openRunMenu, pressCanvasNode } from "./recipes_page/skeleton_canvas_test_helpers";
 
 jest.mock("../../../SERVICEs/api", () => ({ api: { unchain: {} } }));
 /* The editor speaks v2 only (#357 G1); these mocks are graph-only. */
@@ -146,6 +146,54 @@ test("a refused first save keeps the draft and offers explicit conflict choices,
   expect(screen.getByRole("button", { name: "Look at theirs" })).toBeInTheDocument();
   expect(api.unchain.getSkeletonResource).not.toHaveBeenCalled();
   expect(api.unchain.saveSkeletonResource).toHaveBeenCalledTimes(1);
+});
+
+test("switching Agents protects the current draft until the author discards it", async () => {
+  const first = new_agent_document({ id: "first", name: "First Agent" }).document;
+  const second = new_agent_document({ id: "second", name: "Second Agent" }).document;
+  api.unchain.listSkeletonResources.mockResolvedValue({ resources: [first, second] });
+  api.unchain.getSkeletonResource.mockImplementation(async (id) => result(id === first.id ? first : second));
+  show();
+  const row = (name) => within(screen.getByTestId("agent-explorer")).getByText(name);
+  fireEvent.click(await within(screen.getByTestId("agent-explorer")).findByText(first.name));
+  pressCanvasNode(await screen.findByTestId("skeleton-node-agent"));
+  const prompt = () => screen.getByPlaceholderText("what this Agent is for");
+  fireEvent.change(await screen.findByPlaceholderText("what this Agent is for"), { target: { value: "Keep this draft" } });
+  expect(screen.getByTestId("skeleton-save-state")).toHaveTextContent("Unsaved changes");
+
+  fireEvent.click(row(second.name));
+  const dialog = await screen.findByRole("dialog");
+  expect(api.unchain.getSkeletonResource).toHaveBeenCalledTimes(1);
+  fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+  expect(prompt()).toHaveValue("Keep this draft");
+  fireEvent.click(row(first.name));
+  expect(prompt()).toHaveValue("Keep this draft");
+  expect(api.unchain.getSkeletonResource).toHaveBeenCalledTimes(1);
+
+  fireEvent.click(row(second.name));
+  fireEvent.click(await screen.findByRole("button", { name: "Discard changes" }));
+  await waitFor(() => expect(api.unchain.getSkeletonResource).toHaveBeenLastCalledWith(second.id));
+  fireEvent.click(row(first.name));
+  pressCanvasNode(await screen.findByTestId("skeleton-node-agent"));
+  expect(await screen.findByPlaceholderText("what this Agent is for")).toHaveValue("");
+  expect(api.unchain.saveSkeletonResource).not.toHaveBeenCalled();
+});
+
+test("creating a second Agent cannot silently replace an unsaved new draft", async () => {
+  show();
+  await compose("Keep this unsaved Agent");
+  const originalNode = screen.getByTestId("skeleton-node-agent");
+  pressCanvasNode(originalNode);
+  fireEvent.change(await screen.findByPlaceholderText("what this Agent is for"), { target: { value: "Keep my new draft content" } });
+  fireEvent.click(newAgentItem());
+  fireEvent.change(nameRow(), { target: { value: "Second draft" } });
+  fireEvent.keyDown(nameRow(), { key: "Enter" });
+  const dialog = await screen.findByRole("dialog");
+  fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+  expect(screen.getByTestId("skeleton-node-agent")).toBe(originalNode);
+  expect(screen.getByPlaceholderText("what this Agent is for")).toHaveValue("Keep my new draft content");
+  expect(api.unchain.getSkeletonResource).not.toHaveBeenCalled();
+  expect(api.unchain.saveSkeletonResource).not.toHaveBeenCalled();
 });
 
 test("a blank name cannot create, and Escape does not leave a draft or send a request", async () => {

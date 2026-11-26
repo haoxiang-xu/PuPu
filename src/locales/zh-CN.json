@@ -1128,6 +1128,8 @@
         "chat_default": "聊天默认"
       },
       "cancel": "取消",
+      "discard_changes": "丢弃更改",
+      "discard_before_switch": "切换图会丢弃当前图未保存的更改。",
       "rename_conflict": "“{name}”已在别处更改，因此未重命名。列表现已更新，请重试。",
       "rename_failed": "无法重命名“{name}”：{message}",
       "store_refused": "存储服务拒绝了请求",
