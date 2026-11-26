@@ -121,7 +121,7 @@ test("release builds Unchain once and every test/package consumes the same bytes
     "host tests must inherit the verified installed distribution; a wheel ZIP import hides toolkit metadata files",
   );
   assert.match(sharedDeterministic, /Create the single controlled Memory V2 build snapshot/);
-  assert.match(sharedDeterministic, /--profile docs\/contracts\/memory-v2\/release-profile\.all\.v2\.json/);
+  assert.match(sharedDeterministic, /--profile docs\/contracts\/memory-v2\/release-profile\.agent-builder\.v3\.json/);
   assert.match(sharedDeterministic, /name: memory-v2-build-feature-snapshot/);
   assert.match(
     sharedDeterministic,

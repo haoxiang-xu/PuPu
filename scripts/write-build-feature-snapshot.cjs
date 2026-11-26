@@ -35,6 +35,12 @@ const exactKeys = (value, keys) =>
   keys.every((key) => Object.prototype.hasOwnProperty.call(value, key));
 
 const RELEASE_PROFILE_FEATURE_KEYS = Object.freeze({
+  "pupu.memory-v2-release-profile.v3": Object.freeze([
+    "enable_user_access_to_agents",
+    "enable_user_access_to_characters",
+    "enable_custom_model_providers",
+    "enable_computer_use",
+  ]),
   "pupu.memory-v2-release-profile.v2": Object.freeze([]),
   "pupu.memory-v2-release-profile.v1": Object.freeze([
     "enable_memory_v2",
