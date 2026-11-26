@@ -25,7 +25,8 @@ const assertSharedActionContract = (action) => {
   assert.match(action, /--config\.nsis\.artifactName="\$installerName"/);
   assert.match(action, /--config\.nsis\.packElevateHelper=false/);
   assert.match(action, /Rebuild updater blockmap and metadata from the signed installer/);
-  assert.match(action, /& \$appBuilder blockmap --input/);
+  assert.match(action, /node scripts\/release-qa\/regenerate-windows-blockmap\.mjs --installer "\$installerPath"/);
+  assert.doesNotMatch(action, /app-builder-bin|& \$appBuilder blockmap/);
   assert.match(action, /refresh-windows-updater-metadata\.mjs/);
   assert.ok(
     action.indexOf("Sign Windows installer with Artifact Signing") <
@@ -90,6 +91,12 @@ test("formal candidate and qualification signing share one guarded implementatio
     evidenceOutput: "windows-signing-evidence\\.v1\\.json",
   });
   assert.match(candidate, /steps\.windows_artifact_signing\.outcome/);
+  for (const file of [".github/workflows/_shared-release-windows-restart-update.yml",
+    ".github/workflows/_shared-windows-upgrade-diagnostic.yml"]) {
+    const workflow = read(file);
+    assert.equal(count(workflow, /uses: \.\/pupu\/\.github\/actions\/windows-artifact-signing/g), 1);
+    assert.doesNotMatch(workflow, /app-builder-bin|uses: azure\/artifact-signing-action/);
+  }
   assert.match(qualification, /environment: windows-signing-qualification/);
   assert.doesNotMatch(qualification, /environment: release-signing/);
 });

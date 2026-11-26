@@ -318,21 +318,17 @@ runs:
         $installerPath = [System.IO.Path]::GetFullPath($env:INSTALLER_PATH)
         $metadataPath = Join-Path ([System.IO.Path]::GetDirectoryName($installerPath)) "latest.yml"
         $blockmapPath = "$installerPath.blockmap"
-        $appBuilder = Join-Path $PWD "node_modules/app-builder-bin/win/x64/app-builder.exe"
-        if (-not (Test-Path -LiteralPath $appBuilder -PathType Leaf)) {
-          throw "missing Windows app-builder for post-sign blockmap regeneration: $appBuilder"
-        }
         if (-not (Test-Path -LiteralPath $metadataPath -PathType Leaf)) {
           throw "missing Windows updater metadata generated with the installer: $metadataPath"
         }
-        Remove-Item -LiteralPath $blockmapPath -Force -ErrorAction SilentlyContinue
-        & $appBuilder blockmap --input "$installerPath" --output "$blockmapPath"
+        node scripts/release-qa/regenerate-windows-blockmap.mjs --installer "$installerPath"
         if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $blockmapPath -PathType Leaf)) {
           throw "could not regenerate the Windows updater blockmap from the signed installer"
         }
         node scripts/release-qa/refresh-windows-updater-metadata.mjs `
           --installer "$installerPath" `
           --metadata "$metadataPath"
+        if ($LASTEXITCODE -ne 0) { throw "could not refresh Windows updater metadata from the signed installer" }
 
     - name: Verify every signable payload file and installer
       id: verify
