@@ -33,9 +33,9 @@ on:
       unchain_ref:
         description: "Unchain source ref selected once for the immutable release artifact (release-candidate requires a full 40-character revision)"
         type: string
-        # Builder Test Run pair: retains direct Human Input waits and their
-        # durable checkpoints, keeping existing interaction wire contracts.
-        default: 9af29599b4e93f36eb2b93fefd1abb51907dfff9
+        # v0.2.0 runtime pair selected for Agent Builder acceptance. Runtime
+        # compatibility is still admitted by the actual artifact manifest.
+        default: 4276d71a811c1229915843bed60c5b3273dd74a4
 
 # Selected runtime source executes in reusable QA jobs. Cap their server-issued
 # cache tokens too: GITHUB_TOKEN permissions do not restrict cache writes.
@@ -54,7 +54,7 @@ jobs:
     uses: ./.github/workflows/_shared-release-deterministic.yml
     with:
       qa_mode: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_scope == 'windows-playwright' && 'release' || (github.event_name == 'workflow_dispatch' && inputs.qa_mode) || (startsWith(github.ref, 'refs/tags/v') && 'release') || 'lite' }}
-      unchain_ref: ${{ github.event.inputs.unchain_ref || '9af29599b4e93f36eb2b93fefd1abb51907dfff9' }}
+      unchain_ref: ${{ github.event.inputs.unchain_ref || '4276d71a811c1229915843bed60c5b3273dd74a4' }}
       source_ref: ${{ github.ref }}
       source_sha: ${{ github.sha }}
       release_tag: ${{ github.ref_name }}
@@ -129,7 +129,7 @@ jobs:
       target_id: ${{ matrix.target_id }}
       platform_name: ${{ matrix.name }}
       signing_platform: ${{ matrix.signing_platform }}
-      unchain_ref: ${{ github.event.inputs.unchain_ref || '9af29599b4e93f36eb2b93fefd1abb51907dfff9' }}
+      unchain_ref: ${{ github.event.inputs.unchain_ref || '4276d71a811c1229915843bed60c5b3273dd74a4' }}
       source_ref: ${{ github.ref }}
       source_sha: ${{ github.sha }}
       release_tag: ${{ github.ref_name }}
@@ -150,7 +150,7 @@ jobs:
       target_id: linux-x64
       platform_name: linux
       signing_platform: linux
-      unchain_ref: ${{ github.event.inputs.unchain_ref || '9af29599b4e93f36eb2b93fefd1abb51907dfff9' }}
+      unchain_ref: ${{ github.event.inputs.unchain_ref || '4276d71a811c1229915843bed60c5b3273dd74a4' }}
       source_ref: ${{ github.ref }}
       source_sha: ${{ github.sha }}
       release_tag: ${{ github.ref_name }}
@@ -171,7 +171,7 @@ jobs:
       target_id: windows-x64
       platform_name: windows
       signing_platform: windows
-      unchain_ref: ${{ github.event.inputs.unchain_ref || '9af29599b4e93f36eb2b93fefd1abb51907dfff9' }}
+      unchain_ref: ${{ github.event.inputs.unchain_ref || '4276d71a811c1229915843bed60c5b3273dd74a4' }}
       source_ref: ${{ github.ref }}
       source_sha: ${{ github.sha }}
       release_tag: ${{ github.ref_name }}

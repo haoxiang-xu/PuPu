@@ -16,11 +16,98 @@ const allProfile = path.join(
   repoRoot,
   "docs/contracts/memory-v2/release-profile.all.v2.json",
 );
+const agentBuilderProfile = path.join(
+  repoRoot,
+  "docs/contracts/memory-v2/release-profile.agent-builder.v3.json",
+);
 
 const run = (script, args, environment) => spawnSync(process.execPath, [script, ...args], {
   cwd: repoRoot,
   encoding: "utf8",
   env: { ...process.env, ...environment },
+});
+
+test("Agent Builder release profile reaches the real build with exactly the shipping flags", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "pupu-build-profile-agents-"));
+  const snapshotPath = path.join(root, "snapshot.json");
+  try {
+    const produced = run(writeSnapshot, ["--profile", agentBuilderProfile, "--out", snapshotPath], {
+      PUPU_FEATURE_MEMORY_V2: "shadow",
+      PUPU_MEMORY_V2_MODE: "shadow",
+      PUPU_MEMORY_V2_CANARY_PERCENT: "5",
+      PUPU_MEMORY_V2_READ_ONLY_DEGRADED: "1",
+    });
+    assert.equal(produced.status, 0, produced.stderr);
+    const firstBytes = fs.readFileSync(snapshotPath, "utf8");
+    const snapshot = JSON.parse(firstBytes);
+    const release = snapshot._pupu_memory_v2_release;
+    assert.match(release.rollout_fingerprint, /^[a-f0-9]{64}$/);
+    assert.match(release.snapshot_fingerprint, /^[a-f0-9]{64}$/);
+    assert.deepEqual(snapshot, {
+      enable_user_access_to_agents: true,
+      enable_user_access_to_characters: false,
+      enable_custom_model_providers: false,
+      enable_computer_use: false,
+      _pupu_memory_v2_release: {
+        schema: "pupu.memory-v2-release.v1",
+        rollout_fingerprint: release.rollout_fingerprint,
+        snapshot_fingerprint: release.snapshot_fingerprint,
+        sidecar_environment: {
+          PUPU_FEATURE_MEMORY_V2: "all",
+          PUPU_MEMORY_V2_MODE: "all",
+          PUPU_MEMORY_V2_CANARY_PERCENT: "100",
+          PUPU_MEMORY_V2_READ_ONLY_DEGRADED: "0",
+          PUPU_CONTEXT_V2_STORE_OWNER: "unchain",
+        },
+      },
+    });
+    const built = run(buildWeb, ["--print-flags"], {
+      PUPU_VERSION_PREPARED: "1",
+      PUPU_BUILD_FEATURE_SNAPSHOT_PATH: snapshotPath,
+      PUPU_FEATURE_MEMORY_V2: "off",
+      PUPU_MEMORY_V2_MODE: "shadow",
+    });
+    assert.equal(built.status, 0, built.stderr);
+    assert.deepEqual(JSON.parse(built.stdout), {
+      enable_user_access_to_agents: true,
+      enable_user_access_to_characters: false,
+      enable_custom_model_providers: false,
+      enable_computer_use: false,
+    });
+    assert.equal(run(writeSnapshot, ["--profile", agentBuilderProfile, "--out", snapshotPath]).status, 0);
+    assert.equal(fs.readFileSync(snapshotPath, "utf8"), firstBytes);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("Agent Builder release profile rejects incomplete, extended or noncanonical inputs", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "pupu-profile-v3-negative-"));
+  const profile = JSON.parse(fs.readFileSync(agentBuilderProfile, "utf8"));
+  const profilePath = path.join(root, "profile.json");
+  try {
+    const missingFlags = { ...profile.feature_flags };
+    delete missingFlags.enable_computer_use;
+    const cases = [
+      { ...profile, feature_flags: missingFlags },
+      { ...profile, feature_flags: { ...profile.feature_flags, enable_unknown: true } },
+      { ...profile, feature_flags: { ...profile.feature_flags, enable_user_access_to_agents: "true" } },
+      { ...profile, schema: "pupu.memory-v2-release-profile.v99" },
+      { ...profile, extra: true },
+      { ...profile, sidecar_environment: { ...profile.sidecar_environment, extra: "all" } },
+      { ...profile, sidecar_environment: { ...profile.sidecar_environment, PUPU_MEMORY_V2_MODE: "unexpected" } },
+    ];
+    for (const [index, changed] of cases.entries()) {
+      fs.writeFileSync(profilePath, JSON.stringify(changed));
+      const outPath = path.join(root, `snapshot-${index}.json`);
+      const rejected = run(writeSnapshot, ["--profile", profilePath, "--out", outPath]);
+      assert.notEqual(rejected.status, 0);
+      assert.match(rejected.stderr, /invalid schema or Memory V2 environment|environment is not canonical/);
+      assert.equal(fs.existsSync(outPath), false);
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("flag-free profile v2 rejects retired flags, unknown fields and wrong schemas", () => {
