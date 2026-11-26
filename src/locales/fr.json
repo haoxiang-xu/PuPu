@@ -1104,6 +1104,8 @@
         "chat_default": "par défaut du chat"
       },
       "cancel": "Annuler",
+      "discard_changes": "Ignorer les modifications",
+      "discard_before_switch": "Changer de graphe effacera les modifications non enregistrées du graphe actuel.",
       "rename_conflict": "« {name} » a été modifié ailleurs et n’a donc pas été renommé. La liste est à jour ; réessayez.",
       "rename_failed": "Impossible de renommer « {name} » : {message}",
       "store_refused": "le stockage a refusé la demande",

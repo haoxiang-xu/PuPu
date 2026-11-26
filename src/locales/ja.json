@@ -1128,6 +1128,8 @@
         "chat_default": "チャットの既定"
       },
       "cancel": "キャンセル",
+      "discard_changes": "変更を破棄",
+      "discard_before_switch": "グラフを切り替えると、現在のグラフの未保存の変更が破棄されます。",
       "rename_conflict": "「{name}」は別の場所で変更されたため、名前を変更しませんでした。一覧は更新済みです。もう一度お試しください。",
       "rename_failed": "「{name}」の名前を変更できませんでした：{message}",
       "store_refused": "ストアが要求を拒否しました",

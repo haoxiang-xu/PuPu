@@ -94,5 +94,13 @@ test("the header + creates a Workflow too, and New Agent still creates an Agent"
   fireEvent.click(within(explorer()).getByRole("button", { name: "New" }));
   fireEvent.click(menuItem("New Agent"));
   name("Agent two");
+  const dialog = await screen.findByRole("dialog");
+  expect(within(dialog).getByText("Unsaved changes")).toBeInTheDocument();
+  expect(screen.queryByTestId("skeleton-node-agent")).toBeNull();
+  expect(within(explorer()).getByText("Flow two")).toBeInTheDocument();
+  expect(api.unchain.saveSkeletonResource).not.toHaveBeenCalled();
+  fireEvent.click(within(dialog).getByRole("button", { name: "Discard changes" }));
   await screen.findByTestId("skeleton-node-agent");
+  expect(within(explorer()).getByText("Agent two")).toBeInTheDocument();
+  expect(api.unchain.saveSkeletonResource).not.toHaveBeenCalled();
 });

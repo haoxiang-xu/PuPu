@@ -1104,6 +1104,8 @@
         "chat_default": "Chat-Standard"
       },
       "cancel": "Abbrechen",
+      "discard_changes": "Änderungen verwerfen",
+      "discard_before_switch": "Beim Wechseln des Graphen gehen die ungespeicherten Änderungen am aktuellen Graphen verloren.",
       "rename_conflict": "„{name}“ wurde anderswo geändert und daher nicht umbenannt. Die Liste ist jetzt aktuell; versuchen Sie es erneut.",
       "rename_failed": "„{name}“ konnte nicht umbenannt werden: {message}",
       "store_refused": "der Speicher hat die Anfrage abgelehnt",

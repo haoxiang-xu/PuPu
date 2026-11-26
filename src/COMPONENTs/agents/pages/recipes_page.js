@@ -13,6 +13,7 @@ import {
   writeRecipePanelWidth,
 } from "../../../SERVICEs/recipe_panel_widths";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
+import { ConfirmModal } from "../../../BUILTIN_COMPONENTs/modal/modal";
 import {
   AGENTS_MODAL_Z,
   useTopStripCenter,
@@ -94,12 +95,31 @@ export default function RecipesPage({
      re-opens it from the store after the explorer renamed it (the stored
      version moved; a clean editor simply re-reads). */
   const [skeletonDirty, setSkeletonDirty] = useState(false);
+  const skeletonDirtyRef = useRef(skeletonDirty);
+  skeletonDirtyRef.current = skeletonDirty;
+  const [pendingResourceSwitch, setPendingResourceSwitch] = useState(null);
   const [skeletonReload, setSkeletonReload] = useState(0);
   /* A Skeleton Agent drilled into one of its subagents: the resource list is
      not the graph being edited, and offering a switch from there would drop
      the drill stack's unsaved parent. The Skeleton page owns that stack and
      says when it is open. */
   const [skeletonDrilled, setSkeletonDrilled] = useState(false);
+
+  const openSkeletonResource = useCallback((id, draft) => {
+    setNewSkeletonDraft(draft);
+    setSkeletonResourceId(id);
+  }, []);
+
+  const requestSkeletonResource = useCallback((id, draft = null) => {
+    // Duplication can request navigation after an async library write. Check
+    // the editor that is open when the request arrives.
+    const fromId = skeletonResourceIdRef.current;
+    if (fromId && skeletonDirtyRef.current) {
+      if (id !== fromId) setPendingResourceSwitch({ fromId, id, draft });
+      return;
+    }
+    openSkeletonResource(id, draft);
+  }, [openSkeletonResource]);
 
 
   // Panel widths: the original fixed 200 / 300 are now the minimums; the user
@@ -278,14 +298,8 @@ export default function RecipesPage({
       newDraft={newSkeletonDraft}
       activeDirty={skeletonDirty}
       autoSelectDefault={!skeletonResourceId}
-      onSelect={(id) => {
-        setNewSkeletonDraft(null);
-        setSkeletonResourceId(id);
-      }}
-      onCreate={(args) => {
-        setNewSkeletonDraft(args);
-        setSkeletonResourceId(args.id);
-      }}
+      onSelect={requestSkeletonResource}
+      onCreate={(args) => requestSkeletonResource(args.id, args)}
       onActiveChanged={(event) => {
         if (event?.type === "deleted") {
           if (event.id === skeletonResourceIdRef.current) {
@@ -375,6 +389,21 @@ export default function RecipesPage({
       </div>
 
       {dockedExplorer}
+
+      {pendingResourceSwitch && (
+        <ConfirmModal
+          open
+          title={t("agents.save.unsaved_changes")}
+          message={t("agents.explorer.discard_before_switch")}
+          cancelLabel={t("agents.explorer.cancel")}
+          confirmLabel={t("agents.explorer.discard_changes")}
+          onClose={() => setPendingResourceSwitch(null)}
+          onConfirm={() => {
+            const { fromId, id, draft } = pendingResourceSwitch;
+            if (skeletonResourceIdRef.current === fromId) openSkeletonResource(id, draft);
+          }}
+        />
+      )}
 
       {/* ── Floating recipe list (left side menu) ── */}
       {!explorerDocked && (
