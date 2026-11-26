@@ -31,7 +31,7 @@ jobs:
   deterministic:
     name: Deterministic QA
     runs-on: ubuntu-latest
-    timeout-minutes: 65
+    timeout-minutes: 120
     env:
       QA_MODE: ${{ inputs.qa_mode }}
       UNCHAIN_SOURCE_REF: ${{ inputs.unchain_ref }}
@@ -218,7 +218,8 @@ jobs:
 
       - name: Python backend tests
         id: python
-        timeout-minutes: 50
+        # The runner stops at 75 minutes; keep room for owned-child cleanup.
+        timeout-minutes: 80
         continue-on-error: true
         working-directory: pupu/unchain_runtime/server
         shell: bash

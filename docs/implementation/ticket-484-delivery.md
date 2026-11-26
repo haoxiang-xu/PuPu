@@ -221,3 +221,76 @@ not assert a runtime-dependent PASS.
 Result: the bounded UI delivery is implemented, regression-tested and reviewed
 for a PR to `dev`. Native acceptance, full feature audit and release
 certification remain incomplete; no such PASS is asserted by this plan.
+
+## PR #491 CI follow-up — backend execution budget
+
+The owner subsequently authorized watching #491 and merging to `dev` only after
+all CI passes, then continuing acceptance. Attempt 1 of Release QA `45756113070`
+at head `d5210c34` failed its Python execution budget. The exact synthetic merge
+was `bc6eeee4d868fcaacb21f23e961e7bce42081e7c`. Frontend, Electron, both boundary
+contract matrices, build, MCP and release-script checks passed; the final gate
+correctly failed, and dependent Playwright was skipped. No merge occurred.
+
+The retained logs show 4,257 cases collected, 3,622 completed (3,606 passed,
+16 skipped), no recorded failure/error, and continued progress until the
+3,000-second total limit. The previous successful #490 backend run took
+45 minutes 7 seconds. In #491 the last completed `[approve]` case was only
+9.019 seconds before termination of the current `[deny]` case. There was no
+60-second `deadline_witness` or dump event. This establishes total-suite budget
+exhaustion; the final test name and unfinished diagnostic generation do not
+establish a single-case deadlock.
+
+Before changing the budget, a separate isolated environment installed the exact
+retained CI wheel `edaaf0cc1538907c252da83bb81187830622543f37cb2ba40f70ce5d818038cb`
+from source `9af29599`. The real producer capture and the interrupted test's
+approve/deny/cancel variants passed: four tests in 22.49 seconds. Actual pytest
+consumer PID 96993 resolved both Unchain/protocol modules from that environment
+and compared 333 loaded product modules to the same wheel. This is offline SDK
+fixture evidence, not Linux throughput or native UI acceptance. The newer
+`4276d71` acceptance wheel is separate and was not substituted into the CI repro.
+
+Minimal correction: runner total bound 75 minutes, enclosing Python Actions step
+80 minutes, whole deterministic job 120 minutes. Retain the existing 60-second
+per-test diagnostic, test-only reduced limits, real failure propagation, owned
+process-group teardown, unchanged complete test selection and final fail-closed
+gate. Do not use the selftest override to enlarge a production run.
+
+BC-CI-484-003: the fixed runner limit produces a bounded subprocess lifetime;
+the enclosing step/job own cleanup and report time. Admission remains CLOSED:
+no new environment override or workflow input. A runner hard limit remains a
+failing exit; extra time cannot convert a failed assertion into success.
+SEQ-CI-484-002: normal progress → complete suite → child finalization → final
+report; separately, per-test diagnostic/deadline/signal → bounded failing exit →
+owned descendant cleanup. AC-CI-484-004 verifies a useful bounded full-suite
+window and runner < step < job headroom; existing black-box cases retain real
+60-second dumps, assertion/signal exits and descendant cleanup.
+
+Pre-edit impacts for the limit, diagnostic tests and unindexed reusable YAML
+are UNKNOWN, not LOW. Source corroboration found `_hard_limit_from_env` and
+runner telemetry consume the constant, and `release-qa.yml` is the reusable
+workflow caller. The new policy test first failed against the original 50-minute
+budget. Final local validation ran the whole release-QA unit glob serially:
+578 tests, 572 passed and six platform skips; the separate long-run harness
+unit suite passed all 62 tests. This preserves the real 60-second black-box
+diagnostic and failure/signal/descendant-cleanup cases. The existing lifecycle
+test's old literal 65/50 matching was replaced with the semantic budget and
+headroom contract rather than duplicating that check in the diagnostic suite.
+
+Both earlier failed local runs are retained: one exposed the expected stale
+literal budget assertion, and another had a generic concurrent worker exit in
+the unchanged restart-failure lifecycle file. That file independently passed
+all 63 cases and is also included in the complete serial PASS; the concurrent
+exit's cause is unconfirmed. A separate harness CLI-readiness timeout coincided
+with a recorded 267-second host idle sleep, then the complete harness passed
+62/62 with an owned, bounded idle-sleep guard. No unrelated source was changed
+and no test was omitted. Fresh normal Linux CI on the resulting head must still
+pass before merge; local serial results cannot certify the concurrent path.
+
+Final complete graph analysis: incremental `all` reports raw LOW (four files,
+six symbols, zero enumerated flows); full `compare` against `origin/dev` remains
+**CRITICAL** (20 files, 27 symbols, the same 18 calibrated UI flows). Neither
+result is partial/truncated; returned counts match totals and IDs are present.
+The incremental LOW does not resolve the UNKNOWN bare-variable/YAML edges or
+waive the full comparison's CRITICAL verdict. The fixed limit's real source
+references and reusable caller were checked explicitly. Both original
+workspaces and runtime pins remain outside this CI-only change.
