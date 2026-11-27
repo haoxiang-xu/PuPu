@@ -488,7 +488,6 @@ export function profile_problems(profile, base, t = agentEnglishText) {
       CAPABILITY_KEYS,
       problems,
       t,
-      t,
     );
     const stated = readable
       ? CAPABILITY_KEYS.filter((key) => key in capabilities)
