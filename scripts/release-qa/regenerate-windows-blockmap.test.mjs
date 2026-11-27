@@ -109,13 +109,21 @@ test("CLI accepts exactly one installer argument and fails without touching arti
 
 test("shared action's real Node commands generate a map then refresh metadata from signed bytes", (t) => {
   const f = fixture(t);
+  const legacyPackage = path.join(f.directory, "package.json");
+  const legacyBytes = '{"name":"legacy-fixture","version":"0.1.13"}\n';
+  fs.writeFileSync(legacyPackage, legacyBytes);
+  const wrongProducer = path.join(f.directory, "node_modules/app-builder-lib/out/targets/blockmap/blockmap.js");
+  fs.mkdirSync(path.dirname(wrongProducer), { recursive: true });
+  fs.writeFileSync(wrongProducer, 'throw new Error("fixture dependency must not be used");\n');
   const action = YAML.parse(fs.readFileSync(path.join(ROOT,
     ".github/actions/windows-artifact-signing/action.yml"), "utf8"));
   const step = action.runs.steps.find((item) =>
     item.name === "Rebuild updater blockmap and metadata from the signed installer");
   const script = step.run.replace(/`\s*\r?\n\s*/g, " ");
-  const commands = [...script.matchAll(/^\s*node\s+(scripts\/\S+\.mjs)\s+([^\r\n]+)/gm)];
-  assert.deepEqual(commands.map((match) => match[1]), [
+  const commands = [...script.matchAll(/^\s*node\s+("\$env:SIGNING_HELPER_ROOT\/[^\"]+"|scripts\/\S+\.mjs)\s+([^\r\n]+)/gm)];
+  const scriptPath = (command) => command[1].replace(/^"|"$/g, "");
+  assert.deepEqual(commands.map((command) => scriptPath(command)
+    .replace("$env:SIGNING_HELPER_ROOT/", "scripts/release-qa/")), [
     "scripts/release-qa/regenerate-windows-blockmap.mjs",
     "scripts/release-qa/refresh-windows-updater-metadata.mjs",
   ]);
@@ -126,11 +134,17 @@ test("shared action's real Node commands generate a map then refresh metadata fr
   for (const command of commands) {
     const args = command[2].match(/"[^"]*"|\S+/g).map((value) => value.replace(/^"|"$/g, ""))
       .map((value) => value === "$installerPath" ? f.installer : value === "$metadataPath" ? f.metadata : value);
-    const result = spawnSync(process.execPath, [path.join(ROOT, command[1]), ...args], {
-      cwd: ROOT, encoding: "utf8",
+    // Resolve only the declared tools environment variable. A relative script
+    // remains relative to the legacy cwd, exactly as the real Node invocation.
+    const entrypoint = scriptPath(command).replace("$env:SIGNING_HELPER_ROOT", path.join(ROOT, "scripts/release-qa"));
+    const result = spawnSync(process.execPath, [entrypoint, ...args], {
+      cwd: f.directory, encoding: "utf8",
     });
     assert.equal(result.status, 0, result.stderr);
   }
+  assert.equal(step.env.SIGNING_HELPER_ROOT, "${{ github.action_path }}/../../../scripts/release-qa");
+  assert.equal(fs.readFileSync(legacyPackage, "utf8"), legacyBytes);
+  assert.equal(fs.existsSync(path.join(f.directory, "scripts")), false);
   inspectBlockmap(f);
   const metadata = YAML.parse(fs.readFileSync(f.metadata, "utf8"));
   assert.equal(metadata.sha512, sha512(f.bytes));

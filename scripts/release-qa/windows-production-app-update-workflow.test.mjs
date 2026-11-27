@@ -40,10 +40,10 @@ test("signing qualification exercises the production updater contract", () => {
 test("shared signing action closes production and fixture updater profiles", () => {
   const action = YAML.parse(signingAction);
   assert.equal(action.inputs["app-update-contract"].required, true);
-  assert.match(signingAction, /production-app-update\.mjs validate/);
+  assert.match(signingAction, /node "\$env:SIGNING_HELPER_ROOT\/production-app-update\.mjs" validate/);
   assert.match(signingAction, /qualification-fixture/);
   assert.ok(
-    (signingAction.match(/production-app-update\.mjs validate/g) || []).length >= 2,
+    (signingAction.match(/node "\$env:SIGNING_HELPER_ROOT\/production-app-update\.mjs" validate/g) || []).length >= 2,
     "production payload must be revalidated before both prepackaged installer builds",
   );
 
