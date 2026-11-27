@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
+import YAML from "yaml";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
 const read = (relativePath) => fs.readFileSync(path.join(ROOT, relativePath), "utf8");
@@ -25,7 +26,7 @@ const assertSharedActionContract = (action) => {
   assert.match(action, /--config\.nsis\.artifactName="\$installerName"/);
   assert.match(action, /--config\.nsis\.packElevateHelper=false/);
   assert.match(action, /Rebuild updater blockmap and metadata from the signed installer/);
-  assert.match(action, /node scripts\/release-qa\/regenerate-windows-blockmap\.mjs --installer "\$installerPath"/);
+  assert.match(action, /node "\$env:SIGNING_HELPER_ROOT\/regenerate-windows-blockmap\.mjs" --installer "\$installerPath"/);
   assert.doesNotMatch(action, /app-builder-bin|& \$appBuilder blockmap/);
   assert.match(action, /refresh-windows-updater-metadata\.mjs/);
   assert.ok(
@@ -35,17 +36,35 @@ const assertSharedActionContract = (action) => {
   );
   assert.match(action, /Get-AuthenticodeSignature/);
   assert.match(action, /Status -ne "Valid"/);
-  assert.match(action, /unsigned_payload_exceptions/);
-  assert.match(action, /signable_payload_file_count/);
+  assert.match(action, /payload_path = if/);
+  assert.match(action, /files = @\(\$observations\)/);
+  assert.match(action, /GetTempFileName\(\)/);
+  assert.match(action, /finally \{\s*Remove-Item -LiteralPath \$observationPath/);
   assert.match(action, /signer_subject/);
   assert.match(action, /signer_thumbprint/);
+  assert.match(action, /build-windows-signing-evidence\.mjs/);
+  assert.match(action, /Windows signing evidence classification failed/);
   assert.match(action, /canonicalize-windows-signing-evidence\.mjs/);
   assert.match(action, /--evidence "\$env:EVIDENCE_OUTPUT"/);
   assert.ok(
-    action.indexOf("Set-Content -LiteralPath $env:EVIDENCE_OUTPUT") <
+    action.indexOf("build-windows-signing-evidence.mjs") <
       action.indexOf("canonicalize-windows-signing-evidence.mjs"),
-    "Windows signing evidence must be canonicalized only after the producer writes it",
+    "the real projector must write evidence before canonicalization and publication",
   );
+  assert.ok(action.indexOf("canonicalize-windows-signing-evidence.mjs") <
+    action.indexOf('"evidence_path='));
+  assert.doesNotMatch(action, /reason = "upstream Tcl\/Tk DLL rejected/);
+  const projector = read("scripts/release-qa/build-windows-signing-evidence.mjs");
+  assert.match(projector, /unsigned_payload_exceptions/);
+  assert.match(projector, /signable_payload_file_count/);
+  const document = YAML.parseDocument(action, { uniqueKeys: true });
+  assert.deepEqual(document.errors.map((error) => error.message), []);
+  for (const step of YAML.parse(action).runs.steps.filter((item) => item.run?.includes("SIGNING_HELPER_ROOT/"))) {
+    assert.equal(step.env.SIGNING_HELPER_ROOT, "${{ github.action_path }}/../../../scripts/release-qa");
+    assert.equal(step["working-directory"], "${{ inputs.working-directory }}");
+  }
+  assert.doesNotMatch(action, /node scripts\/release-qa\//,
+    "maintained tool entrypoints must not be looked up in the older fixture checkout");
   assert.equal(
     count(action, /uses: azure\/artifact-signing-action@[0-9a-f]{40} # v2/g),
     3,
@@ -91,6 +110,13 @@ test("formal candidate and qualification signing share one guarded implementatio
     evidenceOutput: "windows-signing-evidence\\.v1\\.json",
   });
   assert.match(candidate, /steps\.windows_artifact_signing\.outcome/);
+  const gateStart = candidate.indexOf("windows)\n              node scripts/release-qa/windows-release-candidate-signing.mjs");
+  assert.ok(gateStart > 0, "the package must execute the assembler's strict signing validator");
+  const gate = candidate.slice(gateStart, candidate.indexOf(";;", gateStart));
+  for (const flag of ["--evidence", "--installer", "--version", "--run-id", "--commit"]) {
+    assert.ok(gate.includes(flag), "strict package gate needs " + flag);
+  }
+  assert.doesNotMatch(gate, /unsigned_payload_exceptions\.map/);
   for (const file of [".github/workflows/_shared-release-windows-restart-update.yml",
     ".github/workflows/_shared-windows-upgrade-diagnostic.yml"]) {
     const workflow = read(file);

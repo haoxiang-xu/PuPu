@@ -397,7 +397,12 @@ jobs:
               spctl --assess --type execute --verbose=4 "$APP_PATH"
               ;;
             windows)
-              node -e 'const fs=require("fs"); const evidence=JSON.parse(fs.readFileSync("windows-signing-evidence.v1.json", "utf8")); const expected=["resources\\mcp_runtime\\python\\DLLs\\tcl86t.dll","resources\\mcp_runtime\\python\\DLLs\\tk86t.dll"]; if (evidence.schema !== "pupu.windows-release-candidate-signing.v1" || evidence.status !== "passed" || evidence.target_id !== "windows-x64" || evidence.installer_file_count !== 1 || !Array.isArray(evidence.signed_files) || evidence.signed_files.length !== evidence.signable_payload_file_count + 1 || JSON.stringify(evidence.unsigned_payload_exceptions.map((item) => item.path).sort()) !== JSON.stringify(expected)) { throw new Error("Windows signing evidence is incomplete or has an unexpected exception set"); }'
+              node scripts/release-qa/windows-release-candidate-signing.mjs \
+                --evidence windows-signing-evidence.v1.json \
+                --installer "dist/PuPu-$QA_VERSION-windows-x64-setup.exe" \
+                --version "$QA_VERSION" \
+                --run-id "$GITHUB_RUN_ID" \
+                --commit "$GITHUB_SHA"
               ;;
             linux)
               echo "Linux x64 has no code-signing/notarization contract in v0.1.10"

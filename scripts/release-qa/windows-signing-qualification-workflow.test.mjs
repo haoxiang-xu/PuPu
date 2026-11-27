@@ -71,9 +71,11 @@ test("Windows signing qualification is an explicit, protected, non-publishing Ar
   assert.match(signingAction, /--config\.directories\.output="\$bootstrapOutput"/);
   assert.match(signingAction, /--config\.nsis\.packElevateHelper=false/);
   assert.match(signingAction, /controlled unsigned payload exception set did not match exactly/);
-  assert.match(signingAction, /unsigned_payload_exceptions/);
-  assert.match(signingAction, /signable_payload_file_count/);
-  assert.match(signingAction, /not Authenticode-compatible \(0x800700C1\)/);
+  assert.match(signingAction, /build-windows-signing-evidence\.mjs/);
+  assert.match(signingAction, /files = @\(\$observations\)/);
+  assert.match(signingAction, /package_version = \[string\]\$env:PACKAGE_VERSION/);
+  assert.match(signingAction, /target_id = \[string\]\$env:TARGET_ID/);
+  assert.doesNotMatch(signingAction, /reason = "upstream Tcl\/Tk DLL rejected/);
   assert.match(signingAction, /--prepackaged/);
   assert.match(signingAction, /--publish never/);
   assert.match(signingAction, /Get-AuthenticodeSignature/);

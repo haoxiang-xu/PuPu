@@ -181,13 +181,16 @@ test("Windows shared action enforces dependency → reseal → launcher → inst
   assert.ok(prepare >= 0 && prepare < dependencies && dependencies < seal && seal < launcher && launcher < pack && pack < installer);
   // Parsed YAML drops the trailing `# v2` comment, so match the pinned SHA form.
   assert.equal(steps.filter(s => /^azure\/artifact-signing-action@[0-9a-f]{40}$/.test(s.uses || "")).length, 3);
-  assert.match(steps[prepare].run, /seal-windows-sidecar-identity\.mjs prepare/);
+  assert.match(steps[prepare].run, /node "\$env:SIGNING_HELPER_ROOT\/seal-windows-sidecar-identity\.mjs" prepare/);
   assert.match(steps[prepare].run, /\$dependencyFiles = .*\$signableFiles.*\$_.FullName -ne \$launcherPath/);
   assert.match(steps[prepare].run, /\$dependencyFiles \| ForEach-Object/);
   assert.match(steps[seal].run, /Get-AuthenticodeSignature/);
   assert.match(steps[seal].run, /Status -ne "Valid"/);
-  assert.match(steps[seal].run, /seal-windows-sidecar-identity\.mjs seal/);
+  assert.match(steps[seal].run, /node "\$env:SIGNING_HELPER_ROOT\/seal-windows-sidecar-identity\.mjs" seal/);
   assert.match(steps[launcher].with.files, /catalogue.outputs.launcher_path/);
-  assert.match(steps[pack].run, /seal-windows-sidecar-identity\.mjs verify/);
-  assert.match(steps.at(-1).run, /seal-windows-sidecar-identity\.mjs verify/);
+  assert.match(steps[pack].run, /node "\$env:SIGNING_HELPER_ROOT\/seal-windows-sidecar-identity\.mjs" verify/);
+  assert.match(steps.at(-1).run, /node "\$env:SIGNING_HELPER_ROOT\/seal-windows-sidecar-identity\.mjs" verify/);
+  for (const step of [steps[prepare], steps[seal], steps[pack], steps.at(-1)]) {
+    assert.equal(step.env.SIGNING_HELPER_ROOT, "${{ github.action_path }}/../../../scripts/release-qa");
+  }
 });

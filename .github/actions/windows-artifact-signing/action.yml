@@ -75,6 +75,7 @@ runs:
         PACKAGE_VERSION: ${{ inputs.package-version }}
         TARGET_ID: ${{ inputs.target-id }}
         CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        SIGNING_HELPER_ROOT: ${{ github.action_path }}/../../../scripts/release-qa
       run: |
         $workingDirectory = [System.IO.Path]::GetFullPath($PWD)
         $signingRoot = [System.IO.Path]::GetFullPath($env:SIGNING_ROOT_PATH)
@@ -123,7 +124,7 @@ runs:
         }
         if ($env:APP_UPDATE_CONTRACT -eq "production") {
           $appUpdate = Join-Path $payload "resources\app-update.yml"
-          node scripts/release-qa/production-app-update.mjs validate `
+          node "$env:SIGNING_HELPER_ROOT/production-app-update.mjs" validate `
             --package-json package.json `
             --app-update "$appUpdate"
           if ($LASTEXITCODE -ne 0) { throw "Windows production updater config validation failed before bootstrap packaging" }
@@ -141,6 +142,7 @@ runs:
       env:
         SIGNING_ROOT_PATH: ${{ inputs.signing-root-path }}
         PAYLOAD_PATH: ${{ inputs.payload-path }}
+        SIGNING_HELPER_ROOT: ${{ github.action_path }}/../../../scripts/release-qa
       run: |
         $signingRoot = [System.IO.Path]::GetFullPath($env:SIGNING_ROOT_PATH)
         $payload = [System.IO.Path]::GetFullPath($env:PAYLOAD_PATH)
@@ -182,7 +184,7 @@ runs:
           (Get-Item -LiteralPath (Join-Path $payload $relativePath)).IsReadOnly = $false
         }
         $identityReceipt = Join-Path $signingRoot "windows-pre-sign-identity.v1.json"
-        node scripts/release-qa/seal-windows-sidecar-identity.mjs prepare "$payload" "$identityReceipt"
+        node "$env:SIGNING_HELPER_ROOT/seal-windows-sidecar-identity.mjs" prepare "$payload" "$identityReceipt"
         if ($LASTEXITCODE -ne 0) { throw "Windows pre-sign identity verification failed" }
         # The launcher binds the ASAR header and must be signed after resealing.
         $dependencyFiles = @($signableFiles | Where-Object { $_.FullName -ne $launcherPath })
@@ -231,6 +233,7 @@ runs:
       env:
         PAYLOAD_PATH: ${{ inputs.payload-path }}
         IDENTITY_RECEIPT: ${{ steps.catalogue.outputs.identity_receipt }}
+        SIGNING_HELPER_ROOT: ${{ github.action_path }}/../../../scripts/release-qa
       run: |
         $payload = [System.IO.Path]::GetFullPath($env:PAYLOAD_PATH)
         $sidecar = Join-Path $payload "resources/unchain_runtime/dist/windows/unchain-server.exe"
@@ -238,7 +241,7 @@ runs:
         if ($signature.Status -ne "Valid" -or $null -eq $signature.SignerCertificate) {
           throw "Sidecar must have a valid Authenticode signature before identity resealing"
         }
-        node scripts/release-qa/seal-windows-sidecar-identity.mjs seal "$payload" "$env:IDENTITY_RECEIPT"
+        node "$env:SIGNING_HELPER_ROOT/seal-windows-sidecar-identity.mjs" seal "$payload" "$env:IDENTITY_RECEIPT"
         if ($LASTEXITCODE -ne 0) { throw "Windows signed Sidecar identity resealing failed" }
 
     - name: Sign resealed Windows launcher with Artifact Signing
@@ -270,15 +273,16 @@ runs:
         INSTALLER_PATH: ${{ inputs.installer-path }}
         APP_UPDATE_CONTRACT: ${{ inputs.app-update-contract }}
         CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        SIGNING_HELPER_ROOT: ${{ github.action_path }}/../../../scripts/release-qa
       run: |
         $payload = [System.IO.Path]::GetFullPath($env:PAYLOAD_PATH)
         $installerPath = [System.IO.Path]::GetFullPath($env:INSTALLER_PATH)
         $installerName = [System.IO.Path]::GetFileName($installerPath)
-        node scripts/release-qa/seal-windows-sidecar-identity.mjs verify "$payload"
+        node "$env:SIGNING_HELPER_ROOT/seal-windows-sidecar-identity.mjs" verify "$payload"
         if ($LASTEXITCODE -ne 0) { throw "Windows signed payload identity verification failed" }
         if ($env:APP_UPDATE_CONTRACT -eq "production") {
           $appUpdate = Join-Path $payload "resources\app-update.yml"
-          node scripts/release-qa/production-app-update.mjs validate `
+          node "$env:SIGNING_HELPER_ROOT/production-app-update.mjs" validate `
             --package-json package.json `
             --app-update "$appUpdate"
           if ($LASTEXITCODE -ne 0) { throw "Windows production updater config validation failed before final installer packaging" }
@@ -314,6 +318,7 @@ runs:
       working-directory: ${{ inputs.working-directory }}
       env:
         INSTALLER_PATH: ${{ inputs.installer-path }}
+        SIGNING_HELPER_ROOT: ${{ github.action_path }}/../../../scripts/release-qa
       run: |
         $installerPath = [System.IO.Path]::GetFullPath($env:INSTALLER_PATH)
         $metadataPath = Join-Path ([System.IO.Path]::GetDirectoryName($installerPath)) "latest.yml"
@@ -321,11 +326,11 @@ runs:
         if (-not (Test-Path -LiteralPath $metadataPath -PathType Leaf)) {
           throw "missing Windows updater metadata generated with the installer: $metadataPath"
         }
-        node scripts/release-qa/regenerate-windows-blockmap.mjs --installer "$installerPath"
+        node "$env:SIGNING_HELPER_ROOT/regenerate-windows-blockmap.mjs" --installer "$installerPath"
         if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $blockmapPath -PathType Leaf)) {
           throw "could not regenerate the Windows updater blockmap from the signed installer"
         }
-        node scripts/release-qa/refresh-windows-updater-metadata.mjs `
+        node "$env:SIGNING_HELPER_ROOT/refresh-windows-updater-metadata.mjs" `
           --installer "$installerPath" `
           --metadata "$metadataPath"
         if ($LASTEXITCODE -ne 0) { throw "could not refresh Windows updater metadata from the signed installer" }
@@ -341,42 +346,23 @@ runs:
         EVIDENCE_SCHEMA: ${{ inputs.evidence-schema }}
         PACKAGE_VERSION: ${{ inputs.package-version }}
         TARGET_ID: ${{ inputs.target-id }}
+        SIGNING_HELPER_ROOT: ${{ github.action_path }}/../../../scripts/release-qa
       run: |
         $payload = [System.IO.Path]::GetFullPath($env:PAYLOAD_PATH)
         $installerPath = [System.IO.Path]::GetFullPath($env:INSTALLER_PATH)
-        node scripts/release-qa/seal-windows-sidecar-identity.mjs verify "$payload"
+        node "$env:SIGNING_HELPER_ROOT/seal-windows-sidecar-identity.mjs" verify "$payload"
         if ($LASTEXITCODE -ne 0) { throw "Windows final payload identity verification failed" }
         $payloadFiles = @(Get-ChildItem -LiteralPath $payload -File -Recurse |
           Where-Object { $_.Extension -in ".exe", ".dll" } |
           Sort-Object { [System.IO.Path]::GetRelativePath($payload, $_.FullName) })
-        $unsignedPayloadRelativePaths = @(
-          "resources\mcp_runtime\python\DLLs\tcl86t.dll",
-          "resources\mcp_runtime\python\DLLs\tk86t.dll"
-        )
-        $unsignedPayloadFiles = @($payloadFiles | Where-Object {
-          [System.IO.Path]::GetRelativePath($payload, $_.FullName) -in $unsignedPayloadRelativePaths
-        })
-        $unsignedPayloadActualPaths = @($unsignedPayloadFiles | ForEach-Object {
-          [System.IO.Path]::GetRelativePath($payload, $_.FullName)
-        })
-        $missingUnsignedPayloadPaths = @($unsignedPayloadRelativePaths | Where-Object {
-          $_ -notin $unsignedPayloadActualPaths
-        })
-        if ($missingUnsignedPayloadPaths.Count -ne 0 -or $unsignedPayloadFiles.Count -ne $unsignedPayloadRelativePaths.Count) {
-          throw "the controlled unsigned payload exception set did not match exactly: $($missingUnsignedPayloadPaths -join ', ')"
-        }
         if (-not (Test-Path -LiteralPath $installerPath -PathType Leaf)) {
           throw "missing exact Windows installer for Authenticode verification: $installerPath"
         }
-        $signablePayloadFiles = @($payloadFiles | Where-Object {
-          [System.IO.Path]::GetRelativePath($payload, $_.FullName) -notin $unsignedPayloadRelativePaths
-        })
-        $signedFiles = @($signablePayloadFiles) + @(Get-Item -LiteralPath $installerPath)
-        $signedEvidence = foreach ($file in $signedFiles) {
+        # Collect all native observations, including the two files excluded
+        # from Azure re-signing. Classification is owned by the tested projector.
+        $observations = @(foreach ($file in (@($payloadFiles) + @(Get-Item -LiteralPath $installerPath))) {
           $signature = Get-AuthenticodeSignature -LiteralPath $file.FullName
-          if ($signature.Status -ne "Valid" -or $null -eq $signature.SignerCertificate) {
-            throw "Authenticode status for $($file.FullName): $($signature.Status)"
-          }
+          $certificate = $signature.SignerCertificate
           $reportedPath = if ($env:EVIDENCE_SCHEMA -eq "pupu.windows-release-candidate-signing.v1") {
             [System.IO.Path]::GetRelativePath($PWD, $file.FullName)
           } else {
@@ -384,60 +370,35 @@ runs:
           }
           [ordered]@{
             path = $reportedPath
-            sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $file.FullName).Hash.ToLowerInvariant()
-            signer_subject = $signature.SignerCertificate.Subject
-            signer_thumbprint = $signature.SignerCertificate.Thumbprint
-          }
-        }
-        $unsignedPayloadExceptions = foreach ($file in $unsignedPayloadFiles) {
-          $relativePath = [System.IO.Path]::GetRelativePath($payload, $file.FullName)
-          $signature = Get-AuthenticodeSignature -LiteralPath $file.FullName
-          [ordered]@{
-            path = $relativePath
+            payload_path = if ($file.FullName -eq $installerPath) { $null } else {
+              [System.IO.Path]::GetRelativePath($payload, $file.FullName)
+            }
             sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $file.FullName).Hash.ToLowerInvariant()
             authenticode_status = $signature.Status.ToString()
-            reason = "upstream Tcl/Tk DLL rejected by SignTool as not Authenticode-compatible (0x800700C1)"
+            signer_subject = if ($null -ne $certificate) { $certificate.Subject } else { $null }
+            signer_thumbprint = if ($null -ne $certificate) { $certificate.Thumbprint } else { $null }
           }
-        }
-        $report = [ordered]@{
-          schema = $env:EVIDENCE_SCHEMA
-          status = "passed"
-          source_revision = $env:GITHUB_SHA
-          payload_file_count = $payloadFiles.Count
-          signable_payload_file_count = $signablePayloadFiles.Count
-          installer_file_count = 1
-          unsigned_payload_exceptions = @($unsignedPayloadExceptions)
-          signed_files = @($signedEvidence)
-        }
-        if ($env:EVIDENCE_SCHEMA -eq "pupu.windows-release-candidate-signing.v1") {
-          $report = [ordered]@{
-            schema = $report.schema
-            status = $report.status
-            candidate_run_id = $env:GITHUB_RUN_ID
-            source_revision = $report.source_revision
-            package_version = $env:PACKAGE_VERSION
-            target_id = $env:TARGET_ID
-            payload_file_count = $report.payload_file_count
-            signable_payload_file_count = $report.signable_payload_file_count
-            installer_file_count = $report.installer_file_count
-            unsigned_payload_exceptions = $report.unsigned_payload_exceptions
-            signed_files = $report.signed_files
-          }
-        } else {
-          $report = [ordered]@{
-            schema = $report.schema
-            status = $report.status
+        })
+        $observationPath = [System.IO.Path]::GetTempFileName()
+        try {
+          [ordered]@{
+            schema = "pupu.windows-signing-observation.v1"
+            evidence_schema = $env:EVIDENCE_SCHEMA
             run_id = $env:GITHUB_RUN_ID
-            source_revision = $report.source_revision
-            payload_file_count = $report.payload_file_count
-            signable_payload_file_count = $report.signable_payload_file_count
-            installer_file_count = $report.installer_file_count
-            unsigned_payload_exceptions = $report.unsigned_payload_exceptions
-            signed_files = $report.signed_files
+            source_revision = $env:GITHUB_SHA
+            package_version = [string]$env:PACKAGE_VERSION
+            target_id = [string]$env:TARGET_ID
+            files = @($observations)
+          } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $observationPath -Encoding utf8
+          node "$env:SIGNING_HELPER_ROOT/build-windows-signing-evidence.mjs" `
+            --observation "$observationPath" --evidence "$env:EVIDENCE_OUTPUT"
+          if ($LASTEXITCODE -ne 0) {
+            throw "Windows signing evidence classification failed"
           }
+        } finally {
+          Remove-Item -LiteralPath $observationPath -Force -ErrorAction SilentlyContinue
         }
-        $report | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $env:EVIDENCE_OUTPUT -Encoding utf8
-        node scripts/release-qa/canonicalize-windows-signing-evidence.mjs `
+        node "$env:SIGNING_HELPER_ROOT/canonicalize-windows-signing-evidence.mjs" `
           --evidence "$env:EVIDENCE_OUTPUT"
         if ($LASTEXITCODE -ne 0) {
           throw "Windows signing evidence canonicalization failed"
