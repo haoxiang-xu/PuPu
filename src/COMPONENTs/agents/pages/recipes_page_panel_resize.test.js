@@ -1,6 +1,7 @@
 import React from "react";
 import { render, fireEvent, act, waitFor, screen } from "@testing-library/react";
 import RecipesPage from "./recipes_page";
+import { FlowEditor } from "../../../BUILTIN_COMPONENTs/flow_editor";
 import {
   RECIPE_PANEL_LIMITS,
   panelMaxWidth,
@@ -19,7 +20,7 @@ jest.mock("../../../SERVICEs/api", () => ({
 }));
 
 jest.mock("../../../BUILTIN_COMPONENTs/flow_editor", () => ({
-  FlowEditor: () => <div data-testid="flow-editor" />,
+  FlowEditor: jest.fn(() => <div data-testid="flow-editor" />),
 }));
 
 jest.mock("../../side-menu/side_menu_utils", () => ({
@@ -45,6 +46,7 @@ const mockRecipe = {
 const { api } = require("../../../SERVICEs/api");
 
 beforeEach(() => {
+  FlowEditor.mockImplementation(() => <div data-testid="flow-editor" />);
   window.localStorage.clear();
   api.unchain.listRecipes.mockReset();
   api.unchain.getRecipe.mockReset();
@@ -76,13 +78,20 @@ const pointer = (target, type, clientX) =>
   );
 
 function drag(handle, from, to) {
-  act(() => {
+  const frames = jest.spyOn(window, "requestAnimationFrame").mockReturnValue(1);
+  try {
     pointer(handle, "pointerdown", from);
-  });
-  act(() => {
     pointer(window, "pointermove", to);
-  });
+    act(() => frames.mock.calls.forEach(([frame]) => frame(0)));
+  } finally {
+    frames.mockRestore();
+  }
 }
+
+const liveWidth = (panel) => Array.from(document.styleSheets)
+  .flatMap((sheet) => Array.from(sheet.cssRules))
+  .map((rule) => rule.style?.getPropertyValue(`--pupu-agents-${panel}-drag-width`))
+  .find(Boolean);
 
 function release(at) {
   act(() => {
@@ -91,54 +100,67 @@ function release(at) {
 }
 
 describe("RecipesPage panel resize", () => {
+  test.each([
+    ["list", 200, 1, 240],
+  ])("dragging the %s edge does not render the canvas on pointer moves", async (panel, start, direction, width) => {
+    await mount("start");
+    const handle = screen.getByTestId(`recipe-${panel}-resize-handle`);
+    pointer(handle, "pointerdown", start);
+    const frames = jest.spyOn(window, "requestAnimationFrame").mockReturnValue(1);
+    FlowEditor.mockClear();
+    try {
+      for (let step = 1; step <= 10; step++) {
+        pointer(window, "pointermove", start + direction * step * 4);
+      }
+      expect(frames).toHaveBeenCalledTimes(1);
+      act(() => frames.mock.calls[0][0](0));
+      expect(liveWidth(panel)).toBe(`${width}px`);
+      expect(FlowEditor).toHaveBeenCalledTimes(0);
+      pointer(window, "pointermove", start + direction * 48);
+      release(start + direction * 48);
+      expect(readRecipePanelWidths()[panel]).toBe(width + 8);
+      expect(liveWidth(panel)).toBeUndefined();
+    } finally {
+      frames.mockRestore();
+    }
+  });
+
   test("panels start at their stored widths (defaults = minimums)", async () => {
     await mount("start");
     expect(screen.getByTestId("recipe-list-panel-shell").style.width).toBe("200px");
-    expect(screen.getByTestId("recipe-detail-panel-shell").style.width).toBe("300px");
   });
 
   test("a previously stored width is restored on mount", async () => {
     writeRecipePanelWidth("list", 260);
-    writeRecipePanelWidth("detail", 420);
     await mount("start");
     expect(screen.getByTestId("recipe-list-panel-shell").style.width).toBe("260px");
-    expect(screen.getByTestId("recipe-detail-panel-shell").style.width).toBe("420px");
   });
 
   test("dragging the list handle right widens the list and persists on release", async () => {
     await mount("start");
     const handle = screen.getByTestId("recipe-list-resize-handle");
     drag(handle, 200, 240);
-    expect(screen.getByTestId("recipe-list-panel-shell").style.width).toBe("240px");
+    expect(liveWidth("list")).toBe("240px");
     // not persisted until the pointer is released
     expect(readRecipePanelWidths().list).toBe(200);
     release(240);
     expect(readRecipePanelWidths().list).toBe(240);
-  });
-
-  test("dragging the detail handle left widens the detail panel", async () => {
-    await mount("start");
-    const handle = screen.getByTestId("recipe-detail-resize-handle");
-    drag(handle, 700, 640);
-    expect(screen.getByTestId("recipe-detail-panel-shell").style.width).toBe("360px");
-    release(640);
-    expect(readRecipePanelWidths().detail).toBe(360);
+    expect(screen.getByTestId("recipe-list-panel-shell").style.width).toBe("240px");
+    expect(liveWidth("list")).toBeUndefined();
   });
 
   test("widths never go below the minimum or above the panel's share", async () => {
     await mount("start");
     const list = screen.getByTestId("recipe-list-resize-handle");
     drag(list, 200, 100);
+    release(100);
     expect(screen.getByTestId("recipe-list-panel-shell").style.width).toBe(
       `${RECIPE_PANEL_LIMITS.list.min}px`,
     );
-    release(100);
 
     const cap = panelMaxWidth("list", window.innerWidth);
     drag(list, 200, 200 + window.innerWidth * 2);
-    expect(screen.getByTestId("recipe-list-panel-shell").style.width).toBe(
-      `${cap}px`,
-    );
+    expect(liveWidth("list")).toBe(`${cap}px`);
     release(200 + window.innerWidth * 2);
     expect(readRecipePanelWidths(window.innerWidth).list).toBe(cap);
   });
@@ -159,18 +181,14 @@ describe("RecipesPage resize indicator placement", () => {
     await mount("start");
     const listPanel = screen.getByTestId("recipe-list-panel-shell");
     const listHandle = screen.getByTestId("recipe-list-resize-handle");
-    const detailPanel = screen.getByTestId("recipe-detail-panel-shell");
-    const detailHandle = screen.getByTestId("recipe-detail-resize-handle");
 
     expect(listPanel.contains(listHandle)).toBe(false);
-    expect(detailPanel.contains(detailHandle)).toBe(false);
     // panel inset 6 + width 200 → handle hit area begins just past the edge
     expect(listHandle.style.left).toBe("208px");
-    expect(detailHandle.style.right).toBe("308px");
 
     drag(listHandle, 200, 240);
-    expect(listHandle.style.left).toBe("248px");
     release(240);
+    expect(listHandle.style.left).toBe("248px");
   });
 
   test("the indicator is a pill: neutral at rest, blue on hover", async () => {
@@ -207,12 +225,6 @@ describe("RecipesPage resize indicator placement", () => {
     expect(pill.style.backgroundColor).toBe("rgba(255, 255, 255, 0.12)");
   });
 
-  test("the detail handle hides with its panel", async () => {
-    await mount(null);
-    const detailHandle = screen.getByTestId("recipe-detail-resize-handle");
-    expect(detailHandle.style.pointerEvents).toBe("none");
-    expect(detailHandle.style.opacity).toBe("0");
-  });
 });
 
 describe("RecipesPage resize pill hover", () => {
@@ -250,22 +262,8 @@ describe("RecipesPage panel widths are capped by share of the canvas", () => {
     drag(handle, 200, 200 + CONTAINER); // far past any sane width
     const cap = panelMaxWidth("list", CONTAINER);
     expect(cap).toBe(420); // 35% of 1200
-    expect(screen.getByTestId("recipe-list-panel-shell").style.width).toBe(
-      `${cap}px`,
-    );
+    expect(liveWidth("list")).toBe(`${cap}px`);
     release(200 + CONTAINER);
-  });
-
-  test("the detail panel gets the larger share", async () => {
-    await mount("start");
-    const handle = screen.getByTestId("recipe-detail-resize-handle");
-    drag(handle, 900, 900 - CONTAINER);
-    const cap = panelMaxWidth("detail", CONTAINER);
-    expect(cap).toBe(600); // 50% of 1200
-    expect(screen.getByTestId("recipe-detail-panel-shell").style.width).toBe(
-      `${cap}px`,
-    );
-    release(900 - CONTAINER);
   });
 
   test("a width stored when the window was wider comes back clamped", async () => {

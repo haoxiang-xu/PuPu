@@ -14,6 +14,7 @@ const { createHook } = require("async_hooks");
 const { EventEmitter } = require("events");
 const { Readable } = require("stream");
 const { CHANNELS } = require("../../shared/channels");
+const cancelledSubagentProducer = require("../../../src/COMPONENTs/chat-bubble/__fixtures__/ticket_357_cancelled_subagent_producer.json");
 const {
   createNodeStreamFetch,
   createUnchainService,
@@ -4335,6 +4336,151 @@ describe("unchain service session memory replacement", () => {
         idempotencyKey: "cancel-once",
       }),
     ).resolves.toEqual(cancelAck);
+
+    expect(global.fetch.mock.calls[1][0]).toContain("/chat/executions/cancel");
+    expect(global.fetch.mock.calls[1][1]).toMatchObject({
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-unchain-auth": "auth-token-123",
+      },
+    });
+    expect(JSON.parse(global.fetch.mock.calls[1][1].body)).toEqual({
+      owner_chat_id: "owner-character-chat",
+      execution_id: "chat-v4-cancel",
+      attempt_id: "req-v4-cancel",
+      source_attempt_id: "source-v4-cancel",
+      interaction_id: "interaction-v4-cancel",
+      reason: "user_stop",
+      idempotency_key: "cancel-once",
+    });
+    expect(reader.read).toHaveBeenCalledTimes(1);
+    expect(target.send).not.toHaveBeenCalledWith(
+      CHANNELS.UNCHAIN.STREAM_EVENT,
+      expect.objectContaining({
+        requestId: "req-v4-cancel",
+        event: "done",
+      }),
+    );
+
+    releaseStream();
+    await new Promise((resolve) => setImmediate(resolve));
+  });
+
+  test("#357: cancelMisoExecution returns the producer's subagent_settlements unchanged", async () => {
+    const fakeProcess = createFakeSpawnProcess();
+    const spawn = jest.fn(() => fakeProcess);
+    const spawnSync = jest.fn(() => ({
+      status: 0,
+      stdout: JSON.stringify({
+        version: "3.12.2",
+        major: 3,
+        minor: 12,
+        missing: [],
+      }),
+    }));
+
+    let releaseStream;
+    const reader = {
+      read: jest.fn(
+        () =>
+          new Promise((resolve) => {
+            releaseStream = () => resolve({ done: true });
+          }),
+      ),
+    };
+    // The real host producer's cancel reply (delegate, waiting), as raw text.
+    const producerText = JSON.stringify(cancelledSubagentProducer.rows[0].response);
+    const cancelAck = JSON.parse(producerText);
+
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce(createCompatibleHealthResponse())
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () => producerText,
+      });
+    const streamRequestImpl = jest.fn().mockResolvedValueOnce({
+      ok: true,
+      body: {
+        getReader: () => reader,
+      },
+    });
+
+    process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
+
+    const target = {
+      send: jest.fn(),
+      isDestroyed: jest.fn(() => false),
+      getType: jest.fn(() => "window"),
+    };
+
+    const service = createUnchainService({
+      app: {
+        isPackaged: false,
+        getAppPath: jest.fn(() => "/app"),
+        getPath: jest.fn(() => "/tmp/pupu"),
+        getVersion: jest.fn(() => "0.1.1"),
+      },
+      fs: {
+        existsSync: jest.fn(() => true),
+      },
+      path,
+      spawn,
+      spawnSync,
+      crypto: {
+        randomBytes: jest.fn(() => ({ toString: () => "auth-token-123" })),
+      },
+      net: createAvailableNet(),
+      streamRequestImpl,
+      webContents: {
+        fromId: jest.fn(() => target),
+        getAllWebContents: jest.fn(() => [target]),
+      },
+      runtimeService: {},
+      getAppIsQuitting: () => false,
+    });
+
+    await service.startMiso();
+
+    service.handleStreamStartV4(
+      { sender: { id: 91 } },
+      {
+        requestId: "req-v4-cancel",
+        attachmentId: "attachment-v4-cancel",
+        payload: {
+          owner_chat_id: "owner-character-chat",
+          threadId: "chat-v4-cancel",
+          attempt_id: "req-v4-cancel",
+          source_attempt_id: "source-v4-cancel",
+          message: "keep listening",
+          options: { modelId: "local-model" },
+        },
+      },
+    );
+
+    await new Promise((resolve) => setImmediate(resolve));
+
+    await expect(
+      service.cancelMisoExecution({
+        requestId: "req-v4-cancel",
+        owner_chat_id: "another-owner",
+        interaction_id: "interaction-v4-cancel",
+        reason: "user_stop",
+      }),
+    ).rejects.toThrow("Cancel identity does not match the active stream attempt");
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+
+    await expect(
+      service.cancelMisoExecution({
+        requestId: "req-v4-cancel",
+        owner_chat_id: "owner-character-chat",
+        interaction_id: "interaction-v4-cancel",
+        reason: "user_stop",
+        idempotencyKey: "cancel-once",
+      }),
+    ).resolves.toEqual(cancelAck);
+    expect(cancelAck.subagent_settlements).toHaveLength(1);
 
     expect(global.fetch.mock.calls[1][0]).toContain("/chat/executions/cancel");
     expect(global.fetch.mock.calls[1][1]).toMatchObject({

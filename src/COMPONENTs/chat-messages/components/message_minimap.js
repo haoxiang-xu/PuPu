@@ -1,3 +1,4 @@
+import ShadowSurface from "../../../BUILTIN_COMPONENTs/material/shadow_surface";
 // src/COMPONENTs/chat-messages/components/message_minimap.js
 import {
   useContext,
@@ -1022,7 +1023,7 @@ const MessageMinimap = ({
         ))}
       </div>
 
-      <div
+      <ShadowSurface
         ref={snapRef}
         data-mm-snap
         style={{
@@ -1070,5 +1071,8 @@ const MessageMinimap = ({
     </div>
   );
 };
+
+/* The strip the minimap keeps at the list's right edge. */
+export const MINIMAP_STACK_WIDTH = STACK_W;
 
 export default MessageMinimap;

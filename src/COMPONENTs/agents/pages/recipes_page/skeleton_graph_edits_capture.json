@@ -1,0 +1,1062 @@
+{
+  "schema": "qa.native-seed-producer.v1",
+  "source_root": "/Users/red/Desktop/GITRepo/pupu-341-native-graph",
+  "source_head": "e24e993fe9aaf70920cd94e43cfdb4fbc139e302",
+  "store_source_sha256": "267cfc3faa16cbda440d2ca9eafff1d73f7194dddb2ecce7d44acb7574c24611",
+  "unchain_origin": "/Users/red/.codex/artifacts/pupu-356/embedded-diagnostics-20261017/fixed-pair/install-venv/lib/python3.12/site-packages/unchain/__init__.py",
+  "cases": [
+    {
+      "case": "seed",
+      "input_document": {
+        "schema_version": 1,
+        "kind": "agent",
+        "id": "native-seed",
+        "name": "New Agent",
+        "nodes": [
+          {
+            "id": "start",
+            "type": "start",
+            "config": {
+              "execution": {
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "agent",
+            "type": "agent",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "end",
+            "type": "end",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "flow-start-agent",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "agent",
+            "target_port_id": "in"
+          },
+          {
+            "id": "flow-agent-end",
+            "kind": "flow",
+            "source_node_id": "agent",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          }
+        ]
+      },
+      "document": {
+        "schema_version": 1,
+        "kind": "agent",
+        "id": "native-seed",
+        "name": "New Agent",
+        "nodes": [
+          {
+            "id": "start",
+            "type": "start",
+            "config": {
+              "execution": {
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "agent",
+            "type": "agent",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "end",
+            "type": "end",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "flow-start-agent",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "agent",
+            "target_port_id": "in"
+          },
+          {
+            "id": "flow-agent-end",
+            "kind": "flow",
+            "source_node_id": "agent",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          }
+        ]
+      },
+      "saved": true,
+      "edit_token": "edit-1-30d2465f5bab33594b3b62e7",
+      "roundtrip_equal": true,
+      "diagnostics": [],
+      "preflight": {
+        "ok": false,
+        "code": "invalid_shape",
+        "path": [
+          "document",
+          "nodes",
+          1,
+          "config"
+        ]
+      }
+    },
+    {
+      "case": "added_agent",
+      "input_document": {
+        "schema_version": 1,
+        "kind": "agent",
+        "id": "native-added_agent",
+        "name": "New Agent",
+        "nodes": [
+          {
+            "id": "start",
+            "type": "start",
+            "config": {
+              "execution": {
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "agent",
+            "type": "agent",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "end",
+            "type": "end",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "flow-start-agent",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "agent",
+            "target_port_id": "in"
+          },
+          {
+            "id": "flow-agent-end",
+            "kind": "flow",
+            "source_node_id": "agent",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          }
+        ]
+      },
+      "document": {
+        "schema_version": 1,
+        "kind": "agent",
+        "id": "native-added_agent",
+        "name": "New Agent",
+        "nodes": [
+          {
+            "id": "start",
+            "type": "start",
+            "config": {
+              "execution": {
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "agent",
+            "type": "agent",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "end",
+            "type": "end",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "agent-2",
+            "type": "agent",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "flow-start-agent",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "agent",
+            "target_port_id": "in"
+          },
+          {
+            "id": "flow-agent-end",
+            "kind": "flow",
+            "source_node_id": "agent",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          }
+        ]
+      },
+      "saved": true,
+      "edit_token": "edit-1-53877bc97aec111da6536ee7",
+      "roundtrip_equal": true,
+      "diagnostics": [
+        {
+          "code": "flow_input_required",
+          "path": [
+            "document",
+            "nodes",
+            3
+          ],
+          "message": "execution node requires flow input"
+        },
+        {
+          "code": "flow_output_required",
+          "path": [
+            "document",
+            "nodes",
+            3
+          ],
+          "message": "execution node requires flow output"
+        },
+        {
+          "code": "unreachable_node",
+          "path": [
+            "document",
+            "nodes",
+            3
+          ],
+          "message": "execution node is unreachable from start"
+        },
+        {
+          "code": "cannot_reach_end",
+          "path": [
+            "document",
+            "nodes",
+            3
+          ],
+          "message": "execution node cannot reach end"
+        }
+      ],
+      "preflight": {
+        "ok": false,
+        "code": "flow_input_required",
+        "path": [
+          "document",
+          "nodes",
+          3
+        ]
+      }
+    },
+    {
+      "case": "added_pool",
+      "input_document": {
+        "schema_version": 1,
+        "kind": "agent",
+        "id": "native-added_pool",
+        "name": "New Agent",
+        "nodes": [
+          {
+            "id": "start",
+            "type": "start",
+            "config": {
+              "execution": {
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "agent",
+            "type": "agent",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "end",
+            "type": "end",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "flow-start-agent",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "agent",
+            "target_port_id": "in"
+          },
+          {
+            "id": "flow-agent-end",
+            "kind": "flow",
+            "source_node_id": "agent",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          }
+        ]
+      },
+      "document": {
+        "schema_version": 1,
+        "kind": "agent",
+        "id": "native-added_pool",
+        "name": "New Agent",
+        "nodes": [
+          {
+            "id": "start",
+            "type": "start",
+            "config": {
+              "execution": {
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "agent",
+            "type": "agent",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "end",
+            "type": "end",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "pool",
+            "type": "subagent_pool",
+            "config": {
+              "subagents": []
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "flow-start-agent",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "agent",
+            "target_port_id": "in"
+          },
+          {
+            "id": "flow-agent-end",
+            "kind": "flow",
+            "source_node_id": "agent",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          }
+        ]
+      },
+      "saved": true,
+      "edit_token": "edit-1-25855b51c81c7f7c9a1b1230",
+      "roundtrip_equal": true,
+      "diagnostics": [
+        {
+          "code": "pool_attachment_required",
+          "path": [
+            "document",
+            "nodes",
+            3
+          ],
+          "message": "pool must attach to an agent"
+        }
+      ],
+      "preflight": {
+        "ok": false,
+        "code": "pool_attachment_required",
+        "path": [
+          "document",
+          "nodes",
+          3
+        ]
+      }
+    },
+    {
+      "case": "attached_pool",
+      "input_document": {
+        "schema_version": 1,
+        "kind": "agent",
+        "id": "native-attached_pool",
+        "name": "New Agent",
+        "nodes": [
+          {
+            "id": "start",
+            "type": "start",
+            "config": {
+              "execution": {
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "agent",
+            "type": "agent",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "end",
+            "type": "end",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "flow-start-agent",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "agent",
+            "target_port_id": "in"
+          },
+          {
+            "id": "flow-agent-end",
+            "kind": "flow",
+            "source_node_id": "agent",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          }
+        ]
+      },
+      "document": {
+        "schema_version": 1,
+        "kind": "agent",
+        "id": "native-attached_pool",
+        "name": "New Agent",
+        "nodes": [
+          {
+            "id": "start",
+            "type": "start",
+            "config": {
+              "execution": {
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "agent",
+            "type": "agent",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "end",
+            "type": "end",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "pool",
+            "type": "subagent_pool",
+            "config": {
+              "subagents": []
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "flow-start-agent",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "agent",
+            "target_port_id": "in"
+          },
+          {
+            "id": "flow-agent-end",
+            "kind": "flow",
+            "source_node_id": "agent",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          },
+          {
+            "id": "attach-agent-pool",
+            "kind": "attach",
+            "source_node_id": "agent",
+            "source_port_id": "attach_bot",
+            "target_node_id": "pool",
+            "target_port_id": "attach_top"
+          }
+        ]
+      },
+      "saved": true,
+      "edit_token": "edit-1-14ba106d5dfac6243cbb79dd",
+      "roundtrip_equal": true,
+      "diagnostics": [],
+      "preflight": {
+        "ok": false,
+        "code": "invalid_shape",
+        "path": [
+          "document",
+          "nodes",
+          1,
+          "config"
+        ]
+      }
+    },
+    {
+      "case": "reversed_attach",
+      "input_document": {
+        "schema_version": 1,
+        "kind": "agent",
+        "id": "native-reversed_attach",
+        "name": "New Agent",
+        "nodes": [
+          {
+            "id": "start",
+            "type": "start",
+            "config": {
+              "execution": {
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "agent",
+            "type": "agent",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "end",
+            "type": "end",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "flow-start-agent",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "agent",
+            "target_port_id": "in"
+          },
+          {
+            "id": "flow-agent-end",
+            "kind": "flow",
+            "source_node_id": "agent",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          }
+        ]
+      },
+      "document": {
+        "schema_version": 1,
+        "kind": "agent",
+        "id": "native-reversed_attach",
+        "name": "New Agent",
+        "nodes": [
+          {
+            "id": "start",
+            "type": "start",
+            "config": {
+              "execution": {
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "agent",
+            "type": "agent",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "end",
+            "type": "end",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "pool",
+            "type": "subagent_pool",
+            "config": {
+              "subagents": []
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "flow-start-agent",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "agent",
+            "target_port_id": "in"
+          },
+          {
+            "id": "flow-agent-end",
+            "kind": "flow",
+            "source_node_id": "agent",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          },
+          {
+            "id": "attach-agent-pool",
+            "kind": "attach",
+            "source_node_id": "pool",
+            "source_port_id": "attach_top",
+            "target_node_id": "agent",
+            "target_port_id": "attach_bot"
+          }
+        ]
+      },
+      "saved": true,
+      "edit_token": "edit-1-e576c35e3fd293c6d0f09965",
+      "roundtrip_equal": true,
+      "diagnostics": [],
+      "preflight": {
+        "ok": false,
+        "code": "invalid_shape",
+        "path": [
+          "document",
+          "nodes",
+          1,
+          "config"
+        ]
+      }
+    },
+    {
+      "case": "removed_agent",
+      "input_document": {
+        "schema_version": 1,
+        "kind": "agent",
+        "id": "native-removed_agent",
+        "name": "New Agent",
+        "nodes": [
+          {
+            "id": "start",
+            "type": "start",
+            "config": {
+              "execution": {
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "agent",
+            "type": "agent",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "end",
+            "type": "end",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "flow-start-agent",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "agent",
+            "target_port_id": "in"
+          },
+          {
+            "id": "flow-agent-end",
+            "kind": "flow",
+            "source_node_id": "agent",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          }
+        ]
+      },
+      "document": {
+        "schema_version": 1,
+        "kind": "agent",
+        "id": "native-removed_agent",
+        "name": "New Agent",
+        "nodes": [
+          {
+            "id": "start",
+            "type": "start",
+            "config": {
+              "execution": {
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "end",
+            "type": "end",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          }
+        ],
+        "edges": []
+      },
+      "saved": true,
+      "edit_token": "edit-1-ae1aaa3d0a45061237279429",
+      "roundtrip_equal": true,
+      "diagnostics": [
+        {
+          "code": "agent_required",
+          "path": [
+            "document",
+            "nodes"
+          ],
+          "message": "agent graph requires an agent node"
+        },
+        {
+          "code": "flow_output_required",
+          "path": [
+            "document",
+            "nodes",
+            0
+          ],
+          "message": "execution node requires flow output"
+        },
+        {
+          "code": "cannot_reach_end",
+          "path": [
+            "document",
+            "nodes",
+            0
+          ],
+          "message": "execution node cannot reach end"
+        },
+        {
+          "code": "flow_input_required",
+          "path": [
+            "document",
+            "nodes",
+            1
+          ],
+          "message": "execution node requires flow input"
+        },
+        {
+          "code": "unreachable_node",
+          "path": [
+            "document",
+            "nodes",
+            1
+          ],
+          "message": "execution node is unreachable from start"
+        }
+      ],
+      "preflight": {
+        "ok": false,
+        "code": "agent_required",
+        "path": [
+          "document",
+          "nodes"
+        ]
+      }
+    },
+    {
+      "case": "disconnected",
+      "input_document": {
+        "schema_version": 1,
+        "kind": "agent",
+        "id": "native-disconnected",
+        "name": "New Agent",
+        "nodes": [
+          {
+            "id": "start",
+            "type": "start",
+            "config": {
+              "execution": {
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "agent",
+            "type": "agent",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "end",
+            "type": "end",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "flow-start-agent",
+            "kind": "flow",
+            "source_node_id": "start",
+            "source_port_id": "out",
+            "target_node_id": "agent",
+            "target_port_id": "in"
+          },
+          {
+            "id": "flow-agent-end",
+            "kind": "flow",
+            "source_node_id": "agent",
+            "source_port_id": "out",
+            "target_node_id": "end",
+            "target_port_id": "in"
+          }
+        ]
+      },
+      "document": {
+        "schema_version": 1,
+        "kind": "agent",
+        "id": "native-disconnected",
+        "name": "New Agent",
+        "nodes": [
+          {
+            "id": "start",
+            "type": "start",
+            "config": {
+              "execution": {
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "agent",
+            "type": "agent",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          },
+          {
+            "id": "end",
+            "type": "end",
+            "config": {
+              "execution": {
+                "inputs": [],
+                "outputs": []
+              }
+            }
+          }
+        ],
+        "edges": []
+      },
+      "saved": true,
+      "edit_token": "edit-1-1dda84f573231f39ca9fbe14",
+      "roundtrip_equal": true,
+      "diagnostics": [
+        {
+          "code": "flow_output_required",
+          "path": [
+            "document",
+            "nodes",
+            0
+          ],
+          "message": "execution node requires flow output"
+        },
+        {
+          "code": "cannot_reach_end",
+          "path": [
+            "document",
+            "nodes",
+            0
+          ],
+          "message": "execution node cannot reach end"
+        },
+        {
+          "code": "flow_input_required",
+          "path": [
+            "document",
+            "nodes",
+            1
+          ],
+          "message": "execution node requires flow input"
+        },
+        {
+          "code": "flow_output_required",
+          "path": [
+            "document",
+            "nodes",
+            1
+          ],
+          "message": "execution node requires flow output"
+        },
+        {
+          "code": "unreachable_node",
+          "path": [
+            "document",
+            "nodes",
+            1
+          ],
+          "message": "execution node is unreachable from start"
+        },
+        {
+          "code": "cannot_reach_end",
+          "path": [
+            "document",
+            "nodes",
+            1
+          ],
+          "message": "execution node cannot reach end"
+        },
+        {
+          "code": "flow_input_required",
+          "path": [
+            "document",
+            "nodes",
+            2
+          ],
+          "message": "execution node requires flow input"
+        },
+        {
+          "code": "unreachable_node",
+          "path": [
+            "document",
+            "nodes",
+            2
+          ],
+          "message": "execution node is unreachable from start"
+        }
+      ],
+      "preflight": {
+        "ok": false,
+        "code": "flow_output_required",
+        "path": [
+          "document",
+          "nodes",
+          0
+        ]
+      }
+    }
+  ],
+  "scope": "Actual source store + installed runtime save/read/diagnose/preflight; unfinished no-Kernel drafts, no execution/API; JSON value equality, not original textual byte ordering."
+}

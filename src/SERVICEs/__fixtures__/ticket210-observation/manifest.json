@@ -1,0 +1,166 @@
+{
+  "schema": "ticket210-producer-packet.v1",
+  "test_log": "/Users/red/.codex/artifacts/ticket-210-start-20261107/host-checkpoint-01.log",
+  "host_base": "ea83c22f1e3bc8ec2b57eb26dcd4824690583921",
+  "status": "46 tests passed; strong Host CP1 review accepted",
+  "wheel_sha256": "c1213803c1b3bb58f4fc78a03b1a00f80e001d63be00c4afae53ab4d972b12ec",
+  "manifest_digest": "sha256:c172bc02718aee771ddd4d247904f13cdaf003d3794148fd3ecd4d4e9a419e6b",
+  "captures": [
+    {
+      "file": "test_failed_end_keeps_complete0--producer-projection-failed-end.json",
+      "original": "/Users/red/.codex/artifacts/ticket-210-start-20261107/test-temp/pytest-host-checkpoint-01/test_failed_end_keeps_complete0/producer-projection-failed-end.json",
+      "sha256": "441f2d84e76dc8a5eeb9bb01e60d9a46bf8c67116e8fa9d2b46aa426be4face3",
+      "producer": "real Core receipts / Host projection semantic fixture; not HTTP",
+      "expected_scope": {
+        "owner_chat_id": "projection-owner",
+        "execution_id": "projection-session",
+        "resource_id": "workflow",
+        "root_run_id": "projection-root"
+      }
+    },
+    {
+      "file": "test_nested_wait_uses_frozen_w0--producer-projection-nested-wait.json",
+      "original": "/Users/red/.codex/artifacts/ticket-210-start-20261107/test-temp/pytest-host-checkpoint-01/test_nested_wait_uses_frozen_w0/producer-projection-nested-wait.json",
+      "sha256": "7bdbf0cbc3329e391a90ac7cce026cb0cc03f8f165ce4e139479d8b3ea84ddbc",
+      "producer": "real Core receipts / Host projection semantic fixture; not HTTP",
+      "expected_scope": {
+        "owner_chat_id": "owner",
+        "execution_id": "session",
+        "resource_id": "root",
+        "root_run_id": "root-run"
+      }
+    },
+    {
+      "file": "test_real_native_subagent_and_0--producer-projection-subagent.json",
+      "original": "/Users/red/.codex/artifacts/ticket-210-start-20261107/test-temp/pytest-host-checkpoint-01/test_real_native_subagent_and_0/producer-projection-subagent.json",
+      "sha256": "73d1881253b2442711e5e71211341b537365d32977437f68cb3a12c72d68737a",
+      "producer": "real Core receipts / Host projection semantic fixture; not HTTP",
+      "expected_scope": {
+        "owner_chat_id": "skeleton-host-chat",
+        "execution_id": "native-observation",
+        "resource_id": "skeleton-root-delivery",
+        "root_run_id": "skeleton-host-root"
+      }
+    },
+    {
+      "file": "test_real_native_subagent_and_1--producer-projection-embedded_hook.json",
+      "original": "/Users/red/.codex/artifacts/ticket-210-start-20261107/test-temp/pytest-host-checkpoint-01/test_real_native_subagent_and_1/producer-projection-embedded_hook.json",
+      "sha256": "c2ff4ea057febe0558ab3ee4465a8cd228ae04c22a6a2884a06f8fc0a47fb37a",
+      "producer": "real Core receipts / Host projection semantic fixture; not HTTP",
+      "expected_scope": {
+        "owner_chat_id": "skeleton-host-chat",
+        "execution_id": "native-observation",
+        "resource_id": "skeleton-root-delivery",
+        "root_run_id": "skeleton-host-root"
+      }
+    },
+    {
+      "file": "test_real_native_subagent_and_1--producer-projection-hook-upstream-receipt.json",
+      "original": "/Users/red/.codex/artifacts/ticket-210-start-20261107/test-temp/pytest-host-checkpoint-01/test_real_native_subagent_and_1/producer-projection-hook-upstream-receipt.json",
+      "sha256": "dade282e54753ad3e517e86c7fc4edc4e0676e05ba59c6fd398e327120e775c3",
+      "producer": "real Core receipts / Host projection semantic fixture; not HTTP",
+      "expected_scope": {
+        "owner_chat_id": "skeleton-host-chat",
+        "execution_id": "native-observation",
+        "resource_id": "skeleton-root-delivery",
+        "root_run_id": "skeleton-host-root"
+      }
+    },
+    {
+      "file": "test_real_route_observes_compl0--producer-observation-completed.json",
+      "original": "/Users/red/.codex/artifacts/ticket-210-start-20261107/test-temp/pytest-host-checkpoint-01/test_real_route_observes_compl0/producer-observation-completed.json",
+      "sha256": "baa2ecfc2f1a2bdc1017b30add08c7a3bf85606a72988e761f960700f2543710",
+      "producer": "authenticated Flask test-client response",
+      "expected_scope": {
+        "owner_chat_id": "production-chat",
+        "execution_id": "view-session",
+        "resource_id": "production-agent",
+        "root_run_id": "view-root"
+      }
+    },
+    {
+      "file": "test_real_route_receipt_record0--producer-observation-approval-0.json",
+      "original": "/Users/red/.codex/artifacts/ticket-210-start-20261107/test-temp/pytest-host-checkpoint-01/test_real_route_receipt_record0/producer-observation-approval-0.json",
+      "sha256": "a19e5e93b302b80928c15826c0053eafd17741cf3e19dc2679e0e4c3ddea7622",
+      "producer": "authenticated Flask test-client response",
+      "expected_scope": {
+        "owner_chat_id": "production-chat",
+        "execution_id": "view-wait-session",
+        "resource_id": "production-agent",
+        "root_run_id": "view-wait-root"
+      }
+    },
+    {
+      "file": "test_real_route_receipt_record0--producer-observation-approval-1.json",
+      "original": "/Users/red/.codex/artifacts/ticket-210-start-20261107/test-temp/pytest-host-checkpoint-01/test_real_route_receipt_record0/producer-observation-approval-1.json",
+      "sha256": "3f4024fae05a96b5c7d3fde59fd9d6285c0f12028ead1b3e6aab1b90c590c8a9",
+      "producer": "authenticated Flask test-client response",
+      "expected_scope": {
+        "owner_chat_id": "production-chat",
+        "execution_id": "view-wait-session",
+        "resource_id": "production-agent",
+        "root_run_id": "view-wait-root"
+      }
+    },
+    {
+      "file": "test_real_route_receipt_record0--producer-observation-receipt-0.json",
+      "original": "/Users/red/.codex/artifacts/ticket-210-start-20261107/test-temp/pytest-host-checkpoint-01/test_real_route_receipt_record0/producer-observation-receipt-0.json",
+      "sha256": "30db474f56e4231a75fdae5228cd64ed95a6389483713630958ef99f39f50d2b",
+      "producer": "authenticated Flask test-client response",
+      "expected_scope": {
+        "owner_chat_id": "production-chat",
+        "execution_id": "view-wait-session",
+        "resource_id": "production-agent",
+        "root_run_id": "view-wait-root"
+      }
+    },
+    {
+      "file": "test_real_route_receipt_record0--producer-observation-receipt-1.json",
+      "original": "/Users/red/.codex/artifacts/ticket-210-start-20261107/test-temp/pytest-host-checkpoint-01/test_real_route_receipt_record0/producer-observation-receipt-1.json",
+      "sha256": "c3b0b4d81d5b566f702ab9f98a07287729d20ddb03f1988ba52f2a3c80d233f5",
+      "producer": "authenticated Flask test-client response",
+      "expected_scope": {
+        "owner_chat_id": "production-chat",
+        "execution_id": "view-wait-session",
+        "resource_id": "production-agent",
+        "root_run_id": "view-wait-root"
+      }
+    },
+    {
+      "file": "test_running_and_sealed_result0--producer-projection-inflight-0.json",
+      "original": "/Users/red/.codex/artifacts/ticket-210-start-20261107/test-temp/pytest-host-checkpoint-01/test_running_and_sealed_result0/producer-projection-inflight-0.json",
+      "sha256": "03cd34b8087e6a0f8b14a501e7ff34b9481465c3a54ef831b89038524c273b9f",
+      "producer": "real Core receipts / Host projection semantic fixture; not HTTP",
+      "expected_scope": {
+        "owner_chat_id": "projection-owner",
+        "execution_id": "projection-session",
+        "resource_id": "workflow",
+        "root_run_id": "projection-root"
+      }
+    },
+    {
+      "file": "test_running_and_sealed_result0--producer-projection-inflight-1.json",
+      "original": "/Users/red/.codex/artifacts/ticket-210-start-20261107/test-temp/pytest-host-checkpoint-01/test_running_and_sealed_result0/producer-projection-inflight-1.json",
+      "sha256": "1e918331211d06958ca99166e68d6f2685dcfa52876f063bc0b71e6220ce752b",
+      "producer": "real Core receipts / Host projection semantic fixture; not HTTP",
+      "expected_scope": {
+        "owner_chat_id": "projection-owner",
+        "execution_id": "projection-session",
+        "resource_id": "workflow",
+        "root_run_id": "projection-root"
+      }
+    },
+    {
+      "file": "test_unknown_handler_effect_is0--producer-projection-unknown.json",
+      "original": "/Users/red/.codex/artifacts/ticket-210-start-20261107/test-temp/pytest-host-checkpoint-01/test_unknown_handler_effect_is0/producer-projection-unknown.json",
+      "sha256": "61a88c155bf2a3e1bb8c3a2a203cbb2b4886149529e6dfc516f6758213ce5be1",
+      "producer": "real Core receipts / Host projection semantic fixture; not HTTP",
+      "expected_scope": {
+        "owner_chat_id": "projection-owner",
+        "execution_id": "projection-session",
+        "resource_id": "workflow",
+        "root_run_id": "projection-root"
+      }
+    }
+  ]
+}

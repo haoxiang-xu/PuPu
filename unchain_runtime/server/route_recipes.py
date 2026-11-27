@@ -11,6 +11,7 @@ import logging
 from flask import jsonify, request
 
 from route_blueprint import api_blueprint
+from skeleton_resource_store import SkeletonResourceError
 
 _logger = logging.getLogger(__name__)
 
@@ -28,7 +29,15 @@ def list_agent_recipes():
         return root._json_error("unauthorized", "Unauthorized", 401)
     try:
         from recipe_loader import list_recipes
+        from skeleton_resource_store import SkeletonResourceStore
         recipes = list_recipes()
+        with SkeletonResourceStore()._connect() as connection:
+            deleted = {row['legacy_name'] for row in connection.execute("""
+                SELECT a.legacy_name FROM legacy_aliases a JOIN store_meta m
+                ON m.key='deleted_resource:' || a.target_id
+                WHERE a.source_scope='user:agent_recipes'
+            """)}
+        recipes = [recipe for recipe in recipes if recipe['name'] not in deleted]
         return jsonify({"recipes": recipes, "count": len(recipes)})
     except Exception:
         _logger.exception("[route_recipes] list failed")
@@ -76,6 +85,8 @@ def save_agent_recipe():
         from recipe_loader import save_recipe
         save_recipe(payload)
         return jsonify({"ok": True, "name": payload.get("name")})
+    except SkeletonResourceError as exc:
+        return jsonify({"error": {"code": exc.code, "path": list(exc.path), "message": str(exc)}}), exc.status
     except ValueError as exc:
         return jsonify({"error": {"code": "recipe_invalid", "message": str(exc)}}), 400
     except Exception:
@@ -92,6 +103,8 @@ def delete_agent_recipe(name: str):
         from recipe_loader import delete_recipe
         delete_recipe(name)
         return jsonify({"ok": True})
+    except SkeletonResourceError as exc:
+        return jsonify({"error": {"code": exc.code, "path": list(exc.path), "message": str(exc)}}), exc.status
     except ValueError as exc:
         return jsonify({"error": {"code": "recipe_delete_refused", "message": str(exc)}}), 400
     except Exception:

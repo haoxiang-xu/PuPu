@@ -177,7 +177,12 @@ if ($env:UNCHAIN_BUILD_SKIP_INSTALL -ne "1") {
   if ($LASTEXITCODE -ne 0) { Write-Error "pip install failed"; exit 1 }
   & $VENV_PIP install --force-reinstall --no-deps $UNCHAIN_ARTIFACT_PATH
   if ($LASTEXITCODE -ne 0) { Write-Error "Unchain wheel install failed"; exit 1 }
+  & $VENV_PIP install --constraint (Join-Path $ROOT_DIR "unchain_runtime\server\requirements.txt") $UNCHAIN_ARTIFACT_PATH
+  if ($LASTEXITCODE -ne 0) { Write-Error "Unchain dependency resolution failed"; exit 1 }
 }
+
+& $VENV_PY -m pip check
+if ($LASTEXITCODE -ne 0) { Write-Error "Unchain dependency validation failed"; exit 1 }
 
 $env:PYTHONPATH = ""
 & node (Join-Path $ROOT_DIR "scripts\release-qa\verify-unchain-artifact.mjs") `

@@ -632,6 +632,28 @@ const Home = (props) => (
     <path d="M21 20C21 20.5523 20.5523 21 20 21H4C3.44772 21 3 20.5523 3 20V9.48907C3 9.18048 3.14247 8.88917 3.38606 8.69972L11.3861 2.47749C11.7472 2.19663 12.2528 2.19663 12.6139 2.47749L20.6139 8.69972C20.8575 8.88917 21 9.18048 21 9.48907V20ZM19 19V9.97815L12 4.53371L5 9.97815V19H19Z"></path>
   </svg>
 );
+/* Remix Icon home-5-line: the house with a door. Without the door the
+   outline reads as a pentagon, not as "home". */
+const HomeDoor = (props) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+  >
+    <path d="M13 19H19V9.97815L12 4.53371L5 9.97815V19H11V13H13V19ZM21 20C21 20.5523 20.5523 21 20 21H4C3.44772 21 3 20.5523 3 20V9.48907C3 9.18048 3.14247 8.88917 3.38606 8.69972L11.3861 2.47749C11.7472 2.19663 12.2528 2.19663 12.6139 2.47749L20.6139 8.69972C20.8575 8.88917 21 9.18048 21 9.48907V20Z"></path>
+  </svg>
+);
+/* A ring on a stem standing on a base: a marker planted at the start, for
+   "bring the canvas back to the Start node". */
+const LocateStart = (props) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+  >
+    <path d="M11 17.9381C7.05369 17.446 4 14.0796 4 10C4 5.58172 7.58172 2 12 2C16.4183 2 20 5.58172 20 10C20 14.0796 16.9463 17.446 13 17.9381V21H11V17.9381ZM12 16C15.3137 16 18 13.3137 18 10C18 6.68629 15.3137 4 12 4C8.68629 4 6 6.68629 6 10C6 13.3137 8.68629 16 12 16ZM5 22H19V24H5V22Z"></path>
+  </svg>
+);
 const Information = (props) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -728,6 +750,17 @@ const Logout = (props) => (
     fill="currentColor"
   >
     <path d="M5 22C4.44772 22 4 21.5523 4 21V3C4 2.44772 4.44772 2 5 2H19C19.5523 2 20 2.44772 20 3V6H18V4H6V20H18V18H20V21C20 21.5523 19.5523 22 19 22H5ZM18 16V13H11V11H18V8L23 12L18 16Z"></path>
+  </svg>
+);
+/* Remix Icon external-link-line: a box with an arrow leaving it, for
+   "open this somewhere else" (e.g. open a subagent's own graph). */
+const ExternalLink = (props) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+  >
+    <path d="M10 6V8H5V19H16V14H18V20C18 20.5523 17.5523 21 17 21H4C3.44772 21 3 20.5523 3 20V7C3 6.44772 3.44772 6 4 6H10ZM21 3V11H19L18.9999 6.413L11.2071 14.2071L9.79289 12.7929L17.5849 5H13V3H21Z"></path>
   </svg>
 );
 const Markdown = (props) => (
@@ -928,6 +961,16 @@ const Pin = (props) => (
     <path d="M13.8273 1.69L22.3126 10.1753L20.8984 11.5895L20.1913 10.8824L15.9486 15.125L15.2415 18.6606L13.8273 20.0748L9.58466 15.8321L4.63492 20.7819L3.2207 19.3677L8.17045 14.4179L3.92781 10.1753L5.34202 8.76107L8.87756 8.05396L13.1202 3.81132L12.4131 3.10422L13.8273 1.69ZM14.5344 5.22554L9.86358 9.89637L7.0417 10.4607L13.5418 16.9609L14.1062 14.139L18.7771 9.46818L14.5344 5.22554Z"></path>
   </svg>
 );
+/* Remix "pushpin-fill": the outer outline of `Pin` without its inner cut-out. */
+const PinFill = (props) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+  >
+    <path d="M22.3126 10.1753L20.8984 11.5895L20.1913 10.8824L15.9486 15.125L15.2415 18.6606L13.8273 20.0748L9.58466 15.8321L4.63492 20.7819L3.2207 19.3677L8.17045 14.4179L3.92781 10.1753L5.34202 8.76107L8.87756 8.05396L13.1202 3.81132L12.4131 3.10422L13.8273 1.69L22.3126 10.1753Z"></path>
+  </svg>
+);
 const PokerClubs = (props) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -1106,7 +1149,7 @@ const SideMenuClose = (props) => (
     viewBox="0 0 24 24"
     fill="currentColor"
   >
-    <path d="M21 3C21.5523 3 22 3.44772 22 4V20C22 20.5523 21.5523 21 21 21H3C2.44772 21 2 20.5523 2 20V4C2 3.44772 2.44772 3 3 3H21ZM20 5H4V19H20V5ZM6 7H11V17H6V7Z"></path>
+    <path fillRule="evenodd" d="M6 3H18A4 4 0 0 1 22 7V17A4 4 0 0 1 18 21H6A4 4 0 0 1 2 17V7A4 4 0 0 1 6 3ZM6 5H18A2 2 0 0 1 20 7V17A2 2 0 0 1 18 19H6A2 2 0 0 1 4 17V7A2 2 0 0 1 6 5ZM6 5H11V19H6A2 2 0 0 1 4 17V7A2 2 0 0 1 6 5Z"></path>
   </svg>
 );
 const SideMenuLeft = (props) => (
@@ -1115,7 +1158,7 @@ const SideMenuLeft = (props) => (
     viewBox="0 0 24 24"
     fill="currentColor"
   >
-    <path d="M21 3C21.5523 3 22 3.44772 22 4V20C22 20.5523 21.5523 21 21 21H3C2.44772 21 2 20.5523 2 20V4C2 3.44772 2.44772 3 3 3H21ZM20 5H4V19H20V5ZM8 7V17H6V7H8Z"></path>
+    <path fillRule="evenodd" d="M6 3H18A4 4 0 0 1 22 7V17A4 4 0 0 1 18 21H6A4 4 0 0 1 2 17V7A4 4 0 0 1 6 3ZM6 5H18A2 2 0 0 1 20 7V17A2 2 0 0 1 18 19H6A2 2 0 0 1 4 17V7A2 2 0 0 1 6 5ZM9 5H11V19H9Z"></path>
   </svg>
 );
 const SideMenuRight = (props) => (
@@ -1124,7 +1167,7 @@ const SideMenuRight = (props) => (
     viewBox="0 0 24 24"
     fill="currentColor"
   >
-    <path d="M21 3C21.5523 3 22 3.44772 22 4V20C22 20.5523 21.5523 21 21 21H3C2.44772 21 2 20.5523 2 20V4C2 3.44772 2.44772 3 3 3H21ZM20 5H4V19H20V5ZM18 7V17H16V7H18Z"></path>
+    <path fillRule="evenodd" d="M6 3H18A4 4 0 0 1 22 7V17A4 4 0 0 1 18 21H6A4 4 0 0 1 2 17V7A4 4 0 0 1 6 3ZM6 5H18A2 2 0 0 1 20 7V17A2 2 0 0 1 18 19H6A2 2 0 0 1 4 17V7A2 2 0 0 1 6 5ZM13 5H15V19H13Z"></path>
   </svg>
 );
 const SideMenuTop = (props) => (
@@ -1643,6 +1686,17 @@ const Draggable = (props) => (
     <path d="M8.5 7C9.32843 7 10 6.32843 10 5.5C10 4.67157 9.32843 4 8.5 4C7.67157 4 7 4.67157 7 5.5C7 6.32843 7.67157 7 8.5 7ZM8.5 13.5C9.32843 13.5 10 12.8284 10 12C10 11.1716 9.32843 10.5 8.5 10.5C7.67157 10.5 7 11.1716 7 12C7 12.8284 7.67157 13.5 8.5 13.5ZM10 18.5C10 19.3284 9.32843 20 8.5 20C7.67157 20 7 19.3284 7 18.5C7 17.6716 7.67157 17 8.5 17C9.32843 17 10 17.6716 10 18.5ZM15.5 7C16.3284 7 17 6.32843 17 5.5C17 4.67157 16.3284 4 15.5 4C14.6716 4 14 4.67157 14 5.5C14 6.32843 14.6716 7 15.5 7ZM17 12C17 12.8284 16.3284 13.5 15.5 13.5C14.6716 13.5 14 12.8284 14 12C14 11.1716 14.6716 10.5 15.5 10.5C16.3284 10.5 17 11.1716 17 12ZM15.5 20C16.3284 20 17 19.3284 17 18.5C17 17.6716 16.3284 17 15.5 17C14.6716 17 14 17.6716 14 18.5C14 19.3284 14.6716 20 15.5 20Z"></path>
   </svg>
 );
+/* The default Workflow mark: a path that runs on to an end, supplied by the
+   owner (24x24, fill currentColor). */
+const Workflow = (props) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+  >
+    <path d="M4 15V8.5C4 6.01472 6.01472 4 8.5 4C10.9853 4 13 6.01472 13 8.5V15.5C13 16.8807 14.1193 18 15.5 18C16.8807 18 18 16.8807 18 15.5V8.82929C16.8348 8.41746 16 7.30622 16 6C16 4.34315 17.3431 3 19 3C20.6569 3 22 4.34315 22 6C22 7.30622 21.1652 8.41746 20 8.82929V15.5C20 17.9853 17.9853 20 15.5 20C13.0147 20 11 17.9853 11 15.5V8.5C11 7.11929 9.88071 6 8.5 6C7.11929 6 6 7.11929 6 8.5V15H9L5 20L1 15H4Z"></path>
+  </svg>
+);
 const FlowChart = (props) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -1677,6 +1731,17 @@ const Loader = (props) => (
     fill="currentColor"
   >
     <path d="M18.364 5.63604L16.9497 7.05025C15.683 5.7835 13.933 5 12 5C8.13401 5 5 8.13401 5 12C5 15.866 8.13401 19 12 19C15.866 19 19 15.866 19 12H21C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C14.4853 3 16.7353 4.00736 18.364 5.63604Z"></path>
+  </svg>
+);
+/* The Switch node's mark (a signal with three lights), supplied by the owner
+   (24x24, fill currentColor). Named for the node, not the toggle switch. */
+const SwitchNode = (props) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+  >
+    <path d="M7 4V3C7 2.44772 7.44772 2 8 2H16C16.5523 2 17 2.44772 17 3V4H20C20 6.5 17.5 7.5 17 7.5V10H20C20 12.5 17.5 13.5 17 13.5V16H20C20 18.5 17.5 19.5 17 19.5V21C17 21.5523 16.5523 22 16 22H8C7.44772 22 7 21.5523 7 21V19.5C6.5 19.5 4 18.5 4 16H7V13.5C6.5 13.5 4 12.5 4 10H7V7.5C6.5 7.5 4 6.5 4 4H7ZM12 20C13.1046 20 14 19.1046 14 18C14 16.8954 13.1046 16 12 16C10.8954 16 10 16.8954 10 18C10 19.1046 10.8954 20 12 20ZM12 14C13.1046 14 14 13.1046 14 12C14 10.8954 13.1046 10 12 10C10.8954 10 10 10.8954 10 12C10 13.1046 10.8954 14 12 14ZM12 8C13.1046 8 14 7.10457 14 6C14 4.89543 13.1046 4 12 4C10.8954 4 10 4.89543 10 6C10 7.10457 10.8954 8 12 8Z"></path>
   </svg>
 );
 const SwitchCase = (props) => (
@@ -1780,6 +1845,8 @@ const UISVGs = {
   heart: Heart,
   heart_outline: HeartOutline,
   home: Home,
+  home_door: HomeDoor,
+  locate_start: LocateStart,
   information: Information,
   key: Key,
   link: Link,
@@ -1787,6 +1854,7 @@ const UISVGs = {
   loader: Loader,
   lock: Lock,
   logout: Logout,
+  external_link: ExternalLink,
   markdown: Markdown,
   marker: Marker,
   map: Map,
@@ -1803,6 +1871,7 @@ const UISVGs = {
   play: Play,
   plug: Plug,
   pin: Pin,
+  pin_fill: PinFill,
   poker_clubs: PokerClubs,
   poker_diamonds: PokerDiamonds,
   poker_hearts: PokerHearts,
@@ -1838,6 +1907,7 @@ const UISVGs = {
   subtract: Subtract,
   sun: Sun,
   switch_case: SwitchCase,
+  switch_node: SwitchNode,
   tab_key: TabKey,
   target: Target,
   terminal: Terminal,
@@ -1861,6 +1931,7 @@ const UISVGs = {
   windows_minimize_button: WindowsMinimizeButton,
   windows_restore_button: WindowsRestoreButton,
   flow_chart: FlowChart,
+  workflow: Workflow,
 };
 
 export { fileTypeSVGs, LogoSVGs, UISVGs };

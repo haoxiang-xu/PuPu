@@ -1,5 +1,5 @@
 import { useState, useContext, useEffect } from "react";
-import { useSpring, animated } from "react-spring";
+import { useSpring, animated } from "@react-spring/web";
 
 /* { Contexts } -------------------------------------------------------------------------------------------------------------- */
 import { ConfigContext } from "../../CONTAINERs/config/context";

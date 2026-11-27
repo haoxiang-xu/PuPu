@@ -1,3 +1,4 @@
+import ShadowSurface from "../material/shadow_surface";
 import React, { useState, useRef, useCallback } from "react";
 
 import {
@@ -149,7 +150,7 @@ const SoftRingColorPicker = ({ value, set_value, default_value = "#F2B5B5" }) =>
   };
 
   return (
-    <div
+    <ShadowSurface
       style={{
         width: 260,
         boxSizing: "border-box",
@@ -183,7 +184,7 @@ const SoftRingColorPicker = ({ value, set_value, default_value = "#F2B5B5" }) =>
         </svg>
 
         {/* core SV */}
-        <div
+        <ShadowSurface
           ref={coreRef}
           onPointerDown={onCoreDown}
           style={{
@@ -199,7 +200,7 @@ const SoftRingColorPicker = ({ value, set_value, default_value = "#F2B5B5" }) =>
               "inset 0 0 0 0.5px rgba(0,0,0,0.06), 0 2px 10px rgba(0,0,0,0.12)",
           }}
         >
-          <span
+          <ShadowSurface as="span"
             style={{
               position: "absolute",
               left: `${hsv.s}%`,
@@ -214,10 +215,10 @@ const SoftRingColorPicker = ({ value, set_value, default_value = "#F2B5B5" }) =>
               pointerEvents: "none",
             }}
           />
-        </div>
+        </ShadowSurface>
 
         {/* hue thumb */}
-        <span
+        <ShadowSurface as="span"
           style={{
             position: "absolute",
             left: huePos.x,
@@ -310,7 +311,7 @@ const SoftRingColorPicker = ({ value, set_value, default_value = "#F2B5B5" }) =>
           </div>
         </div>
       </div>
-    </div>
+    </ShadowSurface>
   );
 };
 

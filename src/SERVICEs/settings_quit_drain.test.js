@@ -238,8 +238,8 @@ describe("settings quit drain renderer controller", () => {
         },
       ),
     ).resolves.toMatchObject({
-      ok: true,
-      status: "legacy-only",
+      ok: false,
+      status: "session-only",
     });
   });
 

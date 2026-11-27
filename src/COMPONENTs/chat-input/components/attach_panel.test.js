@@ -19,6 +19,7 @@ import {
   selectContextUsage,
 } from "../../../SERVICEs/context_usage_v1";
 import { writeFeatureFlags } from "../../../SERVICEs/feature_flags";
+import { subscribeSkeletonLibraryRefresh } from "../../../SERVICEs/skeleton_library_refresh";
 import {
   MOVABLE_ATTACH_WIDGETS,
   readAttachPanelLayout,
@@ -26,6 +27,7 @@ import {
 } from "../../../SERVICEs/attach_panel_layout";
 import { resetSettingsRepositoryForTests } from "../../../SERVICEs/settings_repository";
 import { Z } from "../../../BUILTIN_COMPONENTs/layer/z_layers";
+import { modelPickerTriggerStyle } from "../../../BUILTIN_COMPONENTs/select/model_picker";
 
 const {
   buildRunBundleV1,
@@ -82,7 +84,8 @@ const mockKeepOpenBySelector = {};
 
 const mockSelectStyleBySelector = {};
 
-jest.mock("../../../BUILTIN_COMPONENTs/select/select", () => ({
+jest.mock("../../../BUILTIN_COMPONENTs/select/select", () => {
+  const selectExports = {
   __esModule: true,
   Select: ({
     options = [],
@@ -165,7 +168,9 @@ jest.mock("../../../BUILTIN_COMPONENTs/select/select", () => ({
       </div>
     );
   },
-}));
+};
+  return { ...selectExports, default: selectExports.Select };
+});
 
 jest.mock("./attachment_chip_list", () => ({
   __esModule: true,
@@ -631,6 +636,206 @@ describe("AttachPanel toolkit selector refresh", () => {
     });
   });
 
+  test("the Agent row says which definition runs, and when it cannot", () => {
+    writeFeatureFlags({ enable_user_access_to_agents: true });
+    useChatInputToolkits.mockReturnValue({
+      toolkitOptions: [],
+      toolkitLoading: false,
+      refreshToolkits: jest.fn(),
+    });
+    const onSelectSkeletonAgent = jest.fn();
+    const onSelectRecipe = jest.fn();
+    const base = {
+      color: "#222",
+      active: false,
+      focused: false,
+      onAttachFile: () => {},
+      isDark: false,
+      attachments: [],
+      modelOptions: [{ value: "gpt-5.5", label: "GPT-5.5" }],
+      selectedToolkits: [],
+      onToolkitsChange: () => {},
+      selectedWorkspaceIds: [],
+      onWorkspaceIdsChange: () => {},
+      skeletonAgentOptions: [
+        { id: "research.agent:v2", name: "Research Agent" },
+      ],
+      onSelectSkeletonAgent,
+      onSelectRecipe,
+    };
+
+    /* Nothing selected: no claim about a definition. */
+    const { unmount } = render(
+      <AttachPanel {...base} selectedSkeletonAgentId="" />,
+    );
+    expect(
+      screen.getByTestId("attach-agent-row").getAttribute("title"),
+    ).toBeNull();
+    unmount();
+
+    /* Selected: it says it runs the SAVED definition, with the model saved
+       inside it — the composer's model pill is not what a Skeleton run
+       uses. */
+    const selected = render(
+      <AttachPanel {...base} selectedSkeletonAgentId="research.agent:v2" />,
+    );
+    expect(screen.getByTestId("attach-agent-row").getAttribute("title")).toMatch(
+      /saved definition/i,
+    );
+    /* And picking it writes the id, clearing the legacy name so one request
+       can never carry both identities. */
+    fireEvent.click(screen.getByTestId("option-skeleton:research.agent:v2"));
+    expect(onSelectSkeletonAgent).toHaveBeenCalledWith("research.agent:v2");
+    expect(onSelectRecipe).toHaveBeenCalledWith("Default");
+    selected.unmount();
+
+    /* Naming one that is not on offer any more: still this chat's Agent, said
+       out loud, rather than a row that looks like the default. */
+    const unavailable = render(<AttachPanel {...base} selectedSkeletonAgentId="gone.agent" />);
+    expect(screen.getByTestId("attach-agent-row").getAttribute("title")).toMatch(
+      /not available/i,
+    );
+    expect(
+      screen.getByTestId("option-skeleton:gone.agent"),
+    ).toBeInTheDocument();
+    unavailable.rerender(<AttachPanel {...base} selectedSkeletonAgentId="" selectedRecipeName="Old missing" recipeOptions={[]} />);
+    expect(screen.getByTestId("attach-agent-row").getAttribute("title")).toMatch(/not available/i);
+    expect(screen.getByTestId("option-legacy:Old missing")).toBeInTheDocument();
+  });
+
+  test("opening the Agent row says the saved library has to be re-read", async () => {
+    /* This component holds no listing: it is given one. So the moment the
+       list is about to be shown is announced, and whoever owns the listing
+       re-reads it — the same shape the model pill already uses. Without this,
+       an Agent saved after this chat was mounted is not on offer at all. */
+    writeFeatureFlags({ enable_user_access_to_agents: true });
+    useChatInputToolkits.mockReturnValue({
+      toolkitOptions: [],
+      toolkitLoading: false,
+      refreshToolkits: jest.fn(),
+    });
+    const announced = [];
+    const unsubscribe = subscribeSkeletonLibraryRefresh((payload) =>
+      announced.push(payload),
+    );
+    render(
+      <AttachPanel
+        color="#222"
+        active={false}
+        focused={false}
+        onAttachFile={() => {}}
+        isDark={false}
+        attachments={[]}
+        modelOptions={[{ value: "gpt-5.5", label: "GPT-5.5" }]}
+        selectedToolkits={[]}
+        onToolkitsChange={() => {}}
+        selectedWorkspaceIds={[]}
+        onWorkspaceIdsChange={() => {}}
+        skeletonAgentOptions={[{ id: "research.agent:v2", name: "Research Agent" }]}
+        selectedSkeletonAgentId=""
+        onSelectSkeletonAgent={() => {}}
+        onSelectRecipe={() => {}}
+      />,
+    );
+    expect(announced).toEqual([]);
+    const trigger = within(screen.getByTestId("attach-agent-row")).getByTestId(
+      "select-Agent: Default",
+    );
+    expect(trigger).toHaveAttribute("data-open", "false");
+    fireEvent.click(trigger);
+    await waitFor(() => expect(trigger).toHaveAttribute("data-open", "true"));
+    expect(announced).toEqual([{ reason: "agent_selector_opened" }]);
+    /* Closing it is not a reason to read anything. */
+    fireEvent.click(trigger);
+    await waitFor(() => expect(trigger).toHaveAttribute("data-open", "false"));
+    expect(announced).toEqual([{ reason: "agent_selector_opened" }]);
+    unsubscribe();
+  });
+
+  test("the row is there with nothing saved yet, and gone in a character chat", async () => {
+    /* The row is the entrance that re-reads the saved library, so it cannot
+       depend on the library already having something in it — that is exactly
+       the state a first Agent has to become visible from. A character chat is
+       the one place it does not belong: it runs its character, the store
+       forces its Agent id to "", and the model pill beside it is hidden. */
+    writeFeatureFlags({ enable_user_access_to_agents: true });
+    useChatInputToolkits.mockReturnValue({
+      toolkitOptions: [],
+      toolkitLoading: false,
+      refreshToolkits: jest.fn(),
+    });
+    const announced = [];
+    const unsubscribe = subscribeSkeletonLibraryRefresh((payload) =>
+      announced.push(payload),
+    );
+    const base = {
+      color: "#222",
+      active: false,
+      focused: false,
+      onAttachFile: () => {},
+      isDark: false,
+      attachments: [],
+      modelOptions: [{ value: "gpt-5.5", label: "GPT-5.5" }],
+      selectedToolkits: [],
+      onToolkitsChange: () => {},
+      selectedWorkspaceIds: [],
+      onWorkspaceIdsChange: () => {},
+      /* Nothing saved, and only the default Recipe: what a new install has. */
+      skeletonAgentOptions: [],
+      recipeOptions: [{ label: "Default", value: "Default" }],
+      selectedSkeletonAgentId: "",
+      onSelectSkeletonAgent: () => {},
+      onSelectRecipe: () => {},
+    };
+
+    const empty = render(<AttachPanel {...base} />);
+    const trigger = within(screen.getByTestId("attach-agent-row")).getByTestId(
+      "select-Agent: Default",
+    );
+    fireEvent.click(trigger);
+    await waitFor(() => expect(trigger).toHaveAttribute("data-open", "true"));
+    /* An empty picker, but a real entrance: opening it asks for the current
+       library. */
+    expect(announced).toEqual([{ reason: "agent_selector_opened" }]);
+    empty.unmount();
+
+    render(<AttachPanel {...base} showModelSelector={false} />);
+    expect(screen.queryByTestId("attach-agent-row")).toBeNull();
+    unsubscribe();
+  });
+
+  test("with the Agents feature off the row is gone and the selection is cleared", () => {
+    writeFeatureFlags({ enable_user_access_to_agents: false });
+    useChatInputToolkits.mockReturnValue({
+      toolkitOptions: [],
+      toolkitLoading: false,
+      refreshToolkits: jest.fn(),
+    });
+    const onSelectSkeletonAgent = jest.fn();
+    render(
+      <AttachPanel
+        color="#222"
+        active={false}
+        focused={false}
+        onAttachFile={() => {}}
+        isDark={false}
+        attachments={[]}
+        modelOptions={[{ value: "gpt-5.5", label: "GPT-5.5" }]}
+        selectedToolkits={[]}
+        onToolkitsChange={() => {}}
+        selectedWorkspaceIds={[]}
+        onWorkspaceIdsChange={() => {}}
+        skeletonAgentOptions={[{ id: "a1", name: "One" }]}
+        selectedSkeletonAgentId="a1"
+        onSelectSkeletonAgent={onSelectSkeletonAgent}
+      />,
+    );
+    expect(screen.queryByTestId("attach-agent-row")).toBeNull();
+    /* Cleared rather than ignored: a selection nobody can see would keep
+       deciding what every message runs. */
+    expect(onSelectSkeletonAgent).toHaveBeenCalledWith("");
+  });
+
   test("never shows agent recipe options in the model selector", () => {
     writeFeatureFlags({ enable_user_access_to_agents: true });
     useChatInputToolkits.mockReturnValue({
@@ -659,9 +864,24 @@ describe("AttachPanel toolkit selector refresh", () => {
       />,
     );
 
-    expect(screen.getByText("GPT-5.5")).toBeInTheDocument();
-    expect(screen.queryByText("Agents")).not.toBeInTheDocument();
-    expect(screen.queryByText("Research Agent")).not.toBeInTheDocument();
+    /* Scoped to the model selector, which is what this guards. Since #356
+       there IS an Agent row beside it, and a Recipe name appearing THERE is
+       the point of that row; what must never happen is an Agent arriving in
+       the list of models. */
+    const modelSelector = screen.getByTestId("select-Search models…");
+    expect(within(modelSelector).getByText("GPT-5.5")).toBeInTheDocument();
+    expect(within(modelSelector).queryByText("Agents")).not.toBeInTheDocument();
+    expect(
+      within(modelSelector).queryByText("Research Agent"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(modelSelector).queryByTestId("option-legacy:Research Agent"),
+    ).not.toBeInTheDocument();
+    /* And the Agent row is where it does appear. */
+    const agentSelector = screen.getByTestId("select-Agent: Default");
+    expect(
+      within(agentSelector).getByTestId("option-legacy:Research Agent"),
+    ).toBeInTheDocument();
   });
 
   test("renders the catalog-native Computer entry alongside other toolkits", () => {
@@ -916,7 +1136,9 @@ describe("attach panel semantic surface binding", () => {
     expect(src).not.toMatch(/rgba\(252,252,252/);
     expect(src).toMatch(/panelBg = isDark[\s\S]{0,140}var\(--pupu-surface-rgb\)/);
     // pill overlay follows the neutral-overlay policy (text tier + alpha)
-    expect(src).toMatch(/selectBg = isDark[\s\S]{0,140}var\(--pupu-text-rgb\)/);
+    expect(src).toContain("modelPickerTriggerStyle({ isDark, color, floating })");
+    expect(modelPickerTriggerStyle({ isDark: true }).backgroundColor).toBe("rgba(var(--pupu-text-rgb),0.07)");
+    expect(modelPickerTriggerStyle({ isDark: false }).backgroundColor).toBe("rgba(var(--pupu-text-rgb),0.05)");
     // floating pill hairline border binds the mid border-strength tier (input-family)
     expect(src).toMatch(/border: floating[\s\S]{0,80}var\(--pupu-border-mid\)/);
   });
@@ -1834,7 +2056,7 @@ describe("AttachPanel arrange mode: dragging into and out of the ⋯ menu (#217)
     expect(rowIds()).toEqual(["tools", "workspace"]);
     expect(readAttachPanelLayout()).toEqual({
       version: 1,
-      order: ["context_composition", "screenshot", "tools", "workspace", "attach", "link"],
+      order: ["agent", "context_composition", "screenshot", "tools", "workspace", "attach", "link"],
       hidden: ["screenshot", "link", "attach"],
     });
     // still arranging; opening the menu by hand shows the new order
@@ -1919,7 +2141,7 @@ describe("AttachPanel arrange mode: dragging into and out of the ⋯ menu (#217)
     pointerEv(window, "pointerup", { clientX: 90, clientY: 16, buttons: 0 });
     expect(rowIds()).toEqual(["screenshot", "tools", "attach", "workspace"]);
     expect(readAttachPanelLayout().order).toEqual([
-      "context_composition", "screenshot", "tools", "attach", "workspace", "link",
+      "agent", "context_composition", "screenshot", "tools", "attach", "workspace", "link",
     ]);
     expect(row().getAttribute("data-arranging")).toBe("true");
   });
@@ -2106,7 +2328,7 @@ describe("AttachPanel long press lifts straight into a drag (#217)", () => {
       pointerEv(window, "pointermove", { clientX: 90, clientY: 16, buttons: 1 });
       pointerEv(window, "pointerup", { clientX: 90, clientY: 16, buttons: 0 });
       expect(readAttachPanelLayout().order).toEqual([
-        "context_composition", "screenshot", "tools", "attach", "workspace", "link",
+        "agent", "context_composition", "screenshot", "tools", "attach", "workspace", "link",
       ]);
       expect(row().getAttribute("data-arranging")).toBe("true");
       expect(row().getAttribute("data-kb-active")).toBe("");
@@ -2259,5 +2481,89 @@ describe("AttachPanel ⋯ menu rides along while arranging (#217)", () => {
     } finally {
       spy.mockRestore();
     }
+  });
+});
+
+
+describe("compact movable Agent selector", () => {
+  beforeEach(() => {
+    window.localStorage.clear(); resetSettingsRepositoryForTests();
+    writeFeatureFlags({ enable_user_access_to_agents: true });
+    useChatInputToolkits.mockReturnValue({ toolkitOptions: [], toolkitLoading: false, refreshToolkits: jest.fn() });
+    useChatInputWorkspaces.mockReturnValue({ workspaceOptions: [] });
+  });
+  const props = () => ({
+    color: "#222", active: false, focused: false, isDark: false, attachments: [],
+    onAttachFile: jest.fn(), onAttachScreenshot: jest.fn(), onAttachLink: jest.fn(),
+    modelOptions: [{ value: "openai:model", label: "Model" }], selectedModelId: "openai:model", onSelectModel: jest.fn(),
+    selectedToolkits: [], onToolkitsChange: jest.fn(), selectedWorkspaceIds: [], onWorkspaceIdsChange: jest.fn(),
+    skeletonAgentOptions: [{ id: "research.agent:v2", name: "Research Agent" }], selectedSkeletonAgentId: "research.agent:v2",
+    onSelectSkeletonAgent: jest.fn(), onSelectRecipe: jest.fn(),
+  });
+  const visibleAgent = () => screen.getByTestId("attach-row").querySelector('[data-widget="agent"]');
+
+  test("the visible Agent is an icon-only circular widget, with the current identity accessible", () => {
+    render(<AttachPanel {...props()} />);
+    expect(visibleAgent()).not.toBeNull();
+    const trigger = within(visibleAgent()).getByTestId("attach-agent-trigger");
+    expect(trigger).toHaveAttribute("aria-label", "Agents · Research Agent");
+    expect(trigger).toHaveAttribute("data-height", "32");
+    expect(trigger).not.toHaveTextContent("Research Agent");
+  });
+
+  test("a hidden Agent opens its same selector from More and does not clear the selected identity", () => {
+    writeAttachPanelLayout({ version: 1, order: MOVABLE_ATTACH_WIDGETS, hidden: ["agent"] });
+    const current = props(); render(<AttachPanel {...current} />);
+    expect(visibleAgent()).toBeNull();
+    expect(current.onSelectSkeletonAgent).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("attach-more"));
+    const menu = screen.getByTestId("attach-more-menu");
+    const item = menu.querySelector('[data-widget="agent"]');
+    expect(item).not.toBeNull();
+    fireEvent.click(within(item).getByText("Agents"));
+    expect(within(menu).getByTestId("select-Agent: Default")).toHaveAttribute("data-open", "true");
+    fireEvent.click(within(menu).getByTestId("option-skeleton:research.agent:v2"));
+    expect(current.onSelectSkeletonAgent).toHaveBeenCalledTimes(1);
+    expect(current.onSelectSkeletonAgent).toHaveBeenCalledWith("research.agent:v2");
+    expect(current.onSelectRecipe).toHaveBeenCalledWith("Default");
+  });
+
+  test("Agent participates in keyboard arrange, tuck and restore without changing the chat selection", () => {
+    writeAttachPanelLayout({ version: 1, order: ["agent", ...MOVABLE_ATTACH_WIDGETS.filter(id => id !== "agent")], hidden: [] });
+    const current = props(); const ref = React.createRef(); render(<AttachPanel ref={ref} {...current} />);
+    expect(visibleAgent()).not.toBeNull();
+    act(() => { ref.current.enterKeyboard(); });
+    act(() => { ref.current.handleKeyboardKey("ArrowRight"); });
+    act(() => { ref.current.handleKeyboardKey("Enter", { shift: true }); });
+    expect(screen.getByTestId("attach-row")).toHaveAttribute("data-arranging", "true");
+    act(() => { ref.current.handleKeyboardKey("Enter"); });
+    expect(readAttachPanelLayout().hidden).toContain("agent");
+    act(() => { ref.current.handleKeyboardKey("Enter"); });
+    expect(readAttachPanelLayout().hidden).not.toContain("agent");
+    expect(current.onSelectSkeletonAgent).not.toHaveBeenCalled();
+    expect(current.onSelectRecipe).not.toHaveBeenCalled();
+  });
+
+  test("normal keyboard navigation can open the icon selector and refresh the library", () => {
+    const heard = []; const unsubscribe = subscribeSkeletonLibraryRefresh(detail => heard.push(detail));
+    const ref = React.createRef(); render(<AttachPanel ref={ref} {...props()} />);
+    act(() => { ref.current.enterKeyboard(); });
+    act(() => { ref.current.handleKeyboardKey("ArrowRight"); });
+    act(() => { ref.current.handleKeyboardKey("Enter"); });
+    expect(screen.getByTestId("select-Agent: Default")).toHaveAttribute("data-open", "true");
+    expect(heard).toEqual([{ reason: "agent_selector_opened" }]); unsubscribe();
+  });
+
+  test("remembered hidden state survives remount and is ignored in character chats", () => {
+    writeAttachPanelLayout({ version: 1, order: MOVABLE_ATTACH_WIDGETS, hidden: ["agent"] });
+    const current = props(); const view = render(<AttachPanel {...current} />);
+    expect(visibleAgent()).toBeNull(); view.unmount();
+    const reopened = render(<AttachPanel {...current} showModelSelector={false} />);
+    expect(screen.queryByTestId("attach-more")).toBeNull();
+    expect(screen.queryByTestId("attach-agent-row")).toBeNull();
+    reopened.rerender(<AttachPanel {...current} />);
+    expect(visibleAgent()).toBeNull();
+    expect(readAttachPanelLayout().hidden).toContain("agent");
+    expect(current.onSelectSkeletonAgent).not.toHaveBeenCalled();
   });
 });

@@ -1,5 +1,6 @@
 const path = require("path");
 const { CHANNELS } = require("../../shared/channels");
+const { createSkeletonResourceReply } = require("../../shared/skeleton_resource_transport");
 const {
   registerChatStorageHandlers,
   CHAT_STORAGE_SYNC_CHANNELS,
@@ -114,6 +115,7 @@ const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.UNCHAIN.SAVE_RECIPE,
   CHANNELS.UNCHAIN.DELETE_RECIPE,
   CHANNELS.UNCHAIN.LIST_SUBAGENT_REFS,
+  CHANNELS.UNCHAIN.SKELETON_RESOURCE_COMMAND,
   CHANNELS.UNCHAIN.PREVIEW_CHARACTER_DECISION,
   CHANNELS.UNCHAIN.BUILD_CHARACTER_AGENT_CONFIG,
   CHANNELS.UNCHAIN.EXPORT_CHARACTER,
@@ -580,6 +582,11 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
   );
   ipcMain.handle(CHANNELS.UNCHAIN.LIST_SUBAGENT_REFS, async () =>
     unchainService.listMisoSubagentRefs(),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.SKELETON_RESOURCE_COMMAND,
+    async (_event, command = {}) => createSkeletonResourceReply(() =>
+      unchainService.runMisoSkeletonResourceCommand(command.action, command.payload)),
   );
   ipcMain.handle(
     CHANNELS.UNCHAIN.PREVIEW_CHARACTER_DECISION,

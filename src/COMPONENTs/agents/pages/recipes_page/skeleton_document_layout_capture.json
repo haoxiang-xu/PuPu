@@ -1,0 +1,340 @@
+{
+ "schema": "pupu.capture.skeleton_document_layout.v1",
+ "producer": {
+  "module": "unchain.skeleton.schema.validate_skeleton_document",
+  "unchain_source": "unchain claude/project-thread-dcl4cq (layout commit on top of the unchain-dev presentation snapshot)",
+  "git_head": "2d172deb06f5e99423b9d7fa79a65d44526b4242",
+  "schema_py_sha256": "9cc1273839d67811721fd07177965621cbb22d1e6f808ae995e00efce2d860e3",
+  "generator": "recorded by running the real validator; never hand written"
+ },
+ "envelope": [
+  {
+   "label": "no layout",
+   "accepted": true,
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}]}"
+  },
+  {
+   "label": "empty nodes",
+   "accepted": true,
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"layout\": {\"nodes\": {}}}"
+  },
+  {
+   "label": "one node",
+   "accepted": true,
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"layout\": {\"nodes\": {\"s\": {\"x\": 80, \"y\": 80}}}}"
+  },
+  {
+   "label": "every node, fractional and negative",
+   "accepted": true,
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"layout\": {\"nodes\": {\"s\": {\"x\": -12.5, \"y\": 0}, \"k\": {\"x\": 340, \"y\": 80.25}, \"e\": {\"x\": 600, \"y\": -80}}}}"
+  },
+  {
+   "label": "range edges",
+   "accepted": true,
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"layout\": {\"nodes\": {\"s\": {\"x\": -1000000, \"y\": 1000000}, \"k\": {\"x\": 1000000, \"y\": -1000000}}}}"
+  },
+  {
+   "label": "layout null",
+   "accepted": false,
+   "code": "invalid_type",
+   "path": [
+    "document",
+    "layout"
+   ],
+   "message": "expected an object",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"layout\": null}"
+  },
+  {
+   "label": "layout string",
+   "accepted": false,
+   "code": "invalid_type",
+   "path": [
+    "document",
+    "layout"
+   ],
+   "message": "expected an object",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"layout\": \"x\"}"
+  },
+  {
+   "label": "layout number",
+   "accepted": false,
+   "code": "invalid_type",
+   "path": [
+    "document",
+    "layout"
+   ],
+   "message": "expected an object",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"layout\": 3}"
+  },
+  {
+   "label": "layout true",
+   "accepted": false,
+   "code": "invalid_type",
+   "path": [
+    "document",
+    "layout"
+   ],
+   "message": "expected an object",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"layout\": true}"
+  },
+  {
+   "label": "layout array",
+   "accepted": false,
+   "code": "invalid_type",
+   "path": [
+    "document",
+    "layout"
+   ],
+   "message": "expected an object",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"layout\": []}"
+  },
+  {
+   "label": "layout without nodes",
+   "accepted": false,
+   "code": "missing_field",
+   "path": [
+    "document",
+    "layout",
+    "nodes"
+   ],
+   "message": "required field is missing",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"layout\": {}}"
+  },
+  {
+   "label": "layout extra viewport",
+   "accepted": false,
+   "code": "unknown_field",
+   "path": [
+    "document",
+    "layout",
+    "viewport"
+   ],
+   "message": "unknown field",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"layout\": {\"nodes\": {}, \"viewport\": {}}}"
+  },
+  {
+   "label": "layout extra Nodes",
+   "accepted": false,
+   "code": "unknown_field",
+   "path": [
+    "document",
+    "layout",
+    "Nodes"
+   ],
+   "message": "unknown field",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"layout\": {\"nodes\": {}, \"Nodes\": {}}}"
+  },
+  {
+   "label": "nodes null",
+   "accepted": false,
+   "code": "invalid_type",
+   "path": [
+    "document",
+    "layout",
+    "nodes"
+   ],
+   "message": "layout nodes must be an object",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"layout\": {\"nodes\": null}}"
+  },
+  {
+   "label": "nodes array",
+   "accepted": false,
+   "code": "invalid_type",
+   "path": [
+    "document",
+    "layout",
+    "nodes"
+   ],
+   "message": "layout nodes must be an object",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"layout\": {\"nodes\": []}}"
+  },
+  {
+   "label": "nodes string",
+   "accepted": false,
+   "code": "invalid_type",
+   "path": [
+    "document",
+    "layout",
+    "nodes"
+   ],
+   "message": "layout nodes must be an object",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"layout\": {\"nodes\": \"s\"}}"
+  },
+  {
+   "label": "nodes number",
+   "accepted": false,
+   "code": "invalid_type",
+   "path": [
+    "document",
+    "layout",
+    "nodes"
+   ],
+   "message": "layout nodes must be an object",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"layout\": {\"nodes\": 1}}"
+  },
+  {
+   "label": "ghost node",
+   "accepted": false,
+   "code": "missing_value",
+   "path": [
+    "document",
+    "layout",
+    "nodes",
+    "ghost"
+   ],
+   "message": "layout names a node that is not in the document",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"layout\": {\"nodes\": {\"ghost\": {\"x\": 0, \"y\": 0}}}}"
+  },
+  {
+   "label": "deleted node beside a real one",
+   "accepted": false,
+   "code": "missing_value",
+   "path": [
+    "document",
+    "layout",
+    "nodes",
+    "gone"
+   ],
+   "message": "layout names a node that is not in the document",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"layout\": {\"nodes\": {\"s\": {\"x\": 0, \"y\": 0}, \"gone\": {\"x\": 1, \"y\": 1}}}}"
+  },
+  {
+   "label": "point array",
+   "accepted": false,
+   "code": "invalid_type",
+   "path": [
+    "document",
+    "layout",
+    "nodes",
+    "s"
+   ],
+   "message": "expected an object",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"layout\": {\"nodes\": {\"s\": [1, 2]}}}"
+  },
+  {
+   "label": "point null",
+   "accepted": false,
+   "code": "invalid_type",
+   "path": [
+    "document",
+    "layout",
+    "nodes",
+    "s"
+   ],
+   "message": "expected an object",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"layout\": {\"nodes\": {\"s\": null}}}"
+  },
+  {
+   "label": "point missing y",
+   "accepted": false,
+   "code": "missing_field",
+   "path": [
+    "document",
+    "layout",
+    "nodes",
+    "s",
+    "y"
+   ],
+   "message": "required field is missing",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"layout\": {\"nodes\": {\"s\": {\"x\": 1}}}}"
+  },
+  {
+   "label": "point missing x",
+   "accepted": false,
+   "code": "missing_field",
+   "path": [
+    "document",
+    "layout",
+    "nodes",
+    "s",
+    "x"
+   ],
+   "message": "required field is missing",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"layout\": {\"nodes\": {\"s\": {\"y\": 1}}}}"
+  },
+  {
+   "label": "point extra z",
+   "accepted": false,
+   "code": "unknown_field",
+   "path": [
+    "document",
+    "layout",
+    "nodes",
+    "s",
+    "z"
+   ],
+   "message": "unknown field",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"layout\": {\"nodes\": {\"s\": {\"x\": 1, \"y\": 2, \"z\": 3}}}}"
+  },
+  {
+   "label": "x string",
+   "accepted": false,
+   "code": "invalid_type",
+   "path": [
+    "document",
+    "layout",
+    "nodes",
+    "s",
+    "x"
+   ],
+   "message": "layout x must be a number",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"layout\": {\"nodes\": {\"s\": {\"x\": \"1\", \"y\": 2}}}}"
+  },
+  {
+   "label": "x boolean",
+   "accepted": false,
+   "code": "invalid_type",
+   "path": [
+    "document",
+    "layout",
+    "nodes",
+    "s",
+    "x"
+   ],
+   "message": "layout x must be a number",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"layout\": {\"nodes\": {\"s\": {\"x\": true, \"y\": 2}}}}"
+  },
+  {
+   "label": "y null",
+   "accepted": false,
+   "code": "invalid_type",
+   "path": [
+    "document",
+    "layout",
+    "nodes",
+    "s",
+    "y"
+   ],
+   "message": "layout y must be a number",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"layout\": {\"nodes\": {\"s\": {\"x\": 1, \"y\": null}}}}"
+  },
+  {
+   "label": "x too large",
+   "accepted": false,
+   "code": "invalid_value",
+   "path": [
+    "document",
+    "layout",
+    "nodes",
+    "s",
+    "x"
+   ],
+   "message": "layout x is out of range",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"layout\": {\"nodes\": {\"s\": {\"x\": 1000001, \"y\": 0}}}}"
+  },
+  {
+   "label": "y too small",
+   "accepted": false,
+   "code": "invalid_value",
+   "path": [
+    "document",
+    "layout",
+    "nodes",
+    "s",
+    "y"
+   ],
+   "message": "layout y is out of range",
+   "json": "{\"schema_version\": 1, \"kind\": \"agent\", \"id\": \"d\", \"name\": \"D\", \"nodes\": [{\"id\": \"s\", \"type\": \"start\", \"config\": {\"execution\": {\"outputs\": []}}}, {\"id\": \"k\", \"type\": \"agent\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}, {\"id\": \"e\", \"type\": \"end\", \"config\": {\"execution\": {\"inputs\": [], \"outputs\": []}}}], \"edges\": [{\"id\": \"f1\", \"kind\": \"flow\", \"source_node_id\": \"s\", \"source_port_id\": \"out\", \"target_node_id\": \"k\", \"target_port_id\": \"in\"}, {\"id\": \"f2\", \"kind\": \"flow\", \"source_node_id\": \"k\", \"source_port_id\": \"out\", \"target_node_id\": \"e\", \"target_port_id\": \"in\"}], \"layout\": {\"nodes\": {\"s\": {\"x\": 0, \"y\": -1000000.5}}}}"
+  }
+ ]
+}

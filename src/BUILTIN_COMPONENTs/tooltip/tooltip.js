@@ -1,3 +1,5 @@
+import ShadowSurface from "../material/shadow_surface";
+import { parseSurfaceColor } from "../material/surface_composite";
 import {
   useCallback,
   useContext,
@@ -70,6 +72,11 @@ const _releasePortal = () => {
 const default_trigger = ["hover", "focus", "click"];
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+/* Gap kept between any bubble and the window edge. */
+const VIEWPORT_MARGIN = 8;
+/* Clamp into [min, max]; when the range is empty (bubble wider/taller than
+   the room) pin to `min` so the start edge stays readable. */
+const clamp_into = (value, min, max) => Math.max(min, Math.min(value, max));
 const toNumber = (value, fallback) => {
   if (value === undefined || value === null) return fallback;
   if (typeof value === "number" && !Number.isNaN(value)) return value;
@@ -332,6 +339,14 @@ const buildTooltipPath = ({
     arrowOnTop: false,
   });
 };
+function is_focus_visible(element) {
+  try {
+    return element.matches(":focus-visible");
+  } catch (_) {
+    return true;
+  }
+}
+
 const Tooltip = ({
   children,
   label = "",
@@ -341,6 +356,10 @@ const Tooltip = ({
   trigger = default_trigger,
   open_delay = 80,
   close_delay = 80,
+  /* Opt-in: with the "focus" trigger, open only for focus the user can see
+     (keyboard, or a text field), not for the focus a button keeps after a
+     click — the pointer already answered that with the hover. */
+  focus_visible_only = false,
   show_arrow = true,
   align = "center",
   arrow_size = 8,
@@ -350,6 +369,8 @@ const Tooltip = ({
   corner_radius = 6,
   style,
   wrapper_style,
+  /* Interactive viewers share this engine but sit above ordinary hints. */
+  layer = "tooltip",
   open,
   on_open_change,
   /* Keep the bubble on an anchor that MOVES while the bubble is open — an
@@ -358,6 +379,17 @@ const Tooltip = ({
      frame and re-positions the moment it changes. Off by default: most
      anchors never move, and a frame loop is not free. */
   follow_trigger = false,
+  /* Opt-in: place the bubble against a part of the trigger rather than its
+     whole box — a trigger whose shape is wider than what it stands for. The
+     whole trigger still opens it. Horizontal placement only: the bubble
+     keeps its distance from the trigger's own edge. */
+  anchor_selector,
+  /* Opt-in for menus (Select dropdowns): the bubble never grows past the
+     window. Its content box becomes a column whose max size is the room on
+     the chosen side, so a panel with `minHeight: 0` and a scrollable list
+     shrinks into the window and scrolls instead of being cut off. Width
+     follows the window too instead of the plain-tooltip 260px cap. */
+  fit_viewport = false,
 }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const trigger_ref = useRef(null);
@@ -376,6 +408,7 @@ const Tooltip = ({
   const [isHoveringTooltip, setIsHoveringTooltip] = useState(false);
   const [isHoverPending, setIsHoverPending] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
+  const focused_ref = useRef(null);
   const [isClickOpen, setIsClickOpen] = useState(false);
   const [activePosition, setActivePosition] = useState(position);
   const [bubbleSize, setBubbleSize] = useState({ width: 0, height: 0 });
@@ -386,6 +419,9 @@ const Tooltip = ({
     transform: "translate(-50%, -100%)",
   });
   const [isReady, setIsReady] = useState(false);
+  /* fit_viewport: room (px) on the side the bubble opened to; null = not
+     measured yet this open, so the first measure sees the natural size. */
+  const [availableHeight, setAvailableHeight] = useState(null);
 
   const triggerList = useMemo(() => {
     if (Array.isArray(trigger)) return trigger;
@@ -566,8 +602,14 @@ const Tooltip = ({
   const update_position = useCallback(
     (sizeOverride) => {
       if (!trigger_ref.current) return;
-      const rect = trigger_ref.current.getBoundingClientRect();
-      if (!rect) return;
+      const whole = trigger_ref.current.getBoundingClientRect();
+      if (!whole) return;
+      const part = anchor_selector ? trigger_ref.current.querySelector(anchor_selector) : null;
+      const partRect = part ? part.getBoundingClientRect() : null;
+      const rect = partRect && partRect.width > 0
+        ? { left: partRect.left, right: partRect.right, width: partRect.width,
+            top: whole.top, bottom: whole.bottom, height: whole.height }
+        : whole;
 
       const size = sizeOverride || bubbleSizeRef.current;
       if (!size || (!size.width && !size.height)) return;
@@ -638,75 +680,34 @@ const Tooltip = ({
         return { width: bubble.width + arrowExtent, height: bubble.height };
       };
 
-      const get_top_left = (pos, anchor, totalSize) => {
-        if (!totalSize) return { left: anchor.x, top: anchor.y };
-        if (pos === "bottom") {
-          if (resolvedAlign === "start") {
-            return { left: anchor.x, top: anchor.y };
-          }
-          if (resolvedAlign === "end") {
-            return { left: anchor.x - totalSize.width, top: anchor.y };
-          }
-          return { left: anchor.x - totalSize.width / 2, top: anchor.y };
-        }
-        if (pos === "left") {
-          return {
-            left: anchor.x - totalSize.width,
-            top: anchor.y - totalSize.height / 2,
-          };
-        }
-        if (pos === "right") {
-          return { left: anchor.x, top: anchor.y - totalSize.height / 2 };
-        }
-        if (resolvedAlign === "start") {
-          return { left: anchor.x, top: anchor.y - totalSize.height };
-        }
-        if (resolvedAlign === "end") {
-          return {
-            left: anchor.x - totalSize.width,
-            top: anchor.y - totalSize.height,
-          };
-        }
-        return {
-          left: anchor.x - totalSize.width / 2,
-          top: anchor.y - totalSize.height,
-        };
+      const opposite = {
+        top: "bottom",
+        bottom: "top",
+        left: "right",
+        right: "left",
       };
-
-      const get_overflow = (pos, bubble) => {
-        const totalSize = get_size_for_pos(pos, bubble);
-        if (!totalSize) {
-          return { top: 0, bottom: 0, left: 0, right: 0 };
-        }
-        const anchor = get_anchor(pos);
-        const topLeft = get_top_left(pos, anchor, totalSize);
-        return {
-          left: Math.max(0, -topLeft.left),
-          right: Math.max(0, topLeft.left + totalSize.width - viewportWidth),
-          top: Math.max(0, -topLeft.top),
-          bottom: Math.max(0, topLeft.top + totalSize.height - viewportHeight),
-        };
+      const vertical = position === "top" || position === "bottom";
+      const M = VIEWPORT_MARGIN;
+      /* Room along the main axis on each side, after offset, arrow and the
+         window margin. */
+      const room = {
+        top: rect.top - offset - arrowExtent - M,
+        bottom: viewportHeight - rect.bottom - offset - arrowExtent - M,
+        left: rect.left - offset - arrowExtent - M,
+        right: viewportWidth - rect.right - offset - arrowExtent - M,
       };
+      const need = vertical ? size.height : size.width;
 
+      /* Preferred side if it fits; else the opposite if that fits; else
+         whichever side has more room (fit_viewport then shrinks into it).
+         Stable under the shrink: once clamped to the bigger side's room the
+         bubble still does not fit the smaller preferred side. */
       let nextPosition = position;
-      const overflow = get_overflow(position, size);
-      const mainOverflow =
-        position === "top"
-          ? overflow.top
-          : position === "bottom"
-            ? overflow.bottom
-            : position === "left"
-              ? overflow.left
-              : overflow.right;
-      if (mainOverflow > 0) {
-        nextPosition =
-          position === "top"
-            ? "bottom"
-            : position === "bottom"
-              ? "top"
-              : position === "left"
-                ? "right"
-                : "left";
+      if (need > room[position]) {
+        const other = opposite[position];
+        if (need <= room[other] || room[other] > room[position]) {
+          nextPosition = other;
+        }
       }
 
       const anchor = get_anchor(nextPosition);
@@ -715,25 +716,35 @@ const Tooltip = ({
 
       const adjustedSize = get_size_for_pos(nextPosition, size);
       if (adjustedSize) {
+        const w = adjustedSize.width;
+        const h = adjustedSize.height;
         if (nextPosition === "top" || nextPosition === "bottom") {
-          if (resolvedAlign === "start") {
-            const minX = 0;
-            const maxX = viewportWidth - adjustedSize.width;
-            anchorX = Math.min(Math.max(anchorX, minX), maxX);
-          } else if (resolvedAlign === "end") {
-            const minX = adjustedSize.width;
-            const maxX = viewportWidth;
-            anchorX = Math.min(Math.max(anchorX, minX), maxX);
-          } else {
-            const minX = adjustedSize.width / 2;
-            const maxX = viewportWidth - adjustedSize.width / 2;
-            anchorX = Math.min(Math.max(anchorX, minX), maxX);
-          }
+          /* anchorX is the bubble's start / end / centre depending on align;
+             convert the window box [M, vw - M] into that frame. */
+          const shift =
+            resolvedAlign === "start" ? 0 : resolvedAlign === "end" ? w : w / 2;
+          anchorX = clamp_into(anchorX, M + shift, viewportWidth - M - w + shift);
         } else {
-          const minY = adjustedSize.height / 2;
-          const maxY = viewportHeight - adjustedSize.height / 2;
-          anchorY = Math.min(Math.max(anchorY, minY), maxY);
+          anchorY = clamp_into(
+            anchorY,
+            M + h / 2,
+            viewportHeight - M - h / 2,
+          );
         }
+      }
+
+      if (fit_viewport) {
+        const nextAvailable = Math.max(
+          0,
+          Math.floor(
+            nextPosition === "top" || nextPosition === "bottom"
+              ? room[nextPosition]
+              : viewportHeight - 2 * M,
+          ),
+        );
+        setAvailableHeight((prev) =>
+          prev === nextAvailable ? prev : nextAvailable,
+        );
       }
 
       setActivePosition(nextPosition);
@@ -743,12 +754,13 @@ const Tooltip = ({
         transform: anchor.transform,
       });
     },
-    [position, offset, show_arrow, arrowHeight, align],
+    [position, offset, show_arrow, arrowHeight, align, anchor_selector, fit_viewport],
   );
 
   useLayoutEffect(() => {
     if (!isOpen) {
       setIsReady(false);
+      setAvailableHeight(null);
       return;
     }
     const measured = measure_bubble();
@@ -889,8 +901,10 @@ const Tooltip = ({
       setIsHoverPending(false);
     });
   };
-  const handle_trigger_focus = () => {
+  const handle_trigger_focus = (e) => {
     if (!isFocusEnabled) return;
+    if (focus_visible_only && !is_focus_visible(e.target)) return;
+    focused_ref.current = e.target;
     setIsFocused(true);
   };
   const handle_trigger_blur = (e) => {
@@ -898,6 +912,19 @@ const Tooltip = ({
     if (tooltip_ref.current?.contains(e.relatedTarget)) return;
     setIsFocused(false);
   };
+  /* A focused control can lose focus without a blur: it is unmounted (a Run
+     button that becomes Stop) or disabled, and the browser moves focus to
+     the body silently. Without this check the bubble stays open for good.
+     Checked whenever the trigger's children are rendered anew, which is when
+     a control can be swapped out or disabled. */
+  useEffect(() => {
+    if (!isFocused) return;
+    const focused = focused_ref.current;
+    if (focused && trigger_ref.current?.contains(focused) && !focused.disabled) return;
+    focused_ref.current = null;
+    setIsFocused(false);
+  }, [isFocused, children]);
+
   const handle_trigger_click = () => {
     if (!isClickEnabled) return;
     clear_open_timer();
@@ -1049,7 +1076,22 @@ const Tooltip = ({
     theme?.tooltip?.boxShadow ??
     defaultTooltipStyle.boxShadow;
   const contentPadding = stylePadding ?? "6px";
-  const contentMaxWidth = styleMaxWidth ?? 260;
+  const contentMaxWidth =
+    styleMaxWidth ??
+    (fit_viewport ? `calc(100vw - ${VIEWPORT_MARGIN * 2}px)` : 260);
+  /* fit_viewport: a column capped at the measured room, so a shrinkable
+     child (minHeight: 0) gives up height and scrolls inside. */
+  const fitStyle = fit_viewport
+    ? {
+        boxSizing: "border-box",
+        display: "flex",
+        flexDirection: "column",
+        maxHeight:
+          availableHeight !== null
+            ? availableHeight
+            : `calc(100vh - ${VIEWPORT_MARGIN * 2}px)`,
+      }
+    : null;
   const contentFontSize = styleFontSize ?? 12;
   const contentLineHeight = styleLineHeight ?? 1.4;
   const contentFontFamily =
@@ -1138,7 +1180,7 @@ const Tooltip = ({
                 top: positionStyle.top,
                 left: positionStyle.left,
                 transform: positionStyle.transform,
-                zIndex: Z.TOOLTIP,
+                zIndex: layer === "popover" ? Z.POPOVER : Z.TOOLTIP,
                 width: tooltipWidth,
                 height: tooltipHeight,
                 pointerEvents: isReady ? "auto" : "none",
@@ -1170,7 +1212,8 @@ const Tooltip = ({
                 }}
               >
                 {tooltipPath ? (
-                  <svg
+                  <ShadowSurface as="svg"
+                    shadowShape={{ path: tooltipPath, shadow: shadowValue, opacity: parseSurfaceColor(bubbleColor)?.[3] ?? 1 }}
                     width={tooltipWidth}
                     height={tooltipHeight}
                     viewBox={`0 0 ${tooltipWidth} ${tooltipHeight}`}
@@ -1183,7 +1226,7 @@ const Tooltip = ({
                     }}
                   >
                     <path d={tooltipPath} fill={bubbleColor} />
-                  </svg>
+                  </ShadowSurface>
                 ) : null}
                 <div
                   ref={content_ref}
@@ -1192,11 +1235,16 @@ const Tooltip = ({
                     top: bubbleOffsetY,
                     left: bubbleOffsetX,
                     padding: contentPadding,
+                    // Measure intrinsic content independently of the bubble.
+                    // Otherwise an auto-width box inherits the previous
+                    // measurement plus the side arrow, growing on each RO tick.
+                    width: "max-content",
                     maxWidth: contentMaxWidth,
                     color: textColor,
                     fontSize: contentFontSize,
                     lineHeight: contentLineHeight,
                     fontFamily: contentFontFamily,
+                    ...fitStyle,
                     ...contentStyleOverrides,
                   }}
                 >

@@ -1,3 +1,4 @@
+import ShadowSurface from "../../BUILTIN_COMPONENTs/material/shadow_surface";
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 /* { Contexts } -------------------------------------------------------------------------------------------------------------- */
@@ -935,7 +936,7 @@ const MemoryV2TreeView = ({
   return (
     <>
       {/* ━━ Floating tree side menu (left) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-      <div
+      <ShadowSurface
         data-testid="memory-v2-tree-view"
         /* The only listener that can tell a human apart from Chromium's
            hover recompute. It lives on the panel rather than per row so a
@@ -1088,7 +1089,7 @@ const MemoryV2TreeView = ({
               : t("memory_inspect.tree_entry_count", { count: result.entryCount })}
           </div>
         )}
-      </div>
+      </ShadowSurface>
 
       {/* ━━ Expand handle — only while the side menu is tucked away ━━━━ */}
       {collapsed && (
@@ -1127,7 +1128,7 @@ const MemoryV2TreeView = ({
           Always mounted. With nothing selected it is a fully transparent,
           click-through pane sitting exactly on top of the vector view's own
           detail card — which stays visible and usable underneath. */}
-      <div
+      <ShadowSurface
         data-testid="memory-v2-entry-detail"
         data-open={selectedNode ? "true" : "false"}
         style={{
@@ -1287,7 +1288,7 @@ const MemoryV2TreeView = ({
             </>
           )}
         </div>
-      </div>
+      </ShadowSurface>
     </>
   );
 };

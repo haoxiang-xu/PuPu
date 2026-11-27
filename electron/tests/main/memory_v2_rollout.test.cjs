@@ -32,6 +32,7 @@ const REQUIRED_PROTOCOLS = Object.freeze([
       "memory_curator",
       "memory_toolkit",
       "memory_workspace",
+      "provider_context_limit_recovery_v1",
       "tool_output_management_v1",
     ]),
   }),
@@ -588,6 +589,19 @@ test("an older wheel without graph failure terminals cannot activate Memory V2",
   const protocols = cloneProtocols();
   const context = protocols.find((item) => item.id === "context_memory");
   context.features = context.features.filter((feature) => feature !== "graph_failure_terminals_v1");
+  expect(validateMemoryV2Status(statusFor(config, {
+    runtime_protocol_manifest: runtimeProtocolManifest(protocols),
+  }), config)).toMatchObject({
+    ok: false,
+    reason: "context_v2_unchain_protocol_incompatible",
+  });
+});
+
+test("an older wheel without provider context recovery cannot activate Memory V2", () => {
+  const config = packagedConfig(createBuildFeatureSnapshot({}, {}));
+  const protocols = cloneProtocols();
+  const context = protocols.find((item) => item.id === "context_memory");
+  context.features = context.features.filter((feature) => feature !== "provider_context_limit_recovery_v1");
   expect(validateMemoryV2Status(statusFor(config, {
     runtime_protocol_manifest: runtimeProtocolManifest(protocols),
   }), config)).toMatchObject({

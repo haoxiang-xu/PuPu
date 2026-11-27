@@ -42,6 +42,7 @@ describe("title_bar paints from the live CSS variables", () => {
 /* ── #256: the bar draws the PRESENTED platform's chrome, live ───────────── */
 const React = require("react");
 const { act, render } = require("@testing-library/react");
+jest.mock("../icon/icon", () => () => null);
 const { ConfigContext } = require("../../CONTAINERs/config/context");
 const TitleBar = require("./title_bar").default;
 const {
@@ -51,6 +52,32 @@ const {
   resetSettingsRepositoryForTests,
 } = require("../../SERVICEs/settings_repository");
 
+const installWindowStateAPI = (initialState = { isFullScreen: false }) => {
+  const listeners = new Set();
+  let currentState = initialState;
+  const emit = (state) => {
+    currentState = state;
+    listeners.forEach((listener) => listener(state));
+  };
+  const actions = [];
+  window.windowStateAPI = {
+    windowStateEventHandler: (action) => {
+      actions.push(action);
+      if (action === "get-state") emit(currentState);
+    },
+    windowStateEventListener: (callback) => {
+      listeners.add(callback);
+      return () => {
+        listeners.delete(callback);
+      };
+    },
+  };
+  return {
+    actions,
+    emit,
+  };
+};
+
 describe("title_bar follows the presentation platform (#256)", () => {
   const originalWindowStateAPI = window.windowStateAPI;
   beforeEach(() => {
@@ -58,20 +85,17 @@ describe("title_bar follows the presentation platform (#256)", () => {
     resetSettingsRepositoryForTests();
     window.runtime = { isElectron: true, platform: "darwin" };
     window.osInfo = { platform: "darwin" };
-    window.windowStateAPI = {
-      windowStateEventHandler: jest.fn(),
-      windowStateEventListener: jest.fn(() => () => {}),
-    };
+    installWindowStateAPI();
   });
   afterEach(() => {
     delete window.runtime;
     delete window.osInfo;
     window.windowStateAPI = originalWindowStateAPI;
   });
-  const mount = () =>
+  const mount = (appMode = "chat") =>
     render(
       <ConfigContext.Provider
-        value={{ theme: {}, onFragment: "main", setOnFragment: () => {}, onThemeMode: "dark_mode" }}
+        value={{ theme: {}, appMode, onFragment: "main", setOnFragment: () => {}, onThemeMode: "dark_mode" }}
       >
         <TitleBar />
       </ConfigContext.Provider>,
@@ -81,7 +105,16 @@ describe("title_bar follows the presentation platform (#256)", () => {
   const controls = (container) => container.querySelectorAll("button").length - 1;
   const toggleLeft = (container) => container.querySelector("button").style.left;
 
+  test("Builder keeps a transparent title-bar drag region over the full-height graph", () => {
+    const { container } = mount("agents");
+    expect(container.firstElementChild.style.background).toBe("transparent");
+    expect(container.firstElementChild.style.WebkitBackdropFilter).toBe("none");
+    expect(container.firstElementChild.style.WebkitAppRegion).toBe("drag");
+    expect(toggleLeft(container)).toBe("90px");
+  });
+
   test("AC-256-3: a darwin host presenting win32 draws the Windows cluster and Windows offsets; back to darwin, they go", () => {
+    const bridge = installWindowStateAPI();
     const { container } = mount();
     expect(controls(container)).toBe(0);
     expect(toggleLeft(container)).toBe("90px");
@@ -90,6 +123,9 @@ describe("title_bar follows the presentation platform (#256)", () => {
     });
     expect(controls(container)).toBe(3);
     expect(toggleLeft(container)).toBe("14px");
+    act(() => bridge.emit({ isFullScreen: true }));
+    expect(toggleLeft(container)).toBe("14px");
+    act(() => bridge.emit({ isFullScreen: false }));
     act(() => {
       writePlatformOverride(null);
     });
@@ -97,15 +133,41 @@ describe("title_bar follows the presentation platform (#256)", () => {
     expect(toggleLeft(container)).toBe("90px");
   });
 
+  test("moves the sidebar toggle during native fullscreen and restores it after exit", () => {
+    const bridge = installWindowStateAPI({ isFullScreen: true });
+    const { container } = mount();
+    const toggle = container.querySelector("button");
+
+    expect(bridge.actions).toEqual(["get-state"]);
+    expect(toggle.style.left).toBe("14px");
+    act(() => bridge.emit({ isMaximized: true, isFullScreen: false }));
+    expect(toggle.style.left).toBe("90px");
+    act(() => bridge.emit({ isFullScreen: true }));
+    expect(toggle.style.left).toBe("14px");
+    act(() => bridge.emit({ isFullScreen: false }));
+    expect(toggle.style.left).toBe("90px");
+  });
+
+  test("draws no wordmark: the side menus are see-through, so a title would show under them", () => {
+    installWindowStateAPI();
+    const { container } = mount();
+    expect(container.textContent).not.toMatch(/pupu/i);
+  });
+
   test("a win32 host presenting darwin hides its own cluster and takes the traffic-light offsets", () => {
     window.osInfo = { platform: "win32" };
     window.runtime = { isElectron: true, platform: "win32" };
+    const bridge = installWindowStateAPI();
     const { container } = mount();
     expect(controls(container)).toBe(3);
     act(() => {
       writePlatformOverride("darwin");
     });
     expect(controls(container)).toBe(0);
+    expect(toggleLeft(container)).toBe("90px");
+    act(() => bridge.emit({ isFullScreen: true }));
+    expect(toggleLeft(container)).toBe("14px");
+    act(() => bridge.emit({ isFullScreen: false }));
     expect(toggleLeft(container)).toBe("90px");
   });
 });
@@ -117,10 +179,7 @@ describe("title_bar draws Linux controls the GNOME way (#256)", () => {
     resetSettingsRepositoryForTests();
     window.runtime = { isElectron: true, platform: "linux" };
     window.osInfo = { platform: "linux" };
-    window.windowStateAPI = {
-      windowStateEventHandler: jest.fn(),
-      windowStateEventListener: jest.fn(() => () => {}),
-    };
+    installWindowStateAPI();
   });
   afterEach(() => {
     delete window.runtime;
@@ -137,7 +196,11 @@ describe("title_bar draws Linux controls the GNOME way (#256)", () => {
     );
 
   test("three round 24px buttons, minimize · maximize · close, in a cluster with breathing room; Windows keeps its flat 40×30 tiles", () => {
+    const bridge = installWindowStateAPI();
     const { container } = mount();
+    expect(container.querySelector("button").style.left).toBe("14px");
+    act(() => bridge.emit({ isFullScreen: true }));
+    expect(container.querySelector("button").style.left).toBe("14px");
     const buttons = Array.from(container.querySelectorAll("button")).slice(1);
     expect(buttons).toHaveLength(3);
     buttons.forEach((b) => {

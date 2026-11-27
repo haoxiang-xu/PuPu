@@ -74,8 +74,10 @@ def save_recipe(data: dict) -> None:
     target = root / f"{recipe.name}{_RECIPE_SUFFIX}"
     payload = json.dumps(data, indent=2, ensure_ascii=False)
     tmp = target.with_suffix(target.suffix + ".tmp")
-    tmp.write_text(payload, encoding="utf-8")
-    tmp.replace(target)
+    from skeleton_legacy_chat import legacy_recipe_write
+    with legacy_recipe_write(recipe.name):
+        tmp.write_text(payload, encoding="utf-8")
+        tmp.replace(target)
 
 
 def delete_recipe(name: str) -> None:
@@ -84,10 +86,12 @@ def delete_recipe(name: str) -> None:
     if not is_valid_recipe_name(name):
         raise ValueError(f"invalid recipe name: {name!r}")
     target = recipes_dir() / f"{name}{_RECIPE_SUFFIX}"
-    try:
-        target.unlink()
-    except FileNotFoundError:
-        pass
+    from skeleton_legacy_chat import legacy_recipe_write
+    with legacy_recipe_write(name):
+        try:
+            target.unlink()
+        except FileNotFoundError:
+            pass
 
 
 def list_subagent_refs() -> list[dict[str, str]]:

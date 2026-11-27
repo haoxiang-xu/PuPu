@@ -37,25 +37,32 @@ class InjectionBackend(ABC):
 
     # --- primitives implemented by subclasses ------------------------------
     @abstractmethod
-    def _move_to(self, x: float, y: float) -> None: ...
+    def _move_to(self, x: float, y: float) -> None:
+        """Move the pointer to ``(x, y)``."""
 
     @abstractmethod
-    def _click(self, button: str, count: int) -> None: ...
+    def _click(self, button: str, count: int) -> None:
+        """Click ``button`` ``count`` times at the current pointer position."""
 
     @abstractmethod
-    def _drag(self, x1: float, y1: float, x2: float, y2: float, button: str) -> None: ...
+    def _drag(self, x1: float, y1: float, x2: float, y2: float, button: str) -> None:
+        """Drag with ``button`` from ``(x1, y1)`` to ``(x2, y2)``."""
 
     @abstractmethod
-    def _scroll(self, dx: float, dy: float) -> None: ...
+    def _scroll(self, dx: float, dy: float) -> None:
+        """Scroll by ``(dx, dy)`` at the current pointer position."""
 
     @abstractmethod
-    def _type_text(self, text: str) -> None: ...
+    def _type_text(self, text: str) -> None:
+        """Type ``text`` as keyboard input."""
 
     @abstractmethod
-    def _press_combo(self, tokens: Sequence[KeyToken]) -> None: ...
+    def _press_combo(self, tokens: Sequence[KeyToken]) -> None:
+        """Press the key combination described by ``tokens``."""
 
     @abstractmethod
-    def _cursor_position(self) -> Tuple[float, float]: ...
+    def _cursor_position(self) -> Tuple[float, float]:
+        """Return the current pointer position."""
 
     def _drag_path(self, points: Sequence[Tuple[float, float]], button: str) -> None:
         """Default path adapter for backends that only implement start/end."""

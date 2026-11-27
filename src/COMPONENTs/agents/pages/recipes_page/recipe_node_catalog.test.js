@@ -10,7 +10,6 @@ import {
   NODE_GROUP_ICONS,
 } from "./recipe_node_catalog";
 import { TOOLKIT_POOL_TYPE, LEGACY_TOOLPOOL_TYPE } from "./recipe_graph";
-import { validate_recipe_connection } from "./recipe_connection_rules";
 
 describe("recipe node catalog", () => {
   test("every addable entry is complete and lands in a known group", () => {
@@ -117,34 +116,6 @@ describe("recipe node catalog", () => {
     expect(search_nodes("AGENT").map((e) => e.type)).toContain("agent");
     expect(search_nodes("   ")).toEqual(addable_nodes("agent"));
     expect(search_nodes("zzz-no-such-node")).toEqual([]);
-  });
-
-  test("a built node connects under the existing connection rules", () => {
-    /* The canvas attaches ports at render time rather than storing them on the
-     * node (recipe_canvas.js `nodes` memo), so do the same here. */
-    const on_canvas = (type, id) => ({
-      ...build_node(type, { id, x: 0, y: 0 }),
-      ports: ports_for_type(type),
-    });
-    const agent = on_canvas("agent", "agent_9");
-    const pool = on_canvas(TOOLKIT_POOL_TYPE, "tp_9");
-    const end = on_canvas("end", "end");
-
-    expect(
-      validate_recipe_connection(
-        { node: agent, port: "attach_bot" },
-        { node: pool, port: "attach_top" },
-        { edges: [] },
-      ),
-    ).toBe(true);
-
-    expect(
-      validate_recipe_connection(
-        { node: agent, port: "out" },
-        { node: end, port: "in" },
-        { edges: [] },
-      ),
-    ).toBe(true);
   });
 
   test("an end node built from the catalog has no addable entry but does have ports", () => {

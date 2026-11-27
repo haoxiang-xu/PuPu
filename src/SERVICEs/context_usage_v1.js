@@ -1,14 +1,19 @@
 /**
- * Context pressure from provider accounting alone.
+ * Context pressure from provider receipts.
  *
  * Context Composition (`context_composition_v1`) explains *what* filled the
  * window, but it only exists once the runtime instruments a contribution
  * source. Provider usage receipts, by contrast, are emitted on every single
  * call — so "how full is the window" is answerable long before "what is in it".
  *
- * This module reads only the accounting half. It never estimates: a missing
- * window size yields `null` pressure rather than a guessed denominator.
+ * A receipt's recorded window takes precedence over the composer selection.
+ * A missing window yields `null` pressure rather than a guessed denominator.
  */
+
+import {
+  CONTEXT_COMPOSITION_EXTENSION_KEY,
+  normalizeContextCompositionExtension,
+} from "./context_composition_v1";
 
 const isObject = (value) =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -24,15 +29,35 @@ const safeTokenCount = (value) =>
  */
 const selectAuthoritativeCall = (bundle) => {
   if (!isObject(bundle) || !Array.isArray(bundle.provider_calls)) return null;
-  for (let index = bundle.provider_calls.length - 1; index >= 0; index -= 1) {
-    const call = bundle.provider_calls[index];
-    if (!isObject(call)) continue;
-    const input = call.usage?.input;
-    if (!isObject(input)) continue;
-    if (safeTokenCount(input.total_tokens) === null) continue;
-    return call;
-  }
-  return null;
+  // Canonical bundles sort this set by opaque provider_call_id, not time.
+  const calls = bundle.provider_calls.filter((call) =>
+    isObject(call) &&
+    isObject(call.usage?.input) &&
+    safeTokenCount(call.usage.input.total_tokens) !== null,
+  );
+  calls.sort((left, right) => {
+    const leftStarted = typeof left.timing?.started_at === "string"
+      ? left.timing.started_at : "";
+    const rightStarted = typeof right.timing?.started_at === "string"
+      ? right.timing.started_at : "";
+    const leftTime = Date.parse(leftStarted);
+    const rightTime = Date.parse(rightStarted);
+    const leftTimed = Number.isFinite(leftTime);
+    const rightTimed = Number.isFinite(rightTime);
+    if (leftTimed !== rightTimed) return leftTimed ? 1 : -1;
+    // Preserve last-entry behavior for old receipts without timestamps.
+    if (!leftTimed) return 0;
+    // Date.parse normalizes UTC offsets but drops the runtime's microseconds.
+    const leftFraction = leftStarted.match(/\.(\d+)/)?.[1] || "";
+    const rightFraction = rightStarted.match(/\.(\d+)/)?.[1] || "";
+    const precision = Math.max(leftFraction.length, rightFraction.length);
+    return leftTime - rightTime ||
+      leftFraction.padEnd(precision, "0").localeCompare(rightFraction.padEnd(precision, "0")) ||
+      (left.identity?.iteration || 0) - (right.identity?.iteration || 0) ||
+      (left.identity?.retry_ordinal || 0) - (right.identity?.retry_ordinal || 0) ||
+      (left.provider_call_id || "").localeCompare(right.provider_call_id || "");
+  });
+  return calls[calls.length - 1] || null;
 };
 
 export const selectContextUsage = (bundle) => {
@@ -46,9 +71,20 @@ export const selectContextUsage = (bundle) => {
         (item) => isObject(item) && isObject(item.usage?.input),
       ).length
     : 0;
+  let reportedContextWindowTokens = null;
+  const extension = call.extensions?.[CONTEXT_COMPOSITION_EXTENSION_KEY];
+  if (extension !== undefined) {
+    try {
+      reportedContextWindowTokens =
+        normalizeContextCompositionExtension(extension).context_window_tokens;
+    } catch (_error) {
+      // Invalid composition must not invalidate otherwise usable accounting.
+    }
+  }
 
   return {
     inputTokens,
+    reportedContextWindowTokens,
     cacheReadTokens: safeTokenCount(input.cache_read_tokens),
     cacheWriteTokens: safeTokenCount(input.cache_write_tokens),
     uncachedTokens: safeTokenCount(input.uncached_tokens),
@@ -119,13 +155,21 @@ export const selectActiveContextWindowTokens = (
   return maximum === null ? requested : Math.min(requested, maximum);
 };
 
-export const buildContextUsageView = (usage, windowTokens) => {
+export const buildContextUsageView = (usage, windowTokens, { modelId } = {}) => {
   if (!isObject(usage) || usage.inputTokens === null) return null;
+  const recorded = safeTokenCount(usage.reportedContextWindowTokens);
+  const selectedModel = typeof modelId === "string"
+    ? modelId.trim().replace(/^custom\./, "")
+    : null;
+  const sameModel = selectedModel === null ||
+    selectedModel === `${usage.provider}:${usage.model}`;
+  // A model switch cannot change the window of an already completed call.
+  const candidate = recorded > 0 ? recorded : sameModel ? windowTokens : null;
   const window =
-    typeof windowTokens === "number" &&
-    Number.isSafeInteger(windowTokens) &&
-    windowTokens > 0
-      ? windowTokens
+    typeof candidate === "number" &&
+    Number.isSafeInteger(candidate) &&
+    candidate > 0
+      ? candidate
       : null;
   return {
     ...usage,

@@ -1,4 +1,5 @@
 const path = require("path");
+const { CHANNELS } = require("../../shared/channels");
 const {
   createMainWindowService,
   isAllowedAppNavigation,
@@ -316,13 +317,55 @@ describe("platform presentation (#256)", () => {
        in the same call, not left to the next focus/resize re-sync */
     service.handlePlatformPresentation(null);
     expect(windowInstance.setWindowButtonVisibility).toHaveBeenLastCalledWith(true);
-    expect(windowInstance.setWindowButtonPosition).toHaveBeenCalledWith({ x: 14, y: 18 });
+    expect(windowInstance.setWindowButtonPosition).toHaveBeenCalledWith({ x: 18, y: 18 });
     windowInstance.setWindowButtonPosition.mockClear();
     on("focus")();
     jest.runOnlyPendingTimers();
     expect(windowInstance.setWindowButtonPosition).toHaveBeenCalled();
     service.handleWindowStateEvent("maximize");
     expect(windowInstance.setFullScreen).toHaveBeenCalledTimes(1);
+  });
+
+  test("AC-461-4: snapshots distinguish zoom from native fullscreen and survive repeated enter/exit", () => {
+    const { service, windowInstance, on } = build();
+    const send = windowInstance.webContents.send;
+    send.mockClear();
+    service.handleWindowStateEvent("get-state");
+    expect(send).toHaveBeenLastCalledWith(CHANNELS.WINDOW_STATE.LISTENER_EVENT, {
+      isMaximized: false, isFullScreen: false,
+    });
+
+    windowInstance.isMaximized.mockReturnValue(true);
+    on("maximize")();
+    expect(send).toHaveBeenLastCalledWith(CHANNELS.WINDOW_STATE.LISTENER_EVENT, {
+      isMaximized: true, isFullScreen: false,
+    });
+
+    windowInstance.isMaximized.mockReturnValue(false);
+    for (let cycle = 0; cycle < 2; cycle += 1) {
+      windowInstance.isFullScreen.mockReturnValue(true);
+      on("enter-full-screen")();
+      expect(send).toHaveBeenLastCalledWith(CHANNELS.WINDOW_STATE.LISTENER_EVENT, {
+        isMaximized: true, isFullScreen: true,
+      });
+      send.mockClear();
+      service.handleWindowStateEvent("get-state");
+      expect(send).toHaveBeenLastCalledWith(CHANNELS.WINDOW_STATE.LISTENER_EVENT, {
+        isMaximized: true, isFullScreen: true,
+      });
+      windowInstance.isFullScreen.mockReturnValue(false);
+      // Native EventEmitter invokes both chrome re-sync and state listeners.
+      windowInstance.on.mock.calls
+        .filter(([event]) => event === "leave-full-screen")
+        .forEach(([, listener]) => listener());
+      expect(send).toHaveBeenLastCalledWith(CHANNELS.WINDOW_STATE.LISTENER_EVENT, {
+        isMaximized: false, isFullScreen: false,
+      });
+    }
+    send.mockClear();
+    service.handleWindowStateEvent("unknown-state-action");
+    expect(send).not.toHaveBeenCalled();
+    expect(windowInstance.setFullScreen).not.toHaveBeenCalled();
   });
 
   test("AC-256-4: an unknown value is a no-op; a packaged app ignores the message", () => {

@@ -1,3 +1,4 @@
+import ShadowSurface from "../../../BUILTIN_COMPONENTs/material/shadow_surface";
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import ColorPicker from "../../../BUILTIN_COMPONENTs/color_picker/color_picker";
@@ -127,7 +128,7 @@ const TOKEN_LABELS = {
 const PresetDots = ({ palette }) => (
   <span style={{ display: "inline-flex", gap: 3, alignItems: "center" }}>
     {["accent", "background", "surface", "text"].map((key) => (
-      <span
+      <ShadowSurface as="span"
         key={key}
         style={{
           width: 8,

@@ -1,3 +1,4 @@
+import ShadowSurface from "../material/shadow_surface";
 import React, {
   useState,
   useEffect,
@@ -476,7 +477,7 @@ const Slider = ({
                 running one cap past the end. Awake it is the full-width
                 groove whose caps are concentric with the thumb at either
                 end; thickness, radius, left and width morph together. */}
-            <div
+            <ShadowSurface
               data-testid="slider-track"
               style={{
                 position: "absolute",
@@ -628,7 +629,7 @@ const Slider = ({
 
         {/* Thumb */}
         {glass ? (
-          <div
+          <ShadowSurface
             data-testid="slider-thumb"
             style={{
               position: "absolute",
@@ -667,7 +668,7 @@ const Slider = ({
                 background: thumbColor,
               }}
             />
-          </div>
+          </ShadowSurface>
         ) : (
           <div
             style={{
@@ -690,7 +691,7 @@ const Slider = ({
 
         {/* Floating tooltip above thumb */}
         {show_tooltip && (
-          <div
+          <ShadowSurface
             style={{
               position: "absolute",
               bottom: "100%",
@@ -716,7 +717,7 @@ const Slider = ({
             }}
           >
             {tipText}
-          </div>
+          </ShadowSurface>
         )}
       </div>
     </div>
@@ -978,7 +979,7 @@ const RangeSlider = ({
           }}
         />
         {show_tooltip && (
-          <div
+          <ShadowSurface
             style={{
               position: "absolute",
               bottom: "100%",
@@ -1005,7 +1006,7 @@ const RangeSlider = ({
             }}
           >
             {makeTipText(which === "low" ? currentLow : currentHigh)}
-          </div>
+          </ShadowSurface>
         )}
       </React.Fragment>
     );
@@ -1780,7 +1781,7 @@ const GradientSlider = ({
         onKeyDown={onKeyDown}
       >
         {/* ─── Gradient track (always visible — thin line ↔ pill) ─── */}
-        <div
+        <ShadowSurface
           data-testid="gradient-slider-track"
           style={{
             position: "absolute",
@@ -1806,7 +1807,7 @@ const GradientSlider = ({
               borderRadius: "inherit",
             }}
           />
-        </div>
+        </ShadowSurface>
 
         {/* ─── Snap marks ─── */}
         {marks &&
@@ -1815,7 +1816,7 @@ const GradientSlider = ({
             const mPct = max === min ? 0 : ((m - min) / (max - min)) * 100;
             const mPx = selectableStart + (mPct / 100) * selectableW;
             return (
-              <div
+              <ShadowSurface
                 key={m}
                 style={{
                   position: "absolute",
@@ -1841,7 +1842,7 @@ const GradientSlider = ({
         {glass ? (
           <>
             {/* frosted ring — hidden at rest, blooms on hover around the colour core */}
-            <div
+            <ShadowSurface
               data-testid="gradient-slider-thumb"
               style={{
                 position: "absolute",
@@ -1872,7 +1873,7 @@ const GradientSlider = ({
               }}
             />
             {/* colour core — ALWAYS visible so the selected colour reads even at rest */}
-            <div
+            <ShadowSurface
               style={{
                 position: "absolute",
                 top: "50%",
@@ -1894,7 +1895,7 @@ const GradientSlider = ({
           </>
         ) : (
           // plain: always-visible bordered circle showing the gradient colour
-          <div
+          <ShadowSurface
             data-testid="gradient-slider-thumb"
             style={{
               position: "absolute",

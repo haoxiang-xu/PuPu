@@ -6,7 +6,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { useSprings, animated, to as interpolate } from "react-spring";
+import { useSprings, animated, to as interpolate } from "@react-spring/web";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 
 /* ============================================================================================================================ */

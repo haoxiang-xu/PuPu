@@ -144,7 +144,7 @@
         "transformVisible": "scale(1)",
         "pressedInset": 2,
         "minPressedRadius": 2,
-        "transitionIn": "transform 0.25s cubic-bezier(0.2, 0.9, 0.3, 1.0), opacity 0.18s ease, inset 0.15s cubic-bezier(0.32, 1, 0.32, 1), border-radius 0.15s ease",
+        "transitionIn": "transform 0.25s cubic-bezier(0.2, 0.9, 0.3, 1.0), opacity 0.18s ease, inset 0.15s cubic-bezier(0.32, 1, 0.32, 1), border-radius 0.15s cubic-bezier(0.32, 1, 0.32, 1)",
         "transitionOut": "transform 0.2s cubic-bezier(0.4, 0, 1, 1), opacity 0.15s ease, inset 0.15s ease, border-radius 0.15s ease"
       },
       "content": {
@@ -232,7 +232,7 @@
     },
     "modal": {
       "backgroundColor": "#FFFFFF",
-      "borderRadius": 12,
+      "borderRadius": 14,
       "boxShadow": "0 24px 80px rgba(0, 0, 0, 0.15), 0 8px 24px rgba(0, 0, 0, 0.08)",
       "border": "1px solid rgba(0, 0, 0, 0.08)",
       "padding": 18,
@@ -460,7 +460,7 @@
         "transformVisible": "scale(1)",
         "pressedInset": 2,
         "minPressedRadius": 2,
-        "transitionIn": "transform 0.25s cubic-bezier(0.2, 0.9, 0.3, 1.0), opacity 0.18s ease, inset 0.15s cubic-bezier(0.32, 1, 0.32, 1), border-radius 0.15s ease",
+        "transitionIn": "transform 0.25s cubic-bezier(0.2, 0.9, 0.3, 1.0), opacity 0.18s ease, inset 0.15s cubic-bezier(0.32, 1, 0.32, 1), border-radius 0.15s cubic-bezier(0.32, 1, 0.32, 1)",
         "transitionOut": "transform 0.2s cubic-bezier(0.4, 0, 1, 1), opacity 0.15s ease, inset 0.15s ease, border-radius 0.15s ease"
       },
       "content": {
@@ -548,7 +548,7 @@
     },
     "modal": {
       "backgroundColor": "#1E1E1E",
-      "borderRadius": 12,
+      "borderRadius": 14,
       "boxShadow": "0 24px 80px rgba(0, 0, 0, 0.6), 0 8px 24px rgba(0, 0, 0, 0.4)",
       "border": "1px solid rgba(255, 255, 255, 0.06)",
       "padding": 18,

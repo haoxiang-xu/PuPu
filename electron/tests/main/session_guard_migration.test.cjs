@@ -1,6 +1,7 @@
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const { execFileSync, spawnSync } = require("child_process");
 const {
   createSessionGuardMigrationController,
   validateSessionGuardMigrationReceipt,
@@ -122,6 +123,170 @@ describe("session guard migration boundary", () => {
     );
     expect(fs.existsSync(intentPath)).toBe(true);
   });
+
+  test("rejects a symlink even when O_NOFOLLOW is unavailable", () => {
+    const { controller, userData } = createController({
+      platform: "win32",
+      fs: {
+        ...fs,
+        constants: { ...fs.constants, O_NOFOLLOW: undefined },
+      },
+    });
+    const intentPath = path.join(
+      userData,
+      ".pupu-main",
+      "session_guard_migration_intent.json",
+    );
+    const targetPath = path.join(userData, "linked-intent.json");
+    fs.mkdirSync(path.dirname(intentPath));
+    fs.writeFileSync(targetPath, exactIntentText);
+    fs.symlinkSync(targetPath, intentPath, "file");
+
+    expect(() => controller.readPendingIntent()).toThrow(
+      expect.objectContaining({
+        code: "miso_session_guard_migration_intent_invalid",
+      }),
+    );
+  });
+
+  test("preserves the intent lifecycle without POSIX-only open flags", () => {
+    const overrides = {
+      platform: "win32",
+      fs: {
+        ...fs,
+        constants: {
+          ...fs.constants,
+          O_NOFOLLOW: undefined,
+          O_NONBLOCK: undefined,
+        },
+      },
+    };
+    const { controller, userData } = createController(overrides);
+
+    expect(controller.readPendingIntent()).toBe(false);
+    controller.persistPendingIntent();
+    controller.persistPendingIntent();
+    expect(controller.readPendingIntent()).toBe(true);
+    const restarted = createController({ ...overrides, userData }).controller;
+    expect(restarted.readPendingIntent()).toBe(true);
+    restarted.consumePendingIntent();
+    restarted.consumePendingIntent();
+    expect(controller.readPendingIntent()).toBe(false);
+  });
+
+  test.each([
+    { ...JSON.parse(exactIntentText), version: 2 },
+    { ...JSON.parse(exactIntentText), protocol_version: 2 },
+    { ...JSON.parse(exactIntentText), extra: true },
+  ])("rejects an intent outside the exact schema: %j", (intent) => {
+    const { controller, userData } = createController();
+    const intentPath = path.join(
+      userData,
+      ".pupu-main",
+      "session_guard_migration_intent.json",
+    );
+    fs.mkdirSync(path.dirname(intentPath));
+    fs.writeFileSync(intentPath, JSON.stringify(intent));
+
+    expect(() => controller.readPendingIntent()).toThrow(
+      expect.objectContaining({
+        code: "miso_session_guard_migration_intent_invalid",
+      }),
+    );
+  });
+
+  test("rejects a path replaced after opening and closes the descriptor", () => {
+    let openedFd;
+    const closeSync = jest.fn((fd) => fs.closeSync(fd));
+    const { controller, userData } = createController({
+      fs: {
+        ...fs,
+        openSync: (...args) => {
+          openedFd = fs.openSync(...args);
+          fs.renameSync(path.join(userData, "replacement.json"), args[0]);
+          return openedFd;
+        },
+        closeSync,
+      },
+    });
+    const intentPath = path.join(
+      userData,
+      ".pupu-main",
+      "session_guard_migration_intent.json",
+    );
+    fs.mkdirSync(path.dirname(intentPath));
+    fs.writeFileSync(intentPath, exactIntentText);
+    fs.writeFileSync(path.join(userData, "replacement.json"), exactIntentText);
+
+    expect(() => controller.readPendingIntent()).toThrow(
+      expect.objectContaining({
+        code: "miso_session_guard_migration_intent_invalid",
+      }),
+    );
+    expect(closeSync).toHaveBeenCalledTimes(1);
+    expect(closeSync).toHaveBeenCalledWith(openedFd);
+  });
+
+  if (process.platform !== "win32") {
+    test.each(["existing", "swapped-in"])(
+      "rejects a %s FIFO without blocking the process",
+      (kind) => {
+        const { userData } = createController();
+        const intentPath = path.join(
+          userData,
+          ".pupu-main",
+          "session_guard_migration_intent.json",
+        );
+        fs.mkdirSync(path.dirname(intentPath));
+        if (kind === "existing") {
+          execFileSync("mkfifo", [intentPath]);
+        } else {
+          fs.writeFileSync(intentPath, exactIntentText);
+        }
+        const result = spawnSync(
+          process.execPath,
+          [
+            "-e",
+            `const fs = require("fs");
+           const path = require("path");
+           const { execFileSync } = require("child_process");
+           const { createSessionGuardMigrationController } = require(${JSON.stringify(
+               require.resolve("../../main/services/unchain/session_guard_migration"),
+             )});
+           const intentFs = ${JSON.stringify(kind)} === "swapped-in" ? {
+             ...fs,
+             openSync: (...args) => {
+               fs.unlinkSync(args[0]);
+               execFileSync("mkfifo", [args[0]]);
+               return fs.openSync(...args);
+             },
+           } : fs;
+           const controller = createSessionGuardMigrationController({
+             app: { getPath: () => ${JSON.stringify(userData)} }, fs: intentFs, path,
+           });
+           try {
+             controller.readPendingIntent();
+             process.exitCode = 1;
+           } catch (error) {
+             if (error.code !== "miso_session_guard_migration_intent_invalid") throw error;
+             console.log(error.code);
+           }`,
+          ],
+          {
+            encoding: "utf8",
+            timeout: 3000,
+            env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
+          },
+        );
+
+        expect(result.error).toBeUndefined();
+        expect(result.status).toBe(0);
+        expect(result.stdout.trim()).toBe(
+          "miso_session_guard_migration_intent_invalid",
+        );
+      },
+    );
+  }
 
   test("strict orphan cleanup escalates TERM to KILL and proves absence", async () => {
     let clock = 0;

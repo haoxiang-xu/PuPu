@@ -1,3 +1,4 @@
+import ShadowSurface from "../material/shadow_surface";
 import React, {
   forwardRef,
   useCallback,
@@ -47,8 +48,11 @@ const SegmentedButtonCell = forwardRef(
     const showBg = hovered || pressed;
 
     return (
-      <div
+      <button
         ref={ref}
+        type="button"
+        disabled={isDisabled}
+        aria-pressed={isSelected}
         onClick={isDisabled ? undefined : () => onSelect(item.value)}
         onMouseEnter={() => !isDisabled && setHovered(true)}
         onMouseLeave={() => {
@@ -68,6 +72,9 @@ const SegmentedButtonCell = forwardRef(
           fontSize,
           fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
           fontWeight: 500,
+          appearance: "none",
+          border: "none",
+          background: "transparent",
           color: isDisabled
             ? isDark
               ? "rgba(255,255,255,0.25)"
@@ -120,7 +127,7 @@ const SegmentedButtonCell = forwardRef(
         {item.label && (
           <span style={{ position: "relative", zIndex: 1 }}>{item.label}</span>
         )}
-      </div>
+      </button>
     );
   },
 );
@@ -306,7 +313,7 @@ const SegmentedButton = ({
   }, [isDark, theme, inputTheme]);
 
   return (
-    <div
+    <ShadowSurface
       ref={containerRef}
       style={{
         position: "relative",
@@ -324,7 +331,7 @@ const SegmentedButton = ({
       }}
     >
       {/* ── sliding indicator ────────────────────────── */}
-      <div
+      <ShadowSurface
         style={{
           position: "absolute",
           top: outerPad,
@@ -367,7 +374,7 @@ const SegmentedButton = ({
           />
         );
       })}
-    </div>
+    </ShadowSurface>
   );
 };
 

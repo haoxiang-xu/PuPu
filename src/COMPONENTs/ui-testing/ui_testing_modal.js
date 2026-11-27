@@ -1,3 +1,4 @@
+import ShadowSurface from "../../BUILTIN_COMPONENTs/material/shadow_surface";
 import {
   useCallback,
   useContext,
@@ -210,7 +211,7 @@ const UITestingModal = ({ open, onClose }) => {
         </div>
 
         {/* ── left nav (collapsible glass) ── */}
-        <div
+        <ShadowSurface
           style={{
             ...overlayPanel,
             top: 6,
@@ -318,7 +319,7 @@ const UITestingModal = ({ open, onClose }) => {
               );
             })}
           </div>
-        </div>
+        </ShadowSurface>
 
         {/* ── expand button (only when collapsed) ── */}
         {navCollapsed && (

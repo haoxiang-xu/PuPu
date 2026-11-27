@@ -1,0 +1,335 @@
+{
+  "chatId": "chat-1793764381533-4563e81710c37e40a6174c8079a681d4",
+  "messages": [
+    {
+      "id": "user-1793764382777",
+      "role": "user",
+      "content": "QA356 lifecycle approve",
+      "createdAt": 1793764382777,
+      "updatedAt": 1793764382777
+    },
+    {
+      "id": "assistant-1793764382777-51b61d30cb204e52d2e7e9fd06609130",
+      "role": "assistant",
+      "content": "",
+      "createdAt": 1793764382777,
+      "updatedAt": 1793764388029,
+      "status": "done",
+      "traceFrames": [
+        {
+          "seq": 1,
+          "ts": 1793764382832,
+          "type": "stream_started",
+          "run_id": "unchain-1793764382781-9e5e2fd9acd7e8",
+          "stage": "runtime_event",
+          "links": {
+            "parent_run_id": null,
+            "parent_event_id": null,
+            "caused_by_event_id": null,
+            "step_id": null,
+            "tool_call_id": null,
+            "interaction_id": null,
+            "artifact_id": null,
+            "workspace_change_set_id": null,
+            "plan_id": null,
+            "channel_id": null,
+            "team_id": null
+          },
+          "event_id": "evt_5723ba43d501490b9915a488a23ef3ed",
+          "session_id": "chat-1793764381533-4563e81710c37e40a6174c8079a681d4",
+          "iteration": null,
+          "payload": {
+            "thread_id": "chat-1793764381533-4563e81710c37e40a6174c8079a681d4",
+            "model": "ollama:unchain-unset",
+            "trace_level": "minimal",
+            "runtime_event_id": "evt_5723ba43d501490b9915a488a23ef3ed"
+          }
+        },
+        {
+          "seq": 2,
+          "ts": 1793764383846,
+          "type": "iteration_started",
+          "run_id": "node-attempt.708c57ef4099b3702013dbd255ef8cc82bd66a1bbbd7788fc7a07561b2bafd48",
+          "stage": "runtime_event",
+          "links": {
+            "parent_run_id": null,
+            "parent_event_id": null,
+            "caused_by_event_id": null,
+            "step_id": null,
+            "tool_call_id": null,
+            "interaction_id": null,
+            "artifact_id": null,
+            "workspace_change_set_id": null,
+            "plan_id": null,
+            "channel_id": null,
+            "team_id": null
+          },
+          "event_id": "evt_96c16d20825249258ba916fc681fa524",
+          "session_id": "chat-1793764381533-4563e81710c37e40a6174c8079a681d4",
+          "iteration": 0,
+          "payload": {
+            "iteration": 0,
+            "runtime_event_id": "evt_96c16d20825249258ba916fc681fa524"
+          }
+        },
+        {
+          "seq": 4,
+          "ts": 1793764384236,
+          "type": "tool_call",
+          "run_id": "node-attempt.708c57ef4099b3702013dbd255ef8cc82bd66a1bbbd7788fc7a07561b2bafd48",
+          "stage": "runtime_event",
+          "links": {
+            "parent_run_id": null,
+            "parent_event_id": null,
+            "caused_by_event_id": null,
+            "step_id": "tool:approve-workflow-call",
+            "tool_call_id": "approve-workflow-call",
+            "interaction_id": null,
+            "artifact_id": null,
+            "workspace_change_set_id": null,
+            "plan_id": null,
+            "channel_id": null,
+            "team_id": null
+          },
+          "event_id": "evt_55d0ffc15b84418e90206667de03d71d",
+          "session_id": "chat-1793764381533-4563e81710c37e40a6174c8079a681d4",
+          "payload": {
+            "step_id": "tool:approve-workflow-call",
+            "step_type": "tool",
+            "tool_name": "workflow_mutate",
+            "call_id": "approve-workflow-call",
+            "arguments": {
+              "inputs": {
+                "path": "/home/runner/work/PuPu/PuPu/test-results/app/lifecycle-workspace/approve.txt"
+              }
+            },
+            "timeline_merge_policy": "approved",
+            "runtime_source_type": "tool_call",
+            "runtime_event_id": "evt_55d0ffc15b84418e90206667de03d71d"
+          }
+        },
+        {
+          "seq": 5,
+          "ts": 1793764385909,
+          "type": "tool_result",
+          "run_id": "node-attempt.708c57ef4099b3702013dbd255ef8cc82bd66a1bbbd7788fc7a07561b2bafd48",
+          "stage": "runtime_event",
+          "links": {
+            "parent_run_id": null,
+            "parent_event_id": null,
+            "caused_by_event_id": null,
+            "step_id": "tool:approve-workflow-call",
+            "tool_call_id": "approve-workflow-call",
+            "interaction_id": null,
+            "artifact_id": null,
+            "workspace_change_set_id": null,
+            "plan_id": null,
+            "channel_id": null,
+            "team_id": null
+          },
+          "event_id": "evt_f2695416303647d388e18d5afef70c42",
+          "session_id": "chat-1793764381533-4563e81710c37e40a6174c8079a681d4",
+          "payload": {
+            "step_id": "tool:approve-workflow-call",
+            "step_type": "tool",
+            "tool_name": "workflow_mutate",
+            "call_id": "approve-workflow-call",
+            "status": "success",
+            "result": {
+              "content_bytes": 72,
+              "content_sha256": "5bfd9dfda3aeb4126ee3047db025816dbd1f158fcc0ad453803df82ffae49666",
+              "full_output_ref": {
+                "fragment": "",
+                "id": "artifact-2941990af6b64b391ddb155db4ee8e4092c99ce524401cce88be115b8d46f11e",
+                "kind": "artifact",
+                "revision": 1,
+                "schema": "unchain.resource_ref.v1"
+              },
+              "inline": true,
+              "preview": "{\"schema\":\"unchain.skeleton_subagent_wait_marker.v1\",\"status\":\"waiting\"}",
+              "projection": "default"
+            },
+            "runtime_source_type": "tool_result",
+            "runtime_event_id": "evt_f2695416303647d388e18d5afef70c42"
+          }
+        },
+        {
+          "seq": 6,
+          "ts": 1793764386040,
+          "type": "response_received",
+          "run_id": "node-attempt.708c57ef4099b3702013dbd255ef8cc82bd66a1bbbd7788fc7a07561b2bafd48",
+          "stage": "runtime_event",
+          "links": {
+            "parent_run_id": null,
+            "parent_event_id": null,
+            "caused_by_event_id": null,
+            "step_id": "model:node-attempt.708c57ef4099b3702013dbd255ef8cc82bd66a1bbbd7788fc7a07561b2bafd48:turn-0:response",
+            "tool_call_id": null,
+            "interaction_id": null,
+            "artifact_id": null,
+            "workspace_change_set_id": null,
+            "plan_id": null,
+            "channel_id": null,
+            "team_id": null
+          },
+          "event_id": "evt_e1b33e35e6244372bac9f98913b1e341",
+          "session_id": "chat-1793764381533-4563e81710c37e40a6174c8079a681d4",
+          "iteration": 0,
+          "payload": {
+            "step_id": "model:node-attempt.708c57ef4099b3702013dbd255ef8cc82bd66a1bbbd7788fc7a07561b2bafd48:turn-0:response",
+            "step_type": "model_response",
+            "status": "awaiting_human_input",
+            "response_id": "",
+            "has_tool_calls": true,
+            "usage": {
+              "model": "qa356-approval",
+              "consumed_tokens": 27,
+              "input_tokens": 20,
+              "output_tokens": 7,
+              "last_turn_tokens": 27,
+              "last_turn_input_tokens": 20,
+              "last_turn_output_tokens": 7,
+              "max_context_window_tokens": 8192,
+              "context_window_used_pct": 0.33,
+              "status": "running",
+              "human_input_request": null,
+              "continuation": null,
+              "previous_response_id": null,
+              "iteration": 1
+            },
+            "runtime_event_id": "evt_e1b33e35e6244372bac9f98913b1e341"
+          }
+        },
+        {
+          "seq": 7,
+          "ts": 1793764388025,
+          "type": "tool_call",
+          "run_id": "unchain-1793764382781-9e5e2fd9acd7e8",
+          "stage": "runtime_event",
+          "links": {
+            "parent_run_id": null,
+            "parent_event_id": null,
+            "caused_by_event_id": null,
+            "step_id": "tool:node.ec7b764f422ad80435b93c1e9834c25ea83d5a84dee3ac5c2f203d8332c6c592",
+            "tool_call_id": "node.ec7b764f422ad80435b93c1e9834c25ea83d5a84dee3ac5c2f203d8332c6c592",
+            "interaction_id": "interaction_21561bb29ecbef66b760a5184c3bcdc1",
+            "artifact_id": null,
+            "workspace_change_set_id": null,
+            "plan_id": null,
+            "channel_id": null,
+            "team_id": null,
+            "input_request_id": "interaction_21561bb29ecbef66b760a5184c3bcdc1"
+          },
+          "event_id": "evt_30126b3722d647898fc1a6799d85c020",
+          "session_id": "chat-1793764381533-4563e81710c37e40a6174c8079a681d4",
+          "payload": {
+            "call_id": "node.ec7b764f422ad80435b93c1e9834c25ea83d5a84dee3ac5c2f203d8332c6c592",
+            "confirmation_id": "interaction_21561bb29ecbef66b760a5184c3bcdc1",
+            "requires_confirmation": true,
+            "tool_name": "write",
+            "description": "Create /home/runner/work/PuPu/PuPu/test-results/app/lifecycle-workspace/approve.txt",
+            "arguments": {
+              "content": "approved-exactly-once",
+              "path": "/home/runner/work/PuPu/PuPu/test-results/app/lifecycle-workspace/approve.txt"
+            },
+            "interact_type": "code_diff",
+            "interact_config": {
+              "displayed_lines": 4,
+              "fallback_description": "create /home/runner/work/PuPu/PuPu/test-results/app/lifecycle-workspace/approve.txt (+1 -0)",
+              "operation": "create",
+              "path": "/home/runner/work/PuPu/PuPu/test-results/app/lifecycle-workspace/approve.txt",
+              "title": "Create /home/runner/work/PuPu/PuPu/test-results/app/lifecycle-workspace/approve.txt",
+              "total_lines": 4,
+              "truncated": false,
+              "unified_diff": "--- a//home/runner/work/PuPu/PuPu/test-results/app/lifecycle-workspace/approve.txt\n+++ b//home/runner/work/PuPu/PuPu/test-results/app/lifecycle-workspace/approve.txt\n@@ -0,0 +1 @@\n+approved-exactly-once\n",
+              "options": []
+            },
+            "interaction_id": "interaction_21561bb29ecbef66b760a5184c3bcdc1",
+            "runtime_source_type": "interaction_requested",
+            "runtime_event_id": "evt_30126b3722d647898fc1a6799d85c020"
+          }
+        }
+      ],
+      "meta": {
+        "model": "unchain-unset",
+        "requestId": "unchain-1793764382781-9e5e2fd9acd7e8",
+        "attemptId": "unchain-1793764382781-9e5e2fd9acd7e8",
+        "executionSessionId": "chat-1793764381533-4563e81710c37e40a6174c8079a681d4"
+      }
+    }
+  ],
+  "pending": {
+    "active_attempt_id": "unchain-1793764382781-9e5e2fd9acd7e8",
+    "interaction_id": "interaction_21561bb29ecbef66b760a5184c3bcdc1",
+    "interaction_session_id": "chat-1793764381533-4563e81710c37e40a6174c8079a681d4",
+    "interaction_source_run_id": "unchain-1793764382781-9e5e2fd9acd7e8.subagent.d7a6ca8e44366ee69ebc588cdc8b63fe91eba20bba2e65d309b00eb07d94b5e3",
+    "kind": "tool_approval",
+    "model": "",
+    "presentation": {
+      "tool_call": {
+        "arguments": {
+          "content": "approved-exactly-once",
+          "path": "/home/runner/work/PuPu/PuPu/test-results/app/lifecycle-workspace/approve.txt"
+        },
+        "call_id": "node.ec7b764f422ad80435b93c1e9834c25ea83d5a84dee3ac5c2f203d8332c6c592",
+        "confirmation_id": "interaction_21561bb29ecbef66b760a5184c3bcdc1",
+        "description": "Create /home/runner/work/PuPu/PuPu/test-results/app/lifecycle-workspace/approve.txt",
+        "interact_config": {
+          "displayed_lines": 4,
+          "fallback_description": "create /home/runner/work/PuPu/PuPu/test-results/app/lifecycle-workspace/approve.txt (+1 -0)",
+          "operation": "create",
+          "path": "/home/runner/work/PuPu/PuPu/test-results/app/lifecycle-workspace/approve.txt",
+          "title": "Create /home/runner/work/PuPu/PuPu/test-results/app/lifecycle-workspace/approve.txt",
+          "total_lines": 4,
+          "truncated": false,
+          "unified_diff": "--- a//home/runner/work/PuPu/PuPu/test-results/app/lifecycle-workspace/approve.txt\n+++ b//home/runner/work/PuPu/PuPu/test-results/app/lifecycle-workspace/approve.txt\n@@ -0,0 +1 @@\n+approved-exactly-once\n"
+        },
+        "interact_type": "code_diff",
+        "requires_confirmation": true,
+        "tool_display_name": "Write",
+        "tool_name": "write",
+        "toolkit_id": "core",
+        "toolkit_name": "Core"
+      },
+      "trace_frame": {
+        "payload": {
+          "arguments": {
+            "content": "approved-exactly-once",
+            "path": "/home/runner/work/PuPu/PuPu/test-results/app/lifecycle-workspace/approve.txt"
+          },
+          "call_id": "node.ec7b764f422ad80435b93c1e9834c25ea83d5a84dee3ac5c2f203d8332c6c592",
+          "confirmation_id": "interaction_21561bb29ecbef66b760a5184c3bcdc1",
+          "description": "Create /home/runner/work/PuPu/PuPu/test-results/app/lifecycle-workspace/approve.txt",
+          "interact_config": {
+            "displayed_lines": 4,
+            "fallback_description": "create /home/runner/work/PuPu/PuPu/test-results/app/lifecycle-workspace/approve.txt (+1 -0)",
+            "operation": "create",
+            "path": "/home/runner/work/PuPu/PuPu/test-results/app/lifecycle-workspace/approve.txt",
+            "title": "Create /home/runner/work/PuPu/PuPu/test-results/app/lifecycle-workspace/approve.txt",
+            "total_lines": 4,
+            "truncated": false,
+            "unified_diff": "--- a//home/runner/work/PuPu/PuPu/test-results/app/lifecycle-workspace/approve.txt\n+++ b//home/runner/work/PuPu/PuPu/test-results/app/lifecycle-workspace/approve.txt\n@@ -0,0 +1 @@\n+approved-exactly-once\n"
+          },
+          "interact_type": "code_diff",
+          "requires_confirmation": true,
+          "tool_display_name": "Write",
+          "tool_name": "write",
+          "toolkit_id": "core",
+          "toolkit_name": "Core"
+        },
+        "run_id": "unchain-1793764382781-9e5e2fd9acd7e8.subagent.d7a6ca8e44366ee69ebc588cdc8b63fe91eba20bba2e65d309b00eb07d94b5e3",
+        "seq": 0,
+        "stage": "durable_recovery",
+        "ts": 1793764389343,
+        "type": "tool_call"
+      }
+    },
+    "provider": "",
+    "resume_available": true,
+    "resume_kind": "skeleton",
+    "resume_options": {},
+    "session_id": "chat-1793764381533-4563e81710c37e40a6174c8079a681d4",
+    "source_run_id": "unchain-1793764382781-9e5e2fd9acd7e8",
+    "status": "awaiting_response"
+  }
+}

@@ -35,13 +35,26 @@ import {
   setChatModel,
 } from "../../../SERVICEs/chat_storage";
 import { writeFeatureFlags } from "../../../SERVICEs/feature_flags";
-import { enqueueExecutionCancel, readExecutionCancelOutbox } from "./execution_cancel_outbox";
+import {
+  enqueueExecutionCancel,
+  EXECUTION_CANCEL_OUTBOX_STORAGE_KEY,
+  readExecutionCancelOutbox,
+} from "./execution_cancel_outbox";
+import * as executionCancelOutbox from "./execution_cancel_outbox";
+import * as turnMutationOutbox from "../../../SERVICEs/turn_mutation_outbox";
+import { CHATS_STORAGE_KEY } from "../../../SERVICEs/chat_storage/chat_storage_constants";
 import { normalizePendingInteraction } from "./durable_interaction_recovery";
 import { writeReasoningEffortPref } from "../../../SERVICEs/reasoning_effort_prefs";
 import ollamaPreviewFixture from "../../../SERVICEs/runtime_events/fixtures/ollama_live_preview.json";
 import { resolveToolCallOwnerForRequest } from "../../../SERVICEs/runtime_events/tool_call_projection";
 import { mergePendingConfirmationTraceState } from "../../../COMPONENTs/chat-bubble/pending_confirmation_trace_frames";
 import observedBatchFixture from "../../../SERVICEs/runtime_events/fixtures/ticket_384_observed_batch.json";
+
+import settlementFixture from "../../../COMPONENTs/chat-bubble/__fixtures__/ticket_357_subagent_settlement.json";
+import coldMetadataFixture from "./fixtures/ticket_357_cold_child_metadata.json";
+import nativeColdApprovalCapture from "./fixtures/native_cold_approval.json";
+import cancelledSubagentProducer from "../../../COMPONENTs/chat-bubble/__fixtures__/ticket_357_cancelled_subagent_producer.json";
+import { collectSubagentSettlements, settlementForToolCall } from "../../../SERVICEs/runtime_events/subagent_settlement";
 
 const pendingToolInteraction = (sessionId, attemptId, interactionId) => {
   const toolCall = {
@@ -67,6 +80,46 @@ const pendingGraphStepInteraction = (sessionId, graphStepAttemptId, coordinatorA
   graph_step_attempt_id: graphStepAttemptId,
   graph_coordinator_attempt_id: coordinatorAttemptId,
 });
+
+const nativeColdCaptureForChat = (chatId) => {
+  const captured = JSON.parse(JSON.stringify(nativeColdApprovalCapture));
+  captured.chatId = chatId;
+  captured.pending.session_id = chatId;
+  captured.pending.interaction_session_id = chatId;
+  captured.messages[1].meta.executionSessionId = chatId;
+  captured.messages[1].traceFrames = captured.messages[1].traceFrames.map((frame) => ({
+    ...frame,
+    session_id: frame.type === "tool_call" &&
+      frame.payload?.runtime_source_type === "interaction_requested"
+      ? chatId
+      : frame.session_id,
+  }));
+  return captured;
+};
+
+const prepareNativeColdApproval = (chatId, mount) => {
+  const captured = nativeColdCaptureForChat(chatId);
+  let pending = captured.pending;
+  setChatMessages(chatId, captured.messages, { source: "test" });
+  window.unchainAPI.isDurableInteractionBridgeAvailable = jest.fn(() => true);
+  window.unchainAPI.getPendingInteraction = jest.fn(async ({ session_id: sessionId } = {}) =>
+    sessionId === chatId ? pending : { status: "none", session_id: sessionId },
+  );
+  window.unchainAPI.cancelExecution = jest.fn(async () => ({ status: "ok" }));
+  window.unchainAPI.startStreamV4 = jest.fn((payload) => {
+    return {
+      requestId: `native-resume-${payload?.interaction_id || "unknown"}`,
+      attemptId: "native-resume-attempt",
+      disconnect: jest.fn(),
+      cancel: jest.fn(),
+    };
+  });
+  return {
+    captured,
+    setPending: (value) => { pending = value; },
+    mount,
+  };
+};
 
 let lastChatMessagesProps = null;
 let lastChatInputProps = null;
@@ -293,6 +346,355 @@ describe("Memory V2 P0 payload seams", () => {
     });
   };
 
+  test("localStorage fallback bootstrap restores a native owner before lookup", async () => {
+    const chatId = "native-cold-bootstrap-chat";
+    const captured = nativeColdCaptureForChat(chatId);
+    const nodeId = `chn-${chatId}`;
+    const now = Date.now();
+    window.localStorage.setItem(CHATS_STORAGE_KEY, JSON.stringify({
+      schemaVersion: 2,
+      updatedAt: now,
+      activeChatId: chatId,
+      lruChatIds: [chatId],
+      chatsById: {
+        [chatId]: {
+          id: chatId,
+          title: "Native cold approval",
+          createdAt: now,
+          updatedAt: now,
+          lastMessageAt: now,
+          threadId: chatId,
+          model: { id: "openai:gpt-5" },
+          agentOrchestration: { mode: "default" },
+          selectedToolkits: [],
+          selectedWorkspaceIds: [],
+          systemPromptOverrides: {},
+          draft: { text: "", attachments: [], updatedAt: now },
+          isTransientNewChat: false,
+          hasUnreadGeneratedReply: false,
+          isGenerating: false,
+          stats: { messageCount: captured.messages.length, approxBytes: 1024 },
+          messages: captured.messages,
+        },
+      },
+      tree: {
+        root: [nodeId],
+        nodesById: {
+          [nodeId]: { id: nodeId, entity: "chat", type: "file", chatId, label: "Native cold approval" },
+        },
+        selectedNodeId: nodeId,
+        expandedFolderIds: [],
+      },
+      ui: {},
+    }));
+    window.unchainAPI.isDurableInteractionBridgeAvailable = jest.fn(() => true);
+    window.unchainAPI.getPendingInteraction = jest.fn(async ({ session_id: sessionId } = {}) =>
+      sessionId === chatId ? captured.pending : { status: "none", session_id: sessionId },
+    );
+    window.unchainAPI.cancelExecution = jest.fn(async () => ({ status: "ok" }));
+    window.unchainAPI.startStreamV4 = jest.fn();
+
+    renderChat();
+    await waitFor(() => expect(lastChatMessagesProps?.pendingToolConfirmationRequests?.[
+      captured.pending.interaction_id
+    ]).toBeDefined());
+
+    expect(lastChatMessagesProps.messages).toEqual(captured.messages);
+    expect(window.unchainAPI.getPendingInteraction).toHaveBeenCalledWith({ session_id: chatId });
+    expect(window.unchainAPI.cancelExecution).not.toHaveBeenCalled();
+    expect(window.unchainAPI.startStreamV4).not.toHaveBeenCalled();
+  });
+
+  test("cold lookup retains the original native approval owner without cancelling or resuming", async () => {
+    const chatId = getChatsStore().activeChatId;
+    const { captured, mount } = prepareNativeColdApproval(chatId, renderChat);
+    mount();
+    await waitFor(() => {
+      expect(window.unchainAPI.getStatus).toHaveBeenCalled();
+      expect(window.unchainAPI.getModelCatalog).toHaveBeenCalled();
+    });
+    await waitFor(() => expect(lastChatMessagesProps?.pendingToolConfirmationRequests?.[
+      captured.pending.interaction_id
+    ]).toBeDefined());
+
+    expect(lastChatMessagesProps.messages).toEqual(captured.messages);
+    expect(window.unchainAPI.cancelExecution).not.toHaveBeenCalled();
+    expect(window.unchainAPI.startStreamV4).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    ["cancel", executionCancelOutbox, "readExecutionCancelOutboxState"],
+    ["turn mutation", turnMutationOutbox, "readTurnMutationAdmissionOutboxState"],
+  ])("cold native approval waits on an unavailable %s fence then retries safely", async (_name, module, readerName) => {
+    const chatId = getChatsStore().activeChatId;
+    const { captured, mount } = prepareNativeColdApproval(chatId, renderChat);
+    const originalReader = module[readerName].bind(module);
+    let fenceUnavailable = true;
+    const reader = jest.spyOn(module, readerName).mockImplementation((...args) =>
+      fenceUnavailable
+        ? { available: false, entries: [] }
+        : originalReader(...args),
+    );
+    mount();
+
+    await waitFor(() => expect(window.unchainAPI.getPendingInteraction).toHaveBeenCalled());
+    expect(lastChatMessagesProps?.pendingToolConfirmationRequests?.[
+      captured.pending.interaction_id
+    ]).toBeUndefined();
+    expect(window.unchainAPI.cancelExecution).not.toHaveBeenCalled();
+    expect(window.unchainAPI.startStreamV4).not.toHaveBeenCalled();
+
+    fenceUnavailable = false;
+    await waitFor(() => expect(lastChatMessagesProps?.pendingToolConfirmationRequests?.[
+      captured.pending.interaction_id
+    ]).toBeDefined(), { timeout: 4000 });
+    expect(reader.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(window.unchainAPI.cancelExecution).not.toHaveBeenCalled();
+    expect(window.unchainAPI.startStreamV4).not.toHaveBeenCalled();
+  });
+
+  test("target-first oversized cancellation snapshot cannot be rewritten before native lookup", async () => {
+    const chatId = getChatsStore().activeChatId;
+    const { captured, mount } = prepareNativeColdApproval(chatId, renderChat);
+    const entries = [
+      {
+        ownerChatId: chatId,
+        sessionId: chatId,
+        attemptId: captured.pending.source_run_id,
+        sourceAttemptId: captured.pending.source_run_id,
+        interactionId: captured.pending.interaction_id,
+        reason: "user_stop",
+        createdAt: 1,
+      },
+      ...Array.from({ length: 64 }, (_value, index) => ({
+        ownerChatId: `unrelated-chat-${index}`,
+        sessionId: `unrelated-session-${index}`,
+        attemptId: `unrelated-attempt-${index}`,
+        reason: "user_stop",
+        createdAt: index + 2,
+      })),
+    ];
+    const originalBytes = JSON.stringify(entries);
+    window.localStorage.setItem(EXECUTION_CANCEL_OUTBOX_STORAGE_KEY, originalBytes);
+    let releasePending = null;
+    let releaseSecondCancellation = null;
+    window.unchainAPI.getPendingInteraction = jest.fn(({ session_id: sessionId } = {}) =>
+      new Promise((resolve) => {
+        if (sessionId === chatId) releasePending = resolve;
+        else resolve({ status: "none", session_id: sessionId });
+      }),
+    );
+    window.unchainAPI.cancelExecution = jest.fn((payload) => {
+      const response = {
+        status: "cancelled",
+        execution_id: payload.session_id,
+        attempt_id: payload.attempt_id,
+        state: "cancelled",
+      };
+      if (payload.attempt_id === "unrelated-attempt-0") {
+        return Promise.resolve(response);
+      }
+      if (payload.attempt_id === "unrelated-attempt-1") {
+        return new Promise((resolve) => { releaseSecondCancellation = () => resolve(response); });
+      }
+      return Promise.resolve(response);
+    });
+
+    const rendered = mount();
+    await waitFor(() => expect(releasePending).toEqual(expect.any(Function)));
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 40)));
+    const cancellationCallsBeforePending = window.unchainAPI.cancelExecution.mock.calls.length;
+    const bytesBeforePending = window.localStorage.getItem(EXECUTION_CANCEL_OUTBOX_STORAGE_KEY);
+    await act(async () => releasePending(captured.pending));
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 40)));
+    const actionableOwner = lastChatMessagesProps?.pendingToolConfirmationRequests?.[
+      captured.pending.interaction_id
+    ];
+    rendered.unmount();
+    releaseSecondCancellation?.();
+
+    expect(bytesBeforePending).toBe(originalBytes);
+    expect(actionableOwner).toBeUndefined();
+    expect(cancellationCallsBeforePending).toBe(0);
+    expect(window.unchainAPI.startStreamV4).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    ["root Stop", (chatId, captured) => ({
+      ownerChatId: chatId,
+      sessionId: chatId,
+      attemptId: captured.pending.source_run_id,
+      sourceAttemptId: captured.pending.source_run_id,
+    })],
+    ["resumed-attempt Stop linked to the root", (_chatId, captured) => ({
+      ownerChatId: "foreign-owner",
+      sessionId: "foreign-session",
+      attemptId: "later-resume-attempt",
+      sourceAttemptId: captured.pending.source_run_id,
+    })],
+  ])("cold native approval preserves an unresolved %s fence", async (_label, makeEntry) => {
+    const chatId = getChatsStore().activeChatId;
+    const { captured, setPending, mount } = prepareNativeColdApproval(chatId, renderChat);
+    window.localStorage.setItem(EXECUTION_CANCEL_OUTBOX_STORAGE_KEY, JSON.stringify([{
+      ...makeEntry(chatId, captured),
+      reason: "user_stop",
+      createdAt: 1,
+      retryBlocked: true,
+    }]));
+    window.unchainAPI.cancelExecution.mockImplementation(async (payload) => {
+      const exactTarget =
+        payload.owner_chat_id === chatId &&
+        payload.session_id === chatId &&
+        payload.attempt_id === captured.pending.source_run_id &&
+        payload.reason === "interaction_suspended";
+      if (exactTarget) setPending({ status: "none", session_id: chatId });
+      return {
+        status: exactTarget ? "cancelled" : "ok",
+        execution_id: payload.session_id,
+        attempt_id: payload.attempt_id,
+        source_attempt_id: payload.source_attempt_id,
+        state: exactTarget ? "cancelled" : "accepted",
+      };
+    });
+    mount();
+
+    await waitFor(() => expect(window.unchainAPI.getPendingInteraction).toHaveBeenCalled());
+    await waitFor(() => expect(window.unchainAPI.cancelExecution).toHaveBeenCalled());
+    await waitFor(() => expect(lastChatMessagesProps?.pendingToolConfirmationRequests?.[
+      captured.pending.interaction_id
+    ]).toBeUndefined());
+    expect(window.unchainAPI.startStreamV4).not.toHaveBeenCalled();
+    expect(window.unchainAPI.respondToolConfirmation).not.toHaveBeenCalled();
+  });
+
+  test("a pending turn mutation blocks native cold admission while keeping its own path", async () => {
+    const chatId = getChatsStore().activeChatId;
+    const { captured, setPending, mount } = prepareNativeColdApproval(chatId, renderChat);
+    window.localStorage.setItem(turnMutationOutbox.TURN_MUTATION_OUTBOX_STORAGE_KEY, JSON.stringify([{
+      operationId: "pending-resend-fence",
+      chatId,
+      sessionId: chatId,
+      kind: "resend",
+      targetMessageId: "user-native-captured",
+      originalFingerprint: "original",
+      baseFingerprint: "base",
+      baseMessageCount: 0,
+      text: "preserve the pending resend",
+      createdAt: 1,
+    }]));
+    window.unchainAPI.cancelExecution.mockImplementation(async (payload) => {
+      setPending({ status: "none", session_id: chatId });
+      return { status: "cancelled", execution_id: chatId, attempt_id: payload.attempt_id, state: "cancelled" };
+    });
+    mount();
+
+    await waitFor(() => expect(window.unchainAPI.getPendingInteraction).toHaveBeenCalled());
+    await waitFor(() => expect(lastChatMessagesProps?.pendingToolConfirmationRequests?.[
+      captured.pending.interaction_id
+    ]).toBeUndefined());
+    expect(window.unchainAPI.startStreamV4.mock.calls.some(
+      ([payload]) => payload?.mode === "resume_interaction",
+    )).toBe(false);
+  });
+
+  test("target-first oversized turn-mutation snapshot cannot be rewritten by recovery", async () => {
+    const chatId = getChatsStore().activeChatId;
+    const { captured, mount } = prepareNativeColdApproval(chatId, renderChat);
+    const mutation = (operationId, targetChatId, overrides = {}) => ({
+      operationId,
+      chatId: targetChatId,
+      sessionId: targetChatId,
+      kind: "resend",
+      targetMessageId: "user-native-captured",
+      originalFingerprint: "original",
+      baseFingerprint: "base",
+      baseMessageCount: 0,
+      text: "preserve the pending resend",
+      createdAt: 1,
+      ...overrides,
+    });
+    const rows = [
+      mutation("target-first-native-fence", chatId),
+      ...Array.from({ length: 31 }, (_value, index) =>
+        mutation(`unrelated-mutation-${index}`, `unrelated-chat-${index}`),
+      ),
+      mutation("retained-current-chat-tail", chatId, {
+        retryStatus: "attempting",
+        retryAt: 0,
+      }),
+    ];
+    const originalBytes = JSON.stringify(rows);
+    window.localStorage.setItem(turnMutationOutbox.TURN_MUTATION_OUTBOX_STORAGE_KEY, originalBytes);
+    const rendered = mount();
+    await waitFor(() => expect(window.unchainAPI.getPendingInteraction).toHaveBeenCalled());
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 40)));
+    const storedBytes = window.localStorage.getItem(turnMutationOutbox.TURN_MUTATION_OUTBOX_STORAGE_KEY);
+    const actionableOwner = lastChatMessagesProps?.pendingToolConfirmationRequests?.[
+      captured.pending.interaction_id
+    ];
+    rendered.unmount();
+
+    expect(storedBytes).toBe(originalBytes);
+    expect(actionableOwner).toBeUndefined();
+    expect(window.unchainAPI.cancelExecution).not.toHaveBeenCalled();
+    expect(window.unchainAPI.startStreamV4.mock.calls.some(
+      ([payload]) => payload?.mode === "resume_interaction",
+    )).toBe(false);
+  });
+
+  test.each([true, false])("cold native approval submits %s once with the original root receipt", async (approved) => {
+    const chatId = getChatsStore().activeChatId;
+    const { captured, setPending, mount } = prepareNativeColdApproval(chatId, renderChat);
+    const receiptId = `native-receipt-${approved ? "approved" : "denied"}`;
+    window.unchainAPI.respondToolConfirmation = jest.fn(async (payload) => {
+      const resolvedApproval = payload.approved === true;
+      setPending({
+        ...captured.pending,
+        status: "receipt_recorded",
+        receipt_id: receiptId,
+        resolution: {
+          outcome: resolvedApproval ? "approved" : "denied",
+          response: { approved: resolvedApproval, reason: "" },
+        },
+      });
+      return {
+        status: "ok",
+        durable: true,
+        disposition: "receipt_recorded",
+        session_id: chatId,
+        interaction_id: captured.pending.interaction_id,
+        receipt_id: receiptId,
+      };
+    });
+    window.unchainAPI.isRuntimeEventStreamV4Available.mockReturnValue(true);
+    mount();
+    await waitFor(() => expect(lastChatMessagesProps?.pendingToolConfirmationRequests?.[
+      captured.pending.interaction_id
+    ]).toBeDefined());
+
+    const decision = {
+      confirmationId: captured.pending.interaction_id,
+      approved,
+    };
+    await act(async () => {
+      await lastChatMessagesProps.onToolConfirmationDecision(decision);
+      await lastChatMessagesProps.onToolConfirmationDecision(decision);
+    });
+    await waitFor(() => expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(1));
+
+    expect(window.unchainAPI.respondToolConfirmation).toHaveBeenCalledTimes(1);
+    expect(window.unchainAPI.startStreamV4.mock.calls[0][0]).toEqual(expect.objectContaining({
+      mode: "resume_interaction",
+      threadId: chatId,
+      interaction_id: captured.pending.interaction_id,
+      source_attempt_id: captured.pending.source_run_id,
+      message: "",
+      history: [],
+      attachments: [],
+    }));
+    expect(window.unchainAPI.cancelExecution).not.toHaveBeenCalled();
+  });
+
   const sendText = (text) => {
     fireEvent.change(screen.getByTestId("chat-input"), {
       target: { value: text },
@@ -333,6 +735,411 @@ describe("Memory V2 P0 payload seams", () => {
     await waitFor(() => expect(streamHandlers).not.toBeNull());
     expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(1);
   };
+
+  const nativeChildObservationFixture356 = {
+  "ids": {
+    "R": "observation-root-R",
+    "T": "observation-transport-T",
+    "P": "observation-parent-P",
+    "C": "observation-child-C",
+    "N": "node-attempt-observation-N"
+  },
+  "events": [
+    {
+      "schema_version": "v4",
+      "event_id": "event-0",
+      "type": "session.started",
+      "timestamp": "2026-11-07T00:18:27.009662Z",
+      "session_id": "observation-session",
+      "run_id": "observation-transport-T",
+      "agent_id": "developer",
+      "turn_id": null,
+      "seq": 1,
+      "links": {
+        "parent_run_id": null,
+        "parent_event_id": null,
+        "caused_by_event_id": null,
+        "step_id": null,
+        "tool_call_id": null,
+        "interaction_id": null,
+        "artifact_id": null,
+        "workspace_change_set_id": null,
+        "plan_id": null,
+        "channel_id": null,
+        "team_id": null
+      },
+      "surface": {
+        "slot": "debug",
+        "scope": "session",
+        "group": "session",
+        "default_state": "hidden",
+        "priority": 1000
+      },
+      "visibility": "debug",
+      "payload": {},
+      "metadata": {}
+    },
+    {
+      "schema_version": "v4",
+      "event_id": "event-1",
+      "type": "run.started",
+      "timestamp": "2026-11-07T00:18:27.009947Z",
+      "session_id": "observation-session",
+      "run_id": "observation-child-C",
+      "agent_id": "kernel.reviewer.1",
+      "turn_id": null,
+      "seq": 2,
+      "links": {
+        "parent_run_id": "observation-parent-P",
+        "parent_event_id": null,
+        "caused_by_event_id": null,
+        "step_id": null,
+        "tool_call_id": null,
+        "interaction_id": null,
+        "artifact_id": null,
+        "workspace_change_set_id": null,
+        "plan_id": null,
+        "channel_id": null,
+        "team_id": null
+      },
+      "surface": {
+        "slot": "debug",
+        "scope": "run",
+        "group": "debug",
+        "default_state": "hidden",
+        "priority": 1000
+      },
+      "visibility": "user",
+      "payload": {
+        "agent_id": "kernel.reviewer.1",
+        "parent_id": "kernel",
+        "mode": "delegate",
+        "template": "Reviewer",
+        "lineage": [
+          "kernel",
+          "kernel.reviewer.1"
+        ],
+        "status": "running"
+      },
+      "metadata": {
+        "raw_type": "subagent_started"
+      }
+    },
+    {
+      "schema_version": "v4",
+      "event_id": "event-2",
+      "type": "step.completed",
+      "timestamp": "2026-11-07T00:18:27.009996Z",
+      "session_id": "observation-session",
+      "run_id": "node-attempt-observation-N",
+      "agent_id": "developer",
+      "turn_id": null,
+      "seq": 3,
+      "links": {
+        "parent_run_id": "observation-child-C",
+        "parent_event_id": null,
+        "caused_by_event_id": null,
+        "step_id": "model:node-attempt-observation-N:response",
+        "tool_call_id": null,
+        "interaction_id": null,
+        "artifact_id": null,
+        "workspace_change_set_id": null,
+        "plan_id": null,
+        "channel_id": null,
+        "team_id": null
+      },
+      "surface": {
+        "slot": "trace_inline",
+        "scope": "turn",
+        "group": "model",
+        "default_state": "collapsed",
+        "priority": 100
+      },
+      "visibility": "user",
+      "payload": {
+        "step_id": "model:node-attempt-observation-N:response",
+        "step_type": "model_response",
+        "status": "completed",
+        "response_id": "child-response",
+        "has_tool_calls": false
+      },
+      "metadata": {
+        "raw_type": "response_received"
+      }
+    },
+    {
+      "schema_version": "v4",
+      "event_id": "event-3",
+      "type": "step.completed",
+      "timestamp": "2026-11-07T00:18:27.010026Z",
+      "session_id": "observation-session",
+      "run_id": "node-attempt-observation-N",
+      "agent_id": "developer",
+      "turn_id": null,
+      "seq": 4,
+      "links": {
+        "parent_run_id": "observation-child-C",
+        "parent_event_id": null,
+        "caused_by_event_id": null,
+        "step_id": "model:node-attempt-observation-N:response",
+        "tool_call_id": null,
+        "interaction_id": null,
+        "artifact_id": null,
+        "workspace_change_set_id": null,
+        "plan_id": null,
+        "channel_id": null,
+        "team_id": null
+      },
+      "surface": {
+        "slot": "trace_inline",
+        "scope": "turn",
+        "group": "model",
+        "default_state": "collapsed",
+        "priority": 100
+      },
+      "visibility": "user",
+      "payload": {
+        "step_id": "model:node-attempt-observation-N:response",
+        "step_type": "model_response",
+        "status": "completed",
+        "final_text": "NATIVE_CHILD_MODEL_OBSERVATION"
+      },
+      "metadata": {
+        "raw_type": "final_message"
+      }
+    },
+    {
+      "schema_version": "v4",
+      "event_id": "event-4",
+      "type": "step.completed",
+      "timestamp": "2026-11-07T00:18:27.010050Z",
+      "session_id": "observation-session",
+      "run_id": "observation-child-C",
+      "agent_id": "developer",
+      "turn_id": null,
+      "seq": 5,
+      "links": {
+        "parent_run_id": "observation-parent-P",
+        "parent_event_id": null,
+        "caused_by_event_id": null,
+        "step_id": "model:observation-child-C:response",
+        "tool_call_id": null,
+        "interaction_id": null,
+        "artifact_id": null,
+        "workspace_change_set_id": null,
+        "plan_id": null,
+        "channel_id": null,
+        "team_id": null
+      },
+      "surface": {
+        "slot": "trace_inline",
+        "scope": "turn",
+        "group": "model",
+        "default_state": "collapsed",
+        "priority": 100
+      },
+      "visibility": "user",
+      "payload": {
+        "step_id": "model:observation-child-C:response",
+        "step_type": "model_response",
+        "status": "completed",
+        "final_text": "COMMITTED_CHILD_END"
+      },
+      "metadata": {
+        "raw_type": "final_message"
+      }
+    },
+    {
+      "schema_version": "v4",
+      "event_id": "event-5",
+      "type": "step.completed",
+      "timestamp": "2026-11-07T00:18:27.010069Z",
+      "session_id": "observation-session",
+      "run_id": "observation-root-R",
+      "agent_id": "developer",
+      "turn_id": null,
+      "seq": 6,
+      "links": {
+        "parent_run_id": null,
+        "parent_event_id": null,
+        "caused_by_event_id": null,
+        "step_id": "model:observation-root-R:response",
+        "tool_call_id": null,
+        "interaction_id": null,
+        "artifact_id": null,
+        "workspace_change_set_id": null,
+        "plan_id": null,
+        "channel_id": null,
+        "team_id": null
+      },
+      "surface": {
+        "slot": "trace_inline",
+        "scope": "turn",
+        "group": "model",
+        "default_state": "collapsed",
+        "priority": 100
+      },
+      "visibility": "user",
+      "payload": {
+        "step_id": "model:observation-root-R:response",
+        "step_type": "model_response",
+        "status": "completed",
+        "final_text": "ROOT_PARENT_FINAL"
+      },
+      "metadata": {
+        "raw_type": "final_message"
+      }
+    }
+  ]
+};
+
+  test("#356 native child observation: no node run_started persists N under lifecycle C", async () => {
+    // Exact existing Core95 RuntimeEventBridge output; only execution session is
+    // rebound to this real hook/store harness. No raw/node run_started exists.
+    const captured = JSON.parse(JSON.stringify(nativeChildObservationFixture356));
+    const { R: root, T: transport, C: child, N: node } = captured.ids;
+    expect(captured.events.some((event) => event.run_id === node && event.type === "run.started")).toBe(false);
+    startRuntimeV4(transport);
+    renderChat();
+    await waitForReady();
+    sendText("observe the committed child and its native model");
+    await waitForRuntimeRun();
+    const chatId = getChatsStore().activeChatId;
+    await act(async () => {
+      captured.events.forEach((event) => streamHandlers.onRuntimeEvent({ ...event, session_id: chatId }));
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      streamHandlers.onDone({ status: "completed" });
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    });
+    const stored = getChatMessages(chatId).find((message) => message.role === "assistant");
+    expect(stored).toBeDefined();
+    expect(stored.content).toBe("ROOT_PARENT_FINAL");
+    expect(stored.subagentMetaByRunId[child].subagentId).toBe("kernel.reviewer.1");
+    expect(stored.subagentFrames[child]).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: "final_message", run_id: child,
+        payload: expect.objectContaining({ content: "COMMITTED_CHILD_END" }) }),
+    ]));
+    // Genuine regression: lifecycle C and canonical root prerequisites passed.
+    expect(stored.subagentFrames[node]).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: "final_message", run_id: node,
+        links: expect.objectContaining({ parent_run_id: child }),
+        payload: expect.objectContaining({ content: "NATIVE_CHILD_MODEL_OBSERVATION" }) }),
+    ]));
+    expect((stored.traceFrames || []).filter((frame) => frame.run_id === node)).toEqual([]);
+    expect(stored.subagentMetaByRunId?.[node]).toBeUndefined();
+    expect(stored.traceFrames.some((frame) => frame.run_id === root)).toBe(true);
+    // Reopen from the actual store, not a separately constructed renderer shape.
+    const reopened = getChatMessages(chatId).find((message) => message.id === stored.id);
+    expect(reopened.subagentFrames[node]).toEqual(stored.subagentFrames[node]);
+    expect(lastChatMessagesProps.messages.find((message) => message.id === stored.id).subagentFrames[node])
+      .toEqual(stored.subagentFrames[node]);
+  });
+
+  const nativeObservationEvent356 = (index, chatId, overrides = {}) => ({
+    ...JSON.parse(JSON.stringify(nativeChildObservationFixture356.events[index])),
+    session_id: chatId,
+    ...overrides,
+  });
+
+  test.each(["wrong session", "unknown parent", "status-only parent", "root P", "root started"])(
+    "#356 native child observation current fences: %s", async (scenario) => {
+      const { R: root, T: transport, P: parent, C: child, N: node } = nativeChildObservationFixture356.ids;
+      startRuntimeV4(transport);
+      renderChat(); await waitForReady(); sendText("observe child ownership fences");
+      await waitForRuntimeRun();
+      const chatId = getChatsStore().activeChatId;
+      if (scenario === "status-only parent") {
+        await act(async () => setChatMessages(chatId, getChatMessages(chatId).map((message) =>
+          message.role === "assistant" ? { ...message,
+            subagentMetaByRunId: { [child]: { status: "running", subagentId: "" } },
+            subagentFrames: { [child]: [] } } : message), { source: "test" }));
+      }
+      await act(async () => {
+        streamHandlers.onRuntimeEvent(nativeObservationEvent356(0, chatId));
+        if (scenario === "root started") streamHandlers.onRuntimeEvent({
+          ...nativeObservationEvent356(0, chatId), type: "run.started", run_id: root,
+          event_id: "root-started-observation", payload: { status: "running" }, metadata: { raw_type: "run_started" },
+        });
+        if (scenario !== "status-only parent") streamHandlers.onRuntimeEvent(nativeObservationEvent356(1, chatId));
+        [2, 3].forEach((index) => {
+          const event = nativeObservationEvent356(index, chatId);
+          if (scenario === "wrong session") event.session_id = "foreign-execution-session";
+          if (scenario === "unknown parent") event.links.parent_run_id = "unrelated-child";
+          if (scenario === "root P") { event.run_id = parent; event.links.parent_run_id = root; }
+          streamHandlers.onRuntimeEvent(event);
+        });
+        streamHandlers.onRuntimeEvent(nativeObservationEvent356(5, chatId));
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        streamHandlers.onDone({ status: "completed" });
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      });
+      const stored = getChatMessages(chatId).find((message) => message.role === "assistant");
+      expect(stored.content).toBe("ROOT_PARENT_FINAL");
+      if (scenario === "root started") {
+        expect(stored.subagentFrames[node].filter((frame) => frame.type === "final_message")).toHaveLength(1);
+        expect(stored.subagentMetaByRunId?.[node]).toBeUndefined();
+      } else {
+        expect(stored.subagentFrames?.[node]).toBeUndefined();
+        if (scenario === "wrong session") {
+          expect((stored.traceFrames || []).some((frame) => frame.run_id === node)).toBe(false);
+          expect(JSON.stringify(stored)).not.toContain("NATIVE_CHILD_MODEL_OBSERVATION");
+        }
+        if (scenario === "root P") {
+          expect(stored.traceFrames.some((frame) => frame.run_id === parent && frame.type === "final_message")).toBe(true);
+          expect(stored.subagentFrames?.[parent]).toBeUndefined();
+          expect(stored.subagentMetaByRunId?.[parent]).toBeUndefined();
+        }
+      }
+    },
+  );
+
+  test.each(["saved owner", "foreign owner", "status-only parent", "wrong session"])(
+    "#356 native child observation cold ownership: %s", async (scenario) => {
+      const { chatId, decision } = await prepareSettlementResume();
+      const { C: child, N: node } = nativeChildObservationFixture356.ids;
+      const prior = getChatMessages(chatId);
+      const currentOwner = prior.find((message) => message.role === "assistant" && message.meta?.attemptId === "attempt-path");
+      expect(currentOwner).toBeDefined();
+      const savedNode = { seq: 1, ts: 1, type: "response_received", run_id: node, session_id: chatId,
+        stage: "runtime_event", event_id: "saved-native-response", links: { parent_run_id: child }, payload: { status: "success" } };
+      const savedEnd = { seq: 2, ts: 2, type: "final_message", run_id: child, session_id: chatId,
+        stage: "runtime_event", event_id: "saved-committed-end", payload: { content: "SAVED_COMMITTED_END" } };
+      const lifecycle = { subagentId: "kernel.reviewer.1", template: "Reviewer", status: "completed", mode: "delegate" };
+      const owner = { ...currentOwner, subagentFrames: { [node]: [savedNode], [child]: [savedEnd] },
+        subagentMetaByRunId: scenario === "foreign owner" ? {} : { [child]: scenario === "status-only parent" ? { status: "running", subagentId: "" } : lifecycle } };
+      const foreign = { id: "foreign-owner-356", role: "assistant", content: "foreign owner", status: "done",
+        meta: { attemptId: "foreign-attempt" }, subagentFrames: { [child]: [savedEnd] }, subagentMetaByRunId: { [child]: lifecycle } };
+      await act(async () => setChatMessages(chatId,
+        [...prior.map((message) => message.id === owner.id ? owner : message), ...(scenario === "foreign owner" ? [foreign] : [])], { source: "test" }));
+      const storedForeignBefore = JSON.stringify(getChatMessages(chatId).find((message) => message.id === foreign.id));
+      await act(async () => lastChatMessagesProps.onToolConfirmationDecision(decision));
+      await waitFor(() => expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(1));
+      const handlers = window.unchainAPI.startStreamV4.mock.calls[0][1];
+      await act(async () => {
+        const response = nativeObservationEvent356(2, chatId);
+        const final = nativeObservationEvent356(3, chatId);
+        if (scenario === "wrong session") response.session_id = final.session_id = "wrong-cold-session";
+        handlers.onRuntimeEvent(response); handlers.onRuntimeEvent(final); handlers.onRuntimeEvent(final);
+        handlers.onRuntimeEvent(nativeObservationEvent356(5, chatId, { run_id: "attempt-path" }));
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        handlers.onDone({ status: "completed" });
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      });
+      const stored = getChatMessages(chatId).find((message) => message.id === owner.id);
+      expect(stored.subagentFrames[node][0]).toEqual(savedNode);
+      expect(stored.subagentFrames[child]).toEqual([savedEnd]);
+      expect(stored.subagentMetaByRunId?.[node]).toBeUndefined();
+      if (scenario === "saved owner") {
+        expect(stored.subagentFrames[node]).toHaveLength(3);
+        expect(stored.subagentFrames[node].filter((frame) => frame.type === "final_message")).toHaveLength(1);
+        expect((stored.traceFrames || []).some((frame) => frame.run_id === node)).toBe(false);
+      } else {
+        expect(stored.subagentFrames[node]).toEqual([savedNode]);
+        if (scenario === "wrong session") expect((stored.traceFrames || []).some((frame) => frame.run_id === node)).toBe(false);
+        if (scenario === "foreign owner") expect(JSON.stringify(getChatMessages(chatId).find((message) => message.id === foreign.id))).toBe(storedForeignBefore);
+      }
+    },
+  );
 
   const seedPriorTurn = (chatId) => {
     const priorMessages = [
@@ -557,6 +1364,7 @@ describe("Memory V2 P0 payload seams", () => {
         runId: "attempt-stale-first",
         callIds: { "observed-batch-call-2": "call-stale-first-late-result" },
       }));
+      firstHandlers.onRuntimeEvent(nativeObservationEvent356(3, chatId));
       await new Promise((resolve) => setTimeout(resolve, 80));
     });
     const messagesBeforeSuccessorEvent = getChatMessages(chatId);
@@ -564,6 +1372,7 @@ describe("Memory V2 P0 payload seams", () => {
       .toEqual(firstSnapshot.traceFrames);
     const successorBeforeEvent = messagesBeforeSuccessorEvent.filter((message) => message.role === "assistant")[1];
     expect(successorBeforeEvent?.traceFrames || []).toEqual([]);
+    expect(JSON.stringify(messagesBeforeSuccessorEvent)).not.toContain("NATIVE_CHILD_MODEL_OBSERVATION");
 
     await act(async () => {
       successorHandlers.onRuntimeEvent(observedBatchEvent(2, {
@@ -650,6 +1459,216 @@ describe("Memory V2 P0 payload seams", () => {
     }));
     expect(lastChatMessagesProps.pendingToolConfirmationRequests[interactionId]).toBeUndefined();
     expect(window.unchainAPI.respondToolConfirmation).not.toHaveBeenCalled();
+  });
+
+  const stopPendingApproval357 = async (durable, label) => {
+    const attemptId = `attempt-cancelled-approval-357-${label}`;
+    startRuntimeV4(attemptId);
+    window.unchainAPI.cancelExecution = jest.fn(async (payload) => ({
+      status: "ok",
+      execution_id: payload.session_id,
+      attempt_id: payload.attempt_id,
+      source_attempt_id: payload.attempt_id,
+      state: "cancelled",
+      disposition: "cancelled",
+      durable_interaction_cancelled: durable,
+      cancellation: { reason: "user_stop" },
+    }));
+    renderChat();
+    await waitForReady();
+    sendText("write the file");
+    await waitForRuntimeRun();
+    const chatId = getChatsStore().activeChatId;
+    const interactionId = `interaction-stop-357-${label}`;
+    const callId = `call-stop-357-${label}`;
+    await act(async () => {
+      streamHandlers.onRuntimeEvent({
+        schema_version: "v4",
+        event_id: `event-stop-approval-357-${label}`,
+        type: "interaction.requested",
+        timestamp: "2026-10-26T00:00:00.000Z",
+        session_id: chatId,
+        run_id: attemptId,
+        agent_id: "developer",
+        turn_id: `${attemptId}:turn-0`,
+        seq: 1,
+        links: { interaction_id: interactionId, tool_call_id: callId },
+        surface: { slot: "trace_inline", scope: "turn" },
+        visibility: "user",
+        metadata: {},
+        payload: {
+          interaction_id: interactionId,
+          kind: "confirmation",
+          title: "Write",
+          prompt: "Allow write?",
+          target: { tool_call_id: callId, tool_name: "write" },
+          config: {},
+        },
+      });
+    });
+    fireEvent.click(screen.getByTestId("stop-button"));
+    await waitFor(() => expect(window.unchainAPI.cancelExecution).toHaveBeenCalled());
+    const cancelledFrames = () => getChatMessages(chatId)
+      .find((message) => message.role === "assistant")
+      .traceFrames.filter((frame) => frame.type === "interaction_cancelled");
+    return { attemptId, interactionId, callId, cancelledFrames };
+  };
+
+  /* Delegate cancel settlement: the real producer reply (delegate, waiting),
+     with its execution, root attempt and consumer generation rebound to this
+     test chat (constructed); call, consumer node attempt and child run kept. */
+  test("#357: Stop records the producer's delegate settlement and a cold read still binds it", async () => {
+    const row = cancelledSubagentProducer.rows[0];
+    const attemptId = "attempt-delegate-cancel-357";
+    const consumer = row.consumer_node_attempt;
+    const call = row.parent_wait.parent_tool_call;
+    startRuntimeV4(attemptId);
+    let reply;
+    window.unchainAPI.cancelExecution = jest.fn(async (payload) => {
+      reply = JSON.parse(JSON.stringify(row.response));
+      reply.execution_id = payload.session_id;
+      reply.attempt_id = payload.attempt_id;
+      reply.source_attempt_id = payload.attempt_id;
+      for (const ref of [reply.subagent_settlements[0].consumer_attempt, reply.subagent_settlements[0].source_attempt]) {
+        ref.generation.execution_id = payload.session_id;
+      }
+      return reply;
+    });
+    renderChat();
+    await waitForReady();
+    sendText("delegate the review");
+    await waitForRuntimeRun();
+    const chatId = getChatsStore().activeChatId;
+    const interactionId = "interaction-delegate-cancel-357";
+    await act(async () => {
+      streamHandlers.onRuntimeEvent({
+        schema_version: "v4", event_id: "event-delegate-call-357", type: "step.started",
+        timestamp: "2026-10-27T00:00:00.000Z", session_id: chatId, run_id: consumer,
+        agent_id: "developer", turn_id: `${consumer}:turn-0`, seq: 1,
+        links: { step_id: `tool:${call.call_id}`, tool_call_id: call.call_id },
+        surface: { slot: "trace_inline", scope: "turn" }, visibility: "user", metadata: {},
+        payload: { step_id: `tool:${call.call_id}`, step_type: "tool", tool_name: call.tool_name,
+          call_id: call.call_id, arguments: { target: "Reviewer", task: "review" } },
+      });
+      streamHandlers.onRuntimeEvent({
+        schema_version: "v4", event_id: "event-delegate-child-approval-357", type: "interaction.requested",
+        timestamp: "2026-10-27T00:00:01.000Z", session_id: chatId, run_id: attemptId,
+        agent_id: "developer", turn_id: `${attemptId}:turn-0`, seq: 2,
+        links: { interaction_id: interactionId, tool_call_id: "child-approval-call" },
+        surface: { slot: "trace_inline", scope: "turn" }, visibility: "user", metadata: {},
+        payload: { interaction_id: interactionId, kind: "confirmation", title: "Write", prompt: "Allow?",
+          target: { tool_call_id: "child-approval-call", tool_name: "dangerous_tool" }, config: {} },
+      });
+    });
+    fireEvent.click(screen.getByTestId("stop-button"));
+    await waitFor(() => expect(window.unchainAPI.cancelExecution).toHaveBeenCalled());
+    const stored = () => getChatMessages(chatId).find((message) => message.role === "assistant");
+    await waitFor(() => expect(stored().traceFrames.filter((frame) => frame.type === "subagent_settlement")).toHaveLength(1));
+    // Cold read: the chat store alone binds the delegate call to its settlement.
+    const message = stored();
+    const settlements = collectSubagentSettlements([message.traceFrames, ...Object.values(message.subagentFrames || {})]);
+    const delegate = message.traceFrames.find((frame) => frame.type === "tool_call" && frame.payload?.call_id === call.call_id);
+    expect(delegate.run_id).toBe(consumer);
+    expect(settlementForToolCall(settlements, delegate, message.traceFrames)).toEqual(expect.objectContaining({
+      status: "cancelled", consumerAttemptId: consumer,
+      sourceAttemptId: reply.subagent_settlements[0].source_attempt.attempt_id,
+    }));
+  });
+
+  test("#357: stop records cancelled-before-run when the backend proves the durable interaction was cancelled", async () => {
+    const { attemptId, interactionId, callId, cancelledFrames } = await stopPendingApproval357(true, "proved");
+    await waitFor(() => expect(cancelledFrames()).toHaveLength(1));
+    expect(cancelledFrames()[0].payload).toEqual(expect.objectContaining({
+      call_id: callId, confirmation_id: interactionId, attempt_id: attemptId,
+      durable_interaction_cancelled: true,
+    }));
+    await waitFor(() => {
+      const shown = lastChatMessagesProps.messages.find((message) => message.role === "assistant");
+      expect(shown.traceFrames.some((frame) => frame.type === "interaction_cancelled")).toBe(true);
+    });
+  });
+
+  test("#357: stop records nothing when the backend only reports the run cancelled", async () => {
+    const { cancelledFrames } = await stopPendingApproval357(false, "unproved");
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 50)); });
+    expect(cancelledFrames()).toHaveLength(0);
+  });
+
+  /* #357 cold child settlement: the producer's real V4 child run.completed,
+     with only its execution id rebound to this test chat (constructed). */
+  const settlementEventFor = (chatId) => {
+    const event = JSON.parse(JSON.stringify(settlementFixture.reprojection.v4_event));
+    event.session_id = chatId;
+    const { settlement } = event.payload;
+    settlement.consumer_attempt.generation.execution_id = chatId;
+    settlement.source_attempt.generation.execution_id = chatId;
+    return event;
+  };
+
+  test("#357: a child settlement is stored with the message and survives a cold reopen", async () => {
+    startRuntimeV4("attempt-settlement-357");
+    renderChat();
+    await waitForReady();
+    sendText("resume the reviewer");
+    await waitForRuntimeRun();
+    const chatId = getChatsStore().activeChatId;
+    const event = settlementEventFor(chatId);
+    await act(async () => {
+      streamHandlers.onRuntimeEvent(event);
+      await new Promise((resolve) => setTimeout(resolve, 80));
+      streamHandlers.onDone({ status: "completed" });
+      await new Promise((resolve) => setTimeout(resolve, 80));
+    });
+    const storedSettlement = () => {
+      const assistant = getChatMessages(chatId).find((message) => message.role === "assistant");
+      return Object.values(assistant?.subagentFrames || {})
+        .flat()
+        .filter((frame) => frame?.payload?.settlement);
+    };
+    await waitFor(() => expect(storedSettlement()).toHaveLength(1));
+    expect(storedSettlement()[0]).toEqual(expect.objectContaining({
+      type: "subagent_completed",
+      run_id: event.run_id,
+      session_id: chatId,
+      links: expect.objectContaining({
+        parent_run_id: event.links.parent_run_id,
+        tool_call_id: event.links.tool_call_id,
+      }),
+    }));
+    expect(storedSettlement()[0].payload.settlement).toEqual(event.payload.settlement);
+    // Cold reopen reads the same chat store and admits the same settlement.
+    const reopened = getChatMessages(chatId).find((message) => message.role === "assistant");
+    const settlements = collectSubagentSettlements([
+      reopened.traceFrames || [],
+      ...Object.values(reopened.subagentFrames || {}),
+    ]);
+    expect([...settlements.values()].map((entry) => entry.status)).toEqual(["completed"]);
+  });
+
+  test("#357: a late settlement from an earlier stream does not reach the successor turn", async () => {
+    startRuntimeV4("attempt-settlement-first-357");
+    renderChat();
+    await waitForReady();
+    sendText("first turn");
+    await waitForRuntimeRun();
+    const chatId = getChatsStore().activeChatId;
+    const firstHandlers = streamHandlers;
+    await act(async () => {
+      firstHandlers.onDone({ status: "completed" });
+      await new Promise((resolve) => setTimeout(resolve, 40));
+    });
+    window.unchainAPI.startStreamV4.mockClear();
+    startRuntimeV4("attempt-settlement-second-357");
+    sendText("second turn");
+    await waitFor(() => expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(1));
+    await act(async () => {
+      firstHandlers.onRuntimeEvent(settlementEventFor(chatId));
+      await new Promise((resolve) => setTimeout(resolve, 80));
+    });
+    const assistants = getChatMessages(chatId).filter((message) => message.role === "assistant");
+    const successor = assistants[assistants.length - 1];
+    expect(Object.values(successor?.subagentFrames || {}).flat()
+      .some((frame) => frame?.payload?.settlement)).toBe(false);
   });
 
   test("#384: stop preserves two V4 calls when one result was projected before stop", async () => {
@@ -1082,6 +2101,177 @@ describe("Memory V2 P0 payload seams", () => {
     await waitFor(() => expect(lastChatMessagesProps?.pendingToolConfirmationRequests[interactionId]).toBeDefined());
     return { chatId, interactionId, replacePending: (value) => { pending = value; }, decision: { confirmationId: interactionId, approved: true, userResponse: { value: "__other__", other_text: "/tmp/中文 项目" } } };
   };
+
+  // The current contract requires this interaction to have been presented by
+  // a real live stream before its finite SSE ends. Only resume calls are counted
+  // below; the initial live request has already completed during this setup.
+  const prepareSettlementResume = async () => {
+    const prepared = await prepareLiveHumanInput();
+    await act(async () => {
+      streamHandlers.onDone({ status: "completed" });
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    });
+    window.unchainAPI.startStreamV4.mockClear();
+    return prepared;
+  };
+
+  /* R-SETTLE-01: a resumed stream must keep the child's history already saved
+     on the message, whichever child event arrives first. The saved child
+     frames are constructed; the settlement is the real producer event with
+     only its execution id rebound to this chat. */
+  const resumeWithSavedChildren = async (sequence, { settlementAlreadySaved = false } = {}) => {
+    const { chatId, decision } = await prepareSettlementResume();
+    const first = settlementEventFor(chatId);
+    const second = JSON.parse(JSON.stringify(first));
+    const secondRun = `${first.run_id}-second`;
+    second.run_id = secondRun;
+    second.agent_id = secondRun;
+    second.event_id = "evt-second-child-settlement";
+    second.links.tool_call_id = "second-delegate";
+    second.payload.settlement.call_id = "second-delegate";
+    second.payload.settlement.source_attempt.attempt_id = secondRun;
+    const savedFor = (runId, seq) => ({
+      seq, ts: 100 + seq, type: "response_received", run_id: runId, session_id: chatId,
+      stage: "runtime_event", event_id: `saved-${runId}-${seq}`, payload: { content: `saved ${seq}` },
+    });
+    const saved = {
+      [first.run_id]: [savedFor(first.run_id, 1), savedFor(first.run_id, 2)],
+      [secondRun]: [savedFor(secondRun, 1)],
+    };
+    if (settlementAlreadySaved) {
+      // An earlier delivery of the same settlement event, already saved.
+      saved[first.run_id].push({
+        seq: 3, ts: 103, type: "subagent_completed", run_id: first.run_id, session_id: chatId,
+        stage: "runtime_event", event_id: first.event_id, links: first.links,
+        payload: { status: "completed", settlement: first.payload.settlement },
+      });
+    }
+    // The assistant message the paused run already saved (constructed).
+    const prior = getChatMessages(chatId);
+    const pending = await window.unchainAPI.getPendingInteraction();
+    const currentOwner = prior.find((message) => message.role === "assistant" && message.meta?.attemptId === "attempt-path");
+    expect(currentOwner).toBeDefined();
+    const owner = {
+      ...currentOwner,
+      id: currentOwner.id, role: "assistant", content: "", status: "done",
+      createdAt: 2, updatedAt: 3,
+      meta: { attemptId: "attempt-path", executionSessionId: chatId },
+      traceFrames: [pending.presentation.trace_frame],
+      subagentFrames: saved,
+      subagentMetaByRunId: {
+        [first.run_id]: { subagentId: "reviewer.1", template: "Reviewer", mode: "delegate", status: "running" },
+        [secondRun]: { subagentId: "reviewer.2", template: "Reviewer", mode: "delegate", status: "running" },
+      },
+    };
+    await act(async () => setChatMessages(chatId, prior.map((message) => message.id === owner.id ? owner : message), { source: "test" }));
+    await waitFor(() => expect(lastChatMessagesProps.messages.find((m) => m.id === owner.id)?.subagentFrames?.[first.run_id]).toEqual(saved[first.run_id]));
+    await act(async () => lastChatMessagesProps.onToolConfirmationDecision(decision));
+    await waitFor(() => expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(1));
+    const handlers = window.unchainAPI.startStreamV4.mock.calls[0][1];
+    const started = (event) => ({ ...event, event_id: `${event.event_id}-started`, type: "run.started", seq: 1, payload: {} });
+    await act(async () => {
+      sequence({ first, second, started }).forEach((event) => handlers.onRuntimeEvent(event));
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      handlers.onDone({ status: "completed" });
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    });
+    return { chatId, ownerId: owner.id, first, second, saved };
+  };
+
+  test.each([
+    ["terminal only", ({ first }) => [first]],
+    ["started before the settlement", ({ first, started }) => [started(first), first]],
+    ["a repeated started and settlement", ({ first, started }) => [started(first), first, started(first), first]],
+    ["two children interleaved", ({ first, second, started }) => [started(first), started(second), second, first]],
+    ["a settlement already saved from an earlier delivery", ({ first, started }) => [started(first), first], true],
+  ])("#357 R-SETTLE-01: %s keeps saved child history and one settlement after reopen", async (_label, sequence, settlementAlreadySaved = false) => {
+    const { chatId, ownerId, first, second, saved } = await resumeWithSavedChildren(sequence, { settlementAlreadySaved });
+    // Cold reopen: read the chat store, not the live view.
+    const stored = getChatMessages(chatId).find((message) => message.id === ownerId);
+    const usedSecond = sequence({ first, second, started: (event) => event }).includes(second);
+    [[first, saved[first.run_id]], ...(usedSecond ? [[second, saved[second.run_id]]] : [])].forEach(([event, history]) => {
+      const frames = stored.subagentFrames[event.run_id];
+      expect(frames.slice(0, history.length)).toEqual(history);
+      expect(frames.filter((frame) => frame.payload?.settlement)).toHaveLength(1);
+      expect(new Set(frames.map((frame) => frame.event_id)).size).toBe(frames.length);
+    });
+    // A child the resumed stream never mentioned keeps exactly its saved history.
+    const untouched = usedSecond ? null : stored.subagentFrames[second.run_id];
+    expect(untouched).toEqual(usedSecond ? null : saved[second.run_id]);
+  });
+
+  /* R-SETTLE-03: the actual desktop sparse child run.completed (status +
+     settlement only) must not erase metadata the message saved for that
+     child before the cold restart. Real before-message and real event from
+     cold-settlement-desktop-03; only the chat/execution ids and the owner's
+     attempt binding are rebound to this test chat (constructed). */
+  const resumeWithSavedMetadata = async ({ withSavedMeta = true, mutateEvent = (event) => event } = {}) => {
+    const { chatId, decision } = await prepareSettlementResume();
+    const real = JSON.parse(JSON.stringify(coldMetadataFixture));
+    const runId = real.source_run_id;
+    const event = real.resume_runtime_event;
+    event.session_id = chatId;
+    for (const ref of [event.payload.settlement.consumer_attempt, event.payload.settlement.source_attempt]) {
+      ref.generation.execution_id = chatId;
+    }
+    const prior = getChatMessages(chatId);
+    const pending = await window.unchainAPI.getPendingInteraction();
+    const currentOwner = prior.find((message) => message.role === "assistant" && message.meta?.attemptId === "attempt-path");
+    expect(currentOwner).toBeDefined();
+    const owner = {
+      ...real.before_message,
+      id: currentOwner.id,
+      meta: { attemptId: "attempt-path", executionSessionId: chatId },
+      // The harness's own paused interaction, so recovery resumes this message.
+      traceFrames: [...real.before_message.traceFrames, pending.presentation.trace_frame],
+      ...(withSavedMeta ? {} : { subagentMetaByRunId: {} }),
+    };
+    await act(async () => setChatMessages(chatId, prior.map((message) => message.id === owner.id ? owner : message), { source: "test" }));
+    await act(async () => lastChatMessagesProps.onToolConfirmationDecision(decision));
+    await waitFor(() => expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(1));
+    const handlers = window.unchainAPI.startStreamV4.mock.calls[0][1];
+    await act(async () => {
+      handlers.onRuntimeEvent(mutateEvent(event));
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      handlers.onDone({ status: "completed" });
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    });
+    // Cold reopen: the chat store, not the live view.
+    const stored = getChatMessages(chatId).find((message) => message.id === owner.id);
+    return { stored, runId, saved: real.before_message.subagentMetaByRunId[runId], event };
+  };
+
+  test("#357 R-SETTLE-03: a sparse settlement keeps the child's saved metadata and updates only status", async () => {
+    const { stored, runId, saved } = await resumeWithSavedMetadata();
+    expect(saved).toEqual(expect.objectContaining({
+      subagentId: "kernel.reviewer.1", mode: "delegate", template: "Reviewer",
+      parentId: "kernel", lineage: ["kernel", "kernel.reviewer.1"], status: "running",
+    }));
+    expect(stored.subagentMetaByRunId[runId]).toEqual({ ...saved, status: "completed" });
+    expect(stored.subagentFrames[runId].filter((frame) => frame.payload?.settlement)).toHaveLength(1);
+  });
+
+  test("#357 R-SETTLE-03: a child with no saved metadata still gets the existing defaults", async () => {
+    const { stored, runId, event } = await resumeWithSavedMetadata({ withSavedMeta: false });
+    expect(stored.subagentMetaByRunId[runId]).toEqual(expect.objectContaining({
+      subagentId: runId, parentId: event.links.parent_run_id, status: "completed",
+    }));
+  });
+
+  test("#357 R-SETTLE-03: fields the event explicitly provides still replace the saved ones", async () => {
+    const { stored, runId, saved } = await resumeWithSavedMetadata({
+      mutateEvent: (event) => ({
+        ...event,
+        agent_id: "kernel.reviewer.9",
+        payload: { ...event.payload, mode: "handoff", template: "Auditor", parent_id: "kernel-2",
+          lineage: ["kernel-2", "kernel.reviewer.9"] },
+      }),
+    });
+    expect(stored.subagentMetaByRunId[runId]).toEqual({
+      ...saved, subagentId: "kernel.reviewer.9", mode: "handoff", template: "Auditor",
+      parentId: "kernel-2", lineage: ["kernel-2", "kernel.reviewer.9"], status: "completed",
+    });
+  });
 
   test("explicit answer to a live human-input request resumes once without sealing the receipt", async () => {
     const { chatId, interactionId, decision } = await prepareLiveHumanInput();

@@ -22,7 +22,7 @@ function snapshotFixture(t, revision = null) {
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const sourceRoot = path.join(root, "source");
   const profile = revision ? "contracts/memory-v2/release-profile.all.v2.json"
-    : "docs/contracts/memory-v2/release-profile.all.v2.json";
+    : "docs/contracts/memory-v2/release-profile.agent-builder.v3.json";
   for (const name of ["scripts/write-build-feature-snapshot.cjs", "scripts/build-web.cjs",
     "electron/main/services/unchain/memory_v2_rollout.js",
     ".github/workflows/_shared-release-deterministic.yml", profile]) {
@@ -100,6 +100,12 @@ async function exerciseSnapshotBoundary(t, revision) {
   assert.equal(built.status, 0);
   assert.equal(built.bundledFlags.enable_memory_v2, revision ? true : undefined);
   if (revision) assert.equal(built.bundledFlags.enable_theme_color_customization, true);
+  else assert.deepEqual(built.bundledFlags, {
+    enable_user_access_to_agents: true,
+    enable_user_access_to_characters: false,
+    enable_custom_model_providers: false,
+    enable_computer_use: false,
+  });
   const packaged = await packSnapshotFixture(f);
   assert.deepEqual(verifyFixtureReleaseSnapshot({ ...f, ...packaged }), { sha256: produced.sha256 });
   assert.equal(inspectResources(packaged).snapshot.sha256, `sha256:${produced.sha256}`);

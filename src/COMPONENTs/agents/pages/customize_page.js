@@ -1,3 +1,4 @@
+import ShadowSurface from "../../../BUILTIN_COMPONENTs/material/shadow_surface";
 import { useContext, useState } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import { Input } from "../../../BUILTIN_COMPONENTs/input/input";
@@ -231,7 +232,7 @@ const CustomizePage = ({ isDark }) => {
   const overlay_backdrop = "blur(16px) saturate(1.4)";
 
   return (
-    <div
+    <ShadowSurface
       style={{
         display: "flex",
         flexDirection: "column",
@@ -500,7 +501,7 @@ const CustomizePage = ({ isDark }) => {
           }}
         />
       </div>
-    </div>
+    </ShadowSurface>
   );
 };
 

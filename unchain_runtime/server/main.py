@@ -226,6 +226,24 @@ def main(argv: list[str] | None = None) -> int:
             "[recipe_seeds] seed-write failed: %s", exc
         )
 
+    try:
+        from skeleton_resource_store import migrate_known_legacy_sources
+        migration_results = migrate_known_legacy_sources()
+        migration_failures = sum(
+            1 for item in migration_results if item.get("stage") == "failed"
+        )
+        if migration_failures:
+            import logging
+            logging.getLogger(__name__).warning(
+                "[skeleton_resources] %d legacy source migration(s) need attention",
+                migration_failures,
+            )
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning(
+            "[skeleton_resources] legacy migration failed: %s", exc
+        )
+
     app = create_app()
     server = ThreadedFlaskServer(app, host=host, port=port)
     from memory_v2_deletion_runner import MemoryV2DeletionRunner

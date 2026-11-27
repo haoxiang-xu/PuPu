@@ -38,7 +38,15 @@ export const discoverBaseUrl = () => {
       `PuPu test API port file not found: ${file} (is PuPu running in dev mode?)`,
     );
   }
-  const { port, pid } = JSON.parse(fs.readFileSync(file, "utf8"));
+  const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
+  // The port file is local state, but treat it as data: only an integer TCP
+  // port is accepted, and the host is always the loopback address, so the
+  // file can never redirect the client anywhere else.
+  const port = Number(parsed?.port);
+  const pid = Number(parsed?.pid);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error(`port file has an invalid port; restart PuPu`);
+  }
   if (!isAlive(pid)) {
     throw new Error(`port file references dead PID ${pid}; restart PuPu`);
   }

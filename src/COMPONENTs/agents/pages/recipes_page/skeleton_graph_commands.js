@@ -1,0 +1,149 @@
+import { agentEnglishText, agentProblemFromMessage } from "./agents_i18n";
+import { add_node, connect_nodes, delete_edge, delete_node } from "./skeleton_graph_edits";
+import { is_valid_node_label } from "./node_display_labels";
+import { with_inherited_variables } from "./variable_inheritance";
+import { is_layout_coordinate, with_layout_positions, with_pruned_layout } from "./skeleton_document";
+
+/* The canvas reports intent, never a replacement drawing array. Each command
+ * is atomic against the latest graph; a refusal returns the original object,
+ * including when a temporary deletion was needed to validate a reconnect. */
+const record = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
+const text = (v) => typeof v === "string" && v.length > 0;
+const own = (v, key) => Object.prototype.hasOwnProperty.call(v, key);
+const accept = (document) => ({ ok: true, document, problem: null });
+const refuse = (document, message, code = "invalid_command") => ({ ok: false, document, problem: agentProblemFromMessage(message, { code }) });
+const shape = (v, keys) => record(v) && Object.keys(v).length === keys.length && keys.every((key) => own(v, key));
+const ENDPOINTS = ["source_node_id", "source_port_id", "target_node_id", "target_port_id"];
+const ATTACH = new Set(["attach_top", "attach_bot"]);
+
+function normalized(connection) {
+  if (!shape(connection, ENDPOINTS) || !ENDPOINTS.every((key) => text(connection[key]))) return null;
+  const { source_node_id: from, source_port_id: out, target_node_id: to, target_port_id: into } = connection;
+  if (ATTACH.has(out) && ATTACH.has(into)) return { ...connection, kind: "attach" };
+  if (ATTACH.has(out) || ATTACH.has(into)) return null;
+  /* Every flow edge arrives at `in`; what it leaves through depends on the
+     node (`out`, `true`/`false`, a case id, `default`), and whether that
+     outlet exists is the core's question, not this adapter's. */
+  if (into === "in" && out !== "in") return { ...connection, kind: "flow" };
+  if (out === "in" && into !== "in") return {
+    kind: "flow", source_node_id: to, source_port_id: into, target_node_id: from, target_port_id: out,
+  };
+  return null;
+}
+
+function remove(graph, nodeIds, edgeIds, t = agentEnglishText) {
+  let next = graph;
+  for (const id of new Set(edgeIds)) {
+    const result = delete_edge(next, id, t);
+    if (!result.ok) return { ...result, document: graph };
+    next = result.document;
+  }
+  for (const id of new Set(nodeIds)) {
+    const result = delete_node(next, id, t);
+    if (!result.ok) return { ...result, document: graph };
+    next = result.document;
+  }
+  /* A layout may not name a node the graph no longer holds. */
+  return accept(with_pruned_layout(next));
+}
+
+/* `{<node id>: {x, y}}` with finite coordinates, or null. */
+function positions_of(value) {
+  if (!record(value)) return null;
+  const ids = Object.keys(value);
+  if (ids.length === 0) return null;
+  for (const id of ids) {
+    const point = value[id];
+    if (!text(id) || !shape(point, ["x", "y"]) || !is_layout_coordinate(point.x) || !is_layout_coordinate(point.y)) return null;
+  }
+  return value;
+}
+
+/* A user's connect: the edge, and the variables the connected step inherits
+   from it, as one edit (so one undo step). */
+function inherit(graph, result) {
+  if (!result.ok || result.document === graph) return result;
+  const { document, sources } = with_inherited_variables(graph, result.document);
+  return sources ? { ...result, document, sources } : { ...result, document };
+}
+
+export function apply_graph_command(graph, command, t = agentEnglishText) {
+  if (!record(command) || !record(graph) || graph.schema_version !== 1 || (graph.kind !== "agent" && graph.kind !== "workflow") ||
+      !Array.isArray(graph.nodes) || !Array.isArray(graph.edges)) {
+    return refuse(graph, t("agents.graph.graph_uneditable"));
+  }
+  if (command.type === "add_node" && shape(command, ["type", "node_type"])) {
+    return add_node(graph, { type: command.node_type }, t);
+  }
+  /* Where nodes are drawn: display-only, written to `document.layout`, which
+     every prepared plan drops. A move is an edit like any other, so it marks
+     the draft unsaved and is one undo step. */
+  if (command.type === "move_nodes") {
+    const positions = shape(command, ["type", "positions"]) ? positions_of(command.positions) : null;
+    if (!positions) return refuse(graph, t("agents.graph.move_shape"));
+    return accept(with_layout_positions(graph, positions));
+  }
+  if (command.type === "rename_node") {
+    if (!shape(command, ["type", "node_id", "label"]) || !text(command.node_id)) {
+      return refuse(graph, t("agents.graph.rename_shape"));
+    }
+    if (typeof command.label !== "string") {
+      return refuse(graph, t("agents.graph.rename_label_text"), "invalid_type");
+    }
+    if (!is_valid_node_label(command.label)) {
+      return refuse(graph, t("agents.graph.rename_label_blank"), "invalid_value");
+    }
+    const matches = graph.nodes.filter((node) => record(node) && node.id === command.node_id);
+    if (matches.length === 0) return refuse(graph, t("agents.graph.selected_missing"), "missing_node");
+    if (matches.length !== 1) return refuse(graph, t("agents.graph.selected_ambiguous"), "ambiguous_node");
+    const target = matches[0];
+    if (own(target, "label") && target.label === command.label) return accept(graph);
+    return accept({ ...graph, nodes: graph.nodes.map((node) => node === target ? { ...node, label: command.label } : node) });
+  }
+  /* Back to unnamed: the optional label goes, nothing else changes, and a
+     node that has none is left as it is (no edit, so no undo step). */
+  if (command.type === "reset_node_label") {
+    if (!shape(command, ["type", "node_id"]) || !text(command.node_id)) {
+      return refuse(graph, t("agents.graph.command_unsupported"));
+    }
+    const matches = graph.nodes.filter((node) => record(node) && node.id === command.node_id);
+    if (matches.length === 0) return refuse(graph, t("agents.graph.selected_missing"), "missing_node");
+    if (matches.length !== 1) return refuse(graph, t("agents.graph.selected_ambiguous"), "ambiguous_node");
+    const target = matches[0];
+    if (!own(target, "label")) return accept(graph);
+    return accept({ ...graph, nodes: graph.nodes.map((node) => {
+      if (node !== target) return node;
+      const { label: _label, ...rest } = node;
+      return rest;
+    }) });
+  }
+  if (command.type === "delete" && shape(command, ["type", "node_ids", "edge_ids"]) &&
+      Array.isArray(command.node_ids) && Array.isArray(command.edge_ids) &&
+      command.node_ids.every(text) && command.edge_ids.every(text)) {
+    return remove(graph, command.node_ids, command.edge_ids, t);
+  }
+  if (command.type === "disconnect" && shape(command, ["type", "node_id"]) && text(command.node_id)) {
+    if (graph.nodes.filter((node) => record(node) && node.id === command.node_id).length !== 1) {
+      return refuse(graph, t("agents.graph.selected_unavailable"));
+    }
+    const edges = graph.edges.filter((edge) => record(edge) &&
+      (edge.source_node_id === command.node_id || edge.target_node_id === command.node_id));
+    if (!edges.every((edge) => text(edge.id))) return refuse(graph, t("agents.graph.connection_id"));
+    return remove(graph, [], edges.map((edge) => edge.id), t);
+  }
+  if (command.type === "connect" && shape(command, ["type", "connection"])) {
+    const next = normalized(command.connection);
+    return next ? inherit(graph, connect_nodes(graph, next, t)) : refuse(graph, t("agents.graph.connection_pair"));
+  }
+  if (command.type === "reconnect" && shape(command, ["type", "edge_id", "connection"]) && text(command.edge_id)) {
+    const next = normalized(command.connection);
+    if (!next) return refuse(graph, t("agents.graph.reconnect_unchanged"));
+    const removed = delete_edge(graph, command.edge_id, t);
+    if (!removed.ok) return removed;
+    const connected = connect_nodes(removed.document, { ...next, id: command.edge_id }, t);
+    if (!connected.ok) return { ...connected, document: graph };
+    const replacement = connected.document.edges.find((edge) => edge.id === command.edge_id);
+    return inherit(graph, accept({ ...graph, edges: graph.edges.map((edge) => edge.id === command.edge_id ? { ...edge, ...replacement } : edge) }));
+  }
+  return refuse(graph, t("agents.graph.command_unsupported"));
+}

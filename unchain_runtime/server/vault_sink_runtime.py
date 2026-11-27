@@ -44,7 +44,6 @@ except ImportError:  # pragma: no cover - production requires Unchain
 
 SCHEMA_VERSION = 1
 SYNTHETIC_TOOL_NAME = "vault_sink_use"
-MAX_HANDLES_PER_CALL = 32
 MAX_AUDIT_ARGUMENT_BYTES = 32 * 1024
 VAULT_SUBAGENT_BOUNDARY_ERROR = "vault_handle_cannot_cross_subagent_boundary"
 

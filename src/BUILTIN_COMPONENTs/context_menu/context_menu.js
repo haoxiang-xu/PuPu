@@ -1,3 +1,6 @@
+import ShadowSurface from "../material/shadow_surface";
+import { useSurfaceComposite } from "../material/surface_composite";
+import { SURFACE_DITHER_STYLE } from "../material/surface_dither";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Icon from "../icon/icon";
@@ -32,10 +35,21 @@ export function measureMenuHeight(items) {
   return rows * ROW_H + separators * SEPARATOR_H + PANEL_PADDING_Y;
 }
 
-export default function ContextMenu({ visible, x, y, items, onClose, isDark }) {
+export default function ContextMenu({
+  visible, x, y, items, onClose, isDark, selectionKey, onEnterWithoutSelection, scrollable = false,
+}) {
+  const surfaceColor = isDark
+    ? "color-mix(in srgb, var(--pupu-surface, rgb(30, 30, 30)) 85%, transparent)"
+    : "color-mix(in srgb, var(--pupu-surface, rgb(255, 255, 255)) 90%, transparent)";
+  const surface = useSurfaceComposite({
+    backgroundColor: surfaceColor,
+    backdropFilter: "blur(20px) saturate(130%)",
+    enabled: visible,
+  });
   const ref = useRef(null);
   const rowRefs = useRef([]);
   const [hoverIndex, setHoverIndex] = useState(-1);
+  useEffect(() => { setHoverIndex(-1); }, [selectionKey]);
 
   /* double-rAF latch so the entrance animates on mount */
   const [entered, setEntered] = useState(false);
@@ -92,6 +106,7 @@ export default function ContextMenu({ visible, x, y, items, onClose, isDark }) {
               : (next + delta + total) % total;
           if (isRowSelectable(its[next])) {
             setHoverIndex(next);
+            if (scrollable) rowRefs.current[next]?.scrollIntoView?.({ block: "nearest" });
             return;
           }
         }
@@ -103,6 +118,9 @@ export default function ContextMenu({ visible, x, y, items, onClose, isDark }) {
           e.preventDefault();
           item.onClick?.();
           onClose();
+        } else if (onEnterWithoutSelection) {
+          e.preventDefault();
+          onEnterWithoutSelection();
         }
       }
     };
@@ -112,7 +130,7 @@ export default function ContextMenu({ visible, x, y, items, onClose, isDark }) {
       document.removeEventListener("mousedown", onMouseDown);
       document.removeEventListener("keydown", onKey);
     };
-  }, [visible, onClose]);
+  }, [visible, onClose, onEnterWithoutSelection, scrollable]);
 
   if (!visible) return null;
 
@@ -124,14 +142,16 @@ export default function ContextMenu({ visible, x, y, items, onClose, isDark }) {
   const screenW = window.innerWidth;
   const screenH = window.innerHeight;
   const menuH = measureMenuHeight(items);
+  const maxHeight = Math.max(0, screenH - 16);
+  const needsScroll = scrollable && menuH > maxHeight;
   const left = Math.min(x, screenW - MENU_W - 8);
-  const top = Math.min(y, screenH - menuH - 8);
+  const top = Math.min(y, screenH - (needsScroll ? maxHeight : menuH) - 8);
   /* grow away from the pointer: origin follows which corner we open from */
   const originX = left < x ? "right" : "left";
   const originY = top < y ? "bottom" : "top";
 
   return createPortal(
-    <div
+    <ShadowSurface
       ref={ref}
       onContextMenu={(e) => e.preventDefault()}
       style={{
@@ -139,16 +159,17 @@ export default function ContextMenu({ visible, x, y, items, onClose, isDark }) {
         top,
         left,
         zIndex: Z.POPOVER,
-        backgroundColor: isDark
-          ? "color-mix(in srgb, var(--pupu-surface, rgb(30, 30, 30)) 85%, transparent)"
-          : "color-mix(in srgb, var(--pupu-surface, rgb(255, 255, 255)) 90%, transparent)",
+        backgroundColor: surfaceColor,
+        ...SURFACE_DITHER_STYLE,
         backdropFilter: "blur(20px) saturate(130%)",
         WebkitBackdropFilter: "blur(20px) saturate(130%)",
+        ...surface.style,
         border,
         borderRadius: 8,
         boxShadow: shadow,
         padding: 4,
         minWidth: MENU_W,
+        ...(needsScroll ? { maxHeight, overflowY: "auto", boxSizing: "border-box" } : {}),
         userSelect: "none",
         opacity: entered ? 1 : 0,
         transform: entered ? "none" : "scale(0.96)",
@@ -157,6 +178,7 @@ export default function ContextMenu({ visible, x, y, items, onClose, isDark }) {
       }}
       onMouseLeave={() => setHoverIndex(-1)}
     >
+      {surface.definition}
       {/* one hover pill gliding between rows (red over danger rows) */}
       <SlidingHighlight
         refs={rowRefs}
@@ -205,7 +227,7 @@ export default function ContextMenu({ visible, x, y, items, onClose, isDark }) {
           />
         );
       })}
-    </div>,
+    </ShadowSurface>,
     document.body,
   );
 }

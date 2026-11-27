@@ -1,3 +1,4 @@
+import ShadowSurface from "../material/shadow_surface";
 import { useState, useEffect, useContext, useCallback, useMemo } from "react";
 import { useMouse } from "../mini_react/mini_use";
 
@@ -13,6 +14,11 @@ import Icon from "../icon/icon";
 import { useMaterial, resolveComponentMaterial } from "../material";
 /* { Material } -------------------------------------------------------------------------------------------------------------- */
 
+/* Animated switch thumbs deliberately render a plain element with a NATIVE box-shadow, not
+   ShadowSurface. ShadowSurface paints the shadow as a separate anchored SVG that re-runs the
+   owner's transition on its own (so it trails the thumb) and drops back to the native shadow
+   whenever the thumb is scaled (so hover pops between two shadows). A native shadow is painted
+   with the thumb itself, so it follows every slide, spring scale and press stretch frame-for-frame. */
 const SemiSwitch = ({
   style,
   on_icon_src = "subtract",
@@ -257,7 +263,7 @@ const MaterialSwitch = ({
       onMouseEnter={() => setOnHover(true)}
       onMouseLeave={() => setOnHover(false)}
     >
-      <div
+      <ShadowSurface
         className="mini-ui-switch-track"
         style={{
           transition: switchStyle.transition || "none",
@@ -271,7 +277,7 @@ const MaterialSwitch = ({
           borderRadius: switchStyle.height / 2 || "none",
           boxShadow: switchStyle.boxShadow || "none",
         }}
-      ></div>
+      ></ShadowSurface>
       <div
         className="mini-ui-switch-thumb-highlighter"
         style={{
@@ -660,7 +666,7 @@ const GlassSwitchImpl = ({ style, on, set_on }) => {
       draggable={false}
     >
       {/* neutral glass channel — full groove, constant size (no mini collapse) */}
-      <div
+      <ShadowSurface
         style={{
           position: "absolute",
           top: "50%",

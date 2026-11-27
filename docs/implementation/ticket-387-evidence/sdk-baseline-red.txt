@@ -1,0 +1,58 @@
+Full original log SHA-256: 774d76e48ee6b1f614831886f9298abe38f7ab993238b889799325883698c79d
+Full original log preserved at: /Users/red/Desktop/GITRepo/ticket-387-artifacts/ac4065ae1cb3/audit/sdk-baseline-red.txt
+Excerpt: first 40 and last 12 lines; repeated diagnostics omitted.
+
+FF......FF..                                                             [100%]
+=================================== FAILURES ===================================
+_ test_new_openai_models_prepare_exact_responses_payload_without_sampling[none-gpt-6-sol] _
+
+model = 'gpt-6-sol', effort = 'none'
+
+    @pytest.mark.parametrize("model", OPENAI_MODELS)
+    @pytest.mark.parametrize(
+        "effort", ["none", "low", "medium", "high", "xhigh", "max"]
+    )
+    def test_new_openai_models_prepare_exact_responses_payload_without_sampling(model, effort):
+        model_io = OpenAIModelIO(
+            model=model,
+            api_key="test-key",
+            client_factory=lambda **_kwargs: None,
+            default_payloads=load_default_payloads(),
+            model_capabilities=load_model_capabilities(),
+        )
+        prepared = resolve_prepared_provider_request_payload(
+            model_io=model_io,
+            request=ModelTurnRequest(
+                messages=[{"role": "user", "content": "hello"}],
+                payload={
+                    "reasoning": {"effort": effort},
+                    "temperature": 0.1,
+                    "top_p": 0.2,
+                },
+            ),
+        )
+
+        assert prepared["provider"] == "openai"
+        assert prepared["request_model"] == model
+        payload = prepared["effective_payload"]
+        assert set(payload) == {
+            "instructions",
+            "max_output_tokens",
+            "truncation",
+            "store",
+            "include",
+            "reasoning",
+
+[repeated output omitted]
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for ResponseCreateParamsStreaming
+E       reasoning.effort
+E         Input should be 'minimal', 'low', 'medium' or 'high' [type=literal_error, input_value='xhigh', input_type=str]
+E           For further information visit https://errors.pydantic.dev/2.14/v/literal_error
+
+.venv/lib/python3.12/site-packages/pydantic/type_adapter.py:410: ValidationError
+=========================== short test summary info ============================
+FAILED ../unchain/tests/test_september_native_models.py::test_new_openai_models_prepare_exact_responses_payload_without_sampling[none-gpt-6-sol]
+FAILED ../unchain/tests/test_september_native_models.py::test_new_openai_models_prepare_exact_responses_payload_without_sampling[none-gpt-6-luna]
+FAILED ../unchain/tests/test_september_native_models.py::test_new_openai_models_prepare_exact_responses_payload_without_sampling[xhigh-gpt-6-sol]
+FAILED ../unchain/tests/test_september_native_models.py::test_new_openai_models_prepare_exact_responses_payload_without_sampling[xhigh-gpt-6-luna]
+4 failed, 8 passed, 11 deselected in 0.80s

@@ -22,7 +22,6 @@ from typing import Any, Callable, Dict, Iterable, List
 
 from skill_rows import normalize_skill_rows
 import mcp_registry
-from mcp_registry import oauth_recipe_for_entry
 from mcp_oauth import McpOAuthError
 from mcp_toolkits import (
     McpToolkitError,
@@ -39,7 +38,6 @@ from custom_provider import (
     make_custom_model_io_factory,
     parse_custom_model_id,
     parse_custom_provider,
-    redact_secrets,
 )
 from durable_job_runtime import get_durable_jobs_runtime
 from secret_scrub_registry import register_secret_values
@@ -205,6 +203,7 @@ def _memory_v2_build_content_ref_authorizer(admission: Any):
             try:
                 _memory_v2_collect_disclosed_content_refs(diagnostics(), refs)
             except Exception:
+                # diagnostics are optional hints; a failing provider must not drop the refs collected so far
                 pass
         _memory_v2_collect_disclosed_content_refs(
             getattr(admission, "handoff_messages", ()) or (),
@@ -1179,7 +1178,6 @@ try:
     from unchain.optimizers import (
         ContextUsageOptimizer as _ContextUsageOptimizer,
         LlmSummaryOptimizer as _LlmSummaryOptimizer,
-        LlmSummaryOptimizerConfig as _LlmSummaryOptimizerConfig,
         SlidingWindowOptimizer as _SlidingWindowOptimizer,
         SlidingWindowOptimizerConfig as _SlidingWindowOptimizerConfig,
         ToolHistoryCompactionOptimizer as _ToolHistoryCompactionOptimizer,
@@ -1198,7 +1196,6 @@ except ImportError:
     _SubagentTemplate = None  # type: ignore
     _SubagentPolicy = None  # type: ignore
     _LlmSummaryOptimizer = None  # type: ignore
-    _LlmSummaryOptimizerConfig = None  # type: ignore
     _ContextUsageOptimizer = None  # type: ignore
     _SlidingWindowOptimizer = None  # type: ignore
     _SlidingWindowOptimizerConfig = None  # type: ignore
@@ -1806,6 +1803,7 @@ def _memory_v2_guard_reclaimed_execution(
                 operation_id=f"takeover-recovery-event:{digest}",
             )
         except Exception:
+            # recovery bookkeeping is best-effort; the takeover outcome does not depend on it
             pass
     if callable(mark_outcome):
         try:
@@ -1817,6 +1815,7 @@ def _memory_v2_guard_reclaimed_execution(
                 operation_id=f"takeover-recovery-outcome:{digest}",
             )
         except Exception:
+            # recovery bookkeeping is best-effort; the takeover outcome does not depend on it
             pass
     if callable(seal_task):
         try:
@@ -1828,6 +1827,7 @@ def _memory_v2_guard_reclaimed_execution(
                 operation_id=f"takeover-recovery-seal:{digest}",
             )
         except Exception:
+            # recovery bookkeeping is best-effort; the takeover outcome does not depend on it
             pass
     _execution_control_call(
         "mark_failed",
@@ -1873,7 +1873,7 @@ def _graph_run_lost_ownership(error: BaseException | None) -> bool:
     would corrupt the other owner's attempt. A cancellation is not a loss.
     """
 
-    from session_execution_guard import SessionExecutionGuardError
+    import session_execution_guard
     from unchain.execution import ExecutionCancelledError, ExecutionLeaseError
 
     for candidate in (error, getattr(error, "__cause__", None)):
@@ -1881,7 +1881,7 @@ def _graph_run_lost_ownership(error: BaseException | None) -> bool:
             continue
         if isinstance(candidate, ExecutionCancelledError) or _is_execution_cancelled_error(candidate):
             return False
-        if isinstance(candidate, (ExecutionLeaseError, SessionExecutionGuardError)):
+        if isinstance(candidate, (ExecutionLeaseError, session_execution_guard.SessionExecutionGuardError)):
             return True
     return False
 
@@ -2047,7 +2047,6 @@ _TOOLKIT_NAME_ALIASES = {
     "AgentReachToolkit": "AgentReachToolkit",
 }
 _DEFAULT_MAX_ITERATIONS = 128
-_CONFIRMATION_CANCELLED_REASON = "confirmation_cancelled_stream_terminated"
 _AGENT_ORCHESTRATION_DEFAULT = "default"
 _AGENT_ORCHESTRATION_DEVELOPER_WAITING_APPROVAL = "developer_waiting_approval"
 _GENERAL_MODEL_BY_PROVIDER = {
@@ -2056,12 +2055,10 @@ _GENERAL_MODEL_BY_PROVIDER = {
     "gemini": "gemini-3.6-flash",
 }
 _DEVELOPER_AGENT_NAME = "pupu_developer"
-_DEVELOPER_SUBAGENT_TEMPLATE = "developer"
 _RUNTIME_TOOLKIT_ID_ATTR = "_pupu_toolkit_id"
 _RUNTIME_TOOLKIT_NAME_ATTR = "_pupu_toolkit_name"
 _ASK_USER_QUESTION_TOOL_NAME = "ask_user_question"
 _TIMELINE_MERGE_POLICIES = frozenset({"never", "no_feedback", "approved", "always"})
-_HUMAN_INPUT_OTHER_VALUE = "__other__"
 _SYSTEM_PROMPT_V2_MAX_SECTION_CHARS = 2000
 
 
@@ -2258,13 +2255,6 @@ def _compose_agent_prompt(sections: dict[str, str]) -> str:
     Use _build_modular_prompt() for full 3-source merging.
     """
     return _build_modular_prompt(agent_modules=sections)
-
-
-# ── Developer Agent Prompt (sectioned) ────────────────────────────────────────
-
-# _DEVELOPER_PROMPT_SECTIONS imported from prompts.agents.developer
-
-_DEVELOPER_AGENT_UNIFIED_PROMPT = _compose_agent_prompt(_DEVELOPER_PROMPT_SECTIONS)
 
 
 def _is_openai_previous_response_fallback_error(exc: Exception) -> bool:
@@ -3471,6 +3461,7 @@ def _capability_file_candidates() -> List[Path]:
         if _res_dir is not None:
             candidates.append(_res_dir / "model_capabilities.json")
     except Exception:
+        # optional resource location; the packaged candidates below still apply
         pass
 
     current_file = Path(__file__).resolve()
@@ -4267,6 +4258,7 @@ def _read_icon_payload(icon_path: object) -> Dict[str, str]:
                 "encoding": "base64",
             }
     except Exception:
+        # an unreadable screenshot degrades to an empty payload, which callers treat as no image
         pass
     return {}
 
@@ -4908,6 +4900,7 @@ def _enumerate_toolkit_tools_v2(cls: type) -> List[Dict[str, object]]:
         try:
             tool_func = getattr(cls, tool_name, None)
         except Exception:
+            # a descriptor that raises on access is treated as no tool
             pass
 
         if tool_func is not None:
@@ -4995,7 +4988,7 @@ def _installed_mcp_catalog_entries() -> List[Dict[str, object]]:
             # source of truth and runtime construction validates the snapshot.
             available.append(entry)
             continue
-        oauth_recipe = oauth_recipe_for_entry(curated_entry)
+        oauth_recipe = mcp_registry.oauth_recipe_for_entry(curated_entry)
         oauth_release_ready = bool(oauth_recipe) and str(
             oauth_recipe.get("releaseStatus") or ""
         ).strip().lower() == "ready"
@@ -5398,6 +5391,7 @@ def get_toolkit_metadata(
                 if found_class:
                     break
     except Exception:
+        # discovery is best-effort; found_class stays None and the caller falls back
         pass
 
     # Also check top-level unchain exports
@@ -5421,6 +5415,7 @@ def get_toolkit_metadata(
                     found_class = candidate
                     break
         except Exception:
+            # discovery is best-effort; found_class stays None and the caller falls back
             pass
 
     if found_class is None:
@@ -5483,12 +5478,6 @@ _REASONING_EFFORT_LEVELS = (
 # Anthropic's effort ladder has no "none"/"minimal" rung; a request carrying
 # one would be rejected, so it is dropped and the provider default applies.
 _ANTHROPIC_EFFORT_LEVELS = ("low", "medium", "high", "xhigh", "max")
-
-# Per-protocol wire key for custom providers. Both shapes are the respective
-# protocol's own documented one, so an Anthropic-compatible endpoint gets the
-# Anthropic shape and an OpenAI-Responses-compatible one gets the OpenAI shape.
-_CUSTOM_EFFORT_PROTOCOLS = ("anthropic", "openai-responses")
-
 
 def _build_payload(
     provider: str, options: Dict[str, object], *, model: str = "",
@@ -6076,15 +6065,12 @@ _BUILTIN_TOOLKIT_PREFIX = "builtin."
 # leaf module (Gate B) so a runtime override is observed here and by
 # ``memory_factory``'s screenshot sanitization at once; this file only delegates.
 
-# The Anthropic model-prefix allow-list for computer_20251124 now lives in the
-# shared ``computer_use_flag`` gate module (beside is_enabled()) so the status
-# route can read the SAME source without importing this heavy adapter. Re-bound to
-# the local name so ``_model_supports_computer_use`` and its tests are unchanged.
+# The Anthropic model-prefix allow-list for computer_20251124 lives in the shared
+# ``computer_use_flag`` gate module (beside is_enabled()) so the status route can
+# read the SAME source without importing this heavy adapter;
+# ``_model_supports_computer_use`` below delegates there instead of re-binding it.
 # The list is pupu-llm-expert authored (model-visible authority) — see that module
 # for the full rationale.
-from computer_use_flag import (
-    COMPUTER_USE_MODEL_PREFIXES as _COMPUTER_USE_MODEL_PREFIXES,
-)
 
 
 def _computer_use_enabled() -> bool:
@@ -6237,7 +6223,7 @@ def _build_selected_toolkits(
                 }:
                     _subagent_logger.warning(
                         "[mcp] selected toolkit %s is no longer available; skipping (%s)",
-                        toolkit_name,
+                        str(toolkit_name).replace("\r", "").replace("\n", "")[:200],
                         getattr(exc, "code", "mcp_unavailable"),
                     )
                     continue
@@ -6748,11 +6734,6 @@ def _disconnect_runtime_toolkits(toolkits: Iterable[Any]) -> None:
         except Exception as exc:
             _subagent_logger.warning("[toolkit] disconnect failed: %s", exc)
 
-
-_ANALYZER_READ_ONLY_TOOLS = (
-    "read_files", "read_lines", "search_text", "list_directories",
-    "file_exists", "pin_file_context", "unpin_file_context",
-)
 
 def _resolve_workspace_subagent_dir_for_loader(
     options: Dict[str, object] | None,
@@ -7699,21 +7680,65 @@ def _resolve_recipe_prompt(recipe) -> str:
     return raw
 
 
+def _reject_unconnected_skeleton_chat_selection(options: Dict[str, object] | None) -> None:
+    if not isinstance(options, dict) or "skeleton_selection" not in options:
+        return
+    # Lazy import preserves the legacy/off/Character path. Admission itself
+    # creates no execution; never substitute a legacy Recipe for this selection.
+    try:
+        from skeleton_chat_selection import prepare_skeleton_chat_selection
+        from skeleton_resource_store import SkeletonResourceError
+    except Exception:
+        raise DurableInteractionHostError(
+            "skeleton_chat_admission_failed",
+            "Skeleton chat resource admission failed.", status_code=503,
+        ) from None
+    try:
+        prepare_skeleton_chat_selection(options)
+    except SkeletonResourceError as exc:
+        error = DurableInteractionHostError(exc.code, str(exc), status_code=exc.status)
+        error.path = exc.path
+        raise error from None
+    except Exception:
+        raise DurableInteractionHostError(
+            "skeleton_chat_admission_failed",
+            "Skeleton chat resource admission failed.", status_code=503,
+        ) from None
+    raise DurableInteractionHostError(
+        "skeleton_chat_execution_unavailable",
+        "Skeleton chat execution is not connected yet.", status_code=503,
+    )
+
+
 def _load_recipe_from_options(options: Dict[str, object] | None):
+    _reject_unconnected_skeleton_chat_selection(options)
+    raw_name = (options or {}).get("recipe_name")
+    explicit = raw_name is not None and raw_name != ""
+    if explicit:
+        from recipe import is_valid_recipe_name
+        if type(raw_name) is not str or not is_valid_recipe_name(raw_name):
+            raise DurableInteractionHostError(
+                "invalid_recipe_selection", "Recipe selection must be a valid non-empty name.",
+                status_code=400,
+            )
+    recipe_name = raw_name if explicit else "Default"
     try:
         from recipe_loader import load_recipe
-
-        recipe_name = str((options or {}).get("recipe_name") or "Default")
         recipe = load_recipe(recipe_name)
-        if recipe is None and recipe_name != "Default":
-            _subagent_logger.warning(
-                "[recipe] recipe %r not found; falling back to Default", recipe_name,
-            )
-            recipe = load_recipe("Default")
-        return recipe
     except Exception as exc:
+        if explicit:
+            raise DurableInteractionHostError(
+                "recipe_load_failed", "The selected Recipe could not be loaded.",
+                status_code=503,
+            ) from None
         _subagent_logger.warning("[recipe] load failed: %s", exc)
         return None
+    if explicit and recipe is None:
+        raise DurableInteractionHostError(
+            "recipe_not_found", "The selected Recipe is missing, unreadable, or invalid.",
+            status_code=404,
+        )
+    return recipe
 
 
 def _recipe_has_graph(recipe: Any) -> bool:
@@ -11452,6 +11477,15 @@ def stream_chat(
     options: Dict[str, object],
     session_id: str = "",
 ) -> Iterable[str]:
+    from skeleton_legacy_chat import resolve_legacy_chat_options
+    options = resolve_legacy_chat_options(options)
+    if isinstance(options, dict) and "skeleton_selection" in options:
+        for event in stream_chat_events(message=message, history=history, attachments=attachments,
+                options=options, session_id=session_id, attempt_id=str(_uuid.uuid4())):
+            if event.get("type") == "final_message" and event.get("scope") == "root":
+                yield event["content"]
+        return
+    _reject_unconnected_skeleton_chat_selection(options)
     recipe = _load_recipe_from_options(options)
     if _recipe_has_graph(recipe):
         final_text = ""
@@ -11698,7 +11732,21 @@ def stream_chat_events(
 ) -> Iterable[Dict[str, Any]]:
     normalized_session_id = str(session_id or "").strip()
     normalized_attempt_id = str(attempt_id or "").strip()
-    options = dict(options) if isinstance(options, dict) else {}
+    from skeleton_legacy_chat import resolve_legacy_chat_options
+    options = resolve_legacy_chat_options(options)
+    if "skeleton_selection" in options:
+        from skeleton_production_chat import stream_skeleton_chat_events
+        yield from stream_skeleton_chat_events(message=message, history=history, attachments=attachments,
+            options=options, session_id=normalized_session_id, attempt_id=normalized_attempt_id,
+            cancel_event=cancel_event)
+        return
+    _reject_unconnected_skeleton_chat_selection(options)
+    # Explicit selection failures must precede registration: no owner scope has
+    # been acquired yet to clean up a queued execution. Keep implicit Default's
+    # original cancellation-before-load ordering.
+    raw_recipe_name = options.get("recipe_name")
+    explicit_recipe = raw_recipe_name is not None and raw_recipe_name != ""
+    recipe = _load_recipe_from_options(options) if explicit_recipe else None
     if normalized_session_id:
         options["_memory_v2_session_id"] = normalized_session_id
     if normalized_attempt_id:
@@ -11732,7 +11780,8 @@ def stream_chat_events(
         isinstance(options, dict)
         and options.get("durable_interactions_required") is True
     )
-    recipe = _load_recipe_from_options(options)
+    if not explicit_recipe:
+        recipe = _load_recipe_from_options(options)
     recipe_has_graph = _recipe_has_graph(recipe)
     active_graph_candidate = (
         recipe_has_graph
@@ -12075,6 +12124,7 @@ def stream_chat_events(
             try:
                 interject_channels.digest(event)
             except Exception:
+                # interjection bookkeeping must never break event delivery
                 pass
             delivered_event = dict(event)
             delivered_event.pop(_TOOL_CALL_DISPLAY_METADATA_KEY, None)
@@ -12507,6 +12557,14 @@ def resume_chat_interaction_events(
     normalized_interaction_id = str(interaction_id or "").strip()
     normalized_attempt_id = str(attempt_id or "").strip()
     normalized_source_attempt_id = str(source_attempt_id or "").strip()
+    from skeleton_production_interactions import get_pending_skeleton_interaction
+    skeleton_pending = get_pending_skeleton_interaction(normalized_session_id)
+    if skeleton_pending is not None:
+        from skeleton_production_chat import resume_skeleton_chat_events
+        yield from resume_skeleton_chat_events(session_id=normalized_session_id,
+            interaction_id=normalized_interaction_id, options=options, attempt_id=normalized_attempt_id,
+            source_attempt_id=normalized_source_attempt_id, cancel_event=cancel_event)
+        return
     if not normalized_session_id or not normalized_interaction_id:
         raise DurableInteractionHostError(
             "invalid_resume_request",
@@ -12686,14 +12744,7 @@ def resume_chat_interaction_events(
     resolved_options["_memory_v2_session_id"] = normalized_session_id
     resolved_options["_memory_v2_attempt_id"] = normalized_attempt_id
     resolved_options["_memory_v2_source_attempt_id"] = source_run_id
-    recipe = _load_recipe_from_options(resolved_options)
     if graph_step_resume:
-        if not _recipe_has_graph(recipe):
-            raise DurableInteractionHostError(
-                "durable_graph_resume_recipe_missing",
-                "Graph-step resume metadata no longer resolves to a recipe graph",
-                status_code=409,
-            )
         pending_resolution = (
             pending_state.get("resolution")
             if isinstance(pending_state.get("resolution"), dict)
@@ -12710,14 +12761,6 @@ def resume_chat_interaction_events(
         )
         resolved_options["_memory_v2_requested"] = True
         resolved_options["_memory_v2_owner_chat_id"] = fresh_owner_chat_id
-    elif _recipe_has_graph(recipe) and not _recipe_supports_durable_flat_projection(
-        recipe
-    ):
-        raise DurableInteractionHostError(
-            "durable_recipe_graph_unsupported",
-            "Durable interaction resume is not supported for recipe graphs",
-            status_code=422,
-        )
 
     transfer = None
     if normalized_attempt_id:
@@ -12824,6 +12867,29 @@ def resume_chat_interaction_events(
         execution_owner.cleanup()
         yield takeover_error
         return
+
+    try:
+        recipe = _load_recipe_from_options(resolved_options)
+        if graph_step_resume:
+            if not _recipe_has_graph(recipe):
+                raise DurableInteractionHostError(
+                    "durable_graph_resume_recipe_missing",
+                    "Graph-step resume metadata no longer resolves to a recipe graph",
+                    status_code=409,
+                )
+        elif _recipe_has_graph(recipe) and not _recipe_supports_durable_flat_projection(
+            recipe
+        ):
+            raise DurableInteractionHostError(
+                "durable_recipe_graph_unsupported",
+                "Durable interaction resume is not supported for recipe graphs",
+                status_code=422,
+            )
+    except BaseException:
+        # Recipe admission belongs to the attempt that acquired running ownership.
+        # Preserve the original rejection while settling that attempt and binding.
+        with execution_owner:
+            raise
 
     if graph_step_resume:
         with execution_owner:
@@ -13057,6 +13123,7 @@ def resume_chat_interaction_events(
             try:
                 interject_channels.digest(event)
             except Exception:
+                # interjection bookkeeping must never break event delivery
                 pass
             delivered_event = dict(event)
             delivered_event.pop(_TOOL_CALL_DISPLAY_METADATA_KEY, None)

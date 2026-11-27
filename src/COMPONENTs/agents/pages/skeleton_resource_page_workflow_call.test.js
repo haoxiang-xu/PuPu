@@ -1,0 +1,344 @@
+/* Keep guidance available in these document-contract tests. The actual
+   collapsed surface and interaction are covered in panel_help/compact_variables. */
+jest.mock("./recipes_page/detail_panel/panel_help", () => function GuidanceText({ children }) { return <>{children}</>; });
+import React from "react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { ConfigContext } from "../../../CONTAINERs/config/context";
+import SkeletonResourcePage from "./skeleton_resource_page";
+import { api } from "../../../SERVICEs/api";
+import capture from "./recipes_page/workflow_call_capture.json";
+import codeCapture from "./recipes_page/code_capture.json";
+import { forget_workflow_versions } from "./recipes_page/workflow_versions";
+import { openAddNode, pressCanvasNode } from "./recipes_page/skeleton_canvas_test_helpers";
+
+/* #357 Workflow Call on the real page: SkeletonResourcePage, FlowEditor,
+ * DetailPanel, Select, Input, the argument rows and the Output Variables.
+ * Only the renderer facade is replaced, with its v2 methods and the library
+ * listing; every resource, revision, publication and refusal it answers with
+ * is the real producer's (workflow_call_capture.json). A Save is answered by a
+ * strict in-test store; whether the real store and the fixed sidecar take the
+ * exact Save requests written here is the replay's job
+ * (workflow-call-01/tools/replay_wfc_*), with WFC_PAYLOAD_DIR set. */
+
+jest.mock("../../../SERVICEs/api", () => ({ api: { unchain: {} } }));
+
+const fs = require("fs");
+const copy = (value) => JSON.parse(JSON.stringify(value));
+const row = (name) => copy(capture.rows.find((item) => item.case === name));
+const refusal = (name) => {
+  const { code, path, message, status } = row(name).refusal;
+  return Object.assign(new Error(message), { code, path, status });
+};
+const REV1 = capture.rev1;
+const REV2 = capture.rev2;
+const profile = require("./recipes_page/skeleton_native_embedded_capture.json").rows[1].document.nodes[1].config.kernel.profile;
+const exported = [];
+const exportPayload = (name, base, edit) => {
+  exported.push(name);
+  if (process.env.WFC_PAYLOAD_DIR) fs.writeFileSync(`${process.env.WFC_PAYLOAD_DIR}/${name}.json`, JSON.stringify({ base, edit }, null, 2) + "\n");
+};
+const deferred = () => {
+  let resolve;
+  const promise = new Promise((done) => { resolve = done; });
+  return { promise, resolve };
+};
+
+/* The strict stand-in for a Save, as in the G1 page test: closed v2 edit,
+   compare-and-set, the resource answered whole. These callers hold no Code
+   text, so the edit's set is empty. */
+function makeStore(names) {
+  const held = Object.create(null);
+  names.forEach((name) => {
+    const reply = row(name).reply;
+    held[reply.resource.id] = reply;
+  });
+  let revision = 10;
+  const versions = Object.create(null);
+  ["wf_version_1", "wf_version_2"].forEach((name) => {
+    const reply = row(name).reply;
+    versions[`${reply.version.workflow_id}\u0000${reply.version.revision_id}`] = reply;
+  });
+  const store = {
+    held,
+    get: jest.fn(async (id) => {
+      if (!held[id]) throw Object.assign(new Error("Skeleton resource was not found."), { code: "resource_missing", path: ["resource_id"], status: 404 });
+      return copy(held[id]);
+    }),
+    save: jest.fn(async (edit) => {
+      expect(Object.keys(edit).sort()).toEqual(["document", "expected_edit_token", "managed_sources", "schema"]);
+      expect(edit.managed_sources).toEqual([]);
+      const id = edit.document.id;
+      if (edit.expected_edit_token !== (held[id] ? held[id].resource.edit_token : null)) throw refusal("wf_publish_stale_token");
+      revision += 1;
+      held[id] = { ...held[id], resource: { ...held[id].resource, document: copy(edit.document), edit_token: `edit-${revision}-test`, diagnostics: [] } };
+      return copy(held[id]);
+    }),
+    version: jest.fn(async (id, rev) => {
+      const reply = versions[`${id}\u0000${rev}`];
+      if (!reply) throw refusal("wf_version_missing");
+      return copy(reply);
+    }),
+    publish: jest.fn(async (id, token) => {
+      expect([id, token]).toEqual(["wf-summarize", row("wf_get_after_2").reply.resource.edit_token]);
+      return row("wf_publish_2").reply;
+    }),
+  };
+  api.unchain.getManagedSkeletonResource = store.get;
+  api.unchain.saveManagedSkeletonResource = store.save;
+  api.unchain.getManagedSkeletonWorkflowVersion = store.version;
+  api.unchain.publishManagedSkeletonWorkflow = store.publish;
+  return store;
+}
+
+let view;
+async function open(id) {
+  view = render(<ConfigContext.Provider value={{ theme: {} }}><SkeletonResourcePage resourceId={id} /></ConfigContext.Provider>);
+  await screen.findByTestId("skeleton-node-start");
+}
+const openCall = async (id = "call") => {
+  pressCanvasNode(id);
+  await screen.findByTestId("workflow-call-section");
+};
+/* jsdom reports the popover list as visibility:hidden (see the Code page test). */
+/* A step's output row is the shared variable pill: what it passes on is
+   typed as a path (`result.<field>`), offered as you type. */
+const typePath = (container, text) => {
+  const box = within(container).getByRole("textbox", { name: /^(?!name$).+/ });
+  fireEvent.change(box, { target: { value: text } });
+  fireEvent.keyDown(box, { key: "Enter" });
+};
+const choose = (container, label, which = 0) => {
+  const row = container.getAttribute("data-testid") || "";
+  if (/^(binding|output)-row-\d+$/.test(row)) {
+    if (which === 0) {
+      const more = within(container).getByRole("button", { name: / · More$/ });
+      if (more.getAttribute("aria-expanded") !== "true") fireEvent.click(more);
+      container = within(container).getByTestId(`${row}-settings`);
+    } else {
+      container = within(container).getByTestId(`${row}-source`);
+    }
+    which = 0;
+  }
+  fireEvent.click(within(container).getAllByRole("combobox")[which]);
+  const lists = screen.getAllByRole("listbox", { hidden: true });
+  fireEvent.click(within(lists[lists.length - 1]).getByText(label, { exact: true }));
+};
+const save = async (store) => {
+  const before = store.save.mock.calls.length;
+  fireEvent.click(screen.getByRole("button", { name: "Save", exact: true }));
+  await waitFor(() => expect(store.save.mock.calls.length).toBe(before + 1));
+  await waitFor(() => expect(screen.getByTestId("skeleton-save-state")).toHaveTextContent(/^Saved$/));
+  return store.save.mock.calls.at(-1)[0];
+};
+const callOf = (document) => document.nodes.find((node) => node.type === "workflow_call");
+/* An input's value is one cell, as on an Input Variables row: typed in, or
+   picked from the sources the cell offers when it is focused. */
+const valueBox = (name) => within(screen.getByTestId(`workflow-call-input-${name}-value`)).getByRole("textbox");
+const setVariable = (name, label) => {
+  fireEvent.focus(valueBox(name));
+  const options = screen.getAllByTitle(label);
+  fireEvent.click(options[options.length - 1]);
+};
+const setValue = (name, text) => {
+  const box = valueBox(name);
+  fireEvent.focus(box);
+  fireEvent.change(box, { target: { value: text } });
+  fireEvent.blur(box);
+};
+
+beforeEach(() => {
+  localStorage.clear();
+  forget_workflow_versions();
+  Object.keys(api.unchain).forEach((key) => delete api.unchain[key]);
+  api.unchain.listSkeletonResources = jest.fn().mockResolvedValue(row("list_active").reply);
+  api.unchain.listSkeletonKernelProfiles = jest.fn().mockResolvedValue({ profiles: [profile], unavailable: [] });
+  api.unchain.listSkeletonPythonProfiles = jest.fn().mockResolvedValue({ profiles: codeCapture.profiles.list_after });
+});
+
+afterAll(() => {
+  if (process.env.WFC_PAYLOAD_DIR) fs.writeFileSync(`${process.env.WFC_PAYLOAD_DIR}/index.json`, JSON.stringify(exported, null, 2) + "\n");
+});
+
+test("choose a Workflow, publish its draft and pin that revision, fill the inputs its Start reads, export what its End gives, Save, reopen", async () => {
+  const store = makeStore(["caller_seed_get", "wf_get_after_2"]);
+  await open("caller-seed");
+  expect(screen.getByTestId("workflow-call-node-call-revision")).toHaveTextContent("pick a Workflow");
+  await openCall();
+  expect(screen.getByTestId("workflow-call-problems")).toHaveTextContent("Choose a Workflow and pin");
+  await waitFor(() => expect(within(screen.getByTestId("workflow-call-picker")).getByRole("combobox")).not.toBeDisabled());
+  /* Picking is taking its current version: its draft is published and that
+     revision is the one the call runs. */
+  choose(screen.getByTestId("workflow-call-picker"), "Summarize");
+  await waitFor(() => expect(screen.getByTestId("workflow-call-pinned")).toHaveTextContent("Uses version 2"));
+  expect(store.publish).toHaveBeenCalledTimes(1);
+
+  /* Its Start reads `message` and `limit`; both are required, nothing else is offered. */
+  expect(screen.getByTestId("workflow-call-problems")).toHaveTextContent("reads “message”");
+  expect(within(screen.getByTestId("workflow-call-input-message")).getByTitle(/its Start reads it as text/)).toBeInTheDocument();
+  expect(within(screen.getByTestId("workflow-call-input-limit")).getByTitle(/its Start reads it as n/)).toBeInTheDocument();
+  setVariable("message", "start · message");
+  setValue("limit", "3");
+  expect(screen.queryByTestId("workflow-call-problems")).toBeNull();
+  expect(screen.getByTestId("workflow-call-exports")).toHaveTextContent("summary, count, echo");
+
+  /* The Output Variables pick from exactly its End's exports. */
+  fireEvent.click(screen.getByRole("button", { name: "+ Add output", exact: true }));
+  typePath(screen.getByTestId("output-row-0"), "result.summary");
+  fireEvent.change(within(screen.getByTestId("output-row-0")).getByPlaceholderText("name"), { target: { value: "summary" } });
+
+  expect(screen.getByTestId("workflow-call-node-call-revision")).toHaveTextContent("version 2");
+  expect(screen.getByTestId("workflow-call-node-call-exports")).toHaveTextContent("summary, count, echo");
+  const edit = await save(store);
+  expect(edit.expected_edit_token).toBe(row("caller_seed_get").reply.resource.edit_token);
+  expect(callOf(edit.document).config).toEqual({
+    execution: {
+      inputs: [
+        { name: "message", value: { kind: "ref", node_id: "start", path: ["message"] }, missing: "error" },
+        { name: "limit", value: { kind: "literal", value: "3" }, missing: "error" },
+      ],
+      outputs: [{ name: "summary", source: { kind: "result", path: ["summary"] } }],
+    },
+    workflow: { workflow_id: "wf-summarize", revision_id: REV2 },
+  });
+  exportPayload("publish-and-pin", "caller_seed_get", edit);
+
+  view.unmount();
+  forget_workflow_versions();
+  await open("caller-seed");
+  await screen.findByText("version 2", { exact: false });
+  await openCall();
+  expect(screen.getByTestId("workflow-call-pinned")).toHaveTextContent("Uses version 2");
+  expect(store.version).toHaveBeenCalledWith("wf-summarize", REV2);
+  expect(screen.queryByTestId("workflow-call-problems")).toBeNull();
+});
+
+test("stored rows the revision does not read are shown and removable; the missing ones are named", async () => {
+  const store = makeStore(["caller_inputs_wrong_names_get"]);
+  await open("caller-inputs-wrong-names");
+  await openCall();
+  await screen.findByTestId("workflow-call-extra-0");
+  expect(screen.getByTestId("workflow-call-extra-0")).toHaveTextContent("text");
+  expect(screen.getByTestId("workflow-call-extra-1")).toHaveTextContent("n");
+  const problems = screen.getByTestId("workflow-call-problems").textContent;
+  expect(problems).toContain("reads “message”");
+  expect(problems).toContain("reads “limit”");
+  expect(screen.getByTestId("workflow-call-node-call-input-message")).toHaveTextContent("missing");
+  fireEvent.click(screen.getByRole("button", { name: "Remove stored input n" }));
+  fireEvent.click(screen.getByRole("button", { name: "Remove stored input text" }));
+  setVariable("message", "start · message");
+  setVariable("limit", "start · message");
+  expect(screen.queryByTestId("workflow-call-problems")).toBeNull();
+  const edit = await save(store);
+  expect(callOf(edit.document).config.execution.inputs.map((item) => item.name)).toEqual(["message", "limit"]);
+  exportPayload("wrong-names-fixed", "caller_inputs_wrong_names_get", edit);
+});
+
+test("a publication that answers after the author chose another Workflow pins nothing", async () => {
+  const store = makeStore(["caller_seed_get", "wf_get_after_2"]);
+  const late = deferred();
+  store.publish.mockImplementation(() => late.promise);
+  await open("caller-seed");
+  await openCall();
+  await waitFor(() => expect(within(screen.getByTestId("workflow-call-picker")).getByRole("combobox")).not.toBeDisabled());
+  choose(screen.getByTestId("workflow-call-picker"), "Summarize");
+  await waitFor(() => expect(store.publish).toHaveBeenCalledTimes(1));
+  choose(screen.getByTestId("workflow-call-picker"), "Draft only");
+  await act(async () => {
+    late.resolve(row("wf_publish_2").reply);
+    await late.promise;
+  });
+  expect(screen.getByTestId("skeleton-save-state")).toHaveTextContent(/^Saved$/);
+  expect(screen.queryByTestId("workflow-call-pinned")).toBeNull();
+});
+
+test("a stale publication is refused by the host and pins nothing", async () => {
+  const store = makeStore(["caller_seed_get", "wf_get_after_2"]);
+  store.publish.mockRejectedValue(refusal("wf_publish_stale_token"));
+  await open("caller-seed");
+  await openCall();
+  await waitFor(() => expect(within(screen.getByTestId("workflow-call-picker")).getByRole("combobox")).not.toBeDisabled());
+  choose(screen.getByTestId("workflow-call-picker"), "Summarize");
+  await screen.findByText(/current version could not be taken: Workflow changed before publication/);
+  expect(screen.getByTestId("skeleton-save-state")).toHaveTextContent(/^Saved$/);
+});
+
+test("a new Workflow Call from the palette starts unpinned; preflight's refusal is said before Run", async () => {
+  const store = makeStore(["caller_complete_get"]);
+  await open("caller-complete");
+  openAddNode();
+  fireEvent.click(screen.getByTestId("palette-entry-workflow_call"));
+  await screen.findByTestId("workflow-call-section");
+  expect(screen.getByTestId("workflow-call-problems")).toHaveTextContent("Choose a Workflow and pin one of its published revisions.");
+  const edit = await save(store);
+  const added = edit.document.nodes.filter((node) => node.type === "workflow_call").find((node) => node.id !== "call");
+  expect(added.config).toEqual({ execution: { inputs: [], outputs: [] } });
+});
+
+test("a host without the v2 revision read says the pin cannot be read; nothing falls back", async () => {
+  makeStore(["caller_complete_get"]);
+  delete api.unchain.getManagedSkeletonWorkflowVersion;
+  api.unchain.getSkeletonWorkflowVersion = jest.fn();
+  await open("caller-complete");
+  await waitFor(() => expect(screen.getByTestId("workflow-call-node-call-revision")).toHaveTextContent("version unreadable"));
+  await openCall();
+  expect(screen.getByTestId("workflow-call-problems")).toHaveTextContent("The pinned revision could not be read");
+  expect(api.unchain.getSkeletonWorkflowVersion).not.toHaveBeenCalled();
+});
+
+test("a declared signature supplies caller rows, types and defaults without making optional parameters required", async () => {
+  const store = makeStore(["caller_complete_get"]);
+  const original = store.version.getMockImplementation();
+  store.version.mockImplementation(async (...args) => {
+    const reply = await original(...args);
+    reply.version.document.input_schema = { type: "object", properties: {
+      message: { type: "string" }, limit: { type: "integer", default: 5 } }, required: ["message"], additionalProperties: false };
+    return reply;
+  });
+  const call = callOf(store.held["caller-complete"].resource.document);
+  call.config.execution.inputs = call.config.execution.inputs.filter((binding) => binding.name !== "limit");
+  await open("caller-complete"); await openCall();
+  const optional = await screen.findByTestId("workflow-call-input-limit");
+  expect(within(optional).queryByLabelText("required")).toBeNull();
+  expect(within(screen.getByTestId("workflow-call-input-message")).getByLabelText("required")).toBeInTheDocument();
+  expect(optional).toHaveTextContent("Integer"); expect(within(optional).getByPlaceholderText("5")).toBeInTheDocument();
+  expect(screen.queryByText(/reads “limit”/)).toBeNull();
+  expect(screen.queryByRole("button", { name: "Add input" })).toBeNull();
+  expect(store.save).not.toHaveBeenCalled();
+  setValue("limit", "3");
+  const edit = await save(store);
+  expect(callOf(edit.document).config.execution.inputs.find((binding) => binding.name === "limit").value).toEqual({ kind: "literal", value: 3 });
+});
+
+/* The called Workflow opens to be edited, as a referenced subagent does: its
+   own draft on the canvas, the breadcrumb back to the call. */
+test("Edit opens the called Workflow's draft; Escape comes back to the call", async () => {
+  makeStore(["caller_complete_rev2_get", "wf_get_after_2"]);
+  await open("caller-complete-rev2");
+  await openCall();
+  await waitFor(() => expect(screen.getByTestId("workflow-call-pinned")).toHaveTextContent("Uses version 2"));
+  fireEvent.click(screen.getByRole("button", { name: "Open Summarize to edit it" }));
+  await waitFor(() => expect(screen.queryByTestId("skeleton-node-call")).toBeNull());
+  expect(screen.getByTestId("skeleton-node-start")).toBeInTheDocument();
+  expect(screen.getByTestId("skeleton-escape-hint")).toHaveAttribute("data-visible", "true");
+  fireEvent.keyDown(window.document, { key: "Escape" });
+  await screen.findByTestId("skeleton-node-call");
+});
+
+test("double-clicking the Workflow Call card opens the called Workflow", async () => {
+  makeStore(["caller_complete_rev2_get", "wf_get_after_2"]);
+  await open("caller-complete-rev2");
+  await screen.findByTestId("workflow-call-node-call");
+  fireEvent.doubleClick(screen.getByTestId("workflow-call-node-call-revision"));
+  await waitFor(() => expect(screen.queryByTestId("skeleton-node-call")).toBeNull());
+});
+
+test("a call on an older version than the Workflow's draft says so, and Update takes the current one", async () => {
+  const store = makeStore(["caller_complete_get", "wf_get_after_2"]);
+  await open("caller-complete");
+  await openCall();
+  await waitFor(() => expect(screen.getByTestId("workflow-call-pinned")).toHaveTextContent("Summarize has changed since version 1"));
+  fireEvent.click(screen.getByRole("button", { name: "Use the current version of Summarize" }));
+  await waitFor(() => expect(screen.getByTestId("workflow-call-pinned")).toHaveTextContent("Uses version 2"));
+  expect(store.publish).toHaveBeenCalledTimes(1);
+  expect(callOf((await save(store)).document).config.workflow).toEqual({ workflow_id: "wf-summarize", revision_id: REV2 });
+});

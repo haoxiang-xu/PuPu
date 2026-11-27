@@ -3,6 +3,23 @@
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 /**
+ * While a node's own content animates its size (`resizing` in its measured
+ * dimensions, set by FlowEditorNode while the node announces a size motion),
+ * a px-anchored port stays at least this far inside the end of its side, so
+ * an outlet whose row is still being revealed rides the growing edge instead
+ * of floating outside the node. At rest no clamp applies: an anchor is exact.
+ */
+export const PORT_ANCHOR_EDGE_INSET = 12;
+
+/** Bubbling DOM event a node's content dispatches when its own size starts
+ * (`detail.running: true`) or stops animating; FlowEditorNode listens. */
+export const NODE_SIZE_MOTION_EVENT = "flow-node-size-motion";
+
+export function clamp_anchor_to_extent(anchor, extent) {
+  return Number.isFinite(extent) ? Math.min(anchor, extent - PORT_ANCHOR_EDGE_INSET) : anchor;
+}
+
+/**
  * Default port configuration — one port on each side
  */
 export const DEFAULT_PORTS = [
@@ -56,16 +73,30 @@ export function calculate_port_position(
   }
 }
 
+function own_dimensions(table, node_id) {
+  if (!table || typeof node_id !== "string") return null;
+  return Object.prototype.hasOwnProperty.call(table, node_id)
+    ? table[node_id]
+    : null;
+}
+
 /**
  * Resolve a port's canvas-space position for a given node object.
  *
  * @param {{ id: string, x: number, y: number, ports?: Array }} node
  * @param {string} port_id
- * @param {Object} node_dimensions  Map of nodeId → { width, height }
+ * @param {Object} node_dimensions  Map of nodeId → { width, height }, read by
+ *   own key only: a node id is whatever the graph chose, and `__proto__` is a
+ *   legal one, so a plain-object read could answer with an inherited member
+ *   and give the port NaN coordinates. The editor's own table has no
+ *   prototype; this makes the function safe for any caller's.
  * @returns {{ x: number, y: number, side: string } | null}
  */
 export function get_port_position(node, port_id, node_dimensions) {
-  const dims = node_dimensions[node.id] || { width: 120, height: 60 };
+  const dims = own_dimensions(node_dimensions, node.id) || {
+    width: 120,
+    height: 60,
+  };
   const ports = node.ports || DEFAULT_PORTS;
   const port = ports.find((p) => p.id === port_id);
   if (!port) return null;
@@ -81,6 +112,18 @@ export function get_port_position(node, port_id, node_dimensions) {
     index,
     same_side.length,
   );
+  /* A port that names its own place along its side (`anchor`, in px from
+     the node's top for left/right, from its left for top/bottom) sits there
+     rather than at an even fraction — the drawn dot and the edge's endpoint
+     read the same field, so they cannot disagree. */
+  if (Number.isFinite(port.anchor)) {
+    const resizing = dims.resizing === true;
+    if (port.side === "left" || port.side === "right") {
+      pos.y = node.y + (resizing ? clamp_anchor_to_extent(port.anchor, dims.height) : port.anchor);
+    } else if (port.side === "top" || port.side === "bottom") {
+      pos.x = node.x + (resizing ? clamp_anchor_to_extent(port.anchor, dims.width) : port.anchor);
+    }
+  }
   return { ...pos, side: port.side };
 }
 
@@ -164,4 +207,34 @@ export function get_bezier_midpoint(source, target) {
     t * t * t * target.y;
 
   return { x, y };
+}
+
+/* ── The part of the canvas a person can actually see ────────────────
+   Panels can float over the canvas (a side menu on either edge). The
+   caller says how far each one reaches in, as insets in canvas pixels;
+   what is left is the visible area, and its middle is where "centre a
+   node" means. An inset that would leave nothing (a panel wider than the
+   canvas) is ignored on that axis, so the canvas middle still applies. */
+const inset_of = (area, side) => {
+  const value = area && area[side];
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : 0;
+};
+
+export function visible_area_center(width, height, area) {
+  const left = inset_of(area, "left");
+  const right = inset_of(area, "right");
+  const top = inset_of(area, "top");
+  const bottom = inset_of(area, "bottom");
+  const x = width - left - right > 0 ? left + (width - left - right) / 2 : width / 2;
+  const y = height - top - bottom > 0 ? top + (height - top - bottom) / 2 : height / 2;
+  return { x, y };
+}
+
+/* The viewport that puts a node's middle on `center` at `zoom`. */
+export function viewport_centering_node(node, dims, center, zoom) {
+  return {
+    x: center.x - (node.x + dims.width / 2) * zoom,
+    y: center.y - (node.y + dims.height / 2) * zoom,
+    zoom,
+  };
 }

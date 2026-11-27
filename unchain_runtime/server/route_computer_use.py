@@ -203,10 +203,10 @@ def set_computer_use_config():
     resolved_local = is_local_beta_enabled()
     _logger.info(
         "computer-use runtime config updated: enabled=%s->%s local_beta=%s->%s",
-        previous,
-        resolved,
-        previous_local,
-        resolved_local,
+        "on" if previous else "off",
+        "on" if resolved else "off",
+        "on" if previous_local else "off",
+        "on" if resolved_local else "off",
     )
     return jsonify(
         {

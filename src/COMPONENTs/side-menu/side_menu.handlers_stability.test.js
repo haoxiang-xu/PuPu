@@ -36,16 +36,6 @@ jest.mock("../workspace/workspace_modal_content", () => ({
   },
 }));
 
-jest.mock(
-  "../agents/agents_modal_content",
-  () => ({
-    AgentsModalContent: () => {
-      throw new Promise(() => {});
-    },
-  }),
-  { virtual: true },
-);
-
 jest.mock("../../BUILTIN_COMPONENTs/icon/icon", () => () => (
   <span data-testid="icon" />
 ));

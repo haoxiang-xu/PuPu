@@ -32,4 +32,26 @@ describe("PuzzleShape", () => {
     const shape = container.querySelector("[data-puzzle-shape]");
     expect(shape.style.filter).toContain("url(#flow-editor-goo)");
   });
+
+  test("left notch and right bump centre on the side, or on the port anchor", () => {
+    const plain = render(
+      wrap(
+        <PuzzleShape tabs={["right"]} cutouts={["left"]} isDark={false}>
+          <div />
+        </PuzzleShape>,
+      ),
+    );
+    expect(plain.container.querySelector("[data-tab-side=right]").style.top).toBe("50%");
+    expect(plain.container.querySelector("[data-puzzle-body]").getAttribute("data-side-y")).toBe("50%");
+
+    const anchored = render(
+      wrap(
+        <PuzzleShape tabs={["right"]} cutouts={["left"]} anchor={27} isDark={false}>
+          <div />
+        </PuzzleShape>,
+      ),
+    );
+    expect(anchored.container.querySelector("[data-tab-side=right]").style.top).toBe("27px");
+    expect(anchored.container.querySelector("[data-puzzle-body]").getAttribute("data-side-y")).toBe("27px");
+  });
 });

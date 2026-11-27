@@ -1,3 +1,5 @@
+import ShadowSurface from "../material/shadow_surface";
+import { SURFACE_DITHER_STYLE } from "../material/surface_dither";
 import {
   isValidElement,
   useContext,
@@ -35,6 +37,14 @@ const RailItem = ({
   onPick,
 }) => {
   const [hovered, setHovered] = useState(false);
+  const itemRef = useRef(null);
+  useEffect(() => {
+    const item = itemRef.current;
+    const rail = item?.parentElement;
+    if (active && rail?.scrollHeight > rail?.clientHeight) {
+      item.scrollIntoView?.({ block: "nearest" });
+    }
+  }, [active]);
   /* Anti-impersonation marker: a user-defined ("custom") provider carries a
      is_custom / badge flag. A built-in provider never does. Surfacing it here
      — the group's visual identity in rail mode — means a shared config named
@@ -48,6 +58,7 @@ const RailItem = ({
       : "";
   return (
     <div
+      ref={itemRef}
       title={badgeText ? `${group.group} (${badgeText})` : group.group}
       onMouseDown={(e) => e.preventDefault()}
       onClick={onPick}
@@ -57,6 +68,7 @@ const RailItem = ({
         position: "relative",
         width: 34,
         height: 34,
+        minHeight: 30,
         borderRadius: 12,
         display: "flex",
         alignItems: "center",
@@ -283,7 +295,7 @@ const SinkingSelect = ({
     (typeof selectedIcon === "string" || isValidElement(selectedIcon));
 
   const triggerContent = (
-    <div
+    <ShadowSurface
       ref={triggerRef}
       role="combobox"
       aria-controls={listboxIdRef.current}
@@ -385,11 +397,11 @@ const SinkingSelect = ({
           flex: "none",
         }}
       />
-    </div>
+    </ShadowSurface>
   );
 
   const dropdownContent = (
-    <div
+    <ShadowSurface
       ref={dropdownPanelRef}
       style={{
         display: "flex",
@@ -413,6 +425,8 @@ const SinkingSelect = ({
           dropdown_style?.boxShadow ??
           dropdown_theme?.boxShadow ??
           "0 12px 20px rgba(0, 0, 0, 0.12)",
+        /* shrinks into the window (Tooltip fit_viewport); the list scrolls */
+        minHeight: 0,
         ...dropdown_style,
       }}
       onKeyDown={filter_mode === "panel" ? handle_key_down : undefined}
@@ -475,7 +489,7 @@ const SinkingSelect = ({
           isDark={false}
         />
       </div>
-    </div>
+    </ShadowSurface>
   );
 
   return (
@@ -485,6 +499,7 @@ const SinkingSelect = ({
       offset={8}
       align="start"
       show_arrow={false}
+      fit_viewport
       tooltip_component={dropdownContent}
       style={{
         padding: 0,
@@ -633,7 +648,7 @@ const FloatingSelect = ({
       }}
     >
       {/* card-like container */}
-      <div
+      <ShadowSurface
         style={{
           position: "relative",
           flex: 1,
@@ -740,12 +755,12 @@ const FloatingSelect = ({
             {label}
           </span>
         )}
-      </div>
+      </ShadowSurface>
     </div>
   );
 
   const dropdownContent = (
-    <div
+    <ShadowSurface
       ref={dropdownPanelRef}
       style={{
         display: "flex",
@@ -768,6 +783,7 @@ const FloatingSelect = ({
           dropdown_style?.boxShadow ??
           dropdown_theme?.boxShadow ??
           "0 12px 20px rgba(0,0,0,0.12)",
+        minHeight: 0,
         ...dropdown_style,
       }}
       onKeyDown={filter_mode === "panel" ? handle_key_down : undefined}
@@ -830,7 +846,7 @@ const FloatingSelect = ({
           isDark={isDark}
         />
       </div>
-    </div>
+    </ShadowSurface>
   );
 
   return (
@@ -840,6 +856,7 @@ const FloatingSelect = ({
       offset={8}
       align="start"
       show_arrow={false}
+      fit_viewport
       tooltip_component={dropdownContent}
       style={{ padding: 0, backgroundColor: "transparent", boxShadow: "none" }}
       open={mergedOpen}
@@ -872,6 +889,9 @@ const Select = ({
      inside a full-width host (a menu row) needs width: 100% here or the
      inline-flex wrapper shrinks the row to its content */
   trigger_wrapper_style,
+  /* The chosen label's own layout, e.g. `{ flex: 1 }` to keep the icon and
+     text at the start and the arrow at the far end. */
+  trigger_label_style,
   style,
   dropdown_style,
   dropdown_position = "bottom",
@@ -887,6 +907,15 @@ const Select = ({
   palette_actions,
   palette_footer,
   palette_rail = false,
+  /* palette variant only: the list drawn as a tree. A function handed
+     { render_option, highlighted_value } that returns the tree; it places
+     each option with render_option(option, { depth }) so the rows are this
+     palette's own rows, and draws its own hover pill. Keyboard stays here:
+     ↑↓/⏎ walk `options`, so the caller passes them in the tree's VISIBLE
+     order (folders between them are the tree's, not the keyboard's). */
+  palette_tree = null,
+  /* the tree's visible option values, in order (see palette_tree) */
+  palette_tree_values,
   keep_open_on_select,
 }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
@@ -954,7 +983,11 @@ const Select = ({
   const [pressed, setPressed] = useState(false);
   const dropdownPanelRef = useRef(null);
   const dropdownListRef = useRef(null);
+  const providerRailRef = useRef(null);
 
+  /* palette_tree: the rows the tree shows right now, reported by the tree
+     (on_visible_change) — a caller may still pass palette_tree_values. */
+  const [treeVisibleValues, setTreeVisibleValues] = useState(undefined);
   const hook = useSelect({
     options,
     value,
@@ -967,6 +1000,12 @@ const Select = ({
     on_open_change,
     on_group_toggle,
     keep_open_on_select,
+    browse_values:
+      isPalette && palette_tree
+        ? palette_tree_values !== undefined
+          ? palette_tree_values
+          : treeVisibleValues
+        : undefined,
   });
 
   const {
@@ -994,7 +1033,7 @@ const Select = ({
     handle_query_change,
   } = hook;
 
-  useDropdownWheelGuard(mergedOpen, dropdownPanelRef, dropdownListRef);
+  useDropdownWheelGuard(mergedOpen, dropdownPanelRef, dropdownListRef, providerRailRef);
 
   useEffect(() => {
     if (!disabled) return;
@@ -1152,6 +1191,7 @@ const Select = ({
           position: "relative",
           zIndex: 1,
           color: triggerLabelIsPlaceholder ? placeholderColor : baseColor,
+          ...trigger_label_style,
         }}
       >
         {triggerLabel}
@@ -1234,13 +1274,42 @@ const Select = ({
   const rail_pick_group = (target) => {
     (options || []).forEach((item) => {
       if (!item || typeof item !== "object" || !item.group) return;
-      const shouldCollapse = item.group !== target;
+      const shouldCollapse = group_toggle_key(item) !== target;
       if (!!item.collapsed !== shouldCollapse) {
         on_group_toggle(group_toggle_key(item));
       }
     });
     if (query) handle_query_change("");
   };
+
+  /* ── palette_tree: the pill follows the pointer onto rows that are not
+     options (a folder). The keyboard's highlight only ever names an option,
+     so without this the pill stayed on the last option hovered while the
+     pointer sat on a folder row — a row away from where the pointer is.
+     The pointer's row is remembered together with the option highlighted
+     at that moment: once the highlight moves (an arrow key, an option
+     hovered) it lets go. `id: null` (the pointer is on the tree but on no
+     row the tree told us about) shows no pill at all rather than a wrong
+     one. */
+  const [treeHover, setTreeHover] = useState(null);
+  const highlightedOptionValue =
+    highlightedIndex >= 0 ? flatSelectable[highlightedIndex]?.value : undefined;
+  const treeHoverLive =
+    treeHover && treeHover.over === highlightedOptionValue ? treeHover : null;
+  const treeHighlightedValue = treeHoverLive
+    ? treeHoverLive.id
+    : highlightedOptionValue;
+  const treeHoverRow = (nodeId) => {
+    if (flatSelectable.some((option) => option?.value === nodeId)) {
+      setTreeHover(null);
+      return;
+    }
+    setTreeHover({ id: nodeId, over: highlightedOptionValue });
+  };
+  const treeVisibleChange = (ids) => setTreeVisibleValues(ids);
+  useEffect(() => {
+    if (!mergedOpen) setTreeHover(null);
+  }, [mergedOpen]);
 
   /* one hover pill gliding between rows (palette lists) */
   const slidingHoverColor = isDark
@@ -1268,7 +1337,7 @@ const Select = ({
           Array.isArray(g.options) &&
           g.options.some((o) => o?.value === selectedValue),
       ) || groups[0];
-    rail_pick_group(holder.group);
+    rail_pick_group(group_toggle_key(holder));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isRail, mergedOpen, options, selectedValue]);
 
@@ -1312,7 +1381,7 @@ const Select = ({
       );
       const delta = e.key === "ArrowDown" ? 1 : -1;
       const next = (activeIdx + delta + groups.length) % groups.length;
-      rail_pick_group(groups[next].group);
+      rail_pick_group(group_toggle_key(groups[next]));
       return;
     }
     if (e.key === "ArrowRight" || e.key === "Enter" || e.key === "Escape") {
@@ -1325,7 +1394,7 @@ const Select = ({
   };
 
   const dropdownContent = (
-    <div
+    <ShadowSurface
       ref={dropdownPanelRef}
       style={
         isPalette
@@ -1333,6 +1402,8 @@ const Select = ({
               boxSizing: "border-box",
               display: "flex",
               flexDirection: "column",
+              /* shrinks into the window (Tooltip fit_viewport); the list scrolls */
+              minHeight: 0,
               gap: 1,
               width: isRail ? 300 : 280,
               maxWidth: "calc(100vw - 40px)",
@@ -1345,6 +1416,7 @@ const Select = ({
                 ? "1px solid rgba(var(--pupu-text-rgb),0.10)"
                 : "1px solid rgba(var(--pupu-text-rgb),0.09)",
               borderRadius: 22,
+              ...SURFACE_DITHER_STYLE,
               backdropFilter: "blur(20px) saturate(130%)",
               WebkitBackdropFilter: "blur(20px) saturate(130%)",
               boxShadow: isDark
@@ -1362,6 +1434,7 @@ const Select = ({
           : {
               display: "flex",
               flexDirection: "column",
+              minHeight: 0,
               gap: 6,
               minWidth: dropdownMinWidth ? dropdownMinWidth - 12 : undefined,
               padding: dropdown_theme?.padding ?? 6,
@@ -1373,6 +1446,7 @@ const Select = ({
                 (isDark
                   ? "rgba(var(--pupu-surface-rgb),0.85)"
                   : "rgba(var(--pupu-surface-rgb),0.9)"),
+              ...SURFACE_DITHER_STYLE,
               backdropFilter: "blur(20px) saturate(130%)",
               WebkitBackdropFilter: "blur(20px) saturate(130%)",
               border: isDark
@@ -1420,12 +1494,17 @@ const Select = ({
           {/* provider rail — active gets the highlight + accent bar; the
               provider holding the current selection carries a green dot */}
           <div
+            ref={providerRailRef}
             style={{
               width: 40,
               flexShrink: 0,
               display: "flex",
               flexDirection: "column",
               gap: 4,
+              minHeight: 0,
+              overflowY: "auto",
+              overscrollBehaviorY: "contain",
+              scrollbarWidth: "none",
               paddingRight: 5,
               marginRight: 7,
               borderRight: "1px solid rgba(var(--pupu-text-rgb),0.06)",
@@ -1433,7 +1512,7 @@ const Select = ({
           >
             {filteredGroups.map((g) => (
               <RailItem
-                key={g.group}
+                key={group_toggle_key(g)}
                 group={g}
                 active={!railQueryActive && !g.collapsed}
                 dimmed={railQueryActive}
@@ -1446,7 +1525,7 @@ const Select = ({
                 baseColor={baseColor}
                 fontFamily={fontFamily}
                 isDark={isDark}
-                onPick={() => rail_pick_group(g.group)}
+                onPick={() => rail_pick_group(group_toggle_key(g))}
               />
             ))}
           </div>
@@ -1546,7 +1625,67 @@ const Select = ({
           maxHeight: dropdownMaxHeight,
           padding: isPalette ? 0 : 2,
         }}
+        /* a tree that does not report its rows' hover (no on_hover_row):
+           the pointer on anything but an option still takes the pill off
+           the option it is not on */
+        onMouseOver={
+          isPalette && palette_tree
+            ? (event) => {
+                if (event.target?.closest?.('[role="option"]')) return;
+                setTreeHover((prev) =>
+                  prev && prev.over === highlightedOptionValue
+                    ? prev
+                    : { id: null, over: highlightedOptionValue },
+                );
+              }
+            : undefined
+        }
       >
+        {/* a query searches every option, flat — the tree is for browsing */}
+        {isPalette && palette_tree && !query.trim() ? (
+          palette_tree({
+            highlighted_value: treeHighlightedValue,
+            /* hand both to the tree: CommandTree's onHover and
+               onVisibleChange */
+            on_hover_row: treeHoverRow,
+            on_visible_change: treeVisibleChange,
+            render_option: (option, { depth = 0 } = {}) => {
+              const fi = flatSelectable.findIndex(
+                (entry) => entry?.value === option?.value,
+              );
+              return (
+                <OptionItem
+                  key={`${option?.value ?? fi}`}
+                  option={option}
+                  flatIndex={fi}
+                  isSelected={option?.value === selectedValue}
+                  isHighlighted={fi >= 0 && fi === highlightedIndex}
+                  multi={false}
+                  isDark={isDark}
+                  onMouseEnter={() => {
+                    setTreeHover(null);
+                    if (fi >= 0 && !option?.disabled)
+                      setHighlightedIndexFromHover(fi);
+                  }}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => select_option(option)}
+                  /* no refCallback: the tree keeps the highlighted row in
+                     view itself, by its own row refs */
+                  fontSize={13}
+                  fontFamily={fontFamily}
+                  baseColor={baseColor}
+                  placeholderColor={placeholderColor}
+                  option_theme={option_theme}
+                  option_style={option_style}
+                  /* the tree's indent, the way CommandRow carries it: the
+                     row stays full width, its content steps in */
+                  extra_style={depth > 0 ? { padding: `0 8px 0 ${8 + depth * 16}px` } : undefined}
+                />
+              );
+            },
+          })
+        ) : (
+        <>
         {isPalette ? (
           <SlidingHighlight
             refs={optionRefs}
@@ -1579,6 +1718,8 @@ const Select = ({
           option_style={option_style}
           isDark={isDark}
         />
+        </>
+        )}
       </div>
       )}
       {/* palette variant: bottom header — chip + search + actions, the
@@ -1684,7 +1825,7 @@ const Select = ({
           {dropdown_footer}
         </div>
       )}
-    </div>
+    </ShadowSurface>
   );
 
   return (
@@ -1694,6 +1835,7 @@ const Select = ({
       offset={8}
       align="start"
       show_arrow={false}
+      fit_viewport
       tooltip_component={dropdownContent}
       style={{
         padding: 0,

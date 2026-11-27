@@ -5,11 +5,11 @@ import {
   useRef,
   useState,
 } from "react";
-import ReactShowdown from "react-showdown";
 
 /* { Components } ------------------------------------------------------------------------------------------------------------ */
 import MarkdownCodeBlock from "./code";
 import { acquireMarkdownStyle } from "./markdown_style_registry";
+import { createMarkdownParser, renderSafeMarkdown } from "./safe_markdown";
 /* { Components } ------------------------------------------------------------------------------------------------------------ */
 
 /* { Contexts } -------------------------------------------------------------------------------------------------------------- */
@@ -178,9 +178,7 @@ const Markdown = ({
   children = "",
   markdown,
   options,
-  extensions,
   components = EMPTY_COMPONENTS,
-  flavor,
   sanitize_html = false,
   className,
   style,
@@ -383,6 +381,11 @@ const Markdown = ({
     }),
     [components, renderPre],
   );
+  const parser = useMemo(() => createMarkdownParser(mergedOptions), [mergedOptions]);
+  const renderedMarkdown = useMemo(
+    () => renderSafeMarkdown(parser, markdownText, mergedComponents, sanitize_html),
+    [parser, markdownText, mergedComponents, sanitize_html],
+  );
 
   const hasHeight =
     containerStyle?.height !== undefined ||
@@ -398,14 +401,7 @@ const Markdown = ({
         ...containerStyle,
       }}
     >
-      <ReactShowdown
-        markdown={markdownText}
-        options={mergedOptions}
-        extensions={extensions}
-        components={mergedComponents}
-        flavor={flavor}
-        sanitizeHtml={sanitize_html}
-      />
+      <div>{renderedMarkdown}</div>
     </div>
   );
 };

@@ -114,4 +114,53 @@ describe("useSmoothResizeFrame", () => {
 
     unmount();
   });
+
+  test("live: follows the container with no easing, then settles on the final size", () => {
+    const { result, rerender } = renderHook(
+      ({ live }) => useSmoothResizeFrame({ live }),
+      { initialProps: { live: false } },
+    );
+    act(() => {
+      result.current.containerRef.current = frameNode;
+      result.current.refreshFrame();
+    });
+    expect(result.current.frameStyle.width).toBe("900px");
+
+    rerender({ live: true });
+    expect(result.current.frameStyle.inset).toBe(0);
+    expect(result.current.frameStyle.transition).toBe("none");
+
+    frameSize = { width: 700, height: 640 };
+    rerender({ live: false });
+    expect(result.current.frame).toEqual({ width: 700, height: 640 });
+  });
+
+  test("live: the release render never lays out the pre-drag size", () => {
+    /* Every render's style reaches the DOM, and the layout effect that
+       re-measures forces a reflow, so a release render still carrying the
+       size from before the drag starts an eased transition back to it, which
+       the fresh measurement then reverses: the content bounces on release. */
+    const renderedWidths = [];
+    const { result, rerender } = renderHook(
+      ({ live }) => {
+        const hook = useSmoothResizeFrame({ live });
+        renderedWidths.push(hook.frameStyle.width);
+        return hook;
+      },
+      { initialProps: { live: false } },
+    );
+    act(() => {
+      result.current.containerRef.current = frameNode;
+      result.current.refreshFrame();
+    });
+    expect(result.current.frameStyle.width).toBe("900px");
+
+    rerender({ live: true });
+    frameSize = { width: 700, height: 640 };
+    renderedWidths.length = 0;
+    rerender({ live: false });
+
+    expect(renderedWidths).not.toContain("900px");
+    expect(result.current.frameStyle.width).toBe("700px");
+  });
 });

@@ -231,6 +231,108 @@ const messageTraceCollections = (message) => {
   return collections;
 };
 
+export const findRetainedNativeSkeletonApprovalOwner = (
+  messages,
+  pending,
+  chatId,
+) => {
+  const normalizedChatId = normalizedString(chatId);
+  if (
+    !Array.isArray(messages) ||
+    !normalizedChatId ||
+    !pending ||
+    pending.resumeKind !== "skeleton" ||
+    pending.status !== "awaiting_response" ||
+    pending.kind !== "tool_approval" ||
+    pending.resumeAvailable !== true ||
+    pending.sessionId !== normalizedChatId ||
+    !normalizedString(pending.sourceRunId) ||
+    pending.sourceRunId !== pending.activeAttemptId ||
+    !normalizedString(pending.interactionId) ||
+    !normalizedString(pending.callId) ||
+    !isObject(pending.traceFrame?.payload)
+  ) {
+    return "";
+  }
+
+  const expectedPayload = pending.traceFrame.payload;
+  const matchingMessages = [];
+  let authoritativeFrameCount = 0;
+  for (const message of messages) {
+    if (message?.role !== "assistant") continue;
+    const frames = messageTraceCollections(message).flat();
+    const identityFrames = frames.filter(
+      (frame) =>
+        traceFrameConfirmationId(frame) === pending.interactionId ||
+        traceFrameCallId(frame) === pending.callId ||
+        normalizedString(frame?.links?.interaction_id) === pending.interactionId ||
+        normalizedString(frame?.links?.tool_call_id) === pending.callId,
+    );
+    if (identityFrames.length === 0) continue;
+    matchingMessages.push(message);
+    if (["cancelled", "error"].includes(normalizedString(message.status))) {
+      return "";
+    }
+    if (
+      identityFrames.some((frame) =>
+        [
+          "tool_confirmed",
+          "tool_denied",
+          "tool_result",
+          "interaction_cancelled",
+        ].includes(normalizedString(frame?.type)),
+      )
+    ) {
+      return "";
+    }
+    if (
+      frames.some(
+        (frame) =>
+          frame?.run_id === pending.sourceRunId &&
+          ["run.cancelled", "run.failed", "run.error"].includes(
+            normalizedString(frame?.type),
+          ),
+      )
+    ) {
+      return "";
+    }
+
+    const authoritativeFrames = identityFrames.filter(
+      (frame) =>
+        frame?.type === "tool_call" &&
+        frame?.run_id === pending.sourceRunId &&
+        frame?.session_id === pending.sessionId &&
+        frame?.stage === "runtime_event" &&
+        normalizedString(frame?.event_id) &&
+        frame.event_id === frame?.payload?.runtime_event_id &&
+        frame?.payload?.runtime_source_type === "interaction_requested" &&
+        frame?.payload?.interaction_id === pending.interactionId &&
+        frame?.payload?.confirmation_id === pending.interactionId &&
+        frame?.payload?.call_id === pending.callId &&
+        frame?.payload?.requires_confirmation === true &&
+        frame?.links?.interaction_id === pending.interactionId &&
+        frame?.links?.tool_call_id === pending.callId &&
+        frame?.payload?.tool_name === expectedPayload.tool_name &&
+        jsonValuesEqual(frame?.payload?.arguments, expectedPayload.arguments),
+    );
+    authoritativeFrameCount += authoritativeFrames.length;
+  }
+
+  if (matchingMessages.length !== 1 || authoritativeFrameCount !== 1) {
+    return "";
+  }
+  const owner = matchingMessages[0];
+  const ownerId = normalizedString(owner?.id);
+  if (
+    !ownerId ||
+    normalizedString(owner?.meta?.executionSessionId) !== pending.sessionId ||
+    !normalizedString(owner?.meta?.attemptId)
+  ) {
+    return "";
+  }
+  return ownerId;
+};
+
 export const normalizePendingInteraction = (
   rawPending,
   expectedSessionId = "",
@@ -260,7 +362,10 @@ export const normalizePendingInteraction = (
   const kind = normalizedString(rawPending.kind);
   const sourceRunId = normalizedString(rawPending.source_run_id);
   const activeAttemptId = normalizedString(rawPending.active_attempt_id);
-  const hasGraphResumeKeys = [
+  const isSkeletonResume = rawPending.resume_kind === "skeleton";
+  const interactionSourceRunId = normalizedString(rawPending.interaction_source_run_id);
+  const interactionSessionId = normalizedString(rawPending.interaction_session_id);
+  const hasGraphResumeKeys = !isSkeletonResume && [
     "resume_kind",
     "graph_step_attempt_id",
     "graph_coordinator_attempt_id",
@@ -269,7 +374,9 @@ export const normalizePendingInteraction = (
     rawPending,
     "resume_unavailable_reason",
   );
-  const resumeKeys = hasGraphResumeKeys
+  const resumeKeys = isSkeletonResume
+    ? ["resume_kind", "interaction_source_run_id", "interaction_session_id"]
+    : hasGraphResumeKeys
     ? [
         "resume_kind",
         "graph_step_attempt_id",
@@ -294,9 +401,12 @@ export const normalizePendingInteraction = (
     activeAttemptId !== sourceRunId ||
     typeof rawPending.resume_available !== "boolean" ||
     !isObject(rawPending.resume_options) ||
+    (isSkeletonResume &&
+      (!interactionSourceRunId || !interactionSessionId ||
+        rawPending.resume_available !== true || hasUnavailableReason)) ||
     (hasGraphResumeKeys &&
       (rawPending.resume_kind !== "graph_step" || hasUnavailableReason)) ||
-    (!hasGraphResumeKeys && rawPending.resume_kind !== undefined) ||
+    (!isSkeletonResume && !hasGraphResumeKeys && rawPending.resume_kind !== undefined) ||
     (rawPending.resume_available === false && !hasUnavailableReason) ||
     (rawPending.resume_available === true && hasUnavailableReason) ||
     !hasExactKeys(rawPending, [
@@ -313,7 +423,7 @@ export const normalizePendingInteraction = (
     !isCanonicalDurablePresentation(presentation, {
       kind,
       interactionId,
-      sourceRunId,
+      sourceRunId: isSkeletonResume ? interactionSourceRunId : sourceRunId,
       sessionId,
     })
   ) {
@@ -346,7 +456,7 @@ export const normalizePendingInteraction = (
 
   const resumeKind = normalizedString(rawPending.resume_kind);
   if (
-    (resumeKind && resumeKind !== "graph_step") ||
+    (resumeKind && !["graph_step", "skeleton"].includes(resumeKind)) ||
     (resumeKind === "graph_step" &&
       (normalizedString(rawPending.graph_step_attempt_id) !== sourceRunId ||
         !normalizedString(rawPending.graph_coordinator_attempt_id)))
@@ -401,6 +511,7 @@ export const normalizePendingInteraction = (
           ),
         }
       : {}),
+    ...(isSkeletonResume ? { resumeKind, interactionSourceRunId, interactionSessionId } : {}),
     receiptId,
     resumeAvailable: rawPending.resume_available === true,
     resumeUnavailableReason: normalizedString(

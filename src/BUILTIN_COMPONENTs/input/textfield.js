@@ -1,3 +1,6 @@
+import ShadowSurface from "../material/shadow_surface";
+import { useSurfaceComposite } from "../material/surface_composite";
+import { SURFACE_DITHER_STYLE } from "../material/surface_dither";
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 
 /* { Contexts } -------------------------------------------------------------------------------------------------------------- */
@@ -88,6 +91,8 @@ const FloatingTextField = ({
   const padding = style?.padding ?? tf.padding ?? 12;
   const baseColor = style?.color || theme?.color || (isDark ? "#CCC" : "#222");
   const backdropFilter = style?.backdropFilter || tf.backdropFilter || null;
+
+  const surface = useSurfaceComposite({ backgroundColor: bg, backdropFilter });
 
   /* ---- parse border width so we can flush the scrollbar to the outer edge ---- */
   const borderWidth = parseInt(border, 10) || 1;
@@ -285,19 +290,21 @@ const FloatingTextField = ({
       <div style={{ position: "relative" }}>
 
       {/* ── Main container ── */}
-      <div
+      <ShadowSurface
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         style={{
           position: "relative",
           boxSizing: "border-box",
           backgroundColor: bg,
+          ...SURFACE_DITHER_STYLE,
           ...(backdropFilter
             ? {
                 backdropFilter,
                 WebkitBackdropFilter: backdropFilter,
               }
             : {}),
+          ...surface.style,
           border,
           borderRadius,
           boxShadow: hovered || focused ? shadowFocus : shadow,
@@ -307,6 +314,7 @@ const FloatingTextField = ({
           overflow: "hidden",
         }}
       >
+        {surface.definition}
         {/* ── Hidden measurement div ── */}
         <div
           ref={measureRef}
@@ -465,7 +473,7 @@ const FloatingTextField = ({
             {functional_section}
           </div>
         )}
-      </div>
+      </ShadowSurface>
 
       {/* ── Content section (floating label-like) ── */}
       {content_section && (
@@ -553,6 +561,14 @@ const TextField = ({
   const faintBorder = isDark
     ? "1px solid rgba(255,255,255,0.08)"
     : "1px solid rgba(0,0,0,0.12)";
+  /* Opt-in: a caller that fills the field itself can ask for no resting
+     outline. Kept off the wrapper, which takes the rest of `style`.
+     `restFill` gives the field a solid background and keeps it still: no
+     fill and no border change on hover or focus (the caret marks focus). */
+  /* `padding` is the textarea's inner padding (read into `padding` below), as
+     in FloatingTextField: on the wrapper too it inset the field and pushed a
+     full-width field past its container's right edge by twice the padding. */
+  const { restBorder, restFill, padding: _outer_padding_ignored, ...outerStyle } = style || {};
 
   const lineHeightPx = Math.round(fontSize * lineHeight);
 
@@ -573,6 +589,7 @@ const TextField = ({
   const hasValue = currentValue.length > 0;
 
   const showBg = hovered || focused;
+  const showFill = restFill === undefined ? showBg : false;
 
   /* ── measure functional section ── */
   useEffect(() => {
@@ -657,7 +674,7 @@ const TextField = ({
         width: style?.width || "100%",
         opacity: disabled ? 0.5 : 1,
         cursor: disabled ? "not-allowed" : "text",
-        ...style,
+        ...outerStyle,
       }}
       onClick={() => {
         if (disabled) return;
@@ -671,8 +688,8 @@ const TextField = ({
         style={{
           position: "relative",
           boxSizing: "border-box",
-          backgroundColor: "transparent",
-          border: showBg ? "1px solid transparent" : faintBorder,
+          backgroundColor: restFill ?? "transparent",
+          border: showBg && restFill === undefined ? "1px solid transparent" : (restBorder ?? faintBorder),
           borderRadius,
           transition:
             "border 0.2s ease, height 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
@@ -688,9 +705,9 @@ const TextField = ({
             inset: 0,
             borderRadius,
             backgroundColor: focused ? activeBg : hoverBg,
-            transform: showBg ? "scale(1)" : "scale(0.5, 0)",
-            opacity: showBg ? 1 : 0,
-            transition: showBg
+            transform: showFill ? "scale(1)" : "scale(0.5, 0)",
+            opacity: showFill ? 1 : 0,
+            transition: showFill
               ? "transform 0.25s cubic-bezier(0.2, 0.9, 0.3, 1.0), opacity 0.18s ease"
               : "transform 0.2s cubic-bezier(0.4, 0, 1, 1), opacity 0.15s ease",
             pointerEvents: "none",

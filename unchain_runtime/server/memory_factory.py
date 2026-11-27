@@ -2485,3 +2485,12 @@ from memory_embeddings import (  # noqa: E402
     _vector_embedding_signature,
     resolve_embedding_config,
 )
+
+# Re-exported for character_registry / character_service and their tests, which
+# read these through memory_factory.
+__all__ = [
+    "_character_avatars_dir",
+    "_character_registry_path",
+    "_characters_dir",
+    "_load_long_term_profile",
+]

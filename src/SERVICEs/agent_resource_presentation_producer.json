@@ -1,0 +1,663 @@
+{
+ "schema": "pupu.capture.agent_resource_presentation_producer.v1",
+ "provenance": "Actual PuPu Flask routes (route_skeleton_code_sources / route_skeleton_resources) over a temporary HOME with the imported unchain-dev source; not hand written.",
+ "capabilities": {
+  "bindings": 256,
+  "edit_schema": "pupu.skeleton-edit.v2",
+  "preflight_schema": "pupu.skeleton-preflight.v2",
+  "publication_schema": "pupu.skeleton-publish.v2",
+  "request_bytes": 41943040,
+  "resource_schema": "pupu.skeleton-resource.v2",
+  "runtime_manifest": {
+   "manifest_digest": "sha256:9f7a31a71493cad0765dde1d2d47b25c35c7d60758f0b9ffa4fc4dd83353cb87",
+   "protocols": [
+    {
+     "features": [
+      "artifact_handoff",
+      "canonical_journal",
+      "chat_deletion_sqlite_scope_closure",
+      "context_compiler",
+      "context_content_paging_v1",
+      "context_content_paging_v2",
+      "context_content_read_recovery_v1",
+      "context_contribution_manifest_v1",
+      "durable_interaction_settlement_fence_v1",
+      "generation_rebase_live_interaction_cycles",
+      "graph_failure_terminals_v1",
+      "historical_evidence_guidance_v1",
+      "interaction_resolution_compat",
+      "long_term_promotion",
+      "memory_curator",
+      "memory_toolkit",
+      "memory_workspace",
+      "provider_context_limit_recovery_v1",
+      "small_tool_output_inline_v1",
+      "tool_output_management_v1"
+     ],
+     "id": "context_memory",
+     "major": 1,
+     "minor": 0
+    },
+    {
+     "features": [
+      "cancel_pending",
+      "expected_interaction_id_cas",
+      "fresh_run_lineage",
+      "graph_interaction_lineage_preflight_v1",
+      "host_controlled_resume",
+      "interaction_resolution_atomic_acceptance_v1"
+     ],
+     "id": "durable_interaction",
+     "major": 1,
+     "minor": 0
+    },
+    {
+     "features": [
+      "atomic_receipt_cas",
+      "auxiliary_calls",
+      "enforce_mode",
+      "graph_runs",
+      "memory_off",
+      "ollama_reasoning_preview_v1",
+      "provider_response_outcomes_v1",
+      "provider_uncertainty_diagnostics_v1",
+      "subagent_runs"
+     ],
+     "id": "provider_turn_ownership",
+     "major": 1,
+     "minor": 0
+    },
+    {
+     "features": [
+      "canonical_metrics",
+      "completion_diagnostics_ref",
+      "context_composition_ref_v1",
+      "continuation_claim",
+      "immutable_pricing_snapshot",
+      "provider_call_set_union",
+      "provider_call_usage_v1",
+      "run_bundle_v1",
+      "run_bundle_v2"
+     ],
+     "id": "run_bundle",
+     "major": 1,
+     "minor": 0
+    },
+    {
+     "features": [
+      "code_python_v1",
+      "document_presentation_v1",
+      "draft_diagnostics_v1",
+      "durable_exclusive_dag_v2",
+      "end_only_root_completion_v1",
+      "explicit_bindings_v1",
+      "hook_embedded_workflow_v1",
+      "hook_enable_v1",
+      "hook_phase_receipts_v1",
+      "hook_tool_set_v1",
+      "kernel_profile_auth_v1",
+      "kernel_profiles_v1",
+      "legacy_conversion_v1",
+      "node_display_label_v1",
+      "non_llm_workflow_v1",
+      "pinned_workflow_calls_v1",
+      "production_host_bindings_v1",
+      "skill_read_v1",
+      "structured_output_v1",
+      "subagent_graphs_v1",
+      "subagent_native_observation_v1",
+      "subagent_tool_settlement_projection_v1",
+      "tool_call_v1"
+     ],
+     "id": "skeleton_execution",
+     "major": 1,
+     "minor": 9
+    },
+    {
+     "features": [
+      "active_skills_snapshot_v1",
+      "catalog_v1",
+      "skill_md_registry_v1",
+      "skill_tool_v1",
+      "toolkit_embedded_skills_v1",
+      "user_invocation_v1"
+     ],
+     "id": "skills",
+     "major": 1,
+     "minor": 0
+    }
+   ],
+   "runtime": "unchain",
+   "schema": "unchain.runtime_protocol_manifest.v1"
+  },
+  "schema": "pupu.skeleton-code-capabilities.v1",
+  "source_bytes": 4194304,
+  "total_bytes": 16777216,
+  "version_schema": "pupu.skeleton-workflow-version.v2"
+ },
+ "loaded": {
+  "content_digest": "a3ad6d7e1e855710650041578e1f5b9eddd41b2969812b627767d4a37f9640e0",
+  "contents": [
+   {
+    "sha256": "709a5e91f9803a34b97e0ba763cb3f3c1d1417141dbb27bbdd9f4ff303a85a44",
+    "text": "def main(input, context):\n    return {\"rows\": len(input[\"value\"])}\n"
+   }
+  ],
+  "resource": {
+   "archived": false,
+   "description": "",
+   "diagnostics": [],
+   "document": {
+    "edges": [
+     {
+      "id": "a",
+      "kind": "flow",
+      "source_node_id": "start",
+      "source_port_id": "out",
+      "target_node_id": "code",
+      "target_port_id": "in"
+     },
+     {
+      "id": "b",
+      "kind": "flow",
+      "source_node_id": "code",
+      "source_port_id": "out",
+      "target_node_id": "end",
+      "target_port_id": "in"
+     }
+    ],
+    "id": "managed-code",
+    "kind": "workflow",
+    "name": "Managed Code",
+    "nodes": [
+     {
+      "config": {
+       "execution": {
+        "outputs": [
+         {
+          "name": "message",
+          "source": {
+           "kind": "result",
+           "path": [
+            "message"
+           ]
+          }
+         }
+        ]
+       }
+      },
+      "id": "start",
+      "type": "start"
+     },
+     {
+      "config": {
+       "code": {
+        "environment_profile_id": "builtin",
+        "max_log_bytes": 10000,
+        "max_result_bytes": 10000,
+        "result_schema": {
+         "additionalProperties": false,
+         "properties": {
+          "rows": {
+           "type": "integer"
+          }
+         },
+         "required": [
+          "rows"
+         ],
+         "type": "object"
+        },
+        "source": {
+         "kind": "file",
+         "path": "__pupu_code__/sha256/709a5e91f9803a34b97e0ba763cb3f3c1d1417141dbb27bbdd9f4ff303a85a44.py"
+        },
+        "timeout_ms": 5000
+       },
+       "execution": {
+        "inputs": [
+         {
+          "missing": "error",
+          "name": "value",
+          "value": {
+           "kind": "ref",
+           "node_id": "start",
+           "path": [
+            "message"
+           ]
+          }
+         }
+        ],
+        "outputs": [
+         {
+          "name": "rows",
+          "source": {
+           "kind": "result",
+           "path": [
+            "rows"
+           ]
+          }
+         }
+        ]
+       }
+      },
+      "id": "code",
+      "type": "code"
+     },
+     {
+      "config": {
+       "execution": {
+        "inputs": [
+         {
+          "missing": "error",
+          "name": "rows",
+          "value": {
+           "kind": "ref",
+           "node_id": "code",
+           "path": [
+            "rows"
+           ]
+          }
+         }
+        ],
+        "outputs": [
+         {
+          "name": "rows",
+          "source": {
+           "kind": "input",
+           "path": [
+            "rows"
+           ]
+          }
+         }
+        ]
+       }
+      },
+      "id": "end",
+      "type": "end"
+     }
+    ],
+    "schema_version": 1
+   },
+   "draft_digest": "6f682616742de0a7041b004a654db47e9dd25377a9b2d02c06d27a39f47decb7",
+   "edit_token": "edit-1-a3ad6d7e1e85571065004157",
+   "id": "managed-code",
+   "kind": "workflow",
+   "name": "Managed Code",
+   "source_identity": null
+  },
+  "schema": "pupu.skeleton-resource.v2",
+  "sources_manifest": {
+   "entries": [
+    {
+     "node_path": [
+      "nodes",
+      1
+     ],
+     "sha256": "709a5e91f9803a34b97e0ba763cb3f3c1d1417141dbb27bbdd9f4ff303a85a44"
+    }
+   ],
+   "schema": "pupu.skeleton-code-sources.v1"
+  }
+ },
+ "save_request": {
+  "schema": "pupu.skeleton-edit.v2",
+  "document": {
+   "edges": [
+    {
+     "id": "a",
+     "kind": "flow",
+     "source_node_id": "start",
+     "source_port_id": "out",
+     "target_node_id": "code",
+     "target_port_id": "in"
+    },
+    {
+     "id": "b",
+     "kind": "flow",
+     "source_node_id": "code",
+     "source_port_id": "out",
+     "target_node_id": "end",
+     "target_port_id": "in"
+    }
+   ],
+   "id": "managed-code",
+   "kind": "workflow",
+   "name": "Managed Code",
+   "nodes": [
+    {
+     "config": {
+      "execution": {
+       "outputs": [
+        {
+         "name": "message",
+         "source": {
+          "kind": "result",
+          "path": [
+           "message"
+          ]
+         }
+        }
+       ]
+      }
+     },
+     "id": "start",
+     "type": "start"
+    },
+    {
+     "config": {
+      "code": {
+       "environment_profile_id": "builtin",
+       "max_log_bytes": 10000,
+       "max_result_bytes": 10000,
+       "result_schema": {
+        "additionalProperties": false,
+        "properties": {
+         "rows": {
+          "type": "integer"
+         }
+        },
+        "required": [
+         "rows"
+        ],
+        "type": "object"
+       },
+       "source": {
+        "kind": "file",
+        "path": "__pupu_code__/sha256/709a5e91f9803a34b97e0ba763cb3f3c1d1417141dbb27bbdd9f4ff303a85a44.py"
+       },
+       "timeout_ms": 5000
+      },
+      "execution": {
+       "inputs": [
+        {
+         "missing": "error",
+         "name": "value",
+         "value": {
+          "kind": "ref",
+          "node_id": "start",
+          "path": [
+           "message"
+          ]
+         }
+        }
+       ],
+       "outputs": [
+        {
+         "name": "rows",
+         "source": {
+          "kind": "result",
+          "path": [
+           "rows"
+          ]
+         }
+        }
+       ]
+      }
+     },
+     "id": "code",
+     "type": "code"
+    },
+    {
+     "config": {
+      "execution": {
+       "inputs": [
+        {
+         "missing": "error",
+         "name": "rows",
+         "value": {
+          "kind": "ref",
+          "node_id": "code",
+          "path": [
+           "rows"
+          ]
+         }
+        }
+       ],
+       "outputs": [
+        {
+         "name": "rows",
+         "source": {
+          "kind": "input",
+          "path": [
+           "rows"
+          ]
+         }
+        }
+       ]
+      }
+     },
+     "id": "end",
+     "type": "end"
+    }
+   ],
+   "schema_version": 1,
+   "presentation": {
+    "icon": "robot",
+    "color": "#1a2b3c"
+   }
+  },
+  "expected_edit_token": "edit-1-a3ad6d7e1e85571065004157",
+  "managed_sources": [
+   {
+    "node_path": [
+     "nodes",
+     1
+    ],
+    "text": "def main(input, context):\n    return {\"rows\": len(input[\"value\"])}\n"
+   }
+  ]
+ },
+ "saved": {
+  "content_digest": "a506041954a8e043eace050d881eb90473f9f3690ca9c20c43d3c4d75097f03e",
+  "contents": [
+   {
+    "sha256": "709a5e91f9803a34b97e0ba763cb3f3c1d1417141dbb27bbdd9f4ff303a85a44",
+    "text": "def main(input, context):\n    return {\"rows\": len(input[\"value\"])}\n"
+   }
+  ],
+  "resource": {
+   "archived": false,
+   "description": "",
+   "diagnostics": [],
+   "document": {
+    "edges": [
+     {
+      "id": "a",
+      "kind": "flow",
+      "source_node_id": "start",
+      "source_port_id": "out",
+      "target_node_id": "code",
+      "target_port_id": "in"
+     },
+     {
+      "id": "b",
+      "kind": "flow",
+      "source_node_id": "code",
+      "source_port_id": "out",
+      "target_node_id": "end",
+      "target_port_id": "in"
+     }
+    ],
+    "id": "managed-code",
+    "kind": "workflow",
+    "name": "Managed Code",
+    "nodes": [
+     {
+      "config": {
+       "execution": {
+        "outputs": [
+         {
+          "name": "message",
+          "source": {
+           "kind": "result",
+           "path": [
+            "message"
+           ]
+          }
+         }
+        ]
+       }
+      },
+      "id": "start",
+      "type": "start"
+     },
+     {
+      "config": {
+       "code": {
+        "environment_profile_id": "builtin",
+        "max_log_bytes": 10000,
+        "max_result_bytes": 10000,
+        "result_schema": {
+         "additionalProperties": false,
+         "properties": {
+          "rows": {
+           "type": "integer"
+          }
+         },
+         "required": [
+          "rows"
+         ],
+         "type": "object"
+        },
+        "source": {
+         "kind": "file",
+         "path": "__pupu_code__/sha256/709a5e91f9803a34b97e0ba763cb3f3c1d1417141dbb27bbdd9f4ff303a85a44.py"
+        },
+        "timeout_ms": 5000
+       },
+       "execution": {
+        "inputs": [
+         {
+          "missing": "error",
+          "name": "value",
+          "value": {
+           "kind": "ref",
+           "node_id": "start",
+           "path": [
+            "message"
+           ]
+          }
+         }
+        ],
+        "outputs": [
+         {
+          "name": "rows",
+          "source": {
+           "kind": "result",
+           "path": [
+            "rows"
+           ]
+          }
+         }
+        ]
+       }
+      },
+      "id": "code",
+      "type": "code"
+     },
+     {
+      "config": {
+       "execution": {
+        "inputs": [
+         {
+          "missing": "error",
+          "name": "rows",
+          "value": {
+           "kind": "ref",
+           "node_id": "code",
+           "path": [
+            "rows"
+           ]
+          }
+         }
+        ],
+        "outputs": [
+         {
+          "name": "rows",
+          "source": {
+           "kind": "input",
+           "path": [
+            "rows"
+           ]
+          }
+         }
+        ]
+       }
+      },
+      "id": "end",
+      "type": "end"
+     }
+    ],
+    "presentation": {
+     "color": "#1a2b3c",
+     "icon": "robot"
+    },
+    "schema_version": 1
+   },
+   "draft_digest": "9ab9d66dc31dca4d947a5e1f89234b33639bf0e51407f7c4838aa572e562f8d7",
+   "edit_token": "edit-2-a506041954a8e043eace050d",
+   "id": "managed-code",
+   "kind": "workflow",
+   "name": "Managed Code",
+   "source_identity": null
+  },
+  "schema": "pupu.skeleton-resource.v2",
+  "sources_manifest": {
+   "entries": [
+    {
+     "node_path": [
+      "nodes",
+      1
+     ],
+     "sha256": "709a5e91f9803a34b97e0ba763cb3f3c1d1417141dbb27bbdd9f4ff303a85a44"
+    }
+   ],
+   "schema": "pupu.skeleton-code-sources.v1"
+  }
+ },
+ "listed": {
+  "resources": [
+   {
+    "archived": false,
+    "description": "",
+    "draft_digest": "9ab9d66dc31dca4d947a5e1f89234b33639bf0e51407f7c4838aa572e562f8d7",
+    "edit_token": "edit-2-a506041954a8e043eace050d",
+    "id": "managed-code",
+    "kind": "workflow",
+    "name": "Managed Code",
+    "presentation": {
+     "color": "#1a2b3c",
+     "icon": "robot"
+    },
+    "published_revisions": 0,
+    "source_identity": null
+   }
+  ]
+ },
+ "conflict": {
+  "status": 409,
+  "body": {
+   "error": {
+    "code": "edit_conflict",
+    "message": "Resource changed in another editor.",
+    "path": [
+     "expected_edit_token"
+    ]
+   }
+  }
+ },
+ "invalid": {
+  "status": 400,
+  "body": {
+   "error": {
+    "code": "invalid_value",
+    "message": "presentation color must be lowercase #rrggbb",
+    "path": [
+     "document",
+     "presentation",
+     "color"
+    ]
+   }
+  }
+ }
+}

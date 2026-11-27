@@ -1023,8 +1023,9 @@
       "mcp": {
         "transport": "stdio",
         "command": "uvx",
-        "args": ["--exclude-newer=2026-07-28T00:00:00Z", "--from", "mcp-server-fetch==2026.7.10", "--with", "mcp==1.28.0", "mcp-server-fetch"]
+        "args": ["--exclude-newer=2026-10-22T00:00:00Z", "--from", "mcp-server-fetch==2026.7.10", "--with", "mcp==1.30.0", "mcp-server-fetch"]
       },
+      "dependencyPolicy": { "cutoff": "2026-10-22T00:00:00Z" },
       "setupPreview": "uvx mcp-server-fetch==2026.7.10",
       "prerequisites": [],
       "secrets": [],
@@ -1215,8 +1216,9 @@
       "mcp": {
         "transport": "stdio",
         "command": "uvx",
-        "args": ["--exclude-newer=2026-07-28T00:00:00Z", "--from", "mcp-server-sqlite==2025.4.25", "--with", "mcp==1.28.0", "mcp-server-sqlite", "--db-path", "${WORKSPACE}/pupu-mcp.sqlite"]
+        "args": ["--exclude-newer=2026-10-22T00:00:00Z", "--from", "mcp-server-sqlite==2025.4.25", "--with", "mcp==1.30.0", "mcp-server-sqlite", "--db-path", "${WORKSPACE}/pupu-mcp.sqlite"]
       },
+      "dependencyPolicy": { "cutoff": "2026-10-22T00:00:00Z" },
       "setupPreview": "uvx mcp-server-sqlite==2025.4.25 --db-path ${WORKSPACE}/pupu-mcp.sqlite",
       "prerequisites": [],
       "secrets": [],

@@ -1,0 +1,86 @@
+{
+ "source": {
+  "evidence": "/Users/red/.codex/artifacts/pupu-357/ui-settlement-review-02-resume-20261026/out/resume-cancel-producer.json",
+  "sha256": "411f19c74cce6b90880092de57c47303f7336f652c12c73d1551067c65e4bb90",
+  "origin": "real installed-wheel public host start -> approve -> resume -> second wait -> cancel; finite SDK, not desktop or HTTP"
+ },
+ "target": {
+  "sessionId": "review-cancel-session",
+  "attemptId": "review-resume-one",
+  "sourceAttemptId": "review-cancel-root",
+  "interactionId": "interaction_3a8683031f05fba3dadcae1d7d7f231a"
+ },
+ "cancel_response": {
+  "status": "ok",
+  "execution_id": "review-cancel-session",
+  "attempt_id": "review-resume-one",
+  "source_attempt_id": "review-cancel-root",
+  "disposition": "cancelled",
+  "state": "cancelled",
+  "execution": null,
+  "cancellation": {
+   "requested_at_ms": 1793040606535,
+   "fencing_token": null,
+   "reason": "user_stop"
+  },
+  "durable_interaction_cancelled": true,
+  "context_interaction_reconciled": true
+ },
+ "pending_before_cancel": {
+  "status": "awaiting_response",
+  "session_id": "review-cancel-session",
+  "interaction_id": "interaction_3a8683031f05fba3dadcae1d7d7f231a",
+  "source_run_id": "review-cancel-root",
+  "active_attempt_id": "review-cancel-root",
+  "kind": "tool_approval",
+  "provider": "openai",
+  "model": "test-model",
+  "presentation": {
+   "trace_frame": {
+    "seq": 0,
+    "ts": 1793040605860,
+    "type": "tool_call",
+    "run_id": "node-attempt.772484ba1fbc8707feb8462df11b7f966962359e5a5d9873e287b7698aac6063",
+    "stage": "durable_recovery",
+    "payload": {
+     "tool_name": "dangerous_tool",
+     "tool_display_name": "",
+     "toolkit_id": "",
+     "toolkit_name": "",
+     "call_id": "call-1",
+     "arguments": {
+      "value": "effect-1"
+     },
+     "description": "",
+     "confirmation_id": "interaction_3a8683031f05fba3dadcae1d7d7f231a",
+     "requires_confirmation": true,
+     "interact_type": "confirmation",
+     "interact_config": {}
+    }
+   },
+   "tool_call": {
+    "tool_name": "dangerous_tool",
+    "tool_display_name": "",
+    "toolkit_id": "",
+    "toolkit_name": "",
+    "call_id": "call-1",
+    "arguments": {
+     "value": "effect-1"
+    },
+    "description": "",
+    "confirmation_id": "interaction_3a8683031f05fba3dadcae1d7d7f231a",
+    "requires_confirmation": true,
+    "interact_type": "confirmation",
+    "interact_config": {}
+   }
+  },
+  "resume_available": true,
+  "resume_kind": "skeleton",
+  "resume_options": {},
+  "interaction_source_run_id": "node-attempt.772484ba1fbc8707feb8462df11b7f966962359e5a5d9873e287b7698aac6063",
+  "interaction_session_id": "review-cancel-session"
+ },
+ "effects": [
+  "effect-0"
+ ]
+}

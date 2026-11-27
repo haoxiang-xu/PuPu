@@ -30,6 +30,40 @@ test("passes on the real in-repo registry", () => {
   assert.equal(r.status, 0, r.stderr);
 });
 
+test("accepts a bounded per-entry cutoff without changing other recipes", () => {
+  const r = runMutatedRegistry((registry) => {
+    const entry = registry.entries.find((item) => item.id === "workspace.fetch");
+    entry.dependencyPolicy = { cutoff: "2026-10-22T00:00:00Z" };
+    entry.mcp.args[0] = "--exclude-newer=2026-10-22T00:00:00Z";
+  });
+  assert.equal(r.status, 0, r.stderr);
+});
+
+test("rejects malformed or open dependency policy overrides", () => {
+  for (const policy of [
+    { cutoff: "2026-02-30T00:00:00Z" },
+    { cutoff: "2026-10-22" },
+    { cutoff: "2026-10-22T00:00:00Z", allowUnpinned: true },
+    {},
+    "2026-10-22T00:00:00Z",
+  ]) {
+    const r = runMutatedRegistry((registry) => {
+      registry.entries.find((item) => item.id === "workspace.fetch").dependencyPolicy = policy;
+    });
+    assert.equal(r.status, 1, JSON.stringify(policy));
+  }
+});
+
+test("rejects duplicate cutoff flags that could override the bounded policy", () => {
+  const r = runMutatedRegistry((registry) => {
+    const entry = registry.entries.find((item) => item.id === "workspace.fetch");
+    entry.dependencyPolicy = { cutoff: "2026-10-22T00:00:00Z" };
+    entry.mcp.args = ["--exclude-newer=2026-10-22T00:00:00Z", "--exclude-newer=2030-01-01T00:00:00Z", ...entry.mcp.args.slice(1)];
+  });
+  assert.equal(r.status, 1, r.stderr);
+  assert.match(r.stderr, /exactly one matching cutoff flag/);
+});
+
 test("fails on a registry with an illegal trustLevel", () => {
   const r = run(path.join(here, "fixtures", "registry-bad-trustlevel.json"));
   assert.equal(r.status, 1);
@@ -99,7 +133,7 @@ test("fails when an upstream-unbounded MCP recipe drops its verified SDK pin", (
       (item) => item.id === "workspace.fetch",
     );
     entry.mcp.args = entry.mcp.args.filter(
-      (arg) => arg !== "--with" && arg !== "mcp==1.28.0",
+      (arg) => arg !== "--with" && arg !== "mcp==1.30.0",
     );
   });
   assert.equal(r.status, 1);

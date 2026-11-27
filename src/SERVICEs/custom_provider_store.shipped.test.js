@@ -11,6 +11,7 @@ import {
   addCustomProvider,
   customProviderKey,
   findCustomProvider,
+  getCustomProviderSecret,
   migrateShippedProviderCopies,
   normalizeCustomProvider,
   readCustomProviders,
@@ -232,11 +233,8 @@ describe("SEQ-002 — legacy copy migration", () => {
     expect(readRawDefinitions().map((p) => p.id)).toEqual(["my-proxy"]);
 
     // The key is where a shipped provider's key belongs, and still works.
-    expect(
-      localStorage.getItem("settings") &&
-        JSON.parse(localStorage.getItem("settings")).model_providers
-          .custom_provider_secrets.deepseek,
-    ).toBe("sk-deepseek-key");
+    expect(getCustomProviderSecret("deepseek")).toBe("sk-deepseek-key");
+    expect(localStorage.getItem("settings") || "").not.toContain("sk-deepseek-key");
 
     // Second launch: nothing left to do, nothing written.
     const second = migrateShippedProviderCopies();

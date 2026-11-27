@@ -1,0 +1,17 @@
+{
+  "schema": "ticket210-producer-packet.v1",
+  "status": "real Core nested Workflow runner, Host projection; semantic fixture not HTTP",
+  "captures": [
+    {
+      "file": "producer-projection-opaque-identities.json",
+      "sha256": "03a9ef4ca860e614aef1792e33e00db8a1a8f98cef812e069a2db92c4d7d5eec",
+      "producer": "real Core nested Workflow runner, Host projection; not HTTP",
+      "expected_scope": {
+        "owner_chat_id": "owner",
+        "execution_id": "session",
+        "resource_id": "root",
+        "root_run_id": "root-run"
+      }
+    }
+  ]
+}

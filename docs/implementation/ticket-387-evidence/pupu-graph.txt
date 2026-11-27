@@ -1,0 +1,9 @@
+Changes: 2 files, 4 symbols
+Affected processes: 0
+Risk level: low
+
+Changed symbols:
+  Const MODEL_OPTIONS → src/COMPONENTs/agents/pages/recipes_page/detail_panel/agent_panel.js
+  Variable LOCAL_COMPUTER_MODEL_PREFIXES → unchain_runtime/server/computer_use_capabilities.py
+  Variable _PROVIDER_KILL_SWITCHES → unchain_runtime/server/computer_use_capabilities.py
+  Function resolve_computer_use_capability → unchain_runtime/server/computer_use_capabilities.py

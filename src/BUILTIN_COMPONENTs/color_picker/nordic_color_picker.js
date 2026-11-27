@@ -1,3 +1,4 @@
+import ShadowSurface from "../material/shadow_surface";
 import React, { useState, useEffect, useContext, useCallback } from "react";
 
 /* { Contexts } -------------------------------------------------------------- */
@@ -81,7 +82,7 @@ const paletteMatchForRgb = (rgb) =>
 /* ── NordicReadout — swatch + quiet oversized HEX + rgb ────────────────────── */
 const NordicReadout = ({ hex, rgb, tokens }) => (
   <div style={{ display: "flex", alignItems: "center", gap: 14, width: "100%" }}>
-    <span
+    <ShadowSurface as="span"
       data-testid="color-picker-final-swatch"
       aria-hidden
       style={{
@@ -279,7 +280,7 @@ const NordicColorPickerPanel = ({
   const selected = anySel ? NORDIC_PALETTE[selIdx] : null;
 
   return (
-    <div
+    <ShadowSurface
       ref={content_ref}
       data-testid="color-picker-panel"
       style={{
@@ -317,7 +318,7 @@ const NordicColorPickerPanel = ({
           const last = i === total - 1;
           const dist = anySel ? Math.abs(i - selIdx) : 0;
           return (
-            <button
+            <ShadowSurface as="button"
               key={p.hex}
               type="button"
               aria-label={p.name}
@@ -442,7 +443,7 @@ const NordicColorPickerPanel = ({
       {custom && (
         <NordicCustomTracks hsl={hsl} hex={hex} onChange={applyHsl} tokens={t} />
       )}
-    </div>
+    </ShadowSurface>
   );
 };
 

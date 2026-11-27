@@ -211,6 +211,55 @@ test("candidate assembler merges architecture-specific updater metadata and seal
   assert.equal(verified.status, 0, verified.stderr);
 });
 
+test("real signing projector partitions Tcl/Tk before strict Candidate assembly and verification", async (t) => {
+  const { buildWindowsSigningEvidence } = await import("./build-windows-signing-evidence.mjs");
+  for (const statuses of [["Valid", "Valid"], ["Valid", "NotSigned"],
+    ["NotSigned", "Valid"], ["NotSigned", "NotSigned"]]) {
+    const f = fixture();
+    t.after(() => fs.rmSync(f.root, { recursive: true, force: true }));
+    const old = readJson(f.windowsSigningEvidencePath);
+    const prefix = ".release-qa\\windows-unpacked\\";
+    // These are explicit native-observation fixtures, not new signatures on
+    // the captured release DLLs. The fixture installer hash comes from bytes.
+    const observations = old.signed_files.map((file) => ({
+      ...file,
+      payload_path: file.path.startsWith(prefix) ? file.path.slice(prefix.length) : null,
+      authenticode_status: "Valid",
+    }));
+    old.unsigned_payload_exceptions.forEach((file, index) => observations.push({
+      path: prefix + file.path,
+      payload_path: file.path,
+      sha256: file.sha256,
+      authenticode_status: statuses[index],
+      signer_subject: statuses[index] === "Valid" ? "CN=fixture Tcl/Tk signer" : null,
+      signer_thumbprint: statuses[index] === "Valid" ? "E".repeat(40) : null,
+    }));
+    const evidence = buildWindowsSigningEvidence({
+      schema: "pupu.windows-signing-observation.v1",
+      evidence_schema: "pupu.windows-release-candidate-signing.v1",
+      run_id: "554433",
+      source_revision: COMMIT,
+      package_version: VERSION,
+      target_id: "windows-x64",
+      files: observations,
+    });
+    fs.writeFileSync(f.windowsSigningEvidencePath, JSON.stringify(evidence));
+    const assembled = run(ASSEMBLER, [
+      "--package-dir", f.packageDir, "--qa-report", f.reportPath,
+      "--out-dir", f.outDir, "--tag", TAG, "--version", VERSION,
+      "--commit", COMMIT, "--run-id", "554433",
+    ]);
+    assert.equal(assembled.status, 0, `${statuses}: ${assembled.stderr}`);
+    const verified = run(VERIFIER, [
+      "--manifest", path.join(f.outDir, "release-assets.v1.json"),
+      "--asset-dir", path.join(f.outDir, "assets"),
+      "--qa-report", path.join(f.outDir, "release-qa-report.json"),
+      "--tag", TAG, "--commit", COMMIT,
+    ]);
+    assert.equal(verified.status, 0, `${statuses}: ${verified.stderr}`);
+  }
+});
+
 test("candidate assembler seals a full RC identity without stable-version filenames", () => {
   const version = "0.1.10-rc.1";
   const tag = `v${version}`;

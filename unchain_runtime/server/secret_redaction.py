@@ -199,6 +199,3 @@ class Redactor:
         if value is None or isinstance(value, (bool, int, float)):
             return value
         return self.redact_text(str(value))
-
-
-_Redactor = Redactor

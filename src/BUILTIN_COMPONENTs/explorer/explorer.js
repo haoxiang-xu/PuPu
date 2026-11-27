@@ -1,3 +1,4 @@
+import ShadowSurface from "../material/shadow_surface";
 import React, {
   useCallback,
   useContext,
@@ -983,6 +984,9 @@ const ExplorerRowBase = ({
         >
           {showPrefixSpinner ? (
             <ArcSpinner size={iconSize} stroke_width={2} track_opacity={0.18} />
+          ) : typeof node.prefix_render === "function" ? (
+            /* A caller-drawn mark at the icon's size (an Agent's avatar). */
+            node.prefix_render(iconSize)
           ) : node.prefix_icon ? (
             <Icon
               src={node.prefix_icon}
@@ -998,7 +1002,7 @@ const ExplorerRowBase = ({
             />
           )}
           {showUnreadDot && (
-            <span
+            <ShadowSurface as="span"
               aria-hidden="true"
               style={{
                 position: "absolute",
@@ -1185,6 +1189,8 @@ const ExplorerRowBase = ({
                     stroke_width={2}
                     track_opacity={0.18}
                   />
+                ) : typeof node.prefix_render === "function" ? (
+                  node.prefix_render(iconSize)
                 ) : node.prefix_icon ? (
                   <Icon
                     src={node.prefix_icon}
@@ -1200,7 +1206,7 @@ const ExplorerRowBase = ({
                   />
                 )}
                 {showUnreadDot && (
-                  <span
+                  <ShadowSurface as="span"
                     aria-hidden="true"
                     style={{
                       position: "absolute",
@@ -1472,7 +1478,7 @@ const DropIndicator = ({
   return (
     <>
       {/* circle at line start */}
-      <span
+      <ShadowSurface as="span"
         aria-hidden="true"
         style={{
           position: "absolute",
@@ -1490,7 +1496,7 @@ const DropIndicator = ({
         }}
       />
       {/* line */}
-      <span
+      <ShadowSurface as="span"
         aria-hidden="true"
         style={{
           position: "absolute",
@@ -2278,7 +2284,7 @@ const Explorer = ({
       {dragState.isDragging &&
         sourceNode &&
         ReactDOM.createPortal(
-          <div
+          <ShadowSurface
             ref={ghostCallbackRef}
             style={{
               position: "fixed",
@@ -2330,13 +2336,17 @@ const Explorer = ({
                   flexShrink: 0,
                 }}
               >
-                <Icon
-                  src={sourceNode.prefix_icon}
-                  style={{
-                    width: overlayIconSize,
-                    height: overlayIconSize,
-                  }}
-                />
+                {typeof sourceNode.prefix_render === "function" ? (
+                  sourceNode.prefix_render(overlayIconSize)
+                ) : (
+                  <Icon
+                    src={sourceNode.prefix_icon}
+                    style={{
+                      width: overlayIconSize,
+                      height: overlayIconSize,
+                    }}
+                  />
+                )}
               </span>
             )}
             {sourceNode.chatKind === "character" && (
@@ -2395,7 +2405,7 @@ const Explorer = ({
                 />
               </span>
             )}
-          </div>,
+          </ShadowSurface>,
           document.body,
         )}
     </div>

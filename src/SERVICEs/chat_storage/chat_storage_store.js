@@ -17,6 +17,7 @@ import {
   sanitizeAttachment,
   sanitizeAgentOrchestration,
   sanitizeChatSession,
+  sanitizeSelectedSkeletonAgentId,
   sanitizeCharacterAvatar,
   sanitizeCharacterId,
   sanitizeCharacterName,
@@ -2336,6 +2337,10 @@ export const setChatSessionBundle = (chatId, patch = {}, options = {}) => {
     patch,
     "selectedRecipeName",
   );
+  const hasSkeletonAgent = Object.prototype.hasOwnProperty.call(
+    patch,
+    "selectedSkeletonAgentId",
+  );
 
   const nextAgent = hasAgent
     ? locked
@@ -2361,6 +2366,14 @@ export const setChatSessionBundle = (chatId, patch = {}, options = {}) => {
         : "Default"
     : null;
 
+  /* A locked character chat runs its character, so it holds no Agent id at
+     all — the same rule its Recipe name already follows. */
+  const nextSkeletonAgent = hasSkeletonAgent
+    ? locked
+      ? ""
+      : sanitizeSelectedSkeletonAgentId(patch.selectedSkeletonAgentId)
+    : null;
+
   const agentSame =
     !hasAgent || agentOrchestrationEq(existing.agentOrchestration, nextAgent);
   const toolkitsSame =
@@ -2371,8 +2384,17 @@ export const setChatSessionBundle = (chatId, patch = {}, options = {}) => {
   const recipeSame =
     !hasRecipe ||
     (existing.selectedRecipeName || "Default") === nextRecipe;
+  const skeletonAgentSame =
+    !hasSkeletonAgent ||
+    (existing.selectedSkeletonAgentId || "") === nextSkeletonAgent;
 
-  if (agentSame && toolkitsSame && workspacesSame && recipeSame) {
+  if (
+    agentSame &&
+    toolkitsSame &&
+    workspacesSame &&
+    recipeSame &&
+    skeletonAgentSame
+  ) {
     return getChatsStore();
   }
 
@@ -2384,6 +2406,7 @@ export const setChatSessionBundle = (chatId, patch = {}, options = {}) => {
       if (hasToolkits) out.selectedToolkits = nextToolkits;
       if (hasWorkspaces) out.selectedWorkspaceIds = nextWorkspaces;
       if (hasRecipe) out.selectedRecipeName = nextRecipe;
+      if (hasSkeletonAgent) out.selectedSkeletonAgentId = nextSkeletonAgent;
       return out;
     },
     { ...options, type: "chat_update_session_bundle" },

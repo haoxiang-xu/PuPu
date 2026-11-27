@@ -30,6 +30,14 @@ function open(props = {}) {
 const palette = () => screen.getByTestId("recipe-node-palette");
 
 describe("node palette", () => {
+  test("native allowlist narrows the shared display without offering legacy-only types", () => {
+    const { onPick } = open({ allowedTypes: ["agent", "subagent_pool"] });
+    expect(screen.queryByTestId("palette-entry-toolkit_pool")).not.toBeInTheDocument();
+    expect(screen.getByTestId("palette-entry-agent")).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: "ArrowDown" });
+    fireEvent.keyDown(document, { key: "Enter" });
+    expect(onPick).toHaveBeenCalledWith("subagent_pool");
+  });
   test("nothing renders while hidden", () => {
     render(<RecipeNodePalette visible={false} x={0} y={0} isDark={false} />);
     expect(screen.queryByTestId("recipe-node-palette")).not.toBeInTheDocument();

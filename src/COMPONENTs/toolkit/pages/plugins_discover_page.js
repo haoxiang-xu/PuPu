@@ -1,3 +1,4 @@
+import ShadowSurface from "../../../BUILTIN_COMPONENTs/material/shadow_surface";
 import { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
@@ -74,7 +75,7 @@ const CollectionRow = ({ collection, isDark, fontFamily, textColor, t, expanded,
         {collection.resolved.slice(0, 3).map((resolved, idx) => {
           const fly = STACK_FLY[idx] || STACK_FLY[STACK_FLY.length - 1];
           return (
-            <span
+            <ShadowSurface as="span"
               key={`${collection.id}-icon-${resolved.entry.toolkitId || idx}`}
               style={{
                 width: 32,
@@ -100,7 +101,7 @@ const CollectionRow = ({ collection, isDark, fontFamily, textColor, t, expanded,
                 borderRadius={9}
                 style={{ background: "transparent" }}
               />
-            </span>
+            </ShadowSurface>
           );
         })}
       </div>

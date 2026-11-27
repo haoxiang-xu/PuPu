@@ -1,0 +1,1735 @@
+{
+ "producer": "SkeletonResourceStore.save_draft/get_resource(diagnose)/preflight + python profiles on the fixed installed runtime",
+ "provenance": "~/.codex/artifacts/pupu-357/code-01/out/code-store-capture.json (capture_code_store.py on wheel a166988a\u2026b7ec, CPython 3.12.10, offline sandbox HOME)",
+ "runtime_manifest": {
+  "manifest_digest": "sha256:f6daf3894dd947723ee7dc60392277896b88c4890d35373b26442a1833a28101",
+  "protocols": [
+   {
+    "features": [
+     "artifact_handoff",
+     "canonical_journal",
+     "chat_deletion_sqlite_scope_closure",
+     "context_compiler",
+     "context_content_paging_v1",
+     "context_content_read_recovery_v1",
+     "context_contribution_manifest_v1",
+     "generation_rebase_live_interaction_cycles",
+     "interaction_resolution_compat",
+     "long_term_promotion",
+     "memory_curator",
+     "memory_toolkit",
+     "memory_workspace",
+     "tool_output_management_v1"
+    ],
+    "id": "context_memory",
+    "major": 1,
+    "minor": 0
+   },
+   {
+    "features": [
+     "cancel_pending",
+     "expected_interaction_id_cas",
+     "fresh_run_lineage",
+     "graph_interaction_lineage_preflight_v1",
+     "host_controlled_resume",
+     "interaction_resolution_atomic_acceptance_v1"
+    ],
+    "id": "durable_interaction",
+    "major": 1,
+    "minor": 0
+   },
+   {
+    "features": [
+     "atomic_receipt_cas",
+     "auxiliary_calls",
+     "enforce_mode",
+     "graph_runs",
+     "memory_off",
+     "ollama_reasoning_preview_v1",
+     "provider_response_outcomes_v1",
+     "provider_uncertainty_diagnostics_v1",
+     "subagent_runs"
+    ],
+    "id": "provider_turn_ownership",
+    "major": 1,
+    "minor": 0
+   },
+   {
+    "features": [
+     "canonical_metrics",
+     "completion_diagnostics_ref",
+     "context_composition_ref_v1",
+     "continuation_claim",
+     "immutable_pricing_snapshot",
+     "provider_call_set_union",
+     "provider_call_usage_v1",
+     "run_bundle_v1",
+     "run_bundle_v2"
+    ],
+    "id": "run_bundle",
+    "major": 1,
+    "minor": 0
+   },
+   {
+    "features": [
+     "code_python_v1",
+     "draft_diagnostics_v1",
+     "durable_exclusive_dag_v2",
+     "end_only_root_completion_v1",
+     "explicit_bindings_v1",
+     "hook_phase_receipts_v1",
+     "kernel_profiles_v1",
+     "legacy_conversion_v1",
+     "non_llm_workflow_v1",
+     "pinned_workflow_calls_v1",
+     "production_host_bindings_v1",
+     "skill_read_v1",
+     "structured_output_v1",
+     "subagent_graphs_v1",
+     "tool_call_v1"
+    ],
+    "id": "skeleton_execution",
+    "major": 1,
+    "minor": 1
+   },
+   {
+    "features": [
+     "active_skills_snapshot_v1",
+     "catalog_v1",
+     "skill_md_registry_v1",
+     "skill_tool_v1",
+     "toolkit_embedded_skills_v1",
+     "user_invocation_v1"
+    ],
+    "id": "skills",
+    "major": 1,
+    "minor": 0
+   }
+  ],
+  "runtime": "unchain",
+  "schema": "unchain.runtime_protocol_manifest.v1"
+ },
+ "profiles": {
+  "list_before": [
+   {
+    "id": "builtin",
+    "kind": "bundled",
+    "executable": "<fixed-pair-python>",
+    "fingerprint": "4b3b6699bf1bc77fb518d5a3d3296264e254db7ca949bbf816b1780d5e8f0786",
+    "available": true,
+    "changed": false,
+    "edit_token": null
+   }
+  ],
+  "save_venv": {
+   "id": "pupu-tools",
+   "kind": "venv",
+   "executable": "<fixed-pair-python>",
+   "fingerprint": "6d165d385c0152de6e5162d8f5fdf0c17f79802187421c9f34e57fba8b1ffbc9",
+   "available": true,
+   "changed": false,
+   "edit_token": "edit-1-a193bde9f171c65edb9b750b",
+   "probe": {
+    "ok": true,
+    "version": "3.12.10",
+    "implementation": "cpython"
+   }
+  },
+  "save_relative": {
+   "refusal": {
+    "code": "invalid_path",
+    "path": [
+     "executable"
+    ],
+    "message": "Python executable must be an absolute path",
+    "status": 400
+   }
+  },
+  "save_builtin": {
+   "refusal": {
+    "code": "profile_immutable",
+    "path": [
+     "profile_id"
+    ],
+    "message": "built-in Python profile is read-only",
+    "status": 409
+   }
+  },
+  "save_missing_exe": {
+   "refusal": {
+    "code": "missing_runtime",
+    "path": [
+     "environment",
+     "command",
+     0
+    ],
+    "message": "runtime executable is unavailable",
+    "status": 409
+   }
+  },
+  "probe_venv": {
+   "ok": true,
+   "version": "3.12.10",
+   "implementation": "cpython",
+   "id": "pupu-tools",
+   "kind": "venv",
+   "fingerprint": "6d165d385c0152de6e5162d8f5fdf0c17f79802187421c9f34e57fba8b1ffbc9"
+  },
+  "probe_builtin": {
+   "ok": true,
+   "version": "3.12.10",
+   "implementation": "cpython",
+   "id": "builtin",
+   "kind": "bundled",
+   "fingerprint": "4b3b6699bf1bc77fb518d5a3d3296264e254db7ca949bbf816b1780d5e8f0786"
+  },
+  "list_after": [
+   {
+    "id": "builtin",
+    "kind": "bundled",
+    "executable": "<fixed-pair-python>",
+    "fingerprint": "4b3b6699bf1bc77fb518d5a3d3296264e254db7ca949bbf816b1780d5e8f0786",
+    "available": true,
+    "changed": false,
+    "edit_token": null
+   },
+   {
+    "id": "pupu-tools",
+    "kind": "venv",
+    "executable": "<fixed-pair-python>",
+    "fingerprint": "6d165d385c0152de6e5162d8f5fdf0c17f79802187421c9f34e57fba8b1ffbc9",
+    "available": true,
+    "changed": false,
+    "edit_token": "edit-1-a193bde9f171c65edb9b750b"
+   }
+  ],
+  "delete_referenced": {
+   "refusal": {
+    "code": "profile_referenced",
+    "path": [
+     "profile_id"
+    ],
+    "message": "Python profile is referenced by a Skeleton resource",
+    "status": 409
+   }
+  }
+ },
+ "rows": [
+  {
+   "case": "seed",
+   "config": {
+    "execution": {
+     "inputs": [],
+     "outputs": []
+    }
+   },
+   "saved": true,
+   "roundtrip_equal": true,
+   "diagnostics": [],
+   "preflight": {
+    "ok": true
+   }
+  },
+  {
+   "case": "complete",
+   "config": {
+    "execution": {
+     "inputs": [
+      {
+       "name": "diff",
+       "value": {
+        "kind": "ref",
+        "node_id": "start",
+        "path": [
+         "message"
+        ]
+       },
+       "missing": "error"
+      }
+     ],
+     "outputs": [
+      {
+       "name": "count",
+       "source": {
+        "kind": "result",
+        "path": [
+         "rows"
+        ]
+       }
+      }
+     ]
+    },
+    "code": {
+     "source": {
+      "kind": "file",
+      "path": "tools/score.py"
+     },
+     "environment_profile_id": "builtin",
+     "timeout_ms": 30000,
+     "max_result_bytes": 1048576,
+     "max_log_bytes": 1048576,
+     "result_schema": {
+      "type": "object",
+      "properties": {
+       "rows": {
+        "type": "integer"
+       },
+       "summary": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "rows"
+      ],
+      "additionalProperties": false
+     }
+    }
+   },
+   "saved": true,
+   "roundtrip_equal": true,
+   "diagnostics": [],
+   "preflight": {
+    "ok": true
+   }
+  },
+  {
+   "case": "complete-artifacts",
+   "config": {
+    "execution": {
+     "inputs": [
+      {
+       "name": "diff",
+       "value": {
+        "kind": "ref",
+        "node_id": "start",
+        "path": [
+         "message"
+        ]
+       },
+       "missing": "error"
+      }
+     ],
+     "outputs": [
+      {
+       "name": "count",
+       "source": {
+        "kind": "result",
+        "path": [
+         "rows"
+        ]
+       }
+      }
+     ]
+    },
+    "code": {
+     "source": {
+      "kind": "file",
+      "path": "tools/score.py"
+     },
+     "environment_profile_id": "builtin",
+     "timeout_ms": 30000,
+     "max_result_bytes": 1048576,
+     "max_log_bytes": 1048576,
+     "result_schema": {
+      "type": "object",
+      "properties": {
+       "rows": {
+        "type": "integer"
+       },
+       "summary": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "rows"
+      ],
+      "additionalProperties": false
+     },
+     "artifacts": [
+      {
+       "name": "report.txt",
+       "attachment": "att-1"
+      }
+     ]
+    }
+   },
+   "saved": true,
+   "roundtrip_equal": true,
+   "diagnostics": [],
+   "preflight": {
+    "ok": true
+   }
+  },
+  {
+   "case": "profile-missing",
+   "config": {
+    "execution": {
+     "inputs": [
+      {
+       "name": "diff",
+       "value": {
+        "kind": "ref",
+        "node_id": "start",
+        "path": [
+         "message"
+        ]
+       },
+       "missing": "error"
+      }
+     ],
+     "outputs": [
+      {
+       "name": "count",
+       "source": {
+        "kind": "result",
+        "path": [
+         "rows"
+        ]
+       }
+      }
+     ]
+    },
+    "code": {
+     "source": {
+      "kind": "file",
+      "path": "tools/score.py"
+     },
+     "environment_profile_id": "nope",
+     "timeout_ms": 30000,
+     "max_result_bytes": 1048576,
+     "max_log_bytes": 1048576,
+     "result_schema": {
+      "type": "object",
+      "properties": {
+       "rows": {
+        "type": "integer"
+       },
+       "summary": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "rows"
+      ],
+      "additionalProperties": false
+     }
+    }
+   },
+   "saved": true,
+   "roundtrip_equal": true,
+   "diagnostics": [],
+   "preflight": {
+    "ok": false,
+    "code": "profile_missing",
+    "path": [
+     "document",
+     "nodes",
+     1,
+     "config",
+     "code",
+     "environment_profile_id"
+    ],
+    "message": "Python profile was not found",
+    "status": 404
+   }
+  },
+  {
+   "case": "profile-venv",
+   "config": {
+    "execution": {
+     "inputs": [
+      {
+       "name": "diff",
+       "value": {
+        "kind": "ref",
+        "node_id": "start",
+        "path": [
+         "message"
+        ]
+       },
+       "missing": "error"
+      }
+     ],
+     "outputs": [
+      {
+       "name": "count",
+       "source": {
+        "kind": "result",
+        "path": [
+         "rows"
+        ]
+       }
+      }
+     ]
+    },
+    "code": {
+     "source": {
+      "kind": "file",
+      "path": "tools/score.py"
+     },
+     "environment_profile_id": "pupu-tools",
+     "timeout_ms": 30000,
+     "max_result_bytes": 1048576,
+     "max_log_bytes": 1048576,
+     "result_schema": {
+      "type": "object",
+      "properties": {
+       "rows": {
+        "type": "integer"
+       },
+       "summary": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "rows"
+      ],
+      "additionalProperties": false
+     }
+    }
+   },
+   "saved": true,
+   "roundtrip_equal": true,
+   "diagnostics": [],
+   "preflight": {
+    "ok": true
+   }
+  },
+  {
+   "case": "timeout-zero",
+   "config": {
+    "execution": {
+     "inputs": [
+      {
+       "name": "diff",
+       "value": {
+        "kind": "ref",
+        "node_id": "start",
+        "path": [
+         "message"
+        ]
+       },
+       "missing": "error"
+      }
+     ],
+     "outputs": [
+      {
+       "name": "count",
+       "source": {
+        "kind": "result",
+        "path": [
+         "rows"
+        ]
+       }
+      }
+     ]
+    },
+    "code": {
+     "source": {
+      "kind": "file",
+      "path": "tools/score.py"
+     },
+     "environment_profile_id": "builtin",
+     "timeout_ms": 0,
+     "max_result_bytes": 1048576,
+     "max_log_bytes": 1048576,
+     "result_schema": {
+      "type": "object",
+      "properties": {
+       "rows": {
+        "type": "integer"
+       },
+       "summary": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "rows"
+      ],
+      "additionalProperties": false
+     }
+    }
+   },
+   "saved": true,
+   "roundtrip_equal": true,
+   "diagnostics": [],
+   "preflight": {
+    "ok": false,
+    "code": "invalid_value",
+    "path": [
+     "document",
+     "nodes",
+     1,
+     "config",
+     "code",
+     "timeout_ms"
+    ],
+    "message": "timeout_ms is outside the supported range",
+    "status": 400
+   }
+  },
+  {
+   "case": "timeout-over",
+   "config": {
+    "execution": {
+     "inputs": [
+      {
+       "name": "diff",
+       "value": {
+        "kind": "ref",
+        "node_id": "start",
+        "path": [
+         "message"
+        ]
+       },
+       "missing": "error"
+      }
+     ],
+     "outputs": [
+      {
+       "name": "count",
+       "source": {
+        "kind": "result",
+        "path": [
+         "rows"
+        ]
+       }
+      }
+     ]
+    },
+    "code": {
+     "source": {
+      "kind": "file",
+      "path": "tools/score.py"
+     },
+     "environment_profile_id": "builtin",
+     "timeout_ms": 86400001,
+     "max_result_bytes": 1048576,
+     "max_log_bytes": 1048576,
+     "result_schema": {
+      "type": "object",
+      "properties": {
+       "rows": {
+        "type": "integer"
+       },
+       "summary": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "rows"
+      ],
+      "additionalProperties": false
+     }
+    }
+   },
+   "saved": true,
+   "roundtrip_equal": true,
+   "diagnostics": [],
+   "preflight": {
+    "ok": false,
+    "code": "invalid_value",
+    "path": [
+     "document",
+     "nodes",
+     1,
+     "config",
+     "code",
+     "timeout_ms"
+    ],
+    "message": "timeout_ms is outside the supported range",
+    "status": 400
+   }
+  },
+  {
+   "case": "timeout-float",
+   "config": {
+    "execution": {
+     "inputs": [
+      {
+       "name": "diff",
+       "value": {
+        "kind": "ref",
+        "node_id": "start",
+        "path": [
+         "message"
+        ]
+       },
+       "missing": "error"
+      }
+     ],
+     "outputs": [
+      {
+       "name": "count",
+       "source": {
+        "kind": "result",
+        "path": [
+         "rows"
+        ]
+       }
+      }
+     ]
+    },
+    "code": {
+     "source": {
+      "kind": "file",
+      "path": "tools/score.py"
+     },
+     "environment_profile_id": "builtin",
+     "timeout_ms": 30000.0,
+     "max_result_bytes": 1048576,
+     "max_log_bytes": 1048576,
+     "result_schema": {
+      "type": "object",
+      "properties": {
+       "rows": {
+        "type": "integer"
+       },
+       "summary": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "rows"
+      ],
+      "additionalProperties": false
+     }
+    }
+   },
+   "saved": true,
+   "roundtrip_equal": true,
+   "diagnostics": [],
+   "preflight": {
+    "ok": false,
+    "code": "invalid_value",
+    "path": [
+     "document",
+     "nodes",
+     1,
+     "config",
+     "code",
+     "timeout_ms"
+    ],
+    "message": "timeout_ms is outside the supported range",
+    "status": 400
+   }
+  },
+  {
+   "case": "result-bytes-over",
+   "config": {
+    "execution": {
+     "inputs": [
+      {
+       "name": "diff",
+       "value": {
+        "kind": "ref",
+        "node_id": "start",
+        "path": [
+         "message"
+        ]
+       },
+       "missing": "error"
+      }
+     ],
+     "outputs": [
+      {
+       "name": "count",
+       "source": {
+        "kind": "result",
+        "path": [
+         "rows"
+        ]
+       }
+      }
+     ]
+    },
+    "code": {
+     "source": {
+      "kind": "file",
+      "path": "tools/score.py"
+     },
+     "environment_profile_id": "builtin",
+     "timeout_ms": 30000,
+     "max_result_bytes": 8388609,
+     "max_log_bytes": 1048576,
+     "result_schema": {
+      "type": "object",
+      "properties": {
+       "rows": {
+        "type": "integer"
+       },
+       "summary": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "rows"
+      ],
+      "additionalProperties": false
+     }
+    }
+   },
+   "saved": true,
+   "roundtrip_equal": true,
+   "diagnostics": [],
+   "preflight": {
+    "ok": false,
+    "code": "invalid_value",
+    "path": [
+     "document",
+     "nodes",
+     1,
+     "config",
+     "code",
+     "max_result_bytes"
+    ],
+    "message": "max_result_bytes is outside the supported range",
+    "status": 400
+   }
+  },
+  {
+   "case": "log-bytes-zero",
+   "config": {
+    "execution": {
+     "inputs": [
+      {
+       "name": "diff",
+       "value": {
+        "kind": "ref",
+        "node_id": "start",
+        "path": [
+         "message"
+        ]
+       },
+       "missing": "error"
+      }
+     ],
+     "outputs": [
+      {
+       "name": "count",
+       "source": {
+        "kind": "result",
+        "path": [
+         "rows"
+        ]
+       }
+      }
+     ]
+    },
+    "code": {
+     "source": {
+      "kind": "file",
+      "path": "tools/score.py"
+     },
+     "environment_profile_id": "builtin",
+     "timeout_ms": 30000,
+     "max_result_bytes": 1048576,
+     "max_log_bytes": 0,
+     "result_schema": {
+      "type": "object",
+      "properties": {
+       "rows": {
+        "type": "integer"
+       },
+       "summary": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "rows"
+      ],
+      "additionalProperties": false
+     }
+    }
+   },
+   "saved": true,
+   "roundtrip_equal": true,
+   "diagnostics": [],
+   "preflight": {
+    "ok": false,
+    "code": "invalid_value",
+    "path": [
+     "document",
+     "nodes",
+     1,
+     "config",
+     "code",
+     "max_log_bytes"
+    ],
+    "message": "max_log_bytes is outside the supported range",
+    "status": 400
+   }
+  },
+  {
+   "case": "schema-not-object-type",
+   "config": {
+    "execution": {
+     "inputs": [
+      {
+       "name": "diff",
+       "value": {
+        "kind": "ref",
+        "node_id": "start",
+        "path": [
+         "message"
+        ]
+       },
+       "missing": "error"
+      }
+     ],
+     "outputs": [
+      {
+       "name": "count",
+       "source": {
+        "kind": "result",
+        "path": [
+         "rows"
+        ]
+       }
+      }
+     ]
+    },
+    "code": {
+     "source": {
+      "kind": "file",
+      "path": "tools/score.py"
+     },
+     "environment_profile_id": "builtin",
+     "timeout_ms": 30000,
+     "max_result_bytes": 1048576,
+     "max_log_bytes": 1048576,
+     "result_schema": {
+      "type": "string"
+     }
+    }
+   },
+   "saved": true,
+   "roundtrip_equal": true,
+   "diagnostics": [],
+   "preflight": {
+    "ok": false,
+    "code": "invalid_schema",
+    "path": [
+     "document",
+     "nodes",
+     1,
+     "config",
+     "code",
+     "result_schema"
+    ],
+    "message": "Code result schema must describe an object",
+    "status": 400
+   }
+  },
+  {
+   "case": "schema-invalid",
+   "config": {
+    "execution": {
+     "inputs": [
+      {
+       "name": "diff",
+       "value": {
+        "kind": "ref",
+        "node_id": "start",
+        "path": [
+         "message"
+        ]
+       },
+       "missing": "error"
+      }
+     ],
+     "outputs": [
+      {
+       "name": "count",
+       "source": {
+        "kind": "result",
+        "path": [
+         "rows"
+        ]
+       }
+      }
+     ]
+    },
+    "code": {
+     "source": {
+      "kind": "file",
+      "path": "tools/score.py"
+     },
+     "environment_profile_id": "builtin",
+     "timeout_ms": 30000,
+     "max_result_bytes": 1048576,
+     "max_log_bytes": 1048576,
+     "result_schema": {
+      "type": "object",
+      "properties": 5
+     }
+    }
+   },
+   "saved": true,
+   "roundtrip_equal": true,
+   "diagnostics": [],
+   "preflight": {
+    "ok": false,
+    "code": "invalid_schema",
+    "path": [
+     "document",
+     "nodes",
+     1,
+     "config",
+     "code",
+     "result_schema"
+    ],
+    "message": "Code result schema is invalid",
+    "status": 400
+   }
+  },
+  {
+   "case": "schema-not-dict",
+   "config": {
+    "execution": {
+     "inputs": [
+      {
+       "name": "diff",
+       "value": {
+        "kind": "ref",
+        "node_id": "start",
+        "path": [
+         "message"
+        ]
+       },
+       "missing": "error"
+      }
+     ],
+     "outputs": [
+      {
+       "name": "count",
+       "source": {
+        "kind": "result",
+        "path": [
+         "rows"
+        ]
+       }
+      }
+     ]
+    },
+    "code": {
+     "source": {
+      "kind": "file",
+      "path": "tools/score.py"
+     },
+     "environment_profile_id": "builtin",
+     "timeout_ms": 30000,
+     "max_result_bytes": 1048576,
+     "max_log_bytes": 1048576,
+     "result_schema": "object"
+    }
+   },
+   "saved": true,
+   "roundtrip_equal": true,
+   "diagnostics": [],
+   "preflight": {
+    "ok": false,
+    "code": "invalid_schema",
+    "path": [
+     "document",
+     "nodes",
+     1,
+     "config",
+     "code",
+     "result_schema"
+    ],
+    "message": "Code result schema must describe an object",
+    "status": 400
+   }
+  },
+  {
+   "case": "schema-open",
+   "config": {
+    "execution": {
+     "inputs": [
+      {
+       "name": "diff",
+       "value": {
+        "kind": "ref",
+        "node_id": "start",
+        "path": [
+         "message"
+        ]
+       },
+       "missing": "error"
+      }
+     ],
+     "outputs": [
+      {
+       "name": "count",
+       "source": {
+        "kind": "result",
+        "path": [
+         "rows"
+        ]
+       }
+      }
+     ]
+    },
+    "code": {
+     "source": {
+      "kind": "file",
+      "path": "tools/score.py"
+     },
+     "environment_profile_id": "builtin",
+     "timeout_ms": 30000,
+     "max_result_bytes": 1048576,
+     "max_log_bytes": 1048576,
+     "result_schema": {
+      "type": "object",
+      "properties": {
+       "rows": {
+        "type": "integer"
+       }
+      }
+     }
+    }
+   },
+   "saved": true,
+   "roundtrip_equal": true,
+   "diagnostics": [],
+   "preflight": {
+    "ok": true
+   }
+  },
+  {
+   "case": "unknown-code-key-on-error",
+   "config": {
+    "execution": {
+     "inputs": [
+      {
+       "name": "diff",
+       "value": {
+        "kind": "ref",
+        "node_id": "start",
+        "path": [
+         "message"
+        ]
+       },
+       "missing": "error"
+      }
+     ],
+     "outputs": [
+      {
+       "name": "count",
+       "source": {
+        "kind": "result",
+        "path": [
+         "rows"
+        ]
+       }
+      }
+     ]
+    },
+    "code": {
+     "source": {
+      "kind": "file",
+      "path": "tools/score.py"
+     },
+     "environment_profile_id": "builtin",
+     "timeout_ms": 30000,
+     "max_result_bytes": 1048576,
+     "max_log_bytes": 1048576,
+     "result_schema": {
+      "type": "object",
+      "properties": {
+       "rows": {
+        "type": "integer"
+       },
+       "summary": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "rows"
+      ],
+      "additionalProperties": false
+     },
+     "on_error": "continue"
+    }
+   },
+   "saved": true,
+   "roundtrip_equal": true,
+   "diagnostics": [],
+   "preflight": {
+    "ok": false,
+    "code": "unknown_field",
+    "path": [
+     "document",
+     "nodes",
+     1,
+     "config",
+     "code",
+     "on_error"
+    ],
+    "message": "Code config fields are invalid",
+    "status": 400
+   }
+  },
+  {
+   "case": "missing-limits",
+   "config": {
+    "execution": {
+     "inputs": [
+      {
+       "name": "diff",
+       "value": {
+        "kind": "ref",
+        "node_id": "start",
+        "path": [
+         "message"
+        ]
+       },
+       "missing": "error"
+      }
+     ],
+     "outputs": [
+      {
+       "name": "count",
+       "source": {
+        "kind": "result",
+        "path": [
+         "rows"
+        ]
+       }
+      }
+     ]
+    },
+    "code": {
+     "source": {
+      "kind": "file",
+      "path": "tools/score.py"
+     },
+     "environment_profile_id": "builtin",
+     "timeout_ms": 30000,
+     "max_result_bytes": 1048576,
+     "result_schema": {
+      "type": "object",
+      "properties": {
+       "rows": {
+        "type": "integer"
+       },
+       "summary": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "rows"
+      ],
+      "additionalProperties": false
+     }
+    }
+   },
+   "saved": true,
+   "roundtrip_equal": true,
+   "diagnostics": [],
+   "preflight": {
+    "ok": false,
+    "code": "missing_field",
+    "path": [
+     "document",
+     "nodes",
+     1,
+     "config",
+     "code"
+    ],
+    "message": "Code config fields are invalid",
+    "status": 400
+   }
+  },
+  {
+   "case": "source-inline",
+   "config": {
+    "execution": {
+     "inputs": [
+      {
+       "name": "diff",
+       "value": {
+        "kind": "ref",
+        "node_id": "start",
+        "path": [
+         "message"
+        ]
+       },
+       "missing": "error"
+      }
+     ],
+     "outputs": [
+      {
+       "name": "count",
+       "source": {
+        "kind": "result",
+        "path": [
+         "rows"
+        ]
+       }
+      }
+     ]
+    },
+    "code": {
+     "source": {
+      "kind": "inline",
+      "text": "def main(input, context):\n    return {}\n"
+     },
+     "environment_profile_id": "builtin",
+     "timeout_ms": 30000,
+     "max_result_bytes": 1048576,
+     "max_log_bytes": 1048576,
+     "result_schema": {
+      "type": "object",
+      "properties": {
+       "rows": {
+        "type": "integer"
+       },
+       "summary": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "rows"
+      ],
+      "additionalProperties": false
+     }
+    }
+   },
+   "saved": true,
+   "roundtrip_equal": true,
+   "diagnostics": [],
+   "preflight": {
+    "ok": false,
+    "code": "invalid_shape",
+    "path": [
+     "document",
+     "nodes",
+     1,
+     "config",
+     "code",
+     "source"
+    ],
+    "message": "Code source must be one file reference",
+    "status": 400
+   }
+  },
+  {
+   "case": "source-absolute",
+   "config": {
+    "execution": {
+     "inputs": [
+      {
+       "name": "diff",
+       "value": {
+        "kind": "ref",
+        "node_id": "start",
+        "path": [
+         "message"
+        ]
+       },
+       "missing": "error"
+      }
+     ],
+     "outputs": [
+      {
+       "name": "count",
+       "source": {
+        "kind": "result",
+        "path": [
+         "rows"
+        ]
+       }
+      }
+     ]
+    },
+    "code": {
+     "source": {
+      "kind": "file",
+      "path": "/tmp/score.py"
+     },
+     "environment_profile_id": "builtin",
+     "timeout_ms": 30000,
+     "max_result_bytes": 1048576,
+     "max_log_bytes": 1048576,
+     "result_schema": {
+      "type": "object",
+      "properties": {
+       "rows": {
+        "type": "integer"
+       },
+       "summary": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "rows"
+      ],
+      "additionalProperties": false
+     }
+    }
+   },
+   "saved": true,
+   "roundtrip_equal": true,
+   "diagnostics": [],
+   "preflight": {
+    "ok": true
+   }
+  },
+  {
+   "case": "source-extra-key",
+   "config": {
+    "execution": {
+     "inputs": [
+      {
+       "name": "diff",
+       "value": {
+        "kind": "ref",
+        "node_id": "start",
+        "path": [
+         "message"
+        ]
+       },
+       "missing": "error"
+      }
+     ],
+     "outputs": [
+      {
+       "name": "count",
+       "source": {
+        "kind": "result",
+        "path": [
+         "rows"
+        ]
+       }
+      }
+     ]
+    },
+    "code": {
+     "source": {
+      "kind": "file",
+      "path": "tools/score.py",
+      "sha256": "x"
+     },
+     "environment_profile_id": "builtin",
+     "timeout_ms": 30000,
+     "max_result_bytes": 1048576,
+     "max_log_bytes": 1048576,
+     "result_schema": {
+      "type": "object",
+      "properties": {
+       "rows": {
+        "type": "integer"
+       },
+       "summary": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "rows"
+      ],
+      "additionalProperties": false
+     }
+    }
+   },
+   "saved": true,
+   "roundtrip_equal": true,
+   "diagnostics": [],
+   "preflight": {
+    "ok": false,
+    "code": "invalid_shape",
+    "path": [
+     "document",
+     "nodes",
+     1,
+     "config",
+     "code",
+     "source"
+    ],
+    "message": "Code source must be one file reference",
+    "status": 400
+   }
+  },
+  {
+   "case": "artifact-bad-name",
+   "config": {
+    "execution": {
+     "inputs": [
+      {
+       "name": "diff",
+       "value": {
+        "kind": "ref",
+        "node_id": "start",
+        "path": [
+         "message"
+        ]
+       },
+       "missing": "error"
+      }
+     ],
+     "outputs": [
+      {
+       "name": "count",
+       "source": {
+        "kind": "result",
+        "path": [
+         "rows"
+        ]
+       }
+      }
+     ]
+    },
+    "code": {
+     "source": {
+      "kind": "file",
+      "path": "tools/score.py"
+     },
+     "environment_profile_id": "builtin",
+     "timeout_ms": 30000,
+     "max_result_bytes": 1048576,
+     "max_log_bytes": 1048576,
+     "result_schema": {
+      "type": "object",
+      "properties": {
+       "rows": {
+        "type": "integer"
+       },
+       "summary": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "rows"
+      ],
+      "additionalProperties": false
+     },
+     "artifacts": [
+      {
+       "name": "../x",
+       "attachment": "att-1"
+      }
+     ]
+    }
+   },
+   "saved": true,
+   "roundtrip_equal": true,
+   "diagnostics": [],
+   "preflight": {
+    "ok": false,
+    "code": "invalid_value",
+    "path": [
+     "document",
+     "nodes",
+     1,
+     "config",
+     "code",
+     "artifacts",
+     0,
+     "name"
+    ],
+    "message": "Code artifact name is invalid",
+    "status": 400
+   }
+  },
+  {
+   "case": "output-root-undeclared",
+   "config": {
+    "execution": {
+     "inputs": [
+      {
+       "name": "diff",
+       "value": {
+        "kind": "ref",
+        "node_id": "start",
+        "path": [
+         "message"
+        ]
+       },
+       "missing": "error"
+      }
+     ],
+     "outputs": [
+      {
+       "name": "x",
+       "source": {
+        "kind": "result",
+        "path": [
+         "nope"
+        ]
+       }
+      }
+     ]
+    },
+    "code": {
+     "source": {
+      "kind": "file",
+      "path": "tools/score.py"
+     },
+     "environment_profile_id": "builtin",
+     "timeout_ms": 30000,
+     "max_result_bytes": 1048576,
+     "max_log_bytes": 1048576,
+     "result_schema": {
+      "type": "object",
+      "properties": {
+       "rows": {
+        "type": "integer"
+       },
+       "summary": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "rows"
+      ],
+      "additionalProperties": false
+     }
+    }
+   },
+   "saved": true,
+   "roundtrip_equal": true,
+   "diagnostics": [],
+   "preflight": {
+    "ok": true
+   }
+  },
+  {
+   "case": "output-error-root",
+   "config": {
+    "execution": {
+     "inputs": [
+      {
+       "name": "diff",
+       "value": {
+        "kind": "ref",
+        "node_id": "start",
+        "path": [
+         "message"
+        ]
+       },
+       "missing": "error"
+      }
+     ],
+     "outputs": [
+      {
+       "name": "x",
+       "source": {
+        "kind": "result",
+        "path": [
+         "error"
+        ]
+       }
+      }
+     ]
+    },
+    "code": {
+     "source": {
+      "kind": "file",
+      "path": "tools/score.py"
+     },
+     "environment_profile_id": "builtin",
+     "timeout_ms": 30000,
+     "max_result_bytes": 1048576,
+     "max_log_bytes": 1048576,
+     "result_schema": {
+      "type": "object",
+      "properties": {
+       "rows": {
+        "type": "integer"
+       },
+       "summary": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "rows"
+      ],
+      "additionalProperties": false
+     }
+    }
+   },
+   "saved": true,
+   "roundtrip_equal": true,
+   "diagnostics": [],
+   "preflight": {
+    "ok": true
+   }
+  },
+  {
+   "case": "extra-config-key",
+   "config": {
+    "execution": {
+     "inputs": [
+      {
+       "name": "diff",
+       "value": {
+        "kind": "ref",
+        "node_id": "start",
+        "path": [
+         "message"
+        ]
+       },
+       "missing": "error"
+      }
+     ],
+     "outputs": [
+      {
+       "name": "count",
+       "source": {
+        "kind": "result",
+        "path": [
+         "rows"
+        ]
+       }
+      }
+     ]
+    },
+    "code": {
+     "source": {
+      "kind": "file",
+      "path": "tools/score.py"
+     },
+     "environment_profile_id": "builtin",
+     "timeout_ms": 30000,
+     "max_result_bytes": 1048576,
+     "max_log_bytes": 1048576,
+     "result_schema": {
+      "type": "object",
+      "properties": {
+       "rows": {
+        "type": "integer"
+       },
+       "summary": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "rows"
+      ],
+      "additionalProperties": false
+     }
+    },
+    "tool": {
+     "name": "read"
+    }
+   },
+   "saved": true,
+   "roundtrip_equal": true,
+   "diagnostics": [],
+   "preflight": {
+    "ok": false,
+    "code": "unknown_field",
+    "path": [
+     "document",
+     "nodes",
+     1,
+     "config",
+     "tool"
+    ],
+    "message": "unknown field",
+    "status": 400
+   }
+  }
+ ]
+}

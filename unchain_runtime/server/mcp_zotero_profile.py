@@ -9,7 +9,7 @@ import hashlib
 
 COMMAND = "pupu-zotero-readonly"
 PROFILE = "zotero-local-readonly-v1"
-CUTOFF = "2026-09-14T04:00:00Z"
+CUTOFF = "2026-10-22T00:00:00Z"
 PACKAGE_VERSION = "0.12.0"
 
 SERVER_SOURCE = r'''
@@ -172,7 +172,7 @@ def profile_args() -> list[str]:
         "--from", f"zotero-mcp-server=={PACKAGE_VERSION}",
         "--with", "pyzotero==1.14.0",
         "--with", "fastmcp==3.4.7",
-        "--with", "mcp==1.29.1",
+        "--with", "mcp==1.30.0",
         "--with", "bibtexparser==1.4.4",
         "python", "-c", SERVER_SOURCE,
     ]

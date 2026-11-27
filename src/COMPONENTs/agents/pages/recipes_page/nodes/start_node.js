@@ -1,53 +1,26 @@
+import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
+import { node_title } from "../node_title";
 import React from "react";
 import PuzzleShape from "./puzzle_shape";
-import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
+import { node_caption } from "./node_caption";
+import NodeHeader, { NodeBody } from "./node_header";
+import { NODE_PORT_ANCHOR } from "./node_metrics";
 
-export default function StartNode({ isDark }) {
+export default function StartNode({ node, isDark, rename }) {
+  const { t } = useTranslation();
+  const title = node_title({ type: "start", ...node }, t).title;
   return (
     <div style={{ width: 130 }}>
-      <PuzzleShape tabs={["right"]} cutouts={[]} isDark={isDark}>
-        <div style={{ padding: "14px 18px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div
-              style={{
-                width: 28,
-                height: 28,
-                borderRadius: 9,
-                background: "linear-gradient(135deg, #4cbe8b, #2f9a68)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
-              }}
-            >
-              <Icon
-                src="flag"
-                color="#fff"
-                style={{ width: 16, height: 16 }}
-              />
-            </div>
-            <div>
-              <div
-                style={{
-                  fontSize: 12.5,
-                  fontWeight: 600,
-                  color: isDark ? "#f0f0f3" : "#1d1d22",
-                }}
-              >
-                Start
-              </div>
-              <div
-                style={{
-                  fontSize: 10.5,
-                  color: isDark ? "#a8a8b0" : "#6b6b73",
-                  marginTop: 2,
-                }}
-              >
-                entry
-              </div>
-            </div>
-          </div>
-        </div>
+      <PuzzleShape tabs={["right"]} cutouts={[]} anchor={NODE_PORT_ANCHOR} isDark={isDark}>
+        <NodeBody>
+          <NodeHeader
+            src="flag"
+            tile={{ background: "#2f9a68" }}
+            title={title}
+            subtitle={node_caption({ type: "start", title, summary: t("agents.nodes.entry") }, t)}
+            rename={rename}
+          />
+        </NodeBody>
       </PuzzleShape>
     </div>
   );

@@ -1,3 +1,4 @@
+import ShadowSurface from "../../BUILTIN_COMPONENTs/material/shadow_surface";
 import {
   memo,
   useState,
@@ -62,6 +63,12 @@ import {
   groupToolTimelineItems,
 } from "./trace_tool_grouping";
 import { projectToolCallLifecycle } from "../../SERVICEs/runtime_events/tool_call_projection";
+import { subagentDisplayResult } from "./subagent_display_result";
+import { cancelledInteractionIds } from "../../SERVICEs/runtime_events/cancelled_interaction_settlement";
+import {
+  collectSubagentSettlements,
+  settlementForToolCall,
+} from "../../SERVICEs/runtime_events/subagent_settlement";
 
 const coalesceToolCallProjectionFrames = (frames, projection) => {
   if (!projection?.calls?.length) return frames;
@@ -138,9 +145,8 @@ export const DISPLAY_FRAME_TYPES = new Set([
   "clarify_request",
 ]);
 
-/* Anthropic-protocol providers stream thinking as one runtime event per
-   thinking_delta (a single token on DeepSeek), and each becomes its own
-   reasoning frame. Adjacent deltas from the same model turn are one block.
+/* Providers stream thinking as one runtime event per delta, and each becomes
+   its own reasoning frame. Adjacent deltas from the same model turn are one block.
    Whole reasoning items (Responses API `reasoning_items`) are left as-is. */
 const isReasoningDeltaFrame = (frame) =>
   frame?.type === "reasoning" &&
@@ -149,9 +155,9 @@ const isReasoningDeltaFrame = (frame) =>
 
 const sameReasoningTurn = (a, b) =>
   (a.run_id || "") === (b.run_id || "") &&
-  a.iteration === b.iteration &&
-  (a.payload?.provisional_reasoning_id || "") ===
-    (b.payload?.provisional_reasoning_id || "");
+  // Ollama preview IDs identify individual deltas for rollback, not turns.
+  // The source frames retain those IDs; only this display projection is merged.
+  a.iteration === b.iteration;
 
 export const coalesceReasoningDeltaFrames = (frames) => {
   const out = [];
@@ -517,9 +523,16 @@ const KVPanel = ({ sections, isDark, color }) => {
 /* tag pill shown as the timeline title for tool_call */
 const ToolTag = ({ name, isDark, compact = false }) => (
   <span
+    title={typeof name === "string" ? name : undefined}
     style={{
-      display: "inline-flex",
-      alignItems: "center",
+      /* one token: in a narrow row it is cut with an ellipsis (full name on
+         hover) rather than broken across lines or run into "detail" */
+      display: "inline-block",
+      maxWidth: "100%",
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+      verticalAlign: "middle",
+      boxSizing: "border-box",
       padding: compact ? "1px 6px" : "1px 7px",
       borderRadius: compact ? 4 : 5,
       background: "var(--pupu-overlay-selected)",
@@ -529,6 +542,7 @@ const ToolTag = ({ name, isDark, compact = false }) => (
       fontSize: compact ? "0.74em" : "0.82em",
       letterSpacing: 0.1,
       color: "var(--pupu-text-secondary)",
+      whiteSpace: "nowrap",
       userSelect: "none",
       WebkitUserSelect: "none",
     }}
@@ -553,6 +567,8 @@ const CountBadge = ({ count, isDark }) => (
       fontFamily: "Menlo, Monaco, Consolas, monospace",
       fontSize: "0.72em",
       color: "var(--pupu-text-faint)",
+      whiteSpace: "nowrap",
+      flexShrink: 0,
       userSelect: "none",
       WebkitUserSelect: "none",
     }}
@@ -596,7 +612,7 @@ const SubagentTag = ({ name, isDark }) => (
 
 /* double-circle point marker for subagent nodes */
 const SubagentPoint = ({ isDark }) => (
-  <div
+  <ShadowSurface
     style={{
       width: 10,
       height: 10,
@@ -914,6 +930,9 @@ const TraceChain = ({
   bubbleOwnsLiveText = false,
   compact = false,
   hideTrack = false,
+  /* A host where "Always allow" cannot be remembered (the Builder's Test
+     panel) offers only once / deny. */
+  allowSessionApprovals = true,
   _depth = 0,
 }) => {
   const { chatId, store } = useStreamingMessageStoreContext();
@@ -979,7 +998,7 @@ const TraceChain = ({
     setBranchState((prev) => {
       const next = new Map(prev);
       const cur = next.get(callId) || {
-        expanded: false,
+        expanded: true,
         expandedWorkers: new Set(),
       };
       next.set(callId, { ...cur, expanded: !cur.expanded });
@@ -1006,10 +1025,49 @@ const TraceChain = ({
 
   const isStreaming = status === "streaming";
   const isCancelled = status === "cancelled" || status === "canceled";
+  // Approvals the backend proved it cancelled before they were decided.
+  const cancelledApprovalIds = useMemo(
+    () => cancelledInteractionIds(frames),
+    [frames],
+  );
   const effectiveSubagentFrames = useMemo(
-    () =>
-      subagentFrames && typeof subagentFrames === "object" ? subagentFrames : {},
+    () => {
+      const buckets =
+        subagentFrames && typeof subagentFrames === "object"
+          ? subagentFrames
+          : {};
+      return Object.fromEntries(
+        Object.entries(buckets).map(([childRunId, childFrames]) => {
+          const directNodeFrames = Object.entries(buckets).flatMap(
+            ([nodeRunId, nodeFrames]) =>
+              nodeRunId === childRunId || !Array.isArray(nodeFrames)
+                ? []
+                : nodeFrames.filter(
+                    (frame) =>
+                      frame?.run_id === nodeRunId &&
+                      frame?.links?.parent_run_id === childRunId,
+                  ),
+          );
+          return [
+          childRunId,
+          [
+            ...(Array.isArray(childFrames) ? childFrames : []),
+            ...directNodeFrames,
+          ],
+          ];
+        }),
+      );
+    },
     [subagentFrames],
+  );
+  // Child terminal events that carry a verified, call-bound settlement.
+  const subagentSettlements = useMemo(
+    () =>
+      collectSubagentSettlements([
+        frames,
+        ...Object.values(effectiveSubagentFrames),
+      ]),
+    [frames, effectiveSubagentFrames],
   );
   const effectiveSubagentMetaByRunId = useMemo(
     () =>
@@ -1582,7 +1640,21 @@ const TraceChain = ({
         const hasTerminalResult = Boolean(
           resultFrame && resultFrame.payload?.status !== "running",
         );
-        const result = resultFrame?.payload?.result;
+        // Headless Workflow tools use the same call-bound child receipt as
+        // delegate/handoff. The original durable wait marker stays untouched;
+        // only the display reads the verified terminal projection.
+        const genericSettlement = SUBAGENT_TOOLS.has(frame.payload?.tool_name)
+          ? null
+          : settlementForToolCall(subagentSettlements, frame, frames);
+        const result = genericSettlement
+          ? {
+              status: genericSettlement.status,
+              ...(genericSettlement.body
+                ? { outputs: genericSettlement.body.outputs,
+                    ...(genericSettlement.body.error ? { error: genericSettlement.body.error } : {}) }
+                : { inline: false, content_bytes: genericSettlement.contentBytes }),
+            }
+          : resultFrame?.payload?.result;
         const internalDelta =
           resultFrame?.ts && frame.ts ? resultFrame.ts - frame.ts : null;
 
@@ -1591,6 +1663,27 @@ const TraceChain = ({
           const isDelegate = frame.payload.tool_name === "delegate_to_subagent";
           const isBatch = frame.payload.tool_name === "spawn_worker_batch";
           const isHandoff = frame.payload.tool_name === "handoff_to_subagent";
+          /* A verified settlement for exactly this call supersedes the
+             original wait marker; its child is its source attempt. */
+          const settlement =
+            isDelegate || isHandoff
+              ? settlementForToolCall(subagentSettlements, frame, frames)
+              : null;
+          const settledMeta = settlement
+            ? effectiveSubagentMetaByRunId[settlement.sourceAttemptId]
+            : null;
+          const result = settlement
+            ? {
+                status: settlement.status,
+                summary: settlement.body?.summary || "",
+                ...(settlement.body?.error ? { error: settlement.body.error } : {}),
+                ...(typeof settledMeta?.subagentId === "string" &&
+                settledMeta.subagentId &&
+                settledMeta.subagentId !== settlement.sourceAttemptId
+                  ? { agent_name: settledMeta.subagentId }
+                  : {}),
+              }
+            : subagentDisplayResult(resultFrame?.payload?.result);
           const target = args?.target || "worker";
           const task = args?.task || args?.reason || "";
           const batchTasks =
@@ -1633,9 +1726,11 @@ const TraceChain = ({
                     typeof result?.agent_name === "string"
                       ? result.agent_name
                       : "";
-                  const candidates = agentName
-                    ? childRunIdsBySubagentId.get(agentName) || []
-                    : [];
+                  const candidates = settlement
+                    ? [settlement.sourceAttemptId]
+                    : agentName
+                      ? childRunIdsBySubagentId.get(agentName) || []
+                      : [];
                   const childRunId =
                     candidates.find((id) => !usedRunIds.has(id)) || "";
                   if (childRunId) usedRunIds.add(childRunId);
@@ -1645,7 +1740,7 @@ const TraceChain = ({
                   const childFrames = childRunId
                     ? effectiveSubagentFrames[childRunId]
                     : [];
-                  if (!agentName && !resultFrame) {
+                  if (!agentName && !resultFrame && !settlement) {
                     return [];
                   }
                   return [
@@ -2033,8 +2128,14 @@ const TraceChain = ({
         let toolStatus = callStatus;
 
         if (isInlineInteraction) {
+          const unsettled =
+            !isResolved && !uiResolved && !hasTerminalResult;
+          const provedCancelled =
+            unsettled && cancelledApprovalIds.has(confirmationId);
           let statusLabel = "Pending";
-          if (resolvedDecision === "approved") {
+          if (provedCancelled) {
+            statusLabel = "Cancelled · not run";
+          } else if (resolvedDecision === "approved") {
             statusLabel = isSelectionInteraction ? "Selected" : "Approved";
           } else if (resolvedDecision === "denied") {
             statusLabel = "Denied";
@@ -2054,6 +2155,7 @@ const TraceChain = ({
             !isSubmitting &&
             !hasTerminalResult &&
             !isCancelled &&
+            !provedCancelled &&
             typeof onToolConfirmationDecision === "function";
 
           /* approved / denied / pending are success, danger and neutral —
@@ -2106,7 +2208,7 @@ const TraceChain = ({
                   uiState={effectiveConfirmationUiState}
                   isDark={isDark}
                   disabled={false}
-                  allowSessionApproval={isToolConfirmationCacheable(
+                  allowSessionApproval={allowSessionApprovals && isToolConfirmationCacheable(
                     frame.payload?.toolkit_id,
                     frame.payload?.tool_name,
                   )}
@@ -2125,7 +2227,15 @@ const TraceChain = ({
               : spanText,
           status: toolStatus,
           point: toolPointEl,
-          body: interactBody,
+          body: genericSettlement ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <span style={{ fontSize: 11.5, color: "var(--pupu-text-secondary)",
+                fontFamily: "Menlo, Monaco, Consolas, monospace" }}>
+                {genericSettlement.status}
+              </span>
+              {interactBody}
+            </div>
+          ) : interactBody,
           details:
             sections.length > 0 ? (
               <KVPanel sections={sections} isDark={isDark} color={color} />
@@ -2405,7 +2515,8 @@ const TraceChain = ({
       return {
         key: firstCall.key,
         title: (
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+          /* the name gives way (ellipsis) before the count does */
+          <span style={{ display: "flex", alignItems: "center", gap: 5, minWidth: 0, maxWidth: "100%" }}>
             <ToolTag
               name={firstCall._toolName}
               isDark={isDark}
@@ -2524,8 +2635,11 @@ const TraceChain = ({
     providerRetryGroups,
     isRetryWaiting,
     onStopStream,
+    allowSessionApprovals,
     isStreaming,
     isCancelled,
+    cancelledApprovalIds,
+    subagentSettlements,
     bubbleOwnsLiveText,
     messageId,
     lifecycleCallKeyForFrame,

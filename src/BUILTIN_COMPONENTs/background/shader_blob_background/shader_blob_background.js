@@ -1,3 +1,4 @@
+import CompositedBackground from "../../material/composited_background";
 import { useEffect, useRef, useState } from "react";
 
 /**
@@ -22,6 +23,9 @@ import { useEffect, useRef, useState } from "react";
  *  - ao               {number}    Ambient occlusion strength (0..1)
  *  - sss              {number}    Subsurface / wrap light (0..1)
  *  - blur             {number}    CSS blur in px
+ *  - surfaceOpacity  {number}    Artwork strength over an opaque matching page (default 1)
+ *  - surfaceBackground {string}  Page colour for final composition (defaults to bgBottom)
+ *  - dither           {boolean}   Subtle final-surface debanding (default true)
  *  - lightAzimuth     {number}    Key light azimuth in deg
  *  - lightElevation   {number}    Key light elevation in deg
  *  - skyTint          {string}    Hex, hemisphere top
@@ -280,6 +284,9 @@ const ShaderBlobBackground = ({
   bgFuse        = true,
   pixelRatio    = 2,
   fadeMs        = 500,
+  dither        = true,
+  surfaceOpacity = 1,
+  surfaceBackground,
   style,
   className,
 }) => {
@@ -476,17 +483,27 @@ const ShaderBlobBackground = ({
         ...style,
       }}
     >
-      <canvas
-        ref={canvasRef}
-        style={{
-          display: "block",
-          width: "100%",
-          height: "100%",
-          filter: blur ? `blur(${blur}px)` : undefined,
+      <CompositedBackground
+        backgroundColor={surfaceBackground || bgBottom}
+        opacity={surfaceOpacity}
+        blur={blur}
+        dither={dither}
+        overlayStyle={{
           opacity: ready && visible ? 1 : 0,
-          transition: `opacity ${fadeMs}ms ease, filter .2s`,
+          transition: `opacity ${fadeMs}ms ease`,
         }}
-      />
+      >
+        <canvas
+          ref={canvasRef}
+          style={{
+            display: "block",
+            width: "100%",
+            height: "100%",
+            opacity: ready && visible ? 1 : 0,
+            transition: `opacity ${fadeMs}ms ease`,
+          }}
+        />
+      </CompositedBackground>
     </div>
   );
 };

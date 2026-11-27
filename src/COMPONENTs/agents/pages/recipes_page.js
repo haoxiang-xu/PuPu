@@ -1,5 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { api } from "../../../SERVICEs/api";
+import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
+import ShadowSurface from "../../../BUILTIN_COMPONENTs/material/shadow_surface";
+import { useSurfaceComposite } from "../../../BUILTIN_COMPONENTs/material/surface_composite";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import { NavigationContext } from "../../../CONTAINERs/config/context";
+import { SIDE_MENU_WIDTH, agentsSidebarWidthCss, clampSideMenuWidth } from "../../../SERVICEs/side_menu_width";
+import { createLiveResizeWidth } from "../../../SERVICEs/live_resize_width";
+import { createPortal } from "react-dom";
 import {
   RECIPE_PANEL_LIMITS,
   clampPanelWidth,
@@ -7,52 +13,114 @@ import {
   writeRecipePanelWidth,
 } from "../../../SERVICEs/recipe_panel_widths";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
+import { ConfirmModal } from "../../../BUILTIN_COMPONENTs/modal/modal";
 import {
   AGENTS_MODAL_Z,
-  TOP_STRIP_LEADING_ICON,
-  TOP_STRIP_LEADING_PADDING,
   useTopStripCenter,
 } from "../top_strip";
-import RecipeList from "./recipes_page/recipe_list";
-import RecipeCanvas from "./recipes_page/recipe_canvas";
-import DetailPanel from "./recipes_page/detail_panel/detail_panel";
+import AgentExplorer from "./recipes_page/agent_explorer";
+import { RECIPE_PANEL_HEADER } from "./recipes_page/recipe_list";
+import SkeletonResourcePage from "./skeleton_resource_page";
+import { FlowEditor } from "../../../BUILTIN_COMPONENTs/flow_editor";
 import PanelResizeHandle from "./recipes_page/panel_resize_handle";
-import { to_save_payload } from "./recipes_page/recipe_save_payload";
-import useRecipeHistory from "./recipes_page/use_recipe_history";
+import {
+  DETAIL_WIDTH_VAR,
+  HANDLE_GAP,
+  PANEL_INSET,
+} from "./recipes_page/canvas_chrome";
 
-// Floating panels sit PANEL_INSET px from the page edge; each resize pill's
-// hit area starts HANDLE_GAP px past the panel's inner edge (the pill itself
-// is centered inside that hit area, so it clears the panel visibly).
-const PANEL_INSET = 6;
-const HANDLE_GAP = 2;
+const LIST_WIDTH_VAR = "--pupu-agents-list-drag-width";
+
+/* Nothing open yet (the explorer is still choosing the default Agent, or the
+   open one was deleted): the bare canvas, without a graph or its controls. */
+function EmptyCanvas({ isDark }) {
+  return (
+    <div data-testid="agents-empty-canvas" style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
+      <FlowEditor
+        style={{ width: "100%", height: "100%", borderRadius: 0 }}
+        theme={{
+          canvasBackground: isDark ? "var(--pupu-background, #1a1a1a)" : "var(--pupu-background, #fafafb)",
+          gridColor: "var(--pupu-overlay-ghost)",
+        }}
+        nodes={[]}
+        edges={[]}
+      />
+    </div>
+  );
+}
 
 export default function RecipesPage({
   isDark,
-  selectedNodeId,
   onSelectNode,
   fullscreen,
+  /* Docked: the agent list renders into `explorerSlot` (the side menu's
+     Agents pane) instead of floating over the canvas, and the side menu's own
+     toggle stands in for the list's collapse button. */
+  explorerSlot = null,
+  explorerDocked = false,
+  /* Docked: the way back out of the Agents pane, shown under its search. */
+  onExplorerBack,
 }) {
   /* One centerline for every control on the modal's top strip (#339). */
+  const { t } = useTranslation();
   const {
     center: topStripCenter,
     left: topStripLeft,
     clearsTrafficLights,
   } = useTopStripCenter(fullscreen);
-  const headerTopPad = clearsTrafficLights ? 28 : 0;
-  const [recipes, setRecipes] = useState([]);
-  const [activeName, setActiveName] = useState(null);
-  const {
-    recipe: activeRecipe,
-    setRecipe: setActiveRecipe,
-    setRecipeSilent: setActiveRecipeSilent,
-    undo,
-    redo,
-    canUndo,
-    canRedo,
-  } = useRecipeHistory(activeName);
-  const [dirty, setDirty] = useState(false);
+  /* Docked, the canvas runs under the open side menu, so the hint pinned to
+     the top-left starts past it. */
+  const nav = useContext(NavigationContext) || {};
+  const crumbLeft =
+    explorerDocked && nav.onFragment === "side_menu"
+      ? `calc(${agentsSidebarWidthCss(nav.sideMenuWidth || SIDE_MENU_WIDTH.DEFAULT)} + 14px)`
+      : topStripLeft;
+  /* Where the list's own toggle sits inside the open panel, so the floating
+     one shown while it is collapsed lands on the same spot. Next to the
+     traffic lights it steps right, staying on the top line. */
+  const headerLeft = clearsTrafficLights
+    ? topStripLeft
+    : PANEL_INSET + RECIPE_PANEL_HEADER.INSET;
+  const headerLeadingPad =
+    headerLeft - (PANEL_INSET + RECIPE_PANEL_HEADER.INSET);
   const [listCollapsed, setListCollapsed] = useState(false);
-  const [saveError, setSaveError] = useState("");
+
+  /* The open Agent, addressed by its resource id (a name is a label: it is
+     renamed and may repeat). */
+  const [skeletonResourceId, setSkeletonResourceId] = useState(null);
+  const skeletonResourceIdRef = useRef(skeletonResourceId);
+  skeletonResourceIdRef.current = skeletonResourceId;
+  const [newSkeletonDraft, setNewSkeletonDraft] = useState(null);
+  /* Whether the open Skeleton resource has unsaved work, and a counter that
+     re-opens it from the store after the explorer renamed it (the stored
+     version moved; a clean editor simply re-reads). */
+  const [skeletonDirty, setSkeletonDirty] = useState(false);
+  const skeletonDirtyRef = useRef(skeletonDirty);
+  skeletonDirtyRef.current = skeletonDirty;
+  const [pendingResourceSwitch, setPendingResourceSwitch] = useState(null);
+  const [skeletonReload, setSkeletonReload] = useState(0);
+  /* A Skeleton Agent drilled into one of its subagents: the resource list is
+     not the graph being edited, and offering a switch from there would drop
+     the drill stack's unsaved parent. The Skeleton page owns that stack and
+     says when it is open. */
+  const [skeletonDrilled, setSkeletonDrilled] = useState(false);
+
+  const openSkeletonResource = useCallback((id, draft) => {
+    setNewSkeletonDraft(draft);
+    setSkeletonResourceId(id);
+  }, []);
+
+  const requestSkeletonResource = useCallback((id, draft = null) => {
+    // Duplication can request navigation after an async library write. Check
+    // the editor that is open when the request arrives.
+    const fromId = skeletonResourceIdRef.current;
+    if (fromId && skeletonDirtyRef.current) {
+      if (id !== fromId) setPendingResourceSwitch({ fromId, id, draft });
+      return;
+    }
+    openSkeletonResource(id, draft);
+  }, [openSkeletonResource]);
+
 
   // Panel widths: the original fixed 200 / 300 are now the minimums; the user
   // drags the inner edge to widen either panel. Live width is React state so
@@ -104,128 +172,108 @@ export default function RecipesPage({
     });
   }, [containerWidth]);
   const [resizingPanel, setResizingPanel] = useState(null);
-  const resizeStartWidthRef = useRef(0);
+  const panelDrag = useRef(null);
   const containerWidthRef = useRef(containerWidth);
   useEffect(() => {
     containerWidthRef.current = containerWidth;
   }, [containerWidth]);
+
   const panelWidthsRef = useRef(panelWidths);
   useEffect(() => {
     panelWidthsRef.current = panelWidths;
   }, [panelWidths]);
 
   const beginResize = (panel) => {
-    resizeStartWidthRef.current = panelWidthsRef.current[panel];
+    panelDrag.current?.live.dispose();
+    const startWidth = panelWidthsRef.current[panel];
+    panelDrag.current = {
+      panel,
+      startWidth,
+      live: createLiveResizeWidth(panel === "list" ? LIST_WIDTH_VAR : DETAIL_WIDTH_VAR, startWidth),
+    };
     setResizingPanel(panel);
   };
-  // The list is anchored left, so dragging right (+dx) widens it; the detail
-  // panel is anchored right, so dragging left (−dx) widens it.
-  const handleListResize = useCallback((dx) => {
-    setPanelWidths((prev) => ({
-      ...prev,
-      list: clampPanelWidth(
-        "list",
-        resizeStartWidthRef.current + dx,
-        containerWidthRef.current,
-      ),
-    }));
-  }, []);
-  const handleDetailResize = useCallback((dx) => {
-    setPanelWidths((prev) => ({
-      ...prev,
-      detail: clampPanelWidth(
-        "detail",
-        resizeStartWidthRef.current - dx,
-        containerWidthRef.current,
-      ),
-    }));
+  useEffect(() => () => panelDrag.current?.live.dispose(), []);
+  const moveResize = useCallback((dx) => {
+    const drag = panelDrag.current;
+    if (!drag) return;
+    const { panel, startWidth, live } = drag;
+    live.update(clampPanelWidth(
+      panel,
+      startWidth + (panel === "list" ? dx : -dx),
+      containerWidthRef.current,
+    ));
   }, []);
   const endResize = useCallback((panel) => {
+    const drag = panelDrag.current;
+    if (drag?.panel !== panel) return;
+    panelDrag.current = null;
+    const width = clampPanelWidth(panel, drag.live.width, containerWidthRef.current);
+    drag.live.dispose();
+    setPanelWidths((prev) => prev[panel] === width ? prev : { ...prev, [panel]: width });
     setResizingPanel(null);
-    writeRecipePanelWidth(panel, panelWidthsRef.current[panel]);
+    writeRecipePanelWidth(panel, width);
   }, []);
+  const listWidth = resizingPanel === "list"
+    ? `var(${LIST_WIDTH_VAR}, ${panelWidths.list}px)`
+    : panelWidths.list;
 
-  useEffect(() => {
-    (async () => {
-      const { recipes: list } = await api.unchain.listRecipes();
-      setRecipes(list);
-      if (list.length > 0) setActiveName(list[0].name);
-    })();
+  const headerButtonStyle = {
+    paddingVertical:
+      (RECIPE_PANEL_HEADER.HEIGHT - RECIPE_PANEL_HEADER.ICON) / 2,
+    paddingHorizontal:
+      (RECIPE_PANEL_HEADER.HEIGHT - RECIPE_PANEL_HEADER.ICON) / 2,
+    borderRadius: RECIPE_PANEL_HEADER.RADIUS,
+    opacity: 0.55,
+    flexShrink: 0,
+    WebkitAppRegion: "no-drag",
+    content: {
+      prefixIconWrap: {
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        lineHeight: 0,
+      },
+      icon: {
+        width: RECIPE_PANEL_HEADER.ICON,
+        height: RECIPE_PANEL_HEADER.ICON,
+      },
+    },
+  };
+  /* Drilled in, the workflow list is not the graph you are editing — it would
+     offer a switch that silently drops the parent frame's unsaved edits. */
+  const listHidden = listCollapsed || skeletonDrilled;
+  /* The left side menu's inner edge in window x, as it is once settled
+     (null: closed), for the canvas to center things right of it. Docked it
+     is the app's side menu from the window's left edge; floating, the list
+     PANEL_INSET inside this page. Committed widths only: a live drag is not
+     a moment anything is centered in. */
+  const leftEdgeInputs = useRef(null);
+  leftEdgeInputs.current = {
+    docked: explorerDocked,
+    open: explorerDocked ? nav.onFragment === "side_menu" : !listHidden,
+    sideMenuWidth: nav.sideMenuWidth,
+    listWidth: panelWidths.list,
+  };
+  const leftEdge = useCallback(() => {
+    const inputs = leftEdgeInputs.current;
+    if (!inputs || !inputs.open) return null;
+    if (inputs.docked) return clampSideMenuWidth(inputs.sideMenuWidth || SIDE_MENU_WIDTH.DEFAULT);
+    const page = canvasRef.current?.getBoundingClientRect();
+    return page ? page.left + PANEL_INSET + inputs.listWidth : null;
   }, []);
-
-  useEffect(() => {
-    if (!activeName) return;
-    (async () => {
-      const r = await api.unchain.getRecipe(activeName);
-      setActiveRecipeSilent(r);
-      onSelectNode(null);
-      setDirty(false);
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeName]);
-
-  const handleRecipeChange = (next) => {
-    setActiveRecipe(next);
-    setDirty(true);
-    setSaveError("");
-  };
-
-  const handleRecipeChangeSilent = (next) => {
-    setActiveRecipeSilent(next);
-    setDirty(true);
-    setSaveError("");
-  };
-
-  const handleSelectRecipe = (name) => {
-    setActiveName(name);
-  };
-
-  useEffect(() => {
-    if (!activeRecipe) return undefined;
-    const onKey = (e) => {
-      const tag = document.activeElement?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA") return;
-      const meta = e.metaKey || e.ctrlKey;
-      if (!meta) return;
-      if (e.key === "z" && !e.shiftKey) {
-        e.preventDefault();
-        undo();
-      } else if (e.key === "z" && e.shiftKey) {
-        e.preventDefault();
-        redo();
-      } else if (e.ctrlKey && e.key === "y") {
-        e.preventDefault();
-        redo();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [activeRecipe, undo, redo]);
-
-  const handleSave = async () => {
-    if (!activeRecipe) return;
-    try {
-      setSaveError("");
-      await api.unchain.saveRecipe(to_save_payload(activeRecipe));
-      const { recipes: list } = await api.unchain.listRecipes();
-      setRecipes(list);
-      setDirty(false);
-    } catch (error) {
-      const message =
-        error && typeof error.message === "string"
-          ? error.message
-          : "Recipe graph is invalid";
-      setSaveError(message);
-    }
-  };
 
   const overlayBg = isDark
-    ? "rgba(20, 20, 20, 0.72)"
-    : "rgba(255, 255, 255, 0.78)";
-  const overlayBorder = isDark
-    ? "1px solid rgba(255,255,255,0.08)"
-    : "1px solid rgba(0,0,0,0.08)";
+    ? "rgba(var(--pupu-surface-rgb, 20, 20, 20), 0.72)"
+    : "rgba(var(--pupu-surface-rgb, 255, 255, 255), 0.78)";
+  const overlayBorder = "1px solid var(--pupu-border-subtle)";
   const overlayBackdrop = "blur(16px) saturate(1.4)";
+  const resizingList = resizingPanel === "list";
+  const listSurface = useSurfaceComposite({
+    backgroundColor: overlayBg,
+    backdropFilter: overlayBackdrop,
+    enabled: !explorerDocked && !listHidden && !resizingList,
+  });
   const overlayShadow = isDark
     ? "0 8px 32px rgba(0,0,0,0.5)"
     : "0 8px 32px rgba(0,0,0,0.1)";
@@ -234,15 +282,67 @@ export default function RecipesPage({
     position: "absolute",
     zIndex: AGENTS_MODAL_Z.PANEL,
     borderRadius: 10,
-    backgroundColor: overlayBg,
+    backgroundColor: resizingList ? "var(--pupu-surface)" : overlayBg,
     border: overlayBorder,
-    backdropFilter: overlayBackdrop,
-    WebkitBackdropFilter: overlayBackdrop,
-    boxShadow: overlayShadow,
+    backdropFilter: resizingList ? "none" : overlayBackdrop,
+    WebkitBackdropFilter: resizingList ? "none" : overlayBackdrop,
+    boxShadow: resizingList ? "none" : overlayShadow,
     overflow: "hidden",
     display: "flex",
     flexDirection: "column",
   };
+
+  const explorerElement = (
+    <AgentExplorer
+      activeId={skeletonResourceId}
+      newDraft={newSkeletonDraft}
+      activeDirty={skeletonDirty}
+      autoSelectDefault={!skeletonResourceId}
+      onSelect={requestSkeletonResource}
+      onCreate={(args) => requestSkeletonResource(args.id, args)}
+      onActiveChanged={(event) => {
+        if (event?.type === "deleted") {
+          if (event.id === skeletonResourceIdRef.current) {
+            setSkeletonResourceId(null);
+            setNewSkeletonDraft(null);
+            setSkeletonDirty(false);
+            onSelectNode(null);
+          }
+          return;
+        }
+        setSkeletonReload((n) => n + 1);
+      }}
+      onCollapse={explorerDocked ? undefined : () => setListCollapsed(true)}
+      isDark={isDark}
+      headerLeadingPad={explorerDocked ? 0 : headerLeadingPad}
+      docked={explorerDocked}
+      onBack={explorerDocked ? onExplorerBack : undefined}
+      locked={explorerDocked && skeletonDrilled}
+    />
+  );
+
+  /* Docked, the list renders in the side menu's Agents pane. Drilled in, it
+     stays mounted (its folders keep their open state) and locks itself. */
+  const dockedExplorer =
+    explorerDocked && explorerSlot
+      ? createPortal(
+          <div
+            data-testid="recipe-list-docked"
+            style={{
+              /* Portalled into the side menu: carry the workspace's text
+                 colour instead of the page default. */
+              color: "var(--pupu-text)",
+              height: "100%",
+              display: "flex",
+              flexDirection: "column",
+              minHeight: 0,
+            }}
+          >
+            {explorerElement}
+          </div>,
+          explorerSlot,
+        )
+      : null;
 
   return (
     <div
@@ -257,167 +357,117 @@ export default function RecipesPage({
           borderRadius: "inherit",
         }}
       >
-        <RecipeCanvas
-          recipe={activeRecipe}
-          selectedNodeId={selectedNodeId}
-          onSelectNode={onSelectNode}
-          onRecipeChange={handleRecipeChange}
-          onRecipeChangeSilent={handleRecipeChangeSilent}
-          onSave={handleSave}
-          dirty={dirty}
-          isDark={isDark}
-          onUndo={undo}
-          onRedo={redo}
-          canUndo={canUndo}
-          canRedo={canRedo}
-        />
+        {skeletonResourceId ? (
+          /* Full-bleed: the library, the detail panel and the control center
+             float over the graph, and nothing of the native page sits outside
+             them. */
+          <div data-testid="skeleton-workspace" style={{ position: "absolute", inset: 0 }}>
+          <SkeletonResourcePage
+            key={skeletonReload}
+            resourceId={skeletonResourceId}
+            newDraft={newSkeletonDraft}
+            onDrilledChange={setSkeletonDrilled}
+            onDirtyChange={setSkeletonDirty}
+            chrome={{
+              crumbTop: topStripCenter,
+              crumbLeft,
+              leftEdge,
+              detail: {
+                width: panelWidths.detail,
+                minWidth: RECIPE_PANEL_LIMITS.detail.min,
+                resizing: resizingPanel === "detail",
+                onDragStart: () => beginResize("detail"),
+                onDrag: moveResize,
+                onDragEnd: () => endResize("detail"),
+              },
+            }}
+          />
+          </div>
+        ) : (
+        <EmptyCanvas isDark={isDark} />
+        )}
       </div>
+
+      {dockedExplorer}
+
+      {pendingResourceSwitch && (
+        <ConfirmModal
+          open
+          title={t("agents.save.unsaved_changes")}
+          message={t("agents.explorer.discard_before_switch")}
+          cancelLabel={t("agents.explorer.cancel")}
+          confirmLabel={t("agents.explorer.discard_changes")}
+          onClose={() => setPendingResourceSwitch(null)}
+          onConfirm={() => {
+            const { fromId, id, draft } = pendingResourceSwitch;
+            if (skeletonResourceIdRef.current === fromId) openSkeletonResource(id, draft);
+          }}
+        />
+      )}
 
       {/* ── Floating recipe list (left side menu) ── */}
-      <div
-        data-testid="recipe-list-panel-shell"
-        style={{
-          ...overlayPanel,
-          top: PANEL_INSET,
-          left: PANEL_INSET,
-          bottom: PANEL_INSET,
-          width: panelWidths.list,
-          minWidth: RECIPE_PANEL_LIMITS.list.min,
-          opacity: listCollapsed ? 0 : 1,
-          transform: listCollapsed ? "translateX(-12px)" : "translateX(0)",
-          transition:
-            resizingPanel === "list"
-              ? "none"
-              : "opacity 0.25s cubic-bezier(0.32,1,0.32,1), transform 0.25s cubic-bezier(0.32,1,0.32,1)",
-          pointerEvents: listCollapsed ? "none" : "auto",
-        }}
-      >
-        <RecipeList
-          recipes={recipes}
-          activeName={activeName}
-          onSelect={handleSelectRecipe}
-          onListChange={setRecipes}
-          onCollapse={() => setListCollapsed(true)}
-          isDark={isDark}
-          headerTopPad={headerTopPad}
-        />
-      </div>
+      {!explorerDocked && (
+        <ShadowSurface
+          data-testid="recipe-list-panel-shell"
+          style={{
+            ...overlayPanel,
+            ...listSurface.style,
+            top: PANEL_INSET,
+            left: PANEL_INSET,
+            bottom: PANEL_INSET,
+            width: listWidth,
+            minWidth: RECIPE_PANEL_LIMITS.list.min,
+            opacity: listHidden ? 0 : 1,
+            transform: listHidden ? "translateX(-12px)" : "translateX(0)",
+            transition:
+              resizingList
+                ? "none"
+                : "opacity 0.25s cubic-bezier(0.32,1,0.32,1), transform 0.25s cubic-bezier(0.32,1,0.32,1)",
+            pointerEvents: listHidden ? "none" : "auto",
+          }}
+        >
+          {listSurface.definition}
+          {explorerElement}
+        </ShadowSurface>
+      )}
 
       {/* ── List resize pill (floats just outside the list's right edge) ── */}
-      <PanelResizeHandle
-        testId="recipe-list-resize-handle"
-        isDark={isDark}
-        pillTestId="recipe-list-resize-pill"
-        visible={!listCollapsed}
-        style={{
-          top: PANEL_INSET,
-          bottom: PANEL_INSET,
-          left: PANEL_INSET + panelWidths.list + HANDLE_GAP,
-        }}
-        onDragStart={() => beginResize("list")}
-        onDrag={handleListResize}
-        onDragEnd={() => endResize("list")}
-      />
+      {!explorerDocked && (
+        <PanelResizeHandle
+          testId="recipe-list-resize-handle"
+          isDark={isDark}
+          pillTestId="recipe-list-resize-pill"
+          visible={!listHidden}
+          style={{
+            top: PANEL_INSET,
+            bottom: PANEL_INSET,
+            left: resizingList
+              ? `calc(${listWidth} + ${PANEL_INSET + HANDLE_GAP}px)`
+              : PANEL_INSET + panelWidths.list + HANDLE_GAP,
+          }}
+          onDragStart={() => beginResize("list")}
+          onDrag={moveResize}
+          onDragEnd={() => endResize("list")}
+        />
+      )}
 
       {/* ── Expand button (only when list is collapsed) ── */}
-      {listCollapsed && (
+      {!explorerDocked && listCollapsed && !skeletonDrilled && (
         <Button
           prefix_icon="side_menu_left"
           onClick={() => setListCollapsed(false)}
-          ariaLabel="Show workflows"
+          ariaLabel={t("agents.editor.show_agents")}
           style={{
+            ...headerButtonStyle,
             position: "absolute",
             top: topStripCenter,
             transform: "translateY(-50%)",
-            left: topStripLeft,
+            left: headerLeft,
             zIndex: AGENTS_MODAL_Z.PANEL_CONTROL,
-            paddingVertical: TOP_STRIP_LEADING_PADDING,
-            paddingHorizontal: TOP_STRIP_LEADING_PADDING,
-            borderRadius: 6,
-            opacity: 0.55,
-            WebkitAppRegion: "no-drag",
-            content: {
-              prefixIconWrap: {
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                lineHeight: 0,
-              },
-              icon: {
-                width: TOP_STRIP_LEADING_ICON,
-                height: TOP_STRIP_LEADING_ICON,
-              },
-            },
           }}
         />
       )}
 
-      {saveError && (
-        <div
-          style={{
-            position: "absolute",
-            left: "50%",
-            bottom: 62,
-            transform: "translateX(-50%)",
-            zIndex: AGENTS_MODAL_Z.PANEL_MESSAGE,
-            maxWidth: 520,
-            padding: "8px 12px",
-            borderRadius: 8,
-            background: isDark ? "rgba(90, 30, 30, 0.92)" : "#fff2f0",
-            border: isDark
-              ? "1px solid rgba(255,120,120,0.28)"
-              : "1px solid rgba(220,70,70,0.22)",
-            color: isDark ? "#ffd6d6" : "#9f1d1d",
-            fontSize: 12,
-            boxShadow: overlayShadow,
-          }}
-        >
-          {saveError}
-        </div>
-      )}
-
-      {/* ── Floating inspector (right detail panel) ── */}
-      <div
-        data-testid="recipe-detail-panel-shell"
-        style={{
-          ...overlayPanel,
-          top: PANEL_INSET,
-          right: PANEL_INSET,
-          bottom: PANEL_INSET,
-          width: panelWidths.detail,
-          minWidth: RECIPE_PANEL_LIMITS.detail.min,
-          opacity: selectedNodeId ? 1 : 0,
-          transform: selectedNodeId ? "translateX(0)" : "translateX(12px)",
-          transition:
-            resizingPanel === "detail"
-              ? "none"
-              : "opacity 0.25s cubic-bezier(0.32,1,0.32,1), transform 0.25s cubic-bezier(0.32,1,0.32,1)",
-          pointerEvents: selectedNodeId ? "auto" : "none",
-        }}
-      >
-        <DetailPanel
-          recipe={activeRecipe}
-          selectedNodeId={selectedNodeId}
-          onChange={handleRecipeChange}
-          onChangeSilent={handleRecipeChangeSilent}
-        />
-      </div>
-
-      {/* ── Detail resize pill (floats just outside the panel's left edge) ── */}
-      <PanelResizeHandle
-        testId="recipe-detail-resize-handle"
-        isDark={isDark}
-        pillTestId="recipe-detail-resize-pill"
-        visible={Boolean(selectedNodeId)}
-        style={{
-          top: PANEL_INSET,
-          bottom: PANEL_INSET,
-          right: PANEL_INSET + panelWidths.detail + HANDLE_GAP,
-        }}
-        onDragStart={() => beginResize("detail")}
-        onDrag={handleDetailResize}
-        onDragEnd={() => endResize("detail")}
-      />
     </div>
   );
 }

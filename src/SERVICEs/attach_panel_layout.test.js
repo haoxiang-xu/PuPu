@@ -24,8 +24,9 @@ describe("attach_panel_layout", () => {
      what shows up in `hidden` */
   const ALL_VISIBLE = { version: 1, order: MOVABLE_ATTACH_WIDGETS, hidden: [] };
 
-  test("the default order is today's row order; a first launch shows the ring, plugins and workspace and tucks the rest", () => {
+  test("the default order shows Agent, the ring, plugins and workspace and tucks the rest", () => {
     expect(MOVABLE_ATTACH_WIDGETS).toEqual([
+      "agent",
       "context_composition",
       "attach",
       "screenshot",
@@ -41,7 +42,7 @@ describe("attach_panel_layout", () => {
     /* no record yet → the default; the row reads context_composition, tools, workspace */
     expect(readAttachPanelLayout()).toEqual(DEFAULT_ATTACH_PANEL_LAYOUT);
     const row = readAttachPanelLayout().order.filter((id) => !readAttachPanelLayout().hidden.includes(id));
-    expect(row).toEqual(["context_composition", "tools", "workspace"]);
+    expect(row).toEqual(["agent", "context_composition", "tools", "workspace"]);
     /* a record that says "nothing tucked" is honoured — the default is for the first launch only */
     writeAttachPanelLayout(ALL_VISIBLE);
     expect(readAttachPanelLayout().hidden).toEqual([]);
@@ -56,7 +57,7 @@ describe("attach_panel_layout", () => {
     });
     expect(normalized).toEqual({
       version: 1,
-      order: ["tools", "attach", "context_composition", "screenshot", "workspace", "link"],
+      order: ["tools", "attach", "context_composition", "agent", "screenshot", "workspace", "link"],
       hidden: ["tools"],
     });
   });
@@ -80,7 +81,7 @@ describe("attach_panel_layout", () => {
     });
     expect(readNamespace(ATTACH_PANEL_LAYOUT_NAMESPACE, null)).toEqual({
       version: 1,
-      order: ["screenshot", "attach", "context_composition", "tools", "workspace", "link"],
+      order: ["screenshot", "attach", "context_composition", "tools", "workspace", "link", "agent"],
       hidden: ["link", "workspace"],
     });
     expect(readAttachPanelLayout().hidden).toEqual(["link", "workspace"]);
@@ -89,13 +90,13 @@ describe("attach_panel_layout", () => {
   test("moveAttachWidget places a widget at an index and keeps every other widget's relative order", () => {
     const layout = DEFAULT_ATTACH_PANEL_LAYOUT;
     expect(moveAttachWidget(layout, "workspace", 0).order).toEqual([
-      "workspace", "context_composition", "attach", "screenshot", "tools", "link",
+      "workspace", "agent", "context_composition", "attach", "screenshot", "tools", "link",
     ]);
-    expect(moveAttachWidget(layout, "context_composition", 5).order).toEqual([
-      "attach", "screenshot", "tools", "workspace", "link", "context_composition",
+    expect(moveAttachWidget(layout, "context_composition", 6).order).toEqual([
+      "agent", "attach", "screenshot", "tools", "workspace", "link", "context_composition",
     ]);
     // out-of-range clamps; unknown id is a no-op
-    expect(moveAttachWidget(layout, "attach", 99).order[5]).toBe("attach");
+    expect(moveAttachWidget(layout, "attach", 99).order.at(-1)).toBe("attach");
     expect(moveAttachWidget(layout, "bogus", 0)).toEqual(layout);
     // the input is never mutated
     expect(layout.order).toEqual(MOVABLE_ATTACH_WIDGETS);
@@ -119,5 +120,27 @@ describe("attach_panel_layout", () => {
     unsubscribe();
     writeAttachPanelLayout(ALL_VISIBLE);
     expect(heard).toHaveLength(1);
+  });
+});
+
+
+describe("Agent widget preferences", () => {
+  beforeEach(() => { window.localStorage.clear(); resetSettingsRepositoryForTests(); });
+  test("old v1 preferences retain their order and hidden choices when Agent is added", () => {
+    const old = { version: 1, order: ["workspace", "tools", "link", "attach", "screenshot", "context_composition"], hidden: ["tools", "link"] };
+    const normalized = normalizeAttachPanelLayout(old);
+    expect(normalized.order).toEqual([...old.order, "agent"]);
+    expect(normalized.hidden).toEqual(old.hidden);
+    expect(old.order).toHaveLength(6);
+  });
+  test("Agent can be tucked, moved, persisted and restored without changing other preferences", async () => {
+    const hidden = setAttachWidgetHidden(DEFAULT_ATTACH_PANEL_LAYOUT, "agent", true);
+    expect(hidden.hidden).toContain("agent");
+    await writeAttachPanelLayout(moveAttachWidget(hidden, "agent", 2));
+    expect(readAttachPanelLayout().order[2]).toBe("agent");
+    expect(readAttachPanelLayout().hidden).toEqual(["attach", "screenshot", "link", "agent"]);
+    await writeAttachPanelLayout(setAttachWidgetHidden(readAttachPanelLayout(), "agent", false));
+    expect(readAttachPanelLayout().order[2]).toBe("agent");
+    expect(readAttachPanelLayout().hidden).toEqual(["attach", "screenshot", "link"]);
   });
 });

@@ -1,216 +1,107 @@
 import {
-  PROVIDER_SECRET_FIELDS,
-  CUSTOM_PROVIDER_SECRETS_FIELD,
-  SENSITIVE_MODEL_PROVIDER_FIELDS,
-  readProviderSecret,
-  writeProviderSecret,
-  readCustomProviderSecrets,
-  writeCustomProviderSecrets,
+  PROVIDER_SECRET_FIELDS, SENSITIVE_MODEL_PROVIDER_FIELDS,
+  readProviderSecret, writeProviderSecret,
+  readCustomProviderSecrets, writeCustomProviderSecrets,
+  settingsRootForPersistence, removeMigratedLegacyProviderSecrets,
+  resetProviderSecretSessionForTests,
 } from "./settings_secret_adapter";
 
-const SETTINGS_KEY = "settings";
+const seed = (root) => localStorage.setItem("settings", JSON.stringify(root));
+const root = () => JSON.parse(localStorage.getItem("settings") || "{}");
+beforeEach(() => localStorage.clear());
 
-const seedRoot = (root) => {
-  window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(root));
-};
-
-const parseRoot = () =>
-  JSON.parse(window.localStorage.getItem(SETTINGS_KEY) || "{}");
-
-beforeEach(() => {
-  window.localStorage.clear();
+test("official and custom writes are volatile, detached and never serialized", () => {
+  seed({ appearance: { theme: "dark" }, model_providers: { custom_providers: [{ id: "p" }] } });
+  const before = localStorage.getItem("settings");
+  const spy = jest.spyOn(Storage.prototype, "setItem");
+  for (const field of PROVIDER_SECRET_FIELDS) {
+    expect(writeProviderSecret(field, "SENTINEL-" + field)).toBe(true);
+    expect(readProviderSecret(field)).toBe("SENTINEL-" + field);
+  }
+  expect(writeCustomProviderSecrets({ p: "SENTINEL-custom" })).toBe(true);
+  const custom = readCustomProviderSecrets();
+  custom.p = "changed";
+  expect(readCustomProviderSecrets()).toEqual({ p: "SENTINEL-custom" });
+  expect(localStorage.getItem("settings")).toBe(before);
+  expect(spy).not.toHaveBeenCalled();
+  spy.mockRestore();
+  resetProviderSecretSessionForTests();
+  expect(readProviderSecret("openai_api_key")).toBe("");
+  expect(readCustomProviderSecrets()).toEqual({});
 });
 
-describe("field constants", () => {
-  test("cover all built-in and custom secret fields", () => {
-    expect([...PROVIDER_SECRET_FIELDS]).toEqual([
-      "openai_api_key",
-      "anthropic_api_key",
-      "gemini_api_key",
-    ]);
-    expect(CUSTOM_PROVIDER_SECRETS_FIELD).toBe("custom_provider_secrets");
-    expect([...SENSITIVE_MODEL_PROVIDER_FIELDS]).toEqual([
-      "openai_api_key",
-      "anthropic_api_key",
-      "gemini_api_key",
-      "custom_provider_secrets",
-    ]);
-  });
+test("legacy import survives verified scrub, preserving other settings and synchronous reads", () => {
+  seed({ appearance: { theme: "dark" }, model_providers: {
+    openai_api_key: "SENTINEL-o", gemini_api_key: "SENTINEL-g",
+    anthropic_api_key: "SENTINEL-a", custom_provider_secrets: { p: "SENTINEL-p" },
+    custom_providers: [{ id: "p" }],
+  } });
+  expect(removeMigratedLegacyProviderSecrets(["openai", "gemini", "anthropic", "custom.p"])).toBe(true);
+  expect(root()).toEqual({ appearance: { theme: "dark" }, model_providers: { custom_providers: [{ id: "p" }] } });
+  expect(readProviderSecret("gemini_api_key")).toBe("SENTINEL-g");
+  expect(readCustomProviderSecrets()).toEqual({ p: "SENTINEL-p" });
+  resetProviderSecretSessionForTests();
+  expect(readProviderSecret("gemini_api_key")).toBe("");
 });
 
-describe("defaults", () => {
-  test("empty storage reads as empty string / empty object", () => {
-    expect(readProviderSecret("openai_api_key")).toBe("");
-    expect(readProviderSecret("anthropic_api_key")).toBe("");
-    expect(readCustomProviderSecrets()).toEqual({});
-  });
-
-  test("non-string stored secret normalizes to empty string", () => {
-    seedRoot({ model_providers: { openai_api_key: 12345 } });
-    expect(readProviderSecret("openai_api_key")).toBe("");
-  });
+test("incomplete migration never reserializes plaintext or loses the last recoverable copy", () => {
+  seed({ model_providers: { openai_api_key: "SENTINEL-o", custom_provider_secrets: { p: "SENTINEL-p" } } });
+  const before = localStorage.getItem("settings");
+  const spy = jest.spyOn(Storage.prototype, "setItem");
+  expect(removeMigratedLegacyProviderSecrets(["openai"])).toBe(false);
+  expect(() => settingsRootForPersistence({ app: { setup: true } })).toThrow(/migration_pending/);
+  expect(localStorage.getItem("settings")).toBe(before);
+  expect(spy).not.toHaveBeenCalled();
+  spy.mockRestore();
+  expect(readCustomProviderSecrets()).toEqual({ p: "SENTINEL-p" });
 });
 
-describe("round trips", () => {
-  test("provider api keys write and read back", () => {
-    expect(writeProviderSecret("openai_api_key", "sk-openai")).toBe(true);
-    expect(writeProviderSecret("anthropic_api_key", "sk-anthropic")).toBe(true);
-    expect(readProviderSecret("openai_api_key")).toBe("sk-openai");
-    expect(readProviderSecret("anthropic_api_key")).toBe("sk-anthropic");
-  });
-
-  test("custom provider secrets write and read back as a detached clone", () => {
-    expect(
-      writeCustomProviderSecrets({ "prov-1": { api_key: "sk-custom" } }),
-    ).toBe(true);
-    const first = readCustomProviderSecrets();
-    expect(first).toEqual({ "prov-1": { api_key: "sk-custom" } });
-    first["prov-1"].api_key = "mutated";
-    expect(readCustomProviderSecrets()).toEqual({
-      "prov-1": { api_key: "sk-custom" },
-    });
-  });
-
-  test("non-string provider secret writes store the raw value verbatim (legacy parity, stays inert)", () => {
-    // Legacy writeModelProviders spread the patch verbatim; readers
-    // type-check non-strings away. String() coercion would turn junk into a
-    // live-looking API key — verify it never happens.
-    seedRoot({ model_providers: { openai_api_key: "sk-old" } });
-
-    expect(writeProviderSecret("openai_api_key", null)).toBe(true);
-    expect(parseRoot().model_providers.openai_api_key).toBeNull();
-    expect(readProviderSecret("openai_api_key")).toBe("");
-
-    expect(writeProviderSecret("openai_api_key", 12345)).toBe(true);
-    expect(parseRoot().model_providers.openai_api_key).toBe(12345);
-    expect(readProviderSecret("openai_api_key")).toBe(""); // inert, not "12345"
-
-    expect(writeProviderSecret("openai_api_key", { nested: "junk" })).toBe(true);
-    expect(parseRoot().model_providers.openai_api_key).toEqual({
-      nested: "junk",
-    });
-    expect(readProviderSecret("openai_api_key")).toBe(""); // not "[object Object]"
-
-    // undefined drops the field on serialization — same as the legacy spread
-    expect(writeProviderSecret("openai_api_key", undefined)).toBe(true);
-    expect(
-      Object.prototype.hasOwnProperty.call(
-        parseRoot().model_providers,
-        "openai_api_key",
-      ),
-    ).toBe(false);
-  });
-
-  test("non-object custom secrets normalize to empty object", () => {
-    seedRoot({ model_providers: { custom_provider_secrets: { a: 1 } } });
-    expect(writeCustomProviderSecrets("nonsense")).toBe(true);
-    expect(parseRoot().model_providers.custom_provider_secrets).toEqual({});
-  });
+test("a newer session rotation or clear cannot be overwritten by legacy re-import", () => {
+  seed({ model_providers: { openai_api_key: "old", custom_provider_secrets: { p: "old-custom" } } });
+  writeProviderSecret("openai_api_key", "new");
+  writeCustomProviderSecrets({});
+  expect(removeMigratedLegacyProviderSecrets(["openai", "custom.p"])).toBe(true);
+  expect(readProviderSecret("openai_api_key")).toBe("new");
+  expect(readCustomProviderSecrets()).toEqual({});
+  writeProviderSecret("openai_api_key", "");
+  expect(readProviderSecret("openai_api_key")).toBe("");
 });
 
-describe("isolation — only the target field moves", () => {
-  test("writing one secret preserves every other root and provider field", () => {
-    seedRoot({
-      appearance: { theme_mode: "dark_mode", locale: "en" },
-      ui: { side_menu_open: true },
-      unknown_future_namespace: { keep: ["me"] },
-      model_providers: {
-        openai_api_key: "sk-old-openai",
-        custom_providers: [{ id: "prov-1", base_url: "http://x" }],
-        custom_provider_secrets: { "prov-1": { api_key: "sk-c" } },
-        some_future_field: 42,
-      },
-    });
-
-    expect(writeProviderSecret("anthropic_api_key", "sk-new")).toBe(true);
-
-    const root = parseRoot();
-    expect(root.appearance).toEqual({ theme_mode: "dark_mode", locale: "en" });
-    expect(root.ui).toEqual({ side_menu_open: true });
-    expect(root.unknown_future_namespace).toEqual({ keep: ["me"] });
-    expect(root.model_providers.openai_api_key).toBe("sk-old-openai");
-    expect(root.model_providers.custom_providers).toEqual([
-      { id: "prov-1", base_url: "http://x" },
-    ]);
-    expect(root.model_providers.custom_provider_secrets).toEqual({
-      "prov-1": { api_key: "sk-c" },
-    });
-    expect(root.model_providers.some_future_field).toBe(42);
-    expect(root.model_providers.anthropic_api_key).toBe("sk-new");
-  });
-
-  test("writing custom secrets preserves the api key fields", () => {
-    seedRoot({
-      model_providers: {
-        openai_api_key: "sk-openai",
-        anthropic_api_key: "sk-anthropic",
-      },
-    });
-    expect(writeCustomProviderSecrets({ p: { api_key: "k" } })).toBe(true);
-    const providers = parseRoot().model_providers;
-    expect(providers.openai_api_key).toBe("sk-openai");
-    expect(providers.anthropic_api_key).toBe("sk-anthropic");
-    expect(providers.custom_provider_secrets).toEqual({ p: { api_key: "k" } });
-  });
+test("serializer rejects all four injected fields, preserving safe namespaces", () => {
+  const unsafe = { ui: { open: true }, model_providers: { label: "p" } };
+  for (const field of SENSITIVE_MODEL_PROVIDER_FIELDS) unsafe.model_providers[field] = "SENTINEL";
+  expect(settingsRootForPersistence(unsafe)).toEqual({ ui: { open: true }, model_providers: { label: "p" } });
+  expect(unsafe.model_providers.openai_api_key).toBe("SENTINEL");
 });
 
-describe("corruption safety", () => {
-  test("corrupt root JSON: reads return defaults, writes are refused", () => {
-    window.localStorage.setItem(SETTINGS_KEY, "{not valid json");
-    expect(readProviderSecret("openai_api_key")).toBe("");
-    expect(readCustomProviderSecrets()).toEqual({});
-    expect(writeProviderSecret("openai_api_key", "sk-x")).toBe(false);
-    // the corrupt blob is left exactly as-is — never clobbered
-    expect(window.localStorage.getItem(SETTINGS_KEY)).toBe("{not valid json");
-  });
-
-  test("non-object root JSON: writes are refused, blob untouched", () => {
-    window.localStorage.setItem(SETTINGS_KEY, "[1,2,3]");
-    expect(writeProviderSecret("anthropic_api_key", "sk-x")).toBe(false);
-    expect(window.localStorage.getItem(SETTINGS_KEY)).toBe("[1,2,3]");
-  });
-
-  test("non-object model_providers is replaced only on write", () => {
-    seedRoot({ model_providers: "corrupted" });
-    expect(readProviderSecret("openai_api_key")).toBe("");
-    expect(writeProviderSecret("openai_api_key", "sk-x")).toBe(true);
-    expect(parseRoot().model_providers).toEqual({ openai_api_key: "sk-x" });
-  });
-
-  test("repairCorruptRoot opt-in: custom secrets write rebuilds a corrupt root (legacy custom-store parity)", () => {
-    window.localStorage.setItem(SETTINGS_KEY, "{not valid json");
-    // default stays refuse-don't-clobber
-    expect(writeCustomProviderSecrets({ p: "k" })).toBe(false);
-    expect(window.localStorage.getItem(SETTINGS_KEY)).toBe("{not valid json");
-    // opt-in repairs from {} and persists — the legacy clobber semantics of
-    // custom_provider_store's writers
-    expect(
-      writeCustomProviderSecrets({ p: "k" }, { repairCorruptRoot: true }),
-    ).toBe(true);
-    expect(parseRoot()).toEqual({
-      model_providers: { custom_provider_secrets: { p: "k" } },
-    });
-    expect(readCustomProviderSecrets()).toEqual({ p: "k" });
-  });
-
-  test("repairCorruptRoot also covers a non-object root", () => {
-    window.localStorage.setItem(SETTINGS_KEY, "[1,2,3]");
-    expect(
-      writeCustomProviderSecrets({ p: "k" }, { repairCorruptRoot: true }),
-    ).toBe(true);
-    expect(parseRoot()).toEqual({
-      model_providers: { custom_provider_secrets: { p: "k" } },
-    });
-  });
+test.each([null, 123, {}, undefined])("non-string official values stay inert: %p", (value) => {
+  expect(writeProviderSecret("openai_api_key", value)).toBe(true);
+  expect(readProviderSecret("openai_api_key")).toBe("");
+  expect(localStorage.getItem("settings")).toBeNull();
 });
 
-describe("field validation", () => {
-  test("unknown provider secret fields throw on read and write", () => {
-    expect(() => readProviderSecret("custom_provider_secrets")).toThrow(
-      /unknown provider secret field/,
-    );
-    expect(() => writeProviderSecret("theme_mode", "x")).toThrow(
-      /unknown provider secret field/,
-    );
-  });
+test.each(["{invalid", "[1,2]", "42"])("corrupt/non-object roots are never clobbered: %s", (raw) => {
+  localStorage.setItem("settings", raw);
+  expect(readProviderSecret("openai_api_key")).toBe("");
+  expect(writeProviderSecret("openai_api_key", "SENTINEL")).toBe(false);
+  expect(removeMigratedLegacyProviderSecrets(["openai"])).toBe(false);
+  expect(writeCustomProviderSecrets({ p: "SENTINEL" }, { repairCorruptRoot: true })).toBe(true);
+  expect(readCustomProviderSecrets()).toEqual({ p: "SENTINEL" });
+  expect(localStorage.getItem("settings")).toBe(raw);
+});
+
+test("a failed scrub retains old bytes and session values for retry", () => {
+  seed({ model_providers: { openai_api_key: "SENTINEL" } });
+  const spy = jest.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("quota"); });
+  expect(removeMigratedLegacyProviderSecrets(["openai"])).toBe(false);
+  expect(readProviderSecret("openai_api_key")).toBe("SENTINEL");
+  spy.mockRestore();
+  expect(removeMigratedLegacyProviderSecrets(["openai"])).toBe(true);
+});
+
+test("unknown official fields are rejected and circular custom inputs are refused", () => {
+  expect(() => writeProviderSecret("other", "SENTINEL")).toThrow(/unknown/);
+  expect(() => readProviderSecret("custom_provider_secrets")).toThrow(/unknown/);
+  const circular = {}; circular.self = circular;
+  expect(writeCustomProviderSecrets(circular)).toBe(false);
 });

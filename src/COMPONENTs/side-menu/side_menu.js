@@ -1,3 +1,6 @@
+import { useSurfaceComposite } from "../../BUILTIN_COMPONENTs/material/surface_composite";
+import { SURFACE_DITHER_STYLE } from "../../BUILTIN_COMPONENTs/material/surface_dither";
+import { SIDEBAR_GLASS_FILTER } from "../../CONTAINERs/config/theme_semantic";
 import {
   lazy,
   Suspense,
@@ -23,6 +26,7 @@ import {
 } from "./side_menu_components";
 import { sideMenuChatTreeAPI } from "./side_menu_api";
 import usePresentationPlatform from "../../BUILTIN_COMPONENTs/mini_react/use_presentation_platform";
+import useWindowFullscreen from "../../BUILTIN_COMPONENTs/mini_react/use_window_fullscreen";
 import { buildSideMenuContextMenuItems } from "./side_menu_context_menu_items";
 import { useChatTreeStore } from "./hooks/use_chat_tree_store";
 import { useSideMenuActions } from "./hooks/use_side_menu_actions";
@@ -40,10 +44,24 @@ import {
 } from "../../SERVICEs/feature_flags";
 import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import SuspenseFallback from "../../BUILTIN_COMPONENTs/suspense/suspense_fallback";
-import { AgentsModal } from "../agents/agents_modal";
 import { SettingsModal } from "../settings/settings_modal";
 import { ToolkitModal } from "../toolkit/toolkit_modal";
 import { WorkspaceModal } from "../workspace/workspace_modal";
+import PanelResizeHandle from "../agents/pages/recipes_page/panel_resize_handle";
+import SideMenuBreadcrumb from "./side_menu_breadcrumb";
+import SideMenuDrillButton from "./side_menu_drill_button";
+import { useAgentsSidebarSearch } from "../../SERVICEs/agents_sidebar_search";
+import { drillTrailCrumbs, useAgentsDrillTrail } from "../../SERVICEs/agents_drill_trail";
+import { HEADER_ICON_BUTTON } from "../agents/pages/recipes_page/recipe_list";
+import {
+  AGENTS_SIDEBAR_DRAG_WIDTH,
+  SIDE_MENU_WIDTH,
+  agentsSidebarWidthCss,
+  clampSideMenuWidth,
+  sideMenuWidthCss,
+  writeSideMenuWidthVar,
+} from "../../SERVICEs/side_menu_width";
+import { createLiveResizeWidth } from "../../SERVICEs/live_resize_width";
 
 /* eslint-disable import/first -- dynamic import() inside lazy() is not a static import */
 const MemoryInspectModal = lazy(() =>
@@ -209,13 +227,39 @@ const CharacterChatRow = ({ node, depth, isDark, theme, characterAvailability })
 };
 
 const SideMenu = () => {
-  const { theme, onFragment, setOnFragment, onThemeMode } =
-    useContext(ConfigContext);
+  const {
+    theme,
+    onFragment,
+    setOnFragment,
+    onThemeMode,
+    appMode = "chat",
+    setAppMode,
+    setAgentsSidebarSlot,
+    sideMenuWidth = SIDE_MENU_WIDTH.DEFAULT,
+    setSideMenuWidth,
+    sideMenuResizing = false,
+    setSideMenuResizing,
+  } = useContext(ConfigContext);
+  const resizeStartWidthRef = useRef(sideMenuWidth);
+  const resizeWidthRef = useRef(sideMenuWidth);
+  const resizeFrameRef = useRef(0);
+  const agentsResize = useRef(null);
+  useEffect(() => () => {
+    agentsResize.current?.dispose();
+    if (resizeFrameRef.current) cancelAnimationFrame(resizeFrameRef.current);
+  }, []);
+  const inAgents = appMode === "agents";
+  const switchMode = useCallback(
+    (mode) => {
+      if (typeof setAppMode === "function") setAppMode(mode);
+    },
+    [setAppMode],
+  );
+  const isFullScreen = useWindowFullscreen();
   const { t } = useTranslation();
   const isDark = onThemeMode === "dark_mode";
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [toolkitOpen, setToolkitOpen] = useState(false);
-  const [agentsOpen, setAgentsOpen] = useState(false);
   const [featureFlags, setFeatureFlags] = useState(() => readFeatureFlags());
   const [workspaceModalOpen, setWorkspaceModalOpen] = useState(false);
   const [modelProvidersOpen, setModelProvidersOpen] = useState(false);
@@ -226,7 +270,6 @@ const SideMenu = () => {
   const lazyMountedRef = useRef({});
   if (settingsOpen) lazyMountedRef.current.settings = true;
   if (toolkitOpen) lazyMountedRef.current.toolkit = true;
-  if (agentsOpen) lazyMountedRef.current.agents = true;
   if (workspaceModalOpen) lazyMountedRef.current.workspace = true;
   if (modelProvidersOpen) lazyMountedRef.current.modelProviders = true;
   const [relativeNow, setRelativeNow] = useState(() => Date.now());
@@ -243,6 +286,15 @@ const SideMenu = () => {
   });
   const [renaming, setRenaming] = useState({ nodeId: null, value: "" });
   const [searchQuery, setSearchQuery] = useState("");
+  /* One search field for both panes: the chat list's query, or the agent
+     list's (which the docked list reads). */
+  const [agentsQuery, setAgentsQuery] = useAgentsSidebarSearch();
+  /* What the Agents editor has open, and the drill path to it: it takes the
+     place of the Agents crumb, each graph its icon and its name, and a click
+     on a graph left behind goes back to it. */
+  const agentsDrillTrail = useAgentsDrillTrail();
+  const activeQuery = inAgents ? agentsQuery : searchQuery;
+  const setActiveQuery = inAgents ? setAgentsQuery : setSearchQuery;
   const [memoryInspect, setMemoryInspect] = useState({
     open: false,
     sessionId: null,
@@ -258,9 +310,21 @@ const SideMenu = () => {
 
   const platform = usePresentationPlatform();
   const isDarwin = platform === "darwin";
-  const sideMenuBackgroundColor = isDark
-    ? "var(--pupu-sidebar, #151515)"
-    : "var(--pupu-sidebar, rgb(245, 245, 245))";
+  const reserveDarwinTrafficLights = isDarwin && !isFullScreen;
+  /* Slightly see-through, yet over the shell background it lands on exactly
+     the theme's sidebar colour: --pupu-sidebar-glass is solved for that
+     (theme_semantic.calibratedGlass). */
+  const resizingAgentsSidebar = inAgents && sideMenuResizing;
+  const sidebarFallback = isDark ? "#151515" : "rgb(245, 245, 245)";
+  const sideMenuBackgroundColor = resizingAgentsSidebar
+    ? `var(--pupu-sidebar, ${sidebarFallback})`
+    : `var(--pupu-sidebar-glass, ${sidebarFallback})`;
+  const sidebarFilter = resizingAgentsSidebar ? "none" : SIDEBAR_GLASS_FILTER;
+  const surface = useSurfaceComposite({
+    backgroundColor: sideMenuBackgroundColor,
+    backdropFilter: sidebarFilter,
+    enabled: !resizingAgentsSidebar,
+  });
   const isAgentsEnabled = featureFlags.enable_user_access_to_agents === true;
   const isCharactersEnabled =
     featureFlags.enable_user_access_to_characters === true;
@@ -293,10 +357,10 @@ const SideMenu = () => {
   }, []);
 
   useEffect(() => {
-    if (!isAgentModalEnabled) {
-      setAgentsOpen(false);
+    if (!isAgentModalEnabled && inAgents) {
+      switchMode("chat");
     }
-  }, [isAgentModalEnabled]);
+  }, [isAgentModalEnabled, inAgents, switchMode]);
 
   const closeContextMenu = useCallback(
     () => setContextMenu((c) => ({ ...c, visible: false })),
@@ -404,13 +468,22 @@ const SideMenu = () => {
     });
   }, []);
 
+  const handleNewMenu = useCallback((event) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    setContextMenu({
+      visible: true,
+      x: rect.left,
+      y: rect.bottom + 4,
+      node: null,
+    });
+  }, []);
+
   const {
     handleSelectNode,
     handleReorder,
     handleStartRename,
     handleConfirmRename,
     handleCancelRename,
-    handleNewChat,
     handleDelete,
   } = useSideMenuActions({
     chatStore,
@@ -550,13 +623,19 @@ const SideMenu = () => {
   return (
     <div
       style={{
-        transition: "width 0.3s ease",
+        transition: sideMenuResizing ? "none" : "width 0.3s ease",
         position: "absolute",
         top: 0,
         left: 0,
         bottom: 0,
-        width: onFragment === "side_menu" ? 320 : 0,
+        width: onFragment === "side_menu"
+          ? (inAgents ? agentsSidebarWidthCss(sideMenuWidth) : sideMenuWidthCss(sideMenuWidth))
+          : 0,
         backgroundColor: sideMenuBackgroundColor,
+        backdropFilter: sidebarFilter,
+        WebkitBackdropFilter: sidebarFilter,
+        ...(!resizingAgentsSidebar && SURFACE_DITHER_STYLE),
+        ...surface.style,
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
@@ -565,6 +644,7 @@ const SideMenu = () => {
         zIndex: Z.APP_CHROME_TOP,
       }}
     >
+      {surface.definition}
       <Button
         prefix_icon={
           onFragment === "main" ? "side_menu_left" : "side_menu_close"
@@ -576,7 +656,7 @@ const SideMenu = () => {
           position: "absolute",
           top: 25,
           transform: "translate(-50%, -50%)",
-          left: isDarwin ? 90 : 14,
+          left: reserveDarwinTrafficLights ? 90 : 14,
           fontSize: 14,
           marginLeft: 12,
           WebkitAppRegion: "no-drag",
@@ -590,40 +670,46 @@ const SideMenu = () => {
         }}
       />
 
-      <Button
-        prefix_icon="edit_box"
-        ariaLabel="New chat"
-        style={{
-          position: "absolute",
-          top: 25,
-          transform: "translateY(-50%)",
-          left: isDarwin ? 120 : 44,
-          fontSize: 14,
-          WebkitAppRegion: "no-drag",
-        }}
-        onClick={handleNewChat}
-      />
 
-      <div
-        style={{
-          position: "absolute",
-          top: 56,
-          left: 12,
-          right: 12,
-          bottom: 58,
-          display: "flex",
-          flexDirection: "column",
-          gap: 0,
-        }}
+      {/* Two panes side by side, slid as one: the chat list, and the Agents
+          pane it drills into. Like a navigation stack in a sidebar column —
+          "Agents ›" pushes, the breadcrumb's Home pops — so the side menu never shows
+          both and the window's centre follows the pane. */}
+      {/* Always the first line, above the search field: where the side
+          menu is, and the way home. */}
+      {/* Centred between the top row's icons (14px, centred on y=25, so
+          ending at 32) and the search field (y=88): 15px of air each side. */}
+      <div style={{ position: "absolute", top: 47, left: 12, right: 12 }}>
+        <SideMenuBreadcrumb
+          isDark={isDark}
+          crumbs={
+            inAgents
+              ? [
+                  { key: "home", icon: "home_door", label: t("side_menu.home"), onClick: () => switchMode("chat") },
+                  ...(agentsDrillTrail
+                    ? drillTrailCrumbs(agentsDrillTrail)
+                    : [{ key: "agents", icon: "bot", label: t("side_menu.agents") }]),
+                ]
+              : [{ key: "home", icon: "home_door", label: t("side_menu.home") }]
+          }
+        />
+      </div>
+
+      {/* The search field stays put like the breadcrumb above it; only what
+          is under it slides. It searches whichever pane is showing, and
+          each pane keeps its own query. */}
+      <label
+        data-testid="side-menu-search"
+        style={{ position: "absolute", top: 88, left: 12, right: 12, display: "block" }}
       >
         <Input
           prefix_icon="search"
           no_separator
-          value={searchQuery}
-          set_value={setSearchQuery}
+          value={activeQuery}
+          set_value={setActiveQuery}
           placeholder={t("side_menu.search")}
           postfix_component={
-            searchQuery ? (
+            activeQuery ? (
               <div
                 style={{
                   cursor: "pointer",
@@ -632,7 +718,7 @@ const SideMenu = () => {
                 }}
                 onClick={(e) => {
                   e.stopPropagation();
-                  setSearchQuery("");
+                  setActiveQuery("");
                 }}
               >
                 <Icon
@@ -646,8 +732,8 @@ const SideMenu = () => {
           style={{
             fontSize: 12,
             height: 32,
-            flexShrink: 0,
-            marginBottom: 4,
+            width: "100%",
+            boxSizing: "border-box",
             borderRadius: 6,
             WebkitAppRegion: "no-drag",
             color: theme?.color || (isDark ? "#CCC" : "#222"),
@@ -662,131 +748,262 @@ const SideMenu = () => {
             boxShadow: "none",
           }}
         />
-        <Button
-          prefix_icon="pentagon"
-          label={t("side_menu.models")}
-          onClick={() => {
-            setModelProvidersInitialEntry(null);
-            setModelProvidersOpen(true);
-          }}
+      </label>
+
+      <div
+        style={{
+          position: "absolute",
+          top: 124,
+          left: 0,
+          right: 0,
+          bottom: 58,
+          overflow: "hidden",
+        }}
+      >
+        <div
+          data-testid="side-menu-panes"
           style={{
-            width: "100%",
-            justifyContent: "flex-start",
-            fontSize: 14,
-            padding: "5px 8px",
-            borderRadius: 6,
-            marginBottom: 2,
-            WebkitAppRegion: "no-drag",
-            iconSize: 16,
+            display: "flex",
+            width: "200%",
+            height: "100%",
+            transform: inAgents ? "translateX(-50%)" : "translateX(0)",
+            transition: "transform 0.32s cubic-bezier(0.32,1,0.32,1)",
           }}
-        />
-        <Button
-          prefix_icon="tool"
-          label={t("side_menu.tools")}
-          onClick={() => setToolkitOpen(true)}
-          style={{
-            width: "100%",
-            justifyContent: "flex-start",
-            fontSize: 14,
-            padding: "5px 8px",
-            borderRadius: 6,
-            marginBottom: 2,
-            WebkitAppRegion: "no-drag",
-            iconSize: 16,
-          }}
-        />
-        <Button
-          prefix_icon="folder_2"
-          label={t("side_menu.workspaces")}
-          onClick={() => setWorkspaceModalOpen(true)}
-          style={{
-            width: "100%",
-            justifyContent: "flex-start",
-            fontSize: 14,
-            padding: "5px 8px",
-            borderRadius: 6,
-            marginBottom: 2,
-            WebkitAppRegion: "no-drag",
-            iconSize: 16,
-          }}
-        />
-        {isAgentModalEnabled && (
-          <Button
-            prefix_icon="bot"
-            label={t("side_menu.agents")}
-            onClick={() => setAgentsOpen(true)}
+        >
+          <div
+            aria-hidden={inAgents ? true : undefined}
             style={{
-              width: "100%",
-              justifyContent: "flex-start",
-              fontSize: 14,
-              padding: "5px 8px",
-              borderRadius: 6,
-              marginBottom: 2,
-              WebkitAppRegion: "no-drag",
-              iconSize: 16,
+              width: "50%",
+              height: "100%",
+              boxSizing: "border-box",
+              padding: "0 12px",
+              display: "flex",
+              flexDirection: "column",
+              gap: 0,
+              visibility: inAgents ? "hidden" : "visible",
+              transition: "visibility 0.32s",
             }}
-          />
-        )}
-        <div
-          style={{
-            padding: "4px 4px 6px",
-            fontSize: 11,
-            fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
-            textTransform: "uppercase",
-            letterSpacing: "1.5px",
-            color: theme?.color || "rgba(255,255,255,0.9)",
-            opacity: 0.35,
-            userSelect: "none",
-            flexShrink: 0,
-          }}
-          onContextMenu={handleBackgroundContextMenu}
-        >
-          {t("side_menu.chats")}
-        </div>
-        <div
-          className="scrollable"
-          style={{
-            flex: 1,
-            minHeight: 0,
-            overflow: "auto",
-            borderRadius: 6,
-            WebkitAppRegion: "no-drag",
-          }}
-          onContextMenu={handleBackgroundContextMenu}
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
-        >
-          {filteredRoot && filteredRoot.length === 0 ? (
-            <div
-              style={{
-                padding: "12px 8px",
-                fontSize: 12,
-                fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
-                color: theme?.color || (isDark ? "#CCC" : "#444"),
-                opacity: 0.4,
-                userSelect: "none",
+          >
+            <Button
+              prefix_icon="pentagon"
+              label={t("side_menu.models")}
+              onClick={() => {
+                setModelProvidersInitialEntry(null);
+                setModelProvidersOpen(true);
               }}
-            >
-              {t("side_menu.no_chats_found")}
-            </div>
-          ) : (
-            <Explorer
-              data={filteredRoot ? filteredData : explorerData}
-              root={filteredRoot ?? explorerModel.root}
-              default_expanded={
-                filteredRoot ? true : explorerModel.defaultExpanded
-              }
-              draggable={!filteredRoot}
-              on_reorder={handleReorder}
-              style={{ width: "100%", fontSize: 13 }}
-              active_node_id={selectedNodeId}
-              context_menu_node_id={
-                contextMenu.visible ? contextMenu.node?.id : undefined
-              }
+              style={{
+                width: "100%",
+                justifyContent: "flex-start",
+                fontSize: 14,
+                padding: "5px 8px",
+                borderRadius: 6,
+                marginBottom: 2,
+                WebkitAppRegion: "no-drag",
+                iconSize: 16,
+              }}
             />
-          )}
+            <Button
+              prefix_icon="tool"
+              label={t("side_menu.tools")}
+              onClick={() => setToolkitOpen(true)}
+              style={{
+                width: "100%",
+                justifyContent: "flex-start",
+                fontSize: 14,
+                padding: "5px 8px",
+                borderRadius: 6,
+                marginBottom: 2,
+                WebkitAppRegion: "no-drag",
+                iconSize: 16,
+              }}
+            />
+            <Button
+              prefix_icon="folder_2"
+              label={t("side_menu.workspaces")}
+              onClick={() => setWorkspaceModalOpen(true)}
+              style={{
+                width: "100%",
+                justifyContent: "flex-start",
+                fontSize: 14,
+                padding: "5px 8px",
+                borderRadius: 6,
+                marginBottom: 2,
+                WebkitAppRegion: "no-drag",
+                iconSize: 16,
+              }}
+            />
+            {isAgentModalEnabled && (
+              <SideMenuDrillButton
+                icon="bot"
+                label={t("side_menu.agents")}
+                onClick={() => switchMode("agents")}
+                isDark={isDark}
+                testId="side-menu-agents-entry"
+              />
+            )}
+            {/* The section title with its action, like the Agents list's:
+                New chat lives here, not in the window's top bar. */}
+            <div
+              data-testid="side-menu-chats-title"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+                padding: "4px 0 6px 4px",
+                flexShrink: 0,
+              }}
+              onContextMenu={handleBackgroundContextMenu}
+            >
+              <div
+                style={{
+                  flex: 1,
+                  fontSize: 11,
+                  fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
+                  textTransform: "uppercase",
+                  letterSpacing: "1.5px",
+                  color: theme?.color || "rgba(255,255,255,0.9)",
+                  opacity: 0.35,
+                  userSelect: "none",
+                }}
+              >
+                {t("side_menu.chats")}
+              </div>
+              {/* One + for everything this list can make: it opens the
+                  same menu as a right-click on the list's background. */}
+              <Button
+                prefix_icon="add"
+                ariaLabel={t("side_menu.new")}
+                style={HEADER_ICON_BUTTON}
+                onClick={handleNewMenu}
+              />
+            </div>
+            <div
+              className="scrollable"
+              style={{
+                flex: 1,
+                minHeight: 0,
+                overflow: "auto",
+                borderRadius: 6,
+                WebkitAppRegion: "no-drag",
+              }}
+              onContextMenu={handleBackgroundContextMenu}
+              onDrop={handleDrop}
+              onDragOver={handleDragOver}
+            >
+              {filteredRoot && filteredRoot.length === 0 ? (
+                <div
+                  style={{
+                    padding: "12px 8px",
+                    fontSize: 12,
+                    fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
+                    color: theme?.color || (isDark ? "#CCC" : "#444"),
+                    opacity: 0.4,
+                    userSelect: "none",
+                  }}
+                >
+                  {t("side_menu.no_chats_found")}
+                </div>
+              ) : (
+                <Explorer
+                  data={filteredRoot ? filteredData : explorerData}
+                  root={filteredRoot ?? explorerModel.root}
+                  default_expanded={
+                    filteredRoot ? true : explorerModel.defaultExpanded
+                  }
+                  draggable={!filteredRoot}
+                  on_reorder={handleReorder}
+                  style={{ width: "100%", fontSize: 13 }}
+                  active_node_id={selectedNodeId}
+                  context_menu_node_id={
+                    contextMenu.visible ? contextMenu.node?.id : undefined
+                  }
+                />
+              )}
+            </div>
+          </div>
+
+          <div
+            aria-hidden={inAgents ? undefined : true}
+            style={{
+              width: "50%",
+              height: "100%",
+              boxSizing: "border-box",
+              padding: "0 12px",
+              display: "flex",
+              flexDirection: "column",
+              minHeight: 0,
+              visibility: inAgents ? "visible" : "hidden",
+              transition: "visibility 0.32s",
+            }}
+          >
+            {/* The agent list renders here (search, "‹ Chats", actions,
+                list), handed over by the Agents workspace. */}
+            <div
+              ref={setAgentsSidebarSlot}
+              data-testid="side-menu-agents-slot"
+              style={{
+                flex: 1,
+                minHeight: 0,
+                display: "flex",
+                flexDirection: "column",
+                WebkitAppRegion: "no-drag",
+              }}
+            />
+          </div>
         </div>
       </div>
+
+      {typeof setSideMenuWidth === "function" && (
+        <PanelResizeHandle
+          testId="side-menu-resize-handle"
+          pillTestId="side-menu-resize-pill"
+          isDark={isDark}
+          visible={onFragment === "side_menu"}
+          style={{ top: 0, bottom: 0, right: 0 }}
+          onDragStart={() => {
+            resizeStartWidthRef.current = sideMenuWidth;
+            resizeWidthRef.current = sideMenuWidth;
+            agentsResize.current?.dispose();
+            agentsResize.current = inAgents
+              ? createLiveResizeWidth(AGENTS_SIDEBAR_DRAG_WIDTH, sideMenuWidth)
+              : null;
+            if (typeof setSideMenuResizing === "function") {
+              setSideMenuResizing(true);
+            }
+          }}
+          onDrag={(dx) => {
+            /* No render per move: the CSS variable carries the width, at
+               most once a frame. */
+            resizeWidthRef.current = clampSideMenuWidth(
+              resizeStartWidthRef.current + dx,
+            );
+            if (agentsResize.current) {
+              agentsResize.current.update(resizeWidthRef.current);
+              return;
+            }
+            if (resizeFrameRef.current) return;
+            resizeFrameRef.current = requestAnimationFrame(() => {
+              resizeFrameRef.current = 0;
+              writeSideMenuWidthVar(resizeWidthRef.current);
+            });
+          }}
+          onDragEnd={() => {
+            if (resizeFrameRef.current) {
+              cancelAnimationFrame(resizeFrameRef.current);
+              resizeFrameRef.current = 0;
+            }
+            writeSideMenuWidthVar(resizeWidthRef.current);
+            agentsResize.current?.dispose();
+            agentsResize.current = null;
+            if (typeof setSideMenuWidth === "function") {
+              setSideMenuWidth(resizeWidthRef.current);
+            }
+            if (typeof setSideMenuResizing === "function") {
+              setSideMenuResizing(false);
+            }
+          }}
+        />
+      )}
 
       <Button
         prefix_icon="settings"
@@ -819,15 +1036,6 @@ const SideMenu = () => {
 
         {lazyMountedRef.current.toolkit && (
           <ToolkitModal open={toolkitOpen} onClose={() => setToolkitOpen(false)} />
-        )}
-
-        {lazyMountedRef.current.agents && (
-          <AgentsModal
-            open={isAgentModalEnabled && agentsOpen}
-            onClose={() => setAgentsOpen(false)}
-            isAgentsEnabled={isAgentsEnabled}
-            isCharactersEnabled={isCharactersEnabled}
-          />
         )}
 
         {lazyMountedRef.current.workspace && (

@@ -51,6 +51,15 @@ test("pynput gets a written source offer with upstream URL + version", () => {
   assert.match(offer, /obtain|replace|relink/i);
 });
 
+test("installed DOMPurify dual license retains attribution and an upstream source offer", () => {
+  const metadata = JSON.parse(fs.readFileSync(path.resolve(import.meta.dirname, "../node_modules/dompurify/package.json"), "utf8"));
+  const before = notices.problems.length;
+  const offer = notices.resolveSourceOffer("node", metadata.name, metadata.version, metadata.license);
+  assert.match(offer, /https:\/\/github\.com\/cure53\/DOMPurify/);
+  assert.ok(offer.includes(metadata.version));
+  assert.equal(notices.problems.length, before);
+});
+
 test("every copyleft package in the release environment has a source offer", () => {
   for (const name of [
     "axe-core",

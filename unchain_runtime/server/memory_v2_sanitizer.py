@@ -32,10 +32,8 @@ _PNG_DATA_URI_RE = re.compile(
     r"data:image/png;base64,[A-Za-z0-9+/]+={0,2}",
     re.IGNORECASE,
 )
-_PEM_BLOCK_RE = re.compile(
-    r"-----BEGIN [A-Z0-9][A-Z0-9 ._-]*-----[\s\S]*?"
-    r"-----END [A-Z0-9][A-Z0-9 ._-]*-----"
-)
+_PEM_MARKER_RE = re.compile(r"-----(BEGIN|END) ")
+_PEM_LABEL_CHARS = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 ._-")
 _JWT_RE = re.compile(r"\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b")
 _VAULT_HANDLE_RE = re.compile(r"\bpvh1_[0-9a-f]{64}\b")
 _BEARER_RE = re.compile(r"\bBearer\s+[A-Za-z0-9._~+/=-]{8,}", re.IGNORECASE)
@@ -263,6 +261,67 @@ def _registered_text_redact(value: str) -> str:
     return redacted
 
 
+def _pem_blocks(value: str):
+    """Find complete PEM spans without retrying a suffix for every BEGIN.
+
+    The former greedy label can contain another marker, so its last delimiter
+    must be retained rather than mistaking an embedded END for the body end.
+    Cache the maximal label run across its markers instead of rescanning that
+    suffix. Labels still need not match for secret redaction.
+    """
+    start = None
+    header_end = 0
+    earliest_body = 0
+    fallback_end = None
+    consumed = 0
+    run_end = 0
+    last_delimiter = -1
+    for marker in _PEM_MARKER_RE.finditer(value):
+        if marker.start() < consumed:
+            continue
+        label_start = marker.end()
+        if (label_start >= len(value)
+                or value[label_start] not in "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"):
+            continue
+        if label_start >= run_end:
+            run_end = label_start + 1
+            while run_end < len(value) and value[run_end] in _PEM_LABEL_CHARS:
+                run_end += 1
+            last_delimiter = value.rfind("-----", label_start + 1, run_end)
+        if last_delimiter < label_start + 1:
+            continue
+        end = last_delimiter + 5
+        if marker.group(1) == "BEGIN":
+            if start is None:
+                start = marker.start()
+                header_end = end
+                earliest_body = value.find("-----", label_start + 1, end) + 5
+                fallback_end = None
+        elif start is not None:
+            if marker.start() >= header_end:
+                yield start, end
+                start = None
+                consumed = end
+            elif marker.start() >= earliest_body:
+                # If no later END exists, the old greedy BEGIN backtracked to
+                # an earlier delimiter and used this same-line END instead.
+                fallback_end = end
+    if start is not None and fallback_end is not None:
+        yield start, fallback_end
+
+
+def _redact_pem_blocks(value: str) -> str:
+    parts = []
+    offset = 0
+    for start, end in _pem_blocks(value):
+        parts.extend((value[offset:start], _REDACTED))
+        offset = end
+    if not parts:
+        return value
+    parts.append(value[offset:])
+    return "".join(parts)
+
+
 def _binary_contains_protected_material(value: bytes) -> bool:
     try:
         exact_redacted = redact_registered_bytes(value)
@@ -280,7 +339,7 @@ def _binary_contains_protected_material(value: bytes) -> bool:
         return True
     ascii_view = value.decode("latin-1")
     return bool(
-        _PEM_BLOCK_RE.search(ascii_view)
+        next(_pem_blocks(ascii_view), None) is not None
         or _JWT_RE.search(ascii_view)
         or _VAULT_HANDLE_RE.search(ascii_view)
         or _BEARER_RE.search(ascii_view)
@@ -301,7 +360,7 @@ def sanitize_text(value: str) -> str:
     redacted, protected = _protect_png_data_uris(
         _registered_text_redact(value)
     )
-    redacted = _PEM_BLOCK_RE.sub(_REDACTED, redacted)
+    redacted = _redact_pem_blocks(redacted)
     redacted = _JWT_RE.sub(_REDACTED, redacted)
     redacted = _VAULT_HANDLE_RE.sub(_VAULT_HANDLE, redacted)
     for pattern in _TOKEN_PATTERNS:

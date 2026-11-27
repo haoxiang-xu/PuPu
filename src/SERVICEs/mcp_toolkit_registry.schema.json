@@ -31,6 +31,18 @@
         "name": { "type": "string" },
         "description": { "type": "string" },
         "category": { "type": "string" },
+        "dependencyPolicy": {
+          "type": "object",
+          "required": ["cutoff"],
+          "additionalProperties": false,
+          "properties": {
+            "cutoff": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+            }
+          }
+        },
         "status": {
           "type": "string",
           "enum": ["available", "coming_soon", "needs_review"]

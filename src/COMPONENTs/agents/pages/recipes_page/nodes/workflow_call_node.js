@@ -1,0 +1,95 @@
+import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
+import { node_title } from "../node_title";
+import React from "react";
+import PuzzleShape from "./puzzle_shape";
+import { node_caption } from "./node_caption";
+import NodeHeader, { NodeBody } from "./node_header";
+import { NODE_PORT_ANCHOR } from "./node_metrics";
+import { safe_text } from "../document_values";
+import { node_bindings } from "../skeleton_document";
+import { callee_interface, pinned_reference, workflow_reference } from "../workflow_call_config";
+import { useWorkflowVersions, workflow_version_state } from "../workflow_versions";
+
+/* A Workflow Call on the canvas (#357): which Workflow, which pinned revision,
+ * the values it passes and what comes back. The revision is read through the
+ * shared revision table, so the node, the panel and the Output Variables
+ * describe the same immutable revision. One way in, one way out; nothing here
+ * edits. */
+
+const MAX_ROWS = 4;
+
+export default function WorkflowCallNode({ node, isDark, rename, onOpen }) {
+  const { t } = useTranslation();
+  const pin = pinned_reference(node);
+  useWorkflowVersions(pin ? [pin] : []);
+  const state = pin ? workflow_version_state(pin.workflow_id, pin.revision_id) : null;
+  const version = state && state.status === "ready" ? state.version : null;
+  const shape = version ? callee_interface(version.document) : null;
+  const name = (version && typeof version.document.name === "string" && version.document.name) || (pin && pin.workflow_id) || null;
+  const muted = "var(--pupu-text-muted)";
+  const text = "var(--pupu-text)";
+  const title = node_title(node, t).title;
+  /* Which Workflow (left out while it is the title) and which revision. */
+  const revision = !pin
+    ? t("agents.nodes.pin_revision")
+    : version
+      ? t("agents.nodes.revision", { revision: version.ordinal })
+      : state && (state.status === "refused" || state.status === "unavailable")
+        ? t("agents.nodes.revision_unreadable")
+        : t("agents.nodes.revision_reading");
+  const subtitle = node_caption({ type: "workflow_call", title, summary: [name ? safe_text(name) : "", revision] }, t);
+  const bindings = node_bindings(node);
+  const rows = shape && shape.readable
+    ? shape.inputs.map(({ key }) => ({ key, bound: bindings.some((binding) => binding && binding.name === key) }))
+    : [];
+  const shown = rows.slice(0, MAX_ROWS);
+  const overflow = rows.length - shown.length;
+  /* Double-clicking the card opens the called Workflow to edit it, as a
+     subagent row opens its Agent; the title keeps its own double-click for
+     renaming. */
+  const stored = workflow_reference(node);
+  const target = (pin && pin.workflow_id) || (stored && typeof stored.workflow_id === "string" ? stored.workflow_id : "");
+  const openable = Boolean(target) && typeof onOpen === "function";
+
+  return (
+    <div data-testid={`workflow-call-node-${node.id}`} style={{ width: 220 }}
+      title={openable ? t("agents.workflow.edit_label", { name: safe_text(name || target) }) : undefined}
+      onDoubleClick={openable ? (event) => {
+        event.stopPropagation();
+        onOpen({ node_id: node.id, workflow_id: target });
+      } : undefined}>
+      <PuzzleShape tabs={["right"]} cutouts={["left"]} anchor={NODE_PORT_ANCHOR} isDark={isDark}>
+        <NodeBody>
+          <NodeHeader
+            src="workflow"
+            tile={{ background: "#4f5fd6" }}
+            title={title}
+            subtitle={subtitle}
+            rename={rename}
+            subtitleProps={{ "data-testid": `workflow-call-node-${node.id}-revision` }}
+          />
+          {(shown.length > 0 || (shape && shape.readable)) && (
+            <div style={{ marginTop: 8, paddingTop: 6, borderTop: "1px solid var(--pupu-border-subtle)", display: "flex", flexDirection: "column", gap: 2 }}>
+              {shown.map((row) => (
+                <div
+                  key={row.key}
+                  data-testid={`workflow-call-node-${node.id}-input-${row.key}`}
+                  style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, fontFamily: "ui-monospace, Menlo, monospace", color: text }}
+                >
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{safe_text(row.key)}</span>
+                  <span style={{ marginLeft: "auto", fontSize: 10.5, color: row.bound ? muted : "var(--pupu-danger)" }}>{row.bound ? t("agents.nodes.set") : t("agents.nodes.missing")}</span>
+                </div>
+              ))}
+              {overflow > 0 && <div style={{ fontSize: 10.5, color: muted }}>{t("agents.nodes.more", { count: overflow })}</div>}
+              {shape && shape.readable && (
+                <div data-testid={`workflow-call-node-${node.id}-exports`} style={{ fontSize: 10.5, color: muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {shape.outputs.length ? `→ ${shape.outputs.map((output) => safe_text(output)).join(", ")}` : t("agents.nodes.nothing_exported")}
+                </div>
+              )}
+            </div>
+          )}
+        </NodeBody>
+      </PuzzleShape>
+    </div>
+  );
+}

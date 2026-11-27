@@ -13,8 +13,11 @@ import {
   isProviderCredentialsWriteBridgeAvailable,
   parseSettingsStorageErrorCode,
   setRuntimeProviderCredentialPresence,
+  setRuntimeProviderCredentialCleared,
+  getBootstrapClearedCredentials,
   settingsStorageBridge,
 } from "./bridges/settings_storage_bridge";
+import { hasLegacyProviderCredential, removeMigratedLegacyProviderSecrets } from "./settings_secret_adapter";
 
 const OFFICIAL_TARGETS = Object.freeze({
   gemini_api_key: Object.freeze({ id: "gemini", kind: "provider", ownerId: "gemini" }),
@@ -34,6 +37,7 @@ const writeTails = new Map();
 const writeGenerations = new Map();
 const confirmedSqlPresence = new Map();
 const confirmedLegacyRestorers = new Map();
+const verifiedCredentialIds = new Set();
 let settingsQuitBarrierActive = false;
 
 const getConfirmedSqlPresence = (id) => {
@@ -75,6 +79,7 @@ const enqueueCredentialMutation = (
   plaintext,
   legacyWrite,
   legacyRestorers = {},
+  options = {},
 ) => {
   // This check must precede the lazy writer. beginProviderCredentialQuitDrain
   // sets the flag synchronously, so a blocked mutation cannot touch the
@@ -160,10 +165,21 @@ const enqueueCredentialMutation = (
         return finishFailure("settings_storage_unavailable");
       }
       confirmedSqlPresence.set(target.id, false);
-      return finishSuccess({
-        status: "legacy-only",
-        reason: "bridge-unavailable",
-      });
+      if (plaintext.length === 0) {
+        // A browser-only clear is durable only if the legacy root can really
+        // be scrubbed. Otherwise preserve the prior value and report failure.
+        if (hasLegacyProviderCredential(target.id) && !removeMigratedLegacyProviderSecrets([target.id])) {
+          return finishFailure("settings_storage_unavailable");
+        }
+        return finishSuccess({ status: "deleted", deleted: true });
+      }
+      // Browser sessions can use the volatile value, but must never report a
+      // durable/secure save without the native encrypted store.
+      return {
+        ...finishSuccess({ status: "session-only" }),
+        ok: false,
+        errorCode: "settings_storage_unavailable",
+      };
     }
 
     try {
@@ -178,45 +194,48 @@ const enqueueCredentialMutation = (
           );
         }
         confirmedSqlPresence.set(target.id, false);
+        setRuntimeProviderCredentialCleared(target.id, true);
+        removeMigratedLegacyProviderSecrets([...verifiedCredentialIds, ...getBootstrapClearedCredentials()]);
         return finishSuccess({
           status: "deleted",
           deleted: response.deleted === true,
         });
       }
 
-      const response = await settingsStorageBridge.setProviderCredential(
-        target.kind,
-        target.ownerId,
-        plaintext,
-      );
+      const response = options.legacyImport
+        ? await settingsStorageBridge.migrateProviderCredentials({
+          migrationVersion: 2,
+          credentials: target.kind === "provider" ? { [target.ownerId]: plaintext }
+            : { custom: { [target.ownerId.slice("custom.".length)]: plaintext } },
+        })
+        : await settingsStorageBridge.setProviderCredential(target.kind, target.ownerId, plaintext);
+      if (options.legacyImport && response?.ok === true && response.status === "deleted") {
+        confirmedSqlPresence.set(target.id, false);
+        setRuntimeProviderCredentialPresence(target.id, false);
+        setRuntimeProviderCredentialCleared(target.id, true);
+        removeMigratedLegacyProviderSecrets([...verifiedCredentialIds, ...getBootstrapClearedCredentials()]);
+        return finishSuccess({ status: "deleted" });
+      }
       if (
         !response ||
         response.ok !== true ||
-        !["stored", "legacy-only"].includes(response.status)
+        response.status !== "stored"
       ) {
         throw new Error(
           "[credential_write_failed] provider credential write was not acknowledged",
         );
       }
-      if (
-        response.status === "stored"
-      ) {
-        confirmedSqlPresence.set(target.id, true);
-      } else {
-        confirmedSqlPresence.set(target.id, false);
-      }
+      confirmedSqlPresence.set(target.id, true);
+      verifiedCredentialIds.add(target.id);
+      setRuntimeProviderCredentialCleared(target.id, false);
       if (writeGenerations.get(target.id) === generation) {
         setRuntimeProviderCredentialPresence(
           target.id,
           confirmedSqlPresence.get(target.id) === true,
         );
       }
-      return finishSuccess({
-        status: response.status,
-        ...(response.status === "legacy-only"
-          ? { reason: "secret-storage-unavailable" }
-          : {}),
-      });
+      removeMigratedLegacyProviderSecrets([...verifiedCredentialIds, ...getBootstrapClearedCredentials()]);
+      return finishSuccess({ status: "stored" });
     } catch (error) {
       return finishFailure(
         parseSettingsStorageErrorCode(error) || "credential_write_failed",
@@ -238,6 +257,7 @@ export const persistOfficialProviderSecret = (
   value,
   legacyWrite,
   legacyRestorers,
+  options,
 ) => {
   const target = OFFICIAL_TARGETS[field];
   if (!target) {
@@ -253,6 +273,7 @@ export const persistOfficialProviderSecret = (
     plaintext,
     legacyWrite,
     legacyRestorers,
+    options,
   );
 };
 
@@ -261,6 +282,7 @@ export const persistCustomProviderSecret = (
   value,
   legacyWrite,
   legacyRestorers,
+  options,
 ) => {
   const cleaned = typeof slug === "string" ? slug.trim() : "";
   if (!cleaned) {
@@ -277,6 +299,7 @@ export const persistCustomProviderSecret = (
     plaintext,
     legacyWrite,
     legacyRestorers,
+    options,
   );
 };
 
@@ -341,5 +364,6 @@ export const resetProviderCredentialPersistenceForTests = () => {
   writeGenerations.clear();
   confirmedSqlPresence.clear();
   confirmedLegacyRestorers.clear();
+  verifiedCredentialIds.clear();
   settingsQuitBarrierActive = false;
 };

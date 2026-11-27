@@ -27,7 +27,6 @@ try {
 }
 
 const REPORT_SCHEMA = "pupu.p6.full-leg-runtime-matrix.v1";
-const DELETE_RECEIPT_SCHEMA = "pupu.context_v2_chat_deletion.v1";
 const RUNTIME_MANIFEST_PATTERN = /^sha256:[0-9a-f]{64}$/;
 
 const extractInstalledMainRuntime = ({ installedApp, targetRoot }) => {

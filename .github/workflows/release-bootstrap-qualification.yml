@@ -32,7 +32,7 @@ jobs:
       - name: Set up Node for release environment verifier
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Checkout release environment verifier
         uses: actions/checkout@v4
@@ -62,7 +62,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
       - name: Install verification dependencies
@@ -192,7 +192,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
       - name: Install receipt dependencies

@@ -1,3 +1,4 @@
+import ShadowSurface from "../material/shadow_surface";
 import { useState, useEffect, useRef, useContext } from "react";
 import ReactDOM from "react-dom";
 import Icon from "../icon/icon";
@@ -113,7 +114,7 @@ const Modal = ({
       }}
     >
       {/* ── panel ───────────────────────────────────────── */}
-      <div
+      <ShadowSurface
         style={{
           position: "relative",
           backgroundColor:
@@ -156,7 +157,7 @@ const Modal = ({
         }}
       >
         {children}
-      </div>
+      </ShadowSurface>
     </div>,
     document.body,
   );

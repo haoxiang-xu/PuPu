@@ -1,3 +1,4 @@
+import ShadowSurface from "../material/shadow_surface";
 import { useCallback, useContext, useMemo, useState } from "react";
 
 /* { Contexts } ----------------------------------------------------------------------------------------------------------- */
@@ -79,7 +80,7 @@ const DotDefault = ({ status, tl }) => (
 const DotStart = ({ tl }) => {
   const color = tl.pointColor ?? tl.highlightColor;
   return (
-    <div
+    <ShadowSurface
       style={{
         width: PRESET_DOT_R * 2,
         height: PRESET_DOT_R * 2,
@@ -97,7 +98,7 @@ const DotEnd = ({ status, tl }) => {
   const color = resolvePointColor(status, tl);
   const glowing = status === "done" || status === "active";
   return (
-    <div
+    <ShadowSurface
       style={{
         width: PRESET_DOT_R * 2,
         height: PRESET_DOT_R * 2,
@@ -751,6 +752,7 @@ const Timeline = ({
   style,
   compact = false,
   hideTrack = false,
+  show_all_points = false,
 }) => {
   const { theme } = useContext(ConfigContext);
   const tl = useMemo(
@@ -807,7 +809,7 @@ const Timeline = ({
         const isLast = i === items.length - 1;
         const isActive = (item.status ?? "pending") === "active";
         const isPreset = item.point === "start" || item.point === "end";
-        const isPassThrough = !isFirst && !isLast && !isActive && !isPreset;
+        const isPassThrough = !show_all_points && !isFirst && !isLast && !isActive && !isPreset;
         const hasBranch =
           Array.isArray(item.children) && item.children.length > 0;
 

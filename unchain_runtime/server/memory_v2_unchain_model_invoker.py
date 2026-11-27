@@ -73,11 +73,13 @@ class PupuOfficialMemoryAgentInvokerError(CuratorRunnerFailure):
     """Terminal, model-safe failure at the PuPu model invocation boundary."""
 
 
-def _failure(code: str, cause: BaseException | None = None):
+def _failure(code: str, cause: BaseException | None = None) -> PupuOfficialMemoryAgentInvokerError:
+    """Build the error the caller raises; ``cause`` mirrors ``raise ... from``."""
     error = PupuOfficialMemoryAgentInvokerError(code)
-    if cause is None:
-        raise error
-    raise error from cause
+    if cause is not None:
+        error.__cause__ = cause
+        error.__suppress_context__ = True
+    return error
 
 
 def _agent_status(result: Any) -> str:
@@ -111,13 +113,13 @@ def _recording_toolkit(
     recorder: _TerminalEffectRecorder,
 ) -> Toolkit:
     if not isinstance(toolkit, Toolkit):
-        _failure("memory_agent_toolkit_invalid")
+        raise _failure("memory_agent_toolkit_invalid")
     names = frozenset(toolkit.tools)
     if names not in {
         _CONSOLIDATION_TOOL_NAMES,
         _CONSOLIDATION_TOOL_NAMES | _OFFICIAL_SHARED_READ_TOOLS,
     }:
-        _failure("memory_agent_toolkit_scope_invalid")
+        raise _failure("memory_agent_toolkit_scope_invalid")
 
     cloned = copy.copy(toolkit)
     cloned.tools = {}
@@ -127,7 +129,7 @@ def _recording_toolkit(
             continue
         function = getattr(tool, "func", None)
         if not callable(function):
-            _failure("memory_agent_toolkit_invalid")
+            raise _failure("memory_agent_toolkit_invalid")
         cloned_tool = copy.copy(tool)
         if name in _TERMINAL_TOOL_NAMES:
             function = recorder.wrap(name, function)
@@ -148,21 +150,21 @@ def _decode_ref(
     code: str,
 ) -> ResourceRef:
     if not isinstance(value, str) or value != value.strip() or not value:
-        _failure(code)
+        raise _failure(code)
     try:
         ref = codec.decode(value, purpose=purpose)
     except Exception as error:
-        _failure(code, error)
+        raise _failure(code, error)
     if not isinstance(ref, ResourceRef) or ref.kind != expected_kind:
-        _failure(code)
+        raise _failure(code)
     return ref
 
 
 def _result_mapping(value: Any) -> Mapping[str, Any]:
     if not isinstance(value, Mapping):
-        _failure("memory_agent_tool_result_invalid")
+        raise _failure("memory_agent_tool_result_invalid")
     if value.get("error") is not None or value.get("is_error") is True:
-        _failure("memory_agent_tool_failed")
+        raise _failure("memory_agent_tool_failed")
     return value
 
 
@@ -175,7 +177,7 @@ def _task_payload(
         try:
             candidate_uri = codec.encode(candidate.candidate_ref)
         except Exception as error:
-            _failure("memory_agent_candidate_reference_unavailable", error)
+            raise _failure("memory_agent_candidate_reference_unavailable", error)
         candidates.append(
             {
                 "candidate_ref": candidate_uri,
@@ -207,7 +209,7 @@ def _task_payload(
             allow_nan=False,
         )
     except (TypeError, ValueError) as error:
-        _failure("memory_agent_request_invalid", error)
+        raise _failure("memory_agent_request_invalid", error)
 
 
 class PupuOfficialMemoryAgentModelInvoker:
@@ -252,22 +254,22 @@ class PupuOfficialMemoryAgentModelInvoker:
         if not isinstance(request, CuratorRunRequest):
             raise TypeError("request must be a CuratorRunRequest")
         if request.policy != CuratorPolicy.p0():
-            _failure("memory_agent_policy_invalid")
+            raise _failure("memory_agent_policy_invalid")
         if not isinstance(binding, MemoryToolkitRunBinding):
             raise TypeError("binding must be a MemoryToolkitRunBinding")
         if self.reference_codec.binding_id != binding.binding_id:
-            _failure("memory_agent_reference_binding_mismatch")
+            raise _failure("memory_agent_reference_binding_mismatch")
         if getattr(toolkit, "binding_id", "") != binding.binding_id:
-            _failure("memory_agent_toolkit_binding_mismatch")
+            raise _failure("memory_agent_toolkit_binding_mismatch")
         if getattr(toolkit, "job_id", "") != request.job.job_id:
-            _failure("memory_agent_toolkit_job_mismatch")
+            raise _failure("memory_agent_toolkit_job_mismatch")
         expected_refs = tuple(
             candidate.candidate_ref for candidate in request.job.candidates
         )
         if getattr(toolkit, "candidate_refs", None) != expected_refs:
-            _failure("memory_agent_toolkit_candidate_scope_mismatch")
+            raise _failure("memory_agent_toolkit_candidate_scope_mismatch")
         if getattr(toolkit, "lease_fence", None) != request.lease_fence:
-            _failure("memory_agent_toolkit_lease_mismatch")
+            raise _failure("memory_agent_toolkit_lease_mismatch")
 
         recorder = _TerminalEffectRecorder()
         isolated_toolkit = _recording_toolkit(toolkit, recorder)
@@ -280,11 +282,11 @@ class PupuOfficialMemoryAgentModelInvoker:
                 display_name="Memory Agent",
             )
         except Exception as error:
-            _failure("memory_agent_factory_failed", error)
+            raise _failure("memory_agent_factory_failed", error)
         if not callable(getattr(agent, "run", None)):
-            _failure("memory_agent_factory_invalid")
+            raise _failure("memory_agent_factory_invalid")
         if getattr(agent, "_memory_v2_admission", None) is not None:
-            _failure("memory_agent_recursion_boundary_violation")
+            raise _failure("memory_agent_recursion_boundary_violation")
         actual_provider = str(getattr(agent, "provider", "") or "").strip()
         actual_model = str(
             getattr(agent, "model_id", "")
@@ -292,7 +294,7 @@ class PupuOfficialMemoryAgentModelInvoker:
             or ""
         ).strip()
         if actual_provider != self.provider or actual_model != self.model_id:
-            _failure("memory_agent_model_binding_mismatch")
+            raise _failure("memory_agent_model_binding_mismatch")
 
         task = _task_payload(request, self.reference_codec)
         try:
@@ -303,12 +305,12 @@ class PupuOfficialMemoryAgentModelInvoker:
             )
         except Exception as error:
             if recorder.failures:
-                _failure("memory_agent_tool_failed", error)
-            _failure("memory_agent_model_run_failed", error)
+                raise _failure("memory_agent_tool_failed", error)
+            raise _failure("memory_agent_model_run_failed", error)
         if recorder.failures:
-            _failure("memory_agent_tool_failed")
+            raise _failure("memory_agent_tool_failed")
         if _agent_status(result) not in {"complete", "completed"}:
-            _failure("memory_agent_model_run_incomplete")
+            raise _failure("memory_agent_model_run_incomplete")
 
         resolutions: dict[ResourceRef, CandidateResolution] = {}
         conflicts: set[ResourceRef] = set()
@@ -333,11 +335,11 @@ class PupuOfficialMemoryAgentModelInvoker:
                 identifier=True,
             )
             if expected.get(candidate_ref) != target_space_id:
-                _failure("memory_agent_candidate_scope_mismatch")
+                raise _failure("memory_agent_candidate_scope_mismatch")
 
             if tool_name == "memory_candidate_apply_new" and outcome == "conflict":
                 if tool_result.get("server_review_required") is not True:
-                    _failure("memory_agent_conflict_result_invalid")
+                    raise _failure("memory_agent_conflict_result_invalid")
                 _decode_ref(
                     self.reference_codec,
                     tool_result.get("target_entry_ref"),
@@ -349,9 +351,9 @@ class PupuOfficialMemoryAgentModelInvoker:
                 continue
             if tool_name == "memory_candidate_apply_new":
                 if outcome != CandidateOutcome.APPLIED.value:
-                    _failure("memory_agent_tool_outcome_invalid")
+                    raise _failure("memory_agent_tool_outcome_invalid")
                 if candidate_ref in conflicts:
-                    _failure("memory_agent_conflict_review_bypassed")
+                    raise _failure("memory_agent_conflict_review_bypassed")
                 result_ref = _decode_ref(
                     self.reference_codec,
                     tool_result.get("result_ref"),
@@ -367,7 +369,7 @@ class PupuOfficialMemoryAgentModelInvoker:
                 )
             elif tool_name == "memory_candidate_propose_review":
                 if outcome != CandidateOutcome.AWAITING_USER.value:
-                    _failure("memory_agent_tool_outcome_invalid")
+                    raise _failure("memory_agent_tool_outcome_invalid")
                 result_ref = _decode_ref(
                     self.reference_codec,
                     tool_result.get("result_ref"),
@@ -377,7 +379,7 @@ class PupuOfficialMemoryAgentModelInvoker:
                 )
                 review_diff = tool_result.get("review_diff")
                 if not isinstance(review_diff, Mapping) or not review_diff:
-                    _failure("memory_agent_review_diff_invalid")
+                    raise _failure("memory_agent_review_diff_invalid")
                 resolution = CandidateResolution(
                     candidate_ref=candidate_ref,
                     target_space_id=target_space_id,
@@ -386,13 +388,13 @@ class PupuOfficialMemoryAgentModelInvoker:
                     review_diff=_thaw_json(review_diff),
                 )
             else:
-                _failure("memory_agent_tool_scope_invalid")
+                raise _failure("memory_agent_tool_scope_invalid")
             if candidate_ref in resolutions:
-                _failure("memory_agent_duplicate_resolution")
+                raise _failure("memory_agent_duplicate_resolution")
             resolutions[candidate_ref] = resolution
 
         if set(resolutions) != set(expected):
-            _failure("memory_agent_missing_resolution")
+            raise _failure("memory_agent_missing_resolution")
         return CuratorRunResult(
             resolutions=tuple(resolutions[ref] for ref in expected_refs)
         )

@@ -1,3 +1,4 @@
+import ShadowSurface from "../../../BUILTIN_COMPONENTs/material/shadow_surface";
 import {
   useContext,
   useState,
@@ -583,7 +584,7 @@ const TokenBreakdownChart = ({
                 }
               >
                 {isHovered ? (
-                  <div
+                  <ShadowSurface
                     style={{
                       position: "absolute",
                       bottom: `calc(${(Math.max(entry.input, entry.output) / niceMax) * 100}% + 10px)`,
@@ -623,7 +624,7 @@ const TokenBreakdownChart = ({
                         <span>{formatTokenCount(entry[s.key] || 0)}</span>
                       </div>
                     ))}
-                  </div>
+                  </ShadowSurface>
                 ) : null}
 
                 <div

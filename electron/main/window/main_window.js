@@ -39,7 +39,7 @@ const isAllowedAppNavigation = ({
 };
 const PROD_ENTRY_HASH = "/";
 const DEV_SERVER_RETRY_MS = 1200;
-const DARWIN_TRAFFIC_LIGHT_X = 14;
+const DARWIN_TRAFFIC_LIGHT_X = 18;
 const DARWIN_TRAFFIC_LIGHT_Y = 18;
 
 const THEME_MODE_TO_NATIVE_SOURCE = {
@@ -96,10 +96,6 @@ const writeThemePrefs = (app, fs, path, data) => {
   }
 };
 
-const paletteForMode = (mode) => {
-  if (mode === "light" || mode === "light_mode") return LIGHT_PALETTE;
-  return DARK_PALETTE;
-};
 /* ── Theme-preference persistence ──────────────────────────────────── */
 
 const PRESENTABLE_PLATFORMS = new Set(["darwin", "win32", "linux"]);
@@ -135,6 +131,7 @@ const createMainWindowService = ({
     }
     mainWindow.webContents.send(CHANNELS.WINDOW_STATE.LISTENER_EVENT, {
       isMaximized: mainWindow.isMaximized() || mainWindow.isFullScreen(),
+      isFullScreen: mainWindow.isFullScreen(),
     });
   };
 
@@ -439,6 +436,9 @@ const createMainWindowService = ({
     }
 
     switch (action) {
+      case "get-state":
+        emitWindowState();
+        break;
       case "close":
         mainWindow.close();
         break;

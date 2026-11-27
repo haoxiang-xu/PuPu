@@ -77,6 +77,39 @@ export const readExecutionCancelOutbox = (storage = null) => {
   }
 };
 
+export const readExecutionCancelOutboxState = (storage = null) => {
+  let resolvedStorage = null;
+  try {
+    resolvedStorage = resolveStorage(storage);
+  } catch (_error) {
+    return { available: false, entries: [] };
+  }
+  if (!resolvedStorage) {
+    return { available: false, entries: [] };
+  }
+  try {
+    const stored = resolvedStorage.getItem(STORAGE_KEY);
+    const parsed = JSON.parse(stored === null ? "[]" : stored);
+    if (!Array.isArray(parsed) || parsed.length > MAX_ENTRIES) {
+      return { available: false, entries: [] };
+    }
+    const deduplicated = new Map();
+    for (const item of parsed) {
+      const normalized = normalizeExecutionCancelOutboxEntry(item);
+      if (!normalized) return { available: false, entries: [] };
+      const key = cancellationKey(normalized);
+      if (deduplicated.has(key)) return { available: false, entries: [] };
+      deduplicated.set(key, normalized);
+    }
+    return {
+      available: true,
+      entries: Array.from(deduplicated.values()),
+    };
+  } catch (_error) {
+    return { available: false, entries: [] };
+  }
+};
+
 const writeExecutionCancelOutbox = (entries, storage = null) => {
   const resolvedStorage = resolveStorage(storage);
   if (!resolvedStorage) {

@@ -119,6 +119,10 @@ PuPu/
 
 ## Quick Start
 
+Use Node.js 24.22.1 or a newer 24.x release to install dependencies, run tests,
+and build PuPu. The
+Electron/extractor toolchain and release CI use this supported baseline.
+
 ```bash
 # Install dependencies
 npm install

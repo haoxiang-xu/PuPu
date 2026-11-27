@@ -1,0 +1,6 @@
+Changes: 3 files, 1 symbols
+Affected processes: 0
+Risk level: low
+
+Changed symbols:
+  Function test_new_openai_models_prepare_exact_responses_payload_without_sampling → tests/test_september_native_models.py

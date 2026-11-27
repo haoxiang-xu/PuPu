@@ -209,14 +209,14 @@ export const rebuild_flat_selectable = (
  * stopping propagation here that forward would still fire and the
  * chaining bug would persist even though this guard "blocked" it.
  */
-export const useDropdownWheelGuard = (open, panelRef, listRef) => {
+export const useDropdownWheelGuard = (open, panelRef, listRef, railRef) => {
   useEffect(() => {
     if (!open) return undefined;
     const panel = panelRef.current;
     if (!panel) return undefined;
     const handle_wheel = (e) => {
-      const list = listRef.current;
-      if (!list || !list.contains(e.target)) {
+      const list = [listRef.current, railRef?.current].find((surface) => surface?.contains(e.target));
+      if (!list) {
         // wheel over dropdown chrome (padding, group headers, search row)
         e.preventDefault();
         e.stopPropagation();
@@ -236,7 +236,7 @@ export const useDropdownWheelGuard = (open, panelRef, listRef) => {
     };
     panel.addEventListener("wheel", handle_wheel, { passive: false });
     return () => panel.removeEventListener("wheel", handle_wheel);
-  }, [open, panelRef, listRef]);
+  }, [open, panelRef, listRef, railRef]);
 };
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -262,6 +262,10 @@ const useSelect = ({
   on_open_change = () => {},
   on_group_toggle = () => {},
   keep_open_on_select,
+  /* With no query typed, the options the keyboard walks, by value and in
+     order — a tree's visible rows, so ↑↓ never lands in a collapsed folder.
+     A query searches every option again. Absent: all options, as always. */
+  browse_values,
 }) => {
   /* ── controlled / uncontrolled value ── */
   const is_value_controlled = value !== undefined;
@@ -309,10 +313,17 @@ const useSelect = ({
     filteredUngrouped,
     flatSelectable,
     totalSelectable,
-  } = useMemo(
-    () => build_filtered(options, filterable, normalizedQuery),
-    [options, filterable, normalizedQuery],
-  );
+  } = useMemo(() => {
+    let pool = options;
+    if (!normalizedQuery && Array.isArray(browse_values) && Array.isArray(options)) {
+      const byValue = new Map();
+      options.forEach((item) => {
+        if (item && !Array.isArray(item.options)) byValue.set(item.value, item);
+      });
+      pool = browse_values.map((v) => byValue.get(v)).filter(Boolean);
+    }
+    return build_filtered(pool, filterable, normalizedQuery);
+  }, [options, filterable, normalizedQuery, browse_values]);
 
   /* ── find all flat options (incl. groups) for selectedOption lookup ── */
   const allFlatOptions = useMemo(() => {

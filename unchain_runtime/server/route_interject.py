@@ -113,6 +113,9 @@ def chat_interject() -> Response:
     if channels is None:
         return jsonify({"resolved_channel": "new_run"})
 
+    if channels.queue_only:
+        return jsonify({"resolved_channel": "queue"})
+
     request_options = payload.get("options") if isinstance(payload.get("options"), dict) else {}
     # Request-payload options override the run's snapshot (taken at run
     # start); the snapshot keeps side-calls on the run's actual

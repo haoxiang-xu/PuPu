@@ -156,6 +156,56 @@ export const clampImportedCustom = (preset, custom) => {
   return { custom: out, adjusted };
 };
 
+/* See-through enough for the frost to read, still calibrated (below) so it
+   lands on the theme's sidebar colour over the plain shell. */
+export const SIDEBAR_GLASS_ALPHA = 0.72;
+/* The frost behind both side menus. Pass it to useSurfaceComposite as well:
+   that pass replaces the CSS backdrop-filter, so without it the menus were
+   tinted but never blurred. */
+export const SIDEBAR_GLASS_FILTER = "blur(24px) saturate(160%)";
+
+const parseTriplet = (triplet) =>
+  String(triplet)
+    .split(",")
+    .map((part) => Number(part.trim()));
+
+/**
+ * A translucent colour that, laid over `backRgb` ("r, g, b"), composites to
+ * exactly `targetRgb`. Solves target = a·c + (1 − a)·back per channel. When the
+ * target is too far from the backdrop for `alpha` to reach (a channel would
+ * leave 0–255), the alpha rises to the smallest value that can — the colour
+ * wins over the transparency.
+ */
+export const calibratedGlass = (
+  targetRgb,
+  backRgb,
+  alpha = SIDEBAR_GLASS_ALPHA,
+) => {
+  const target = parseTriplet(targetRgb);
+  const back = parseTriplet(backRgb);
+  if (
+    target.length !== 3 ||
+    back.length !== 3 ||
+    [...target, ...back].some((v) => !Number.isFinite(v))
+  ) {
+    return null;
+  }
+  let a = alpha;
+  target.forEach((t, i) => {
+    const b = back[i];
+    if (t < b && b > 0) a = Math.max(a, (b - t) / b);
+    if (t > b && b < 255) a = Math.max(a, (t - b) / (255 - b));
+  });
+  /* Rounded up once, here, so the channels below are solved for the alpha
+     that is actually written out. */
+  a = Math.min(1, Math.ceil(a * 100) / 100);
+  const round = (v) => Math.round(v * 100) / 100;
+  const channels = target.map((t, i) =>
+    round(Math.min(255, Math.max(0, (t - (1 - a) * back[i]) / a))),
+  );
+  return `rgba(${channels.join(", ")}, ${a})`;
+};
+
 export const semanticCssVars = (palette, detailsResolved) => {
   const vars = {};
   const rgbByKey = {};
@@ -188,6 +238,15 @@ export const semanticCssVars = (palette, detailsResolved) => {
       ? (detailsResolved[step.detailsKey] ?? fallback[step.detailsKey])
       : fallback[step.detailsKey];
     vars[`--pupu-${step.varName}`] = `rgba(${rgb}, ${alpha})`;
+  }
+
+  /* The side menus are slightly see-through, yet over the shell background
+     they must land on exactly the sidebar colour the theme picked. */
+  if (rgbByKey.sidebar && rgbByKey.background) {
+    vars["--pupu-sidebar-glass"] = calibratedGlass(
+      rgbByKey.sidebar,
+      rgbByKey.background,
+    );
   }
 
   if (detailsResolved) {

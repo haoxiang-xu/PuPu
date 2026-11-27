@@ -113,6 +113,15 @@ const CommandTree = ({
      user's; the palette passes nothing and stays bare. */
   decorateFolder = null,
   defaultExpanded = true,
+  /* The highlighted row by id, for a caller that tracks its selection by
+     identity rather than by position in the visible rows (the Agent picker,
+     whose keyboard walks only its Agents, not the folders between them).
+     Wins over activeIndex when given. */
+  activeNodeId: activeNodeIdProp,
+  /* (row props) => element for every non-folder row. The palette and the
+     organizer leave it out and get CommandRow; the Agent picker draws its
+     own palette option row inside the same folders. */
+  renderRow = null,
 }) => {
   const rowHeight = bare ? BARE_ROW_HEIGHT : ROW_HEIGHT;
   const rowRadius = bare ? 14 : 7;
@@ -136,9 +145,11 @@ const CommandTree = ({
   }, [reportedIds, provisionalIds]);
 
   const activeNodeId =
-    activeIndex >= 0 && activeIndex < visibleIds.length
-      ? visibleIds[activeIndex]
-      : null;
+    activeNodeIdProp !== undefined
+      ? activeNodeIdProp || null
+      : activeIndex >= 0 && activeIndex < visibleIds.length
+        ? visibleIds[activeIndex]
+        : null;
 
   /* Publishing from inside render_highlight itself would be a setState in
      Explorer's render pass; VisibleOrderReporter (below) defers it to an
@@ -197,6 +208,10 @@ const CommandTree = ({
         };
         return;
       }
+      if (renderRow) {
+        out[nodeId] = { ...node, component: renderRow };
+        return;
+      }
       const stagger = Math.max(0, staggerOrder.indexOf(nodeId));
       out[nodeId] = {
         ...node,
@@ -249,6 +264,7 @@ const CommandTree = ({
     rowHeight,
     bare,
     visible,
+    renderRow,
   ]);
 
   /* Explorer reads default_expanded ONCE at mount. The palette's categories

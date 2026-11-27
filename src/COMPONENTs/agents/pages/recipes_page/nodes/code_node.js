@@ -1,0 +1,39 @@
+import { useTranslation } from "../../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
+import { node_title } from "../node_title";
+import React from "react";
+import PuzzleShape from "./puzzle_shape";
+import { node_caption } from "./node_caption";
+import NodeHeader, { NodeBody } from "./node_header";
+import { NODE_PORT_ANCHOR } from "./node_metrics";
+
+/* A Code node on the canvas (#357): a plain header node like the other
+ * steps — its icon, its name and the language it runs. The code itself is
+ * not shown here; the panel is where it is read and written. One way in on
+ * the left, one way out on the right. */
+
+const WIDTH = 230;
+
+export default function CodeNode({ node, isDark, rename }) {
+  const { t } = useTranslation();
+  /* Unnamed, a Code node is titled by its id, in the code typeface; a name
+     the author gave it is ordinary text. */
+  const { title, code_face } = node_title(node, t);
+  return (
+    <div data-testid={`code-node-${node.id}`} style={{ width: WIDTH }}>
+      <PuzzleShape tabs={["right"]} cutouts={["left"]} anchor={NODE_PORT_ANCHOR} isDark={isDark}>
+        <NodeBody>
+          {/* The shared header: its centre line is NODE_PORT_ANCHOR from the
+              node's top, where the ports anchor. */}
+          <NodeHeader
+            src="code"
+            tile={{ background: "#5b6475" }}
+            title={title}
+            titleStyle={!code_face ? undefined : { fontFamily: "ui-monospace, Menlo, monospace" }}
+            subtitle={node_caption({ type: "code", title, summary: t("agents.nodes.code.python") }, t)}
+            rename={rename}
+          />
+        </NodeBody>
+      </PuzzleShape>
+    </div>
+  );
+}

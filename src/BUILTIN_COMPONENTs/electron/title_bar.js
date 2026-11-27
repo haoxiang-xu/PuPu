@@ -5,6 +5,7 @@ import Button from "../input/button";
 import { Z } from "../layer/z_layers";
 import { windowStateBridge } from "../../SERVICEs/bridges/window_state_bridge";
 import usePresentationPlatform from "../mini_react/use_presentation_platform";
+import useWindowFullscreen from "../mini_react/use_window_fullscreen";
 import WindowControls, { windowControlsInset } from "./window_controls";
 
 const TOP_BAR_HEIGHT = 50;
@@ -19,13 +20,15 @@ const hasElectronWindowControls = () => {
   );
 };
 const TitleBar = () => {
-  const { theme, onFragment, setOnFragment } = useContext(ConfigContext);
+  const { theme, onFragment, setOnFragment, appMode } = useContext(ConfigContext);
+  const isFullScreen = useWindowFullscreen();
 
   const isElectron = hasElectronWindowControls();
   /* the PRESENTED platform (#256): a dev override can make a darwin host
      draw the Windows cluster, or a win32 host leave room for traffic lights */
   const platform = usePresentationPlatform();
   const isDarwin = platform === "darwin";
+  const reserveDarwinTrafficLights = isDarwin && !isFullScreen;
   const isLinux = platform === "linux";
 
   if (!isElectron) {
@@ -56,9 +59,9 @@ const TitleBar = () => {
         right: 0,
         height: TOP_BAR_HEIGHT,
         zIndex: Z.APP_CHROME,
-        background: gradientBackground,
+        background: appMode === "agents" ? "transparent" : gradientBackground,
 
-        WebkitBackdropFilter: "blur(20px)",
+        WebkitBackdropFilter: appMode === "agents" ? "none" : "blur(20px)",
         color: topBarForeground,
         WebkitAppRegion: "drag",
         userSelect: "none",
@@ -73,7 +76,7 @@ const TitleBar = () => {
           position: "absolute",
           top: "50%",
           transform: "translate(-50%, -50%)",
-          left: isDarwin ? 90 : 14,
+          left: reserveDarwinTrafficLights ? 90 : 14,
           color: topBarForeground,
           fontSize: 14,
           marginLeft: 12,
@@ -88,22 +91,6 @@ const TitleBar = () => {
           }
         }}
       />
-      <div
-        style={{
-          position: "absolute",
-          top: "50%",
-          left: isDarwin ? 125 : 54,
-          transform: "translateY(-50%)",
-          opacity: 0.84,
-          fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
-          fontSize: 12,
-          letterSpacing: "0.08em",
-          textTransform: "uppercase",
-          pointerEvents: "none",
-        }}
-      >
-        PuPu
-      </div>
 
       {!isDarwin ? (
         <WindowControls

@@ -1,3 +1,4 @@
+import ShadowSurface from "../../BUILTIN_COMPONENTs/material/shadow_surface";
 import { memo, useContext, useEffect, useRef, useState, useCallback } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import { FloatingTextField } from "../../BUILTIN_COMPONENTs/input/textfield";
@@ -79,6 +80,9 @@ const ChatInput = ({
   selectedRecipeName = "Default",
   onSelectRecipe,
   recipeOptions = [],
+  skeletonAgentOptions = [],
+  selectedSkeletonAgentId = "",
+  onSelectSkeletonAgent,
   interjectState,
   onQueueUndo,
   contextCompositionBundle = null,
@@ -88,6 +92,10 @@ const ChatInput = ({
   turnMutationHold = null,
   onTurnMutationRetry,
   onTurnMutationDiscard,
+  /* The Builder's Test panel borrows this composer for one Agent: there is
+     no other Agent to switch to, and the panel is narrow. */
+  showAgentSelector = true,
+  compact = false,
 }) => {
   const { t } = useTranslation();
   const placeholder = placeholderProp || t("chat.placeholder");
@@ -221,7 +229,7 @@ const ChatInput = ({
       tokens.forEach((token, index) => {
         if (token.start > cursor) parts.push(text.slice(cursor, token.start));
         parts.push(
-          <span
+          <ShadowSurface as="span"
             key={`${token.name}-${index}`}
             data-command-token={token.name}
             data-active={token.active}
@@ -239,7 +247,7 @@ const ChatInput = ({
             }
           >
             {text.slice(token.start, token.end)}
-          </span>,
+          </ShadowSurface>,
         );
         cursor = token.end;
       });
@@ -475,7 +483,7 @@ const ChatInput = ({
     <div
       style={{
         flexShrink: 0,
-        padding: "0px 20px 16px",
+        padding: compact ? 0 : "0px 20px 16px",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -485,7 +493,7 @@ const ChatInput = ({
         style={{
           width: "100%",
           maxWidth: 780,
-          padding: "0 20px",
+          padding: compact ? 0 : "0 20px",
           boxSizing: "border-box",
         }}
       >
@@ -530,8 +538,8 @@ const ChatInput = ({
             textarea_ref={inputRef}
             aria_label={placeholder}
             value={value}
-            min_rows={5}
-            max_display_rows={9}
+            min_rows={compact ? 3 : 5}
+            max_display_rows={compact ? 7 : 9}
             set_value={handleValueChange}
             placeholder={placeholder}
             overlay_render={renderCommandOverlay}
@@ -611,6 +619,10 @@ const ChatInput = ({
                       selectedRecipeName={selectedRecipeName}
                       onSelectRecipe={onSelectRecipe}
                       recipeOptions={recipeOptions}
+                      skeletonAgentOptions={skeletonAgentOptions}
+                      showAgentSelector={showAgentSelector}
+                      selectedSkeletonAgentId={selectedSkeletonAgentId}
+                      onSelectSkeletonAgent={onSelectSkeletonAgent}
                       queueItems={interjectState?.queueItems || []}
                       onQueueUndo={onQueueUndo}
                       contextCompositionBundle={contextCompositionBundle}

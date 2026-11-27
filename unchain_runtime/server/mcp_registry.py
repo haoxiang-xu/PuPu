@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import datetime
 import json
 import os
 import sys
@@ -264,6 +265,36 @@ def _normalize_entry(raw: Any) -> Dict[str, Any]:
     toolkit_id = _clean_str(raw.get("toolkitId") or raw.get("toolkit_id"))
     if not entry_id or not toolkit_id:
         raise RuntimeError("MCP registry entry requires id and toolkitId")
+
+    if "dependencyPolicy" in raw:
+        policy = raw["dependencyPolicy"]
+        if not isinstance(policy, dict) or set(policy) != {"cutoff"}:
+            raise RuntimeError("MCP registry dependency policy accepts only cutoff")
+        cutoff = policy["cutoff"]
+        try:
+            parsed = datetime.datetime.strptime(cutoff, "%Y-%m-%dT%H:%M:%SZ")
+            if parsed.strftime("%Y-%m-%dT%H:%M:%SZ") != cutoff:
+                raise ValueError("noncanonical cutoff")
+        except (TypeError, ValueError):
+            raise RuntimeError("MCP registry dependency cutoff must be a valid canonical UTC timestamp") from None
+        mcp = raw.get("mcp") if isinstance(raw.get("mcp"), dict) else {}
+        command = mcp.get("command")
+        args = mcp.get("args")
+        if (
+            not isinstance(command, str) or command not in {"npx", "uvx"}
+            or not isinstance(args, list) or any(not isinstance(arg, str) for arg in args)
+        ):
+            raise RuntimeError("MCP registry dependency cutoff requires a stdio command and string arguments")
+        flag = "--before" if command == "npx" else "--exclude-newer"
+        policy_flags = [
+            arg for arg in args
+            if isinstance(arg, str) and (
+                arg in {"--before", "--exclude-newer"}
+                or arg.startswith(("--before=", "--exclude-newer="))
+            )
+        ]
+        if policy_flags != [f"{flag}={cutoff}"]:
+            raise RuntimeError("MCP registry dependency cutoff must match its stdio recipe")
 
     secrets = raw.get("secrets") if isinstance(raw.get("secrets"), list) else []
     auth = _normalize_auth(raw.get("auth"))

@@ -1,3 +1,4 @@
+import ShadowSurface from "../../../BUILTIN_COMPONENTs/material/shadow_surface";
 import { useState, useContext, useMemo } from "react";
 
 /* { Contexts } -------------------------------------------------------------------------------------------------------------- */
@@ -367,7 +368,7 @@ const SettingsShowroom = ({ onClose }) => {
   );
 
   return (
-    <div
+    <ShadowSurface
       style={{
         position: "relative",
         width: "100%",
@@ -516,7 +517,7 @@ const SettingsShowroom = ({ onClose }) => {
 
         <ActivePage />
       </div>
-    </div>
+    </ShadowSurface>
   );
 };
 

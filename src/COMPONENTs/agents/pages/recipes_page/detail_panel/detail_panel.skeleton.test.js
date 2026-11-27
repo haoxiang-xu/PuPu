@@ -1,0 +1,1180 @@
+import React from "react";
+
+/* Contract text is asserted here; real help disclosure is covered separately. */
+jest.mock("./panel_help", () => function GuidanceText({ children }) { return <>{children}</>; });
+import { render, screen, fireEvent, within, act, waitFor } from "@testing-library/react";
+import { ConfigContext } from "../../../../../CONTAINERs/config/context";
+import DetailPanel from "./detail_panel";
+import { DetailChromeContext } from "../canvas_chrome";
+import OutputVariablesSection from "./output_variables_section";
+import { has_node_identity, node_identity } from "./node_identity";
+import { LOOKUP_ROWS } from "../skeleton_drill_replacement_capture";
+import { kernel_profiles, list_resources } from "../skeleton_resources";
+import { resetProcessPanelMemory } from "./process_timeline";
+
+/* Which parts are open is remembered for the session: start each test fresh. */
+beforeEach(() => resetProcessPanelMemory());
+
+/* An Agent node's Model section reads the Kernel profile catalog on mount, so
+   the panel is shown one here. Without it the catalog read settles after the
+   test has finished — act() noise, and a state update nobody is looking at.
+   What the section does with the answer has its own suite.
+ *
+ * The implementation is set in `beforeEach` and not in the factory: this repo
+ * runs with `react-scripts`' jest defaults, which include `resetMocks: true`,
+ * so every implementation given to a `jest.fn` is wiped before each test and a
+ * factory-supplied one would be gone by the time a component called it. */
+jest.mock("../skeleton_resources", () => ({
+  is_unavailable: (result) =>
+    Boolean(result) && result.ok === false && result.reason === "unavailable",
+  list_resources: jest.fn(),
+  kernel_profiles: jest.fn(),
+}));
+
+beforeEach(() => {
+  list_resources.mockResolvedValue({ ok: true, data: { resources: [] } });
+  /* Held open rather than resolved: these tests are about which sections a
+     node shows, and a catalog that settles mid-test updates state nobody here
+     awaits — which is an act() warning for every Agent node in the file. The
+     section is shown a real catalog in its own suite. */
+  kernel_profiles.mockReturnValue(new Promise(() => {}));
+});
+
+const cfg = { theme: {}, onThemeMode: "light_mode" };
+
+const flow = (id, a, b) => ({
+  id,
+  kind: "flow",
+  source_node_id: a,
+  source_port_id: "out",
+  target_node_id: b,
+  target_port_id: "in",
+});
+
+const skeleton_document = {
+  schema_version: 1,
+  kind: "workflow",
+  id: "w",
+  name: "W",
+  nodes: [
+    {
+      id: "start",
+      type: "start",
+      config: {
+        execution: { outputs: [{ name: "text", source: { kind: "result", path: ["text"] } }] },
+      },
+    },
+    { id: "end", type: "end", config: { execution: { inputs: [], outputs: [] } } },
+  ],
+  edges: [flow("e1", "start", "end")],
+};
+
+const show = (props) =>
+  render(
+    <ConfigContext.Provider value={cfg}>
+      <DetailPanel
+        selectedNodeId="end"
+        {...props}
+      />
+    </ConfigContext.Provider>,
+  );
+
+describe("without a writable document nothing is editable", () => {
+  test("no Skeleton section appears without a document", () => {
+    show({});
+    expect(screen.queryByText("Input Variables")).not.toBeInTheDocument();
+  });
+
+  test("a document without a writer is still inert", () => {
+    /* Rendering an editor whose edits go nowhere would look like a save that
+     * silently did nothing. */
+    show({ document: skeleton_document });
+    expect(screen.queryByText("Input Variables")).not.toBeInTheDocument();
+  });
+});
+
+describe("a Skeleton node gets its IO sections", () => {
+  test("the Input Variables section renders for a node that takes inputs", () => {
+    show({ document: skeleton_document, onDocumentChange: () => {} });
+    expect(screen.getByText("Input Variables")).toBeInTheDocument();
+  });
+
+  test("a node the document does not have shows the empty state", () => {
+    show({
+      document: { ...skeleton_document, nodes: [skeleton_document.nodes[0]] },
+      onDocumentChange: () => {},
+    });
+    expect(screen.queryByText("Input Variables")).not.toBeInTheDocument();
+  });
+
+  test("a structural diagnostic is shown where no row can carry it", () => {
+    /* `diagnose` answers about graph structure, and its paths stop at the node.
+     * A panel that only placed row problems would render nothing for this. */
+    show({
+      document: skeleton_document,
+      onDocumentChange: () => {},
+      diagnostics: [
+        {
+          code: "flow_output_required",
+          path: ["document", "nodes", 1],
+          message: "execution node requires flow output",
+        },
+      ],
+    });
+    expect(screen.getByTestId("skeleton-diagnostics-notice")).toBeInTheDocument();
+    expect(screen.getByTestId("skeleton-diagnostic-0").textContent).toMatch(
+      /requires flow output/i,
+    );
+  });
+
+  test("the notice says the draft is saved, because an incomplete one may be", () => {
+    show({
+      document: skeleton_document,
+      onDocumentChange: () => {},
+      diagnostics: [
+        { code: "end_count", path: ["document", "nodes", 1], message: "needs one end" },
+      ],
+    });
+    expect(screen.getByTestId("skeleton-diagnostics-notice").textContent).toMatch(
+      /saved, with/i,
+    );
+  });
+
+  test("nothing is drawn when the draft has no problems", () => {
+    show({ document: skeleton_document, onDocumentChange: () => {}, diagnostics: [] });
+    expect(screen.queryByTestId("skeleton-diagnostics-notice")).not.toBeInTheDocument();
+  });
+});
+
+describe("R2 — every diagnostic has a visible outlet", () => {
+  /* The shapes the real store returns, which used to vanish because the notice
+   * filtered by the selected node before anything could catch them. */
+  const real = [
+    { code: "end_count", path: ["document", "nodes"], message: "graph requires exactly one end node" },
+    { code: "flow_source_port", path: ["document", "edges", 0, "source_port_id"], message: "flow source port is invalid" },
+    { code: "something_new", path: ["document", "sidecar"], message: "a path this build does not know" },
+    { code: "invalid_value", path: ["document", "nodes", 1, "config", "execution", "inputs", 9, "value"], message: "a row that is not rendered" },
+    { code: "unknown_field", path: ["document", "nodes", 0, "config", "execution", "outputs", 0, "name"], message: "belongs to start" },
+  ];
+
+  const withDiagnostics = () =>
+    show({ document: skeleton_document, onDocumentChange: () => {}, diagnostics: real });
+
+  test("a graph-level problem is shown", () => {
+    withDiagnostics();
+    expect(screen.getByText(/graph requires exactly one end node/i)).toBeInTheDocument();
+  });
+
+  test("an edge problem is shown, and says which edge", () => {
+    withDiagnostics();
+    expect(screen.getByText(/flow source port is invalid/i)).toBeInTheDocument();
+    expect(screen.getByTestId("skeleton-elsewhere-notice").textContent).toMatch(/Edge e1/);
+  });
+
+  test("a path this build does not know is shown rather than dropped", () => {
+    withDiagnostics();
+    expect(screen.getByText(/a path this build does not know/i)).toBeInTheDocument();
+  });
+
+  test("a claimed row that is not rendered is shown on the node", () => {
+    withDiagnostics();
+    expect(screen.getByTestId("skeleton-diagnostics-notice").textContent).toMatch(
+      /a row that is not rendered/i,
+    );
+  });
+
+  test("another node's problem is shown under that node's name", () => {
+    withDiagnostics();
+    const elsewhere = screen.getByTestId("skeleton-elsewhere-notice");
+    expect(elsewhere.textContent).toMatch(/belongs to start/i);
+    expect(elsewhere.textContent).toMatch(/Node start/);
+  });
+
+  test("nothing is dropped: every message reaches the panel", () => {
+    const { container } = withDiagnostics();
+    real.forEach((item) => {
+      expect(container.textContent).toContain(item.message);
+    });
+  });
+
+  test("a clean draft still draws neither notice", () => {
+    show({ document: skeleton_document, onDocumentChange: () => {}, diagnostics: [] });
+    expect(screen.queryByTestId("skeleton-diagnostics-notice")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("skeleton-elsewhere-notice")).not.toBeInTheDocument();
+  });
+});
+
+describe("the Output Variables section in the panel", () => {
+  const two_outputs = {
+    ...skeleton_document,
+    nodes: [
+      skeleton_document.nodes[0],
+      {
+        id: "end",
+        type: "end",
+        config: {
+          execution: {
+            inputs: [
+              {
+                name: "answer",
+                value: { kind: "ref", node_id: "start", path: ["text"] },
+                missing: "error",
+              },
+            ],
+            outputs: [
+              { name: "first", source: { kind: "input", path: ["answer"] } },
+              { name: "second", source: { kind: "input", path: ["answer"] } },
+            ],
+          },
+        },
+      },
+    ],
+    edges: skeleton_document.edges,
+  };
+
+  test("inputs are above outputs, in every panel", () => {
+    /* A node is read downwards, and a wire's two halves are always found in
+       the same place. */
+    show({ document: two_outputs, onDocumentChange: () => {}, selectedNodeId: "end" });
+    const panel = screen.getByTestId("recipe-detail-panel");
+    const text = panel.textContent;
+    expect(text.indexOf("Input Variables")).toBeGreaterThanOrEqual(0);
+    expect(text.indexOf("Output Variables")).toBeGreaterThan(
+      text.indexOf("Input Variables"),
+    );
+  });
+
+  test("a row is drawn for each mapping", () => {
+    show({ document: two_outputs, onDocumentChange: () => {}, selectedNodeId: "end" });
+    expect(screen.getAllByTestId(/^output-row-\d+$/)).toHaveLength(2);
+  });
+
+  test("a store diagnostic for an output row reaches that row", () => {
+    /* This is what the zero row count used to prevent: the diagnostic existed,
+       the panel routed it nowhere, and it was reported in no place at all. */
+    show({
+      document: two_outputs,
+      onDocumentChange: () => {},
+      selectedNodeId: "end",
+      diagnostics: [
+        {
+          code: "missing_value",
+          path: ["document", "nodes", 1, "config", "execution", "outputs", 1, "source", "path", 0],
+          message: "captured by the second output row",
+        },
+      ],
+    });
+    expect(screen.getByTestId("output-row-1-problem-0").textContent).toBe(
+      "captured by the second output row",
+    );
+  });
+
+  test("a diagnostic for an output row that does not exist is still reported", () => {
+    show({
+      document: two_outputs,
+      onDocumentChange: () => {},
+      selectedNodeId: "end",
+      diagnostics: [
+        {
+          code: "missing_value",
+          path: ["document", "nodes", 1, "config", "execution", "outputs", 9, "source"],
+          message: "past the last row",
+        },
+      ],
+    });
+    expect(screen.queryByTestId("output-row-1-problem-0")).not.toBeInTheDocument();
+    expect(screen.getByTestId("recipe-detail-panel").textContent).toContain(
+      "past the last row",
+    );
+  });
+
+  test("a section-level refusal is reported even though no row carries it", () => {
+    /* A branch's whole outputs key is refused — `unknown_field` at the section
+       — and the section is not rendered at all, so only the notice can say it. */
+    show({
+      document: {
+        ...skeleton_document,
+        nodes: [
+          skeleton_document.nodes[0],
+          {
+            id: "end",
+            type: "end",
+            config: { execution: { inputs: [], outputs: [] } },
+          },
+        ],
+      },
+      onDocumentChange: () => {},
+      selectedNodeId: "end",
+      diagnostics: [
+        {
+          code: "unknown_field",
+          path: ["document", "nodes", 1, "config", "execution", "outputs"],
+          message: "node does not support this IO section",
+        },
+      ],
+    });
+    expect(screen.getByTestId("recipe-detail-panel").textContent).toContain(
+      "node does not support this IO section",
+    );
+  });
+
+  test("a Hook Start shows outputs and locked caller input, never editable bindings", () => {
+    /* The description is editor memory. Start still has no execution.inputs
+       key, and no control may compose one. */
+    const change = jest.fn();
+    show({ document: skeleton_document, onDocumentChange: change, selectedNodeId: "start",
+      startContext: { kind: "unknown", fields: [], message: "Hook event", caller: "hook" } });
+    expect(screen.getByTestId("skeleton-output-variables")).toBeInTheDocument();
+    const caller = screen.getByTestId("skeleton-input-variables");
+    expect(caller).toHaveTextContent("Caller input");
+    expect(within(caller).getByLabelText("Read-only caller input")).toBeInTheDocument();
+    /* Only the part's own fold toggle; no control to edit the caller input. */
+    expect(within(caller).queryAllByRole("button").filter((button) => !String(button.dataset.testid || "").startsWith("process-toggle-"))).toHaveLength(0);
+    expect(within(caller).queryByRole("textbox")).not.toBeInTheDocument();
+    expect(change).not.toHaveBeenCalled();
+    expect(skeleton_document.nodes.find((node) => node.type === "start").config.execution).not.toHaveProperty("inputs");
+  });
+
+  test("a standalone Workflow draws one parameter section without the legacy outputs editor", () => {
+    const change = jest.fn();
+    show({
+      document: skeleton_document,
+      onDocumentChange: change,
+      selectedNodeId: "start",
+    });
+    expect(screen.getAllByText("Parameters")).toHaveLength(1);
+    expect(screen.getByTestId("workflow-parameters")).toBeInTheDocument();
+    expect(screen.queryByTestId("skeleton-output-variables")).not.toBeInTheDocument();
+    expect(skeleton_document).not.toHaveProperty("input_schema");
+    expect(change).not.toHaveBeenCalled();
+  });
+
+});
+
+/* Start and End now draw their rows as the Agent panel's pills, which show a
+   deeper address as stored rather than step by step. The step editor these
+   tests hold to account is still the one every other runnable node uses, so
+   it is driven here directly, on the same End rows. */
+function PathHost({ document, selectedNodeId, onDocumentChange, documentRevision }) {
+  const node = document.nodes.find((candidate) => candidate.id === selectedNodeId);
+  return <OutputVariablesSection document={document} node={node} revision={documentRevision}
+    isDark={false} onChange={onDocumentChange} />;
+}
+
+describe("UI-L1 — refused text belongs to one node, one row, one step", () => {
+  /* A refused position stays on screen so it can be corrected. It stays in
+     local state, because the document deliberately does not hold it — and
+     local state in a list is keyed by position, which is not identity. Select
+     another node, or remove the row above, and the same key carries a
+     different value: the field then showed `-1` while the document held `2`.
+     Nothing was written wrongly; the editor misreported what was stored, which
+     is the half an author acts on. */
+  const end_with = (id, index) => ({
+    id,
+    type: "end",
+    config: {
+      execution: {
+        inputs: [
+          {
+            name: "q",
+            value: { kind: "ref", node_id: "start", path: ["text"] },
+            missing: "error",
+          },
+        ],
+        outputs: [{ name: "out", source: { kind: "input", path: ["q", index] } }],
+      },
+    },
+  });
+
+  const two_ends = {
+    ...skeleton_document,
+    nodes: [skeleton_document.nodes[0], end_with("endA", 0), end_with("endB", 2)],
+    edges: [flow("e1", "start", "endA")],
+  };
+
+  const position_box = (row) =>
+    within(screen.getByTestId(`output-row-${row}`)).getByPlaceholderText("0");
+
+  test("selecting another node shows that node's stored position", () => {
+    const view = render(
+      <ConfigContext.Provider value={cfg}>
+        <PathHost
+          document={two_ends}
+          selectedNodeId="endA"
+          onDocumentChange={() => {}}
+        />
+      </ConfigContext.Provider>,
+    );
+    fireEvent.change(position_box(0), { target: { value: "-1" } });
+    expect(position_box(0).value).toBe("-1");
+
+    view.rerender(
+      <ConfigContext.Provider value={cfg}>
+        <PathHost
+          document={two_ends}
+          selectedNodeId="endB"
+          onDocumentChange={() => {}}
+        />
+      </ConfigContext.Provider>,
+    );
+    expect(position_box(0).value).toBe("2");
+    expect(screen.queryByTestId("output-row-0-step-0-refused")).not.toBeInTheDocument();
+  });
+
+  test("removing a row shows the surviving row's own stored position", () => {
+    const node = {
+      id: "end",
+      type: "end",
+      config: {
+        execution: {
+          inputs: [
+            {
+              name: "q",
+              value: { kind: "ref", node_id: "start", path: ["text"] },
+              missing: "error",
+            },
+          ],
+          outputs: [
+            { name: "first", source: { kind: "input", path: ["q", 0] } },
+            { name: "second", source: { kind: "input", path: ["q", 2] } },
+          ],
+        },
+      },
+    };
+    const start = {
+      ...skeleton_document,
+      nodes: [skeleton_document.nodes[0], node],
+      edges: [flow("e1", "start", "end")],
+    };
+
+    function Live() {
+      const [doc, setDoc] = React.useState(start);
+      return (
+        <ConfigContext.Provider value={cfg}>
+          <PathHost
+            document={doc}
+            selectedNodeId="end"
+            onDocumentChange={setDoc}
+          />
+        </ConfigContext.Provider>
+      );
+    }
+
+    render(<Live />);
+    fireEvent.change(position_box(0), { target: { value: "-1" } });
+    expect(position_box(0).value).toBe("-1");
+
+    fireEvent.click(screen.getByLabelText("Remove first"));
+    expect(screen.getAllByTestId(/^output-row-\d+$/)).toHaveLength(1);
+    expect(position_box(0).value).toBe("2");
+    expect(screen.queryByTestId("output-row-0-step-0-refused")).not.toBeInTheDocument();
+  });
+
+  test("another row holding the same position does not inherit the text", () => {
+    /* Comparing the stored value catches a survivor that differs. It cannot
+       catch one that happens to agree — and then the box is describing a
+       mapping the text was never typed into, which is the whole defect. So
+       the row says who it is as well. */
+    const node = {
+      id: "end",
+      type: "end",
+      config: {
+        execution: {
+          inputs: [
+            {
+              name: "q",
+              value: { kind: "ref", node_id: "start", path: ["text"] },
+              missing: "error",
+            },
+          ],
+          outputs: [
+            { name: "first", source: { kind: "input", path: ["q", 0] } },
+            { name: "second", source: { kind: "input", path: ["q", 0] } },
+          ],
+        },
+      },
+    };
+    const start = {
+      ...skeleton_document,
+      nodes: [skeleton_document.nodes[0], node],
+      edges: [flow("e1", "start", "end")],
+    };
+
+    function Live() {
+      const [doc, setDoc] = React.useState(start);
+      return (
+        <ConfigContext.Provider value={cfg}>
+          <PathHost
+            document={doc}
+            selectedNodeId="end"
+            onDocumentChange={setDoc}
+          />
+        </ConfigContext.Provider>
+      );
+    }
+
+    render(<Live />);
+    fireEvent.change(position_box(0), { target: { value: "-1" } });
+    fireEvent.click(screen.getByLabelText("Remove first"));
+    expect(screen.getAllByTestId(/^output-row-\d+$/)).toHaveLength(1);
+    expect(position_box(0).value).toBe("0");
+    expect(screen.queryByTestId("output-row-0-step-0-refused")).not.toBeInTheDocument();
+  });
+
+  test("another node holding the same position does not inherit it either", () => {
+    const same = {
+      ...skeleton_document,
+      nodes: [skeleton_document.nodes[0], end_with("endA", 0), end_with("endB", 0)],
+      edges: [flow("e1", "start", "endA")],
+    };
+    const panel = (selected) => (
+      <ConfigContext.Provider value={cfg}>
+        <PathHost
+          document={same}
+          selectedNodeId={selected}
+          onDocumentChange={() => {}}
+        />
+      </ConfigContext.Provider>
+    );
+    const view = render(panel("endA"));
+    fireEvent.change(position_box(0), { target: { value: "-1" } });
+    view.rerender(panel("endB"));
+    expect(position_box(0).value).toBe("0");
+    expect(screen.queryByTestId("output-row-0-step-0-refused")).not.toBeInTheDocument();
+  });
+
+  test("the refusal survives what does not change the step", () => {
+    /* Dropping it on any render at all would be the opposite defect: the
+       author would lose what they were correcting the moment anything else on
+       the panel moved. */
+    const view = render(
+      <ConfigContext.Provider value={cfg}>
+        <PathHost
+          document={two_ends}
+          selectedNodeId="endA"
+          onDocumentChange={() => {}}
+          diagnostics={[]}
+        />
+      </ConfigContext.Provider>,
+    );
+    fireEvent.change(position_box(0), { target: { value: "-1" } });
+    view.rerender(
+      <ConfigContext.Provider value={cfg}>
+        <PathHost
+          document={two_ends}
+          selectedNodeId="endA"
+          onDocumentChange={() => {}}
+          diagnostics={[
+            { code: "end_count", path: ["document", "nodes"], message: "needs one end" },
+          ]}
+        />
+      </ConfigContext.Provider>,
+    );
+    expect(position_box(0).value).toBe("-1");
+    expect(screen.getByTestId("output-row-0-step-0-refused")).toBeInTheDocument();
+  });
+});
+
+describe("R-SCHEMA — a schema's own fields, through the real controls", () => {
+  /* The real Select, the real Input, the real section. The earlier round read
+     a schema's direct `properties` and treated that list as exhaustive; these
+     schemas declare their fields the other three ways the runtime admits, and
+     `skeleton_result_schema_capture` records the real pipeline publishing each
+     one. */
+  const kernel = (json_schema) => ({
+    schema_version: 1,
+    profile: {
+      id: "p",
+      provider: "openai",
+      model: "gpt-4.1",
+      protocol: "openai-responses",
+      endpoint: "https://api.openai.com/v1/responses",
+      credential_ref: "openai",
+      context_window: 128000,
+      output_limit: 4096,
+      capabilities: { json_schema: true, images: false, files: false },
+    },
+    prompt: "do the thing",
+    max_iterations: 1,
+    output_tokens: 1024,
+    history: "none",
+    overflow: "error",
+    json_schema,
+  });
+
+  const with_schema = (json_schema, path) => ({
+    ...skeleton_document,
+    nodes: [
+      skeleton_document.nodes[0],
+      {
+        id: "kernel",
+        type: "agent",
+        config: {
+          execution: {
+            inputs: [],
+            outputs: [{ name: "out", source: { kind: "result", path } }],
+          },
+          kernel: kernel(json_schema),
+        },
+      },
+      skeleton_document.nodes[1],
+    ],
+    edges: [flow("e1", "start", "kernel"), flow("e2", "kernel", "end")],
+  });
+
+  const open_agent = (json_schema, path) =>
+    show({
+      document: with_schema(json_schema, path),
+      onDocumentChange: () => {},
+      selectedNodeId: "kernel",
+    });
+
+  const row_text = () => screen.getByTestId("output-row-0").textContent;
+
+  test("a field declared through a root $ref is not called nonexistent", () => {
+    open_agent(
+      {
+        type: "object",
+        $ref: "#/$defs/Payload",
+        $defs: {
+          Payload: { type: "object", properties: { score: { type: "number" } } },
+        },
+      },
+      ["score"],
+    );
+    expect(row_text()).not.toMatch(/produces no result named/i);
+  });
+
+  test("a field declared through anyOf is not called nonexistent", () => {
+    open_agent(
+      {
+        type: "object",
+        anyOf: [
+          { type: "object", properties: { score: { type: "number" } } },
+          { type: "object", properties: { label: { type: "string" } } },
+        ],
+      },
+      ["label"],
+    );
+    expect(row_text()).not.toMatch(/produces no result named/i);
+  });
+
+  test("a field whose name is the empty string is not called nonexistent", () => {
+    open_agent({ type: "object", properties: { "": { type: "string" } } }, [""]);
+    expect(row_text()).not.toMatch(/produces no result named/i);
+  });
+
+  test("a field an open schema permits but does not name is not called nonexistent", () => {
+    open_agent(
+      {
+        type: "object",
+        properties: { answer: { type: "string" } },
+        additionalProperties: true,
+      },
+      ["extra"],
+    );
+    expect(row_text()).not.toMatch(/produces no result named/i);
+    fireEvent.click(screen.getByRole("button", { name: "Output Variables", exact: true }));
+    expect(within(screen.getByTestId("output-row-0")).getByRole("button", { name: "Result · extra" })).toBeVisible();
+  });
+
+  test("a stored unlisted field stays visible and the source menu offers declared replacements", async () => {
+    open_agent(
+      { type: "object", properties: { answer: { type: "string" } } },
+      ["extra"],
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Output Variables", exact: true }));
+    const row = within(screen.getByTestId("output-row-0"));
+    fireEvent.click(row.getByRole("button", { name: "Result · extra" }));
+    await waitFor(() => expect(screen.getByText("answer", { exact: true, selector: "span" })).toBeVisible());
+    expect(row.queryByPlaceholderText("field")).not.toBeInTheDocument();
+  });
+
+  test("a schema that does close its list still refuses a name it cannot hold", () => {
+    /* The repair is not a retreat: where the runtime really does bound the
+       keys, the diagnostic that round three added has to survive. */
+    open_agent(
+      {
+        type: "object",
+        properties: { answer: { type: "string" } },
+        additionalProperties: false,
+      },
+      ["typo"],
+    );
+    expect(row_text()).toMatch(/produces no result named "typo"/i);
+  });
+
+  test("an Agent with no schema at all is still closed on its two built-ins", () => {
+    open_agent(null, ["typo"]);
+    expect(row_text()).toMatch(/produces no result named "typo"/i);
+  });
+});
+
+describe("the Model section in the panel", () => {
+  const agent_doc = (config) => ({
+    ...skeleton_document,
+    nodes: [
+      skeleton_document.nodes[0],
+      { id: "kernel", type: "agent", config },
+      skeleton_document.nodes[1],
+    ],
+    edges: [flow("e1", "start", "kernel"), flow("e2", "kernel", "end")],
+  });
+
+  const open = (config) =>
+    show({
+      document: agent_doc(config),
+      onDocumentChange: () => {},
+      selectedNodeId: "kernel",
+    });
+
+  test("an Agent reads downwards: inputs first, then model, prompt, and outputs last", () => {
+    /* Input Variables come first and Output Variables last on every node's
+       page. JSON Output belongs to the Output disclosure: its header
+       precedes the schema, the mapping editor follows it. */
+    open({ execution: { inputs: [], outputs: [] } });
+    const text = screen.getByTestId("recipe-detail-panel").textContent;
+    expect(text.indexOf("Input Variables")).toBeGreaterThanOrEqual(0);
+    expect(text.indexOf("Model")).toBeGreaterThan(text.indexOf("Input Variables"));
+    expect(text.indexOf("Prompt")).toBeGreaterThan(text.indexOf("Model"));
+    expect(text.indexOf("Output Variables")).toBeGreaterThan(text.indexOf("Prompt"));
+    expect(text.indexOf("JSON Output")).toBeGreaterThan(text.indexOf("Output Variables"));
+    expect(screen.getByTestId("process-section-output")).toContainElement(screen.getByTestId("skeleton-output-schema"));
+    /* The rows come first; the schema waits under Advanced: Edit as JSON. */
+    expect(screen.getByTestId("skeleton-output-variables").compareDocumentPosition(screen.getByTestId("agent-output-advanced")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByTestId("agent-output-advanced")).toContainElement(screen.getByTestId("skeleton-output-schema"));
+  });
+
+  test("an Agent with no model says the run will refuse it", () => {
+    open({ execution: { inputs: [], outputs: [] } });
+    expect(screen.getByTestId("kernel-absent").textContent).toMatch(
+      /refused the moment it runs/i,
+    );
+  });
+
+  test("no other node type carries one", () => {
+    /* Only an Agent graph may invoke a Kernel Loop, and only a Kernel Loop
+       node holds this config at all. */
+    show({ document: skeleton_document, onDocumentChange: () => {}, selectedNodeId: "start" });
+    expect(screen.queryByTestId("skeleton-kernel")).not.toBeInTheDocument();
+    show({ document: skeleton_document, onDocumentChange: () => {}, selectedNodeId: "end" });
+    expect(screen.queryByTestId("skeleton-kernel")).not.toBeInTheDocument();
+  });
+});
+
+describe("the JSON Output section, and the two halves it joins", () => {
+  const kernel = (json_schema) => ({
+    schema_version: 1,
+    profile: {
+      id: "p",
+      provider: "openai",
+      model: "gpt-4.1",
+      protocol: "openai-responses",
+      endpoint: "https://api.openai.com/v1/responses",
+      credential_ref: "openai",
+      context_window: 128000,
+      output_limit: 4096,
+      capabilities: { json_schema: true, images: false, files: false },
+    },
+    prompt: "do the thing",
+    max_iterations: 1,
+    output_tokens: 1024,
+    history: "none",
+    overflow: "error",
+    json_schema,
+  });
+
+  const with_agent = (json_schema, outputs) => ({
+    ...skeleton_document,
+    nodes: [
+      skeleton_document.nodes[0],
+      {
+        id: "kernel",
+        type: "agent",
+        config: {
+          execution: { inputs: [], outputs: outputs || [] },
+          kernel: kernel(json_schema),
+        },
+      },
+      skeleton_document.nodes[1],
+    ],
+    edges: [flow("e1", "start", "kernel"), flow("e2", "kernel", "end")],
+  });
+
+  const open_agent = (json_schema, outputs) =>
+    show({
+      document: with_agent(json_schema, outputs),
+      onDocumentChange: () => {},
+      selectedNodeId: "kernel",
+    });
+
+  test("it is read downwards: given, produced, passed on", () => {
+    open_agent(null);
+    const text = screen.getByTestId("recipe-detail-panel").textContent;
+    expect(text.indexOf("Input Variables")).toBeGreaterThanOrEqual(0);
+    expect(text.indexOf("JSON Output")).toBeGreaterThan(text.indexOf("Input Variables"));
+    expect(text.indexOf("Output Variables")).toBeGreaterThan(text.indexOf("Input Variables"));
+    expect(screen.getByTestId("process-section-output")).toContainElement(screen.getByTestId("skeleton-output-schema"));
+    /* The rows come first; the schema waits under Advanced: Edit as JSON. */
+    expect(screen.getByTestId("skeleton-output-variables").compareDocumentPosition(screen.getByTestId("agent-output-advanced")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByTestId("agent-output-advanced")).toContainElement(screen.getByTestId("skeleton-output-schema"));
+  });
+
+  test("only an Agent has one, because only an Agent has a kernel", () => {
+    show({ document: skeleton_document, onDocumentChange: () => {}, selectedNodeId: "end" });
+    expect(screen.queryByTestId("skeleton-output-schema")).not.toBeInTheDocument();
+  });
+
+  test("a declared field becomes a source the output rows offer", () => {
+    /* The point of the section. Without it the author could only reach these
+       by typing the name and hoping. */
+    open_agent(
+      { type: "object", properties: { score: { type: "number" } } },
+      [{ name: "out", source: { kind: "result", path: ["score"] } }],
+    );
+    const row = screen.getByTestId("output-row-0");
+    expect(row.textContent).not.toMatch(/produces no result named/i);
+    expect(screen.getByTestId("skeleton-output-schema")).toBeInTheDocument();
+  });
+
+  test("closing the field list is what lets a row refuse a name", () => {
+    open_agent(
+      {
+        type: "object",
+        properties: { score: { type: "number" } },
+        additionalProperties: false,
+      },
+      [{ name: "out", source: { kind: "result", path: ["typo"] } }],
+    );
+    expect(screen.getByTestId("output-row-0").textContent).toMatch(
+      /produces no result named "typo"/i,
+    );
+  });
+
+  test("leaving it open means a row refuses nothing", () => {
+    open_agent(
+      { type: "object", properties: { score: { type: "number" } } },
+      [{ name: "out", source: { kind: "result", path: ["typo"] } }],
+    );
+    expect(screen.getByTestId("output-row-0").textContent).not.toMatch(
+      /produces no result named/i,
+    );
+  });
+
+  test("a schema the rows cannot hold is shown rather than rebuilt", () => {
+    open_agent({
+      type: "object",
+      anyOf: [
+        { type: "object", properties: { a: { type: "string" } } },
+        { type: "object", properties: { b: { type: "string" } } },
+      ],
+    });
+    expect(screen.getByTestId("schema-not-field-shaped").textContent).toMatch(
+      /alternative shapes/i,
+    );
+  });
+});
+
+describe("the panel survives a draft no save would take", () => {
+  /* The whole panel, both sections, one render. A schema is composed inside
+     it, so it can be as deep as it has been typed — and the sections read it
+     for different things: admission, whether the rows hold it, and what its
+     root declares for the outputs beside it. That last reader had no limit
+     check in front of it and was written recursive, so the panel stopped
+     rendering rather than reporting the depth. */
+  const kernel = (json_schema) => ({
+    schema_version: 1,
+    profile: {
+      id: "p",
+      provider: "openai",
+      model: "gpt-4.1",
+      protocol: "openai-responses",
+      endpoint: "https://api.openai.com/v1/responses",
+      credential_ref: "openai",
+      context_window: 128000,
+      output_limit: 4096,
+      capabilities: { json_schema: true, images: false, files: false },
+    },
+    prompt: "do the thing",
+    max_iterations: 1,
+    output_tokens: 1024,
+    history: "none",
+    overflow: "error",
+    json_schema,
+  });
+
+  const nest = (levels) => {
+    let node = { type: "string" };
+    for (let i = 0; i < levels; i += 1) {
+      node = { type: "object", properties: { n: node } };
+    }
+    return { type: "object", properties: { n: node } };
+  };
+
+  const open_deep = (levels) =>
+    show({
+      document: {
+        ...skeleton_document,
+        nodes: [
+          skeleton_document.nodes[0],
+          {
+            id: "kernel",
+            type: "agent",
+            config: {
+              execution: {
+                inputs: [],
+                outputs: [{ name: "out", source: { kind: "result", path: ["n"] } }],
+              },
+              kernel: kernel(nest(levels)),
+            },
+          },
+          skeleton_document.nodes[1],
+        ],
+        edges: [flow("e1", "start", "kernel"), flow("e2", "kernel", "end")],
+      },
+      onDocumentChange: () => {},
+      selectedNodeId: "kernel",
+    });
+
+  test("it renders and says the depth instead of going down", () => {
+    expect(() => open_deep(4000)).not.toThrow();
+    expect(screen.getByTestId("skeleton-output-schema").textContent).toMatch(
+      /depth/i,
+    );
+    expect(screen.getByTestId("output-row-0")).toBeInTheDocument();
+  });
+
+  test("and the output row reading into it is not called wrong", () => {
+    /* The field really is declared at the root, so nothing may say it is
+       not — the inventory has to answer for this draft, not give up on it. */
+    open_deep(4000);
+    expect(screen.getByTestId("output-row-0").textContent).not.toMatch(
+      /produces no result named/i,
+    );
+  });
+});
+
+describe("a Subagent Pool node in the panel", () => {
+  /* A pool attaches to a Kernel rather than running in the flow, so it has no
+     execution IO at all — the shared sections render nothing for it, and what
+     it does carry gets its own section. */
+  const with_pool = (config) => ({
+    ...skeleton_document,
+    nodes: [
+      skeleton_document.nodes[0],
+      { id: "k", type: "agent", config: { execution: { inputs: [], outputs: [] } } },
+      { id: "pool", type: "subagent_pool", config },
+      skeleton_document.nodes[1],
+    ],
+    edges: [
+      flow("e1", "start", "k"),
+      flow("e2", "k", "end"),
+      {
+        id: "a1",
+        kind: "attach",
+        source_node_id: "pool",
+        source_port_id: "attach_top",
+        target_node_id: "k",
+        target_port_id: "attach_bot",
+      },
+    ],
+  });
+
+  const open_pool = async (config) => {
+    const view = show({
+      document: with_pool(config),
+      onDocumentChange: () => {},
+      selectedNodeId: "pool",
+    });
+    /* The Agent library is read in an effect. There is no bridge in this
+       build, so it settles as unavailable; letting it land keeps the state
+       update inside the test. */
+    await act(async () => {});
+    return view;
+  };
+
+  test("gets the Subagent Pool section", async () => {
+    await open_pool({ subagents: [] });
+    expect(screen.getByTestId("skeleton-subagent-pool")).toBeInTheDocument();
+  });
+
+  test("and not the Input or Output Variables sections", async () => {
+    await open_pool({ subagents: [] });
+    expect(screen.queryByTestId("skeleton-input-variables")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("skeleton-output-variables")).not.toBeInTheDocument();
+  });
+
+  test("an Agent node does not get the pool section", async () => {
+    show({
+      document: with_pool({ subagents: [] }),
+      onDocumentChange: () => {},
+      selectedNodeId: "k",
+    });
+    await act(async () => {});
+    expect(screen.queryByTestId("skeleton-subagent-pool")).not.toBeInTheDocument();
+  });
+
+  test("the pool says what the runtime would refuse about it", async () => {
+    await open_pool({ subagents: [] });
+    expect(screen.getByTestId("subagent-pool-problem-0").textContent).toMatch(
+      /must contain an Agent/i,
+    );
+  });
+});
+
+describe("the panel header draws a node, not everything stored beside it", () => {
+  /* Common display labels are now recognized; malformed labels remain stored
+     for repair but never reach React. Legacy override/model metadata is still
+     outside the native node contract and must not affect the header. */
+
+  const node_with = (over) => ({
+    schema_version: 1,
+    kind: "agent",
+    id: "a",
+    name: "A",
+    nodes: [
+      {
+        id: "agent",
+        type: "agent",
+        config: { execution: { inputs: [], outputs: [] } },
+        ...over,
+      },
+    ],
+    edges: [],
+  });
+
+  test("a stored label that cannot become text does not take the panel down", () => {
+    const document = node_with({ label: { toString: null } });
+    show({ document, onDocumentChange: () => {}, selectedNodeId: "agent" });
+    /* The header is there, and without a label it names the node by its
+       type, "Agent", not by its id. */
+    expect(screen.getByTestId("recipe-detail-panel-header")).toHaveTextContent("Agent");
+    /* And the document still holds what the store holds. */
+    expect(document.nodes[0].label).toEqual({ toString: null });
+  });
+
+  test("a valid common label names the node without changing its identity", () => {
+    const document = node_with({ label: "Pretend name" });
+    show({
+      document,
+      onDocumentChange: () => {},
+      selectedNodeId: "agent",
+    });
+    expect(screen.getByTestId("recipe-detail-panel-header")).toHaveTextContent("Pretend name");
+    expect(document.nodes.find((node) => node.type === "agent").id).toBe("agent");
+  });
+
+  test("the model beside it is the same read", () => {
+    show({
+      document: node_with({ override: { model: { toString: null } } }),
+      onDocumentChange: () => {},
+      selectedNodeId: "agent",
+    });
+    expect(screen.getByTestId("recipe-detail-panel-header")).toHaveTextContent("Agent");
+    // Ignoring the forbidden override must not promise legacy inheritance:
+    // this native node has no Kernel and is not runnable until configured.
+    expect(screen.getByText("No model configured")).toBeInTheDocument();
+    expect(screen.queryByText("Inherits the chat's model")).toBeNull();
+  });
+
+  test("the native header reads its stored Kernel model", () => {
+    const document = node_with({});
+    document.nodes.find((node) => node.id === "agent").config.kernel = {
+      profile: { model: "stored-model" },
+    };
+    show({ document, onDocumentChange: () => {}, selectedNodeId: "agent" });
+    expect(screen.getByTestId("recipe-detail-panel-header")).toHaveTextContent("stored-model");
+  });
+
+});
+
+describe("a node type the identity table does not own", () => {
+  /* The review's remaining P2. A node's type is whatever the draft holds, and
+     the real store holds it: `type: "__proto__"` saves, reads back verbatim
+     and is refused at Run with `unknown_variant` at that type. Read as a
+     plain key, the table answered with `Object.prototype` — an object, so the
+     truthiness guard passed — and `entry.title(node)` then threw
+     "entry.title is not a function" the moment the node was selected. */
+
+  const row = (name) => LOOKUP_ROWS.find((item) => item.case === name);
+
+  const document_with_type = (type) => ({
+    schema_version: 1,
+    kind: "agent",
+    id: "a",
+    name: "A",
+    nodes: [{ id: "odd", type, config: { execution: { inputs: [], outputs: [] } } }],
+    edges: [],
+  });
+
+  test("the store stores these types and refuses them at Run", () => {
+    ["node_type_proto", "node_type_constructor", "node_type_toString",
+     "node_type_hasOwnProperty"].forEach((name) => {
+      const item = row(name);
+      expect([name, item.saved, item.round_trip]).toEqual([name, true, true]);
+      /* The draft check names the type too now; the panel still has no
+         drawing for it. */
+      expect([name, item.draft_diagnostics.map((found) => found.code)]).toEqual([
+        name, ["unknown_variant"],
+      ]);
+      expect([name, item.run.code, item.run.path.slice(-1)]).toEqual([
+        name, "unknown_variant", ["type"],
+      ]);
+    });
+    /* And an id naming one of them is not even refused — it RUNS. */
+    expect(row("node_id_proto").run).toEqual({ ok: true, code: null, path: null });
+  });
+
+  test("only a key the table owns answers, so an unknown type has no identity", () => {
+    ["__proto__", "constructor", "toString", "hasOwnProperty", "valueOf"].forEach(
+      (type) => {
+        expect([type, node_identity({ id: "odd", type })]).toEqual([type, null]);
+        expect([type, has_node_identity(type)]).toEqual([type, false]);
+      },
+    );
+    /* The types it does own still answer. */
+    expect(node_identity({ id: "a", type: "agent" }).title).toBe("a");
+    expect(has_node_identity("subagent_pool")).toBe(true);
+    /* And a type that is not text at all is no different. */
+    expect(node_identity({ id: "odd", type: { toString: null } })).toBeNull();
+    expect(has_node_identity(null)).toBe(false);
+  });
+
+  test("selecting such a node opens the panel instead of taking the page down", () => {
+    const document = document_with_type("__proto__");
+    const before = JSON.stringify(document);
+    show({ document, onDocumentChange: () => {}, selectedNodeId: "odd" });
+    /* No header — the type names no drawing — and the panel is still there,
+       which is the existing safe path for every unknown type. */
+    expect(screen.getByTestId("recipe-detail-panel-body")).toBeInTheDocument();
+    /* The stored type is untouched. */
+    expect(JSON.stringify(document)).toBe(before);
+  });
+});
+
+describe("in the docked macOS panel the header sits at the panel's top", () => {
+  test.each([["light_mode", "rgba(0,0,0,0.08)"], ["dark_mode", "rgba(255,255,255,0.08)"]])(
+    "the icon is as far from the top as from the left, the title keeps clear of the toggle, and a rule marks the scrolling body (%s)",
+    (mode, rule) => {
+      render(
+        <ConfigContext.Provider value={{ ...cfg, onThemeMode: mode }}>
+          <DetailChromeContext.Provider value={{ headerInTitleRow: true, toggleReserve: 44 }}>
+            <DetailPanel document={skeleton_document} onDocumentChange={() => {}} selectedNodeId="end" />
+          </DetailChromeContext.Provider>
+        </ConfigContext.Provider>,
+      );
+      const header = screen.getByTestId("recipe-detail-panel-header");
+      /* 11px + the 5px the 36px title block centres the 26px icon by = 16px,
+         the same as the left padding. */
+      expect(header.style.padding).toBe("11px 44px 12px 16px");
+      expect(header.style.borderBottom).toBe(`1px solid ${rule}`);
+    },
+  );
+
+  test("without the docked panel's word the header keeps its usual padding and rule", () => {
+    show({ document: skeleton_document, onDocumentChange: () => {} });
+    const header = screen.getByTestId("recipe-detail-panel-header");
+    expect(header.style.padding).toBe("14px 16px 12px");
+    expect(header.style.borderBottom).toMatch(/^1px solid/);
+  });
+});

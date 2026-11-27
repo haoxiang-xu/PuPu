@@ -1,3 +1,4 @@
+import ShadowSurface from "../material/shadow_surface";
 import { useContext, useRef, useState, useCallback } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 
@@ -241,7 +242,7 @@ export const BarChart = ({
               >
                 {/* Tooltip */}
                 {isHovered && (
-                  <div
+                  <ShadowSurface
                     style={{
                       position: "absolute",
                       bottom: `calc(${pct}% + 8px)`,
@@ -276,7 +277,7 @@ export const BarChart = ({
                     >
                       {d.label}
                     </div>
-                  </div>
+                  </ShadowSurface>
                 )}
 
                 {/* Bar */}

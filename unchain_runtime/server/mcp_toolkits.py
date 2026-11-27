@@ -17,7 +17,6 @@ from mcp_managed_runtime import (
     McpManagedRuntimeError,
     resolve_managed_stdio_runtime,
 )
-from mcp_registry import oauth_recipe_for_entry
 from mcp_credential_store import McpCredentialStoreError
 from mcp_secrets import (
     delete_mcp_secret_values,
@@ -314,7 +313,7 @@ def _record_release_gate_error(record: Dict[str, Any]) -> str:
         )
     except KeyError:
         return _RELEASE_UNAVAILABLE_MESSAGE
-    oauth_recipe = oauth_recipe_for_entry(curated_entry)
+    oauth_recipe = mcp_registry.oauth_recipe_for_entry(curated_entry)
     oauth_release_ready = bool(oauth_recipe) and str(
         oauth_recipe.get("releaseStatus") or ""
     ).strip().lower() == "ready"
@@ -493,7 +492,7 @@ def _resolve_mcp_config(
             400,
         )
 
-    oauth = oauth_recipe_for_entry(entry)
+    oauth = mcp_registry.oauth_recipe_for_entry(entry)
     if oauth:
         if transport != "http":
             raise McpToolkitError(
@@ -1020,7 +1019,7 @@ def install_mcp_toolkit(
         except KeyError:
             curated_entry = None
         if curated_entry is not None:
-            oauth_recipe = oauth_recipe_for_entry(curated_entry)
+            oauth_recipe = mcp_registry.oauth_recipe_for_entry(curated_entry)
             oauth_release_ready = bool(oauth_recipe) and str(
                 oauth_recipe.get("releaseStatus") or ""
             ).strip().lower() == "ready"
@@ -1372,7 +1371,7 @@ def _assert_mcp_runtime_record_available(
                 "This MCP toolkit is not available in this release",
                 403,
             ) from exc
-        oauth_recipe = oauth_recipe_for_entry(curated_entry)
+        oauth_recipe = mcp_registry.oauth_recipe_for_entry(curated_entry)
         oauth_release_ready = bool(oauth_recipe) and str(
             oauth_recipe.get("releaseStatus") or ""
         ).strip().lower() == "ready"

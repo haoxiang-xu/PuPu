@@ -1,3 +1,4 @@
+import ShadowSurface from "../../../BUILTIN_COMPONENTs/material/shadow_surface";
 import {
   useCallback,
   useContext,
@@ -128,7 +129,7 @@ const SegmentedControl = ({
         ...trackStyle,
       }}
     >
-      <div
+      <ShadowSurface
         aria-hidden="true"
         style={{
           position: "absolute",

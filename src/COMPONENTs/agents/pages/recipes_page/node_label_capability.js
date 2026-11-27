@@ -1,0 +1,93 @@
+import { agentEnglishText, agentMessage } from "./agents_i18n";
+import { useEffect, useState } from "react";
+import { api } from "../../../../SERVICEs/api";
+import { checkManagedCodeResponse } from "../../../../SERVICEs/managed_code_api";
+
+const record = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+const closed = (value, keys) => record(value) && Object.keys(value).length === keys.length && keys.every((key) => Object.prototype.hasOwnProperty.call(value, key));
+const nonempty = (value) => typeof value === "string" && value.length > 0;
+const unavailable = (reason) => ({ allowed: false, reason });
+export const LABEL_CAPABILITY_LOADING = "Checking whether steps can be renamed…";
+
+const LOADING_NOTICE = agentMessage("agents.runtime.rename_loading");
+
+/* This response comes only through the existing managed-code facade: Main
+ * authenticates and deep-validates the imported manifest and its digest.
+ * This admission checks the actual advertised feature; it never guesses from
+ * a Git ref, environment, version string, or a locally recomputed digest. */
+export function node_label_capability(response, t = agentEnglishText) {
+  try { checkManagedCodeResponse("capabilities", response); } catch (_) {
+    return unavailable(t("agents.runtime.capability_invalid"));
+  }
+  const manifest = response.runtime_manifest;
+  if (!closed(manifest, ["schema", "runtime", "manifest_digest", "protocols"]) ||
+      manifest.schema !== "unchain.runtime_protocol_manifest.v1" || manifest.runtime !== "unchain" ||
+      typeof manifest.manifest_digest !== "string" || !/^sha256:[a-f0-9]{64}$/.test(manifest.manifest_digest) || !Array.isArray(manifest.protocols)) {
+    return unavailable(t("agents.runtime.manifest_unavailable"));
+  }
+  const ids = new Set();
+  for (const protocol of manifest.protocols) {
+    if (!closed(protocol, ["id", "major", "minor", "features"]) || !nonempty(protocol.id) || ids.has(protocol.id) ||
+        !Number.isSafeInteger(protocol.major) || protocol.major < 0 || !Number.isSafeInteger(protocol.minor) || protocol.minor < 0 ||
+        !Array.isArray(protocol.features) || !protocol.features.every(nonempty) || new Set(protocol.features).size !== protocol.features.length) {
+      return unavailable(t("agents.runtime.manifest_invalid"));
+    }
+    ids.add(protocol.id);
+  }
+  const skeleton = manifest.protocols.find((protocol) => protocol.id === "skeleton_execution");
+  if (!skeleton || skeleton.major !== 1 || skeleton.minor < 8 || !skeleton.features.includes("node_display_label_v1")) {
+    return unavailable(t("agents.runtime.rename_unsupported"));
+  }
+  return { allowed: true, reason: null };
+}
+
+/* Whether the imported runtime stores a graph's drawing in the document.
+ *
+ * `document.layout` is admitted from skeleton_execution 1.10 with
+ * `document_layout_v1`. An older runtime refuses the whole document with
+ * `unknown_field`, so until the actual imported runtime advertises the
+ * feature the canvas keeps positions on this machine only, as before, and
+ * never writes a layout a save would be refused for. Read from the same
+ * validated manifest as labels (1.8), which 1.10 includes. */
+export const LAYOUT_FEATURE = "document_layout_v1";
+export const LAYOUT_MIN_MINOR = 10;
+
+export function node_layout_capability(response) {
+  if (!node_label_capability(response).allowed) return false;
+  const skeleton = response.runtime_manifest.protocols.find((protocol) => protocol.id === "skeleton_execution");
+  return Boolean(skeleton && skeleton.major === 1 && skeleton.minor >= LAYOUT_MIN_MINOR &&
+    skeleton.features.includes(LAYOUT_FEATURE));
+}
+
+/* One capability read answers both questions: `allowed`/`reason` for Rename
+   and `layout` for whether a drop is written into the document. */
+export function useNodeLabelCapability(enabled, scope) {
+  const [state, setState] = useState({ scope: null, ...unavailable(LOADING_NOTICE) });
+  useEffect(() => {
+    let current = true;
+    if (!enabled) {
+      setState({ scope: null, ...unavailable(LOADING_NOTICE) });
+      return () => { current = false; };
+    }
+    setState({ scope, ...unavailable(LOADING_NOTICE) });
+    Promise.resolve().then(() => api.unchain.getManagedCodeCapabilities()).then(
+      (response) => {
+        const verdict = node_label_capability(response, agentMessage);
+        /* The page says only that Rename is unavailable; why is for
+           developers. */
+        if (!verdict.allowed) {
+          console.warn("[rename] node labels unavailable; runtime protocols:",
+            JSON.stringify(response && response.runtime_manifest ? response.runtime_manifest.protocols : null));
+        }
+        if (current) setState({ scope, ...verdict, layout: node_layout_capability(response) });
+      },
+      (error) => {
+        console.warn("[rename] runtime capability check failed:", error && error.code);
+        if (current) setState({ scope, ...unavailable(agentMessage("agents.runtime.rename_check_failed")) });
+      },
+    );
+    return () => { current = false; };
+  }, [enabled, scope]);
+  if (!enabled) return unavailable(agentMessage("agents.runtime.read_only"));
+  return state.scope === scope ? state : unavailable(LOADING_NOTICE);
+}

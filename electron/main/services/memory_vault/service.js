@@ -1513,17 +1513,17 @@ const createMemoryVaultService = ({
         status: nativeApproved ? "approved" : "denied",
       };
     })();
-    confirmationInFlight.set(normalizedInteractionId, {
+    const inFlightEntry = {
       rendererApproved,
       promise: decisionPromise,
-    });
+    };
+    confirmationInFlight.set(normalizedInteractionId, inFlightEntry);
     try {
       return await decisionPromise;
     } finally {
-      if (
-        confirmationInFlight.get(normalizedInteractionId)?.promise ===
-        decisionPromise
-      ) {
+      // Only clear our own entry: a newer decision for the same interaction
+      // may have replaced it while this one was awaiting.
+      if (confirmationInFlight.get(normalizedInteractionId) === inFlightEntry) {
         confirmationInFlight.delete(normalizedInteractionId);
       }
     }

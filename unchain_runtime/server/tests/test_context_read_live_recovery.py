@@ -9,6 +9,7 @@ from test_memory_v2_unchain_runtime_factory import (
     _OpenAIResponseStream, OpenAIModelIO, AgentBuilder, AgentCallContext,
     AgentSpec, AgentState, ModelIOFactoryRegistry, ExecutionRuntime,
     InMemorySessionStore, HostResolvedCurrentInput, Toolkit, Tool,
+    _CONTEXT_READ_ERROR_NOTICE, _CONTEXT_READ_PAGE_NOTICE, _CONTEXT_READ_PAGE_FIELDS,
 )
 
 
@@ -24,7 +25,8 @@ def test_live_oversize_read_recovers_in_next_native_provider_turn(tmp_path, bad_
     )
     requests = []
     pages = []
-    source = {"models": "live-models-sentinel-" + "x" * 12000}
+    # Exceed the final inline budget while keeping the source within two pages.
+    source = {"models": "live-models-sentinel-" + "x" * 16000}
 
     def find_request(value):
         if isinstance(value, dict):
@@ -64,11 +66,19 @@ def test_live_oversize_read_recovers_in_next_native_provider_turn(tmp_path, bad_
                 outputs = [json.loads(item["output"]) for item in kwargs["input"] if item.get("type") == "function_call_output"]
                 response = outputs[-1]
                 if turn == 3:
-                    assert response == {"schema_version": "unchain.context_content_error.v1", "trust": "UNTRUSTED_DATA", "code": "CONTEXT_READ_LIMIT_INVALID_USE_INTEGER_1_TO_8192"}
+                    assert response == {
+                        "schema_version": "unchain.context_content_error.v2",
+                        "evidence_kind": "retrieval_status",
+                        "notice": _CONTEXT_READ_ERROR_NOTICE,
+                        "code": "CONTEXT_READ_LIMIT_INVALID_USE_INTEGER_1_TO_8192",
+                    }
                     arguments = {"ref": self.ref, "offset": 0, "limit": 8192}
                 else:
                     pages.append(response)
-                    assert response["schema_version"] == "unchain.context_content_page.v1"
+                    assert set(response) == _CONTEXT_READ_PAGE_FIELDS
+                    assert response["schema_version"] == "unchain.context_content_page.v2"
+                    assert response["evidence_kind"] == "tool_observation"
+                    assert response["notice"] == _CONTEXT_READ_PAGE_NOTICE
                     if response["eof"]:
                         output = [{"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "recovered"}]}]
                         return _OpenAIResponseStream(SimpleNamespace(id=f"recovery-{turn}", output=output, usage={"input_tokens": 1, "output_tokens": 1, "total_tokens": 2}))

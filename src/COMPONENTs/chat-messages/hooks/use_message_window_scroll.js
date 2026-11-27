@@ -1371,9 +1371,9 @@ export const useMessageWindowScroll = ({
         currentStart,
         Math.max(0, latestLength - nextCount),
       );
-      if (nextStart === currentStart && nextCount <= effectiveMountedCount) {
-        return;
-      }
+      // No early return here: the guard above already left when
+      // effectiveMountedCount >= resolvedMaxMountedCount, so nextCount is
+      // always larger than the mounted count at this point.
 
       if (nextStart < currentStart) {
         if (isAtBottomRef.current) {

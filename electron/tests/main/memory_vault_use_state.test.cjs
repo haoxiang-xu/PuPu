@@ -56,6 +56,7 @@ const decodeSecret = (ciphertext) => {
 };
 const makeSafeStorage = (overrides = {}) => ({
   isEncryptionAvailable: jest.fn(() => true),
+  getSelectedStorageBackend: jest.fn(() => "gnome_libsecret"),
   encryptString: jest.fn(encodeSecret),
   decryptString: jest.fn(decodeSecret),
   ...overrides,
@@ -155,6 +156,8 @@ describeIfSqlite("memory vault one-time use state machine", () => {
       path,
       sqlite,
       safeStorage: safeStorage || makeSafeStorage(),
+      // Exercise the stricter Linux keyring contract on every host.
+      platform: "linux",
       confirmUse,
       sinkExecutors,
       http: require("http"),
@@ -197,6 +200,32 @@ describeIfSqlite("memory vault one-time use state machine", () => {
 
   const rawDb = () =>
     new sqlite.DatabaseSync(path.join(dir, "settings.db"));
+
+  test("default safeStorage fixture supports Linux encrypted deposits", () => {
+    const safeStorage = makeSafeStorage();
+    const vault = makeVault({ safeStorage });
+    expect(vault.getStatus().secretStorageStatus).toBe("available");
+    expect(seed(vault).ok).toBe(true);
+    expect(safeStorage.getSelectedStorageBackend).toHaveBeenCalledTimes(1);
+    expect(safeStorage.encryptString).toHaveBeenCalledTimes(1);
+  });
+
+  test("Linux missing backend probe fails before encrypting or storing a secret", () => {
+    const safeStorage = makeSafeStorage({
+      getSelectedStorageBackend: undefined,
+    });
+    const vault = makeVault({ safeStorage });
+    expect(vault.getStatus().secretStorageStatus).toBe("unavailable");
+    expect(() => seed(vault)).toThrow(/\[secret_storage_unavailable\]/);
+    expect(safeStorage.encryptString).not.toHaveBeenCalled();
+    expect(safeStorage.decryptString).not.toHaveBeenCalled();
+    const db = rawDb();
+    try {
+      expect(db.prepare("SELECT COUNT(*) AS n FROM vault_secrets").get().n).toBe(0);
+    } finally {
+      db.close();
+    }
+  });
 
   test("prepare generates the intent and resolves scope/grant internally", () => {
     const vault = makeVault();

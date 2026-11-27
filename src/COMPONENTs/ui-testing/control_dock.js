@@ -1,3 +1,4 @@
+import ShadowSurface from "../../BUILTIN_COMPONENTs/material/shadow_surface";
 import { useEffect, useRef } from "react";
 import { clampDockPos } from "./dock_position";
 
@@ -104,7 +105,7 @@ export default function ControlDock({
     : { left: "50%", bottom: 16, transform: "translateX(-50%)" };
 
   return (
-    <div
+    <ShadowSurface
       ref={rootRef}
       style={{
         position: "absolute",
@@ -157,6 +158,6 @@ export default function ControlDock({
           flexWrap: "wrap",
         }}
       />
-    </div>
+    </ShadowSurface>
   );
 }

@@ -33,9 +33,13 @@ on:
       unchain_ref:
         description: "Unchain source ref selected once for the immutable release artifact (release-candidate requires a full 40-character revision)"
         type: string
-        # Paired #411 runtime: Gemini 4 Argon catalog and request limits,
-        # including the earlier #389 journal/interaction fixes.
-        default: 4e9d8c3bb228874bd81e4d80ea1905d4aa71110c
+        # Post-release #83 recovery fix; published v0.2.0 artifacts stay frozen.
+        # Compatibility is admitted by the actual artifact manifest.
+        default: e694d24cc7d9450dad72e7726d2a4d5a5a206064
+
+# Selected runtime source executes in reusable QA jobs. Cap their server-issued
+# cache tokens too: GITHUB_TOKEN permissions do not restrict cache writes.
+cache-mode: read
 
 permissions:
   contents: read
@@ -50,7 +54,7 @@ jobs:
     uses: ./.github/workflows/_shared-release-deterministic.yml
     with:
       qa_mode: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_scope == 'windows-playwright' && 'release' || (github.event_name == 'workflow_dispatch' && inputs.qa_mode) || (startsWith(github.ref, 'refs/tags/v') && 'release') || 'lite' }}
-      unchain_ref: ${{ github.event.inputs.unchain_ref || '4e9d8c3bb228874bd81e4d80ea1905d4aa71110c' }}
+      unchain_ref: ${{ github.event.inputs.unchain_ref || 'e694d24cc7d9450dad72e7726d2a4d5a5a206064' }}
       source_ref: ${{ github.ref }}
       source_sha: ${{ github.sha }}
       release_tag: ${{ github.ref_name }}
@@ -67,7 +71,7 @@ jobs:
         if: env.QA_MODE == 'release-candidate'
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Checkout release environment verifier
         if: env.QA_MODE == 'release-candidate'
@@ -125,7 +129,7 @@ jobs:
       target_id: ${{ matrix.target_id }}
       platform_name: ${{ matrix.name }}
       signing_platform: ${{ matrix.signing_platform }}
-      unchain_ref: ${{ github.event.inputs.unchain_ref || '4e9d8c3bb228874bd81e4d80ea1905d4aa71110c' }}
+      unchain_ref: ${{ github.event.inputs.unchain_ref || 'e694d24cc7d9450dad72e7726d2a4d5a5a206064' }}
       source_ref: ${{ github.ref }}
       source_sha: ${{ github.sha }}
       release_tag: ${{ github.ref_name }}
@@ -146,7 +150,7 @@ jobs:
       target_id: linux-x64
       platform_name: linux
       signing_platform: linux
-      unchain_ref: ${{ github.event.inputs.unchain_ref || '4e9d8c3bb228874bd81e4d80ea1905d4aa71110c' }}
+      unchain_ref: ${{ github.event.inputs.unchain_ref || 'e694d24cc7d9450dad72e7726d2a4d5a5a206064' }}
       source_ref: ${{ github.ref }}
       source_sha: ${{ github.sha }}
       release_tag: ${{ github.ref_name }}
@@ -167,7 +171,7 @@ jobs:
       target_id: windows-x64
       platform_name: windows
       signing_platform: windows
-      unchain_ref: ${{ github.event.inputs.unchain_ref || '4e9d8c3bb228874bd81e4d80ea1905d4aa71110c' }}
+      unchain_ref: ${{ github.event.inputs.unchain_ref || 'e694d24cc7d9450dad72e7726d2a4d5a5a206064' }}
       source_ref: ${{ github.ref }}
       source_sha: ${{ github.sha }}
       release_tag: ${{ github.ref_name }}

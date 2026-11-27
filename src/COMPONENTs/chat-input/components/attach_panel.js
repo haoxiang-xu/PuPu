@@ -1,3 +1,5 @@
+import ShadowSurface from "../../../BUILTIN_COMPONENTs/material/shadow_surface";
+import { SURFACE_DITHER_STYLE } from "../../../BUILTIN_COMPONENTs/material/surface_dither";
 import {
   forwardRef,
   startTransition,
@@ -5,6 +7,7 @@ import {
   useContext,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -20,11 +23,19 @@ import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
 import Slider from "../../../BUILTIN_COMPONENTs/input/slider";
 import Tooltip from "../../../BUILTIN_COMPONENTs/tooltip/tooltip";
 import { Select } from "../../../BUILTIN_COMPONENTs/select/select";
+import ModelPicker, { modelPickerTriggerStyle } from "../../../BUILTIN_COMPONENTs/select/model_picker";
 import AttachmentChipList from "./attachment_chip_list";
+import CommandTree from "./command_tree";
+import AgentAvatar from "../../agents/agent_avatar";
+import { buildAgentPickerTree } from "../../../SERVICEs/agent_picker_tree";
 import { QueueAttachSection } from "./queue_pile";
 import { WorkspaceModal } from "../../workspace/workspace_modal";
 import useChatInputToolkits from "../hooks/use_chat_input_toolkits";
 import { COMPUTER_TOOLKIT_ID } from "../constants";
+import {
+  SKELETON_AGENT_MISSING_REASON,
+  SKELETON_AGENT_RUNS_SAVED_DEFINITION,
+} from "../../../SERVICEs/skeleton_chat_selection";
 import useChatInputWorkspaces from "../hooks/use_chat_input_workspaces";
 import useAttachPanelLayout from "../hooks/use_attach_panel_layout";
 import {
@@ -34,12 +45,22 @@ import {
   writeAttachPanelLayout,
 } from "../../../SERVICEs/attach_panel_layout";
 import { emitModelCatalogRefresh } from "../../../SERVICEs/model_catalog_refresh";
+import { emitSkeletonLibraryRefresh } from "../../../SERVICEs/skeleton_library_refresh";
 import { hasContextCompositionEvidence } from "../../../SERVICEs/context_composition_v1";
 import {
   readFeatureFlags,
   subscribeFeatureFlags,
 } from "../../../SERVICEs/feature_flags";
 import ContextCompositionProgress from "./context_composition_progress";
+
+/* The Agent row's own value for "no Agent". A resource id can never be empty
+   and a legacy Recipe name can never be this, so it collides with neither. */
+const AGENT_DEFAULT = "__pupu_agent_default__";
+/* An Agent row's icon: its own glyph in the row's colour, as the Agents page
+   lists it. No presentation draws the default bot. */
+const agentRowIcon = (presentation) => (
+  <AgentAvatar variant="glyph" presentation={presentation || null} size={14} glyphScale={1} />
+);
 
 const MOVABLE_ATTACH_WIDGET_SET = new Set(MOVABLE_ATTACH_WIDGETS);
 
@@ -311,7 +332,7 @@ const NotchSliderRow = ({
       : "rgba(0,0,0,0.55)";
 
   return (
-    <div
+    <ShadowSurface
       data-testid={testId}
       data-picked={picked ? "true" : "false"}
       title={picked ? undefined : defaultHint}
@@ -329,7 +350,7 @@ const NotchSliderRow = ({
         boxShadow: grooveShadow,
       }}
     >
-      <span
+      <ShadowSurface as="span"
         style={{
           flexShrink: 0,
           display: "flex",
@@ -360,7 +381,7 @@ const NotchSliderRow = ({
         <span style={{ display: "block", textBox: "trim-both cap alphabetic" }}>
           {label}
         </span>
-      </span>
+      </ShadowSurface>
 
       {/* 4px of inset on both ends: the glass channel already insets its
           travel by its own cap radius, so only a hair of air is needed for
@@ -411,7 +432,7 @@ const NotchSliderRow = ({
       {/* the value well — pressed into the groove like the label well, lit
           only once something is picked. It reads the notch the track rests
           on, which is also what the request will carry. */}
-      <span
+      <ShadowSurface as="span"
         data-testid={readoutTestId}
         style={{
           flexShrink: 0,
@@ -433,8 +454,8 @@ const NotchSliderRow = ({
         }}
       >
         {notches[activeIndex].label}
-      </span>
-    </div>
+      </ShadowSurface>
+    </ShadowSurface>
   );
 };
 
@@ -582,6 +603,18 @@ const AttachPanel = forwardRef(({
   onWorkspaceIdsChange,
   selectedRecipeName = "Default",
   onSelectRecipe,
+  /* The legacy Recipe names. They were handed to this panel and never read by
+     it — there was no Agent row to read them in — and they are a second value
+     space in the row below, kept apart from the resource ids. */
+  recipeOptions = [],
+  /* The stored Skeleton Agents on offer ([{id, name}]), which of them this
+     chat runs, and how to change it. The id is the identity: a Skeleton
+     resource and a legacy Recipe can carry one spelling, and two resources can
+     too, so the name is only ever a label here. */
+  skeletonAgentOptions = [],
+  showAgentSelector: agentSelectorWanted = true,
+  selectedSkeletonAgentId = "",
+  onSelectSkeletonAgent,
   queueItems = [],
   onQueueUndo,
   contextCompositionBundle = null,
@@ -590,7 +623,7 @@ const AttachPanel = forwardRef(({
   onRequestInputFocus = () => {},
   onSelectorOpenChange = () => {},
 }, ref) => {
-  const { theme } = useContext(ConfigContext);
+  const { theme, setAppMode } = useContext(ConfigContext);
   const { t } = useTranslation();
   const highlight = themeHighlightColor(theme);
   const [workspaceModalOpen, setWorkspaceModalOpen] = useState(false);
@@ -688,6 +721,165 @@ const AttachPanel = forwardRef(({
     }
   }, [isAgentsFeatureEnabled, onSelectRecipe, selectedRecipeName]);
 
+  /* The same rule for a Skeleton Agent: with the feature off there is no row
+     to change it from, and a selection nobody can see would keep deciding
+     what every message runs. Cleared rather than ignored, so the chat's own
+     record says what it runs. */
+  useEffect(() => {
+    if (
+      !isAgentsFeatureEnabled &&
+      selectedSkeletonAgentId &&
+      onSelectSkeletonAgent
+    ) {
+      onSelectSkeletonAgent("");
+    }
+  }, [isAgentsFeatureEnabled, onSelectSkeletonAgent, selectedSkeletonAgentId]);
+
+  /* One Agent choice per chat, addressed by id.
+     `AGENT_DEFAULT` is this control's own value for "no Agent", never an id:
+     a resource id cannot be empty, so it can never collide with one. A legacy
+     Recipe keeps its own value space (`legacy:<name>`) and a Skeleton resource
+     its own (`skeleton:<id>`) — and the option that was picked is looked up in
+     a Map built from the same list, so a name that happens to look like an
+     encoded id decides nothing. */
+  /* The stored Agent the store itself runs for a chat with no Agent chosen:
+     the one active Agent named "Default" (SkeletonResourceStore.resolve,
+     default_if_unselected). It and "no Agent" are one choice to the person
+     choosing — two rows both saying Default was a list contradicting itself
+     — so it is not listed again; the default row carries its name and icon.
+     Picking that row stays what it always was (no Agent chosen); a chat that
+     already holds this resource keeps it and shows it as that row. */
+  const defaultAgentResource = useMemo(() => {
+    const named = (skeletonAgentOptions || []).filter(
+      (option) => option && option.name === "Default",
+    );
+    return named.length === 1 ? named[0] : null;
+  }, [skeletonAgentOptions]);
+  const agentOptions = useMemo(() => [
+    {
+      value: AGENT_DEFAULT,
+      label: defaultAgentResource ? defaultAgentResource.name : t("chat.attach.agent_default"),
+      icon: agentRowIcon(defaultAgentResource?.presentation),
+      pinned: true,
+    },
+    ...skeletonAgentOptions
+      .filter((option) => option !== defaultAgentResource)
+      .map((option) => ({
+        value: `skeleton:${option.id}`,
+        label: option.name,
+        icon: agentRowIcon(option.presentation),
+        /* places it in its folder on the Agents page — see agent_picker_tree */
+        resourceId: option.id,
+      })),
+    ...(recipeOptions || [])
+      .filter((option) => option && option.value && option.value !== "Default")
+      .map((option) => ({
+        value: `legacy:${option.value}`,
+        label: option.label || option.value,
+        icon: agentRowIcon(null),
+      })),
+  ], [defaultAgentResource, recipeOptions, skeletonAgentOptions, t]);
+  /* A Map, not an object: both key spaces are document-chosen text — a
+     resource id may be `constructor` and a Recipe may be named `__proto__` —
+     and a plain object would answer for keys nobody put in it. */
+  const agentChoiceByValue = useMemo(
+    () =>
+      new Map([
+        [AGENT_DEFAULT, { kind: "default" }],
+        ...skeletonAgentOptions.map((option) => [
+          `skeleton:${option.id}`,
+          { kind: "skeleton", id: option.id },
+        ]),
+        ...(recipeOptions || [])
+          .filter(
+            (option) => option && option.value && option.value !== "Default",
+          )
+          .map((option) => [
+            `legacy:${option.value}`,
+            { kind: "legacy", name: option.value },
+          ]),
+      ]),
+    [recipeOptions, skeletonAgentOptions],
+  );
+  const upgradedAliasOption = (skeletonAgentOptions || []).find(option =>
+    selectedRecipeName !== "Default" && Array.isArray(option.legacyNames) && option.legacyNames.includes(selectedRecipeName));
+  const agentSelectValue =
+    selectedSkeletonAgentId && defaultAgentResource && selectedSkeletonAgentId === defaultAgentResource.id
+      ? AGENT_DEFAULT
+      : selectedSkeletonAgentId
+    ? `skeleton:${selectedSkeletonAgentId}`
+    : upgradedAliasOption
+      ? `skeleton:${upgradedAliasOption.id}`
+    : selectedRecipeName && selectedRecipeName !== "Default"
+      ? `legacy:${selectedRecipeName}`
+      : AGENT_DEFAULT;
+  /* A chat can hold an Agent that is no longer on offer — archived, deleted,
+     or turned into a Workflow while this chat sat there. The row then still
+     shows what the chat names, and says it is unavailable, rather than
+     appearing to run the default Agent. */
+  const agentSelectionUnavailable =
+    Boolean(selectedSkeletonAgentId || (selectedRecipeName && selectedRecipeName !== "Default")) &&
+    !agentChoiceByValue.has(agentSelectValue);
+  const agentSelectOptions = useMemo(
+    () =>
+      agentSelectionUnavailable
+        ? [
+            ...agentOptions,
+            { value: agentSelectValue, label: t("chat.attach.agent_unavailable") },
+          ]
+        : agentOptions,
+    [agentOptions, agentSelectionUnavailable, agentSelectValue, t],
+  );
+  /* The list as the Agents page arranges it: its folders, its order. Read
+     when the picker opens — the folders are the Agents page's to change, and
+     this chat may have sat open while they were. With no folders it is the
+     flat list it always was. */
+  const agentPickerOpen = openSelector === "agent";
+  const agentTree = useMemo(
+    () => buildAgentPickerTree({ choices: agentSelectOptions }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [agentSelectOptions, agentPickerOpen],
+  );
+  const agentChoiceLabel = agentSelectOptions.find((option) => option.value === agentSelectValue)?.label
+    || t("chat.attach.agent_default");
+  const agentTriggerLabel = `${t("side_menu.agents")} · ${agentChoiceLabel}`;
+  const agentSelectionNotice = agentSelectionUnavailable
+    ? SKELETON_AGENT_MISSING_REASON
+    : selectedSkeletonAgentId
+      ? SKELETON_AGENT_RUNS_SAVED_DEFINITION
+      : undefined;
+  /* Whether the row is there at all.
+     It used to need something besides Default to show, which read as tidy and
+     was a trap: with no Agents saved yet and no legacy Recipes, the row was
+     absent — and the row IS the entrance that re-reads the saved library, so a
+     first Agent saved anywhere else could never be reached. An empty picker
+     that can be opened is the smaller price. A character chat is excluded: it
+     runs its character, the store forces its Agent id to "", and the model
+     pill beside this row is hidden there too. */
+  const showAgentSelector = isAgentsFeatureEnabled && showModelSelector && agentSelectorWanted;
+
+  const handleAgentSelect = useCallback(
+    (next) => {
+      const choice = agentChoiceByValue.get(next);
+      if (!choice) return;
+      /* Exactly one identity at a time: choosing either clears the other, so
+         no request can ever carry both — which the server refuses outright. */
+      if (choice.kind === "skeleton") {
+        if (onSelectRecipe) onSelectRecipe("Default");
+        if (onSelectSkeletonAgent) onSelectSkeletonAgent(choice.id);
+        return;
+      }
+      if (choice.kind === "legacy") {
+        if (onSelectSkeletonAgent) onSelectSkeletonAgent("");
+        if (onSelectRecipe) onSelectRecipe(choice.name);
+        return;
+      }
+      if (onSelectSkeletonAgent) onSelectSkeletonAgent("");
+      if (onSelectRecipe) onSelectRecipe("Default");
+    },
+    [agentChoiceByValue, onSelectRecipe, onSelectSkeletonAgent],
+  );
+
   const modelSelectOptions = modelOptions || [];
   /* Footer rows belong to the current selection, not to the list: the effort
      ladder when the model declares levels, the context-window slider when it
@@ -768,6 +960,49 @@ const AttachPanel = forwardRef(({
     }
   }, [onRequestInputFocus]);
 
+  const handleAgentOrganize = () => {
+    kbOpenedSelectorRef.current = null;
+    setOpenSelector(null);
+    setAppMode("agents");
+  };
+
+  const renderAgentTree = ({ highlighted_value, render_option, on_hover_row, on_visible_change }) => (
+    <CommandTree
+      data={agentTree.data}
+      root={agentTree.root}
+      activeNodeId={highlighted_value ?? null}
+      onHover={on_hover_row}
+      onVisibleChange={on_visible_change}
+      isDark={isDark}
+      bare
+      width="100%"
+      renderRow={({ node, depth }) => render_option(node.option, { depth })}
+    />
+  );
+
+  const handleAgentSelectorOpenChange = useCallback(
+    (next) => {
+      setOpenSelector(next ? "agent" : null);
+      /* Opening the list is the moment it has to be current: an Agent saved
+         since this chat was mounted — in the Builder, in this window or
+         another one — is otherwise not on offer at all. Announced rather than
+         read here, the same way the model pill does it: this component holds
+         no listing, and the page that does decides what to re-read. The
+         announcement is not throttled because the page coalesces by request
+         and ignores a late answer; a selection the chat already holds is
+         never dropped by a refresh. */
+      if (next) {
+        emitSkeletonLibraryRefresh({ reason: "agent_selector_opened" });
+      }
+      if (!next && kbOpenedSelectorRef.current === "agent") {
+        kbOpenedSelectorRef.current = null;
+        onRequestInputFocus();
+        setKbIndex(kbReturnIndexRef.current);
+      }
+    },
+    [onRequestInputFocus],
+  );
+
   const handleToolsOpenChange = useCallback(
     (next) => {
       if (next) {
@@ -813,6 +1048,7 @@ const AttachPanel = forwardRef(({
      queue segment are not movable. */
   const layout = useAttachPanelLayout();
   const widgetAvailable = {
+    agent: showAgentSelector,
     context_composition: hasContextComposition,
     attach: Boolean(onAttachFile && attachmentsEnabled),
     screenshot: Boolean(onAttachFile && onAttachScreenshot && attachmentsEnabled),
@@ -1336,6 +1572,9 @@ const AttachPanel = forwardRef(({
     if (id === "model") {
       kbOpenedSelectorRef.current = "model";
       handleModelSelectorOpenChange(true);
+    } else if (id === "agent") {
+      kbOpenedSelectorRef.current = "agent";
+      handleAgentSelectorOpenChange(true);
     } else if (id === "tools") {
       kbOpenedSelectorRef.current = "tools";
       handleToolsOpenChange(true);
@@ -1376,6 +1615,8 @@ const AttachPanel = forwardRef(({
     } else if (id === "link") {
       handleMoreOpenChange(false);
       if (onAttachLink) onAttachLink();
+    } else if (id === "agent") {
+      handleAgentSelectorOpenChange(true);
     } else if (id === "tools") {
       handleToolsOpenChange(true);
     } else if (id === "workspace") {
@@ -1562,10 +1803,6 @@ const AttachPanel = forwardRef(({
       ? "rgba(var(--pupu-surface-rgb),0.6)"
       : "rgba(var(--pupu-surface-rgb),0.72)";
 
-  const selectBg = isDark
-    ? "rgba(var(--pupu-text-rgb),0.07)"
-    : "rgba(var(--pupu-text-rgb),0.05)";
-
   /* ── Hover / press, aligned across the whole row ──────────────────────
      One gesture must not read as three different things. Before this, the
      model pill stacked the theme's hover wash on its own fill and landed at
@@ -1587,21 +1824,9 @@ const AttachPanel = forwardRef(({
   const hoverWash = textWash(HOVER_ALPHA);
   const pressWash = textWash(PRESS_ALPHA);
   const hoverWashOverFill = washOver(HOVER_ALPHA, SELECT_FILL_ALPHA);
-  const pressWashOverFill = washOver(PRESS_ALPHA, SELECT_FILL_ALPHA);
 
   /* shared pill style (model selector) */
-  const pillStyle = {
-    height: PILL_HEIGHT,
-    fontSize: 12,
-    color,
-    backgroundColor: selectBg,
-    borderRadius: floating ? 999 : 16,
-    outline: "none",
-    padding: "0 10px",
-    /* this control is filled, so its wash is solved against that fill */
-    hoverBackgroundColor: hoverWashOverFill,
-    activeBackgroundColor: pressWashOverFill,
-  };
+  const pillStyle = modelPickerTriggerStyle({ isDark, color, floating });
 
   /* icon-only buttons: every box is exactly PILL_HEIGHT square so the row's
      inner ring is a uniform 4px — hover circles (r16) + 4px inset = 20, the
@@ -1772,6 +1997,40 @@ const AttachPanel = forwardRef(({
   /* in the menu the Select's trigger wrapper has to stretch, or the plugin
      and workspace rows come out narrower than their neighbours */
   const MENU_TRIGGER_WRAP = { width: "100%", display: "flex" };
+  const agentSelect = (trigger, extra = {}) => (
+    <span
+      data-testid="attach-agent-row"
+      title={agentSelectionNotice}
+      style={{ display: "flex", alignItems: "center", ...(extra.trigger_wrapper_style ? { width: "100%" } : {}) }}
+    >
+      <Select
+        {...extra}
+        options={agentSelectOptions}
+        value={agentSelectValue}
+        set_value={handleAgentSelect}
+        placeholder={t("chat.attach.agent_default")}
+        disabled={modelSelectDisabled}
+        show_trigger_icon={false}
+        open={openSelector === "agent"}
+        on_open_change={handleAgentSelectorOpenChange}
+        dropdown_position="top"
+        variant="palette"
+        palette_chip="agent"
+        palette_rail
+        palette_tree={renderAgentTree}
+        /* Arranging Agents is the Agents page's job; the picker only picks.
+           Same word as the slash palette's own Organize. */
+        palette_actions={
+          typeof setAppMode === "function" ? (
+            <HeaderAction onAct={handleAgentOrganize} isDark={isDark} theme={theme}>
+              {t("commands.organize_action")}
+            </HeaderAction>
+          ) : null
+        }
+        custom_trigger={trigger}
+      />
+    </span>
+  );
   const toolsSelect = (trigger, extra = {}) => (
                 <Select
                   {...extra}
@@ -1895,6 +2154,35 @@ const AttachPanel = forwardRef(({
 
   const renderRowWidget = (id) => {
     switch (id) {
+      case "agent":
+        return (
+          <div style={{ position: "relative", display: "flex", borderRadius: 999 }}>
+            {kbGlow("agent")}
+            {agentSelect(
+              <Button
+                prefix_icon="bot"
+                ariaLabel={agentTriggerLabel}
+                title={agentSelectionNotice ? `${agentTriggerLabel}\n${agentSelectionNotice}` : agentTriggerLabel}
+                disabled={modelSelectDisabled}
+                dom_props={{
+                  "data-testid": "attach-agent-trigger",
+                  "aria-haspopup": "listbox",
+                  "aria-expanded": openSelector === "agent",
+                }}
+                style={{
+                  ...iconBtnStyle,
+                  width: PILL_HEIGHT,
+                  height: PILL_HEIGHT,
+                  borderRadius: 999,
+                  /* One colour whatever is chosen, like the other icons in
+                     the row: which Agent runs is the picker's to show (each
+                     row its own icon), not the trigger's. */
+                  color,
+                }}
+              />,
+            )}
+          </div>
+        );
       case "context_composition":
         return (
           <div
@@ -1992,6 +2280,19 @@ const AttachPanel = forwardRef(({
 
   const renderMenuWidget = (id, index, { inert = false } = {}) => {
     switch (id) {
+      case "agent": {
+        const picture = menuRow(id, index, {
+          icon: "bot",
+          label: t("side_menu.agents"),
+          /* never tinted: same as the trigger in the row */
+          inert,
+        });
+        return inert ? picture : (
+          <div key={id} title={agentTriggerLabel} style={{ display: "flex" }}>
+            {agentSelect(picture, { trigger_wrapper_style: MENU_TRIGGER_WRAP })}
+          </div>
+        );
+      }
       case "context_composition":
         return (
           <div
@@ -2141,7 +2442,7 @@ const AttachPanel = forwardRef(({
   const ghostPortal =
     dragGhost && typeof document !== "undefined"
       ? createPortal(
-          <span
+          <ShadowSurface as="span"
             data-widget={dragGhost.id}
             data-ghost="true"
             style={{
@@ -2165,7 +2466,7 @@ const AttachPanel = forwardRef(({
             <span style={{ display: "flex", pointerEvents: "none" }}>
               {renderRowWidget(dragGhost.id)}
             </span>
-          </span>,
+          </ShadowSurface>,
           document.body,
         )
       : null;
@@ -2280,7 +2581,7 @@ const AttachPanel = forwardRef(({
     );
   };
   const moreMenu = (
-    <div
+    <ShadowSurface
       ref={menuRef}
       data-testid="attach-more-menu"
       data-surface="palette"
@@ -2305,6 +2606,7 @@ const AttachPanel = forwardRef(({
         border: isDark
           ? "1px solid rgba(var(--pupu-text-rgb),0.10)"
           : "1px solid rgba(var(--pupu-text-rgb),0.09)",
+        ...SURFACE_DITHER_STYLE,
         backdropFilter: "blur(20px) saturate(130%)",
         WebkitBackdropFilter: "blur(20px) saturate(130%)",
         boxShadow: isDark
@@ -2355,7 +2657,7 @@ const AttachPanel = forwardRef(({
           ))}
         </>
       )}
-    </div>
+    </ShadowSurface>
   );
 
   const moreTargeted =
@@ -2469,7 +2771,7 @@ const AttachPanel = forwardRef(({
         isStreaming={isStreaming}
       />
 
-      <div
+      <ShadowSurface
         ref={rowRef}
         data-testid="attach-row"
         data-kb-active={kbActiveId || ""}
@@ -2490,6 +2792,7 @@ const AttachPanel = forwardRef(({
             : "1px solid transparent",
           ...(floating
             ? {
+                ...SURFACE_DITHER_STYLE,
                 backdropFilter: "blur(20px) saturate(130%)",
                 WebkitBackdropFilter: "blur(20px) saturate(130%)",
               }
@@ -2504,29 +2807,20 @@ const AttachPanel = forwardRef(({
           modelSelectOptions &&
           modelSelectOptions.length > 0 &&
           selectWrap(
-            <Select
+            <ModelPicker
               options={modelSelectOptions}
               value={modelSelectValue}
               set_value={handleSelectValueChange}
               placeholder={t("chat.attach.select_model")}
-              filterable={true}
-              filter_mode="panel"
-              search_placeholder={t("model_providers.search_models")}
               disabled={modelSelectDisabled}
-              show_trigger_icon={true}
               on_group_toggle={onGroupToggle}
               open={openSelector === "model"}
               on_open_change={handleModelSelectorOpenChange}
-              dropdown_position="top"
               style={{ ...pillStyle, maxWidth: 180 }}
-              variant="palette"
-              palette_chip="model"
-              palette_rail
               /* Picking a model never closes the palette: the effort row
                  below is the natural next choice, and switching between
                  models to compare them is a normal thing to do. The trigger
                  and an outside click remain the ways out. */
-              keep_open_on_select
               /* null, not an element that renders null: the footer slot draws
                  its own separator and padding, so an always-present child
                  would leave a rule and a band of empty height under every
@@ -2630,7 +2924,7 @@ const AttachPanel = forwardRef(({
             highlightRing={kbActiveId === "queue"}
           />
         ) : null}
-      </div>
+      </ShadowSurface>
 
       <WorkspaceModal
         open={workspaceModalOpen}

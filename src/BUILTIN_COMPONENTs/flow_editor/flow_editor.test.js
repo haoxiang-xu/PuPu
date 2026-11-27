@@ -524,3 +524,383 @@ describe("dragging a node is not a request to open it", () => {
     expect(node.style.cursor).toBe("grabbing");
   });
 });
+
+describe("FlowEditor viewport is readable and restorable", () => {
+  const nodes = [{ id: "a", x: 10, y: 20, ports: [] }];
+
+  test("both props are inert when absent, so nothing moves on mount", () => {
+    const { getByTestId } = render(wrap(<FlowEditor nodes={nodes} edges={[]} />));
+    /* An untouched viewport sits at the identity transform, so a graph that
+     * asked for neither prop is framed exactly as before. */
+    expect(getByTestId("flow-editor-viewport").style.transform).toBe(
+      "translate(0px, 0px) scale(1)",
+    );
+  });
+
+  test("the out ref carries the current viewport for a caller to stash", () => {
+    const out = { current: null };
+    render(
+      wrap(<FlowEditor nodes={nodes} edges={[]} viewport_out_ref={out} />),
+    );
+    expect(out.current).toEqual({ x: 0, y: 0, zoom: 1 });
+  });
+
+  test("a restored viewport is applied exactly, not approximated", () => {
+    const { getByTestId, rerender } = render(
+      wrap(<FlowEditor nodes={nodes} edges={[]} />),
+    );
+    rerender(
+      wrap(
+        <FlowEditor
+          nodes={nodes}
+          edges={[]}
+          restore_viewport={{ x: 42, y: -17, zoom: 1.5, token: 1 }}
+        />,
+      ),
+    );
+    expect(getByTestId("flow-editor-viewport").style.transform).toBe(
+      "translate(42px, -17px) scale(1.5)",
+    );
+  });
+
+  test("a restore without a token does nothing", () => {
+    /* The token is what makes the restore happen once. A value alone would
+     * fight every pan the user makes. */
+    const { getByTestId, rerender } = render(
+      wrap(<FlowEditor nodes={nodes} edges={[]} />),
+    );
+    rerender(
+      wrap(
+        <FlowEditor
+          nodes={nodes}
+          edges={[]}
+          restore_viewport={{ x: 42, y: -17, zoom: 1.5 }}
+        />,
+      ),
+    );
+    expect(getByTestId("flow-editor-viewport").style.transform).toBe(
+      "translate(0px, 0px) scale(1)",
+    );
+  });
+
+  test("the out ref follows a restore", () => {
+    const out = { current: null };
+    const { rerender } = render(
+      wrap(<FlowEditor nodes={nodes} edges={[]} viewport_out_ref={out} />),
+    );
+    rerender(
+      wrap(
+        <FlowEditor
+          nodes={nodes}
+          edges={[]}
+          viewport_out_ref={out}
+          restore_viewport={{ x: 5, y: 6, zoom: 2, token: 7 }}
+        />,
+      ),
+    );
+    expect(out.current).toEqual({ x: 5, y: 6, zoom: 2 });
+  });
+});
+
+describe("the out ref never lags the viewport it reports", () => {
+  const nodes = [{ id: "a", x: 10, y: 20, ports: [] }];
+
+  test("it is seeded before any gesture", () => {
+    const out = { current: null };
+    render(wrap(<FlowEditor nodes={nodes} edges={[]} viewport_out_ref={out} />));
+    expect(out.current).toEqual({ x: 0, y: 0, zoom: 1 });
+  });
+
+  test("a restore writes it at the same moment as the transform", () => {
+    /* Both come from one commit, so a caller reading the ref in the same tick
+     * as the change — during a wheel, or in a cleanup when the canvas closes
+     * right after one — cannot see the value from before it. */
+    const out = { current: null };
+    const { getByTestId, rerender } = render(
+      wrap(<FlowEditor nodes={nodes} edges={[]} viewport_out_ref={out} />),
+    );
+    rerender(
+      wrap(
+        <FlowEditor
+          nodes={nodes}
+          edges={[]}
+          viewport_out_ref={out}
+          restore_viewport={{ x: 9, y: 8, zoom: 2.25, token: 3 }}
+        />,
+      ),
+    );
+    expect(out.current).toEqual({ x: 9, y: 8, zoom: 2.25 });
+    expect(getByTestId("flow-editor-viewport").style.transform).toBe(
+      "translate(9px, 8px) scale(2.25)",
+    );
+  });
+
+  test("a caller's own value is not overwritten on mount", () => {
+    /* The seed only fills an empty ref: a canvas that remembered a viewport
+     * and handed it in must not have it reset to the origin. */
+    const out = { current: { x: 5, y: 5, zoom: 1.5 } };
+    render(wrap(<FlowEditor nodes={nodes} edges={[]} viewport_out_ref={out} />));
+    expect(out.current).toEqual({ x: 5, y: 5, zoom: 1.5 });
+  });
+});
+
+describe("a pan reaches the out ref too", () => {
+  const nodes = [{ id: "a", x: 10, y: 20, ports: [] }];
+
+  test("the two refs are one object, so an in-place pan is visible outside", () => {
+    /* The pan path moves the viewport by mutating it between commits. With a
+     * caller holding a second object, a pan would only show up at the next
+     * zoom — which is how a remembered viewport ends up one gesture behind. */
+    const out = { current: { x: 3, y: 4, zoom: 1.2 } };
+    const { container } = render(
+      wrap(<FlowEditor nodes={nodes} edges={[]} viewport_out_ref={out} />),
+    );
+    const canvas = container.firstChild;
+    fireEvent.mouseDown(canvas, { clientX: 0, clientY: 0, button: 1 });
+    fireEvent.mouseMove(window, { clientX: 50, clientY: 25 });
+    expect(out.current.x).toBe(53);
+    expect(out.current.y).toBe(29);
+    fireEvent.mouseUp(window, { clientX: 50, clientY: 25 });
+    expect(out.current).toMatchObject({ x: 53, y: 29 });
+  });
+});
+
+describe("a wheel zoom is published the moment it happens", () => {
+  const nodes = [{ id: "a", x: 10, y: 20, ports: [] }];
+
+  test("the out ref carries the new zoom before any frame is scheduled", () => {
+    /* The zoom replaced the shared viewport object and deferred the commit to
+     * an animation frame. A canvas closing right after the gesture read the
+     * value from before it — the 1.04 that never arrived. */
+    const out = { current: null };
+    const { container } = render(
+      wrap(<FlowEditor nodes={nodes} edges={[]} viewport_out_ref={out} />),
+    );
+    const canvas = container.firstChild;
+    canvas.getBoundingClientRect = () => ({ left: 0, top: 0, width: 800, height: 600 });
+    fireEvent.wheel(canvas, { deltaY: -120, clientX: 0, clientY: 0 });
+    expect(out.current.zoom).toBeCloseTo(1.04, 5);
+  });
+
+  test("a second tick compounds on the first", () => {
+    const out = { current: null };
+    const { container } = render(
+      wrap(<FlowEditor nodes={nodes} edges={[]} viewport_out_ref={out} />),
+    );
+    const canvas = container.firstChild;
+    canvas.getBoundingClientRect = () => ({ left: 0, top: 0, width: 800, height: 600 });
+    fireEvent.wheel(canvas, { deltaY: -120, clientX: 0, clientY: 0 });
+    fireEvent.wheel(canvas, { deltaY: -120, clientX: 0, clientY: 0 });
+    expect(out.current.zoom).toBeCloseTo(1.04 * 1.04, 5);
+  });
+
+  test("a pan after a zoom still reaches the out ref", () => {
+    /* The zoom hands over a new object; the pan then moves it in place, so the
+     * two refs have to still be the same one afterwards. */
+    const out = { current: null };
+    const { container } = render(
+      wrap(<FlowEditor nodes={nodes} edges={[]} viewport_out_ref={out} />),
+    );
+    const canvas = container.firstChild;
+    canvas.getBoundingClientRect = () => ({ left: 0, top: 0, width: 800, height: 600 });
+    fireEvent.wheel(canvas, { deltaY: -120, clientX: 0, clientY: 0 });
+    const zoomed = out.current.x;
+    fireEvent.mouseDown(canvas, { clientX: 0, clientY: 0, button: 1 });
+    fireEvent.mouseMove(window, { clientX: 30, clientY: 0 });
+    expect(out.current.x).toBe(zoomed + 30);
+  });
+});
+
+describe("an id the graph chose, used as a table key", () => {
+  /* A node id and an edge id are data: the Skeleton store saves a whole
+     Workflow whose Start is named `__proto__`, its own check passes it, and
+     the installed runtime executes it, completing both nodes — frozen in
+     `COMPONENTs/agents/pages/recipes_page/skeleton_node_id_capture`.
+     Drawn here, the port table answered with `Object.prototype` and
+     `map[id].add(...)` threw before anything appeared. */
+
+  const PROTOTYPE_NAMES = ["__proto__", "constructor", "toString", "valueOf"];
+
+  const two_nodes = (id) => [
+    { id, x: 10, y: 20, ports: [{ id: "out", side: "right", kind: "out" }] },
+    { id: "end", x: 200, y: 20, ports: [{ id: "in", side: "left", kind: "in" }] },
+  ];
+  const one_edge = (id) => [
+    {
+      id: "flow",
+      source_node_id: id,
+      source_port_id: "out",
+      target_node_id: "end",
+      target_port_id: "in",
+    },
+  ];
+
+  test("every one of them draws, with its ports and its edge", () => {
+    PROTOTYPE_NAMES.forEach((id) => {
+      const { container, unmount } = render(
+        wrap(<FlowEditor nodes={two_nodes(id)} edges={one_edge(id)} />),
+      );
+      /* The node is in the DOM under its own id ... */
+      expect([id, !!container.querySelector(`[data-flow-node-id="${id}"]`)]).toEqual([
+        id,
+        true,
+      ]);
+      /* ... beside the ordinary one, and the edge between them is drawn. */
+      expect(container.querySelector('[data-flow-node-id="end"]')).toBeTruthy();
+      expect(container.querySelectorAll("path").length).toBeGreaterThan(0);
+      unmount();
+    });
+  });
+
+  test("its node element is registered and released like any other", () => {
+    /* `node_elements_ref.current[id] = el` on a plain object set the table's
+       prototype to a DOM element instead of storing it, and `delete` could
+       not take it back out. Observable through selection, which looks the
+       element up by id to measure it. */
+    const { container, unmount } = render(
+      wrap(<FlowEditor nodes={two_nodes("__proto__")} edges={one_edge("__proto__")} />),
+    );
+    const node = container.querySelector('[data-flow-node-id="__proto__"]');
+    fireEvent.mouseDown(node, { clientX: 0, clientY: 0, button: 0 });
+    fireEvent.mouseUp(window, { clientX: 0, clientY: 0 });
+    expect(container.querySelector('[data-flow-node-id="__proto__"]')).toBeTruthy();
+    unmount();
+  });
+
+  test("an edge id that names a prototype member draws too", () => {
+    const { container } = render(
+      wrap(
+        <FlowEditor
+          nodes={two_nodes("start")}
+          edges={[
+            {
+              id: "__proto__",
+              source_node_id: "start",
+              source_port_id: "out",
+              target_node_id: "end",
+              target_port_id: "in",
+            },
+          ]}
+        />,
+      ),
+    );
+    expect(container.querySelectorAll("path").length).toBeGreaterThan(0);
+  });
+
+  test("ordinary ids are unchanged", () => {
+    const { container } = render(
+      wrap(<FlowEditor nodes={two_nodes("start")} edges={one_edge("start")} />),
+    );
+    expect(container.querySelector('[data-flow-node-id="start"]')).toBeTruthy();
+    expect(container.querySelector('[data-flow-node-id="end"]')).toBeTruthy();
+  });
+});
+
+/* eslint-disable testing-library/no-container, testing-library/no-node-access -- the port dots carry no role; they are found by the data attributes the editor stamps on them. */
+describe("a port that anchors itself along its side (#357)", () => {
+  const { get_port_position } = require("./utils");
+  const dims = { a: { width: 230, height: 150 } };
+
+  test("the edge endpoint and the drawn dot both sit at the anchor, not the fraction", () => {
+    const node = { id: "a", x: 100, y: 50, ports: [
+      { id: "in", side: "left", kind: "in", anchor: 27 },
+      { id: "out", side: "right", kind: "out", anchor: 27 },
+      { id: "top", side: "top", kind: "attach", anchor: 40 },
+    ] };
+    expect(get_port_position(node, "in", dims)).toEqual({ x: 100, y: 77, side: "left" });
+    expect(get_port_position(node, "out", dims)).toEqual({ x: 330, y: 77, side: "right" });
+    expect(get_port_position(node, "top", dims)).toEqual({ x: 140, y: 50, side: "top" });
+    const { container } = render(wrap(<FlowEditor nodes={[node]} edges={[]} />));
+    expect(container.querySelector('[data-node-id="a"][data-port-id="in"]').style.top).toBe("27px");
+    expect(container.querySelector('[data-node-id="a"][data-port-id="out"]').style.top).toBe("27px");
+    expect(container.querySelector('[data-node-id="a"][data-port-id="top"]').style.left).toBe("40px");
+  });
+
+  test("without an anchor, or with one that is not a number, nothing changes", () => {
+    const node = { id: "a", x: 100, y: 50, ports: [
+      { id: "in", side: "left", kind: "in" },
+      { id: "out", side: "right", kind: "out", anchor: "27" },
+    ] };
+    expect(get_port_position(node, "in", dims)).toEqual({ x: 100, y: 125, side: "left" });
+    expect(get_port_position(node, "out", dims)).toEqual({ x: 330, y: 125, side: "right" });
+    const { container } = render(wrap(<FlowEditor nodes={[node]} edges={[]} />));
+    expect(container.querySelector('[data-node-id="a"][data-port-id="in"]').style.top).toBe("50%");
+    expect(container.querySelector('[data-node-id="a"][data-port-id="out"]').style.top).toBe("50%");
+  });
+});
+/* eslint-enable testing-library/no-container, testing-library/no-node-access */
+
+/* eslint-disable testing-library/no-container, testing-library/no-node-access -- port dots and edge paths carry no role; they are found by the data attributes the editor stamps on them. */
+describe("a node that animates its own size (node size motion)", () => {
+  const { get_port_position, NODE_SIZE_MOTION_EVENT, PORT_ANCHOR_EDGE_INSET } = require("./utils");
+  const { act } = require("@testing-library/react");
+  const ports = [
+    { id: "in", side: "left", kind: "in", anchor: 27 },
+    { id: "row3", side: "right", kind: "out", anchor: 90 },
+    { id: "bot", side: "bottom", kind: "attach" },
+  ];
+  const node = { id: "a", x: 100, y: 50, ports };
+
+  test("at rest an anchor is exact; while resizing it stays inside the edge the body has reached", () => {
+    expect(get_port_position(node, "row3", { a: { width: 200, height: 60 } })).toEqual({ x: 300, y: 140, side: "right" });
+    expect(get_port_position(node, "row3", { a: { width: 200, height: 60, resizing: true } }))
+      .toEqual({ x: 300, y: 50 + 60 - PORT_ANCHOR_EDGE_INSET, side: "right" });
+    /* an anchor already inside the body is untouched either way */
+    expect(get_port_position(node, "in", { a: { width: 200, height: 60, resizing: true } })).toEqual({ x: 100, y: 77, side: "left" });
+    /* a bottom port reads the measured (animated) height */
+    expect(get_port_position(node, "bot", { a: { width: 200, height: 73.5, resizing: true } }).y).toBe(50 + 73.5);
+  });
+
+  test("the edge re-draws from each ResizeObserver report of the animated height, and the dot clamps only while moving", () => {
+    const observers = [];
+    const original = global.ResizeObserver;
+    const offset = Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, "offsetHeight");
+    let height = 60;
+    global.ResizeObserver = class {
+      constructor(callback) {
+        this.callback = callback;
+        observers.push(this);
+      }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
+    Object.defineProperty(window.HTMLElement.prototype, "offsetHeight", {
+      configurable: true,
+      get() {
+        return this.getAttribute && this.getAttribute("data-flow-node-id") === "a" ? height : 0;
+      },
+    });
+    try {
+      const other = { id: "b", x: 400, y: 50, ports: [{ id: "top", side: "top", kind: "attach" }] };
+      const { container } = render(wrap(
+        <FlowEditor
+          nodes={[node, other]}
+          edges={[{ id: "e", source_node_id: "a", source_port_id: "bot", target_node_id: "b", target_port_id: "top" }]}
+          render_node={(n) => <div data-content={n.id}>{n.id}</div>}
+        />,
+      ));
+      const edge_d = () => container.querySelector('[data-flow-edge-id="e"]').getAttribute("d");
+      const report = () => act(() => observers.forEach((o) => o.callback([])));
+      report();
+      expect(edge_d()).toContain(`${50 + 60}`);
+      const content = container.querySelector('[data-content="a"]');
+      act(() => content.dispatchEvent(new window.CustomEvent(NODE_SIZE_MOTION_EVENT, { bubbles: true, detail: { running: true } })));
+      const dot = container.querySelector('[data-node-id="a"][data-port-id="row3"]');
+      /* jsdom drops CSS min(); the attribute says the clamp is on (the
+         Chromium harness checks the computed position). */
+      expect(dot.getAttribute("data-anchor-clamped")).toBe("true");
+      /* one frame of the spring: the edge end follows the reported height */
+      height = 71.5;
+      report();
+      expect(edge_d()).toContain(`${50 + 71.5}`);
+      act(() => content.dispatchEvent(new window.CustomEvent(NODE_SIZE_MOTION_EVENT, { bubbles: true, detail: { running: false } })));
+      expect(dot.style.top).toBe("90px");
+      expect(dot.hasAttribute("data-anchor-clamped")).toBe(false);
+    } finally {
+      global.ResizeObserver = original;
+      if (offset) Object.defineProperty(window.HTMLElement.prototype, "offsetHeight", offset);
+    }
+  });
+});
+/* eslint-enable testing-library/no-container, testing-library/no-node-access */

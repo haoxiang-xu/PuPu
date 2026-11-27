@@ -1,6 +1,6 @@
 import React from "react";
 import { act } from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import RecipesPage from "../recipes_page";
 import { api } from "../../../../SERVICEs/api";
 import { writeFeatureFlags } from "../../../../SERVICEs/feature_flags";
@@ -77,45 +77,10 @@ jest.mock("../../../../BUILTIN_COMPONENTs/explorer/explorer", () => {
   };
 });
 
-jest.mock("./recipe_canvas", () => {
-  return function MockRecipeCanvas({ recipe }) {
-    return <div>Canvas {recipe?.name || ""}</div>;
-  };
-});
-
 jest.mock("./detail_panel/detail_panel", () => {
   return function MockDetailPanel() {
     return null;
   };
-});
-
-test("recipe list shows Explore as a workflow", async () => {
-  window.localStorage.clear();
-  mockExplorerProps.length = 0;
-  api.unchain.listRecipes.mockResolvedValue({
-    recipes: [{ name: "Default" }, { name: "Explore", description: "scout" }],
-  });
-  api.unchain.getRecipe.mockImplementation(async (name) => ({
-    name,
-    nodes: [],
-    edges: [],
-  }));
-
-  render(
-    <RecipesPage
-      isDark={false}
-      selectedNodeId={null}
-      onSelectNode={() => {}}
-      fullscreen={false}
-    />,
-  );
-
-  fireEvent.click(await screen.findByText("Explore"));
-
-  await waitFor(() =>
-    expect(api.unchain.getRecipe).toHaveBeenLastCalledWith("Explore"),
-  );
-  expect(screen.queryByText("Agent Templates")).not.toBeInTheDocument();
 });
 
 test("Memory V2 stays off the Agent Builder surface when enabled", async () => {
@@ -140,15 +105,16 @@ test("Memory V2 stays off the Agent Builder surface when enabled", async () => {
     />,
   );
 
-  expect(await screen.findByText("Default")).toBeInTheDocument();
+  await waitFor(() => expect(mockExplorerProps.length).toBeGreaterThan(0));
   expect(screen.queryByText("Memory Agent")).not.toBeInTheDocument();
   expect(screen.queryByText("System Agents")).not.toBeInTheDocument();
-  const explorerProps = mockExplorerProps.at(-1);
-  expect(explorerProps.root).toEqual(["Default", "Explore"]);
-  expect(Object.keys(explorerProps.data)).toEqual(["Default", "Explore"]);
+  /* Legacy recipes are not listed in the Agents explorer at all. */
+  mockExplorerProps.forEach((props) => {
+    expect(Object.keys(props.data).filter((id) => id.startsWith("legacy:") || id === "group:not-migrated")).toEqual([]);
+  });
 });
 
-test("recipe list uses Explorer drag reorder and the generic add icon", async () => {
+test("native resource list uses Explorer drag reorder and keeps legacy placement separate", async () => {
   window.localStorage.clear();
   mockExplorerProps.length = 0;
   window.localStorage.setItem(
@@ -167,9 +133,11 @@ test("recipe list uses Explorer drag reorder and the generic add icon", async ()
       folderOrder: ["f_team"],
     }),
   );
-  api.unchain.listRecipes.mockResolvedValue({
-    recipes: [{ name: "Alpha" }, { name: "Beta" }],
-  });
+  api.unchain.listRecipes.mockResolvedValue({ recipes: [] });
+  api.unchain.listSkeletonResources = jest.fn().mockResolvedValue({ resources: [
+    { id: "Alpha", name: "Alpha", kind: "agent", archived: false },
+    { id: "Beta", name: "Beta", kind: "agent", archived: false },
+  ] });
   api.unchain.getRecipe.mockImplementation(async (name) => ({
     name,
     nodes: [],
@@ -189,7 +157,7 @@ test("recipe list uses Explorer drag reorder and the generic add icon", async ()
   expect(screen.getByText("add")).toBeInTheDocument();
   expect(screen.queryByText("chat_new")).not.toBeInTheDocument();
 
-  const explorerProps = mockExplorerProps.at(-1);
+  const explorerProps = mockExplorerProps.filter((props) => props.draggable).at(-1);
   expect(explorerProps.draggable).toBe(true);
   expect(typeof explorerProps.on_reorder).toBe("function");
 
@@ -199,16 +167,17 @@ test("recipe list uses Explorer drag reorder and the generic add icon", async ()
         ...explorerProps.data,
         "folder:f_team": {
           ...explorerProps.data["folder:f_team"],
-          children: ["Alpha"],
+          children: ["resource:Alpha"],
         },
       },
-      ["folder:f_team", "Beta"],
+      ["folder:f_team", "resource:Beta"],
     );
   });
 
   expect(JSON.parse(window.localStorage.getItem(STORAGE_KEY))).toMatchObject({
-    recipeFolder: { Alpha: "f_team" },
-    itemOrder: {
+    recipeFolder: {},
+    resourceFolder: { Alpha: "f_team" },
+    resourceOrder: {
       __root__: ["folder:f_team", "Beta"],
       f_team: ["Alpha"],
     },

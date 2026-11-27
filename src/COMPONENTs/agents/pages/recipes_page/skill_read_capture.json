@@ -1,0 +1,74 @@
+{
+ "producer": "PuPu sidecar routes on the fixed installed runtime (offline, isolated HOME with three user skills)",
+ "inventory": {
+  "request": {
+   "method": "GET",
+   "path": "/skills/inventory?include_user_dirs=true"
+  },
+  "status": 200,
+  "body_text": "{\"diagnostics\":[{\"kind\":\"shadowed\",\"message\":\"skill 'notes' is shadowed by a higher-priority skill from source 'user-unchain'\",\"name\":\"notes\",\"source\":\"user-agents\",\"source_id\":\"/Users/red/.codex/artifacts/pupu-356/356-parallel-dispatch-20261022/native-advanced/steps-352/probe/skill-capture-sandbox-01/.agents/skills/notes/SKILL.md\"}],\"revision\":\"sha256:00e526002892b719bac58f3cd07be5bbb344419d81e918cc8f272c3bfbe33a29\",\"schema\":\"pupu.skill_inventory.v1\",\"skills\":[{\"aliases\":[],\"description\":\"capture skill drafts\",\"id\":\"user-agents:/Users/red/.codex/artifacts/pupu-356/356-parallel-dispatch-20261022/native-advanced/steps-352/probe/skill-capture-sandbox-01/.agents/skills/drafts/SKILL.md:drafts\",\"model_invocable\":true,\"name\":\"drafts\",\"reserved\":false,\"source\":\"user-agents\",\"source_id\":\"/Users/red/.codex/artifacts/pupu-356/356-parallel-dispatch-20261022/native-advanced/steps-352/probe/skill-capture-sandbox-01/.agents/skills/drafts/SKILL.md\",\"user_invocable\":true},{\"aliases\":[],\"description\":\"capture skill notes\",\"id\":\"user-unchain:/Users/red/.codex/artifacts/pupu-356/356-parallel-dispatch-20261022/native-advanced/steps-352/probe/skill-capture-sandbox-01/.unchain/skills/notes/SKILL.md:notes\",\"model_invocable\":true,\"name\":\"notes\",\"reserved\":false,\"source\":\"user-unchain\",\"source_id\":\"/Users/red/.codex/artifacts/pupu-356/356-parallel-dispatch-20261022/native-advanced/steps-352/probe/skill-capture-sandbox-01/.unchain/skills/notes/SKILL.md\",\"user_invocable\":true}]}\n"
+ },
+ "preview_notes": {
+  "request": {
+   "method": "POST",
+   "path": "/skeleton_skills/preview",
+   "body": {
+    "skill": {
+     "source": "user-unchain",
+     "source_id": "/Users/red/.codex/artifacts/pupu-356/356-parallel-dispatch-20261022/native-advanced/steps-352/probe/skill-capture-sandbox-01/.unchain/skills/notes/SKILL.md",
+     "name": "notes"
+    },
+    "include_user_dirs": true
+   }
+  },
+  "status": 200,
+  "body_text": "{\"body\":\"Notes for the builder\\n\\nUse these steps:\\n1. read\\n2. write\",\"bytes\":56,\"identity\":{\"name\":\"notes\",\"source\":\"user-unchain\",\"source_id\":\"/Users/red/.codex/artifacts/pupu-356/356-parallel-dispatch-20261022/native-advanced/steps-352/probe/skill-capture-sandbox-01/.unchain/skills/notes/SKILL.md\"},\"revision\":\"sha256:51549ac52077736c6171640348cf457580f3bb9db9358094ec8974a247d15f47\",\"schema\":\"pupu.skeleton_skill_preview.v1\"}\n"
+ },
+ "preview_drafts": {
+  "request": {
+   "method": "POST",
+   "path": "/skeleton_skills/preview",
+   "body": {
+    "skill": {
+     "source": "user-agents",
+     "source_id": "/Users/red/.codex/artifacts/pupu-356/356-parallel-dispatch-20261022/native-advanced/steps-352/probe/skill-capture-sandbox-01/.agents/skills/drafts/SKILL.md",
+     "name": "drafts"
+    },
+    "include_user_dirs": true
+   }
+  },
+  "status": 200,
+  "body_text": "{\"body\":\"Drafting rules \\u2014 \\u00fcn\\u00efcode\",\"bytes\":28,\"identity\":{\"name\":\"drafts\",\"source\":\"user-agents\",\"source_id\":\"/Users/red/.codex/artifacts/pupu-356/356-parallel-dispatch-20261022/native-advanced/steps-352/probe/skill-capture-sandbox-01/.agents/skills/drafts/SKILL.md\"},\"revision\":\"sha256:155ec9b86104258bc204eec3e98e92c5bf5197f35cfbe0b7923856d4a98bb8fd\",\"schema\":\"pupu.skeleton_skill_preview.v1\"}\n"
+ },
+ "preview_shadowed": {
+  "request": {
+   "method": "POST",
+   "path": "/skeleton_skills/preview",
+   "body": {
+    "skill": {
+     "source": "user-agents",
+     "source_id": "/Users/red/.codex/artifacts/pupu-356/356-parallel-dispatch-20261022/native-advanced/steps-352/probe/skill-capture-sandbox-01/.agents/skills/notes/SKILL.md",
+     "name": "notes"
+    },
+    "include_user_dirs": true
+   }
+  },
+  "status": 404,
+  "body_text": "{\"error\":{\"code\":\"identity_mismatch\",\"message\":\"this skill is not available as identified\",\"path\":[\"skill\"]}}\n"
+ },
+ "preview_malformed": {
+  "request": {
+   "method": "POST",
+   "path": "/skeleton_skills/preview",
+   "body": {
+    "skill": {
+     "source": "user-unchain",
+     "name": "notes"
+    },
+    "include_user_dirs": true
+   }
+  },
+  "status": 400,
+  "body_text": "{\"error\":{\"code\":\"missing_field\",\"message\":\"required field is missing\",\"path\":[\"skill\",\"source_id\"]}}\n"
+ }
+}

@@ -1,0 +1,889 @@
+{
+ "source": {
+  "path": "/Users/red/.codex/artifacts/pupu-357/cold-settlement-desktop-03-20261027/out/cold-metadata-repro.json",
+  "sha256": "f21cef5b839160025f348cbdcee0a257e58c90cdac3cca345af8c8a1d7acea36",
+  "sources": [
+   {
+    "path": "out/chat-before-cold.db",
+    "sha256": "2e4443ede9b8280e140b68cb49c1483652cb2991917a4c28a694ce0b0cab98cd"
+   },
+   {
+    "path": "state-readback/profile/chats.db",
+    "sha256": "f49d78bce3461c167a6643be7a511bae1f76cf798738473759a1fd5c310899b8"
+   },
+   {
+    "path": "run-02/observations.jsonl",
+    "sha256": "6bb3ffdc14d84c56a24047dacd5780794698c85fdc0b02da863675b2a4f7db6b"
+   }
+  ]
+ },
+ "chat_id": "chat-1793075289662-92df79843f5c0fd07f69c05b16d2e9c6",
+ "source_run_id": "chat-1793075289662-92df79843f5c0fd07f69c05b16d2e9c6:kernel.reviewer.1:3182f753-957e-5313-8a68-e97033ba2ca4",
+ "before_message": {
+  "id": "assistant-1793075292757-7540a5829634520bc2de445434e0596f",
+  "role": "assistant",
+  "content": "",
+  "createdAt": 1793075292757,
+  "updatedAt": 1793075296356,
+  "status": "done",
+  "traceFrames": [
+   {
+    "seq": 1,
+    "ts": 1793075292789,
+    "type": "stream_started",
+    "run_id": "unchain-1793075292760-60414abcd77c68",
+    "stage": "runtime_event",
+    "links": {
+     "parent_run_id": null,
+     "parent_event_id": null,
+     "caused_by_event_id": null,
+     "step_id": null,
+     "tool_call_id": null,
+     "interaction_id": null,
+     "artifact_id": null,
+     "workspace_change_set_id": null,
+     "plan_id": null,
+     "channel_id": null,
+     "team_id": null
+    },
+    "event_id": "evt_54e14caa0e234303845a92d015dd867a",
+    "session_id": "chat-1793075289662-92df79843f5c0fd07f69c05b16d2e9c6",
+    "iteration": null,
+    "payload": {
+     "thread_id": "chat-1793075289662-92df79843f5c0fd07f69c05b16d2e9c6",
+     "model": "ollama:unchain-unset",
+     "trace_level": "minimal",
+     "runtime_event_id": "evt_54e14caa0e234303845a92d015dd867a"
+    }
+   },
+   {
+    "seq": 2,
+    "ts": 1793075293263,
+    "type": "iteration_started",
+    "run_id": "node-attempt.efd5fe91c5db11ab999fa399ff7d319335223ff5287a9a86446e3a93531f2f22",
+    "stage": "runtime_event",
+    "links": {
+     "parent_run_id": null,
+     "parent_event_id": null,
+     "caused_by_event_id": null,
+     "step_id": null,
+     "tool_call_id": null,
+     "interaction_id": null,
+     "artifact_id": null,
+     "workspace_change_set_id": null,
+     "plan_id": null,
+     "channel_id": null,
+     "team_id": null
+    },
+    "event_id": "evt_efe33de032cc411cbb70d32ee57814f9",
+    "session_id": "chat-1793075289662-92df79843f5c0fd07f69c05b16d2e9c6",
+    "iteration": 0,
+    "payload": {
+     "iteration": 0,
+     "runtime_event_id": "evt_efe33de032cc411cbb70d32ee57814f9"
+    }
+   },
+   {
+    "seq": 4,
+    "ts": 1793075293689,
+    "type": "tool_call",
+    "run_id": "node-attempt.efd5fe91c5db11ab999fa399ff7d319335223ff5287a9a86446e3a93531f2f22",
+    "stage": "runtime_event",
+    "links": {
+     "parent_run_id": null,
+     "parent_event_id": null,
+     "caused_by_event_id": null,
+     "step_id": "tool:qa-retention-parked-old-delegate",
+     "tool_call_id": "qa-retention-parked-old-delegate",
+     "interaction_id": null,
+     "artifact_id": null,
+     "workspace_change_set_id": null,
+     "plan_id": null,
+     "channel_id": null,
+     "team_id": null
+    },
+    "event_id": "evt_c0af48bfa80b4771bdf485617df46c27",
+    "session_id": "chat-1793075289662-92df79843f5c0fd07f69c05b16d2e9c6",
+    "payload": {
+     "step_id": "tool:qa-retention-parked-old-delegate",
+     "step_type": "tool",
+     "tool_name": "delegate_to_subagent",
+     "call_id": "qa-retention-parked-old-delegate",
+     "arguments": {
+      "target": "Reviewer",
+      "task": "review using your stored instructions"
+     },
+     "runtime_source_type": "tool_call",
+     "runtime_event_id": "evt_c0af48bfa80b4771bdf485617df46c27"
+    }
+   },
+   {
+    "seq": 6,
+    "ts": 1793075295365,
+    "type": "tool_result",
+    "run_id": "node-attempt.efd5fe91c5db11ab999fa399ff7d319335223ff5287a9a86446e3a93531f2f22",
+    "stage": "runtime_event",
+    "links": {
+     "parent_run_id": null,
+     "parent_event_id": null,
+     "caused_by_event_id": null,
+     "step_id": "tool:qa-retention-parked-old-delegate",
+     "tool_call_id": "qa-retention-parked-old-delegate",
+     "interaction_id": null,
+     "artifact_id": null,
+     "workspace_change_set_id": null,
+     "plan_id": null,
+     "channel_id": null,
+     "team_id": null
+    },
+    "event_id": "evt_cd57c824d0d449d088f4364d4d253b9f",
+    "session_id": "chat-1793075289662-92df79843f5c0fd07f69c05b16d2e9c6",
+    "payload": {
+     "step_id": "tool:qa-retention-parked-old-delegate",
+     "step_type": "tool",
+     "tool_name": "delegate_to_subagent",
+     "call_id": "qa-retention-parked-old-delegate",
+     "status": "success",
+     "result": {
+      "content_bytes": 72,
+      "content_sha256": "5bfd9dfda3aeb4126ee3047db025816dbd1f158fcc0ad453803df82ffae49666",
+      "full_output_ref": "unchain://context/v1/eyJmcmFnbWVudCI6IiIsImlkIjoiYXJ0aWZhY3QtZGNkODVkMmVlNzE3YzE0NmMzOWU3MDQ0OGNkOWIwM2U2MGRmMmYzZWFjYzk5ZDgzYzcxMjY0NDIwOWIwOTBhMiIsImtpbmQiOiJhcnRpZmFjdCIsInJldmlzaW9uIjoxfQ",
+      "inline": true,
+      "preview": "{\"schema\":\"unchain.skeleton_subagent_wait_marker.v1\",\"status\":\"waiting\"}",
+      "projection": "default",
+      "read_request": {
+       "tool": "context_content_read",
+       "arguments": {
+        "ref": "unchain://context/v1/eyJmcmFnbWVudCI6IiIsImlkIjoiYXJ0aWZhY3QtZGNkODVkMmVlNzE3YzE0NmMzOWU3MDQ0OGNkOWIwM2U2MGRmMmYzZWFjYzk5ZDgzYzcxMjY0NDIwOWIwOTBhMiIsImtpbmQiOiJhcnRpZmFjdCIsInJldmlzaW9uIjoxfQ",
+        "offset": 0,
+        "limit": 8192
+       }
+      }
+     },
+     "runtime_source_type": "tool_result",
+     "runtime_event_id": "evt_cd57c824d0d449d088f4364d4d253b9f"
+    }
+   },
+   {
+    "seq": 7,
+    "ts": 1793075295448,
+    "type": "response_received",
+    "run_id": "node-attempt.efd5fe91c5db11ab999fa399ff7d319335223ff5287a9a86446e3a93531f2f22",
+    "stage": "runtime_event",
+    "links": {
+     "parent_run_id": null,
+     "parent_event_id": null,
+     "caused_by_event_id": null,
+     "step_id": "model:node-attempt.efd5fe91c5db11ab999fa399ff7d319335223ff5287a9a86446e3a93531f2f22:turn-0:response",
+     "tool_call_id": null,
+     "interaction_id": null,
+     "artifact_id": null,
+     "workspace_change_set_id": null,
+     "plan_id": null,
+     "channel_id": null,
+     "team_id": null
+    },
+    "event_id": "evt_64bd32e0b9734a078afb2852f7609f4c",
+    "session_id": "chat-1793075289662-92df79843f5c0fd07f69c05b16d2e9c6",
+    "iteration": 0,
+    "payload": {
+     "step_id": "model:node-attempt.efd5fe91c5db11ab999fa399ff7d319335223ff5287a9a86446e3a93531f2f22:turn-0:response",
+     "step_type": "model_response",
+     "status": "awaiting_human_input",
+     "response_id": "",
+     "has_tool_calls": true,
+     "usage": {
+      "model": "qa-parent-before",
+      "consumed_tokens": 18,
+      "input_tokens": 11,
+      "output_tokens": 7,
+      "last_turn_tokens": 18,
+      "last_turn_input_tokens": 11,
+      "last_turn_output_tokens": 7,
+      "max_context_window_tokens": 8192,
+      "context_window_used_pct": 0.22,
+      "status": "running",
+      "human_input_request": null,
+      "continuation": null,
+      "previous_response_id": null,
+      "iteration": 1
+     },
+     "runtime_event_id": "evt_64bd32e0b9734a078afb2852f7609f4c"
+    }
+   },
+   {
+    "seq": 8,
+    "ts": 1793075296354,
+    "type": "tool_call",
+    "run_id": "unchain-1793075292760-60414abcd77c68",
+    "stage": "runtime_event",
+    "links": {
+     "parent_run_id": null,
+     "parent_event_id": null,
+     "caused_by_event_id": null,
+     "step_id": "tool:qa-retention-parked-old-write",
+     "tool_call_id": "qa-retention-parked-old-write",
+     "interaction_id": "interaction_8f1085023d6458abfe24d7b9f50c4b45",
+     "artifact_id": null,
+     "workspace_change_set_id": null,
+     "plan_id": null,
+     "channel_id": null,
+     "team_id": null,
+     "input_request_id": "interaction_8f1085023d6458abfe24d7b9f50c4b45"
+    },
+    "event_id": "evt_c836d1f7ccd94a28b16213a81e36141a",
+    "session_id": "chat-1793075289662-92df79843f5c0fd07f69c05b16d2e9c6",
+    "payload": {
+     "call_id": "qa-retention-parked-old-write",
+     "confirmation_id": "interaction_8f1085023d6458abfe24d7b9f50c4b45",
+     "requires_confirmation": true,
+     "tool_name": "write",
+     "description": "Create /Users/red/.codex/artifacts/pupu-357/cold-settlement-desktop-03-20261027/run-01/workspace/retained-approved.txt",
+     "arguments": {
+      "content": "offline-approved\n",
+      "path": "/Users/red/.codex/artifacts/pupu-357/cold-settlement-desktop-03-20261027/run-01/workspace/retained-approved.txt"
+     },
+     "interact_type": "code_diff",
+     "interact_config": {
+      "displayed_lines": 4,
+      "fallback_description": "create /Users/red/.codex/artifacts/pupu-357/cold-settlement-desktop-03-20261027/run-01/workspace/retained-approved.txt (+1 -0)",
+      "operation": "create",
+      "path": "/Users/red/.codex/artifacts/pupu-357/cold-settlement-desktop-03-20261027/run-01/workspace/retained-approved.txt",
+      "title": "Create /Users/red/.codex/artifacts/pupu-357/cold-settlement-desktop-03-20261027/run-01/workspace/retained-approved.txt",
+      "total_lines": 4,
+      "truncated": false,
+      "unified_diff": "--- a//Users/red/.codex/artifacts/pupu-357/cold-settlement-desktop-03-20261027/run-01/workspace/retained-approved.txt\n+++ b//Users/red/.codex/artifacts/pupu-357/cold-settlement-desktop-03-20261027/run-01/workspace/retained-approved.txt\n@@ -0,0 +1 @@\n+offline-approved\n",
+      "options": []
+     },
+     "interaction_id": "interaction_8f1085023d6458abfe24d7b9f50c4b45",
+     "runtime_source_type": "interaction_requested",
+     "runtime_event_id": "evt_c836d1f7ccd94a28b16213a81e36141a"
+    }
+   }
+  ],
+  "subagentMetaByRunId": {
+   "chat-1793075289662-92df79843f5c0fd07f69c05b16d2e9c6:kernel.reviewer.1:3182f753-957e-5313-8a68-e97033ba2ca4": {
+    "subagentId": "kernel.reviewer.1",
+    "mode": "delegate",
+    "template": "Reviewer",
+    "batchId": "",
+    "parentId": "kernel",
+    "lineage": [
+     "kernel",
+     "kernel.reviewer.1"
+    ],
+    "status": "running"
+   }
+  },
+  "meta": {
+   "model": "unchain-unset",
+   "requestId": "unchain-1793075292760-60414abcd77c68",
+   "attemptId": "unchain-1793075292760-60414abcd77c68",
+   "executionSessionId": "chat-1793075289662-92df79843f5c0fd07f69c05b16d2e9c6"
+  }
+ },
+ "resume_runtime_event": {
+  "schema_version": "v4",
+  "event_id": "evt_1a3ac2617e644ff1814271fb555d5cdf",
+  "type": "run.completed",
+  "timestamp": "2026-10-27T04:28:45.736251Z",
+  "session_id": "chat-1793075289662-92df79843f5c0fd07f69c05b16d2e9c6",
+  "run_id": "chat-1793075289662-92df79843f5c0fd07f69c05b16d2e9c6:kernel.reviewer.1:3182f753-957e-5313-8a68-e97033ba2ca4",
+  "agent_id": "chat-1793075289662-92df79843f5c0fd07f69c05b16d2e9c6:kernel.reviewer.1:3182f753-957e-5313-8a68-e97033ba2ca4",
+  "turn_id": null,
+  "seq": 2,
+  "links": {
+   "parent_run_id": "node-attempt.efd5fe91c5db11ab999fa399ff7d319335223ff5287a9a86446e3a93531f2f22",
+   "parent_event_id": null,
+   "caused_by_event_id": null,
+   "step_id": null,
+   "tool_call_id": "qa-retention-parked-old-delegate",
+   "interaction_id": null,
+   "artifact_id": null,
+   "workspace_change_set_id": null,
+   "plan_id": null,
+   "channel_id": null,
+   "team_id": null
+  },
+  "surface": {
+   "slot": "debug",
+   "scope": "run",
+   "group": "debug",
+   "default_state": "hidden",
+   "priority": 1000
+  },
+  "visibility": "user",
+  "payload": {
+   "status": "completed",
+   "settlement": {
+    "schema": "unchain.skeleton_subagent_settlement_projection.v1",
+    "cursor": {
+     "schema": "unchain.event_cursor.v1",
+     "store_seq": 64,
+     "event_id": "event.skeleton.subagent-tool-settlement.b71b59995e97fccef01ddc66063a3cfabbabcd069e2cf797eaf58ce32ffb41c6"
+    },
+    "consumer_attempt": {
+     "attempt_id": "node-attempt.efd5fe91c5db11ab999fa399ff7d319335223ff5287a9a86446e3a93531f2f22",
+     "generation": {
+      "execution_id": "chat-1793075289662-92df79843f5c0fd07f69c05b16d2e9c6",
+      "generation_id": "pupu-bootstrap-generation-b218e01778d1df861d11bbd106a182f0b3a8712dc999fa1ecf37fbe9a22da59d",
+      "schema": "unchain.generation_ref.v1"
+     },
+     "schema": "unchain.attempt_ref.v1"
+    },
+    "source_attempt": {
+     "attempt_id": "chat-1793075289662-92df79843f5c0fd07f69c05b16d2e9c6:kernel.reviewer.1:3182f753-957e-5313-8a68-e97033ba2ca4",
+     "generation": {
+      "execution_id": "chat-1793075289662-92df79843f5c0fd07f69c05b16d2e9c6",
+      "generation_id": "pupu-bootstrap-generation-b218e01778d1df861d11bbd106a182f0b3a8712dc999fa1ecf37fbe9a22da59d",
+      "schema": "unchain.generation_ref.v1"
+     },
+     "schema": "unchain.attempt_ref.v1"
+    },
+    "call_id": "qa-retention-parked-old-delegate",
+    "tool_name": "delegate_to_subagent",
+    "status": "completed",
+    "result": {
+     "full_output_ref": {
+      "fragment": "",
+      "id": "artifact-91ce83d3d7d631533d4e07f722898b4b9c41d1bb9868bfbcdeafa84b4c7c4276",
+      "kind": "artifact",
+      "revision": 1,
+      "schema": "unchain.resource_ref.v1"
+     },
+     "content_bytes": 187,
+     "content_sha256": "92456cdfa9f6c63deac3ecff70c2b157fac70baae195820e864ca06053a836a0",
+     "preview": "{\"error\":\"\",\"outputs\":{\"message\":\"SOURCE-A|child-approved parked-old\"},\"schema\":\"unchain.skeleton_child_completion.v1\",\"status\":\"completed\",\"summary\":\"SOURCE-A|child-approved parked-old\"}",
+     "inline": true
+    }
+   }
+  },
+  "metadata": {
+   "raw_type": "subagent_tool_settled"
+  }
+ },
+ "after_message": {
+  "id": "assistant-1793075292757-7540a5829634520bc2de445434e0596f",
+  "role": "assistant",
+  "content": "[offline parent] SOURCE-A|child-approved parked-old",
+  "createdAt": 1793075292757,
+  "updatedAt": 1793075330538,
+  "status": "done",
+  "traceFrames": [
+   {
+    "seq": 1,
+    "ts": 1793075292789,
+    "type": "stream_started",
+    "run_id": "unchain-1793075292760-60414abcd77c68",
+    "stage": "runtime_event",
+    "links": {
+     "parent_run_id": null,
+     "parent_event_id": null,
+     "caused_by_event_id": null,
+     "step_id": null,
+     "tool_call_id": null,
+     "interaction_id": null,
+     "artifact_id": null,
+     "workspace_change_set_id": null,
+     "plan_id": null,
+     "channel_id": null,
+     "team_id": null
+    },
+    "event_id": "evt_54e14caa0e234303845a92d015dd867a",
+    "session_id": "chat-1793075289662-92df79843f5c0fd07f69c05b16d2e9c6",
+    "iteration": null,
+    "payload": {
+     "thread_id": "chat-1793075289662-92df79843f5c0fd07f69c05b16d2e9c6",
+     "model": "ollama:unchain-unset",
+     "trace_level": "minimal",
+     "runtime_event_id": "evt_54e14caa0e234303845a92d015dd867a"
+    }
+   },
+   {
+    "seq": 2,
+    "ts": 1793075293263,
+    "type": "iteration_started",
+    "run_id": "node-attempt.efd5fe91c5db11ab999fa399ff7d319335223ff5287a9a86446e3a93531f2f22",
+    "stage": "runtime_event",
+    "links": {
+     "parent_run_id": null,
+     "parent_event_id": null,
+     "caused_by_event_id": null,
+     "step_id": null,
+     "tool_call_id": null,
+     "interaction_id": null,
+     "artifact_id": null,
+     "workspace_change_set_id": null,
+     "plan_id": null,
+     "channel_id": null,
+     "team_id": null
+    },
+    "event_id": "evt_efe33de032cc411cbb70d32ee57814f9",
+    "session_id": "chat-1793075289662-92df79843f5c0fd07f69c05b16d2e9c6",
+    "iteration": 0,
+    "payload": {
+     "iteration": 0,
+     "runtime_event_id": "evt_efe33de032cc411cbb70d32ee57814f9"
+    }
+   },
+   {
+    "seq": 4,
+    "ts": 1793075293689,
+    "type": "tool_call",
+    "run_id": "node-attempt.efd5fe91c5db11ab999fa399ff7d319335223ff5287a9a86446e3a93531f2f22",
+    "stage": "runtime_event",
+    "links": {
+     "parent_run_id": null,
+     "parent_event_id": null,
+     "caused_by_event_id": null,
+     "step_id": "tool:qa-retention-parked-old-delegate",
+     "tool_call_id": "qa-retention-parked-old-delegate",
+     "interaction_id": null,
+     "artifact_id": null,
+     "workspace_change_set_id": null,
+     "plan_id": null,
+     "channel_id": null,
+     "team_id": null
+    },
+    "event_id": "evt_c0af48bfa80b4771bdf485617df46c27",
+    "session_id": "chat-1793075289662-92df79843f5c0fd07f69c05b16d2e9c6",
+    "payload": {
+     "step_id": "tool:qa-retention-parked-old-delegate",
+     "step_type": "tool",
+     "tool_name": "delegate_to_subagent",
+     "call_id": "qa-retention-parked-old-delegate",
+     "arguments": {
+      "target": "Reviewer",
+      "task": "review using your stored instructions"
+     },
+     "runtime_source_type": "tool_call",
+     "runtime_event_id": "evt_c0af48bfa80b4771bdf485617df46c27"
+    }
+   },
+   {
+    "seq": 6,
+    "ts": 1793075295365,
+    "type": "tool_result",
+    "run_id": "node-attempt.efd5fe91c5db11ab999fa399ff7d319335223ff5287a9a86446e3a93531f2f22",
+    "stage": "runtime_event",
+    "links": {
+     "parent_run_id": null,
+     "parent_event_id": null,
+     "caused_by_event_id": null,
+     "step_id": "tool:qa-retention-parked-old-delegate",
+     "tool_call_id": "qa-retention-parked-old-delegate",
+     "interaction_id": null,
+     "artifact_id": null,
+     "workspace_change_set_id": null,
+     "plan_id": null,
+     "channel_id": null,
+     "team_id": null
+    },
+    "event_id": "evt_cd57c824d0d449d088f4364d4d253b9f",
+    "session_id": "chat-1793075289662-92df79843f5c0fd07f69c05b16d2e9c6",
+    "payload": {
+     "step_id": "tool:qa-retention-parked-old-delegate",
+     "step_type": "tool",
+     "tool_name": "delegate_to_subagent",
+     "call_id": "qa-retention-parked-old-delegate",
+     "status": "success",
+     "result": {
+      "content_bytes": 72,
+      "content_sha256": "5bfd9dfda3aeb4126ee3047db025816dbd1f158fcc0ad453803df82ffae49666",
+      "full_output_ref": "unchain://context/v1/eyJmcmFnbWVudCI6IiIsImlkIjoiYXJ0aWZhY3QtZGNkODVkMmVlNzE3YzE0NmMzOWU3MDQ0OGNkOWIwM2U2MGRmMmYzZWFjYzk5ZDgzYzcxMjY0NDIwOWIwOTBhMiIsImtpbmQiOiJhcnRpZmFjdCIsInJldmlzaW9uIjoxfQ",
+      "inline": true,
+      "preview": "{\"schema\":\"unchain.skeleton_subagent_wait_marker.v1\",\"status\":\"waiting\"}",
+      "projection": "default",
+      "read_request": {
+       "tool": "context_content_read",
+       "arguments": {
+        "ref": "unchain://context/v1/eyJmcmFnbWVudCI6IiIsImlkIjoiYXJ0aWZhY3QtZGNkODVkMmVlNzE3YzE0NmMzOWU3MDQ0OGNkOWIwM2U2MGRmMmYzZWFjYzk5ZDgzYzcxMjY0NDIwOWIwOTBhMiIsImtpbmQiOiJhcnRpZmFjdCIsInJldmlzaW9uIjoxfQ",
+        "offset": 0,
+        "limit": 8192
+       }
+      }
+     },
+     "runtime_source_type": "tool_result",
+     "runtime_event_id": "evt_cd57c824d0d449d088f4364d4d253b9f"
+    }
+   },
+   {
+    "seq": 7,
+    "ts": 1793075295448,
+    "type": "response_received",
+    "run_id": "node-attempt.efd5fe91c5db11ab999fa399ff7d319335223ff5287a9a86446e3a93531f2f22",
+    "stage": "runtime_event",
+    "links": {
+     "parent_run_id": null,
+     "parent_event_id": null,
+     "caused_by_event_id": null,
+     "step_id": "model:node-attempt.efd5fe91c5db11ab999fa399ff7d319335223ff5287a9a86446e3a93531f2f22:turn-0:response",
+     "tool_call_id": null,
+     "interaction_id": null,
+     "artifact_id": null,
+     "workspace_change_set_id": null,
+     "plan_id": null,
+     "channel_id": null,
+     "team_id": null
+    },
+    "event_id": "evt_64bd32e0b9734a078afb2852f7609f4c",
+    "session_id": "chat-1793075289662-92df79843f5c0fd07f69c05b16d2e9c6",
+    "iteration": 0,
+    "payload": {
+     "step_id": "model:node-attempt.efd5fe91c5db11ab999fa399ff7d319335223ff5287a9a86446e3a93531f2f22:turn-0:response",
+     "step_type": "model_response",
+     "status": "awaiting_human_input",
+     "response_id": "",
+     "has_tool_calls": true,
+     "usage": {
+      "model": "qa-parent-before",
+      "consumed_tokens": 18,
+      "input_tokens": 11,
+      "output_tokens": 7,
+      "last_turn_tokens": 18,
+      "last_turn_input_tokens": 11,
+      "last_turn_output_tokens": 7,
+      "max_context_window_tokens": 8192,
+      "context_window_used_pct": 0.22,
+      "status": "running",
+      "human_input_request": null,
+      "continuation": null,
+      "previous_response_id": null,
+      "iteration": 1
+     },
+     "runtime_event_id": "evt_64bd32e0b9734a078afb2852f7609f4c"
+    }
+   },
+   {
+    "seq": 8,
+    "ts": 1793075296354,
+    "type": "tool_call",
+    "run_id": "unchain-1793075292760-60414abcd77c68",
+    "stage": "runtime_event",
+    "links": {
+     "parent_run_id": null,
+     "parent_event_id": null,
+     "caused_by_event_id": null,
+     "step_id": "tool:qa-retention-parked-old-write",
+     "tool_call_id": "qa-retention-parked-old-write",
+     "interaction_id": "interaction_8f1085023d6458abfe24d7b9f50c4b45",
+     "artifact_id": null,
+     "workspace_change_set_id": null,
+     "plan_id": null,
+     "channel_id": null,
+     "team_id": null,
+     "input_request_id": "interaction_8f1085023d6458abfe24d7b9f50c4b45"
+    },
+    "event_id": "evt_c836d1f7ccd94a28b16213a81e36141a",
+    "session_id": "chat-1793075289662-92df79843f5c0fd07f69c05b16d2e9c6",
+    "payload": {
+     "call_id": "qa-retention-parked-old-write",
+     "confirmation_id": "interaction_8f1085023d6458abfe24d7b9f50c4b45",
+     "requires_confirmation": true,
+     "tool_name": "write",
+     "description": "Create /Users/red/.codex/artifacts/pupu-357/cold-settlement-desktop-03-20261027/run-01/workspace/retained-approved.txt",
+     "arguments": {
+      "content": "offline-approved\n",
+      "path": "/Users/red/.codex/artifacts/pupu-357/cold-settlement-desktop-03-20261027/run-01/workspace/retained-approved.txt"
+     },
+     "interact_type": "code_diff",
+     "interact_config": {
+      "displayed_lines": 4,
+      "fallback_description": "create /Users/red/.codex/artifacts/pupu-357/cold-settlement-desktop-03-20261027/run-01/workspace/retained-approved.txt (+1 -0)",
+      "operation": "create",
+      "path": "/Users/red/.codex/artifacts/pupu-357/cold-settlement-desktop-03-20261027/run-01/workspace/retained-approved.txt",
+      "title": "Create /Users/red/.codex/artifacts/pupu-357/cold-settlement-desktop-03-20261027/run-01/workspace/retained-approved.txt",
+      "total_lines": 4,
+      "truncated": false,
+      "unified_diff": "--- a//Users/red/.codex/artifacts/pupu-357/cold-settlement-desktop-03-20261027/run-01/workspace/retained-approved.txt\n+++ b//Users/red/.codex/artifacts/pupu-357/cold-settlement-desktop-03-20261027/run-01/workspace/retained-approved.txt\n@@ -0,0 +1 @@\n+offline-approved\n",
+      "options": []
+     },
+     "interaction_id": "interaction_8f1085023d6458abfe24d7b9f50c4b45",
+     "runtime_source_type": "interaction_requested",
+     "runtime_event_id": "evt_c836d1f7ccd94a28b16213a81e36141a"
+    }
+   },
+   {
+    "seq": 8.1,
+    "ts": 1793075316963,
+    "type": "tool_confirmed",
+    "run_id": "unchain-1793075292760-60414abcd77c68",
+    "stage": "client",
+    "links": {
+     "parent_run_id": null,
+     "parent_event_id": null,
+     "caused_by_event_id": null,
+     "step_id": "tool:qa-retention-parked-old-write",
+     "tool_call_id": "qa-retention-parked-old-write",
+     "interaction_id": "interaction_8f1085023d6458abfe24d7b9f50c4b45",
+     "artifact_id": null,
+     "workspace_change_set_id": null,
+     "plan_id": null,
+     "channel_id": null,
+     "team_id": null,
+     "input_request_id": "interaction_8f1085023d6458abfe24d7b9f50c4b45"
+    },
+    "session_id": "chat-1793075289662-92df79843f5c0fd07f69c05b16d2e9c6",
+    "payload": {
+     "tool_name": "write",
+     "call_id": "qa-retention-parked-old-write",
+     "confirmation_id": "interaction_8f1085023d6458abfe24d7b9f50c4b45",
+     "synthetic": true,
+     "feedback_acknowledged": true
+    }
+   },
+   {
+    "seq": 1,
+    "ts": 1793075317665,
+    "type": "stream_started",
+    "run_id": "unchain-1793075317330-ed2ebcd51d8d68",
+    "stage": "runtime_event",
+    "links": {
+     "parent_run_id": null,
+     "parent_event_id": null,
+     "caused_by_event_id": null,
+     "step_id": null,
+     "tool_call_id": null,
+     "interaction_id": null,
+     "artifact_id": null,
+     "workspace_change_set_id": null,
+     "plan_id": null,
+     "channel_id": null,
+     "team_id": null
+    },
+    "event_id": "evt_c9642848d5d045e39a2ed14cd04d720b",
+    "session_id": "chat-1793075289662-92df79843f5c0fd07f69c05b16d2e9c6",
+    "iteration": null,
+    "payload": {
+     "thread_id": "chat-1793075289662-92df79843f5c0fd07f69c05b16d2e9c6",
+     "model": "ollama:qa-environment-decoy",
+     "trace_level": "minimal",
+     "runtime_event_id": "evt_c9642848d5d045e39a2ed14cd04d720b"
+    }
+   },
+   {
+    "seq": 3,
+    "ts": 1793075326255,
+    "type": "iteration_started",
+    "run_id": "node-attempt.efd5fe91c5db11ab999fa399ff7d319335223ff5287a9a86446e3a93531f2f22",
+    "stage": "runtime_event",
+    "links": {
+     "parent_run_id": null,
+     "parent_event_id": null,
+     "caused_by_event_id": null,
+     "step_id": null,
+     "tool_call_id": null,
+     "interaction_id": null,
+     "artifact_id": null,
+     "workspace_change_set_id": null,
+     "plan_id": null,
+     "channel_id": null,
+     "team_id": null
+    },
+    "event_id": "evt_7095bd1ba87a41d1b9f085e91226852d",
+    "session_id": "chat-1793075289662-92df79843f5c0fd07f69c05b16d2e9c6",
+    "iteration": 1,
+    "payload": {
+     "iteration": 1,
+     "runtime_event_id": "evt_7095bd1ba87a41d1b9f085e91226852d"
+    }
+   },
+   {
+    "seq": 5,
+    "ts": 1793075327741,
+    "type": "response_received",
+    "run_id": "node-attempt.efd5fe91c5db11ab999fa399ff7d319335223ff5287a9a86446e3a93531f2f22",
+    "stage": "runtime_event",
+    "links": {
+     "parent_run_id": null,
+     "parent_event_id": null,
+     "caused_by_event_id": null,
+     "step_id": "model:node-attempt.efd5fe91c5db11ab999fa399ff7d319335223ff5287a9a86446e3a93531f2f22:turn-1:response",
+     "tool_call_id": null,
+     "interaction_id": null,
+     "artifact_id": null,
+     "workspace_change_set_id": null,
+     "plan_id": null,
+     "channel_id": null,
+     "team_id": null
+    },
+    "event_id": "evt_2efdef8c231a4f4f93d13791fcf8f780",
+    "session_id": "chat-1793075289662-92df79843f5c0fd07f69c05b16d2e9c6",
+    "iteration": 1,
+    "payload": {
+     "step_id": "model:node-attempt.efd5fe91c5db11ab999fa399ff7d319335223ff5287a9a86446e3a93531f2f22:turn-1:response",
+     "step_type": "model_response",
+     "status": "running",
+     "response_id": "",
+     "has_tool_calls": false,
+     "usage": {
+      "model": "qa-parent-before",
+      "consumed_tokens": 18,
+      "input_tokens": 11,
+      "output_tokens": 7,
+      "last_turn_tokens": 18,
+      "last_turn_input_tokens": 11,
+      "last_turn_output_tokens": 7,
+      "max_context_window_tokens": 8192,
+      "context_window_used_pct": 0.22,
+      "status": "completed",
+      "human_input_request": null,
+      "continuation": null,
+      "previous_response_id": null,
+      "iteration": 2
+     },
+     "runtime_event_id": "evt_2efdef8c231a4f4f93d13791fcf8f780"
+    }
+   },
+   {
+    "seq": 6,
+    "ts": 1793075330393,
+    "type": "final_message",
+    "run_id": "unchain-1793075292760-60414abcd77c68",
+    "stage": "runtime_event",
+    "links": {
+     "parent_run_id": null,
+     "parent_event_id": null,
+     "caused_by_event_id": null,
+     "step_id": "model:unchain-1793075292760-60414abcd77c68:response",
+     "tool_call_id": null,
+     "interaction_id": null,
+     "artifact_id": null,
+     "workspace_change_set_id": null,
+     "plan_id": null,
+     "channel_id": null,
+     "team_id": null
+    },
+    "event_id": "evt_f2c01eae52914d5cad90fab1bbbfa3e7",
+    "session_id": "chat-1793075289662-92df79843f5c0fd07f69c05b16d2e9c6",
+    "iteration": null,
+    "payload": {
+     "content": "[offline parent] SOURCE-A|child-approved parked-old",
+     "runtime_event_id": "evt_f2c01eae52914d5cad90fab1bbbfa3e7",
+     "finality": "terminal"
+    }
+   },
+   {
+    "seq": 7,
+    "ts": 1793075330536,
+    "type": "done",
+    "run_id": "unchain-1793075292760-60414abcd77c68",
+    "stage": "runtime_event",
+    "links": {
+     "parent_run_id": null,
+     "parent_event_id": null,
+     "caused_by_event_id": null,
+     "step_id": null,
+     "tool_call_id": null,
+     "interaction_id": null,
+     "artifact_id": null,
+     "workspace_change_set_id": null,
+     "plan_id": null,
+     "channel_id": null,
+     "team_id": null
+    },
+    "event_id": "evt_cb6adb8922334181b16dcbb8e460b59f",
+    "session_id": "chat-1793075289662-92df79843f5c0fd07f69c05b16d2e9c6",
+    "iteration": null,
+    "payload": {
+     "status": "completed",
+     "runtime_event_id": "evt_cb6adb8922334181b16dcbb8e460b59f"
+    }
+   }
+  ],
+  "subagentFrames": {
+   "chat-1793075289662-92df79843f5c0fd07f69c05b16d2e9c6:kernel.reviewer.1:3182f753-957e-5313-8a68-e97033ba2ca4": [
+    {
+     "seq": 2,
+     "ts": 1793075325736,
+     "type": "subagent_completed",
+     "run_id": "chat-1793075289662-92df79843f5c0fd07f69c05b16d2e9c6:kernel.reviewer.1:3182f753-957e-5313-8a68-e97033ba2ca4",
+     "stage": "runtime_event",
+     "links": {
+      "parent_run_id": "node-attempt.efd5fe91c5db11ab999fa399ff7d319335223ff5287a9a86446e3a93531f2f22",
+      "parent_event_id": null,
+      "caused_by_event_id": null,
+      "step_id": null,
+      "tool_call_id": "qa-retention-parked-old-delegate",
+      "interaction_id": null,
+      "artifact_id": null,
+      "workspace_change_set_id": null,
+      "plan_id": null,
+      "channel_id": null,
+      "team_id": null
+     },
+     "event_id": "evt_1a3ac2617e644ff1814271fb555d5cdf",
+     "session_id": "chat-1793075289662-92df79843f5c0fd07f69c05b16d2e9c6",
+     "iteration": null,
+     "payload": {
+      "status": "completed",
+      "settlement": {
+       "schema": "unchain.skeleton_subagent_settlement_projection.v1",
+       "cursor": {
+        "schema": "unchain.event_cursor.v1",
+        "store_seq": 64,
+        "event_id": "event.skeleton.subagent-tool-settlement.b71b59995e97fccef01ddc66063a3cfabbabcd069e2cf797eaf58ce32ffb41c6"
+       },
+       "consumer_attempt": {
+        "attempt_id": "node-attempt.efd5fe91c5db11ab999fa399ff7d319335223ff5287a9a86446e3a93531f2f22",
+        "generation": {
+         "execution_id": "chat-1793075289662-92df79843f5c0fd07f69c05b16d2e9c6",
+         "generation_id": "pupu-bootstrap-generation-b218e01778d1df861d11bbd106a182f0b3a8712dc999fa1ecf37fbe9a22da59d",
+         "schema": "unchain.generation_ref.v1"
+        },
+        "schema": "unchain.attempt_ref.v1"
+       },
+       "source_attempt": {
+        "attempt_id": "chat-1793075289662-92df79843f5c0fd07f69c05b16d2e9c6:kernel.reviewer.1:3182f753-957e-5313-8a68-e97033ba2ca4",
+        "generation": {
+         "execution_id": "chat-1793075289662-92df79843f5c0fd07f69c05b16d2e9c6",
+         "generation_id": "pupu-bootstrap-generation-b218e01778d1df861d11bbd106a182f0b3a8712dc999fa1ecf37fbe9a22da59d",
+         "schema": "unchain.generation_ref.v1"
+        },
+        "schema": "unchain.attempt_ref.v1"
+       },
+       "call_id": "qa-retention-parked-old-delegate",
+       "tool_name": "delegate_to_subagent",
+       "status": "completed",
+       "result": {
+        "full_output_ref": {
+         "fragment": "",
+         "id": "artifact-91ce83d3d7d631533d4e07f722898b4b9c41d1bb9868bfbcdeafa84b4c7c4276",
+         "kind": "artifact",
+         "revision": 1,
+         "schema": "unchain.resource_ref.v1"
+        },
+        "content_bytes": 187,
+        "content_sha256": "92456cdfa9f6c63deac3ecff70c2b157fac70baae195820e864ca06053a836a0",
+        "preview": "{\"error\":\"\",\"outputs\":{\"message\":\"SOURCE-A|child-approved parked-old\"},\"schema\":\"unchain.skeleton_child_completion.v1\",\"status\":\"completed\",\"summary\":\"SOURCE-A|child-approved parked-old\"}",
+        "inline": true
+       }
+      },
+      "root_run_id": "node-attempt.efd5fe91c5db11ab999fa399ff7d319335223ff5287a9a86446e3a93531f2f22",
+      "child_run_id": "chat-1793075289662-92df79843f5c0fd07f69c05b16d2e9c6:kernel.reviewer.1:3182f753-957e-5313-8a68-e97033ba2ca4",
+      "subagent_id": "chat-1793075289662-92df79843f5c0fd07f69c05b16d2e9c6:kernel.reviewer.1:3182f753-957e-5313-8a68-e97033ba2ca4",
+      "parent_id": "node-attempt.efd5fe91c5db11ab999fa399ff7d319335223ff5287a9a86446e3a93531f2f22",
+      "runtime_event_id": "evt_1a3ac2617e644ff1814271fb555d5cdf"
+     }
+    }
+   ]
+  },
+  "subagentMetaByRunId": {
+   "chat-1793075289662-92df79843f5c0fd07f69c05b16d2e9c6:kernel.reviewer.1:3182f753-957e-5313-8a68-e97033ba2ca4": {
+    "subagentId": "chat-1793075289662-92df79843f5c0fd07f69c05b16d2e9c6:kernel.reviewer.1:3182f753-957e-5313-8a68-e97033ba2ca4",
+    "mode": "",
+    "template": "",
+    "batchId": "",
+    "parentId": "node-attempt.efd5fe91c5db11ab999fa399ff7d319335223ff5287a9a86446e3a93531f2f22",
+    "lineage": [],
+    "status": "completed"
+   }
+  },
+  "meta": {
+   "model": "unchain-unset",
+   "requestId": "unchain-1793075317330-ed2ebcd51d8d68",
+   "attemptId": "unchain-1793075317330-ed2ebcd51d8d68",
+   "executionSessionId": "chat-1793075289662-92df79843f5c0fd07f69c05b16d2e9c6"
+  }
+ }
+}

@@ -1,219 +1,107 @@
-import {
-  maybeMigrateProviderSecrets,
-  resetProviderSecretMigrationForTests,
-} from "./provider_secret_migration";
-import {
-  settingsStorageBridge,
-  isProviderCredentialsMigrationBridgeAvailable,
-  getBootstrapSecretStorageStatus,
-  getSqlStoreMigrationMeta,
-  parseSettingsStorageErrorCode,
-} from "./bridges/settings_storage_bridge";
-import {
-  readProviderSecret,
-  readCustomProviderSecrets,
-} from "./settings_secret_adapter";
+import { maybeMigrateProviderSecrets, resetProviderSecretMigrationForTests } from "./provider_secret_migration";
+import { resetProviderCredentialPersistenceForTests, flushProviderCredentialWrites } from "./provider_credential_persistence";
+import { getBootstrapConfiguredCredentials, resetSessionBootstrapSnapshotForTests } from "./bridges/settings_storage_bridge";
+import { readProviderSecret, readCustomProviderSecrets, resetProviderSecretSessionForTests } from "./settings_secret_adapter";
+import { writeModelProviders } from "../COMPONENTs/settings/model_providers/storage";
 
-jest.mock("./bridges/settings_storage_bridge", () => ({
-  settingsStorageBridge: { migrateProviderCredentials: jest.fn() },
-  isProviderCredentialsMigrationBridgeAvailable: jest.fn(),
-  getBootstrapSecretStorageStatus: jest.fn(),
-  getSqlStoreMigrationMeta: jest.fn(),
-  parseSettingsStorageErrorCode: jest.fn(),
-  resetSessionBootstrapSnapshotForTests: jest.fn(),
-}));
-
-jest.mock("./settings_secret_adapter", () => ({
-  readProviderSecret: jest.fn(),
-  readCustomProviderSecrets: jest.fn(),
-}));
-
-// CRA's jest preset runs with resetMocks:true, which clears every jest.fn
-// implementation before each test. Re-install the "steady, everything-present"
-// baseline in beforeEach; individual tests override a single lever.
-beforeEach(() => {
-  resetProviderSecretMigrationForTests();
-  isProviderCredentialsMigrationBridgeAvailable.mockReturnValue(true);
-  getBootstrapSecretStorageStatus.mockReturnValue("available");
-  getSqlStoreMigrationMeta.mockReturnValue(null);
-  readProviderSecret.mockReturnValue("");
-  readCustomProviderSecrets.mockReturnValue({});
-  parseSettingsStorageErrorCode.mockReturnValue(null);
-  settingsStorageBridge.migrateProviderCredentials.mockResolvedValue({
-    status: "complete",
-    migratedCount: 1,
-    failedCount: 0,
+const seed = (providers) => localStorage.setItem("settings", JSON.stringify({ appearance: { theme: "dark" }, model_providers: providers }));
+const install = ({ configured = [], available = true, set } = {}) => {
+  const api = {
+    bootstrap: () => ({ available: true, migration: { state: "complete" }, namespaces: {}, revisions: {},
+      secretStorageStatus: available ? "available" : "unavailable", configuredCredentials: configured,
+      storeMigrations: { providerCredentials: { state: "complete", version: 1 } } }),
+    migrateLegacy: jest.fn(), setNamespace: jest.fn(), deleteNamespace: jest.fn(),
+    setProviderCredential: set || jest.fn().mockResolvedValue({ ok: true, status: "stored" }),
+    deleteProviderCredential: jest.fn().mockResolvedValue({ ok: true }),
+  };
+  api.migrateProviderCredentials = jest.fn(async (payload) => {
+    expect(payload.migrationVersion).toBe(2);
+    const key = Object.keys(payload.credentials)[0];
+    const ownerId = key === "custom" ? `custom.${Object.keys(payload.credentials.custom)[0]}` : key;
+    if (configured.includes(ownerId)) return { ok: true, status: "stored" };
+    return api.setProviderCredential(key === "custom" ? "custom_provider" : "provider", ownerId,
+      key === "custom" ? Object.values(payload.credentials.custom)[0] : payload.credentials[key]);
   });
-});
-
-const setLegacy = ({ openai, anthropic, custom } = {}) => {
-  readProviderSecret.mockImplementation((field) => {
-    if (field === "openai_api_key") return openai || "";
-    if (field === "anthropic_api_key") return anthropic || "";
-    return "";
-  });
-  readCustomProviderSecrets.mockReturnValue(custom || {});
+  window.settingsStorageAPI = api;
+  return api;
 };
+beforeEach(() => { localStorage.clear(); resetProviderSecretMigrationForTests(); resetProviderCredentialPersistenceForTests(); });
+afterEach(async () => { await flushProviderCredentialWrites(); delete window.settingsStorageAPI; resetSessionBootstrapSnapshotForTests(); });
 
-describe("maybeMigrateProviderSecrets — no-op guards", () => {
-  test("bridge unavailable (browser/Jest/pre-Phase-4 preload) → no migrate", async () => {
-    isProviderCredentialsMigrationBridgeAvailable.mockReturnValue(false);
-    setLegacy({ openai: "sk-SENTINEL" });
-    await maybeMigrateProviderSecrets();
-    expect(
-      settingsStorageBridge.migrateProviderCredentials,
-    ).not.toHaveBeenCalled();
-  });
-
-  test("safeStorage not available (degraded) → no migrate", async () => {
-    getBootstrapSecretStorageStatus.mockReturnValue("unavailable");
-    setLegacy({ openai: "sk-SENTINEL" });
-    await maybeMigrateProviderSecrets();
-    expect(
-      settingsStorageBridge.migrateProviderCredentials,
-    ).not.toHaveBeenCalled();
-  });
-
-  test("SQL migration meta already complete → no migrate (idempotent)", async () => {
-    getSqlStoreMigrationMeta.mockReturnValue({
-      state: "complete",
-      version: 1,
-      digest: "abc",
-      migratedAt: 123,
-    });
-    setLegacy({ openai: "sk-SENTINEL" });
-    await maybeMigrateProviderSecrets();
-    expect(
-      settingsStorageBridge.migrateProviderCredentials,
-    ).not.toHaveBeenCalled();
-    // the meta is read from the "providerCredentials" store key
-    expect(getSqlStoreMigrationMeta).toHaveBeenCalledWith("providerCredentials");
-  });
-
-  test("no legacy secret present → no migrate", async () => {
-    // all empty (baseline)
-    await maybeMigrateProviderSecrets();
-    expect(
-      settingsStorageBridge.migrateProviderCredentials,
-    ).not.toHaveBeenCalled();
-  });
-
-  test("meta present but not complete (in_progress) → still migrates", async () => {
-    getSqlStoreMigrationMeta.mockReturnValue({
-      state: "in_progress",
-      version: null,
-      digest: null,
-      migratedAt: null,
-    });
-    setLegacy({ openai: "sk-SENTINEL" });
-    await maybeMigrateProviderSecrets();
-    expect(
-      settingsStorageBridge.migrateProviderCredentials,
-    ).toHaveBeenCalledTimes(1);
-  });
+test("completed old migration metadata does not hide missing SQL owners", async () => {
+  seed({ openai_api_key: "SENTINEL-o", gemini_api_key: "SENTINEL-g", custom_provider_secrets: { p: "SENTINEL-p" } });
+  const api = install();
+  const spy = jest.spyOn(Storage.prototype, "setItem");
+  await maybeMigrateProviderSecrets();
+  expect(api.setProviderCredential.mock.calls).toEqual([
+    ["provider", "openai", "SENTINEL-o"], ["provider", "gemini", "SENTINEL-g"],
+    ["custom_provider", "custom.p", "SENTINEL-p"],
+  ]);
+  expect(getBootstrapConfiguredCredentials().sort()).toEqual(["custom.p", "gemini", "openai"]);
+  expect(localStorage.getItem("settings")).not.toContain("SENTINEL");
+  expect(readProviderSecret("openai_api_key")).toBe("SENTINEL-o");
+  expect(readCustomProviderSecrets()).toEqual({ p: "SENTINEL-p" });
+  for (const [, bytes] of spy.mock.calls) expect(bytes).not.toContain("SENTINEL");
+  spy.mockRestore();
+  await maybeMigrateProviderSecrets();
+  expect(api.setProviderCredential).toHaveBeenCalledTimes(3);
 });
 
-describe("maybeMigrateProviderSecrets — migration payload", () => {
-  test("ships openai + anthropic + custom in the frozen envelope shape", async () => {
-    setLegacy({
-      openai: "sk-SENTINEL-openai",
-      anthropic: "sk-ant-SENTINEL",
-      custom: { "slug-a": "SENTINEL-a", "slug-b": "SENTINEL-b" },
-    });
-    await maybeMigrateProviderSecrets();
-    expect(
-      settingsStorageBridge.migrateProviderCredentials,
-    ).toHaveBeenCalledTimes(1);
-    expect(
-      settingsStorageBridge.migrateProviderCredentials,
-    ).toHaveBeenCalledWith({
-      migrationVersion: 1,
-      credentials: {
-        openai: "sk-SENTINEL-openai",
-        anthropic: "sk-ant-SENTINEL",
-        custom: { "slug-a": "SENTINEL-a", "slug-b": "SENTINEL-b" },
-      },
-    });
-  });
-
-  test("only-openai omits the absent anthropic and custom fields", async () => {
-    setLegacy({ openai: "sk-SENTINEL-openai" });
-    await maybeMigrateProviderSecrets();
-    expect(
-      settingsStorageBridge.migrateProviderCredentials,
-    ).toHaveBeenCalledWith({
-      migrationVersion: 1,
-      credentials: { openai: "sk-SENTINEL-openai" },
-    });
-  });
-
-  test("custom-only: empty-string values dropped, __proto__ skipped", async () => {
-    setLegacy({
-      custom: {
-        keep: "SENTINEL-keep",
-        blank: "",
-        // eslint-disable-next-line no-proto
-        __proto__: "SENTINEL-proto",
-      },
-    });
-    await maybeMigrateProviderSecrets();
-    expect(
-      settingsStorageBridge.migrateProviderCredentials,
-    ).toHaveBeenCalledTimes(1);
-    const payload =
-      settingsStorageBridge.migrateProviderCredentials.mock.calls[0][0];
-    expect(payload.credentials.custom).toEqual({ keep: "SENTINEL-keep" });
-    expect(payload.credentials.custom).not.toHaveProperty("blank");
-    expect(
-      Object.prototype.hasOwnProperty.call(payload.credentials.custom, "__proto__"),
-    ).toBe(false);
-  });
-
-  test("custom present but all values empty → treated as nothing to migrate", async () => {
-    setLegacy({ custom: { a: "", b: "" } });
-    await maybeMigrateProviderSecrets();
-    expect(
-      settingsStorageBridge.migrateProviderCredentials,
-    ).not.toHaveBeenCalled();
-  });
+test("confirmed encrypted owners win over stale disk mirrors without reencrypting", async () => {
+  seed({ openai_api_key: "stale" });
+  const api = install({ configured: ["openai"] });
+  await maybeMigrateProviderSecrets();
+  expect(api.setProviderCredential).not.toHaveBeenCalled();
+  expect(localStorage.getItem("settings")).not.toContain("stale");
 });
 
-describe("maybeMigrateProviderSecrets — session guard + failure handling", () => {
-  test("fires at most once per session across repeated calls", async () => {
-    setLegacy({ openai: "sk-SENTINEL" });
-    await maybeMigrateProviderSecrets();
-    await maybeMigrateProviderSecrets();
-    await maybeMigrateProviderSecrets();
-    expect(
-      settingsStorageBridge.migrateProviderCredentials,
-    ).toHaveBeenCalledTimes(1);
-  });
+test.each(["no-bridge", "unavailable", "failed-save"])("unacknowledged legacy data survives: %s", async (mode) => {
+  seed({ openai_api_key: "SENTINEL" });
+  const before = localStorage.getItem("settings");
+  if (mode !== "no-bridge") install({ available: mode !== "unavailable",
+    set: jest.fn().mockRejectedValue(new Error("[secret_storage_unavailable] test")) });
+  await expect(maybeMigrateProviderSecrets()).resolves.toBeUndefined();
+  expect(localStorage.getItem("settings")).toBe(before);
+  expect(readProviderSecret("openai_api_key")).toBe("SENTINEL");
+});
 
-  test("a rejected migrate is caught (never throws) and logged by code only", async () => {
-    const error = Object.assign(
-      new Error("[provider_missing_api_key] boom"),
-      { code: "provider_missing_api_key" },
-    );
-    settingsStorageBridge.migrateProviderCredentials.mockRejectedValue(error);
-    parseSettingsStorageErrorCode.mockReturnValue("provider_missing_api_key");
-    setLegacy({ openai: "sk-SENTINEL-should-not-log" });
+test("rotation during boot migration retains FIFO order and the newest session value", async () => {
+  seed({ openai_api_key: "old" });
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const set = jest.fn().mockImplementationOnce(() => gate).mockResolvedValue({ ok: true, status: "stored" });
+  install({ set });
+  const migration = maybeMigrateProviderSecrets();
+  const rotation = writeModelProviders({ openai_api_key: "new" });
+  release({ ok: true, status: "stored" });
+  await Promise.all([migration, rotation]);
+  expect(set.mock.calls.map((args) => args[2])).toEqual(["old", "new"]);
+  expect(readProviderSecret("openai_api_key")).toBe("new");
+  // A pending newest write may defer scrub; a later healthy launch retries.
+  expect(localStorage.getItem("settings")).not.toContain("new");
+});
 
-    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
-    try {
-      await expect(maybeMigrateProviderSecrets()).resolves.toBeUndefined();
-      expect(warnSpy).toHaveBeenCalledTimes(1);
-      const logged = JSON.stringify(warnSpy.mock.calls);
-      expect(logged).toContain("provider_missing_api_key");
-      // the secret VALUE must never reach the logs
-      expect(logged).not.toContain("SENTINEL");
-    } finally {
-      warnSpy.mockRestore();
-    }
-  });
+test("browser keys remain usable for this session but are never reported as durable", async () => {
+  const results = await writeModelProviders({ openai_api_key: "SENTINEL" });
+  expect(results[0]).toMatchObject({ ok: false, status: "session-only" });
+  expect(readProviderSecret("openai_api_key")).toBe("SENTINEL");
+  expect(localStorage.getItem("settings")).toBeNull();
+});
 
-  test("resolves undefined (no secret returned to the caller) on success", async () => {
-    setLegacy({ openai: "sk-SENTINEL" });
-    const result = await maybeMigrateProviderSecrets();
-    expect(result).toBeUndefined();
-  });
+test("browser clear removes a lone historical key before acknowledging durable deletion", async () => {
+  seed({ openai_api_key: "OLD-SENTINEL" });
+  const results = await writeModelProviders({ openai_api_key: "" });
+  expect(results[0]).toMatchObject({ ok: true, status: "deleted" });
+  expect(localStorage.getItem("settings")).not.toContain("SENTINEL");
+  resetProviderSecretSessionForTests();
+  expect(readProviderSecret("openai_api_key")).toBe("");
+});
+
+test("browser clear does not claim durability when other unacknowledged plaintext prevents scrub", async () => {
+  seed({ openai_api_key: "OLD-SENTINEL", gemini_api_key: "OTHER-SENTINEL" });
+  const before = localStorage.getItem("settings");
+  const results = await writeModelProviders({ openai_api_key: "" });
+  expect(results[0].ok).toBe(false);
+  expect(localStorage.getItem("settings")).toBe(before);
+  expect(readProviderSecret("openai_api_key")).toBe("OLD-SENTINEL");
 });

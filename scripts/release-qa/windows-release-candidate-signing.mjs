@@ -1,3 +1,8 @@
+import crypto from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+import process from "node:process";
+
 export const WINDOWS_RELEASE_CANDIDATE_SIGNING_SCHEMA = "pupu.windows-release-candidate-signing.v1";
 
 export const WINDOWS_UNSIGNED_PAYLOAD_EXCEPTIONS = [
@@ -7,6 +12,9 @@ export const WINDOWS_UNSIGNED_PAYLOAD_EXCEPTIONS = [
 
 const WINDOWS_UNSIGNED_PAYLOAD_EXCEPTION_REASON =
   "upstream Tcl/Tk DLL rejected by SignTool as not Authenticode-compatible (0x800700C1)";
+const WINDOWS_OBSERVED_UNSIGNED_PAYLOAD_REASON =
+  "upstream Tcl/Tk DLL excluded from re-signing after native signature observation";
+const PAYLOAD_PREFIX = ".release-qa\\windows-unpacked\\";
 const RAW_SHA256_PATTERN = /^[0-9a-f]{64}$/;
 const GIT_SHA_PATTERN = /^[0-9a-f]{40}$/;
 const GITHUB_RUN_ID_PATTERN = /^[1-9]\d*$/;
@@ -121,7 +129,7 @@ export function validateWindowsReleaseCandidateSigningEvidence({ evidence, manif
     evidence.unsigned_payload_exceptions,
     "Windows signing evidence unsigned_payload_exceptions",
   );
-  if (JSON.stringify(exceptionPaths) !== JSON.stringify(WINDOWS_UNSIGNED_PAYLOAD_EXCEPTIONS)) {
+  if (exceptionPaths.some((filePath) => !WINDOWS_UNSIGNED_PAYLOAD_EXCEPTIONS.includes(filePath))) {
     throw new Error("Windows signing evidence has an unexpected unsigned payload exception set");
   }
   for (const [index, exception] of evidence.unsigned_payload_exceptions.entries()) {
@@ -130,14 +138,14 @@ export function validateWindowsReleaseCandidateSigningEvidence({ evidence, manif
       ["authenticode_status", "path", "reason", "sha256"],
       `Windows signing evidence unsigned_payload_exceptions[${index}]`,
     );
-    if (exception.path !== WINDOWS_UNSIGNED_PAYLOAD_EXCEPTIONS[index]) {
-      throw new Error(`Windows signing evidence unsigned_payload_exceptions[${index}] path is unexpected`);
-    }
     requiredRawSha256(exception.sha256, `Windows signing evidence unsigned_payload_exceptions[${index}].sha256`);
     if (requiredString(exception.authenticode_status, `Windows signing evidence unsigned_payload_exceptions[${index}].authenticode_status`) === "Valid") {
       throw new Error(`Windows signing evidence unsigned_payload_exceptions[${index}] must not be Authenticode-valid`);
     }
-    if (exception.reason !== WINDOWS_UNSIGNED_PAYLOAD_EXCEPTION_REASON) {
+    if (!["NotSigned", "UnknownError"].includes(exception.authenticode_status)) {
+      throw new Error(`Windows signing evidence unsigned_payload_exceptions[${index}] has an unsupported Authenticode status`);
+    }
+    if (![WINDOWS_UNSIGNED_PAYLOAD_EXCEPTION_REASON, WINDOWS_OBSERVED_UNSIGNED_PAYLOAD_REASON].includes(exception.reason)) {
       throw new Error(`Windows signing evidence unsigned_payload_exceptions[${index}] has an unexpected reason`);
     }
   }
@@ -152,6 +160,9 @@ export function validateWindowsReleaseCandidateSigningEvidence({ evidence, manif
     throw new Error("Windows signing evidence signed file count does not reconcile");
   }
   const signedPaths = requireSortedUniquePaths(evidence.signed_files, "Windows signing evidence signed_files");
+  if (new Set(signedPaths.map((filePath) => requiredString(filePath, "signed path").toLowerCase())).size !== signedPaths.length) {
+    throw new Error("Windows signing evidence signed paths must not alias each other");
+  }
   for (const [index, signedFile] of evidence.signed_files.entries()) {
     exactKeys(
       signedFile,
@@ -161,6 +172,18 @@ export function validateWindowsReleaseCandidateSigningEvidence({ evidence, manif
     requiredRawSha256(signedFile.sha256, `Windows signing evidence signed_files[${index}].sha256`);
     requiredString(signedFile.signer_subject, `Windows signing evidence signed_files[${index}].signer_subject`);
     requiredString(signedFile.signer_thumbprint, `Windows signing evidence signed_files[${index}].signer_thumbprint`);
+  }
+  for (const relativePath of WINDOWS_UNSIGNED_PAYLOAD_EXCEPTIONS) {
+    const signedPath = PAYLOAD_PREFIX + relativePath;
+    const coveredSigned = signedPaths.includes(signedPath);
+    const coveredUnsigned = exceptionPaths.includes(relativePath);
+    if (Number(coveredSigned) + Number(coveredUnsigned) !== 1 ||
+        signedPaths.some((filePath) => filePath.toLowerCase() === signedPath.toLowerCase() && filePath !== signedPath)) {
+      throw new Error(`Windows signing evidence must cover controlled payload exactly once: ${relativePath}`);
+    }
+  }
+  if (!signedPaths.includes(PAYLOAD_PREFIX + "PuPu.exe")) {
+    throw new Error("Windows signing evidence does not contain the signed PuPu launcher");
   }
   const elevateHelperPath = ".release-qa\\windows-unpacked\\resources\\elevate.exe";
   if (!signedPaths.includes(elevateHelperPath)) {
@@ -175,5 +198,53 @@ export function validateWindowsReleaseCandidateSigningEvidence({ evidence, manif
   if (installer.sha256 !== `sha256:${installerEvidence.sha256}`) {
     throw new Error("Windows signing evidence installer SHA-256 does not match the release asset manifest");
   }
+  for (const filePath of signedPaths) {
+    if (filePath === installerPath) continue;
+    const relativePath = filePath.startsWith(PAYLOAD_PREFIX) ? filePath.slice(PAYLOAD_PREFIX.length) : "";
+    if (!relativePath || relativePath.includes("/") ||
+        relativePath.split("\\").some((part) => !part || part === "." || part === ".." || /[:. ]$|:/.test(part)) ||
+        !/\.(exe|dll)$/i.test(relativePath)) {
+      throw new Error("Windows signing evidence signed payload path is not canonical");
+    }
+  }
   return evidence;
+}
+
+export async function validateWindowsSigningEvidenceFile({ evidencePath, installerPath, version, runId, commit }) {
+  const installerName = path.basename(installerPath);
+  if (installerName !== `PuPu-${version}-windows-x64-setup.exe`) {
+    throw new Error("Windows signing evidence installer filename does not match the expected version");
+  }
+  if (!fs.lstatSync(installerPath, { throwIfNoEntry: false })?.isFile()) {
+    throw new Error("Windows signing evidence requires the exact installer file");
+  }
+  const hash = crypto.createHash("sha256");
+  for await (const chunk of fs.createReadStream(installerPath)) hash.update(chunk);
+  const manifest = {
+    release: { version, candidate_run_id: runId, commit },
+    assets: [{ name: installerName, target_id: "windows-x64", role: "installer", format: "exe",
+      sha256: `sha256:${hash.digest("hex")}` }],
+  };
+  const evidence = JSON.parse(fs.readFileSync(evidencePath, "utf8"));
+  return validateWindowsReleaseCandidateSigningEvidence({ evidence, manifest });
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(import.meta.filename)) {
+  try {
+    const args = process.argv.slice(2), values = {};
+    const keys = new Set(["--evidence", "--installer", "--version", "--run-id", "--commit"]);
+    if (args.length !== keys.size * 2) throw new Error("expected --evidence, --installer, --version, --run-id and --commit");
+    for (let i = 0; i < args.length; i += 2) {
+      if (!keys.has(args[i]) || Object.hasOwn(values, args[i]) || !args[i + 1] || args[i + 1].startsWith("--")) {
+        throw new Error("invalid Windows signing evidence verification arguments");
+      }
+      values[args[i]] = args[i + 1];
+    }
+    await validateWindowsSigningEvidenceFile({ evidencePath: values["--evidence"], installerPath: values["--installer"],
+      version: values["--version"], runId: values["--run-id"], commit: values["--commit"] });
+    console.log("[windows-signing-evidence] strict package gate passed");
+  } catch (error) {
+    console.error(`[windows-signing-evidence] ${error.message || String(error)}`);
+    process.exitCode = 1;
+  }
 }

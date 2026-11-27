@@ -1,3 +1,4 @@
+import ShadowSurface from "../../BUILTIN_COMPONENTs/material/shadow_surface";
 import { useContext, useState, useEffect, useRef, useCallback } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import {
@@ -145,7 +146,7 @@ const SetupFlow = ({
                     }}
                   />
                 ) : (
-                  <div
+                  <ShadowSurface
                     style={{
                       width: dotR * 2,
                       height: dotR * 2,

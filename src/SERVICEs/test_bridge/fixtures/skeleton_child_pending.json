@@ -1,0 +1,119 @@
+{
+  "awaiting": {
+    "active_attempt_id": "route-child-root",
+    "interaction_id": "interaction_7d3fcc5e713928d09bef8b6d76927e8a",
+    "interaction_session_id": "route-child-session:kernel.reviewer.1",
+    "interaction_source_run_id": "node-attempt.44f2062dbd1b0656be920d5aa7bddfedc533dd49b2c8ab4f61affe2a1385aaa8",
+    "kind": "tool_approval",
+    "model": "test-model",
+    "presentation": {
+      "tool_call": {
+        "arguments": {
+          "value": "approved child value"
+        },
+        "call_id": "child-approval-call",
+        "confirmation_id": "interaction_7d3fcc5e713928d09bef8b6d76927e8a",
+        "description": "",
+        "interact_config": {},
+        "interact_type": "confirmation",
+        "requires_confirmation": true,
+        "tool_display_name": "",
+        "tool_name": "dangerous_tool",
+        "toolkit_id": "",
+        "toolkit_name": ""
+      },
+      "trace_frame": {
+        "payload": {
+          "arguments": {
+            "value": "approved child value"
+          },
+          "call_id": "child-approval-call",
+          "confirmation_id": "interaction_7d3fcc5e713928d09bef8b6d76927e8a",
+          "description": "",
+          "interact_config": {},
+          "interact_type": "confirmation",
+          "requires_confirmation": true,
+          "tool_display_name": "",
+          "tool_name": "dangerous_tool",
+          "toolkit_id": "",
+          "toolkit_name": ""
+        },
+        "run_id": "node-attempt.44f2062dbd1b0656be920d5aa7bddfedc533dd49b2c8ab4f61affe2a1385aaa8",
+        "seq": 0,
+        "stage": "durable_recovery",
+        "ts": 1791597760982,
+        "type": "tool_call"
+      }
+    },
+    "provider": "openai",
+    "resume_available": true,
+    "resume_kind": "skeleton",
+    "resume_options": {},
+    "session_id": "route-child-session",
+    "source_run_id": "route-child-root",
+    "status": "awaiting_response"
+  },
+  "recorded": {
+    "active_attempt_id": "route-child-root",
+    "interaction_id": "interaction_7d3fcc5e713928d09bef8b6d76927e8a",
+    "interaction_session_id": "route-child-session:kernel.reviewer.1",
+    "interaction_source_run_id": "node-attempt.44f2062dbd1b0656be920d5aa7bddfedc533dd49b2c8ab4f61affe2a1385aaa8",
+    "kind": "tool_approval",
+    "model": "test-model",
+    "presentation": {
+      "tool_call": {
+        "arguments": {
+          "value": "approved child value"
+        },
+        "call_id": "child-approval-call",
+        "confirmation_id": "interaction_7d3fcc5e713928d09bef8b6d76927e8a",
+        "description": "",
+        "interact_config": {},
+        "interact_type": "confirmation",
+        "requires_confirmation": true,
+        "tool_display_name": "",
+        "tool_name": "dangerous_tool",
+        "toolkit_id": "",
+        "toolkit_name": ""
+      },
+      "trace_frame": {
+        "payload": {
+          "arguments": {
+            "value": "approved child value"
+          },
+          "call_id": "child-approval-call",
+          "confirmation_id": "interaction_7d3fcc5e713928d09bef8b6d76927e8a",
+          "description": "",
+          "interact_config": {},
+          "interact_type": "confirmation",
+          "requires_confirmation": true,
+          "tool_display_name": "",
+          "tool_name": "dangerous_tool",
+          "toolkit_id": "",
+          "toolkit_name": ""
+        },
+        "run_id": "node-attempt.44f2062dbd1b0656be920d5aa7bddfedc533dd49b2c8ab4f61affe2a1385aaa8",
+        "seq": 0,
+        "stage": "durable_recovery",
+        "ts": 1791597761926,
+        "type": "tool_call"
+      }
+    },
+    "provider": "openai",
+    "receipt_id": "receipt_2ffb355b772c0299415f6612cdf52a70",
+    "resolution": {
+      "outcome": "approved",
+      "response": {
+        "approved": true,
+        "modified_arguments": null,
+        "reason": ""
+      }
+    },
+    "resume_available": true,
+    "resume_kind": "skeleton",
+    "resume_options": {},
+    "session_id": "route-child-session",
+    "source_run_id": "route-child-root",
+    "status": "receipt_recorded"
+  }
+}

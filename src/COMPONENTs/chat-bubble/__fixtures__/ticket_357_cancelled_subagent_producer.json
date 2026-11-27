@@ -1,0 +1,631 @@
+{
+ "source": {
+  "consumer_contract": "/Users/red/.codex/artifacts/pupu-357/delegate-cancel-producer-01-20261027/consumer-contract.json",
+  "consumer_contract_sha256": "76384d46b40f9562944a269febccdc0fb17159dcec4dafcd0a904d6648908271",
+  "producer_jsonl": "/Users/red/.codex/artifacts/pupu-357/delegate-cancel-producer-01-20261027/guarded-regression-01/producer.jsonl",
+  "producer_jsonl_sha256": "4322bd261425497f9db0dd81ae64f7e10596b8f12ac9d03e8127b364d22736c6",
+  "declared_raw_sha256": "4322bd261425497f9db0dd81ae64f7e10596b8f12ac9d03e8127b364d22736c6"
+ },
+ "rows": [
+  {
+   "approved": false,
+   "mode": "delegate",
+   "consumer_node_attempt": "node-attempt.b77f5cec2e6d17291f0a8b8cb19f6faabdc94036b41d49e6803eeca389542d39",
+   "parent_wait": {
+    "child_attempt_id": "cancelled-child:model.reviewer.1:dd80e9c6-811d-573a-bc42-82b8ac8ad736",
+    "child_graph_id": "pupu-skeleton-host.subagent.0915a509c485d4bf1e765305490a33f66067f9db1950e9d7f568d67e0e667a7a",
+    "child_guard_session_id": "cancelled-child:model.reviewer.1",
+    "child_node_invocation_id": "node.22edba5d5471f308fc577bd34f2002473d4e8040013a686d9e72fbdda7cc70b2",
+    "child_wait_id": "interaction_0011887b323fc89d4ae1e5e754c81be4",
+    "child_wait_kind": "interaction",
+    "definition_digest": "84a00567f2b5b8b98b6a3855fe869764e04af54c811c6f8d6c6c0baff7b72ae7",
+    "entry_id": "reviewer",
+    "interaction_request": {
+     "created_revision": 0,
+     "interaction_id": "interaction_0011887b323fc89d4ae1e5e754c81be4",
+     "kind": "tool_approval",
+     "occurrence": "tool:child-approval-call:0",
+     "payload": {
+      "arguments": {
+       "value": "approved child value"
+      },
+      "call_id": "child-approval-call",
+      "description": "",
+      "render_component": {
+       "config": {},
+       "type": "confirmation",
+       "version": 1
+      },
+      "tool_name": "dangerous_tool",
+      "type": "tool_confirmation_request"
+     },
+     "request_digest": "0011887b323fc89d4ae1e5e754c81be4181e53b81e1d8e9e363f3858c529a93a",
+     "response_contract": {
+      "additionalProperties": false,
+      "properties": {
+       "approved": {
+        "type": "boolean"
+       },
+       "modified_arguments": {
+        "type": [
+         "object",
+         "null"
+        ]
+       },
+       "reason": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "approved",
+       "modified_arguments",
+       "reason"
+      ],
+      "type": "object"
+     },
+     "schema_digest": "49eefff5e9f1efed1f690f7931c8bb0e2045399644ce6587a4b6216403ec1ec4",
+     "schema_version": 1,
+     "session_id": "cancelled-child:model.reviewer.1",
+     "source_run_id": "node-attempt.22edba5d5471f308fc577bd34f2002473d4e8040013a686d9e72fbdda7cc70b2",
+     "subject": {
+      "binding_version": 1,
+      "extra": {
+       "context_v2_tool_authority": {
+        "intent_cursor": {
+         "event_id": "event-56aa04817a006b4f25784d0b7f57c423f53636e5c70775000963588a662b9ae2",
+         "schema": "unchain.event_cursor.v1",
+         "store_seq": 30
+        },
+        "original_arguments_sha256": "0d435abee685ecc12c9f1c1d1377d6746ebcbc7388d6af0b4817d9836ec8bad2",
+        "route_kind": "normal",
+        "route_manifest_sha256": "4d8732f5e722cc1d705ff32dac623381db170648b9e833ce0aa893f5ddc52097",
+        "schema": "unchain.context_tool_approval.v1",
+        "terminal_handler_manifest_sha256": "6a878556650ce44ac3cc447c508b93815b644c87bdb6334a7481172dd168437c"
+       }
+      },
+      "model": "test-model",
+      "prompt_digest": "98cdd3ccf4014dd7a021e6a812635db344f913d7c6dbf3279652d0b014c3b088",
+      "provider": "openai",
+      "tool_name": "dangerous_tool",
+      "tool_schema_digest": "cc6a856455bd31f14a04bad95d37b5f96103cde1c0977e553c75793c829d2bff"
+     }
+    },
+    "mode": "delegate",
+    "parent_graph_id": "pupu-skeleton-host",
+    "parent_kernel_node_id": "model",
+    "parent_node_invocation_id": "node.b77f5cec2e6d17291f0a8b8cb19f6faabdc94036b41d49e6803eeca389542d39",
+    "parent_tool_call": {
+     "call_id": "subagent-call-delegate",
+     "tool_name": "delegate_to_subagent"
+    },
+    "schema": "pupu.skeleton_subagent_wait.v2"
+   },
+   "response": {
+    "attempt_id": "skeleton-host-root",
+    "cancellation": {
+     "fencing_token": null,
+     "reason": "user_stop",
+     "requested_at_ms": 1793120264356
+    },
+    "context_interaction_reconciled": true,
+    "disposition": "cancelled",
+    "durable_interaction_cancelled": true,
+    "execution": null,
+    "execution_id": "cancelled-child",
+    "source_attempt_id": "skeleton-host-root",
+    "state": "cancelled",
+    "status": "ok",
+    "subagent_settlements": [
+     {
+      "call_id": "subagent-call-delegate",
+      "consumer_attempt": {
+       "attempt_id": "node-attempt.b77f5cec2e6d17291f0a8b8cb19f6faabdc94036b41d49e6803eeca389542d39",
+       "generation": {
+        "execution_id": "cancelled-child",
+        "generation_id": "pupu-bootstrap-generation-900e16d3c246d73fd9123673d109a563575599bdea67fdcc305828121b33e4a3",
+        "schema": "unchain.generation_ref.v1"
+       },
+       "schema": "unchain.attempt_ref.v1"
+      },
+      "cursor": {
+       "event_id": "event.skeleton.subagent-tool-settlement.ed9b82019c917c4ebdf674eb9553ad240b50ea4bb1e62b0cd1cc20c398d98895",
+       "schema": "unchain.event_cursor.v1",
+       "store_seq": 43
+      },
+      "result": {
+       "content_bytes": 127,
+       "content_sha256": "e8df4b3dac32645a9da7cfbaf4522835896e57acdae344d72780ce639f9d57f3",
+       "full_output_ref": {
+        "fragment": "",
+        "id": "artifact-24db66ea707cc88db0b925c9a57e45cd3e2e475ab4617258c48c606dc6c72339",
+        "kind": "artifact",
+        "revision": 1,
+        "schema": "unchain.resource_ref.v1"
+       },
+       "inline": true,
+       "preview": "{\"error\":\"\",\"outputs\":null,\"schema\":\"unchain.skeleton_child_completion.v1\",\"status\":\"cancelled\",\"summary\":\"Subagent cancelled\"}"
+      },
+      "schema": "unchain.skeleton_subagent_settlement_projection.v1",
+      "source_attempt": {
+       "attempt_id": "cancelled-child:model.reviewer.1:dd80e9c6-811d-573a-bc42-82b8ac8ad736",
+       "generation": {
+        "execution_id": "cancelled-child",
+        "generation_id": "pupu-bootstrap-generation-900e16d3c246d73fd9123673d109a563575599bdea67fdcc305828121b33e4a3",
+        "schema": "unchain.generation_ref.v1"
+       },
+       "schema": "unchain.attempt_ref.v1"
+      },
+      "status": "cancelled",
+      "tool_name": "delegate_to_subagent"
+     }
+    ]
+   },
+   "tool_effects": []
+  },
+  {
+   "approved": false,
+   "mode": "handoff",
+   "consumer_node_attempt": "node-attempt.b77f5cec2e6d17291f0a8b8cb19f6faabdc94036b41d49e6803eeca389542d39",
+   "parent_wait": {
+    "child_attempt_id": "cancelled-child:model.reviewer.1:48345c76-6e81-513f-a70e-1b8192ac475a",
+    "child_graph_id": "pupu-skeleton-host.subagent.938259d9ef2f71f815a80e2decb4215675946fde844cea9c42075c140fc887e1",
+    "child_guard_session_id": "cancelled-child:model.reviewer.1",
+    "child_node_invocation_id": "node.0cd13be3ea1cd9c58bc009c860f0df3d839c714d45491707666711734c9bd91e",
+    "child_wait_id": "interaction_f2723c8e1ba87ff421e5d462095f0df9",
+    "child_wait_kind": "interaction",
+    "definition_digest": "84a00567f2b5b8b98b6a3855fe869764e04af54c811c6f8d6c6c0baff7b72ae7",
+    "entry_id": "reviewer",
+    "interaction_request": {
+     "created_revision": 0,
+     "interaction_id": "interaction_f2723c8e1ba87ff421e5d462095f0df9",
+     "kind": "tool_approval",
+     "occurrence": "tool:child-approval-call:0",
+     "payload": {
+      "arguments": {
+       "value": "approved child value"
+      },
+      "call_id": "child-approval-call",
+      "description": "",
+      "render_component": {
+       "config": {},
+       "type": "confirmation",
+       "version": 1
+      },
+      "tool_name": "dangerous_tool",
+      "type": "tool_confirmation_request"
+     },
+     "request_digest": "f2723c8e1ba87ff421e5d462095f0df9c4919227895aaea246ab306463bc8578",
+     "response_contract": {
+      "additionalProperties": false,
+      "properties": {
+       "approved": {
+        "type": "boolean"
+       },
+       "modified_arguments": {
+        "type": [
+         "object",
+         "null"
+        ]
+       },
+       "reason": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "approved",
+       "modified_arguments",
+       "reason"
+      ],
+      "type": "object"
+     },
+     "schema_digest": "49eefff5e9f1efed1f690f7931c8bb0e2045399644ce6587a4b6216403ec1ec4",
+     "schema_version": 1,
+     "session_id": "cancelled-child:model.reviewer.1",
+     "source_run_id": "node-attempt.0cd13be3ea1cd9c58bc009c860f0df3d839c714d45491707666711734c9bd91e",
+     "subject": {
+      "binding_version": 1,
+      "extra": {
+       "context_v2_tool_authority": {
+        "intent_cursor": {
+         "event_id": "event-fb40994de2a4a2e8957acf1fdeee05d2ab21631ed5e0637f22e57934a2b70e18",
+         "schema": "unchain.event_cursor.v1",
+         "store_seq": 31
+        },
+        "original_arguments_sha256": "0d435abee685ecc12c9f1c1d1377d6746ebcbc7388d6af0b4817d9836ec8bad2",
+        "route_kind": "normal",
+        "route_manifest_sha256": "4d8732f5e722cc1d705ff32dac623381db170648b9e833ce0aa893f5ddc52097",
+        "schema": "unchain.context_tool_approval.v1",
+        "terminal_handler_manifest_sha256": "6a878556650ce44ac3cc447c508b93815b644c87bdb6334a7481172dd168437c"
+       }
+      },
+      "model": "test-model",
+      "prompt_digest": "98cdd3ccf4014dd7a021e6a812635db344f913d7c6dbf3279652d0b014c3b088",
+      "provider": "openai",
+      "tool_name": "dangerous_tool",
+      "tool_schema_digest": "cc6a856455bd31f14a04bad95d37b5f96103cde1c0977e553c75793c829d2bff"
+     }
+    },
+    "mode": "handoff",
+    "parent_graph_id": "pupu-skeleton-host",
+    "parent_kernel_node_id": "model",
+    "parent_node_invocation_id": "node.b77f5cec2e6d17291f0a8b8cb19f6faabdc94036b41d49e6803eeca389542d39",
+    "parent_tool_call": {
+     "call_id": "handoff-call",
+     "tool_name": "handoff_to_subagent"
+    },
+    "schema": "pupu.skeleton_subagent_wait.v2"
+   },
+   "response": {
+    "attempt_id": "skeleton-host-root",
+    "cancellation": {
+     "fencing_token": null,
+     "reason": "user_stop",
+     "requested_at_ms": 1793120276957
+    },
+    "context_interaction_reconciled": true,
+    "disposition": "cancelled",
+    "durable_interaction_cancelled": true,
+    "execution": null,
+    "execution_id": "cancelled-child",
+    "source_attempt_id": "skeleton-host-root",
+    "state": "cancelled",
+    "status": "ok",
+    "subagent_settlements": [
+     {
+      "call_id": "handoff-call",
+      "consumer_attempt": {
+       "attempt_id": "node-attempt.b77f5cec2e6d17291f0a8b8cb19f6faabdc94036b41d49e6803eeca389542d39",
+       "generation": {
+        "execution_id": "cancelled-child",
+        "generation_id": "pupu-bootstrap-generation-900e16d3c246d73fd9123673d109a563575599bdea67fdcc305828121b33e4a3",
+        "schema": "unchain.generation_ref.v1"
+       },
+       "schema": "unchain.attempt_ref.v1"
+      },
+      "cursor": {
+       "event_id": "event.skeleton.subagent-tool-settlement.e35d51b118d25f5f089dd93a4063336eb3ce4f409a829c1be00fadfc4df7ad84",
+       "schema": "unchain.event_cursor.v1",
+       "store_seq": 44
+      },
+      "result": {
+       "content_bytes": 127,
+       "content_sha256": "e8df4b3dac32645a9da7cfbaf4522835896e57acdae344d72780ce639f9d57f3",
+       "full_output_ref": {
+        "fragment": "",
+        "id": "artifact-e189121b3a19d288b1f8cbd01766a135a23228c107a6e2d58e5a8595bcba0892",
+        "kind": "artifact",
+        "revision": 1,
+        "schema": "unchain.resource_ref.v1"
+       },
+       "inline": true,
+       "preview": "{\"error\":\"\",\"outputs\":null,\"schema\":\"unchain.skeleton_child_completion.v1\",\"status\":\"cancelled\",\"summary\":\"Subagent cancelled\"}"
+      },
+      "schema": "unchain.skeleton_subagent_settlement_projection.v1",
+      "source_attempt": {
+       "attempt_id": "cancelled-child:model.reviewer.1:48345c76-6e81-513f-a70e-1b8192ac475a",
+       "generation": {
+        "execution_id": "cancelled-child",
+        "generation_id": "pupu-bootstrap-generation-900e16d3c246d73fd9123673d109a563575599bdea67fdcc305828121b33e4a3",
+        "schema": "unchain.generation_ref.v1"
+       },
+       "schema": "unchain.attempt_ref.v1"
+      },
+      "status": "cancelled",
+      "tool_name": "handoff_to_subagent"
+     }
+    ]
+   },
+   "tool_effects": []
+  },
+  {
+   "approved": true,
+   "mode": "delegate",
+   "consumer_node_attempt": "node-attempt.b77f5cec2e6d17291f0a8b8cb19f6faabdc94036b41d49e6803eeca389542d39",
+   "parent_wait": {
+    "child_attempt_id": "cancelled-child:model.reviewer.1:dd80e9c6-811d-573a-bc42-82b8ac8ad736",
+    "child_graph_id": "pupu-skeleton-host.subagent.0915a509c485d4bf1e765305490a33f66067f9db1950e9d7f568d67e0e667a7a",
+    "child_guard_session_id": "cancelled-child:model.reviewer.1",
+    "child_node_invocation_id": "node.22edba5d5471f308fc577bd34f2002473d4e8040013a686d9e72fbdda7cc70b2",
+    "child_wait_id": "interaction_0011887b323fc89d4ae1e5e754c81be4",
+    "child_wait_kind": "interaction",
+    "definition_digest": "84a00567f2b5b8b98b6a3855fe869764e04af54c811c6f8d6c6c0baff7b72ae7",
+    "entry_id": "reviewer",
+    "interaction_request": {
+     "created_revision": 0,
+     "interaction_id": "interaction_0011887b323fc89d4ae1e5e754c81be4",
+     "kind": "tool_approval",
+     "occurrence": "tool:child-approval-call:0",
+     "payload": {
+      "arguments": {
+       "value": "approved child value"
+      },
+      "call_id": "child-approval-call",
+      "description": "",
+      "render_component": {
+       "config": {},
+       "type": "confirmation",
+       "version": 1
+      },
+      "tool_name": "dangerous_tool",
+      "type": "tool_confirmation_request"
+     },
+     "request_digest": "0011887b323fc89d4ae1e5e754c81be4181e53b81e1d8e9e363f3858c529a93a",
+     "response_contract": {
+      "additionalProperties": false,
+      "properties": {
+       "approved": {
+        "type": "boolean"
+       },
+       "modified_arguments": {
+        "type": [
+         "object",
+         "null"
+        ]
+       },
+       "reason": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "approved",
+       "modified_arguments",
+       "reason"
+      ],
+      "type": "object"
+     },
+     "schema_digest": "49eefff5e9f1efed1f690f7931c8bb0e2045399644ce6587a4b6216403ec1ec4",
+     "schema_version": 1,
+     "session_id": "cancelled-child:model.reviewer.1",
+     "source_run_id": "node-attempt.22edba5d5471f308fc577bd34f2002473d4e8040013a686d9e72fbdda7cc70b2",
+     "subject": {
+      "binding_version": 1,
+      "extra": {
+       "context_v2_tool_authority": {
+        "intent_cursor": {
+         "event_id": "event-56aa04817a006b4f25784d0b7f57c423f53636e5c70775000963588a662b9ae2",
+         "schema": "unchain.event_cursor.v1",
+         "store_seq": 30
+        },
+        "original_arguments_sha256": "0d435abee685ecc12c9f1c1d1377d6746ebcbc7388d6af0b4817d9836ec8bad2",
+        "route_kind": "normal",
+        "route_manifest_sha256": "4d8732f5e722cc1d705ff32dac623381db170648b9e833ce0aa893f5ddc52097",
+        "schema": "unchain.context_tool_approval.v1",
+        "terminal_handler_manifest_sha256": "6a878556650ce44ac3cc447c508b93815b644c87bdb6334a7481172dd168437c"
+       }
+      },
+      "model": "test-model",
+      "prompt_digest": "98cdd3ccf4014dd7a021e6a812635db344f913d7c6dbf3279652d0b014c3b088",
+      "provider": "openai",
+      "tool_name": "dangerous_tool",
+      "tool_schema_digest": "cc6a856455bd31f14a04bad95d37b5f96103cde1c0977e553c75793c829d2bff"
+     }
+    },
+    "mode": "delegate",
+    "parent_graph_id": "pupu-skeleton-host",
+    "parent_kernel_node_id": "model",
+    "parent_node_invocation_id": "node.b77f5cec2e6d17291f0a8b8cb19f6faabdc94036b41d49e6803eeca389542d39",
+    "parent_tool_call": {
+     "call_id": "subagent-call-delegate",
+     "tool_name": "delegate_to_subagent"
+    },
+    "schema": "pupu.skeleton_subagent_wait.v2"
+   },
+   "response": {
+    "attempt_id": "skeleton-host-root",
+    "cancellation": {
+     "fencing_token": null,
+     "reason": "user_stop",
+     "requested_at_ms": 1793120289908
+    },
+    "context_interaction_reconciled": true,
+    "disposition": "cancelled",
+    "durable_interaction_cancelled": true,
+    "execution": null,
+    "execution_id": "cancelled-child",
+    "source_attempt_id": "skeleton-host-root",
+    "state": "cancelled",
+    "status": "ok",
+    "subagent_settlements": [
+     {
+      "call_id": "subagent-call-delegate",
+      "consumer_attempt": {
+       "attempt_id": "node-attempt.b77f5cec2e6d17291f0a8b8cb19f6faabdc94036b41d49e6803eeca389542d39",
+       "generation": {
+        "execution_id": "cancelled-child",
+        "generation_id": "pupu-bootstrap-generation-900e16d3c246d73fd9123673d109a563575599bdea67fdcc305828121b33e4a3",
+        "schema": "unchain.generation_ref.v1"
+       },
+       "schema": "unchain.attempt_ref.v1"
+      },
+      "cursor": {
+       "event_id": "event.skeleton.subagent-tool-settlement.ed9b82019c917c4ebdf674eb9553ad240b50ea4bb1e62b0cd1cc20c398d98895",
+       "schema": "unchain.event_cursor.v1",
+       "store_seq": 43
+      },
+      "result": {
+       "content_bytes": 127,
+       "content_sha256": "e8df4b3dac32645a9da7cfbaf4522835896e57acdae344d72780ce639f9d57f3",
+       "full_output_ref": {
+        "fragment": "",
+        "id": "artifact-24db66ea707cc88db0b925c9a57e45cd3e2e475ab4617258c48c606dc6c72339",
+        "kind": "artifact",
+        "revision": 1,
+        "schema": "unchain.resource_ref.v1"
+       },
+       "inline": true,
+       "preview": "{\"error\":\"\",\"outputs\":null,\"schema\":\"unchain.skeleton_child_completion.v1\",\"status\":\"cancelled\",\"summary\":\"Subagent cancelled\"}"
+      },
+      "schema": "unchain.skeleton_subagent_settlement_projection.v1",
+      "source_attempt": {
+       "attempt_id": "cancelled-child:model.reviewer.1:dd80e9c6-811d-573a-bc42-82b8ac8ad736",
+       "generation": {
+        "execution_id": "cancelled-child",
+        "generation_id": "pupu-bootstrap-generation-900e16d3c246d73fd9123673d109a563575599bdea67fdcc305828121b33e4a3",
+        "schema": "unchain.generation_ref.v1"
+       },
+       "schema": "unchain.attempt_ref.v1"
+      },
+      "status": "cancelled",
+      "tool_name": "delegate_to_subagent"
+     }
+    ]
+   },
+   "tool_effects": []
+  },
+  {
+   "approved": true,
+   "mode": "handoff",
+   "consumer_node_attempt": "node-attempt.b77f5cec2e6d17291f0a8b8cb19f6faabdc94036b41d49e6803eeca389542d39",
+   "parent_wait": {
+    "child_attempt_id": "cancelled-child:model.reviewer.1:48345c76-6e81-513f-a70e-1b8192ac475a",
+    "child_graph_id": "pupu-skeleton-host.subagent.938259d9ef2f71f815a80e2decb4215675946fde844cea9c42075c140fc887e1",
+    "child_guard_session_id": "cancelled-child:model.reviewer.1",
+    "child_node_invocation_id": "node.0cd13be3ea1cd9c58bc009c860f0df3d839c714d45491707666711734c9bd91e",
+    "child_wait_id": "interaction_f2723c8e1ba87ff421e5d462095f0df9",
+    "child_wait_kind": "interaction",
+    "definition_digest": "84a00567f2b5b8b98b6a3855fe869764e04af54c811c6f8d6c6c0baff7b72ae7",
+    "entry_id": "reviewer",
+    "interaction_request": {
+     "created_revision": 0,
+     "interaction_id": "interaction_f2723c8e1ba87ff421e5d462095f0df9",
+     "kind": "tool_approval",
+     "occurrence": "tool:child-approval-call:0",
+     "payload": {
+      "arguments": {
+       "value": "approved child value"
+      },
+      "call_id": "child-approval-call",
+      "description": "",
+      "render_component": {
+       "config": {},
+       "type": "confirmation",
+       "version": 1
+      },
+      "tool_name": "dangerous_tool",
+      "type": "tool_confirmation_request"
+     },
+     "request_digest": "f2723c8e1ba87ff421e5d462095f0df9c4919227895aaea246ab306463bc8578",
+     "response_contract": {
+      "additionalProperties": false,
+      "properties": {
+       "approved": {
+        "type": "boolean"
+       },
+       "modified_arguments": {
+        "type": [
+         "object",
+         "null"
+        ]
+       },
+       "reason": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "approved",
+       "modified_arguments",
+       "reason"
+      ],
+      "type": "object"
+     },
+     "schema_digest": "49eefff5e9f1efed1f690f7931c8bb0e2045399644ce6587a4b6216403ec1ec4",
+     "schema_version": 1,
+     "session_id": "cancelled-child:model.reviewer.1",
+     "source_run_id": "node-attempt.0cd13be3ea1cd9c58bc009c860f0df3d839c714d45491707666711734c9bd91e",
+     "subject": {
+      "binding_version": 1,
+      "extra": {
+       "context_v2_tool_authority": {
+        "intent_cursor": {
+         "event_id": "event-fb40994de2a4a2e8957acf1fdeee05d2ab21631ed5e0637f22e57934a2b70e18",
+         "schema": "unchain.event_cursor.v1",
+         "store_seq": 31
+        },
+        "original_arguments_sha256": "0d435abee685ecc12c9f1c1d1377d6746ebcbc7388d6af0b4817d9836ec8bad2",
+        "route_kind": "normal",
+        "route_manifest_sha256": "4d8732f5e722cc1d705ff32dac623381db170648b9e833ce0aa893f5ddc52097",
+        "schema": "unchain.context_tool_approval.v1",
+        "terminal_handler_manifest_sha256": "6a878556650ce44ac3cc447c508b93815b644c87bdb6334a7481172dd168437c"
+       }
+      },
+      "model": "test-model",
+      "prompt_digest": "98cdd3ccf4014dd7a021e6a812635db344f913d7c6dbf3279652d0b014c3b088",
+      "provider": "openai",
+      "tool_name": "dangerous_tool",
+      "tool_schema_digest": "cc6a856455bd31f14a04bad95d37b5f96103cde1c0977e553c75793c829d2bff"
+     }
+    },
+    "mode": "handoff",
+    "parent_graph_id": "pupu-skeleton-host",
+    "parent_kernel_node_id": "model",
+    "parent_node_invocation_id": "node.b77f5cec2e6d17291f0a8b8cb19f6faabdc94036b41d49e6803eeca389542d39",
+    "parent_tool_call": {
+     "call_id": "handoff-call",
+     "tool_name": "handoff_to_subagent"
+    },
+    "schema": "pupu.skeleton_subagent_wait.v2"
+   },
+   "response": {
+    "attempt_id": "skeleton-host-root",
+    "cancellation": {
+     "fencing_token": null,
+     "reason": "user_stop",
+     "requested_at_ms": 1793120302806
+    },
+    "context_interaction_reconciled": true,
+    "disposition": "cancelled",
+    "durable_interaction_cancelled": true,
+    "execution": null,
+    "execution_id": "cancelled-child",
+    "source_attempt_id": "skeleton-host-root",
+    "state": "cancelled",
+    "status": "ok",
+    "subagent_settlements": [
+     {
+      "call_id": "handoff-call",
+      "consumer_attempt": {
+       "attempt_id": "node-attempt.b77f5cec2e6d17291f0a8b8cb19f6faabdc94036b41d49e6803eeca389542d39",
+       "generation": {
+        "execution_id": "cancelled-child",
+        "generation_id": "pupu-bootstrap-generation-900e16d3c246d73fd9123673d109a563575599bdea67fdcc305828121b33e4a3",
+        "schema": "unchain.generation_ref.v1"
+       },
+       "schema": "unchain.attempt_ref.v1"
+      },
+      "cursor": {
+       "event_id": "event.skeleton.subagent-tool-settlement.e35d51b118d25f5f089dd93a4063336eb3ce4f409a829c1be00fadfc4df7ad84",
+       "schema": "unchain.event_cursor.v1",
+       "store_seq": 44
+      },
+      "result": {
+       "content_bytes": 127,
+       "content_sha256": "e8df4b3dac32645a9da7cfbaf4522835896e57acdae344d72780ce639f9d57f3",
+       "full_output_ref": {
+        "fragment": "",
+        "id": "artifact-e189121b3a19d288b1f8cbd01766a135a23228c107a6e2d58e5a8595bcba0892",
+        "kind": "artifact",
+        "revision": 1,
+        "schema": "unchain.resource_ref.v1"
+       },
+       "inline": true,
+       "preview": "{\"error\":\"\",\"outputs\":null,\"schema\":\"unchain.skeleton_child_completion.v1\",\"status\":\"cancelled\",\"summary\":\"Subagent cancelled\"}"
+      },
+      "schema": "unchain.skeleton_subagent_settlement_projection.v1",
+      "source_attempt": {
+       "attempt_id": "cancelled-child:model.reviewer.1:48345c76-6e81-513f-a70e-1b8192ac475a",
+       "generation": {
+        "execution_id": "cancelled-child",
+        "generation_id": "pupu-bootstrap-generation-900e16d3c246d73fd9123673d109a563575599bdea67fdcc305828121b33e4a3",
+        "schema": "unchain.generation_ref.v1"
+       },
+       "schema": "unchain.attempt_ref.v1"
+      },
+      "status": "cancelled",
+      "tool_name": "handoff_to_subagent"
+     }
+    ]
+   },
+   "tool_effects": []
+  }
+ ]
+}

@@ -129,8 +129,6 @@ def test_argon_host_output_request_above_synchronous_contract_never_sends(limit)
         io.fetch_turn(ModelTurnRequest(messages=[{"role": "user", "content": "hello"}], payload=payload))
 
 
-def test_argon_recipe_can_select_exact_catalog_model():
-    source = (ROOT / "src/COMPONENTs/agents/pages/recipes_page/detail_panel/agent_panel.js").read_text()
-    assert f'{{ value: "{MODEL_ID}", label: "{MODEL_ID}" }}' in source
+def test_argon_is_in_the_host_catalog():
     with mock.patch.object(adapter, "_fetch_ollama_models", return_value=[]):
         assert MODEL in adapter.get_capability_catalog()["gemini"]

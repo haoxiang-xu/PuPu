@@ -2,11 +2,54 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
+import vm from "node:vm";
 
 import YAML from "yaml";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
 const read = (relativePath) => fs.readFileSync(path.join(ROOT, relativePath), "utf8");
+
+test("Linux resolves the Electron binary before configuring its SUID sandbox", () => {
+  const shared = YAML.parse(read(".github/workflows/_shared-release-playwright.yml"));
+  const step = shared.jobs.playwright.steps.find(
+    (step) => step.name === "Configure Electron SUID sandbox (Linux)",
+  );
+  assert.equal(step.if, "runner.os == 'Linux'");
+  assert.notEqual(step["continue-on-error"], true);
+  const snippet = step.run.match(/node <<'NODE'\n([\s\S]*?)\nNODE/);
+  assert.ok(snippet, "materialize and verify Electron before privileged setup");
+  assert.ok(step.run.indexOf('require("electron")') < step.run.indexOf("sudo chown"));
+  assert.match(step.run, /sudo chown root:root node_modules\/electron\/dist\/chrome-sandbox/);
+  assert.match(step.run, /sudo chmod 4755 node_modules\/electron\/dist\/chrome-sandbox/);
+  assert.doesNotMatch(step.run, /--no-sandbox|\|\|\s*true/);
+
+  const executable = path.resolve("node_modules/electron/dist/electron");
+  const sandbox = path.join(path.dirname(executable), "chrome-sandbox");
+  const run = ({ resolved = executable, rejectedFile = null } = {}) => {
+    const checked = [];
+    vm.runInNewContext(snippet[1], {
+      require: (name) => {
+        if (name === "electron") return resolved;
+        if (name === "node:path") return path;
+        if (name === "node:fs") return {
+          constants: fs.constants,
+          lstatSync: (filename) => ({ isFile: () => filename !== rejectedFile }),
+          accessSync: (filename, mode) => {
+            assert.equal(mode, fs.constants.X_OK);
+            checked.push(filename);
+          },
+        };
+        throw new Error(`unexpected dependency: ${name}`);
+      },
+    });
+    return checked;
+  };
+  assert.deepEqual(run(), [executable, sandbox]);
+  assert.throws(() => run({ resolved: path.join(path.dirname(executable), "other") }), /Unexpected Electron binary path/);
+  for (const rejectedFile of [executable, sandbox]) {
+    assert.throws(() => run({ rejectedFile }), /regular file/);
+  }
+});
 
 test("Playwright release QA consumes Deterministic QA's exact sidecar artifact", () => {
   const caller = YAML.parse(read(".github/workflows/release-qa.yml"));

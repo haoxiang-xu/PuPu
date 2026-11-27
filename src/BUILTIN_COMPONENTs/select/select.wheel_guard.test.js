@@ -68,6 +68,21 @@ const make_scrollable = (el, { scrollHeight, clientHeight, scrollTop }) => {
   });
 };
 
+test("an overflowing provider rail scrolls and stops wheel chaining at its edge", () => {
+  render(<Select open variant="palette" palette_rail filterable filter_mode="panel"
+    options={Array.from({ length: 16 }, (_, index) => ({
+      group: `Provider ${index}`, collapsed: index !== 0,
+      options: [{ value: `model-${index}`, label: `Model ${index}` }],
+    }))}
+    value="model-0" set_value={() => {}} on_open_change={() => {}} />);
+  const item = screen.getByTitle("Provider 0");
+  const rail = item.parentElement;
+  make_scrollable(rail, { scrollHeight: 540, clientHeight: 270, scrollTop: 0 });
+  expect(rail).toHaveStyle({ overflowY: "auto" });
+  expect(dispatch_wheel(item, 25).defaultPrevented).toBe(false);
+  expect(dispatch_wheel(item, -25).defaultPrevented).toBe(true);
+});
+
 describe.each([
   ["default variant (Settings → appearance uses this)", {}],
   [

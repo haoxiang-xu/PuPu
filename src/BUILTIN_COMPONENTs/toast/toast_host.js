@@ -1,3 +1,4 @@
+import ShadowSurface from "../material/shadow_surface";
 import {
   useContext,
   useEffect,
@@ -162,7 +163,7 @@ const ToastCard = ({ item, onDismiss }) => {
   const enterY = isTopPosition(item.position) ? -14 : 14;
 
   return (
-    <div
+    <ShadowSurface
       role={assertive ? "alert" : "status"}
       aria-live={assertive ? "assertive" : "polite"}
       onMouseEnter={() => setHovered(true)}
@@ -297,7 +298,7 @@ const ToastCard = ({ item, onDismiss }) => {
           }}
         />
       ) : null}
-    </div>
+    </ShadowSurface>
   );
 };
 

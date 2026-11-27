@@ -1,0 +1,589 @@
+{
+  "anthropic:claude-fable-5-2": {
+    "catalog": {
+      "active": {
+        "capabilities": {
+          "computer_use": {
+            "mode": "unsupported",
+            "protocol": "",
+            "reason": "unsupported_model",
+            "stability": "stable",
+            "supported": false
+          },
+          "default_reasoning_effort": "high",
+          "input_modalities": [
+            "text",
+            "image",
+            "pdf"
+          ],
+          "input_source_types": {
+            "image": [
+              "url",
+              "base64"
+            ],
+            "pdf": [
+              "url",
+              "base64"
+            ]
+          },
+          "max_context_window_tokens": 1000000,
+          "reasoning_efforts": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        },
+        "model": "claude-fable-5-2",
+        "model_id": "anthropic:claude-fable-5-2",
+        "provider": "anthropic"
+      },
+      "embedding_providers": {},
+      "model_capabilities": {
+        "anthropic:claude-fable-5-2": {
+          "computer_use": {
+            "mode": "unsupported",
+            "protocol": "",
+            "reason": "unsupported_model",
+            "stability": "stable",
+            "supported": false
+          },
+          "default_reasoning_effort": "high",
+          "input_modalities": [
+            "text",
+            "image",
+            "pdf"
+          ],
+          "input_source_types": {
+            "image": [
+              "url",
+              "base64"
+            ],
+            "pdf": [
+              "url",
+              "base64"
+            ]
+          },
+          "max_context_window_tokens": 1000000,
+          "reasoning_efforts": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      },
+      "providers": {
+        "anthropic": [
+          "claude-fable-5-2"
+        ]
+      }
+    },
+    "payloads": {
+      "high": {
+        "output_config": {
+          "effort": "high"
+        }
+      },
+      "invalid": {
+        "output_config": {
+          "effort": "high"
+        }
+      },
+      "low": {
+        "output_config": {
+          "effort": "low"
+        }
+      },
+      "max": {
+        "output_config": {
+          "effort": "max"
+        }
+      },
+      "medium": {
+        "output_config": {
+          "effort": "medium"
+        }
+      },
+      "minimal": {
+        "output_config": {
+          "effort": "high"
+        }
+      },
+      "xhigh": {
+        "output_config": {
+          "effort": "xhigh"
+        }
+      }
+    }
+  },
+  "anthropic:claude-haiku-5-5": {
+    "catalog": {
+      "active": {
+        "capabilities": {
+          "computer_use": {
+            "mode": "unsupported",
+            "protocol": "",
+            "reason": "unsupported_model",
+            "stability": "stable",
+            "supported": false
+          },
+          "default_reasoning_effort": "medium",
+          "input_modalities": [
+            "text",
+            "image",
+            "pdf"
+          ],
+          "input_source_types": {
+            "image": [
+              "url",
+              "base64"
+            ],
+            "pdf": [
+              "url",
+              "base64"
+            ]
+          },
+          "max_context_window_tokens": 1000000,
+          "reasoning_efforts": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        },
+        "model": "claude-haiku-5-5",
+        "model_id": "anthropic:claude-haiku-5-5",
+        "provider": "anthropic"
+      },
+      "embedding_providers": {},
+      "model_capabilities": {
+        "anthropic:claude-haiku-5-5": {
+          "computer_use": {
+            "mode": "unsupported",
+            "protocol": "",
+            "reason": "unsupported_model",
+            "stability": "stable",
+            "supported": false
+          },
+          "default_reasoning_effort": "medium",
+          "input_modalities": [
+            "text",
+            "image",
+            "pdf"
+          ],
+          "input_source_types": {
+            "image": [
+              "url",
+              "base64"
+            ],
+            "pdf": [
+              "url",
+              "base64"
+            ]
+          },
+          "max_context_window_tokens": 1000000,
+          "reasoning_efforts": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      },
+      "providers": {
+        "anthropic": [
+          "claude-haiku-5-5"
+        ]
+      }
+    },
+    "payloads": {
+      "high": {
+        "output_config": {
+          "effort": "high"
+        }
+      },
+      "invalid": {
+        "output_config": {
+          "effort": "medium"
+        }
+      },
+      "low": {
+        "output_config": {
+          "effort": "low"
+        }
+      },
+      "max": {
+        "output_config": {
+          "effort": "max"
+        }
+      },
+      "medium": {
+        "output_config": {
+          "effort": "medium"
+        }
+      },
+      "minimal": {
+        "output_config": {
+          "effort": "medium"
+        }
+      },
+      "xhigh": {
+        "output_config": {
+          "effort": "xhigh"
+        }
+      }
+    }
+  },
+  "anthropic:claude-sonnet-5-5": {
+    "catalog": {
+      "active": {
+        "capabilities": {
+          "computer_use": {
+            "mode": "unsupported",
+            "protocol": "",
+            "reason": "unsupported_model",
+            "stability": "stable",
+            "supported": false
+          },
+          "default_reasoning_effort": "high",
+          "input_modalities": [
+            "text",
+            "image",
+            "pdf"
+          ],
+          "input_source_types": {
+            "image": [
+              "url",
+              "base64"
+            ],
+            "pdf": [
+              "url",
+              "base64"
+            ]
+          },
+          "max_context_window_tokens": 1000000,
+          "reasoning_efforts": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        },
+        "model": "claude-sonnet-5-5",
+        "model_id": "anthropic:claude-sonnet-5-5",
+        "provider": "anthropic"
+      },
+      "embedding_providers": {},
+      "model_capabilities": {
+        "anthropic:claude-sonnet-5-5": {
+          "computer_use": {
+            "mode": "unsupported",
+            "protocol": "",
+            "reason": "unsupported_model",
+            "stability": "stable",
+            "supported": false
+          },
+          "default_reasoning_effort": "high",
+          "input_modalities": [
+            "text",
+            "image",
+            "pdf"
+          ],
+          "input_source_types": {
+            "image": [
+              "url",
+              "base64"
+            ],
+            "pdf": [
+              "url",
+              "base64"
+            ]
+          },
+          "max_context_window_tokens": 1000000,
+          "reasoning_efforts": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      },
+      "providers": {
+        "anthropic": [
+          "claude-sonnet-5-5"
+        ]
+      }
+    },
+    "payloads": {
+      "high": {
+        "output_config": {
+          "effort": "high"
+        }
+      },
+      "invalid": {
+        "output_config": {
+          "effort": "high"
+        }
+      },
+      "low": {
+        "output_config": {
+          "effort": "low"
+        }
+      },
+      "max": {
+        "output_config": {
+          "effort": "max"
+        }
+      },
+      "medium": {
+        "output_config": {
+          "effort": "medium"
+        }
+      },
+      "minimal": {
+        "output_config": {
+          "effort": "high"
+        }
+      },
+      "xhigh": {
+        "output_config": {
+          "effort": "xhigh"
+        }
+      }
+    }
+  },
+  "openai:gpt-6.1-sol": {
+    "catalog": {
+      "active": {
+        "capabilities": {
+          "computer_use": {
+            "mode": "unsupported",
+            "protocol": "",
+            "reason": "unsupported_model",
+            "stability": "stable",
+            "supported": false
+          },
+          "default_reasoning_effort": "medium",
+          "input_modalities": [
+            "text",
+            "image"
+          ],
+          "input_source_types": {
+            "image": [
+              "url",
+              "base64"
+            ]
+          },
+          "max_context_window_tokens": 1050000,
+          "reasoning_efforts": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        },
+        "model": "gpt-6.1-sol",
+        "model_id": "openai:gpt-6.1-sol",
+        "provider": "openai"
+      },
+      "embedding_providers": {},
+      "model_capabilities": {
+        "openai:gpt-6.1-sol": {
+          "computer_use": {
+            "mode": "unsupported",
+            "protocol": "",
+            "reason": "unsupported_model",
+            "stability": "stable",
+            "supported": false
+          },
+          "default_reasoning_effort": "medium",
+          "input_modalities": [
+            "text",
+            "image"
+          ],
+          "input_source_types": {
+            "image": [
+              "url",
+              "base64"
+            ]
+          },
+          "max_context_window_tokens": 1050000,
+          "reasoning_efforts": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      },
+      "providers": {
+        "openai": [
+          "gpt-6.1-sol"
+        ]
+      }
+    },
+    "payloads": {
+      "high": {
+        "reasoning": {
+          "effort": "high"
+        }
+      },
+      "invalid": {
+        "reasoning": {
+          "effort": "medium"
+        }
+      },
+      "low": {
+        "reasoning": {
+          "effort": "low"
+        }
+      },
+      "max": {
+        "reasoning": {
+          "effort": "max"
+        }
+      },
+      "medium": {
+        "reasoning": {
+          "effort": "medium"
+        }
+      },
+      "minimal": {
+        "reasoning": {
+          "effort": "medium"
+        }
+      },
+      "xhigh": {
+        "reasoning": {
+          "effort": "xhigh"
+        }
+      }
+    }
+  },
+  "openai:gpt-6.1-terra": {
+    "catalog": {
+      "active": {
+        "capabilities": {
+          "computer_use": {
+            "mode": "unsupported",
+            "protocol": "",
+            "reason": "unsupported_model",
+            "stability": "stable",
+            "supported": false
+          },
+          "default_reasoning_effort": "medium",
+          "input_modalities": [
+            "text",
+            "image"
+          ],
+          "input_source_types": {
+            "image": [
+              "url",
+              "base64"
+            ]
+          },
+          "max_context_window_tokens": 1050000,
+          "reasoning_efforts": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        },
+        "model": "gpt-6.1-terra",
+        "model_id": "openai:gpt-6.1-terra",
+        "provider": "openai"
+      },
+      "embedding_providers": {},
+      "model_capabilities": {
+        "openai:gpt-6.1-terra": {
+          "computer_use": {
+            "mode": "unsupported",
+            "protocol": "",
+            "reason": "unsupported_model",
+            "stability": "stable",
+            "supported": false
+          },
+          "default_reasoning_effort": "medium",
+          "input_modalities": [
+            "text",
+            "image"
+          ],
+          "input_source_types": {
+            "image": [
+              "url",
+              "base64"
+            ]
+          },
+          "max_context_window_tokens": 1050000,
+          "reasoning_efforts": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      },
+      "providers": {
+        "openai": [
+          "gpt-6.1-terra"
+        ]
+      }
+    },
+    "payloads": {
+      "high": {
+        "reasoning": {
+          "effort": "high"
+        }
+      },
+      "invalid": {
+        "reasoning": {
+          "effort": "medium"
+        }
+      },
+      "low": {
+        "reasoning": {
+          "effort": "low"
+        }
+      },
+      "max": {
+        "reasoning": {
+          "effort": "max"
+        }
+      },
+      "medium": {
+        "reasoning": {
+          "effort": "medium"
+        }
+      },
+      "minimal": {
+        "reasoning": {
+          "effort": "medium"
+        }
+      },
+      "none": {
+        "reasoning": {
+          "effort": "none"
+        }
+      },
+      "xhigh": {
+        "reasoning": {
+          "effort": "xhigh"
+        }
+      }
+    }
+  }
+}

@@ -2,6 +2,7 @@ import {
   hexToRgbTriplet,
   resolveSemanticPalette,
   semanticCssVars,
+  calibratedGlass,
   applySemanticCssVars,
   applySemanticPaletteToTheme,
   BORDER_TIER_ALPHA,
@@ -528,6 +529,8 @@ describe("taxonomy v2 — emitted variable set (whitelist increment lock)", () =
       "--pupu-overlay-selected", "--pupu-overlay-ghost",
       "--pupu-border-strong", "--pupu-border-mid", "--pupu-border-subtle",
       "--pupu-chip-border", "--pupu-menu-border", "--pupu-card-border",
+      /* The see-through side menus, solved to land on --pupu-sidebar. */
+      "--pupu-sidebar-glass",
     );
     for (const hue of ["accent", "success", "warning", "danger", "info"]) {
       expected.push(
@@ -714,5 +717,40 @@ describe("applySemanticPaletteToTheme wires the trace chain to Label", () => {
 
   test("non-colour timeline keys survive the merge", () => {
     expect(out.timeline.spanFontSize).toBe("11px");
+  });
+});
+
+describe("calibratedGlass — see-through side menus keep their colour", () => {
+  const composite = (glass, back) => {
+    const [r, g, b, a] = glass.match(/rgba\(([^)]+)\)/)[1].split(",").map(Number);
+    const bg = back.split(",").map(Number);
+    return [r, g, b].map((c, i) => a * c + (1 - a) * bg[i]);
+  };
+
+  test.each([
+    ["light default", "245, 245, 245", "255, 255, 255"],
+    ["dark default", "21, 21, 21", "18, 18, 18"],
+    ["tinted preset", "238, 245, 249", "247, 251, 253"],
+  ])("%s composites back to the sidebar colour", (_name, sidebar, background) => {
+    const glass = calibratedGlass(sidebar, background);
+    const target = sidebar.split(",").map(Number);
+    composite(glass, background).forEach((c, i) => {
+      expect(Math.abs(c - target[i])).toBeLessThan(0.6);
+    });
+    expect(Number(glass.match(/, ([\d.]+)\)$/)[1])).toBeLessThan(1);
+  });
+
+  test("raises the alpha when the default one cannot reach the colour", () => {
+    const glass = calibratedGlass("0, 0, 0", "255, 255, 255");
+    expect(glass).toBe("rgba(0, 0, 0, 1)");
+  });
+
+  test("an unreadable colour emits nothing rather than a wrong one", () => {
+    expect(calibratedGlass("nope", "255, 255, 255")).toBeNull();
+  });
+
+  test("semanticCssVars emits it from the palette's sidebar and background", () => {
+    const vars = semanticCssVars({ background: "#ffffff", sidebar: "#f5f5f5" });
+    expect(vars["--pupu-sidebar-glass"]).toBe(calibratedGlass("245, 245, 245", "255, 255, 255"));
   });
 });
